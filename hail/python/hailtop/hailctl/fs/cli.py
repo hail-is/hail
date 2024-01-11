@@ -67,7 +67,7 @@ def ls(paths: Ann[Optional[List[str]], Arg()] = None,
     List objects
     '''
     import tabulate  # pylint: disable=import-outside-toplevel
-    import hailtop.fs.fs_utils  # pylint: disable=import-outside-toplevel
+    from hailtop.fs.router_fs import RouterFS  # pylint: disable=import-outside-toplevel
     from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
 
     def display_bytes(size):
@@ -76,11 +76,13 @@ def ls(paths: Ann[Optional[List[str]], Arg()] = None,
         if human_readable:
             return humanize.naturalsize(size, gnu=True)
         return size
+
+    fs = RouterFS()
     try:
         if not paths:
             paths = ['.']
         for path in paths:
-            listing = hailtop.fs.fs_utils.ls(path)
+            listing = fs.ls(path)
             listing.sort(key=lambda item: item.path)
             if long:
                 listing = [(item.typ,
@@ -93,5 +95,4 @@ def ls(paths: Ann[Optional[List[str]], Arg()] = None,
             else:
                 print(*(item.path for item in listing), sep='\n')
     finally:
-        afs = hailtop.fs.fs_utils._fs().afs
-        async_to_blocking(afs.close())
+        async_to_blocking(fs.afs.close())
