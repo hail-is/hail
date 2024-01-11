@@ -3,6 +3,7 @@ from types import TracebackType
 
 import abc
 import re
+import os
 import asyncio
 from functools import wraps
 import secrets
@@ -236,8 +237,8 @@ class AzureFileListEntry(FileListEntry):
         self._blob_props = blob_props
         self._status: Optional[AzureFileStatus] = None
 
-    def name(self) -> str:
-        return self._url.path
+    def basename(self) -> str:
+        return os.path.basename(self._url.base.rstrip('/'))
 
     async def url(self) -> str:
         return self._url.base
@@ -255,13 +256,20 @@ class AzureFileListEntry(FileListEntry):
         if self._status is None:
             if self._blob_props is None:
                 raise IsADirectoryError(await self.url())
-            self._status = AzureFileStatus(self._blob_props)
+            self._status = AzureFileStatus(self._blob_props, self._url)
         return self._status
 
 
 class AzureFileStatus(FileStatus):
-    def __init__(self, blob_props: BlobProperties):
+    def __init__(self, blob_props: BlobProperties, url: 'AzureAsyncFSURL'):
         self.blob_props = blob_props
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self.url().rstrip('/'))
+
+    def url(self) -> str:
+        return str(self._url)
 
     async def size(self) -> int:
         size = self.blob_props.size

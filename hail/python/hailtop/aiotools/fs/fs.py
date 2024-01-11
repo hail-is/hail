@@ -38,6 +38,46 @@ async def with_exception(
 
 class FileStatus(abc.ABC):
     @abc.abstractmethod
+    def basename(self) -> str:
+        '''The basename of the object.
+
+        Examples
+        --------
+
+        The basename of all of these objects is "file":
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+        - /folder/file
+        '''
+        pass
+
+    @abc.abstractmethod
+    def url(self) -> str:
+        '''The URL of the object without any query parameters.
+
+        Examples
+        --------
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - /folder/file
+
+        Note that the following URL
+
+            https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+
+        becomes
+
+            https://account.blob.core.windows.net/container/folder/file
+
+        '''
+        pass
+
+    @abc.abstractmethod
     async def size(self) -> int:
         pass
 
@@ -66,17 +106,64 @@ class FileStatus(abc.ABC):
 
 class FileListEntry(abc.ABC):
     @abc.abstractmethod
-    def name(self) -> str:
+    def basename(self) -> str:
+        '''The basename of the object.
+
+        Examples
+        --------
+
+        The basename of all of these objects is "file":
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+        - /folder/file
+        '''
         pass
 
     @abc.abstractmethod
     async def url(self) -> str:
+        '''The URL of the object without any query parameters.
+
+        Examples
+        --------
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - /folder/file
+
+        Note that the following URL
+
+            https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+
+        becomes
+
+            https://account.blob.core.windows.net/container/folder/file
+
+        '''
         pass
 
     async def url_maybe_trailing_slash(self) -> str:
         return await self.url()
 
     async def url_full(self) -> str:
+        '''The URL of the object with any query parameters.
+
+        Examples
+        --------
+
+        The only interesting case are signed URLs in Azure. These are called shared signature tokens or SAS tokens.
+        For example, the following URL
+
+            https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+
+        is a signed version of this URL
+
+            https://account.blob.core.windows.net/container/folder/file
+
+        '''
         return await self.url()
 
     @abc.abstractmethod

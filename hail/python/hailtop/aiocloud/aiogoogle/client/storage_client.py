@@ -441,8 +441,15 @@ class GoogleStorageClient(GoogleBaseClient):
 
 
 class GetObjectFileStatus(FileStatus):
-    def __init__(self, items: Dict[str, str]):
+    def __init__(self, items: Dict[str, str], url: str):
         self._items = items
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.rstrip('/'))
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return int(self._items['size'])
@@ -464,8 +471,8 @@ class GoogleStorageFileListEntry(FileListEntry):
         self._items = items
         self._status: Optional[GetObjectFileStatus] = None
 
-    def name(self) -> str:
-        return os.path.basename(self._name)
+    def basename(self) -> str:
+        return os.path.basename(self._name.rstrip('/'))
 
     async def url(self) -> str:
         return f'gs://{self._bucket}/{self._name}'
@@ -480,7 +487,7 @@ class GoogleStorageFileListEntry(FileListEntry):
         if self._status is None:
             if self._items is None:
                 raise IsADirectoryError(await self.url())
-            self._status = GetObjectFileStatus(self._items)
+            self._status = GetObjectFileStatus(self._items, await self.url())
         return self._status
 
 
@@ -701,7 +708,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def statfile(self, url: str) -> GetObjectFileStatus:
         try:
             bucket, name = self.get_bucket_and_name(url)
-            return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name))
+            return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name), url)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError(url) from e
