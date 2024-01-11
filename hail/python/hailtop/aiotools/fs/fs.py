@@ -52,7 +52,6 @@ class FileStatus(abc.ABC):
         - https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
         - /folder/file
         '''
-        pass
 
     @abc.abstractmethod
     def url(self) -> str:
@@ -75,7 +74,6 @@ class FileStatus(abc.ABC):
             https://account.blob.core.windows.net/container/folder/file
 
         '''
-        pass
 
     @abc.abstractmethod
     async def size(self) -> int:
@@ -120,7 +118,6 @@ class FileListEntry(abc.ABC):
         - https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
         - /folder/file
         '''
-        pass
 
     @abc.abstractmethod
     async def url(self) -> str:
@@ -143,7 +140,6 @@ class FileListEntry(abc.ABC):
             https://account.blob.core.windows.net/container/folder/file
 
         '''
-        pass
 
     async def url_maybe_trailing_slash(self) -> str:
         return await self.url()
