@@ -546,8 +546,9 @@ class AzureAsyncFS(AsyncFS):
     @handle_public_access_error
     async def statfile(self, url: str) -> FileStatus:
         try:
-            blob_props = await self.get_blob_client(self.parse_url(url)).get_blob_properties()
-            return AzureFileStatus(blob_props)
+            parsed_url = self.parse_url(url)
+            blob_props = await self.get_blob_client(parsed_url).get_blob_properties()
+            return AzureFileStatus(blob_props, parsed_url)
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 
