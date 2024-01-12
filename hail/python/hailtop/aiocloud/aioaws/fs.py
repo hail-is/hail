@@ -343,7 +343,7 @@ class S3AsyncFS(AsyncFS):
         max_workers: Optional[int] = None,
         *,
         max_pool_connections: int = 10,
-        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]],
+        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]] = None,
     ):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)

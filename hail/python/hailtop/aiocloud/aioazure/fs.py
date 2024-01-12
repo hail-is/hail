@@ -370,7 +370,7 @@ class AzureAsyncFS(AsyncFS):
         *,
         credential_file: Optional[str] = None,
         credentials: Optional[AzureCredentials] = None,
-        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]],
+        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]] = None,
     ):
         if credentials is None:
             scopes = ['https://storage.azure.com/.default']
