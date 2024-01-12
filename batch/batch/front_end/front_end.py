@@ -1445,13 +1445,13 @@ WHERE batch_id = %s AND token = %s;
         # We don't allow updates to batches that have been cancelled
         # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id AND job_groups_cancelled.job_group_id = %s
 WHERE batches.id = %s AND batches.user = %s AND NOT deleted
 FOR UPDATE;
-''',
+""",
             (ROOT_JOB_GROUP_ID, batch_id, user),
         )
         if not record:
@@ -1496,7 +1496,7 @@ async def _get_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT batches.*,
   job_groups_cancelled.id IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
@@ -1522,7 +1522,7 @@ LEFT JOIN LATERAL (
   GROUP BY batch_id, job_group_id
 ) AS cost_t ON TRUE
 WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
-''',
+""",
         (batch_id, ROOT_JOB_GROUP_ID),
     )
     if not record:
@@ -1584,12 +1584,12 @@ async def close_batch(request, userdata):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM job_groups
 LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
-''',
+""",
         (user, batch_id, ROOT_JOB_GROUP_ID),
     )
     if not record:
@@ -1621,14 +1621,14 @@ async def commit_update(request: web.Request, userdata):
     update_id = int(request.match_info['update_id'])
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT start_job_id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM job_groups
 LEFT JOIN batches ON job_groups.batch_id = batches.id
 LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id
 LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE job_groups.user = %s AND job_groups.batch_id = %s AND job_groups.job_group_id = %s AND batch_updates.update_id = %s AND NOT deleted;
-''',
+""",
         (user, batch_id, ROOT_JOB_GROUP_ID, update_id),
     )
     if not record:

@@ -31,7 +31,7 @@ log = logging.getLogger('job')
 
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT batches.*,
   cost_t.cost,
   cost_t.cost_breakdown,
@@ -59,7 +59,7 @@ LEFT JOIN job_groups_cancelled
   ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND job_groups.callback IS NOT NULL AND
    job_groups.`state` = 'complete';
-''',
+""",
         (batch_id, ROOT_JOB_GROUP_ID),
         'notify_batch_job_complete',
     )

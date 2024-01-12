@@ -95,36 +95,36 @@ HAVING n_cancelled_ready_jobs > 0;
 
         async def user_cancelled_ready_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for job_group in self.db.select_and_fetchall(
-                '''
+                """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM job_groups
 LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(  # FIXME: Do we need a new index again?
-                        '''
+                        """
 SELECT jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
-''',
+""",
                         (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                     ):
                         record['batch_id'] = job_group['batch_id']
                         yield record
                 else:
                     async for record in self.db.select_and_fetchall(  # FIXME: Do we need a new index again?
-                        '''
+                        """
 SELECT jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
-''',
+""",
                         (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                     ):
                         record['batch_id'] = job_group['batch_id']
@@ -184,26 +184,26 @@ HAVING n_cancelled_creating_jobs > 0;
 
         async def user_cancelled_creating_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for job_group in self.db.select_and_fetchall(
-                '''
+                """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM job_groups
 LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND state = 'Creating' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
-''',
+""",
                         (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                     ):
                         record['batch_id'] = job_group['batch_id']
@@ -283,26 +283,26 @@ HAVING n_cancelled_running_jobs > 0;
 
         async def user_cancelled_running_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for job_group in self.db.select_and_fetchall(
-                '''
+                """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM job_groups
 LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
-''',
+""",
                         (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                     ):
                         record['batch_id'] = job_group['batch_id']

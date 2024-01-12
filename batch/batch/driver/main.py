@@ -203,12 +203,10 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
     incremental_result, resource_agg_result = await asyncio.gather(
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
-    return json_response(
-        {
-            'check_incremental_error': str(incremental_result) if incremental_result else None,
-            'check_resource_aggregation_error': str(resource_agg_result) if resource_agg_result else None,
-        }
-    )
+    return json_response({
+        'check_incremental_error': str(incremental_result) if incremental_result else None,
+        'check_resource_aggregation_error': str(resource_agg_result) if resource_agg_result else None,
+    })
 
 
 @routes.patch('/api/v1alpha/batches/{user}/{batch_id}/update')
@@ -1115,7 +1113,7 @@ async def check_resource_aggregation(db):
     @transaction(db, read_only=True)
     async def check(tx):
         attempt_resources = tx.execute_and_fetchall(
-            '''
+            """
 SELECT attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id, attempt_resources.attempt_id,
   JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
@@ -1128,22 +1126,22 @@ LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id, attempt_resources.attempt_id
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         agg_job_resources = tx.execute_and_fetchall(
-            '''
+            """
 SELECT aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM aggregated_job_resources_v3
 LEFT JOIN jobs ON aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggregated_job_resources_v3.job_id = jobs.job_id
 LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
 GROUP BY aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         agg_job_group_resources = tx.execute_and_fetchall(
-            '''
+            """
 SELECT batch_id, job_group_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1153,7 +1151,7 @@ LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, t.job_group_id, billing_project
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         agg_billing_project_resources = tx.execute_and_fetchall(
@@ -1255,13 +1253,13 @@ async def cancel_fast_failing_batches(app):
     db: Database = app['db']
 
     records = db.select_and_fetchall(
-        '''
+        """
 SELECT job_groups.batch_id, job_groups_n_jobs_in_complete_states.n_failed
 FROM job_groups
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures AND job_groups.job_group_id = %s
-''',
+""",
         (ROOT_JOB_GROUP_ID,),
     )
     async for batch in records:

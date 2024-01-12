@@ -455,11 +455,11 @@ class JobGroupQuotedExactMatchQuery(Query):
         self.term = term
 
     def query(self) -> Tuple[str, List[str]]:
-        sql = '''
+        sql = """
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` = %s OR `value` = %s))
-'''
+"""
         return (sql, [self.term, self.term])
 
 
@@ -478,11 +478,11 @@ class JobGroupUnquotedPartialMatchQuery(Query):
         self.term = term
 
     def query(self) -> Tuple[str, List[str]]:
-        sql = '''
+        sql = """
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` LIKE %s OR `value` LIKE %s))
-'''
+"""
         escaped_term = f'%{self.term}%'
         return (sql, [escaped_term, escaped_term])
 
@@ -505,11 +505,11 @@ class JobGroupKeywordQuery(Query):
         value = self.value
         if isinstance(self.operator, PartialMatchOperator):
             value = f'%{value}%'
-        sql = f'''
+        sql = f"""
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` = %s AND `value` {op} %s))
-'''
+"""
         return (sql, [self.key, value])
 
 

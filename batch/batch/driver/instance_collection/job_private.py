@@ -351,18 +351,18 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         async def user_runnable_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for job_group in self.db.select_and_fetchall(
-                '''
+                """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled, userdata, job_groups.user, format_version
 FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE job_groups.user = %s AND job_groups.`state` = 'running';
-''',
+""",
                 (user,),
             ):
                 async for record in self.db.select_and_fetchall(
-                    '''
+                    """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
@@ -372,7 +372,7 @@ WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND jobs.state = 'Ready' AND
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s;
-''',
+""",
                     (job_group['batch_id'], job_group['job_group_id'], self.name, remaining.value),
                 ):
                     record['batch_id'] = job_group['batch_id']
@@ -382,7 +382,7 @@ LIMIT %s;
                     yield record
                 if not job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
@@ -392,7 +392,7 @@ WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND jobs.state = 'Ready' AND
 GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s
-''',
+""",
                         (job_group['batch_id'], job_group['job_group_id'], self.name, remaining.value),
                     ):
                         record['batch_id'] = job_group['batch_id']

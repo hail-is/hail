@@ -124,7 +124,7 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
         where_conditions.append(f'({cond})')
         where_args += args
 
-    sql = f'''
+    sql = f"""
 SELECT batches.*, cost_t.cost, cost_t.cost_breakdown,
     job_groups_cancelled.id IS NOT NULL AS cancelled,
     job_groups_n_jobs_in_complete_states.n_completed,
