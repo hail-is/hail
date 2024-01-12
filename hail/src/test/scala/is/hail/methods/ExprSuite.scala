@@ -6,7 +6,7 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
-import is.hail.types.virtual.{TFloat64, TInt32, Type}
+import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils.StringEscapeUtils._
 
 import org.json4s._
@@ -18,7 +18,7 @@ class ExprSuite extends HailSuite {
 
   def sm: HailStateManager = ctx.stateManager
 
-  @Test def testTypePretty() {
+  @Test def testTypePretty(): Unit = {
     // for arbType
 
     val sb = new StringBuilder
@@ -43,13 +43,13 @@ class ExprSuite extends HailSuite {
     })
   }
 
-  @Test def testEscaping() {
+  @Test def testEscaping(): Unit = {
     val p = forAll((s: String) => s == unescapeString(escapeString(s)))
 
     p.check()
   }
 
-  @Test def testEscapingSimple() {
+  @Test def testEscapingSimple(): Unit = {
     // a == 0x61, _ = 0x5f
     assert(escapeStringSimple("abc", '_', _ => false) == "abc")
     assert(escapeStringSimple("abc", '_', _ == 'a') == "_61bc")
@@ -71,7 +71,7 @@ class ExprSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testImpexes() {
+  @Test def testImpexes(): Unit = {
 
     val g = for {
       t <- Type.genArb
@@ -92,7 +92,7 @@ class ExprSuite extends HailSuite {
     Spec.check()
   }
 
-  @Test def testOrdering() {
+  @Test def testOrdering(): Unit = {
     val intOrd = TInt32.ordering(ctx.stateManager)
 
     assert(intOrd.compare(-2, -2) == 0)

@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeIndexedSeq}
-import is.hail.asm4s._
+import is.hail.asm4s.{A => _, _}
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.functions.LocusFunctions
@@ -13,8 +13,6 @@ import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.{using, FastSeq}
 import is.hail.variant.{Locus, ReferenceGenome}
-
-import scala.language.{higherKinds, implicitConversions}
 
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test

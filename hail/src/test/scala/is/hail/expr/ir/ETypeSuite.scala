@@ -92,7 +92,7 @@ class ETypeSuite extends HailSuite {
     assert(encodeDecodeResult == data)
   }
 
-  @Test def testDifferentRequirednessEncodeDecode() {
+  @Test def testDifferentRequirednessEncodeDecode(): Unit = {
 
     val inPType = PCanonicalArray(
       PCanonicalStruct(

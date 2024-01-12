@@ -753,7 +753,7 @@ class RequirednessSuite extends HailSuite {
     )
   }
 
-  @Test def testTableReader() {
+  @Test def testTableReader(): Unit = {
     val table = TableParallelize(
       makestruct(
         "rows" -> MakeArray(makestruct(

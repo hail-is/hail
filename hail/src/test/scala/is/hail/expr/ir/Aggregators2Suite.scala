@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
 import is.hail.io.BufferSpec
-import is.hail.types.{tcoerce, MatrixType, VirtualTypeWithReq}
+import is.hail.types.{MatrixType, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
@@ -210,7 +210,7 @@ class Aggregators2Suite extends HailSuite {
   def collectAggSig(t: Type): PhysicalAggSig =
     PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(t))))
 
-  @Test def TestCount() {
+  @Test def TestCount(): Unit = {
     val seqOpArgs = Array.fill(rows.length)(FastSeq[IR]())
     assertAggEquals(
       countAggSig,
@@ -221,7 +221,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testSum() {
+  @Test def testSum(): Unit = {
     val seqOpArgs = Array.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b"))
     )
@@ -234,7 +234,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testPrevNonnullStr() {
+  @Test def testPrevNonnullStr(): Unit = {
     val aggSig =
       PhysicalAggSig(PrevNonnull(), TypedStateSig(VirtualTypeWithReq(PCanonicalString())))
     val seqOpArgs = Array.tabulate(rows.length)(i =>
@@ -250,7 +250,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testPrevNonnull() {
+  @Test def testPrevNonnull(): Unit = {
     val seqOpArgs =
       Array.tabulate(rows.length)(i => FastSeq[IR](ArrayRef(Ref("rows", TArray(t)), i)))
     assertAggEquals(
@@ -262,7 +262,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testProduct() {
+  @Test def testProduct(): Unit = {
     val aggSig = PhysicalAggSig(
       Product(),
       TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)),
@@ -279,7 +279,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCallStats() {
+  @Test def testCallStats(): Unit = {
     val t = TStruct("x" -> TCall)
 
     val calls = FastSeq(
@@ -330,7 +330,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testTakeBy() {
+  @Test def testTakeBy(): Unit = {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
       "b" -> TInt32,
@@ -484,7 +484,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testTake() {
+  @Test def testTake(): Unit = {
     val t = TStruct(
       "a" -> TStruct("x" -> TInt32, "y" -> TInt64),
       "b" -> TInt32,
@@ -566,7 +566,7 @@ class Aggregators2Suite extends HailSuite {
     ))
   }
 
-  @Test def testMin() {
+  @Test def testMin(): Unit = {
     val aggSig = PhysicalAggSig(Min(), TypedStateSig(VirtualTypeWithReq(PInt64(false))))
     val seqOpArgs = Array.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b"))
@@ -589,7 +589,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testMax() {
+  @Test def testMax(): Unit = {
     val aggSig = PhysicalAggSig(Max(), TypedStateSig(VirtualTypeWithReq(PInt64(false))))
     val seqOpArgs = Array.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b"))
@@ -612,7 +612,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectLongs() {
+  @Test def testCollectLongs(): Unit = {
     val seqOpArgs = Array.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b"))
     )
@@ -625,7 +625,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectStrs() {
+  @Test def testCollectStrs(): Unit = {
     val seqOpArgs = Array.tabulate(rows.length)(i =>
       FastSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "a"))
     )
@@ -639,7 +639,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectBig() {
+  @Test def testCollectBig(): Unit = {
     val seqOpArgs = Array.tabulate(100)(i => FastSeq(I64(i)))
     assertAggEquals(
       collectAggSig(TInt64),
@@ -650,7 +650,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testArrayElementsAgg() {
+  @Test def testArrayElementsAgg(): Unit = {
     val alState = ArrayLenAggSig(knownLength = false, FastSeq(pnnAggSig, countAggSig, sumAggSig))
 
     val value = FastSeq(
@@ -706,9 +706,8 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testNestedArrayElementsAgg() {
+  @Test def testNestedArrayElementsAgg(): Unit = {
     val alstate1 = ArrayLenAggSig(knownLength = false, FastSeq(sumAggSig))
-    val aestate1 = AggElementsAggSig(FastSeq(sumAggSig))
     val alstate2 = ArrayLenAggSig(knownLength = false, FastSeq[PhysicalAggSig](alstate1))
 
     val init = InitOp(
@@ -749,7 +748,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testArrayElementsAggTake() {
+  @Test def testArrayElementsAggTake(): Unit = {
     val value = FastSeq(
       FastSeq(Row("a", 0L), Row("b", 0L), Row("c", 0L), Row("f", 0L)),
       FastSeq(Row("a", 1L), null, Row("c", 1L), null),
@@ -789,7 +788,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testGroup() {
+  @Test def testGroup(): Unit = {
     val group = GroupedAggSig(
       VirtualTypeWithReq(PCanonicalString()),
       FastSeq(pnnAggSig, countAggSig, sumAggSig),
@@ -831,7 +830,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testNestedGroup() {
+  @Test def testNestedGroup(): Unit = {
 
     val group1 = GroupedAggSig(
       VirtualTypeWithReq(PCanonicalString()),
@@ -891,7 +890,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testCollectAsSet() {
+  @Test def testCollectAsSet(): Unit = {
     val rows =
       FastSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
     val rref = Ref("rows", TArray(t))
@@ -923,7 +922,7 @@ class Aggregators2Suite extends HailSuite {
     )
   }
 
-  @Test def testDownsample() {
+  @Test def testDownsample(): Unit = {
     val aggSig = PhysicalAggSig(
       Downsample(),
       DownsampleStateSig(VirtualTypeWithReq(PCanonicalArray(PCanonicalString()))),

@@ -21,7 +21,7 @@ class StagedConstructorSuite extends HailSuite {
   def sm = ctx.stateManager
 
   @Test
-  def testCanonicalString() {
+  def testCanonicalString(): Unit = {
     val rt = PCanonicalString()
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
@@ -65,7 +65,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testInt() {
+  def testInt(): Unit = {
     val rt = PInt32()
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -103,7 +103,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testArray() {
+  def testArray(): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -141,7 +141,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testStruct() {
+  def testStruct(): Unit = {
     val pstring = PCanonicalString()
     val rt = PCanonicalStruct("a" -> pstring, "b" -> PInt32())
     val input = 3
@@ -189,7 +189,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testArrayOfStruct() {
+  def testArrayOfStruct(): Unit = {
     val structType = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString())
     val arrayType = PCanonicalArray(structType)
     val input = "hello"
@@ -255,7 +255,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testMissingRandomAccessArray() {
+  def testMissingRandomAccessArray(): Unit = {
     val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
@@ -297,7 +297,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testSetFieldPresent() {
+  def testSetFieldPresent(): Unit = {
     val rt = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
@@ -335,7 +335,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testStructWithArray() {
+  def testStructWithArray(): Unit = {
     val tArray = PCanonicalArray(PInt32())
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> tArray)
     val input = "hello"
@@ -405,7 +405,7 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test
-  def testMissingArray() {
+  def testMissingArray(): Unit = {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
@@ -441,12 +441,11 @@ class StagedConstructorSuite extends HailSuite {
     ))
   }
 
-  def printRegion(region: Region, string: String) {
+  def printRegion(region: Region, string: String): Unit =
     println(region.prettyBits())
-  }
 
   @Test
-  def testAddPrimitive() {
+  def testAddPrimitive(): Unit = {
     val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long](ctx, "fb")
 
@@ -482,10 +481,10 @@ class StagedConstructorSuite extends HailSuite {
     assert(run(42, false, -1.0) == ((42, false, -1.0)))
   }
 
-  @Test def testDeepCopy() {
+  @Test def testDeepCopy(): Unit = {
     val g = Type.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
-      .filter { case (t, a) => a != null }
+      .filter { case (_, a) => a != null }
       .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
 
     val p = Prop.forAll(g) { case (t, a) =>
@@ -518,7 +517,7 @@ class StagedConstructorSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testUnstagedCopy() {
+  @Test def testUnstagedCopy(): Unit = {
     val t1 = PCanonicalArray(
       PCanonicalStruct(
         true,
@@ -552,7 +551,7 @@ class StagedConstructorSuite extends HailSuite {
     }
   }
 
-  @Test def testStagedCopy() {
+  @Test def testStagedCopy(): Unit = {
     val t1 = PCanonicalStruct(
       false,
       "a" -> PCanonicalArray(

@@ -3,7 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.io.fs.{FakeFS, FakeURL, FileListEntry, FS}
+import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.{MatrixType, TableType}
@@ -309,7 +309,7 @@ class SemanticHashSuite extends HailSuite {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =
-          throw new FileNotFoundException(url.getPath())
+          throw new FileNotFoundException(url.getPath)
       }
 
     val ir =
@@ -345,7 +345,7 @@ class SemanticHashSuite extends HailSuite {
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
           override def getPath: String = url.getPath
-          override def getActualUrl(): String = url.getPath
+          override def getActualUrl: String = url.getPath
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???
@@ -398,15 +398,10 @@ class SemanticHashSuite extends HailSuite {
   def mkFakeTableSpec(ttype: TableType): AbstractTableSpec =
     new AbstractTableSpec {
       override def references_rel_path: String = ???
-
       override def table_type: TableType = ttype
-
       override def rowsSpec: AbstractRVDSpec = ???
-
       override def globalsSpec: AbstractRVDSpec = ???
-
       override def file_version: Int = 0
-
       override def hail_version: String = ???
 
       override def components: Map[String, ComponentSpec] =

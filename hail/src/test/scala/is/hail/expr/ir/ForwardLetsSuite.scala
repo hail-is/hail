@@ -121,7 +121,7 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](AggLet("x", In(0, TInt32) + In(0, TInt32), ir, false)))
   }
 
-  @Test def assertDataProvidersWork() {
+  @Test def assertDataProvidersWork(): Unit = {
     nonForwardingOps()
     forwardingOps()
     nonForwardingAggOps()

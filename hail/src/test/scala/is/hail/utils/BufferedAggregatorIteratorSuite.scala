@@ -5,7 +5,7 @@ import is.hail.check.{Gen, Prop}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class SumAgg() {
+class SumAgg {
   var x = 0L
 
   def add(element: Int): Unit =
@@ -20,7 +20,7 @@ class SumAgg() {
 }
 
 class BufferedAggregatorIteratorSuite extends TestNGSuite {
-  @Test def test() {
+  @Test def test(): Unit = {
     Prop.forAll(
       Gen.zip(
         Gen.buildableOf[IndexedSeq](Gen.zip(Gen.choose(1, 5), Gen.choose(1, 10))),
@@ -32,7 +32,7 @@ class BufferedAggregatorIteratorSuite extends TestNGSuite {
         new BufferedAggregatorIterator[(Int, Int), SumAgg, SumAgg, Int](
           arr.iterator,
           () => new SumAgg(),
-          { case (k, v) => k },
+          { case (k, _) => k },
           { case (t, agg) => agg.add(t._2) },
           a => a,
           bufferSize,

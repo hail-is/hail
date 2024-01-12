@@ -8,9 +8,6 @@ import org.testng.annotations.Test
 class MultiArray2Suite extends HailSuite {
   @Test def test() = {
 
-    // test multiarray of size 0 will be created
-    val ma0 = MultiArray2.fill[Int](0, 0)(0)
-
     // test multiarray of size 0 that apply nothing out
     intercept[IllegalArgumentException] {
       val ma0 = MultiArray2.fill[Int](0, 0)(0)
@@ -25,23 +22,24 @@ class MultiArray2Suite extends HailSuite {
 
     // bad multiarray initiation -- negative number
     intercept[IllegalArgumentException] {
-      val a = MultiArray2.fill[Int](-5, 5)(0)
+      MultiArray2.fill[Int](-5, 5)(0)
     }
 
     // bad multiarray initiation -- negative number
     intercept[IllegalArgumentException] {
-      val a = MultiArray2.fill[Int](5, -5)(0)
+      MultiArray2.fill[Int](5, -5)(0)
     }
 
     val ma1 = MultiArray2.fill[Int](10, 3)(0)
     for ((i, j) <- ma1.indices)
       ma1.update(i, j, i * j)
+
     assert(ma1(2, 2) == 4)
     assert(ma1(6, 1) == 6)
 
     // Catch exception if try to apply value that is not in indices of multiarray
     intercept[IllegalArgumentException] {
-      val foo = ma1(100, 100)
+      ma1(100, 100)
     }
 
     val ma2 = MultiArray2.fill[Int](10, 3)(0)
@@ -70,29 +68,29 @@ class MultiArray2Suite extends HailSuite {
       assert(row(idx) == ((row.i * idx, "foo")))
 
     intercept[IllegalArgumentException] {
-      val x = ma5.row(100)
+      ma5.row(100)
     }
 
     intercept[ArrayIndexOutOfBoundsException] {
       val x = ma5.row(0)
-      val y = x(100)
+      x(100)
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.row(-5)
+      ma5.row(-5)
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.column(100)
+      ma5.column(100)
     }
 
     intercept[IllegalArgumentException] {
-      val x = ma5.column(-5)
+      ma5.column(-5)
     }
 
     intercept[ArrayIndexOutOfBoundsException] {
       val x = ma5.column(0)
-      val y = x(100)
+      x(100)
     }
 
     // Test column slice

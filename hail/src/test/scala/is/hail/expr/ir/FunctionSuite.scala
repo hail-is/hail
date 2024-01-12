@@ -23,7 +23,7 @@ class ScalaTestCompanion {
 }
 
 object TestRegisterFunctions extends RegistryFunctions {
-  def registerAll() {
+  def registerAll(): Unit = {
     registerIR1("addone", TInt32, TInt32)((_, a, _) => ApplyBinaryPrimOp(Add(), a, I32(1)))
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(
       classOf[java.lang.Integer],
@@ -38,9 +38,9 @@ object TestRegisterFunctions extends RegistryFunctions {
       "testFunction",
     )
     registerSCode2("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
-      case (_, cb, rt, a, b, _) => primitive(cb.memoize(a.asInt.value + b.asInt.value))
+      case (_, cb, _, a, b, _) => primitive(cb.memoize(a.asInt.value + b.asInt.value))
     }
-    registerSCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, cb, rt, a, _) => a }
+    registerSCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, _, _, a, _) => a }
   }
 }
 
@@ -56,40 +56,35 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test
-  def testCodeFunction() {
+  def testCodeFunction(): Unit =
     assertEvalsTo(
       lookup("triangle", TInt32, TInt32)(In(0, TInt32)),
       FastSeq(5 -> TInt32),
       (5 * (5 + 1)) / 2,
     )
-  }
 
   @Test
-  def testStaticFunction() {
+  def testStaticFunction(): Unit =
     assertEvalsTo(
       lookup("compare", TInt32, TInt32, TInt32)(In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
       true,
     )
-  }
 
   @Test
-  def testScalaFunction() {
+  def testScalaFunction(): Unit =
     assertEvalsTo(lookup("foobar1", TInt32)(), 1)
-  }
 
   @Test
-  def testIRConversion() {
+  def testIRConversion(): Unit =
     assertEvalsTo(lookup("addone", TInt32, TInt32)(In(0, TInt32)), FastSeq(5 -> TInt32), 6)
-  }
 
   @Test
-  def testScalaFunctionCompanion() {
+  def testScalaFunctionCompanion(): Unit =
     assertEvalsTo(lookup("foobar2", TInt32)(), 2)
-  }
 
   @Test
-  def testVariableUnification() {
+  def testVariableUnification(): Unit = {
     assert(IRFunctionRegistry.lookupUnseeded(
       "testCodeUnification",
       TInt32,
@@ -113,16 +108,15 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test
-  def testUnphasedDiploidGtIndexCall() {
+  def testUnphasedDiploidGtIndexCall(): Unit =
     assertEvalsTo(
       lookup("UnphasedDiploidGtIndexCall", TCall, TInt32)(In(0, TInt32)),
       FastSeq(0 -> TInt32),
       Call2.fromUnphasedDiploidGtIndex(0),
     )
-  }
 
   @Test
-  def testGetOrGenMethod() {
+  def testGetOrGenMethod(): Unit = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
     val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>

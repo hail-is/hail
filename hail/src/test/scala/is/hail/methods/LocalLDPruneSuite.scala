@@ -1,15 +1,10 @@
 package is.hail.methods
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.annotations.{Annotation, Region, RegionPool, RegionValue, RegionValueBuilder}
-import is.hail.backend.HailTaskContext
-import is.hail.backend.spark.SparkTaskContext
+import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Properties}
 import is.hail.check.Prop._
-import is.hail.expr.ir.{Interpret, LongArrayBuilder, MatrixValue, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual.{TArray, TString, TStruct}
+import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
 import is.hail.variant._
 
@@ -151,7 +146,7 @@ class LocalLDPruneSuite extends HailSuite {
         r.getAs[Any](mtAllelesIndex),
         r.getAs[Iterable[Annotation]](mtEntriesIndex),
       )
-    }.filter { case (locus, alleles, gs) => locallyPrunedVariants.contains((locus, alleles)) }
+    }.filter { case (locus, alleles, _) => locallyPrunedVariants.contains((locus, alleles)) }
   }
 
   def isGloballyUncorrelated(
@@ -162,12 +157,10 @@ class LocalLDPruneSuite extends HailSuite {
   ): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
-    val nSamples = unprunedMatrixTable.nCols
-
     val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map {
-      case (locus, alleles, gs) => gs
+      case (_, _, gs) => gs
     }.collect())
-    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, alleles, gs), i) =>
+    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, _, _), i) =>
       (i.toInt, locus)
     }.collectAsMap()
 
@@ -193,7 +186,6 @@ class LocalLDPruneSuite extends HailSuite {
   ): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
-    val nSamples = unprunedMatrixTable.nCols
 
     val locallyUncorrelated = {
       locallyPrunedRDD.mapPartitions(
@@ -203,10 +195,10 @@ class LocalLDPruneSuite extends HailSuite {
             LocalLDPruneSuite.correlationMatrixGT(gts)
 
           val (it1, it2) = it.duplicate
-          val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) =>
+          val localR2Matrix = computeCorrelationMatrix(it1.map { case (_, _, gs) =>
             gs
           }.toArray)
-          val localVariantMap = it2.zipWithIndex.map { case ((locus, alleles, gs), i) =>
+          val localVariantMap = it2.zipWithIndex.map { case ((locus, _, _), i) =>
             (i, locus)
           }.toMap
 
@@ -232,18 +224,18 @@ class LocalLDPruneSuite extends HailSuite {
     locallyUncorrelated.fold(true)((bool1, bool2) => bool1 && bool2)
   }
 
-  @Test def testBitPackUnpack() {
+  @Test def testBitPackUnpack(): Unit = {
     val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
     val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
 
     for (calls <- Array(calls1, calls2, calls3))
       assert(LocalLDPruneSuite.fromCalls(calls).forall { bpv =>
-        bpv.unpack().map(toC2(_)) sameElements calls
+        bpv.unpack().map(toC2) sameElements calls
       })
   }
 
-  @Test def testR2() {
+  @Test def testR2(): Unit = {
     val calls = Array(
       Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
       Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
@@ -298,7 +290,7 @@ class LocalLDPruneSuite extends HailSuite {
     } yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
-      forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], _) =>
+      forAll(vectorGen) { case (_: Int, v1: Array[BoxedCall], _) =>
         val bpv = LocalLDPruneSuite.fromCalls(v1)
 
         bpv match {
@@ -334,13 +326,12 @@ class LocalLDPruneSuite extends HailSuite {
       }
   }
 
-  @Test def testRandom() {
+  @Test def testRandom(): Unit =
     Spec.check()
-  }
 
-  @Test def testIsLocallyUncorrelated() {
+  @Test def testIsLocallyUncorrelated(): Unit = {
     val locallyPrunedVariantsTable =
-      LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
+      LocalLDPrune(ctx, mt, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
   }

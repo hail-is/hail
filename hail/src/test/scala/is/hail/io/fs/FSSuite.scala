@@ -1,7 +1,6 @@
 package is.hail.io.fs
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.utils._
@@ -31,7 +30,7 @@ trait FSSuite extends TestNGSuite {
 
   def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] =
     statuses.map { status =>
-      var p = status.getPath
+      val p = status.getPath
       assert(p.startsWith(root), s"$p $root")
       p.drop(root.length)
     }.toSet
@@ -72,12 +71,10 @@ trait FSSuite extends TestNGSuite {
     assert(s.getLen == 12)
   }
 
-  @Test def testFileStatusOnDirIsFailure(): Unit = {
-    val f = r("/dir")
+  @Test def testFileStatusOnDirIsFailure(): Unit =
     TestUtils.interceptException[FileNotFoundException](r("/dir"))(
       fs.fileStatus(r("/dir"))
     )
-  }
 
   @Test def testFileListEntryOnDir(): Unit = {
     // file
@@ -97,15 +94,13 @@ trait FSSuite extends TestNGSuite {
     assert(s.isDirectory)
   }
 
-  @Test def testFileListEntryOnMissingFile(): Unit = {
-    try
+  @Test def testFileListEntryOnMissingFile(): Unit =
+    try {
       fs.fileListEntry(r("/does_not_exist"))
-    catch {
+      assert(false)
+    } catch {
       case _: FileNotFoundException =>
-        return
     }
-    assert(false)
-  }
 
   @Test def testFileListEntryRoot(): Unit = {
     val s = fs.fileListEntry(root)
@@ -214,7 +209,7 @@ trait FSSuite extends TestNGSuite {
     assert(pathsRelRoot(root, statuses) == Set(""))
   }
 
-  @Test def testFileEndingWithPeriod: Unit = {
+  @Test def testFileEndingWithPeriod(): Unit = {
     val f = fs.makeQualified(t())
     fs.touch(f + "/foo.")
     val statuses = fs.listDirectory(f)
@@ -424,7 +419,7 @@ trait FSSuite extends TestNGSuite {
       val toRead = new Array[Byte](512)
       is.readFully(toRead)
 
-      (0 until toRead.length).foreach(i => assert(toRead(i) == ((seekPos + i) % 251).toByte))
+      toRead.indices.foreach(i => assert(toRead(i) == ((seekPos + i) % 251).toByte))
     }
   }
 
@@ -482,8 +477,8 @@ trait FSSuite extends TestNGSuite {
       /* Hadoop, in particular, errors when you touch an object whose name is a prefix of another
        * object. */
       case exc: FileAndDirectoryException
-          if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
-      case exc: FileNotFoundException if exc.getMessage() == s"$d/x (Is a directory)" =>
+          if exc.getMessage == s"$d/x appears as both file $d/x and directory $d/x/." =>
+      case exc: FileNotFoundException if exc.getMessage == s"$d/x (Is a directory)" =>
     }
   }
 
@@ -541,9 +536,9 @@ trait FSSuite extends TestNGSuite {
       /* Hadoop, in particular, errors when you touch an object whose name is a prefix of another
        * object. */
       case exc: FileAndDirectoryException
-          if exc.getMessage() == s"$d/x appears as both file $d/x and directory $d/x/." =>
+          if exc.getMessage == s"$d/x appears as both file $d/x and directory $d/x/." =>
       case exc: FileAlreadyExistsException
-          if exc.getMessage() == s"Destination exists and is not a directory: $d/x" =>
+          if exc.getMessage == s"Destination exists and is not a directory: $d/x" =>
     }
   }
 

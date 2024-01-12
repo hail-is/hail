@@ -49,12 +49,11 @@ class OrderingSuite extends HailSuite {
     fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
-  @Test def testMissingNonequalComparisons() {
+  @Test def testMissingNonequalComparisons(): Unit = {
     def getStagedOrderingFunctionWithMissingness(
       t: PType,
       op: CodeOrdering.Op,
       r: Region,
-      sortOrder: SortOrder = Ascending,
     ): AsmFunction5[Region, Boolean, Long, Boolean, Long, op.ReturnType] = {
       implicit val x = op.rtti
       val fb =
@@ -79,19 +78,17 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t).asInstanceOf[PStruct]
-        val rvb = new RegionValueBuilder(sm, region)
 
         val v = pType.unstagedStoreJavaObject(sm, a, region)
 
         val eordME = t.mkOrdering(sm)
         val eordMNE = t.mkOrdering(sm, missingEqual = false)
 
-        def checkCompare(compResult: Int, expected: Int) {
+        def checkCompare(compResult: Int, expected: Int): Unit =
           assert(
             java.lang.Integer.signum(compResult) == expected,
             s"compare expected: $expected vs $compResult\n  t=${t.parsableString()}\n  v=$a",
           )
-        }
 
         val fcompareME =
           getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Compare(), region)
@@ -115,9 +112,8 @@ class OrderingSuite extends HailSuite {
         checkCompare(eordMNE.compare(null, a), 1)
         checkCompare(eordMNE.compare(a, null), -1)
 
-        def check(result: Boolean, expected: Boolean) {
+        def check(result: Boolean, expected: Boolean): Unit =
           assert(result == expected, s"t=${t.parsableString()}\n  v=$a")
-        }
 
         val fequivME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Equiv(), region)
 
@@ -229,7 +225,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testRandomOpsAgainstExtended() {
+  @Test def testRandomOpsAgainstExtended(): Unit = {
     val compareGen = for {
       t <- Type.genArb
       a1 <- t.genNonmissingValue(sm)
@@ -238,7 +234,6 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
-        val rvb = new RegionValueBuilder(sm, region)
 
         val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
 
@@ -284,7 +279,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering() {
+  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): Unit = {
     val compareGen = for {
       t <- Type.genArb
       a1 <- t.genNonmissingValue(sm)
@@ -293,7 +288,6 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
-        val rvb = new RegionValueBuilder(sm, region)
 
         val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
 
@@ -338,7 +332,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testSortOnRandomArray() {
+  @Test def testSortOnRandomArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
@@ -357,7 +351,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testToSetOnRandomDuplicatedArray() {
+  def testToSetOnRandomDuplicatedArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       elt <- Type.genArb
@@ -375,7 +369,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testToDictOnRandomDuplicatedArray() {
+  def testToDictOnRandomDuplicatedArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = for {
       kt <- Type.genArb
@@ -401,7 +395,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testSortOnMissingArray() {
+  @Test def testSortOnMissingArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val ts = TStream(TStruct("key" -> TInt32, "value" -> TInt32))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
@@ -409,7 +403,7 @@ class OrderingSuite extends HailSuite {
     for (irF <- irs) assertEvalsTo(IsNA(irF(NA(ts))), true)
   }
 
-  @Test def testSetContainsOnRandomSet() {
+  @Test def testSetContainsOnRandomSet(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue(sm), t.genValue(sm)))
@@ -434,7 +428,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testDictGetOnRandomDict() {
+  def testDictGetOnRandomDict(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
@@ -467,11 +461,11 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  def testBinarySearchOnSet() {
+  def testBinarySearchOnSet(): Unit = {
     val compareGen = Type.genArb.flatMap(t =>
       Gen.zip(Gen.const(t), TSet(t).genNonmissingValue(sm), t.genNonmissingValue(sm))
     )
-    val p = Prop.forAll(compareGen.filter { case (t, a, elem) =>
+    val p = Prop.forAll(compareGen.filter { case (_, a, _) =>
       a.asInstanceOf[Set[Any]].nonEmpty
     }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]
@@ -482,14 +476,11 @@ class OrderingSuite extends HailSuite {
       val pArray = PCanonicalArray(pt)
 
       pool.scopedRegion { region =>
-        val rvb = new RegionValueBuilder(sm, region)
-
         val soff = pset.unstagedStoreJavaObject(sm, set, region)
 
         val eoff = pTuple.unstagedStoreJavaObject(sm, Row(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
-        val cregion = fb.getCodeParam[Region](1).load()
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
 
@@ -497,9 +488,7 @@ class OrderingSuite extends HailSuite {
           fb.apply_method,
           pset.sType,
           EmitType(pset.elementType.sType, true),
-          {
-            (cb, elt) => elt
-          },
+          (_, elt) => elt,
         )
         fb.emitWithBuilder(cb =>
           bs.search(
@@ -524,12 +513,12 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testBinarySearchOnDict() {
+  @Test def testBinarySearchOnDict(): Unit = {
     val compareGen = Gen.zip(Type.genArb, Type.genArb)
       .flatMap { case (k, v) =>
         Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue(sm), k.genValue(sm))
       }
-    val p = Prop.forAll(compareGen.filter { case (tdict, a, key) =>
+    val p = Prop.forAll(compareGen.filter { case (_, a, _) =>
       a.asInstanceOf[Map[Any, Any]].nonEmpty
     }) { case (tDict, a, key) =>
       val dict = a.asInstanceOf[Map[Any, Any]]
@@ -549,12 +538,11 @@ class OrderingSuite extends HailSuite {
           fb.apply_method,
           pDict.sType,
           EmitType(pDict.keyType.sType, false),
-          { (cb, elt) =>
+          (cb, elt) =>
             cb.memoize(elt.toI(cb).flatMap(cb) {
               case x: SBaseStructValue =>
                 x.loadField(cb, 0)
-            })
-          },
+            }),
         )
 
         fb.emitWithBuilder(cb =>
@@ -602,7 +590,7 @@ class OrderingSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testContainsWithArrayFold() {
+  @Test def testContainsWithArrayFold(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
@@ -645,7 +633,7 @@ class OrderingSuite extends HailSuite {
   def testOrderingArrayDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
-  ) {
+  ): Unit = {
     val t = TArray(TFloat64)
 
     val args = FastSeq(a -> t, a2 -> t)
@@ -665,7 +653,7 @@ class OrderingSuite extends HailSuite {
   def testOrderingSetDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
-  ) {
+  ): Unit = {
     val t = TSet(TFloat64)
 
     val s = if (a != null) a.toSet else null
@@ -687,8 +675,6 @@ class OrderingSuite extends HailSuite {
   def rowDoubleOrderingData(): Array[Array[Any]] = {
     val xs =
       Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
-    val as = Array(null: IndexedSeq[Any]) ++
-      (for (x <- xs) yield FastSeq[Any](x))
     val ss = Array[Any](null, "a", "aa")
 
     val rs = for {
@@ -706,7 +692,7 @@ class OrderingSuite extends HailSuite {
   def testOrderingRowDouble(
     r: Row,
     r2: Row,
-  ) {
+  ): Unit = {
     val t = TStruct("x" -> TFloat64, "s" -> TString)
 
     val args = FastSeq(r -> t, r2 -> t)
