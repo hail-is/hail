@@ -30,7 +30,7 @@ def define_function(
     f: Callable[..., Expression],
     *param_types: HailType,
     _name: Optional[str] = None,
-    type_args: Tuple[HailType, ...] = ()
+    type_args: Tuple[HailType, ...] = (),
 ) -> Function:
     mname = _name if _name is not None else Env.get_uid()
     param_names = [Env.get_uid(mname) for _ in param_types]

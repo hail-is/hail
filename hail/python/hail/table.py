@@ -117,7 +117,6 @@ def desc(col):
 
 
 class ExprContainer:
-
     # this can only grow as big as the object dir, so no need to worry about memory leak
     _warned_about = set()
 
@@ -1625,7 +1624,7 @@ class Table(ExprContainer):
 
             s = ''
             first = True
-            for (start, end) in column_blocks:
+            for start, end in column_blocks:
                 if first:
                     first = False
                 else:
@@ -2000,20 +1999,16 @@ class Table(ExprContainer):
                     join_table = join_table.annotate(**{value_uid: right.index(join_table.key)})
 
                     #  FIXME: Maybe zip join here?
-                    join_table = join_table.group_by(*src.row_key).aggregate(
-                        **{
-                            uid: hl.dict(
-                                hl.agg.collect(
-                                    hl.tuple(
-                                        [
-                                            hl.tuple([join_table[f] for f in foreign_key_annotates]),
-                                            join_table[value_uid],
-                                        ]
-                                    )
-                                )
+                    join_table = join_table.group_by(*src.row_key).aggregate(**{
+                        uid: hl.dict(
+                            hl.agg.collect(
+                                hl.tuple([
+                                    hl.tuple([join_table[f] for f in foreign_key_annotates]),
+                                    join_table[value_uid],
+                                ])
                             )
-                        }
-                    )
+                        )
+                    })
 
                     def joiner(left: MatrixTable):
                         mart = ir.MatrixAnnotateRowsTable(left._mir, join_table._tir, uid)
@@ -2178,12 +2173,10 @@ class Table(ExprContainer):
         return Env.backend().unpersist(self)
 
     @overload
-    def collect(self) -> List[hl.Struct]:
-        ...
+    def collect(self) -> List[hl.Struct]: ...
 
     @overload
-    def collect(self, _localize=False) -> hl.ArrayExpression:
-        ...
+    def collect(self, _localize=False) -> hl.ArrayExpression: ...
 
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):
@@ -3349,19 +3342,18 @@ class Table(ExprContainer):
 
         entries_uid = Env.get_uid()
         ht = (
-            ht.group_by(*row_key).partition_hint(n_partitions)
+            ht.group_by(*row_key)
+            .partition_hint(n_partitions)
             # FIXME: should be agg._prev_nonnull https://github.com/hail-is/hail/issues/5345
             .aggregate(
                 **{x: hl.agg.take(ht[x], 1)[0] for x in row_fields},
                 **{
                     entries_uid: hl.rbind(
                         hl.dict(
-                            hl.agg.collect(
-                                (
-                                    ht[col_data_uid]['key_to_index'][ht.row.select(*col_key)],
-                                    ht.row.select(*entry_fields),
-                                )
-                            )
+                            hl.agg.collect((
+                                ht[col_data_uid]['key_to_index'][ht.row.select(*col_key)],
+                                ht.row.select(*entry_fields),
+                            ))
                         ),
                         lambda entry_dict: hl.range(0, hl.len(ht[col_data_uid]['key_to_index'])).map(
                             lambda i: entry_dict.get(i)
@@ -3370,9 +3362,9 @@ class Table(ExprContainer):
                 },
             )
         )
-        ht = ht.annotate_globals(
-            **{col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))}
-        )
+        ht = ht.annotate_globals(**{
+            col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))
+        })
         return ht._unlocalize_entries(entries_uid, col_data_uid, col_key)
 
     @typecheck_method(columns=sequenceof(str), entry_field_name=nullable(str), col_field_name=str)
@@ -3746,19 +3738,17 @@ class Table(ExprContainer):
         t = left.join(right, how='outer')
 
         mismatched_globals, mismatched_rows = t.aggregate(
-            hl.tuple(
-                (
-                    hl.or_missing(~_values_similar(t.left_globals, t.right_globals, tolerance, absolute), t.globals),
-                    hl.agg.filter(
-                        ~hl.all(
-                            hl.is_defined(t.left_row),
-                            hl.is_defined(t.right_row),
-                            _values_similar(t.left_row, t.right_row, tolerance, absolute),
-                        ),
-                        hl.agg.take(t.row, 10),
+            hl.tuple((
+                hl.or_missing(~_values_similar(t.left_globals, t.right_globals, tolerance, absolute), t.globals),
+                hl.agg.filter(
+                    ~hl.all(
+                        hl.is_defined(t.left_row),
+                        hl.is_defined(t.right_row),
+                        _values_similar(t.left_row, t.right_row, tolerance, absolute),
                     ),
-                )
-            )
+                    hl.agg.take(t.row, 10),
+                ),
+            ))
         )
 
         columns, _ = shutil.get_terminal_size((80, 10))
@@ -3770,11 +3760,11 @@ class Table(ExprContainer):
         is_same = True
         if mismatched_globals is not None:
             print(
-                f'''Table._same: globals differ:
+                f"""Table._same: globals differ:
     Left:
 {pretty(mismatched_globals.left_globals)}
     Right:
-{pretty(mismatched_globals.right_globals)}'''
+{pretty(mismatched_globals.right_globals)}"""
             )
             is_same = False
 
@@ -3782,11 +3772,11 @@ class Table(ExprContainer):
             print('Table._same: rows differ:')
             for r in mismatched_rows:
                 print(
-                    f'''  Row mismatch at key={r.key}:
+                    f"""  Row mismatch at key={r.key}:
     Left:
 {pretty(r.left_row)}
     Right:
-{pretty(r.right_row)}'''
+{pretty(r.right_row)}"""
                 )
             is_same = False
 

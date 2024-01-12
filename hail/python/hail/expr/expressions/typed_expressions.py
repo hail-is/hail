@@ -434,14 +434,12 @@ class CollectionExpression(Expression):
 
     def _summary_aggs(self):
         length = hl.len(self)
-        return hl.tuple(
-            (
-                hl.agg.min(length),
-                hl.agg.max(length),
-                hl.agg.mean(length),
-                hl.agg.explode(lambda elt: elt._all_summary_aggs(), self),
-            )
-        )
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(lambda elt: elt._all_summary_aggs(), self),
+        ))
 
     def __contains__(self, element):
         class_name = type(self).__name__
@@ -1587,9 +1585,9 @@ class DictExpression(Expression):
         """
         if not self._kc.can_coerce(item.dtype):
             raise TypeError(
-                "dict encountered an invalid key type\n"
-                "    dict key type:  '{}'\n"
-                "    type of 'item': '{}'".format(self.dtype.key_type, item.dtype)
+                "dict encountered an invalid key type\n" "    dict key type:  '{}'\n" "    type of 'item': '{}'".format(
+                    self.dtype.key_type, item.dtype
+                )
             )
         return self._index(self.dtype.value_type, self._kc.coerce(item))
 
@@ -1791,16 +1789,14 @@ class DictExpression(Expression):
 
     def _summary_aggs(self):
         length = hl.len(self)
-        return hl.tuple(
-            (
-                hl.agg.min(length),
-                hl.agg.max(length),
-                hl.agg.mean(length),
-                hl.agg.explode(
-                    lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self)
-                ),
-            )
-        )
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.explode(
+                lambda elt: hl.tuple((elt[0]._all_summary_aggs(), elt[1]._all_summary_aggs())), hl.array(self)
+            ),
+        ))
 
 
 class StructExpression(Mapping[Union[str, int], Expression], Expression):
@@ -2047,8 +2043,9 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         for a in fields:
             if a not in self._fields:
                 raise KeyError(
-                    "Struct has no field '{}'\n"
-                    "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields))
+                    "Struct has no field '{}'\n" "    Fields: [ {} ]".format(
+                        a, ', '.join("'{}'".format(x) for x in self._fields)
+                    )
                 )
             if a in name_set:
                 raise ExpressionException(
@@ -2056,7 +2053,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
                     "    Identifier '{}' appeared more than once".format(a)
                 )
             name_set.add(a)
-        for (n, _) in named_exprs.items():
+        for n, _ in named_exprs.items():
             if n in name_set:
                 raise ExpressionException("Cannot select and assign '{}' in the same 'select' call".format(n))
 
@@ -2140,8 +2137,9 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
         for a in fields:
             if a not in self._fields:
                 raise KeyError(
-                    "Struct has no field '{}'\n"
-                    "    Fields: [ {} ]".format(a, ', '.join("'{}'".format(x) for x in self._fields))
+                    "Struct has no field '{}'\n" "    Fields: [ {} ]".format(
+                        a, ', '.join("'{}'".format(x) for x in self._fields)
+                    )
                 )
             if a in to_drop:
                 warning("Found duplicate field name in 'StructExpression.drop': '{}'".format(a))
@@ -3300,14 +3298,12 @@ class StringExpression(Expression):
 
     def _summary_aggs(self):
         length = hl.len(self)
-        return hl.tuple(
-            (
-                hl.agg.min(length),
-                hl.agg.max(length),
-                hl.agg.mean(length),
-                hl.agg.filter(hl.is_defined(self), hl.agg.take(self, 5)),
-            )
-        )
+        return hl.tuple((
+            hl.agg.min(length),
+            hl.agg.max(length),
+            hl.agg.mean(length),
+            hl.agg.filter(hl.is_defined(self), hl.agg.take(self, 5)),
+        ))
 
 
 class CallExpression(Expression):
@@ -3642,15 +3638,13 @@ class CallExpression(Expression):
         }
 
     def _summary_aggs(self):
-        return hl.tuple(
-            (
-                hl.agg.count_where(self.is_hom_ref()),
-                hl.agg.count_where(self.is_het()),
-                hl.agg.count_where(self.is_hom_var()),
-                hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.ploidy)),
-                hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.phased)),
-            )
-        )
+        return hl.tuple((
+            hl.agg.count_where(self.is_hom_ref()),
+            hl.agg.count_where(self.is_het()),
+            hl.agg.count_where(self.is_hom_var()),
+            hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.ploidy)),
+            hl.agg.filter(hl.is_defined(self), hl.agg.counter(self.phased)),
+        ))
 
 
 class LocusExpression(Expression):
@@ -4217,7 +4211,7 @@ class NDArrayExpression(Expression):
 
         num_ellipses = len([e for e in item if isinstance(e, type(...))])
         if num_ellipses > 1:
-            raise IndexError("an index can only have a single ellipsis (\'...\')")
+            raise IndexError("an index can only have a single ellipsis ('...')")
 
         num_nones = len([x for x in item if x is None])
         list_item = list(item)
@@ -4250,7 +4244,6 @@ class NDArrayExpression(Expression):
             for i, s in enumerate(formatted_item):
                 dlen = self.shape[i]
                 if isinstance(s, slice):
-
                     if s.step is not None:
                         step = hl.case().when(s.step != 0, s.step).or_error("Slice step cannot be zero")
                     else:

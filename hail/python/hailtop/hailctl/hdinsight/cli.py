@@ -75,9 +75,9 @@ def start(
         ),
     ] = None,
 ):
-    '''
+    """
     Start an HDInsight cluster configured for Hail.
-    '''
+    """
     from ... import pip_version  # pylint: disable=import-outside-toplevel
 
     hail_version = pip_version()
@@ -114,36 +114,32 @@ def stop(
     extra_hdinsight_delete_args: Optional[List[str]] = None,
     extra_storage_delete_args: Optional[List[str]] = None,
 ):
-    '''
+    """
     Stop an HDInsight cluster configured for Hail.
-    '''
+    """
     print(f"Stopping cluster '{name}'...")
 
-    subprocess.check_call(
-        [
-            'az',
-            'hdinsight',
-            'delete',
-            '--name',
-            name,
-            '--resource-group',
-            resource_group,
-            *(extra_hdinsight_delete_args or []),
-        ]
-    )
-    subprocess.check_call(
-        [
-            'az',
-            'storage',
-            'container',
-            'delete',
-            '--name',
-            name,
-            '--account-name',
-            storage_account,
-            *(extra_storage_delete_args or []),
-        ]
-    )
+    subprocess.check_call([
+        'az',
+        'hdinsight',
+        'delete',
+        '--name',
+        name,
+        '--resource-group',
+        resource_group,
+        *(extra_hdinsight_delete_args or []),
+    ])
+    subprocess.check_call([
+        'az',
+        'storage',
+        'container',
+        'delete',
+        '--name',
+        name,
+        '--account-name',
+        storage_account,
+        *(extra_storage_delete_args or []),
+    ])
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
@@ -157,7 +153,7 @@ def submit(
         Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
     ] = None,
 ):
-    '''
+    """
     Submit a job to an HDInsight cluster configured for Hail.
 
     If you wish to pass option-like arguments you should use "--". For example:
@@ -165,13 +161,13 @@ def submit(
 
 
     $ hailctl hdinsight submit name account password script.py --image-name docker.io/image my_script.py -- some-argument --animal dog
-    '''
+    """
     hdinsight_submit(name, storage_account, http_password, script, [*(arguments or []), *ctx.args])
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 def list(ctx: typer.Context):
-    '''
+    """
     List HDInsight clusters configured for Hail.
-    '''
+    """
     subprocess.check_call(['az', 'hdinsight', 'list', *ctx.args])

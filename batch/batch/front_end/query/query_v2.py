@@ -151,7 +151,7 @@ LEFT JOIN LATERAL (
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batches.id DESC
 LIMIT 51;
-'''
+"""
 
     return (sql, where_args)
 
@@ -266,7 +266,7 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     else:
         attempts_table_join_str = ''
 
-    sql = f'''
+    sql = f"""
 SELECT jobs.*, batches.user, batches.billing_project, batches.format_version, job_attributes.value AS name, cost_t.cost,
   cost_t.cost_breakdown
 FROM jobs
@@ -289,6 +289,6 @@ GROUP BY usage_t.batch_id, usage_t.job_id
 ) AS cost_t ON TRUE
 WHERE {" AND ".join(where_conditions)}
 LIMIT 50;
-'''
+"""
 
     return (sql, where_args)

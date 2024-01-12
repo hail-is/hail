@@ -211,7 +211,7 @@ steps:
       valueFrom: hello_image.image
     script: |
       set -ex
-      pip install ruff==0.0.264
+      pip install ruff==0.1.11
       ruff check --config /io/pyproject.toml /hello/hello.py
     inputs:
       - from: /repo/pyproject.toml

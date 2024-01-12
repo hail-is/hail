@@ -29,7 +29,7 @@ for cli in (
 
 @app.command()
 def version():
-    '''Print version information and exit.'''
+    """Print version information and exit."""
     import hailtop  # pylint: disable=import-outside-toplevel
 
     print(hailtop.version())
@@ -42,7 +42,7 @@ def curl(
     path: str,
     ctx: typer.Context,
 ):
-    '''Issue authenticated curl requests to Hail infrastructure.'''
+    """Issue authenticated curl requests to Hail infrastructure."""
     from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
 
     async_to_blocking(_curl(namespace, service, path, ctx))

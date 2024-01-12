@@ -34,10 +34,10 @@ class GCPDriver(CloudDriver):
 
         region_args = [(region,) for region in regions]
         await db.execute_many(
-            '''
+            """
 INSERT INTO regions (region) VALUES (%s)
 ON DUPLICATE KEY UPDATE region = region;
-''',
+""",
             region_args,
         )
 
@@ -92,7 +92,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 inst_coll_configs.jpim_config,
                 task_manager,
             ),
-            *create_pools_coros
+            *create_pools_coros,
         )
 
         driver = GCPDriver(

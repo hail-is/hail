@@ -7,9 +7,7 @@ from .utils import benchmark
 @benchmark(args=profile_25.handle('mt'))
 def shuffle_key_rows_by_mt(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt = mt.annotate_rows(reversed_position_locus=hl.struct(
-        contig=mt.locus.contig,
-        position=-mt.locus.position))
+    mt = mt.annotate_rows(reversed_position_locus=hl.struct(contig=mt.locus.contig, position=-mt.locus.position))
     mt = mt.key_rows_by(mt.reversed_position_locus)
     mt._force_count_rows()
 
@@ -46,5 +44,5 @@ def shuffle_key_by_aggregate_bad_locality(ht_path):
 @benchmark(args=many_ints_table.handle('ht'))
 def shuffle_key_by_aggregate_good_locality(ht_path):
     ht = hl.read_table(ht_path)
-    divisor = (7_500_000 / 51)  # should ensure each partition never overflows default buffer size
+    divisor = 7_500_000 / 51  # should ensure each partition never overflows default buffer size
     ht.group_by(x=ht.idx // divisor).aggregate(c=hl.agg.count(), m=hl.agg.mean(ht.i2))._force_count()

@@ -45,7 +45,7 @@ class SparkBackend(Py4JBackend):
         optimizer_iterations,
         *,
         gcs_requester_pays_project: Optional[str] = None,
-        gcs_requester_pays_buckets: Optional[str] = None
+        gcs_requester_pays_buckets: Optional[str] = None,
     ):
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 

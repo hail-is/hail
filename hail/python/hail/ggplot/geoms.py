@@ -80,7 +80,6 @@ class GeomLineBasic(Geom):
 
 
 class GeomPoint(Geom):
-
     aes_to_plotly = {
         "color": "marker_color",
         "size": "marker_size",
@@ -130,35 +129,31 @@ class GeomPoint(Geom):
         return values
 
     def _add_trace(self, fig_so_far: go.Figure, df, facet_row, facet_col, values, legend: Optional[str] = None):
-        fig_so_far.add_scatter(
+        fig_so_far.add_scatter(**{
             **{
-                **{
-                    "x": df.x,
-                    "y": df.y,
-                    "mode": "markers",
-                    "row": facet_row,
-                    "col": facet_col,
-                    **({"showlegend": False} if legend is None else {"name": legend, "showlegend": True}),
-                },
-                **self._map_to_plotly(values),
-            }
-        )
+                "x": df.x,
+                "y": df.y,
+                "mode": "markers",
+                "row": facet_row,
+                "col": facet_col,
+                **({"showlegend": False} if legend is None else {"name": legend, "showlegend": True}),
+            },
+            **self._map_to_plotly(values),
+        })
 
     def _add_legend(self, fig_so_far: go.Figure, aes_name, category, value):
-        fig_so_far.add_scatter(
+        fig_so_far.add_scatter(**{
             **{
-                **{
-                    "x": [None],
-                    "y": [None],
-                    "mode": "markers",
-                    "name": category,
-                    "showlegend": True,
-                    "legendgroup": aes_name,
-                    "legendgrouptitle_text": aes_name,
-                },
-                **self._map_to_plotly({**self.aes_defaults, aes_name: value}),
-            }
-        )
+                "x": [None],
+                "y": [None],
+                "mode": "markers",
+                "name": category,
+                "showlegend": True,
+                "legendgroup": aes_name,
+                "legendgrouptitle_text": aes_name,
+            },
+            **self._map_to_plotly({**self.aes_defaults, aes_name: value}),
+        })
 
     def apply_to_fig(
         self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
@@ -295,7 +290,6 @@ def geom_text(mapping=aes(), *, color=None, size=None, alpha=None):
 
 
 class GeomBar(Geom):
-
     aes_to_arg = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
@@ -829,7 +823,6 @@ class GeomTile(Geom):
         self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
     ):
         def plot_group(df):
-
             for idx, row in df.iterrows():
                 x_center = row['x']
                 y_center = row['y']
@@ -952,7 +945,6 @@ class GeomRibbon(Geom):
         self, grouped_data, fig_so_far: go.Figure, precomputed, facet_row, facet_col, legend_cache, is_faceted: bool
     ):
         def plot_group(df):
-
             trace_args_bottom = {
                 "x": df.x,
                 "y": df.ymin,

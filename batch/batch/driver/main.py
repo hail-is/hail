@@ -221,9 +221,9 @@ async def update_batch(request):
     batch_id = int(request.match_info['batch_id'])
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT state FROM batches WHERE user = %s AND id = %s;
-''',
+""",
         (user, batch_id),
     )
     if not record:
@@ -408,11 +408,11 @@ async def billing_update_1(request, instance):
         where_args = [update_timestamp, *flatten(where_attempt_args)]
 
         await db.execute_update(
-            f'''
+            f"""
 UPDATE attempts
 SET rollup_time = %s
 {where_query};
-''',
+""",
             where_args,
         )
 
@@ -438,10 +438,10 @@ async def get_index(request, userdata):
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     ready_cores = await db.select_and_fetchone(
-        '''
+        """
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM user_inst_coll_resources;
-'''
+"""
     )
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
@@ -566,9 +566,9 @@ async def configure_feature_flags(request: web.Request, _) -> NoReturn:
     oms_agent = 'oms_agent' in post
 
     await db.execute_update(
-        '''
+        """
 UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
-''',
+""",
         (compact_billing_tables, oms_agent),
     )
 
@@ -939,9 +939,9 @@ async def freeze_batch(request: web.Request, _) -> NoReturn:
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     await db.execute_update(
-        '''
+        """
 UPDATE globals SET frozen = 1;
-'''
+"""
     )
 
     app['frozen'] = True
@@ -963,9 +963,9 @@ async def unfreeze_batch(request: web.Request, _) -> NoReturn:
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
     await db.execute_update(
-        '''
+        """
 UPDATE globals SET frozen = 0;
-'''
+"""
     )
 
     app['frozen'] = False
@@ -982,7 +982,7 @@ async def get_user_resources(request, userdata):
     db: Database = app['db']
 
     records = db.execute_and_fetchall(
-        '''
+        """
 SELECT user,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
@@ -991,7 +991,7 @@ SELECT user,
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
-'''
+"""
     )
 
     user_resources = sorted(
@@ -1008,7 +1008,7 @@ async def check_incremental(db):
     @transaction(db, read_only=True)
     async def check(tx):
         user_inst_coll_with_broken_resources = tx.execute_and_fetchall(
-            '''
+            """
 SELECT
   t.*,
   u.*
@@ -1067,7 +1067,7 @@ WHERE actual_n_ready_jobs != expected_n_ready_jobs
    OR expected_n_cancelled_running_jobs != 0
    OR expected_n_cancelled_creating_jobs != 0
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         failures = [record async for record in user_inst_coll_with_broken_resources]
@@ -1128,7 +1128,7 @@ LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id, attempt_resources.attempt_id
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         agg_job_resources = tx.execute_and_fetchall(
@@ -1139,7 +1139,7 @@ LEFT JOIN jobs ON aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggre
 LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
 GROUP BY aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         agg_job_group_resources = tx.execute_and_fetchall(
@@ -1153,11 +1153,11 @@ LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, t.job_group_id, billing_project
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         agg_billing_project_resources = tx.execute_and_fetchall(
-            '''
+            """
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1166,7 +1166,7 @@ FROM (
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY t.billing_project
 LOCK IN SHARE MODE;
-'''
+"""
         )
 
         attempt_resources = {
@@ -1240,11 +1240,11 @@ async def monitor_billing_limits(app):
         accrued_cost = record['accrued_cost']
         if limit is not None and accrued_cost >= limit:
             running_batches = db.execute_and_fetchall(
-                '''
+                """
 SELECT id
 FROM batches
 WHERE billing_project = %s AND state = 'running';
-''',
+""",
                 (record['billing_project'],),
             )
             async for batch in running_batches:
@@ -1299,7 +1299,7 @@ async def monitor_user_resources(app):
     db: Database = app['db']
 
     records = db.select_and_fetchall(
-        '''
+        """
 SELECT user, inst_coll,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
@@ -1308,7 +1308,7 @@ SELECT user, inst_coll,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
 FROM user_inst_coll_resources
 GROUP BY user, inst_coll;
-'''
+"""
     )
 
     current_user_inst_coll_pairs: Set[Tuple[str, str]] = set()
@@ -1382,28 +1382,28 @@ async def compact_agg_billing_project_users_table(app, db: Database):
     @transaction(db)
     async def compact(tx: Transaction, target: dict):
         original_usage = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 FROM aggregated_billing_project_user_resources_v3
 WHERE billing_project = %s AND `user` = %s AND resource_id = %s
 FOR UPDATE;
-''',
+""",
             (target['billing_project'], target['user'], target['resource_id']),
         )
 
         await tx.just_execute(
-            '''
+            """
 DELETE FROM aggregated_billing_project_user_resources_v3
 WHERE billing_project = %s AND `user` = %s AND resource_id = %s;
-''',
+""",
             (target['billing_project'], target['user'], target['resource_id']),
         )
 
         await tx.execute_update(
-            '''
+            """
 INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, `user`, resource_id, token, `usage`)
 VALUES (%s, %s, %s, %s, %s);
-''',
+""",
             (
                 target['billing_project'],
                 target['user'],
@@ -1414,12 +1414,12 @@ VALUES (%s, %s, %s, %s, %s);
         )
 
         new_usage = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 FROM aggregated_billing_project_user_resources_v3
 WHERE billing_project = %s AND `user` = %s AND resource_id = %s
 GROUP BY billing_project, `user`, resource_id;
-''',
+""",
             (target['billing_project'], target['user'], target['resource_id']),
         )
 
@@ -1429,14 +1429,14 @@ GROUP BY billing_project, `user`, resource_id;
             )
 
     targets = db.execute_and_fetchall(
-        '''
+        """
 SELECT billing_project, `user`, resource_id, COUNT(*) AS n_tokens
 FROM aggregated_billing_project_user_resources_v3
 WHERE token != 0
 GROUP BY billing_project, `user`, resource_id
 ORDER BY n_tokens DESC
 LIMIT 10000;
-''',
+""",
         query_name='find_agg_billing_project_user_resource_to_compact',
     )
 
@@ -1453,28 +1453,28 @@ async def compact_agg_billing_project_users_by_date_table(app, db: Database):
     @transaction(db)
     async def compact(tx: Transaction, target: dict):
         original_usage = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 FROM aggregated_billing_project_user_resources_by_date_v3
 WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
 FOR UPDATE;
-''',
+""",
             (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
         )
 
         await tx.just_execute(
-            '''
+            """
 DELETE FROM aggregated_billing_project_user_resources_by_date_v3
 WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s;
-''',
+""",
             (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
         )
 
         await tx.execute_update(
-            '''
+            """
 INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, `user`, resource_id, token, `usage`)
 VALUES (%s, %s, %s, %s, %s, %s);
-''',
+""",
             (
                 target['billing_date'],
                 target['billing_project'],
@@ -1486,12 +1486,12 @@ VALUES (%s, %s, %s, %s, %s, %s);
         )
 
         new_usage = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 FROM aggregated_billing_project_user_resources_by_date_v3
 WHERE billing_date = %s AND billing_project = %s AND `user` = %s AND resource_id = %s
 GROUP BY billing_date, billing_project, `user`, resource_id;
-''',
+""",
             (target['billing_date'], target['billing_project'], target['user'], target['resource_id']),
         )
 
@@ -1501,14 +1501,14 @@ GROUP BY billing_date, billing_project, `user`, resource_id;
             )
 
     targets = db.execute_and_fetchall(
-        '''
+        """
 SELECT billing_date, billing_project, `user`, resource_id, COUNT(*) AS n_tokens
 FROM aggregated_billing_project_user_resources_by_date_v3
 WHERE token != 0
 GROUP BY billing_date, billing_project, `user`, resource_id
 ORDER BY n_tokens DESC
 LIMIT 10000;
-''',
+""",
         query_name='find_agg_billing_project_user_resource_by_date_to_compact',
     )
 
@@ -1533,9 +1533,9 @@ async def refresh_globals_from_db(app, db):
     resource_ids = {
         record['resource']: Resource(record['resource_id'], record['deduped_resource_id'])
         async for record in db.select_and_fetchall(
-            '''
+            """
 SELECT resource, resource_id, deduped_resource_id FROM resources;
-'''
+"""
         )
     }
 
@@ -1591,9 +1591,9 @@ async def on_startup(app):
     exit_stack.push_async_callback(app['db'].async_close)
 
     row = await db.select_and_fetchone(
-        '''
+        """
 SELECT instance_id, frozen FROM globals;
-'''
+"""
     )
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')

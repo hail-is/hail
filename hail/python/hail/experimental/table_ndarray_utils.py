@@ -97,9 +97,9 @@ def mt_to_table_of_ndarray(
             for i in range(num_partitions - 1)
         ]
         if num_partitions > 1:
-            rekey_map = hl.dict(
-                [(agg_result.trailing_blocks[i], agg_result.interval_bounds[i + 1]) for i in range(num_partitions - 1)]
-            )
+            rekey_map = hl.dict([
+                (agg_result.trailing_blocks[i], agg_result.interval_bounds[i + 1]) for i in range(num_partitions - 1)
+            ])
         else:
             rekey_map = hl.empty_dict(ht.key.dtype, ht.key.dtype)
 

@@ -20,7 +20,7 @@ async def create_test_file(fs, name, base, path):
 
 
 async def create_test_dir(fs, name, base, path):
-    '''Create a directory of test data.
+    """Create a directory of test data.
 
     The directory test data depends on the name (src or dest) so, when
     testing overwriting for example, there is a file in src which does
@@ -34,7 +34,7 @@ async def create_test_dir(fs, name, base, path):
     The dest configuration looks like:
      - {base}/dest/a/subdir/file2
      - {base}/dest/a/file3
-    '''
+    """
     assert name in ('src', 'dest')
     assert path.endswith('/')
 

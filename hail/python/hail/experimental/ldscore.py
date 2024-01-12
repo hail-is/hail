@@ -153,9 +153,9 @@ def ld_score(entry_expr, locus_expr, radius, coord_expr=None, annotation_exprs=N
         ht = ht.annotate(univariate=hl.literal(1.0))
         names = [name for name in ht.row if name not in ht.key]
 
-        ht_union = hl.Table.union(
-            *[(ht.annotate(name=hl.str(x), value=hl.float(ht[x])).select('name', 'value')) for x in names]
-        )
+        ht_union = hl.Table.union(*[
+            (ht.annotate(name=hl.str(x), value=hl.float(ht[x])).select('name', 'value')) for x in names
+        ])
         mt_annotations = ht_union.to_matrix_table(row_key=list(ht_union.key), col_key=['name'])
 
         cols = mt_annotations.key_cols_by()['name'].collect()

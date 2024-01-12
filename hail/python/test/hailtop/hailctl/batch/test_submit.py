@@ -15,14 +15,14 @@ def runner():
 def write_script(dir: str, filename: str):
     with open(f'{dir}/test_job.py', 'w') as f:
         f.write(
-            f'''
+            f"""
 import hailtop.batch as hb
 b = hb.Batch()
 j = b.new_job()
 j.command('cat {filename}')
 b.run(wait=False)
 backend.close()
-'''
+"""
         )
 
 

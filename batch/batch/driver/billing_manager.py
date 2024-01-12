@@ -152,38 +152,38 @@ class CloudBillingManager(abc.ABC):
         async def insert_or_update(tx):
             if resource_updates:
                 last_resource_id = await tx.execute_and_fetchone(
-                    '''
+                    """
 SELECT COALESCE(MAX(resource_id), 0) AS last_resource_id
 FROM resources
 FOR UPDATE
-'''
+"""
                 )
                 last_resource_id = last_resource_id['last_resource_id']
 
                 await tx.execute_many(
-                    '''
+                    """
 INSERT INTO `resources` (resource, rate)
 VALUES (%s, %s)
-''',
+""",
                     resource_updates,
                 )
 
                 await tx.execute_update(
-                    '''
+                    """
 UPDATE resources
 SET deduped_resource_id = resource_id
 WHERE resource_id > %s AND deduped_resource_id IS NULL
-''',
+""",
                     (last_resource_id,),
                 )
 
             if product_version_updates:
                 await tx.execute_many(
-                    '''
+                    """
 INSERT INTO `latest_product_versions` (product, version, sku)
 VALUES (%s, %s, %s)
 ON DUPLICATE KEY UPDATE version = VALUES(version)
-''',
+""",
                     product_version_updates,
                 )
 

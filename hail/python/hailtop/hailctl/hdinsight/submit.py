@@ -17,17 +17,15 @@ def submit(
 
     print("Submitting to cluster '{}'...".format(name))
 
-    subprocess.check_call(
-        [
-            'az',
-            'storage',
-            'copy',
-            '--source',
-            script,
-            '--destination',
-            f'https://{storage_account}.blob.core.windows.net/{name}/{os.path.basename(script)}',
-        ]
-    )
+    subprocess.check_call([
+        'az',
+        'storage',
+        'copy',
+        '--source',
+        script,
+        '--destination',
+        f'https://{storage_account}.blob.core.windows.net/{name}/{os.path.basename(script)}',
+    ])
     resp = requests.post(
         f'https://{name}.azurehdinsight.net/livy/batches',
         headers={'Content-Type': 'application/json', 'X-Requested-By': 'admin'},

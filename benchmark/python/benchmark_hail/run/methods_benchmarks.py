@@ -44,13 +44,13 @@ def variant_and_sample_qc(mt_path):
 def variant_and_sample_qc_nested_with_filters_2(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .8)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.8)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .8)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.8)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .98)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.98)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .98)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.98)
     mt.count()
 
 
@@ -58,45 +58,46 @@ def variant_and_sample_qc_nested_with_filters_2(mt_path):
 def variant_and_sample_qc_nested_with_filters_4(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .8)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.8)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .8)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.8)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .98)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.98)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .98)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.98)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .99)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.99)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .99)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.99)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .999)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.999)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .999)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.999)
     mt.count()
+
 
 @benchmark(args=profile_25.handle('mt'))
 def variant_and_sample_qc_nested_with_filters_4_counts(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .8)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.8)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .8)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.8)
     counts1 = mt.count()
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .98)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.98)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .98)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.98)
     counts2 = mt.count()
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .99)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.99)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .99)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.99)
     counts3 = mt.count()
     mt = hl.variant_qc(mt)
-    mt = mt.filter_rows(mt.variant_qc.call_rate >= .999)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= 0.999)
     mt = hl.sample_qc(mt)
-    mt = mt.filter_cols(mt.sample_qc.call_rate >= .999)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= 0.999)
     mt.count()
 
 
@@ -164,24 +165,16 @@ def ld_prune_profile_25(mt_path):
 @benchmark(args=profile_25.handle('mt'))
 def pc_relate(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt = mt.annotate_cols(scores = hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
-    rel = hl.pc_relate(mt.GT,
-                       0.05,
-                       scores_expr=mt.scores,
-                       statistics='kin',
-                       min_kinship=0.05)
+    mt = mt.annotate_cols(scores=hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
+    rel = hl.pc_relate(mt.GT, 0.05, scores_expr=mt.scores, statistics='kin', min_kinship=0.05)
     rel._force_count()
 
 
 @benchmark(args=balding_nichols_5k_5k.handle())
 def pc_relate_5k_5k(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt = mt.annotate_cols(scores = hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
-    rel = hl.pc_relate(mt.GT,
-                       0.05,
-                       scores_expr=mt.scores,
-                       statistics='kin',
-                       min_kinship=0.05)
+    mt = mt.annotate_cols(scores=hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
+    rel = hl.pc_relate(mt.GT, 0.05, scores_expr=mt.scores, statistics='kin', min_kinship=0.05)
     rel._force_count()
 
 
@@ -194,9 +187,9 @@ def linear_regression_rows(mt_path):
     cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
     mt = mt.annotate_cols(**pheno_dict)
     mt = mt.annotate_cols(**cov_dict)
-    res = hl.linear_regression_rows(y=[mt[key] for key in pheno_dict.keys()],
-                                    x=mt.x,
-                                    covariates=[mt[key] for key in cov_dict.keys()])
+    res = hl.linear_regression_rows(
+        y=[mt[key] for key in pheno_dict.keys()], x=mt.x, covariates=[mt[key] for key in cov_dict.keys()]
+    )
     res._force_count()
 
 
@@ -209,10 +202,11 @@ def linear_regression_rows_nd(mt_path):
     cov_dict = {f"cov_{i}": hl.rand_unif(0, 1) for i in range(num_covs)}
     mt = mt.annotate_cols(**pheno_dict)
     mt = mt.annotate_cols(**cov_dict)
-    res = hl._linear_regression_rows_nd(y=[mt[key] for key in pheno_dict.keys()],
-                                       x=mt.x,
-                                       covariates=[mt[key] for key in cov_dict.keys()])
+    res = hl._linear_regression_rows_nd(
+        y=[mt[key] for key in pheno_dict.keys()], x=mt.x, covariates=[mt[key] for key in cov_dict.keys()]
+    )
     res._force_count()
+
 
 @benchmark(args=random_doubles.handle('mt'))
 def logistic_regression_rows_wald(mt_path):
@@ -220,15 +214,15 @@ def logistic_regression_rows_wald(mt_path):
     mt = mt.head(2000)
     num_phenos = 5
     num_covs = 2
-    pheno_dict = {f"pheno_{i}": hl.rand_bool(.5, seed=i) for i in range(num_phenos)}
+    pheno_dict = {f"pheno_{i}": hl.rand_bool(0.5, seed=i) for i in range(num_phenos)}
     cov_dict = {f"cov_{i}": hl.rand_unif(0, 1, seed=i) for i in range(num_covs)}
     mt = mt.annotate_cols(**pheno_dict)
     mt = mt.annotate_cols(**cov_dict)
-    res = hl.logistic_regression_rows(test='wald',
-                                      y=[mt[key] for key in pheno_dict.keys()],
-                                      x=mt.x,
-                                      covariates=[mt[key] for key in cov_dict.keys()])
+    res = hl.logistic_regression_rows(
+        test='wald', y=[mt[key] for key in pheno_dict.keys()], x=mt.x, covariates=[mt[key] for key in cov_dict.keys()]
+    )
     res._force_count()
+
 
 @benchmark(args=random_doubles.handle('mt'))
 def logistic_regression_rows_wald_nd(mt_path):
@@ -236,12 +230,11 @@ def logistic_regression_rows_wald_nd(mt_path):
     mt = mt.head(2000)
     num_phenos = 5
     num_covs = 2
-    pheno_dict = {f"pheno_{i}": hl.rand_bool(.5, seed=i) for i in range(num_phenos)}
+    pheno_dict = {f"pheno_{i}": hl.rand_bool(0.5, seed=i) for i in range(num_phenos)}
     cov_dict = {f"cov_{i}": hl.rand_unif(0, 1, seed=i) for i in range(num_covs)}
     mt = mt.annotate_cols(**pheno_dict)
     mt = mt.annotate_cols(**cov_dict)
-    res = hl._logistic_regression_rows_nd(test='wald',
-                                          y=[mt[key] for key in pheno_dict.keys()],
-                                          x=mt.x,
-                                          covariates=[mt[key] for key in cov_dict.keys()])
+    res = hl._logistic_regression_rows_nd(
+        test='wald', y=[mt[key] for key in pheno_dict.keys()], x=mt.x, covariates=[mt[key] for key in cov_dict.keys()]
+    )
     res._force_count()

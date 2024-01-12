@@ -113,11 +113,11 @@ async def cancel_batch_in_db(db, batch_id):
     @transaction(db)
     async def cancel(tx):
         record = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT `state` FROM batches
 WHERE id = %s AND NOT deleted
 FOR UPDATE;
-''',
+""",
             (batch_id,),
         )
         if not record:

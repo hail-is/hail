@@ -191,7 +191,6 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 
 def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
-
     row_fields = dict(zip(mt.row_key.keys(), mt.row_key.keys()))
     for f in pass_through:
         if isinstance(f, str):
@@ -1985,7 +1984,7 @@ def linear_mixed_regression_rows(
 def _linear_skat(
     group, weight, y, x, covariates, max_size: int = 46340, accuracy: float = 1e-6, iterations: int = 10000
 ):
-    r'''The linear sequence kernel association test (SKAT).
+    r"""The linear sequence kernel association test (SKAT).
 
     Linear SKAT tests if the phenotype, `y`, is significantly associated with the genotype, `x`. For
     :math:`N` samples, in a group of :math:`M` variants, with :math:`K` covariates, the model is
@@ -2243,7 +2242,7 @@ def _linear_skat(
 
         - s2 : :obj:`.tfloat64`, the variance of the residuals, :math:`\sigma^2` in the paper.
 
-    '''
+    """
     mt = matrix_table_source('skat/x', x)
     k = len(covariates)
     if k == 0:
@@ -2448,7 +2447,7 @@ def _logistic_skat(
     accuracy: float = 1e-6,
     iterations: int = 10000,
 ):
-    r'''The logistic sequence kernel association test (SKAT).
+    r"""The logistic sequence kernel association test (SKAT).
 
     Logistic SKAT tests if the phenotype, `y`, is significantly associated with the genotype,
     `x`. For :math:`N` samples, in a group of :math:`M` variants, with :math:`K` covariates, the
@@ -2748,7 +2747,7 @@ def _logistic_skat(
           - exploded : :obj:`.tbool` True if the null model failed to converge due to numerical
             explosion.
 
-    '''
+    """
     mt = matrix_table_source('skat/x', x)
     k = len(covariates)
     if k == 0:
@@ -3486,17 +3485,15 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     row_fields = set(ds.row)
     update_rows_expression = {}
     if vep_root in row_fields:
-        update_rows_expression[vep_root] = split[vep_root].annotate(
-            **{
-                x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
-                for x in (
-                    'intergenic_consequences',
-                    'motif_feature_consequences',
-                    'regulatory_feature_consequences',
-                    'transcript_consequences',
-                )
-            }
-        )
+        update_rows_expression[vep_root] = split[vep_root].annotate(**{
+            x: split[vep_root][x].filter(lambda csq: csq.allele_num == split.a_index)
+            for x in (
+                'intergenic_consequences',
+                'motif_feature_consequences',
+                'regulatory_feature_consequences',
+                'transcript_consequences',
+            )
+        })
 
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
@@ -3957,9 +3954,10 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
         Row and column indices correspond to matrix table variant index.
     """
     starts_and_stops = hl.linalg.utils.locus_windows(locus_expr, radius, coord_expr, _localize=False)
-    starts_and_stops = hl.tuple(
-        [starts_and_stops[0].map(lambda i: hl.int64(i)), starts_and_stops[1].map(lambda i: hl.int64(i))]
-    )
+    starts_and_stops = hl.tuple([
+        starts_and_stops[0].map(lambda i: hl.int64(i)),
+        starts_and_stops[1].map(lambda i: hl.int64(i)),
+    ])
     ld = hl.row_correlation(entry_expr, block_size)
     return ld._sparsify_row_intervals_expr(starts_and_stops, blocks_only=False)
 
@@ -4249,12 +4247,10 @@ def balding_nichols_model(
             cols=hl.range(n_samples).map(lambda idx: hl.struct(sample_idx=idx, pop=pop_f(pop_dist))),
         ),
         partitions=[
-            hl.Interval(
-                **{
-                    endpoint: hl.Struct(locus=reference_genome.locus_from_global_position(idx), alleles=['A', 'C'])
-                    for endpoint, idx in [('start', lo), ('end', hi)]
-                }
-            )
+            hl.Interval(**{
+                endpoint: hl.Struct(locus=reference_genome.locus_from_global_position(idx), alleles=['A', 'C'])
+                for endpoint, idx in [('start', lo), ('end', hi)]
+            })
             for (lo, hi) in idx_bounds
         ],
         rowfn=lambda idx_range, _: hl.range(idx_range[0], idx_range[1]).map(

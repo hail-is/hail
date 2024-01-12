@@ -198,7 +198,7 @@ class Batch:
         unconfined: bool = False,
         user_code: Optional[str] = None,
         regions: Optional[List[str]] = None,
-        always_copy_output: bool = False
+        always_copy_output: bool = False,
     ) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]

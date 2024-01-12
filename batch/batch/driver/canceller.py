@@ -75,12 +75,12 @@ class Canceller:
 
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user, CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_ready_jobs > 0;
-''',
+""",
         )
         user_n_cancelled_ready_jobs = {record['user']: record['n_cancelled_ready_jobs'] async for record in records}
 
@@ -102,7 +102,7 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if job_group['cancelled']:
@@ -162,12 +162,12 @@ LIMIT %s;
 
     async def cancel_cancelled_creating_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user, CAST(COALESCE(SUM(n_cancelled_creating_jobs), 0) AS SIGNED) AS n_cancelled_creating_jobs
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_creating_jobs > 0;
-''',
+""",
         )
         user_n_cancelled_creating_jobs = {
             record['user']: record['n_cancelled_creating_jobs'] async for record in records
@@ -191,7 +191,7 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if job_group['cancelled']:
@@ -263,12 +263,12 @@ LIMIT %s;
 
     async def cancel_cancelled_running_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user, CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_running_jobs > 0;
-''',
+""",
         )
         user_n_cancelled_running_jobs = {record['user']: record['n_cancelled_running_jobs'] async for record in records}
 
@@ -290,7 +290,7 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if job_group['cancelled']:
@@ -341,7 +341,7 @@ LIMIT %s;
         n_unscheduled = 0
 
         async for record in self.db.select_and_fetchall(
-            '''
+            """
 SELECT attempts.*
 FROM attempts
 INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
@@ -352,7 +352,7 @@ WHERE attempts.start_time IS NOT NULL
   AND instances.`state` = 'active'
 ORDER BY attempts.start_time ASC
 LIMIT 300;
-''',
+""",
         ):
             batch_id = record['batch_id']
             job_id = record['job_id']

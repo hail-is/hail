@@ -36,13 +36,13 @@ async def async_main(service: str, database_name: str):
     await create_migration_tables(db, database_name)
     with tempfile.NamedTemporaryFile() as mysql_cnf:
         mysql_cnf.write(
-            f'''
+            f"""
 [client]
 host = 127.0.0.1
 user = root
 password = pw
 database = {database_name}
-'''.encode()
+""".encode()
         )
         mysql_cnf.flush()
         for i, m in enumerate(migrations):

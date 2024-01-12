@@ -79,13 +79,13 @@ class Pool(InstanceCollection):
         log.info(f'initializing {pool}')
 
         async for record in db.select_and_fetchall(
-            '''
+            """
 SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
 FROM instances
 INNER JOIN instances_free_cores_mcpu
 ON instances.name = instances_free_cores_mcpu.name
 WHERE removed = 0 AND inst_coll = %s;
-''',
+""",
             (pool.name,),
         ):
             pool.add_instance(Instance.from_record(app, pool, record))
@@ -266,17 +266,15 @@ WHERE removed = 0 AND inst_coll = %s;
         if n_instances > 0:
             log.info(f'creating {n_instances} new instances')
             # parallelism will be bounded by thread pool
-            await asyncio.gather(
-                *[
-                    self.create_instance(
-                        cores=cores,
-                        data_disk_size_gb=data_disk_size_gb,
-                        regions=regions,
-                        max_idle_time_msecs=max_idle_time_msecs,
-                    )
-                    for _ in range(n_instances)
-                ]
-            )
+            await asyncio.gather(*[
+                self.create_instance(
+                    cores=cores,
+                    data_disk_size_gb=data_disk_size_gb,
+                    regions=regions,
+                    max_idle_time_msecs=max_idle_time_msecs,
+                )
+                for _ in range(n_instances)
+            ])
 
     async def create_instances_from_ready_cores(
         self, ready_cores_mcpu: int, regions: List[str], remaining_max_new_instances_per_autoscaler_loop: int
@@ -320,7 +318,7 @@ WHERE removed = 0 AND inst_coll = %s;
         jobs_query_args = []
 
         for user_idx, (user, share) in enumerate(user_share.items(), start=1):
-            user_job_query = f'''
+            user_job_query = f"""
 (
   SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
   FROM (
@@ -353,13 +351,13 @@ WHERE removed = 0 AND inst_coll = %s;
   HAVING ready_cores_mcpu > 0
   LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores}
 )
-'''
+"""
 
             jobs_query.append(user_job_query)
             jobs_query_args += [user, self.name, user, self.name]
 
         result = self.db.select_and_fetchall(
-            f'''
+            f"""
 WITH ready_cores_by_scheduling_iteration_regions AS (
     {" UNION ".join(jobs_query)}
 )
@@ -367,7 +365,7 @@ SELECT regions_bits_rep, ready_cores_mcpu
 FROM ready_cores_by_scheduling_iteration_regions
 ORDER BY scheduling_iteration, user_idx, -n_regions DESC, regions_bits_rep
 LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores};
-''',
+""",
             jobs_query_args,
             query_name='get_job_queue_head',
         )
@@ -381,13 +379,13 @@ LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores};
 
     async def ready_cores_mcpu_per_user(self):
         ready_cores_mcpu_per_user = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM user_inst_coll_resources
 WHERE inst_coll = %s
 GROUP BY user;
-''',
+""",
             (self.name,),
         )
 
@@ -507,7 +505,7 @@ class PoolScheduler:
         allocating_users_by_total_cores = sortedcontainers.SortedSet(key=lambda user: user_total_cores_mcpu[user])
 
         records = self.db.execute_and_fetchall(
-            '''
+            """
 SELECT user,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
@@ -517,7 +515,7 @@ FROM user_inst_coll_resources
 WHERE inst_coll = %s
 GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
-''',
+""",
             (self.pool.name,),
             "compute_fair_share",
         )

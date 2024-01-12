@@ -86,13 +86,11 @@ class CleanupImages:
         manifests = manifests[:-10]
 
         now = time.time()
-        await asyncio.gather(
-            *[
-                self.cleanup_digest(image, digest, tags)
-                for digest, time_uploaded, tags in manifests
-                if (now - time_uploaded) >= (7 * 24 * 60 * 60) or len(tags) == 0
-            ]
-        )
+        await asyncio.gather(*[
+            self.cleanup_digest(image, digest, tags)
+            for digest, time_uploaded, tags in manifests
+            if (now - time_uploaded) >= (7 * 24 * 60 * 60) or len(tags) == 0
+        ])
 
         log.info(f'cleaned up image  {image}')
 

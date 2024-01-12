@@ -62,14 +62,12 @@ def test_pgenchisq():
 
 
 def test_array():
-    actual = hl.eval(
-        (
-            hl.array(hl.array([1, 2, 3, 3])),
-            hl.array(hl.set([1, 2, 3])),
-            hl.array(hl.dict({1: 5, 7: 4})),
-            hl.array(hl.nd.array([1, 2, 3, 3])),
-        )
-    )
+    actual = hl.eval((
+        hl.array(hl.array([1, 2, 3, 3])),
+        hl.array(hl.set([1, 2, 3])),
+        hl.array(hl.dict({1: 5, 7: 4})),
+        hl.array(hl.nd.array([1, 2, 3, 3])),
+    ))
 
     expected = ([1, 2, 3, 3], [1, 2, 3], [(1, 5), (7, 4)], [1, 2, 3, 3])
 

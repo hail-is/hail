@@ -550,9 +550,9 @@ async def freeze_deploys(request: web.Request, _) -> NoReturn:
         raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
-        '''
+        """
 UPDATE globals SET frozen_merge_deploy = 1;
-'''
+"""
     )
 
     app['frozen_merge_deploy'] = True
@@ -574,9 +574,9 @@ async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
         raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
     await db.execute_update(
-        '''
+        """
 UPDATE globals SET frozen_merge_deploy = 0;
-'''
+"""
     )
 
     app['frozen_merge_deploy'] = False
@@ -593,12 +593,12 @@ async def get_active_namespaces(request: web.Request, userdata: UserData) -> web
     namespaces = [
         r
         async for r in db.execute_and_fetchall(
-            '''
+            """
 SELECT active_namespaces.*, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
-GROUP BY active_namespaces.namespace'''
+GROUP BY active_namespaces.namespace"""
         )
     ]
     for ns in namespaces:
@@ -618,10 +618,10 @@ async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     namespace = request.match_info['namespace']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT 1 FROM deployed_services
 WHERE namespace = %s AND service = %s
-''',
+""",
         (namespace, service),
     )
 
@@ -685,13 +685,13 @@ async def update_envoy_configs(db: Database, k8s_client):
     services_per_namespace = {
         r['namespace']: [s for s in json.loads(r['services']) if s is not None]
         async for r in db.execute_and_fetchall(
-            f'''
+            f"""
 SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
 WHERE active_namespaces.namespace IN {namespace_arg_list}
-GROUP BY active_namespaces.namespace''',
+GROUP BY active_namespaces.namespace""",
             live_namespaces,
         )
     }
@@ -741,9 +741,9 @@ async def on_startup(app):
     await app['db'].async_init()
 
     row = await app['db'].select_and_fetchone(
-        '''
+        """
 SELECT frozen_merge_deploy FROM globals;
-'''
+"""
     )
 
     app['frozen_merge_deploy'] = row['frozen_merge_deploy']

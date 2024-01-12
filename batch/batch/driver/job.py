@@ -31,7 +31,7 @@ log = logging.getLogger('job')
 
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT batches.*,
   cost_t.cost,
   cost_t.cost_breakdown,
@@ -111,11 +111,11 @@ async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources
             ]
 
             await db.execute_many(
-                '''
+                """
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource_id, deduped_resource_id, quantity)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
-''',
+""",
                 resource_args,
                 'add_attempt_resources',
             )
@@ -216,9 +216,9 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     try:
         rv = await db.execute_and_fetchone(
-            '''
+            """
 CALL mark_job_started(%s, %s, %s, %s, %s);
-''',
+""",
             (batch_id, job_id, attempt_id, instance.name, start_time),
             'mark_job_started',
         )
@@ -249,9 +249,9 @@ async def mark_job_creating(
 
     try:
         rv = await db.execute_and_fetchone(
-            '''
+            """
 CALL mark_job_creating(%s, %s, %s, %s, %s);
-''',
+""",
             (batch_id, job_id, attempt_id, instance.name, start_time),
             'mark_job_creating',
         )
@@ -359,9 +359,9 @@ async def job_config(app, record):
     userdata = json.loads(record['userdata'])
 
     secrets = job_spec.get('secrets', [])
-    k8s_secrets = await asyncio.gather(
-        *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
-    )
+    k8s_secrets = await asyncio.gather(*[
+        k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets
+    ])
 
     gsa_key = None
 
@@ -394,7 +394,7 @@ async def job_config(app, record):
         user_token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
 
-        kube_config = f'''
+        kube_config = f"""
 apiVersion: v1
 clusters:
 - cluster:
@@ -414,15 +414,13 @@ users:
 - name: {namespace}-{name}
   user:
     token: {user_token}
-'''
+"""
 
-        job_spec['secrets'].append(
-            {
-                'name': 'kube-config',
-                'mount_path': '/.kube',
-                'data': {'config': base64.b64encode(kube_config.encode()).decode(), 'ca.crt': cert},
-            }
-        )
+        job_spec['secrets'].append({
+            'name': 'kube-config',
+            'mount_path': '/.kube',
+            'data': {'config': base64.b64encode(kube_config.encode()).decode(), 'ca.crt': cert},
+        })
 
         env = job_spec.get('env')
         if not env:
@@ -517,9 +515,9 @@ async def schedule_job(app, record, instance):
 
     try:
         rv = await db.execute_and_fetchone(
-            '''
+            """
 CALL schedule_job(%s, %s, %s, %s);
-''',
+""",
             (batch_id, job_id, attempt_id, instance.name),
             'schedule_job',
         )

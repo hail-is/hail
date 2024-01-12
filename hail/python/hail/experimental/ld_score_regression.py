@@ -276,7 +276,7 @@ def ld_score_regression(
                 **{'__locus': ds.locus, '__alleles': ds.alleles, '__w_initial': weight_expr, '__x': ld_score_expr},
                 **{y: chi_sq_exprs[i] for i, y in enumerate(ys)},
                 **{w: weight_expr for w in ws},
-                **{n: n_samples_exprs[i] for i, n in enumerate(ns)}
+                **{n: n_samples_exprs[i] for i, n in enumerate(ns)},
             )
         )
         ds = ds.key_by(ds.__locus, ds.__alleles)
@@ -286,18 +286,16 @@ def ld_score_regression(
         ds = hl.read_table(table_tmp_file)
 
         hts = [
-            ds.select(
-                **{
-                    '__w_initial': ds.__w_initial,
-                    '__w_initial_floor': hl.max(ds.__w_initial, 1.0),
-                    '__x': ds.__x,
-                    '__x_floor': hl.max(ds.__x, 1.0),
-                    '__y_name': i,
-                    '__y': ds[ys[i]],
-                    '__w': ds[ws[i]],
-                    '__n': hl.int(ds[ns[i]]),
-                }
-            )
+            ds.select(**{
+                '__w_initial': ds.__w_initial,
+                '__w_initial_floor': hl.max(ds.__w_initial, 1.0),
+                '__x': ds.__x,
+                '__x_floor': hl.max(ds.__x, 1.0),
+                '__y_name': i,
+                '__y': ds[ys[i]],
+                '__w': ds[ws[i]],
+                '__n': hl.int(ds[ns[i]]),
+            })
             for i, y in enumerate(ys)
         ]
 

@@ -75,7 +75,6 @@ class GGPlot:
         return copied
 
     def add_default_scales(self, aesthetic):
-
         for aesthetic_str, mapped_expr in aesthetic.items():
             dtype = mapped_expr.dtype
             if aesthetic_str not in self.scales:
@@ -160,9 +159,9 @@ class GGPlot:
 
                 for key in combined_mapping:
                     if key in self.scales:
-                        combined_mapping = combined_mapping.annotate(
-                            **{key: self.scales[key].transform_data(combined_mapping[key])}
-                        )
+                        combined_mapping = combined_mapping.annotate(**{
+                            key: self.scales[key].transform_data(combined_mapping[key])
+                        })
                 mapping_per_geom.append(combined_mapping)
                 precomputes[geom_label] = geom.get_stat().get_precomputes(combined_mapping)
 
@@ -230,9 +229,9 @@ class GGPlot:
         transformers = {}
         for scale in self.scales.values():
             all_dfs = list(
-                itertools.chain(
-                    *[facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx]
-                )
+                itertools.chain(*[
+                    facet_to_dfs_dict.values() for _, _, facet_to_dfs_dict in geoms_and_grouped_dfs_by_facet_idx
+                ])
             )
             transformers[scale.aesthetic_name] = scale.create_local_transformer(all_dfs)
 

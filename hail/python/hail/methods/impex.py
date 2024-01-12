@@ -2312,9 +2312,7 @@ def import_matrix_table(
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError(
             """import_matrix_table expects entry types to be one of:
-        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(
-                entry_type
-            )
+        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type)
         )
 
     if missing in delimiter:
@@ -3346,7 +3344,6 @@ def import_avro(paths, *, key=None, intervals=None):
         raise ValueError('key and intervals must either be both defined or both undefined')
 
     with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
-
         # monkey patch DataFileReader.determine_file_length to account for bug in Google HadoopFS
 
         def patched_determine_file_length(self) -> int:
