@@ -42,12 +42,15 @@ def test_file_with_no_dest(runner: CliRunner):
 
 
 def test_file_in_current_dir(runner: CliRunner):
-    with tempfile.TemporaryDirectory() as dir:
-        os.chdir(dir)
-        write_hello(f'{dir}/hello.txt')
-        write_script(dir, f'/hello.txt')
-        res = runner.invoke(cli.app, ['submit', '--files', 'hello.txt:/', 'test_job.py'])
-        assert res.exit_code == 0
+    for i in range(30):
+        with tempfile.TemporaryDirectory() as dir:
+            os.chdir(dir)
+            write_hello(f'{dir}/hello.txt')
+            write_script(dir, f'/hello.txt')
+            res = runner.invoke(cli.app, ['submit', '--files', 'hello.txt:/', 'test_job.py'])
+            if res.exit_code != 0:
+                assert 'foo' in res.stdout, (res.stdout, res.stderr)
+            assert res.exit_code == 0
 
 
 def test_file_mount_in_child_dir(runner: CliRunner):
