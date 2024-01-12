@@ -114,8 +114,9 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
     if i.dtype != j.dtype:
         raise ValueError(
-            "'maximal_independent_set' expects arguments `i` and `j` to have same type. "
-            "Found {} and {}.".format(i.dtype, j.dtype)
+            "'maximal_independent_set' expects arguments `i` and `j` to have same type. " "Found {} and {}.".format(
+                i.dtype, j.dtype
+            )
         )
 
     source = i._indices.source
@@ -244,8 +245,9 @@ def require_first_key_field_locus(dataset, method):
         key = dataset.row_key
     if len(key) == 0 or not isinstance(key[0].dtype, tlocus):
         raise ValueError(
-            "Method '{}' requires first key field of type 'locus<any>'.\n"
-            "  Found:{}".format(method, ''.join("\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key))
+            "Method '{}' requires first key field of type 'locus<any>'.\n" "  Found:{}".format(
+                method, ''.join("\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)
+            )
         )
 
 
@@ -469,23 +471,21 @@ def segment_intervals(ht, points):
         lambda lower, higher: hl.if_else(
             lower >= higher,
             [interval],
-            hl.flatten(
+            hl.flatten([
                 [
-                    [
-                        hl.interval(
-                            interval.start, points[lower], includes_start=interval.includes_start, includes_end=False
-                        )
-                    ],
-                    hl.range(lower, higher - 1).map(
-                        lambda x: hl.interval(points[x], points[x + 1], includes_start=True, includes_end=False)
-                    ),
-                    [
-                        hl.interval(
-                            points[higher - 1], interval.end, includes_start=True, includes_end=interval.includes_end
-                        )
-                    ],
-                ]
-            ),
+                    hl.interval(
+                        interval.start, points[lower], includes_start=interval.includes_start, includes_end=False
+                    )
+                ],
+                hl.range(lower, higher - 1).map(
+                    lambda x: hl.interval(points[x], points[x + 1], includes_start=True, includes_end=False)
+                ),
+                [
+                    hl.interval(
+                        points[higher - 1], interval.end, includes_start=True, includes_end=interval.includes_end
+                    )
+                ],
+            ]),
         ),
     )
     ht = ht.annotate(__new_intervals=interval_results, lower=lower, higher=higher).explode('__new_intervals')

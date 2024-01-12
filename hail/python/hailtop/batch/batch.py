@@ -717,9 +717,7 @@ class Batch:
                     raise BatchException("cycle detected in dependency graph")
 
         self._jobs = ordered_jobs
-        run_result = await self._backend._async_run(
-            self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs
-        )  # pylint: disable=assignment-from-no-return
+        run_result = await self._backend._async_run(self, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs)  # pylint: disable=assignment-from-no-return
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
             await self._DEPRECATED_fs.close()

@@ -346,63 +346,63 @@ def test_list_batches_v2(client: BatchClient):
         assert_batch_ids({b1.id, b2.id}, f'tag=~{tag}')
         assert_batch_ids(
             {b1.id, b2.id},
-            f'''
+            f"""
 name=~b
 tag={tag}
-''',
+""",
         )
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 name!~b2
 tag={tag}
-''',
+""",
         )
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 name!=b2
 tag={tag}
-''',
+""",
         )
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 {partial_match_prefix[3:]}-b2
 tag={tag}
-''',
+""",
         )
 
         b2.wait()
 
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 state != complete
 tag = {tag}
-''',
+""",
         )
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 state=complete
 tag={tag}
-''',
+""",
         )
 
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 state != success
 tag={tag}
-''',
+""",
         )
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 state == success
 tag={tag}
-''',
+""",
         )
 
         b1.cancel()
@@ -410,119 +410,119 @@ tag={tag}
 
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 state!=success
 tag={tag}
-''',
+""",
         )
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 state = success
 tag={tag}
-''',
+""",
         )
 
         assert_batch_ids(
             set(),
-            f'''
+            f"""
 state != complete
 tag={tag}
-''',
+""",
         )
         assert_batch_ids(
             {b1.id, b2.id},
-            f'''
+            f"""
 state = complete
 tag={tag}
-''',
+""",
         )
 
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 tag={tag}
 name=b2
-''',
+""",
         )
 
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 tag={tag}
 "b2"
-''',
+""",
         )
 
         assert_batch_ids(
             {b2.id},
-            f'''
+            f"""
 tag=~{tag}
 "b2"
-''',
+""",
         )
 
         assert_batch_ids(
             batch_id_test_universe,
-            f'''
+            f"""
 user != foo
 tag={tag}
-''',
+""",
         )
 
         assert_batch_ids(
             batch_id_test_universe,
-            f'''
+            f"""
 billing_project = {client.billing_project}
 tag={tag}
-''',
+""",
         )
 
         assert_batch_ids(
             {b1.id, b2.id},
-            f'''
+            f"""
 start_time >= 2023-02-24T17:15:25Z
 end_time < 3000-02-24T17:15:25Z
 tag = {tag}
-''',
+""",
         )
 
         assert_batch_ids(
             set(),
-            f'''
+            f"""
 start_time >= 2023-02-24T17:15:25Z
 end_time == 2023-02-24T17:15:25Z
 tag = {tag}
-''',
+""",
         )
 
         assert_batch_ids(
             set(),
-            f'''
+            f"""
 duration > 50000
 tag = {tag}
-''',
+""",
         )
         assert_batch_ids(
             set(),
-            f'''
+            f"""
 cost > 1000
 tag = {tag}
-''',
+""",
         )
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 batch_id = {b1.id}
 tag = {tag}
-''',
+""",
         )
         assert_batch_ids(
             {b1.id},
-            f'''
+            f"""
 batch_id == {b1.id}
 tag = {tag}
-''',
+""",
         )
 
         with pytest.raises(httpx.ClientResponseError, match='could not parse term'):
@@ -659,13 +659,13 @@ def test_list_jobs_v2(client: BatchClient):
 
         assert_job_ids(
             no_jobs,
-            '''
+            """
 job_id >=1
 instance == foo
 foo = bar
 start_time >= 2023-02-24T17:15:25Z
 end_time <= 2023-02-24T17:18:25Z
-''',
+""",
         )
 
         with pytest.raises(httpx.ClientResponseError, match='could not parse term'):
@@ -717,9 +717,10 @@ def test_unknown_image(client: BatchClient):
     status = j.wait()
     try:
         assert j._get_exit_code(status, 'main') is None
-        assert status['status']['container_statuses']['main']['short_error'] == 'image not found', str(
-            (status, b.debug_info())
-        )
+        assert status['status']['container_statuses']['main']['short_error'] == 'image not found', str((
+            status,
+            b.debug_info(),
+        ))
     except Exception as e:
         raise AssertionError(str((status, b.debug_info()))) from e
 
@@ -733,9 +734,10 @@ def test_invalid_gar(client: BatchClient):
     status = j.wait()
     try:
         assert j._get_exit_code(status, 'main') is None
-        assert status['status']['container_statuses']['main']['short_error'] == 'image cannot be pulled', str(
-            (status, b.debug_info())
-        )
+        assert status['status']['container_statuses']['main']['short_error'] == 'image cannot be pulled', str((
+            status,
+            b.debug_info(),
+        ))
     except Exception as e:
         raise AssertionError(str((status, b.debug_info()))) from e
 
@@ -980,10 +982,10 @@ def test_port(client: BatchClient):
         [
             'bash',
             '-c',
-            '''
+            """
 echo $HAIL_BATCH_WORKER_PORT
 echo $HAIL_BATCH_WORKER_IP
-''',
+""",
         ],
         port=5000,
     )
@@ -1118,17 +1120,17 @@ def test_verify_no_access_to_metadata_server(client: BatchClient):
 
 def test_submit_batch_in_job(client: BatchClient, remote_tmpdir: str):
     b = create_batch(client)
-    script = f'''import hailtop.batch as hb
+    script = f"""import hailtop.batch as hb
 backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
 b = hb.Batch(backend=backend)
 j = b.new_bash_job()
 j.command("echo hi")
 b.run()
 backend.close()
-'''
+"""
     j = b.create_job(
         HAIL_GENETICS_HAILTOP_IMAGE,
-        ['/bin/bash', '-c', f'''python3 -c \'{script}\''''],
+        ['/bin/bash', '-c', f"""python3 -c \'{script}\'"""],
     )
     b.submit()
     status = j.wait()
@@ -1139,14 +1141,14 @@ def test_cant_submit_to_default_with_other_ns_creds(client: BatchClient, remote_
     DOMAIN = os.environ['HAIL_PRODUCTION_DOMAIN']
     NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
-    script = f'''import hailtop.batch as hb
+    script = f"""import hailtop.batch as hb
 backend = hb.ServiceBackend("test", remote_tmpdir="{remote_tmpdir}")
 b = hb.Batch(backend=backend)
 j = b.new_bash_job()
 j.command("echo hi")
 b.run()
 backend.close()
-'''
+"""
 
     b = create_batch(client)
     j = b.create_job(
@@ -1154,8 +1156,8 @@ backend.close()
         [
             '/bin/bash',
             '-c',
-            f'''
-python3 -c \'{script}\'''',
+            f"""
+python3 -c \'{script}\'""",
         ],
         env={
             'HAIL_DOMAIN': DOMAIN,
@@ -1180,10 +1182,10 @@ def test_deploy_config_is_mounted_as_readonly(client: BatchClient):
         [
             '/bin/bash',
             '-c',
-            '''
+            """
 set -ex
 jq '.default_namespace = "default"' /deploy-config/deploy-config.json > tmp.json
-mv tmp.json /deploy-config/deploy-config.json''',
+mv tmp.json /deploy-config/deploy-config.json""",
         ],
         mount_tokens=True,
     )
@@ -1197,7 +1199,7 @@ mv tmp.json /deploy-config/deploy-config.json''',
 def test_cannot_contact_other_internal_ips(client: BatchClient):
     internal_ips = [f'10.128.0.{i}' for i in (10, 11, 12)]
     b = create_batch(client)
-    script = f'''
+    script = f"""
 if [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[0]}" ] && ! grep -Fq {internal_ips[0]} /etc/hosts; then
     OTHER_IP={internal_ips[0]}
 elif [ "$HAIL_BATCH_WORKER_IP" != "{internal_ips[1]}" ] && ! grep -Fq {internal_ips[1]} /etc/hosts; then
@@ -1207,7 +1209,7 @@ else
 fi
 
 curl -fsSL -m 5 $OTHER_IP
-'''
+"""
     j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['/bin/bash', '-c', script], port=5000)
     b.submit()
     status = j.wait()
@@ -1220,18 +1222,18 @@ curl -fsSL -m 5 $OTHER_IP
 def test_hadoop_can_use_cloud_credentials(client: BatchClient, remote_tmpdir: str):
     token = os.environ["HAIL_TOKEN"]
     b = create_batch(client)
-    script = f'''import hail as hl
+    script = f"""import hail as hl
 import secrets
 attempt_token = secrets.token_urlsafe(5)
 location = f"{remote_tmpdir}/{ token }/{{ attempt_token }}/test_can_use_hailctl_auth.t"
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
-'''
+"""
     j = b.create_job(HAIL_GENETICS_HAIL_IMAGE, ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err'])
     b.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
-    expected_log = '''+-------+
+    expected_log = """+-------+
 |   idx |
 +-------+
 | int32 |
@@ -1247,7 +1249,7 @@ hl.read_table(location).show()
 |     8 |
 |     9 |
 +-------+
-'''
+"""
     log = j.log()
     assert expected_log in log['main'], str((log, b.debug_info()))
 
@@ -1272,14 +1274,12 @@ def test_verify_access_to_public_internet(client: BatchClient):
 
 def test_verify_can_tcp_to_localhost(client: BatchClient):
     b = create_batch(client)
-    script = '''
+    script = """
 set -e
 nc -l -p 5000 &
 sleep 5
 echo "hello" | nc -q 1 localhost 5000
-'''.lstrip(
-        '\n'
-    )
+""".lstrip('\n')
     j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     b.submit()
     status = j.wait()
@@ -1290,14 +1290,12 @@ echo "hello" | nc -q 1 localhost 5000
 
 def test_verify_can_tcp_to_127_0_0_1(client: BatchClient):
     b = create_batch(client)
-    script = '''
+    script = """
 set -e
 nc -l -p 5000 &
 sleep 5
 echo "hello" | nc -q 1 127.0.0.1 5000
-'''.lstrip(
-        '\n'
-    )
+""".lstrip('\n')
     j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     b.submit()
     status = j.wait()
@@ -1308,14 +1306,12 @@ echo "hello" | nc -q 1 127.0.0.1 5000
 
 def test_verify_can_tcp_to_self_ip(client: BatchClient):
     b = create_batch(client)
-    script = '''
+    script = """
 set -e
 nc -l -p 5000 &
 sleep 5
 echo "hello" | nc -q 1 $(hostname -i) 5000
-'''.lstrip(
-        '\n'
-    )
+""".lstrip('\n')
     j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
     b.submit()
     status = j.wait()

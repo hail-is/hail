@@ -82,7 +82,6 @@ async def render_template(
     *,
     cookie_domain: Optional[str] = None,
 ) -> web.Response:
-
     if request.headers.get('x-hail-return-jinja-context'):
         if userdata and userdata['is_developer']:
             return web.json_response({'file': file, 'page_context': page_context, 'userdata': userdata})

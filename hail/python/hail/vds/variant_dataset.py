@@ -295,12 +295,10 @@ class VariantDataset:
                 error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
 
             # check END field
-            (missing_end, end_before_position) = rd.aggregate_entries(
-                (
-                    hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
-                    hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
-                )
-            )
+            (missing_end, end_before_position) = rd.aggregate_entries((
+                hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
+                hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
+            ))
 
             if missing_end:
                 error(
@@ -317,7 +315,7 @@ class VariantDataset:
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
 
     def union_rows(*vdses):
-        '''Combine many VDSes with the same samples but disjoint variants.
+        """Combine many VDSes with the same samples but disjoint variants.
 
         **Examples**
 
@@ -328,7 +326,7 @@ class VariantDataset:
         ... vds_per_chrom = [hl.vds.read_vds(path) for path in vds_paths)  # doctest: +SKIP
         ... hl.vds.VariantDataset.union_rows(*vds_per_chrom)  # doctest: +SKIP
 
-        '''
+        """
 
         fd = hl.vds.VariantDataset.ref_block_max_length_field
         mts = [vds.reference_data for vds in vdses]
@@ -338,9 +336,9 @@ class VariantDataset:
 
         # if some mts have max ref len but not all, drop it
         if all_ref_max:
-            new_ref_mt = hl.MatrixTable.union_rows(*mts).annotate_globals(
-                **{fd: hl.max([mt.index_globals()[fd] for mt in mts])}
-            )
+            new_ref_mt = hl.MatrixTable.union_rows(*mts).annotate_globals(**{
+                fd: hl.max([mt.index_globals()[fd] for mt in mts])
+            })
         else:
             if any_ref_max:
                 mts = [mt.drop(fd) if fd in mt.globals else mt for mt in mts]

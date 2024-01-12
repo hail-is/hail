@@ -26,7 +26,7 @@ def get_section_key_path(parameter: str) -> Tuple[str, str, Tuple[str, ...]]:
     if len(path) == 2:
         return path[0], path[1], tuple(path)
     print(
-        '''
+        """
 Parameters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
 
@@ -35,9 +35,7 @@ parameter, for example: "domain".
 
 A parameter with more than one slash is invalid, for example:
 "batch/billing/project".
-'''.lstrip(
-            '\n'
-        ),
+""".lstrip('\n'),
         file=sys.stderr,
     )
     sys.exit(1)
@@ -54,7 +52,7 @@ def set(
     parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)],
     value: str,
 ):
-    '''Set a Hail configuration parameter.'''
+    """Set a Hail configuration parameter."""
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
 
     if parameter not in config_variables():
@@ -110,7 +108,7 @@ def get_config_variable(incomplete: str):
 
 @app.command()
 def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autocompletion=get_config_variable)]):
-    '''Unset a Hail configuration parameter (restore to default behavior).'''
+    """Unset a Hail configuration parameter (restore to default behavior)."""
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
 
     config = get_user_config()
@@ -126,7 +124,7 @@ def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autoco
 
 @app.command()
 def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocompletion=get_config_variable)]):
-    '''Get the value of a Hail configuration parameter.'''
+    """Get the value of a Hail configuration parameter."""
     from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
 
     config = get_user_config()
@@ -137,7 +135,7 @@ def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocomple
 
 @app.command(name='config-location')
 def config_location():
-    '''Print the location of the config file.'''
+    """Print the location of the config file."""
     from hailtop.config import get_user_config_path  # pylint: disable=import-outside-toplevel
 
     print(get_user_config_path())
@@ -145,7 +143,7 @@ def config_location():
 
 @app.command()
 def list(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
-    '''Lists every config variable in the section.'''
+    """Lists every config variable in the section."""
     from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
 
     config = get_user_config()

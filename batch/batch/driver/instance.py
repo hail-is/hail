@@ -62,11 +62,11 @@ class Instance:
         @transaction(db)
         async def insert(tx):
             await tx.just_execute(
-                '''
+                """
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu,
   time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-''',
+""",
                 (
                     name,
                     state,
@@ -84,10 +84,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 ),
             )
             await tx.just_execute(
-                '''
+                """
 INSERT INTO instances_free_cores_mcpu (name, free_cores_mcpu)
 VALUES (%s, %s);
-''',
+""",
                 (
                     name,
                     worker_cores_mcpu,
@@ -311,22 +311,22 @@ VALUES (%s, %s);
         self.inst_coll.adjust_for_add_instance(self)
 
         await self.db.execute_update(
-            '''
+            """
 UPDATE instances
 SET last_updated = %s,
   failed_request_count = 0
 WHERE name = %s;
-''',
+""",
             (now, self.name),
             'mark_healthy',
         )
 
     async def incr_failed_request_count(self):
         await self.db.execute_update(
-            '''
+            """
 UPDATE instances
 SET failed_request_count = failed_request_count + 1 WHERE name = %s;
-''',
+""",
             (self.name,),
         )
 

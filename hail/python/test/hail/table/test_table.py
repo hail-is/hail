@@ -181,25 +181,25 @@ class Tests(unittest.TestCase):
         )
 
         expected = {
-            u'status': 0,
-            u'x13': {u'n_called': 2, u'expected_homs': 1.64, u'f_stat': -1.777777777777777, u'observed_homs': 1},
-            u'x14': {u'AC': [3, 1], u'AF': [0.75, 0.25], u'AN': 4, u'homozygote_count': [1, 0]},
-            u'x15': {u'a': 5, u'c': {u'banana': u'apple'}, u'b': u'foo'},
-            u'x10': {u'min': 3.0, u'max': 13.0, u'sum': 16.0, u'stdev': 5.0, u'n': 2, u'mean': 8.0},
-            u'x8': 1,
-            u'x9': 0.0,
-            u'x16': u'apple',
-            u'x11': {u'het_freq_hwe': 0.5, u'p_value': 0.5},
-            u'x2': [3, 4, 13, 14],
-            u'x3': 3,
-            u'x1': [6, 26],
-            u'x6': 39,
-            u'x7': 2,
-            u'x4': 13,
-            u'x5': 16,
-            u'x17': [],
-            u'x18': [],
-            u'x19': [hl.Call([0, 1])],
+            'status': 0,
+            'x13': {'n_called': 2, 'expected_homs': 1.64, 'f_stat': -1.777777777777777, 'observed_homs': 1},
+            'x14': {'AC': [3, 1], 'AF': [0.75, 0.25], 'AN': 4, 'homozygote_count': [1, 0]},
+            'x15': {'a': 5, 'c': {'banana': 'apple'}, 'b': 'foo'},
+            'x10': {'min': 3.0, 'max': 13.0, 'sum': 16.0, 'stdev': 5.0, 'n': 2, 'mean': 8.0},
+            'x8': 1,
+            'x9': 0.0,
+            'x16': 'apple',
+            'x11': {'het_freq_hwe': 0.5, 'p_value': 0.5},
+            'x2': [3, 4, 13, 14],
+            'x3': 3,
+            'x1': [6, 26],
+            'x6': 39,
+            'x7': 2,
+            'x4': 13,
+            'x5': 16,
+            'x17': [],
+            'x18': [],
+            'x19': [hl.Call([0, 1])],
         }
 
         self.maxDiff = None
@@ -215,7 +215,7 @@ class Tests(unittest.TestCase):
                 z=agg.sum(kt.g1 + kt.idx) + kt.g1,
             )
         )
-        self.assertEqual(convert_struct_to_dict(r), {u'x': 50, u'y': 40, u'z': 100})
+        self.assertEqual(convert_struct_to_dict(r), {'x': 50, 'y': 40, 'z': 100})
 
         r = kt.aggregate(5)
         self.assertEqual(r, 5)
@@ -252,9 +252,9 @@ class Tests(unittest.TestCase):
         t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
         mt = t.to_matrix_table_row_major(['bar', 'baz'], 'entry', 'col')
         round_trip = mt.localize_entries('entries', 'cols')
-        round_trip = round_trip.transmute(
-            **{col.col: round_trip.entries[i].entry for i, col in enumerate(hl.eval(round_trip.cols))}
-        )
+        round_trip = round_trip.transmute(**{
+            col.col: round_trip.entries[i].entry for i, col in enumerate(hl.eval(round_trip.cols))
+        })
         round_trip = round_trip.drop(round_trip.cols)
 
         self.assertTrue(t._same(round_trip))
@@ -263,9 +263,9 @@ class Tests(unittest.TestCase):
         t = t.annotate(foo=t.idx, bar=hl.struct(val=2 * t.idx), baz=hl.struct(val=3 * t.idx))
         mt = t.to_matrix_table_row_major(['bar', 'baz'])
         round_trip = mt.localize_entries('entries', 'cols')
-        round_trip = round_trip.transmute(
-            **{col.col: round_trip.entries[i] for i, col in enumerate(hl.eval(round_trip.cols))}
-        )
+        round_trip = round_trip.transmute(**{
+            col.col: round_trip.entries[i] for i, col in enumerate(hl.eval(round_trip.cols))
+        })
         round_trip = round_trip.drop(round_trip.cols)
 
         self.assertTrue(t._same(round_trip))
@@ -777,14 +777,12 @@ class Tests(unittest.TestCase):
 
     def test_from_pandas_missing_and_nans(self):
         # Pandas treats nan as missing. We don't.
-        df = pd.DataFrame(
-            {
-                "x": pd.Series([None, 1, 2, None, 4], dtype=pd.Int64Dtype()),
-                "y": pd.Series([None, 1, 2, None, 4], dtype=pd.Int32Dtype()),
-                "z": pd.Series([np.nan, 1.0, 3.0, 4.0, np.nan]),
-                "s": pd.Series([None, "cat", None, "fox", "dog"], dtype=pd.StringDtype()),
-            }
-        )
+        df = pd.DataFrame({
+            "x": pd.Series([None, 1, 2, None, 4], dtype=pd.Int64Dtype()),
+            "y": pd.Series([None, 1, 2, None, 4], dtype=pd.Int32Dtype()),
+            "z": pd.Series([np.nan, 1.0, 3.0, 4.0, np.nan]),
+            "s": pd.Series([None, "cat", None, "fox", "dog"], dtype=pd.StringDtype()),
+        })
         ht = hl.Table.from_pandas(df)
         collected = ht.collect()
 
@@ -1646,7 +1644,7 @@ class Tests(unittest.TestCase):
         result = ht.show(handler=str)
         assert (
             result
-            == '''+-------+--------------+--------------------------------+------------+
+            == """+-------+--------------+--------------------------------+------------+
 |   idx | x1           | x2                             | x3         |
 +-------+--------------+--------------------------------+------------+
 | int32 | array<int32> | array<struct{y: array<int32>}> | set<int32> |
@@ -1669,7 +1667,7 @@ class Tests(unittest.TestCase):
 +-------------------+----------+---------------------+-------------------+
 | ("3",3)           | 4.20e+00 | {"bar":5,"hello":3} | (True,False)      |
 +-------------------+----------+---------------------+-------------------+
-'''
+"""
         )
 
     def test_import_filter_replace(self):
@@ -1894,9 +1892,10 @@ def test_join_distinct_preserves_count():
 
     right_table_2 = hl.utils.range_table(1).filter(False)
     joined_2 = left_table.annotate(r=right_table_2.index(left_table.i))
-    n_defined_2, keys_2 = joined_2.aggregate(
-        (hl.agg.count_where(hl.is_defined(joined_2.r)), hl.agg.collect(joined_2.i))
-    )
+    n_defined_2, keys_2 = joined_2.aggregate((
+        hl.agg.count_where(hl.is_defined(joined_2.r)),
+        hl.agg.collect(joined_2.i),
+    ))
     assert n_defined_2 == 0
     assert keys_2 == left_pos
 

@@ -13,13 +13,13 @@ def gwas(batch, vcf, phenotypes):
         ofile={'bed': '{root}.bed', 'bim': '{root}.bim', 'fam': '{root}.fam', 'assoc': '{root}.assoc'}
     )
     g.command(
-        f'''
+        f"""
 python3 /run_gwas.py \
     --vcf {vcf} \
     --phenotypes {phenotypes} \
     --output-file {g.ofile} \
     --cores {cores}
-'''
+"""
     )
     return g
 
@@ -32,7 +32,7 @@ def clump(batch, bfile, assoc, chr):
     c.image('hailgenetics/genetics:0.2.37')
     c.memory('1Gi')
     c.command(
-        f'''
+        f"""
 plink --bfile {bfile} \
     --clump {assoc} \
     --chr {chr} \
@@ -43,7 +43,7 @@ plink --bfile {bfile} \
     --memory 1024
 
 mv plink.clumped {c.clumped}
-'''
+"""
     )
     return c
 
@@ -56,14 +56,14 @@ def merge(batch, results):
     merger.image('ubuntu:22.04')
     if results:
         merger.command(
-            f'''
+            f"""
 head -n 1 {results[0]} > {merger.ofile}
 for result in {" ".join(results)}
 do
     tail -n +2 "$result" >> {merger.ofile}
 done
 sed -i -e '/^$/d' {merger.ofile}
-'''
+"""
         )
     return merger
 

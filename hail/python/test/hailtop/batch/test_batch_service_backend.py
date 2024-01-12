@@ -1156,12 +1156,10 @@ def test_validate_cloud_storage_policy(backend, monkeypatch):
     # hailctl config, allowlisted nonexistent buckets don't error
     base_config = get_user_config()
     local_config = ConfigParser()
-    local_config.read_dict(
-        {
-            **{section: {key: val for key, val in base_config[section].items()} for section in base_config.sections()},
-            **{"gcs": {"bucket_allow_list": f"{fake_bucket1},{fake_bucket2}"}},
-        }
-    )
+    local_config.read_dict({
+        **{section: {key: val for key, val in base_config[section].items()} for section in base_config.sections()},
+        **{"gcs": {"bucket_allow_list": f"{fake_bucket1},{fake_bucket2}"}},
+    })
 
     def _get_user_config():
         return local_config

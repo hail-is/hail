@@ -41,85 +41,76 @@ image_str = str_type
 # gcsfuse -> cloudfuse
 
 
-job_validator = keyed(
-    {
-        'always_copy_output': bool_type,
-        'always_run': bool_type,
-        'attributes': dictof(str_type),
-        'env': listof(keyed({'name': str_type, 'value': str_type})),
-        'cloudfuse': listof(
-            keyed(
-                {
-                    required('bucket'): non_empty_str_type,
-                    required('mount_path'): non_empty_str_type,
-                    required('read_only'): bool_type,
-                }
-            )
-        ),
-        'input_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
-        required('job_id'): int_type,
-        'mount_tokens': bool_type,
-        'network': oneof('public', 'private'),
-        'unconfined': bool_type,
-        'output_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
-        'parent_ids': listof(int_type),
-        'absolute_parent_ids': listof(int_type),
-        'in_update_parent_ids': listof(int_type),
-        'port': int_type,
-        required('process'): switch(
-            'type',
-            {
-                'docker': {
-                    required('command'): listof(str_type),
-                    required('image'): image_str,
-                    'mount_docker_socket': bool_type,  # DEPRECATED
-                },
-                'jvm': {
-                    required('jar_spec'): keyed(
-                        {required('type'): oneof('git_revision', 'jar_url'), required('value'): str_type}
-                    ),
-                    required('command'): listof(str_type),
-                    'profile': bool_type,
-                },
+job_validator = keyed({
+    'always_copy_output': bool_type,
+    'always_run': bool_type,
+    'attributes': dictof(str_type),
+    'env': listof(keyed({'name': str_type, 'value': str_type})),
+    'cloudfuse': listof(
+        keyed({
+            required('bucket'): non_empty_str_type,
+            required('mount_path'): non_empty_str_type,
+            required('read_only'): bool_type,
+        })
+    ),
+    'input_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
+    required('job_id'): int_type,
+    'mount_tokens': bool_type,
+    'network': oneof('public', 'private'),
+    'unconfined': bool_type,
+    'output_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
+    'parent_ids': listof(int_type),
+    'absolute_parent_ids': listof(int_type),
+    'in_update_parent_ids': listof(int_type),
+    'port': int_type,
+    required('process'): switch(
+        'type',
+        {
+            'docker': {
+                required('command'): listof(str_type),
+                required('image'): image_str,
+                'mount_docker_socket': bool_type,  # DEPRECATED
             },
-        ),
-        'regions': listof(str_type),
-        'requester_pays_project': str_type,
-        'resources': keyed(
-            {
-                'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_types)),
-                'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
-                'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
-                'machine_type': str_type,
-                'preemptible': bool_type,
-            }
-        ),
-        'secrets': listof(
-            keyed({required('namespace'): k8s_str, required('name'): k8s_str, required('mount_path'): str_type})
-        ),
-        'service_account': keyed({required('namespace'): k8s_str, required('name'): k8s_str}),
-        'timeout': numeric(**{"x > 0": lambda x: x > 0}),
-        'user_code': str_type,
-    }
-)
+            'jvm': {
+                required('jar_spec'): keyed({
+                    required('type'): oneof('git_revision', 'jar_url'),
+                    required('value'): str_type,
+                }),
+                required('command'): listof(str_type),
+                'profile': bool_type,
+            },
+        },
+    ),
+    'regions': listof(str_type),
+    'requester_pays_project': str_type,
+    'resources': keyed({
+        'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX), oneof(*memory_types)),
+        'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
+        'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
+        'machine_type': str_type,
+        'preemptible': bool_type,
+    }),
+    'secrets': listof(
+        keyed({required('namespace'): k8s_str, required('name'): k8s_str, required('mount_path'): str_type})
+    ),
+    'service_account': keyed({required('namespace'): k8s_str, required('name'): k8s_str}),
+    'timeout': numeric(**{"x > 0": lambda x: x > 0}),
+    'user_code': str_type,
+})
 
-batch_validator = keyed(
-    {
-        'attributes': nullable(dictof(str_type)),
-        required('billing_project'): str_type,
-        'callback': nullable(str_type),
-        required('n_jobs'): int_type,
-        required('token'): str_type,
-        'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
-    }
-)
+batch_validator = keyed({
+    'attributes': nullable(dictof(str_type)),
+    required('billing_project'): str_type,
+    'callback': nullable(str_type),
+    required('n_jobs'): int_type,
+    required('token'): str_type,
+    'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
+})
 
-batch_update_validator = keyed(
-    {
-        required('token'): str_type,
-        required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
-    }
-)
+batch_update_validator = keyed({
+    required('token'): str_type,
+    required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
+})
 
 
 def validate_and_clean_jobs(jobs):

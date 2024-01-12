@@ -41,7 +41,7 @@ splits = partition(n_splits, classes)
 for split_index, split in enumerate(splits):
     classes = '\n'.join(f'<class name="{name}"/>' for name in split)
     with open(f'testng-splits-{split_index}.xml', 'w') as f:
-        xml = f'''
+        xml = f"""
 <suite name="SuiteAll" verbose="1">
     <test name="Split{ split_index }">
       <classes>
@@ -49,5 +49,5 @@ for split_index, split in enumerate(splits):
       </classes>
     </test>
 </suite>
-'''
+"""
         f.write(xml)

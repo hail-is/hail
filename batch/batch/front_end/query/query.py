@@ -130,11 +130,11 @@ class JobInstanceQuery(Query):
         op = self.operator.to_sql()
         if isinstance(self.operator, PartialMatchOperator):
             self.instance = f'%{self.instance}%'
-        sql = f'''
+        sql = f"""
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM attempts
   WHERE instance_name {op} %s))
-'''
+"""
         return (sql, [self.instance])
 
 
@@ -171,14 +171,14 @@ class JobQuotedExactMatchQuery(Query):
         self.term = term
 
     def query(self) -> Tuple[str, List[str]]:
-        sql = '''
+        sql = """
 (((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` = %s OR `value` = %s)) OR
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM attempts
   WHERE instance_name = %s)))
-'''
+"""
         return (sql, [self.term, self.term, self.term])
 
 
@@ -197,14 +197,14 @@ class JobUnquotedPartialMatchQuery(Query):
         self.term = term
 
     def query(self) -> Tuple[str, List[str]]:
-        sql = '''
+        sql = """
 (((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` LIKE %s OR `value` LIKE %s)) OR
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM attempts
   WHERE instance_name LIKE %s)))
-'''
+"""
         escaped_term = f'%{self.term}%'
         return (sql, [escaped_term, escaped_term, escaped_term])
 
@@ -227,11 +227,11 @@ class JobKeywordQuery(Query):
         value = self.value
         if isinstance(self.operator, PartialMatchOperator):
             value = f'%{value}%'
-        sql = f'''
+        sql = f"""
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM job_attributes
   WHERE `key` = %s AND `value` {op} %s))
-        '''
+        """
         return (sql, [self.key, value])
 
 
@@ -250,11 +250,11 @@ class JobStartTimeQuery(Query):
 
     def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
-        sql = f'''
+        sql = f"""
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM attempts
   WHERE start_time {op} %s))
-'''
+"""
         return (sql, [self.time_msecs])
 
 
@@ -273,11 +273,11 @@ class JobEndTimeQuery(Query):
 
     def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
-        sql = f'''
+        sql = f"""
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM attempts
   WHERE end_time {op} %s))
-'''
+"""
         return (sql, [self.time_msecs])
 
 
@@ -296,11 +296,11 @@ class JobDurationQuery(Query):
 
     def query(self) -> Tuple[str, List[int]]:
         op = self.operator.to_sql()
-        sql = f'''
+        sql = f"""
 ((jobs.batch_id, jobs.job_id) IN
  (SELECT batch_id, job_id FROM attempts
   WHERE end_time - start_time {op} %s))
-'''
+"""
         return (sql, [self.time_msecs])
 
 
@@ -455,11 +455,11 @@ class BatchQuotedExactMatchQuery(Query):
         self.term = term
 
     def query(self) -> Tuple[str, List[str]]:
-        sql = '''
+        sql = """
 ((batches.id) IN
  (SELECT batch_id FROM job_group_attributes
   WHERE `key` = %s OR `value` = %s))
-'''
+"""
         return (sql, [self.term, self.term])
 
 
@@ -478,11 +478,11 @@ class BatchUnquotedPartialMatchQuery(Query):
         self.term = term
 
     def query(self) -> Tuple[str, List[str]]:
-        sql = '''
+        sql = """
 ((batches.id) IN
  (SELECT batch_id FROM job_group_attributes
   WHERE `key` LIKE %s OR `value` LIKE %s))
-'''
+"""
         escaped_term = f'%{self.term}%'
         return (sql, [escaped_term, escaped_term])
 
@@ -505,11 +505,11 @@ class BatchKeywordQuery(Query):
         value = self.value
         if isinstance(self.operator, PartialMatchOperator):
             value = f'%{value}%'
-        sql = f'''
+        sql = f"""
 ((batches.id) IN
  (SELECT batch_id FROM job_group_attributes
   WHERE `key` = %s AND `value` {op} %s))
-        '''
+        """
         return (sql, [self.key, value])
 
 

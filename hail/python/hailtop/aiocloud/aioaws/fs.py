@@ -286,9 +286,7 @@ class S3MultiPartCreate(MultiPartCreate):
             UploadId=self._upload_id,
         )
 
-    async def create_part(
-        self, number: int, start: int, size_hint: Optional[int] = None
-    ) -> S3CreatePartManager:  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> S3CreatePartManager:  # pylint: disable=unused-argument
         if size_hint is None:
             size_hint = 256 * 1024
         return S3CreatePartManager(self, number, size_hint)
@@ -402,9 +400,7 @@ class S3AsyncFS(AsyncFS):
                 raise UnexpectedEOFError from e
             raise
 
-    async def create(
-        self, url: str, *, retry_writes: bool = True
-    ) -> S3CreateManager:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
         # that takes advantage of retry_writes=False.  Here's the
         # background information:

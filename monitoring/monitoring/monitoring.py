@@ -184,7 +184,7 @@ async def query_billing_body(app):
         invoice_month = datetime.date.strftime(start, '%Y%m')
 
         # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
-        cmd = f'''
+        cmd = f"""
 SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
   WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
@@ -197,7 +197,7 @@ END AS source
 FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
 WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "{PROJECT}" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
-'''
+"""
 
         log.info(f'querying BigQuery with command: {cmd}')
 
@@ -218,17 +218,17 @@ GROUP BY service_id, service_description, sku_id, sku_description, source;
         @transaction(db)
         async def insert(tx):
             await tx.just_execute(
-                '''
+                """
 DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
-''',
+""",
                 (year, month),
             )
 
             await tx.execute_many(
-                '''
+                """
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-''',
+""",
                 records,
             )
 

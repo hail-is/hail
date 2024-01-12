@@ -66,14 +66,14 @@ class AzureWorkerAPI(CloudWorkerAPI):
     def _blobfuse_credentials(self, credentials: Dict[str, str], account: str, container: str) -> str:
         credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
         # https://github.com/Azure/azure-storage-fuse
-        return f'''
+        return f"""
 accountName {account}
 authType SPN
 servicePrincipalClientId {credentials["appId"]}
 servicePrincipalClientSecret {credentials["password"]}
 servicePrincipalTenantId {credentials["tenant"]}
 containerName {container}
-'''
+"""
 
     def _write_blobfuse_credentials(
         self,

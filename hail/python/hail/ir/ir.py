@@ -3060,7 +3060,6 @@ P = ParamSpec('P')
 
 
 def udf(*param_types: HailType) -> Callable[[Callable[P, T]], Callable[P, T]]:
-
     uid = Env.get_uid()
 
     @decorator
@@ -3354,7 +3353,6 @@ class PartitionReader(object):
 
 
 class GVCFPartitionReader(PartitionReader):
-
     entries_field_name = '__entries'
 
     def __init__(
@@ -3400,26 +3398,24 @@ class GVCFPartitionReader(PartitionReader):
 
     def render(self):
         return escape_str(
-            json.dumps(
-                {
-                    "name": "GVCFPartitionReader",
-                    "header": {"name": "VCFHeaderInfo", **self.header},
-                    "callFields": list(self.call_fields),
-                    "entryFloatType": "Float64" if self.entry_float_type == tfloat64 else "Float32",
-                    "arrayElementsRequired": self.array_elements_required,
-                    "rg": self.rg.name if self.rg is not None else None,
-                    "contigRecoding": self.contig_recoding,
-                    "filterAndReplace": {
-                        "name": "TextInputFilterAndReplace",
-                        "filter": self.filter,
-                        "find": self.find,
-                        "replace": self.replace,
-                    },
-                    "skipInvalidLoci": self.skip_invalid_loci,
-                    "entriesFieldName": GVCFPartitionReader.entries_field_name,
-                    "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
-                }
-            )
+            json.dumps({
+                "name": "GVCFPartitionReader",
+                "header": {"name": "VCFHeaderInfo", **self.header},
+                "callFields": list(self.call_fields),
+                "entryFloatType": "Float64" if self.entry_float_type == tfloat64 else "Float32",
+                "arrayElementsRequired": self.array_elements_required,
+                "rg": self.rg.name if self.rg is not None else None,
+                "contigRecoding": self.contig_recoding,
+                "filterAndReplace": {
+                    "name": "TextInputFilterAndReplace",
+                    "filter": self.filter,
+                    "find": self.find,
+                    "replace": self.replace,
+                },
+                "skipInvalidLoci": self.skip_invalid_loci,
+                "entriesFieldName": GVCFPartitionReader.entries_field_name,
+                "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
+            })
         )
 
     def _eq(self, other):
@@ -3486,13 +3482,11 @@ class PartitionNativeIntervalReader(PartitionReader):
 
     def render(self):
         return escape_str(
-            json.dumps(
-                {
-                    "name": "PartitionNativeIntervalReader",
-                    "path": self.path,
-                    "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
-                }
-            )
+            json.dumps({
+                "name": "PartitionNativeIntervalReader",
+                "path": self.path,
+                "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
+            })
         )
 
     def _eq(self, other):

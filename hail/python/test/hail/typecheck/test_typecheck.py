@@ -136,7 +136,7 @@ class Tests(unittest.TestCase):
             pass
 
         f('str')
-        f(u'unicode')
+        f('unicode')
         self.assertRaises(TypeError, lambda: f(['abc']))
 
     def test_nested(self):
@@ -145,7 +145,7 @@ class Tests(unittest.TestCase):
             pass
 
         f(5, None)
-        f(5, u'7')
+        f(5, '7')
         f(5, [])
         f(5, [[]])
         f(5, [[{}]])

@@ -17,7 +17,7 @@ app = typer.Typer(
 
 @app.command()
 def login():
-    '''Obtain Hail credentials.'''
+    """Obtain Hail credentials."""
     from .login import async_login  # pylint: disable=import-outside-toplevel
 
     asyncio.run(async_login())
@@ -25,7 +25,7 @@ def login():
 
 @app.command()
 def copy_paste_login(copy_paste_token: str):
-    '''Obtain Hail credentials with a copy paste token.'''
+    """Obtain Hail credentials with a copy paste token."""
     from hailtop.auth import copy_paste_login  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
@@ -35,7 +35,7 @@ def copy_paste_login(copy_paste_token: str):
 
 @app.command()
 def logout():
-    '''Revoke Hail credentials.'''
+    """Revoke Hail credentials."""
     from hailtop.auth import async_logout  # pylint: disable=import-outside-toplevel
 
     asyncio.run(async_logout())
@@ -43,7 +43,7 @@ def logout():
 
 @app.command()
 def list():
-    '''List Hail credentials.'''
+    """List Hail credentials."""
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
     from hailtop.auth import get_tokens  # pylint: disable=import-outside-toplevel
 
@@ -59,7 +59,7 @@ def list():
 
 @app.command()
 def user():
-    '''Get Hail user information.'''
+    """Get Hail user information."""
     from hailtop.auth import get_userinfo  # pylint: disable=import-outside-toplevel
 
     userinfo = get_userinfo()
@@ -87,9 +87,9 @@ def create_user(
     hail_credentials_secret_name: Optional[str] = None,
     wait: bool = False,
 ):
-    '''
+    """
     Create a new Hail user with username USERNAME and login ID LOGIN_ID.
-    '''
+    """
     from .create_user import polling_create_user  # pylint: disable=import-outside-toplevel
 
     asyncio.run(
@@ -104,9 +104,9 @@ def delete_user(
     username: str,
     wait: bool = False,
 ):
-    '''
+    """
     Delete the Hail user with username USERNAME.
-    '''
+    """
     from .delete_user import polling_delete_user  # pylint: disable=import-outside-toplevel
 
     asyncio.run(polling_delete_user(username, wait))

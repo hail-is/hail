@@ -399,8 +399,7 @@ class TableIR(BaseIR):
         self._children_use_randomness = any(child.uses_randomness for child in children)
 
     @abc.abstractmethod
-    def _compute_type(self, deep_typecheck):
-        ...
+    def _compute_type(self, deep_typecheck): ...
 
     def compute_type(self, deep_typecheck):
         if deep_typecheck or self._type is None:
@@ -475,8 +474,7 @@ class MatrixIR(BaseIR):
         pass
 
     @abc.abstractmethod
-    def _compute_type(self, deep_typecheck):
-        ...
+    def _compute_type(self, deep_typecheck): ...
 
     def compute_type(self, deep_typecheck):
         if deep_typecheck or self._type is None:
@@ -511,8 +509,7 @@ class BlockMatrixIR(BaseIR):
         return self._children_use_randomness
 
     @abc.abstractmethod
-    def _compute_type(self, deep_typecheck):
-        ...
+    def _compute_type(self, deep_typecheck): ...
 
     def compute_type(self, deep_typecheck):
         if deep_typecheck or self._type is None:

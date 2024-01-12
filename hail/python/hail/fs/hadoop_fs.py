@@ -78,14 +78,14 @@ class HadoopFS(FS):
         return self._jfs.isDir(path)
 
     def fast_stat(self, path: str) -> FileStatus:
-        '''Get information about a path other than its file/directory status.
+        """Get information about a path other than its file/directory status.
 
         In the cloud, determining if a given path is a file, a directory, or both is expensive. This
         method simply returns file metadata if there is a file at this path. If there is no file at
         this path, this operation will fail. The presence or absence of a directory at this path
         does not affect the behaviors of this method.
 
-        '''
+        """
         file_status_dict = json.loads(self._utils_package_object.fileStatus(self._jfs, path))
         return _file_status_scala_to_python(file_status_dict)
 

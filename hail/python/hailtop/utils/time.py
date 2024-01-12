@@ -18,13 +18,11 @@ def time_msecs_str(t: Union[int, float]) -> str:
 
 
 @overload
-def humanize_timedelta_msecs(delta_msecs: None) -> None:
-    ...
+def humanize_timedelta_msecs(delta_msecs: None) -> None: ...
 
 
 @overload
-def humanize_timedelta_msecs(delta_msecs: Union[int, float]) -> str:
-    ...
+def humanize_timedelta_msecs(delta_msecs: Union[int, float]) -> str: ...
 
 
 def humanize_timedelta_msecs(delta_msecs: Optional[Union[int, float]]) -> Optional[str]:
@@ -38,13 +36,11 @@ _MS = datetime.timedelta(milliseconds=1)
 
 
 @overload
-def parse_timestamp_msecs(ts: None) -> None:
-    ...
+def parse_timestamp_msecs(ts: None) -> None: ...
 
 
 @overload
-def parse_timestamp_msecs(ts: str) -> int:
-    ...
+def parse_timestamp_msecs(ts: str) -> int: ...
 
 
 def parse_timestamp_msecs(ts: Optional[str]) -> Optional[int]:

@@ -30,9 +30,12 @@ def test_pc_relate_against_R_truth():
 
 @qobtest
 def test_pc_relate_simple_example():
-    gs = hl.literal(
-        [[0, 0, 0, 0, 1, 1, 1, 1], [0, 0, 1, 1, 0, 0, 1, 1], [0, 1, 0, 1, 0, 1, 0, 1], [0, 0, 1, 1, 0, 0, 1, 1]]
-    )
+    gs = hl.literal([
+        [0, 0, 0, 0, 1, 1, 1, 1],
+        [0, 0, 1, 1, 0, 0, 1, 1],
+        [0, 1, 0, 1, 0, 1, 0, 1],
+        [0, 0, 1, 1, 0, 0, 1, 1],
+    ])
     scores = hl.literal([[1, 1], [-1, 0], [1, -1], [-1, 0]])
     mt = hl.utils.range_matrix_table(n_rows=8, n_cols=4)
     mt = mt.annotate_entries(GT=hl.unphased_diploid_gt_index_call(gs[mt.col_idx][mt.row_idx]))

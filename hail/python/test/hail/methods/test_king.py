@@ -16,8 +16,7 @@ def assert_c_king_same_as_hail_king(c_king_path, hail_king_mt):
     expected = expected.annotate(
         # KING prints 4 significant digits; but there are several instances
         # where we calculate 0.XXXX5 whereas KING outputs 0.XXXX
-        failure=hl.abs(expected.diff)
-        > 0.00006
+        failure=hl.abs(expected.diff) > 0.00006
     )
     expected = expected.filter(expected.failure)
     assert expected.count() == 0, expected.collect()

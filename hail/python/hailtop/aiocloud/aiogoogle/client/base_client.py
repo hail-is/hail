@@ -18,13 +18,13 @@ class GoogleBaseClient(CloudBaseClient):
         credentials: Optional[Union[GoogleCredentials, AnonymousCloudCredentials]] = None,
         credentials_file: Optional[str] = None,
         params: Optional[Mapping[str, str]] = None,
-        **kwargs
+        **kwargs,
     ):
         if session is None:
             session = Session(
                 credentials=credentials or GoogleCredentials.from_file_or_default(credentials_file),
                 params=params,
-                **kwargs
+                **kwargs,
             )
         elif credentials_file is not None or credentials is not None:
             raise ValueError('Do not provide credentials_file or credentials when session is not None')

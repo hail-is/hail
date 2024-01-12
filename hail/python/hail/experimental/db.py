@@ -504,16 +504,14 @@ class DB:
             if dataset.is_gene_keyed:
                 genes = rel.select(gene_field).explode(gene_field)
                 genes = genes.annotate(**{dataset.name: dataset.index_compatible_version(genes[gene_field])})
-                genes = genes.group_by(*genes.key).aggregate(
-                    **{
-                        dataset.name: hl.dict(
-                            hl.agg.filter(
-                                hl.is_defined(genes[dataset.name]),
-                                hl.agg.collect((genes[gene_field], genes[dataset.name])),
-                            )
+                genes = genes.group_by(*genes.key).aggregate(**{
+                    dataset.name: hl.dict(
+                        hl.agg.filter(
+                            hl.is_defined(genes[dataset.name]),
+                            hl.agg.collect((genes[gene_field], genes[dataset.name])),
                         )
-                    }
-                )
+                    )
+                })
                 rel = rel.annotate(**{dataset.name: genes.index(rel.key)[dataset.name]})
             else:
                 indexed_value = dataset.index_compatible_version(rel.key)

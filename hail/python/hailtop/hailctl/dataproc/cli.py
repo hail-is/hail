@@ -190,9 +190,9 @@ def start(
         bool, Opt(help='Enable debug features on created cluster (heap dump on out-of-memory error)')
     ] = False,
 ):
-    '''
+    """
     Start a Dataproc cluster configured for Hail.
-    '''
+    """
     assert num_secondary_workers is not None
     assert num_workers is not None
 
@@ -251,9 +251,9 @@ def stop(
     asink: Ann[bool, Opt('--async/--sync', help='Do not wait for cluster deletion')] = False,
     dry_run: DryRunOption = False,
 ):
-    '''
+    """
     Shut down a Dataproc cluster.
-    '''
+    """
     print("Stopping cluster '{}'...".format(name))
 
     cmd = ['dataproc', 'clusters', 'delete', '--quiet', name]
@@ -273,9 +273,9 @@ def stop(
 def list(
     ctx: typer.Context,
 ):
-    '''
+    """
     List active Dataproc clusters.
-    '''
+    """
     gcloud.run(['dataproc', 'clusters', 'list', *ctx.args])
 
 
@@ -289,10 +289,10 @@ def connect(
     zone: ZoneOption = None,
     dry_run: DryRunOption = False,
 ):
-    '''
+    """
     Connect to a running Dataproc cluster with name NAME and start
     the web service SERVICE.
-    '''
+    """
     dataproc_connect(name, service, project, port, zone, dry_run, pass_through_args or [])
 
 
@@ -321,7 +321,7 @@ def submit(
         Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
     ] = None,
 ):
-    '''Submit the Python script at path SCRIPT to a running Dataproc cluster with name NAME.
+    """Submit the Python script at path SCRIPT to a running Dataproc cluster with name NAME.
 
     You may pass arguments to the script being submitted by listing them after the script; however,
     if you wish to pass option-like arguments you should use "--". For example:
@@ -330,7 +330,7 @@ def submit(
 
     $ hailctl dataproc submit name --image-name docker.io/image my_script.py -- some-argument --animal dog
 
-    '''
+    """
     dataproc_submit(
         name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args]
     )
@@ -347,9 +347,9 @@ def diagnose(
     workers: Ann[Optional[List[str]], Opt(help='Specific workers to get log files from.')] = None,
     take: Ann[Optional[int], Opt(help='Only download logs from the first N workers.')] = None,
 ):
-    '''
+    """
     Diagnose problems in a Dataproc cluster with name NAME.
-    '''
+    """
     dataproc_diagnose(name, dest, hail_log, overwrite, no_diagnose, compress, workers or [], take)
 
 
@@ -399,9 +399,9 @@ def modify(
     ] = False,
     wheel: Ann[Optional[str], Opt(help='New Hail installation.')] = None,
 ):
-    '''
+    """
     Modify an active dataproc cluster with name NAME.
-    '''
+    """
     dataproc_modify(
         name,
         num_workers,
