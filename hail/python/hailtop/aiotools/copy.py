@@ -184,7 +184,6 @@ async def main() -> None:
     timeout = args.timeout
     if timeout:
         timeout = float(timeout)
-    print(timeout)
     gcs_kwargs = {
         'gcs_requester_pays_configuration': requester_pays_project,
         'timeout': timeout,

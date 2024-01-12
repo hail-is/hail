@@ -181,8 +181,7 @@ $(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
 python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
-pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+pytest: install-editable
 	cd python && \
           $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -202,9 +201,7 @@ pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 
 # NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest-inter-cloud
-pytest-inter-cloud: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-pytest-inter-cloud: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-pytest-inter-cloud: upload-remote-test-resources
+pytest-inter-cloud: upload-remote-test-resources install-editable
 	cd python && \
           HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
           HAIL_TEST_GCS_BUCKET=$(HAIL_TEST_GCS_BUCKET) \
@@ -347,6 +344,7 @@ upload-artifacts: $(WHEEL)
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day. To trigger this target to re-run,
 # > rm upload-remote-test-resources
+upload-remote-test-resources: install-editable
 upload-remote-test-resources: $(shell git ls-files src/test/resources)
 upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
 	# # If hailtop.aiotools.copy gives you trouble:
