@@ -459,7 +459,7 @@ class JobGroupQuotedExactMatchQuery(Query):
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` = %s OR `value` = %s))
-"""
+'''
         return (sql, [self.term, self.term])
 
 
@@ -482,7 +482,7 @@ class JobGroupUnquotedPartialMatchQuery(Query):
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` LIKE %s OR `value` LIKE %s))
-"""
+'''
         escaped_term = f'%{self.term}%'
         return (sql, [escaped_term, escaped_term])
 
@@ -509,7 +509,7 @@ class JobGroupKeywordQuery(Query):
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` = %s AND `value` {op} %s))
-        """
+'''
         return (sql, [self.key, value])
 
 

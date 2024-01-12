@@ -31,7 +31,7 @@ log = logging.getLogger('job')
 
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
-        """
+        '''
 SELECT batches.*,
   cost_t.cost,
   cost_t.cost_breakdown,

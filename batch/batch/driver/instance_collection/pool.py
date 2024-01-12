@@ -604,7 +604,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         async def user_runnable_jobs(user):
             async for job_group in self.db.select_and_fetchall(
-                '''
+                """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled, userdata, job_groups.user, format_version
 FROM job_groups
 LEFT JOIN batches ON job_groups.batch_id = batches.id
@@ -612,19 +612,19 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE job_groups.user = %s AND job_groups.`state` = 'running'
 ORDER BY job_groups.batch_id, job_groups.job_group_id;
-''',
+""",
                 (user,),
                 "user_runnable_jobs__select_running_batches",
             ):
                 async for record in self.db.select_and_fetchall(
-                    '''
+                    """
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
-''',
+""",
                     (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
                     "user_runnable_jobs__select_ready_always_run_jobs",
                 ):
@@ -636,14 +636,14 @@ LIMIT 300;
                     yield record
                 if not job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
 LIMIT 300;
-''',
+""",
                         (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
                         "user_runnable_jobs__select_ready_jobs_batch_not_cancelled",
                     ):

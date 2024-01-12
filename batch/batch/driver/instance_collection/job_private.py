@@ -362,7 +362,7 @@ WHERE job_groups.user = %s AND job_groups.`state` = 'running';
                 (user,),
             ):
                 async for record in self.db.select_and_fetchall(
-                    """
+                    '''
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
@@ -382,7 +382,7 @@ LIMIT %s;
                     yield record
                 if not job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        """
+                        '''
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, job_group_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)

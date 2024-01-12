@@ -102,7 +102,7 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-""",
+''',
                 (user,),
             ):
                 if job_group['cancelled']:
@@ -191,7 +191,7 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-""",
+''',
                 (user,),
             ):
                 if job_group['cancelled']:
@@ -290,7 +290,7 @@ LEFT JOIN job_groups_cancelled
        ON job_groups.batch_id = job_groups_cancelled.id AND
           job_groups.job_group_id = job_groups_cancelled.job_group_id
 WHERE user = %s AND `state` = 'running';
-""",
+''',
                 (user,),
             ):
                 if job_group['cancelled']:

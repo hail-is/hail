@@ -32,7 +32,7 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` = %s AND `value` = %s))
-"""
+'''
             args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
@@ -40,19 +40,19 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
 ((job_groups.batch_id, job_groups.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_attributes
   WHERE `key` = %s))
-"""
+'''
             args = [k]
         elif t.startswith('user:'):
             k = t[5:]
-            condition = """
+            condition = '''
 (batches.`user` = %s)
-"""
+'''
             args = [k]
         elif t.startswith('billing_project:'):
             k = t[16:]
-            condition = """
+            condition = '''
 (billing_projects.name_cs = %s)
-"""
+'''
             args = [k]
         elif t == 'open':
             condition = "(batches.`state` = 'open')"
@@ -85,7 +85,7 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
         where_conditions.append(condition)
         where_args.extend(args)
 
-    sql = f"""
+    sql = f'''
 WITH base_t AS (
   SELECT batches.*, job_groups.batch_id, job_groups.job_group_id,
     job_groups_cancelled.id IS NOT NULL AS cancelled,

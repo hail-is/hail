@@ -1128,7 +1128,7 @@ LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id, attempt_resources.attempt_id
 LOCK IN SHARE MODE;
-"""
+'''
         )
 
         agg_job_resources = tx.execute_and_fetchall(
@@ -1139,7 +1139,7 @@ LEFT JOIN jobs ON aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggre
 LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
 GROUP BY aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id
 LOCK IN SHARE MODE;
-"""
+'''
         )
 
         agg_job_group_resources = tx.execute_and_fetchall(
@@ -1153,7 +1153,7 @@ LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, t.job_group_id, billing_project
 LOCK IN SHARE MODE;
-"""
+'''
         )
 
         agg_billing_project_resources = tx.execute_and_fetchall(
