@@ -150,7 +150,7 @@ class FileListEntry(abc.ABC):
         Examples
         --------
 
-        The only interesting case are signed URLs in Azure. These are called shared signature tokens or SAS tokens.
+        The only interesting case is for signed URLs in Azure. These are called shared signature tokens or SAS tokens.
         For example, the following URL
 
             https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
