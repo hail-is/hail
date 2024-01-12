@@ -50,7 +50,10 @@ def complete_config_variable(incomplete: str):
 
 
 @app.command()
-def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)], value: str):
+def set(
+    parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set", autocompletion=complete_config_variable)],
+    value: str,
+):
     '''Set a Hail configuration parameter.'''
     from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
 
@@ -61,7 +64,7 @@ def set(parameter: Ann[ConfigVariable, Arg(help="Configuration variable to set",
     section, key, _ = get_section_key_path(parameter.value)
 
     config_variable_info = config_variables()[parameter]
-    validation_func, error_msg  = config_variable_info.validation
+    validation_func, error_msg = config_variable_info.validation
 
     if not validation_func(value):
         print(f"Error: bad value {value!r} for parameter {parameter!r} {error_msg}", file=sys.stderr)

@@ -4,11 +4,12 @@ from hail.methods.pca import _make_tsm
 import hail as hl
 from ..helpers import *
 
+
 def naive_whiten(X, w):
     m, n = np.shape(X)
     Xw = np.zeros((m, n))
     for j in range(n):
-        Q, _ = np.linalg.qr(X[:, max(j - w, 0): j])
+        Q, _ = np.linalg.qr(X[:, max(j - w, 0) : j])
         Xw[:, j] = X[:, j] - Q @ (Q.T @ X[:, j])
     return Xw.T
 
@@ -26,15 +27,13 @@ def run_local_whitening_test(vec_size, num_rows, chunk_size, window_size, partit
     whitened_naive = naive_whiten(data.T, window_size)
     np.testing.assert_allclose(whitened_hail, whitened_naive, rtol=1e-04)
 
+
 @test_timeout(local=5 * 60, batch=12 * 60)
 def test_local_whitening():
     run_local_whitening_test(
-        vec_size=100,
-        num_rows=10000,
-        chunk_size=32,
-        window_size=64,
-        partition_size=32 * 40,
-        initial_num_partitions=50)
+        vec_size=100, num_rows=10000, chunk_size=32, window_size=64, partition_size=32 * 40, initial_num_partitions=50
+    )
+
 
 @test_timeout(local=5 * 60, batch=12 * 60)
 def test_local_whitening_singleton_final_partition():
@@ -44,4 +43,5 @@ def test_local_whitening_singleton_final_partition():
         chunk_size=32,
         window_size=64,
         partition_size=32 * 40,
-        initial_num_partitions=50)
+        initial_num_partitions=50,
+    )

@@ -1,6 +1,7 @@
 package is.hail.utils
 
-class TruncatedArrayIndexedSeq[T](a: Array[T], newLength: Int) extends IndexedSeq[T] with Serializable {
+class TruncatedArrayIndexedSeq[T](a: Array[T], newLength: Int)
+    extends IndexedSeq[T] with Serializable {
   def length: Int = newLength
 
   def apply(idx: Int): T = {
@@ -9,4 +10,3 @@ class TruncatedArrayIndexedSeq[T](a: Array[T], newLength: Int) extends IndexedSe
     a(idx)
   }
 }
-

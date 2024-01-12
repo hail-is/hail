@@ -1,20 +1,23 @@
 import io
-from typing import List
+from typing import List, Optional
+
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 
 from .router_fs import RouterFS
 from .stat_result import FileListEntry
 
-_router_fs = None
+
+_fses = GCSRequesterPaysFSCache(fs_constructor=RouterFS)
 
 
-def _fs() -> RouterFS:
-    global _router_fs
-    if _router_fs is None:
-        _router_fs = RouterFS()
-    return _router_fs
-
-
-def open(path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
+def open(
+    path: str,
+    mode: str = 'r',
+    buffer_size: int = 8192,
+    *,
+    requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
+) -> io.IOBase:
     """Open a file from the local filesystem of from blob storage. Supported
     blob storage providers are GCS, S3 and ABS.
 
@@ -28,6 +31,25 @@ def open(path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
     Read and print the lines of a text file stored in Google Cloud Storage:
 
     >>> with hfs.open('gs://my-bucket/notes.txt') as f: # doctest: +SKIP
+    ...     for line in f:
+    ...         print(line.strip())
+
+    Access a text file stored in a Requester Pays Bucket in Google Cloud Storage:
+
+    >>> with hfs.open( # doctest: +SKIP
+    ...     'gs://my-bucket/notes.txt',
+    ...     requester_pays_config='my-project'
+    ... ) as f:
+    ...     for line in f:
+    ...         print(line.strip())
+
+    Specify multiple Requester Pays Buckets within a project that are acceptable
+    to access:
+
+    >>> with hfs.open( # doctest: +SKIP
+    ...     'gs://my-bucket/notes.txt',
+    ...     requester_pays_config=('my-project', ['my-bucket', 'bucket-2'])
+    ... ) as f:
     ...     for line in f:
     ...         print(line.strip())
 
@@ -72,10 +94,10 @@ def open(path: str, mode: str = 'r', buffer_size: int = 8192) -> io.IOBase:
     -------
         Readable or writable file handle.
     """
-    return _fs().open(path, mode, buffer_size)
+    return _fses[requester_pays_config].open(path, mode, buffer_size)
 
 
-def copy(src: str, dest: str):
+def copy(src: str, dest: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Copy a file between filesystems. Filesystems can be local filesystem
     or the blob storage providers GCS, S3 and ABS.
 
@@ -105,10 +127,10 @@ def copy(src: str, dest: str):
     dest: :class:`str`
         Destination file URI.
     """
-    _fs().copy(src, dest)
+    _fses[requester_pays_config].copy(src, dest)
 
 
-def exists(path: str) -> bool:
+def exists(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> bool:
     """Returns ``True`` if `path` exists.
 
     Parameters
@@ -119,10 +141,10 @@ def exists(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return _fs().exists(path)
+    return _fses[requester_pays_config].exists(path)
 
 
-def is_file(path: str) -> bool:
+def is_file(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> bool:
     """Returns ``True`` if `path` both exists and is a file.
 
     Parameters
@@ -133,10 +155,10 @@ def is_file(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return _fs().is_file(path)
+    return _fses[requester_pays_config].is_file(path)
 
 
-def is_dir(path: str) -> bool:
+def is_dir(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> bool:
     """Returns ``True`` if `path` both exists and is a directory.
 
     Parameters
@@ -147,10 +169,10 @@ def is_dir(path: str) -> bool:
     -------
     :obj:`.bool`
     """
-    return _fs().is_dir(path)
+    return _fses[requester_pays_config].is_dir(path)
 
 
-def stat(path: str) -> FileListEntry:
+def stat(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> FileListEntry:
     """Returns information about the file or directory at a given path.
 
     Notes
@@ -174,10 +196,10 @@ def stat(path: str) -> FileListEntry:
     -------
     :obj:`dict`
     """
-    return _fs().stat(path)
+    return _fses[requester_pays_config].stat(path)
 
 
-def ls(path: str) -> List[FileListEntry]:
+def ls(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> List[FileListEntry]:
     """Returns information about files at `path`.
 
     Notes
@@ -205,10 +227,10 @@ def ls(path: str) -> List[FileListEntry]:
     -------
     :obj:`list` [:obj:`dict`]
     """
-    return _fs().ls(path)
+    return _fses[requester_pays_config].ls(path)
 
 
-def mkdir(path: str):
+def mkdir(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Ensure files can be created whose dirname is `path`.
 
     Warning
@@ -218,10 +240,10 @@ def mkdir(path: str):
     on Google Cloud Storage, this operation does nothing.
 
     """
-    _fs().mkdir(path)
+    _fses[requester_pays_config].mkdir(path)
 
 
-def remove(path: str):
+def remove(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Removes the file at `path`. If the file does not exist, this function does
     nothing. `path` must be a URI (uniform resource identifier) or a path on the
     local filesystem.
@@ -230,10 +252,10 @@ def remove(path: str):
     ----------
     path : :class:`str`
     """
-    _fs().remove(path)
+    _fses[requester_pays_config].remove(path)
 
 
-def rmtree(path: str):
+def rmtree(path: str, *, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None):
     """Recursively remove all files under the given `path`. On a local filesystem,
     this removes the directory tree at `path`. On blob storage providers such as
     GCS, S3 and ABS, this removes all files whose name starts with `path`. As such,
@@ -243,4 +265,4 @@ def rmtree(path: str):
     ----------
     path : :class:`str`
     """
-    _fs().rmtree(path)
+    _fses[requester_pays_config].rmtree(path)

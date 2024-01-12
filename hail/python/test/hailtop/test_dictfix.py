@@ -2,9 +2,11 @@ from hailtop import dictfix
 
 
 def test_batch_example():
-    spec = {'input': dictfix.NoneOr({'logs': None}),
-            'main': dictfix.NoneOr({'logs': None}),
-            'output': dictfix.NoneOr({'logs': None})}
+    spec = {
+        'input': dictfix.NoneOr({'logs': None}),
+        'main': dictfix.NoneOr({'logs': None}),
+        'output': dictfix.NoneOr({'logs': None}),
+    }
 
     expected = {'input': None, 'main': None, 'output': None}
 
@@ -24,16 +26,12 @@ def test_batch_example():
     dictfix.dictfix(actual, spec)
     assert actual == expected
 
-    expected = {'input': None,
-                'main': {'id': 3, 'logs': None},
-                'output': None}
+    expected = {'input': None, 'main': {'id': 3, 'logs': None}, 'output': None}
     actual = {'main': {'id': 3}, 'output': None}
     dictfix.dictfix(actual, spec)
     assert actual == expected
 
-    expected = {'input': None,
-                'main': {'id': 3, 'logs': 'abc\n123'},
-                'output': {'id': 4, 'logs': None}}
+    expected = {'input': None, 'main': {'id': 3, 'logs': 'abc\n123'}, 'output': {'id': 4, 'logs': None}}
     actual = {'main': {'id': 3, 'logs': 'abc\n123'}, 'output': {'id': 4}}
     dictfix.dictfix(actual, spec)
     assert actual == expected

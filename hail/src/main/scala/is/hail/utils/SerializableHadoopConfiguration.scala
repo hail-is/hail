@@ -4,7 +4,8 @@ import java.io.{ObjectInputStream, ObjectOutputStream, Serializable}
 
 import org.apache.hadoop
 
-class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration) extends Serializable {
+class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration)
+    extends Serializable {
   private def writeObject(out: ObjectOutputStream) {
     out.defaultWriteObject()
     value.write(out)

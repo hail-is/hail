@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Tuple
 import base64
 import collections.abc
 import os
@@ -37,11 +37,14 @@ class Tokens(collections.abc.MutableMapping):
     @staticmethod
     def get_tokens_file() -> str:
         default_enduser_token_file = os.path.expanduser('~/.hail/tokens.json')
-        return first_extant_file(
-            os.environ.get('HAIL_TOKENS_FILE'),
-            default_enduser_token_file,
-            '/user-tokens/tokens.json',
-        ) or default_enduser_token_file
+        return (
+            first_extant_file(
+                os.environ.get('HAIL_TOKENS_FILE'),
+                default_enduser_token_file,
+                '/user-tokens/tokens.json',
+            )
+            or default_enduser_token_file
+        )
 
     @staticmethod
     def default_tokens() -> 'Tokens':
@@ -71,6 +74,11 @@ class Tokens(collections.abc.MutableMapping):
     def namespace_token(self, ns: str) -> Optional[str]:
         return self._tokens.get(ns)
 
+    def namespace_token_with_expiration(self, ns: str) -> Optional[Tuple[str, Optional[float]]]:
+        if token := self._tokens.get(ns):
+            return token, None
+        return None
+
     def namespace_token_or_error(self, ns: str) -> str:
         if ns in self._tokens:
             return self._tokens[ns]
@@ -79,6 +87,9 @@ class Tokens(collections.abc.MutableMapping):
         default_ns = deploy_config.default_namespace()
         ns_arg = '' if ns == default_ns else f'-n {ns}'
         raise NotLoggedInError(ns_arg)
+
+    def namespace_token_with_expiration_or_error(self, ns: str) -> Tuple[str, Optional[float]]:
+        return self.namespace_token_or_error(ns), None
 
     def __delitem__(self, key: str):
         del self._tokens[key]
@@ -92,13 +103,7 @@ class Tokens(collections.abc.MutableMapping):
     def write(self) -> None:
         # restrict permissions to user
         with os.fdopen(
-                os.open(
-                    self.get_tokens_file(),
-                    os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
-                    0o600
-                ),
-                'w',
-                encoding='utf-8'
+            os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w', encoding='utf-8'
         ) as f:
             json.dump(self._tokens, f)
 

@@ -27,6 +27,7 @@ def cpu_spec_to_float(spec: Union[int, str]) -> float:
 def chunk(fn):
     def chunkedfn(*args):
         return [fn(*arglist) for arglist in zip(*args)]
+
     return chunkedfn
 
 
@@ -102,14 +103,17 @@ class BatchPoolExecutor:
         DEPRECATED. Please specify gcs_requester_pays_configuration in :class:`.ServiceBackend`.
     """
 
-    def __init__(self, *,
-                 name: Optional[str] = None,
-                 backend: Optional[ServiceBackend] = None,
-                 image: Optional[str] = None,
-                 cpus_per_job: Optional[Union[int, str]] = None,
-                 wait_on_exit: bool = True,
-                 cleanup_bucket: bool = True,
-                 project: Optional[str] = None):
+    def __init__(
+        self,
+        *,
+        name: Optional[str] = None,
+        backend: Optional[ServiceBackend] = None,
+        image: Optional[str] = None,
+        cpus_per_job: Optional[Union[int, str]] = None,
+        wait_on_exit: bool = True,
+        cleanup_bucket: bool = True,
+        project: Optional[str] = None,
+    ):
         self.name = name or "BatchPoolExecutor-" + secret_alnum_string(4)
         self.backend = backend or ServiceBackend()
         if not isinstance(self.backend, ServiceBackend):
@@ -148,11 +152,9 @@ class BatchPoolExecutor:
     def __enter__(self):
         return self
 
-    def map(self,
-            fn: Callable,
-            *iterables: Iterable[Any],
-            timeout: Optional[Union[int, float]] = None,
-            chunksize: int = 1):
+    def map(
+        self, fn: Callable, *iterables: Iterable[Any], timeout: Optional[Union[int, float]] = None, chunksize: int = 1
+    ):
         """Call `fn` on cloud machines with arguments from `iterables`.
 
         This function returns a generator which will produce each result in the
@@ -210,8 +212,7 @@ class BatchPoolExecutor:
             amount of meaningful work done per-container.
         """
 
-        agen = async_to_blocking(
-            self.async_map(fn, iterables, timeout=timeout, chunksize=chunksize))
+        agen = async_to_blocking(self.async_map(fn, iterables, timeout=timeout, chunksize=chunksize))
 
         def generator_from_async_generator(aiter):
             try:
@@ -219,14 +220,16 @@ class BatchPoolExecutor:
                     yield async_to_blocking(aiter.__anext__())
             except StopAsyncIteration:
                 return
+
         return generator_from_async_generator(agen.__aiter__())
 
-    async def async_map(self,
-                        fn: Callable,
-                        iterables: Iterable[Iterable[Any]],
-                        timeout: Optional[Union[int, float]] = None,
-                        chunksize: int = 1
-                        ) -> AsyncGenerator[int, None]:
+    async def async_map(
+        self,
+        fn: Callable,
+        iterables: Iterable[Iterable[Any]],
+        timeout: Optional[Union[int, float]] = None,
+        chunksize: int = 1,
+    ) -> AsyncGenerator[int, None]:
         """Aysncio compatible version of :meth:`.map`."""
         if not iterables:
             return (x for x in range(0))
@@ -237,13 +240,11 @@ class BatchPoolExecutor:
             assert all(n == len(x) for x in list_per_argument)
             n_chunks = (n + chunksize - 1) // chunksize
             iterables_chunks = [list(partition(n_chunks, x)) for x in list_per_argument]
-            iterables_chunks = [
-                chunk for chunk in iterables_chunks if len(chunk) > 0]
+            iterables_chunks = [chunk for chunk in iterables_chunks if len(chunk) > 0]
             fn = chunk(fn)
             iterables = iterables_chunks
 
-        submit_tasks = [asyncio.ensure_future(self.async_submit(fn, *arguments))
-                        for arguments in zip(*iterables)]
+        submit_tasks = [asyncio.ensure_future(self.async_submit(fn, *arguments)) for arguments in zip(*iterables)]
         try:
             bp_futures = [await t for t in submit_tasks]
         except:
@@ -262,18 +263,11 @@ class BatchPoolExecutor:
                 raise
 
         if chunksize > 1:
-            return (val
-                    for future in bp_futures
-                    for val in await async_result_or_cancel_all(future))
+            return (val for future in bp_futures for val in await async_result_or_cancel_all(future))
 
-        return (await async_result_or_cancel_all(future)
-                for future in bp_futures)
+        return (await async_result_or_cancel_all(future) for future in bp_futures)
 
-    def submit(self,
-               fn: Callable,
-               *args: Any,
-               **kwargs: Any
-               ) -> 'BatchPoolFuture':
+    def submit(self, fn: Callable, *args: Any, **kwargs: Any) -> 'BatchPoolFuture':
         """Call `fn` on a cloud machine with all remaining arguments and keyword arguments.
 
         The function, any objects it references, the arguments, and the keyword
@@ -326,14 +320,9 @@ class BatchPoolExecutor:
         kwargs:
             Keyword arguments for the function.
         """
-        return async_to_blocking(
-            self.async_submit(fn, *args, **kwargs))
+        return async_to_blocking(self.async_submit(fn, *args, **kwargs))
 
-    async def async_submit(self,
-                           unapplied: Callable,
-                           *args: Any,
-                           **kwargs: Any
-                           ) -> 'BatchPoolFuture':
+    async def async_submit(self, unapplied: Callable, *args: Any, **kwargs: Any) -> 'BatchPoolFuture':
         """Aysncio compatible version of :meth:`BatchPoolExecutor.submit`."""
         if self._shutdown:
             raise RuntimeError('BatchPoolExecutor has already been shutdown.')
@@ -349,11 +338,10 @@ class BatchPoolExecutor:
 
             def run_async(*args, **kwargs):
                 return asyncio.run(unapplied_copy(*args, **kwargs))
+
             unapplied = run_async
 
-        batch = Batch(name=self.name + '-' + name,
-                      backend=self.backend,
-                      default_image=self.image)
+        batch = Batch(name=self.name + '-' + name, backend=self.backend, default_image=self.image)
         self.batches.append(batch)
         j = batch.new_job(name)
 
@@ -375,7 +363,8 @@ class BatchPoolExecutor:
         j.env("NUMEXPR_NUM_THREADS", thread_limit)
 
         j.command('set -ex')
-        j.command(f'''python3 -c "
+        j.command(
+            f'''python3 -c "
 import base64
 import dill
 import traceback
@@ -387,26 +376,27 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         print(\\"BatchPoolExecutor encountered an exception:\\")
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), out, recurse=True)
-"''')
+"'''
+        )
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
         sync_batch = batch.run(wait=False, disable_progress_bar=True)
         assert sync_batch is not None
         backend_batch = sync_batch._async_batch
         try:
-            return BatchPoolFuture(self,
-                                   backend_batch,
-                                   low_level_batch_client.Job.submitted_job(
-                                       backend_batch, 1),
-                                   output_gcs)
+            return BatchPoolFuture(
+                self, backend_batch, low_level_batch_client.Job.submitted_job(backend_batch, 1), output_gcs
+            )
         except:
             await backend_batch.cancel()
             raise
 
-    def __exit__(self,
-                 exc_type: Optional[Type[BaseException]],
-                 exc_value: Optional[BaseException],
-                 traceback: Optional[TracebackType]):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ):
         self.shutdown(wait=self.wait_on_exit)
 
     def _add_future(self, f):
@@ -431,13 +421,14 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             method.
         """
         if wait:
+
             async def ignore_exceptions(f):
                 try:
                     await f.async_result()
                 except Exception:
                     pass
-            async_to_blocking(
-                asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
+
+            async_to_blocking(asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
         if self.finished_future_count == len(self.futures):
             self._cleanup()
         self._shutdown = True
@@ -451,11 +442,13 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
 
 
 class BatchPoolFuture:
-    def __init__(self,
-                 executor: BatchPoolExecutor,
-                 batch: low_level_batch_client.Batch,
-                 job: low_level_batch_client.Job,
-                 output_file: str):
+    def __init__(
+        self,
+        executor: BatchPoolExecutor,
+        batch: low_level_batch_client.Batch,
+        job: low_level_batch_client.Job,
+        output_file: str,
+    ):
         self.executor = executor
         self.batch = batch
         self.job = job
@@ -491,8 +484,7 @@ class BatchPoolFuture:
         return True
 
     def cancelled(self):
-        """Returns ``True`` if :meth:`.cancel` was called before a value was produced.
-        """
+        """Returns ``True`` if :meth:`.cancel` was called before a value was produced."""
         return self.fetch_coro.cancelled()
 
     def running(self):
@@ -503,8 +495,7 @@ class BatchPoolFuture:
         return False
 
     def done(self):
-        """Returns `True` if the function is complete and not cancelled.
-        """
+        """Returns `True` if the function is complete and not cancelled."""
         return self.fetch_coro.done()
 
     def result(self, timeout: Optional[Union[float, int]] = None):
@@ -546,15 +537,14 @@ class BatchPoolFuture:
             status = await self.job.wait()
             main_container_status = status['status']['container_statuses']['main']
             if main_container_status['state'] == 'error':
-                raise ValueError(
-                    f"submitted job failed:\n{main_container_status['error']}")
+                raise ValueError(f"submitted job failed:\n{main_container_status['error']}")
             try:
-                value, traceback = dill.loads(
-                    await self.executor._fs.read(self.output_file))
+                value, traceback = dill.loads(await self.executor._fs.read(self.output_file))
             except FileNotFoundError as exc:
                 job_log = await self.job.log()
                 raise ValueError(
-                    f"submitted job did not write output:\n{main_container_status}\n\nLog:\n{job_log}") from exc
+                    f"submitted job did not write output:\n{main_container_status}\n\nLog:\n{job_log}"
+                ) from exc
             if traceback is None:
                 return value
             assert isinstance(value, BaseException)
@@ -566,13 +556,11 @@ class BatchPoolFuture:
             self.executor._finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):
-        """Block until the job is complete and raise any exceptions.
-        """
+        """Block until the job is complete and raise any exceptions."""
         if self.cancelled():
             raise concurrent.futures.CancelledError()
         self.result(timeout)
 
     def add_done_callback(self, _):
-        """NOT IMPLEMENTED
-        """
+        """NOT IMPLEMENTED"""
         raise NotImplementedError()

@@ -4,22 +4,24 @@ from hail.typecheck import typecheck, oneof, sequenceof, nullable
 from hail.utils import wrap_to_list, new_temp_file
 
 
-@typecheck(weight_expr=expr_float64,
-           ld_score_expr=expr_numeric,
-           chi_sq_exprs=oneof(expr_float64,
-                              sequenceof(expr_float64)),
-           n_samples_exprs=oneof(expr_numeric,
-                                 sequenceof(expr_numeric)),
-           n_blocks=int,
-           two_step_threshold=int,
-           n_reference_panel_variants=nullable(int))
-def ld_score_regression(weight_expr,
-                        ld_score_expr,
-                        chi_sq_exprs,
-                        n_samples_exprs,
-                        n_blocks=200,
-                        two_step_threshold=30,
-                        n_reference_panel_variants=None) -> hl.Table:
+@typecheck(
+    weight_expr=expr_float64,
+    ld_score_expr=expr_numeric,
+    chi_sq_exprs=oneof(expr_float64, sequenceof(expr_float64)),
+    n_samples_exprs=oneof(expr_numeric, sequenceof(expr_numeric)),
+    n_blocks=int,
+    two_step_threshold=int,
+    n_reference_panel_variants=nullable(int),
+)
+def ld_score_regression(
+    weight_expr,
+    ld_score_expr,
+    chi_sq_exprs,
+    n_samples_exprs,
+    n_blocks=200,
+    two_step_threshold=30,
+    n_reference_panel_variants=None,
+) -> hl.Table:
     r"""Estimate SNP-heritability and level of confounding biases from genome-wide association study
     (GWAS) summary statistics.
 
@@ -204,59 +206,59 @@ def ld_score_regression(weight_expr,
     chi_sq_exprs = wrap_to_list(chi_sq_exprs)
     n_samples_exprs = wrap_to_list(n_samples_exprs)
 
-    assert ((len(chi_sq_exprs) == len(n_samples_exprs))
-            or (len(n_samples_exprs) == 1))
+    assert (len(chi_sq_exprs) == len(n_samples_exprs)) or (len(n_samples_exprs) == 1)
     __k = 2  # number of covariates, including intercept
 
     ds = chi_sq_exprs[0]._indices.source
 
-    analyze('ld_score_regression/weight_expr',
-            weight_expr,
-            ds._row_indices)
-    analyze('ld_score_regression/ld_score_expr',
-            ld_score_expr,
-            ds._row_indices)
+    analyze('ld_score_regression/weight_expr', weight_expr, ds._row_indices)
+    analyze('ld_score_regression/ld_score_expr', ld_score_expr, ds._row_indices)
 
     # format input dataset
     if isinstance(ds, hl.MatrixTable):
         if len(chi_sq_exprs) != 1:
-            raise ValueError("""Only one chi_sq_expr allowed if originating
-                from a matrix table.""")
+            raise ValueError(
+                """Only one chi_sq_expr allowed if originating
+                from a matrix table."""
+            )
         if len(n_samples_exprs) != 1:
-            raise ValueError("""Only one n_samples_expr allowed if
-                originating from a matrix table.""")
+            raise ValueError(
+                """Only one n_samples_expr allowed if
+                originating from a matrix table."""
+            )
 
         col_key = list(ds.col_key)
         if len(col_key) != 1:
-            raise ValueError("""Matrix table must be keyed by a single
-                phenotype field.""")
+            raise ValueError(
+                """Matrix table must be keyed by a single
+                phenotype field."""
+            )
 
-        analyze('ld_score_regression/chi_squared_expr',
-                chi_sq_exprs[0],
-                ds._entry_indices)
-        analyze('ld_score_regression/n_samples_expr',
-                n_samples_exprs[0],
-                ds._entry_indices)
+        analyze('ld_score_regression/chi_squared_expr', chi_sq_exprs[0], ds._entry_indices)
+        analyze('ld_score_regression/n_samples_expr', n_samples_exprs[0], ds._entry_indices)
 
-        ds = ds._select_all(row_exprs={'__locus': ds.locus,
-                                       '__alleles': ds.alleles,
-                                       '__w_initial': weight_expr,
-                                       '__w_initial_floor': hl.max(weight_expr,
-                                                                   1.0),
-                                       '__x': ld_score_expr,
-                                       '__x_floor': hl.max(ld_score_expr,
-                                                           1.0)},
-                            row_key=['__locus', '__alleles'],
-                            col_exprs={'__y_name': ds[col_key[0]]},
-                            col_key=['__y_name'],
-                            entry_exprs={'__y': chi_sq_exprs[0],
-                                         '__n': n_samples_exprs[0]})
+        ds = ds._select_all(
+            row_exprs={
+                '__locus': ds.locus,
+                '__alleles': ds.alleles,
+                '__w_initial': weight_expr,
+                '__w_initial_floor': hl.max(weight_expr, 1.0),
+                '__x': ld_score_expr,
+                '__x_floor': hl.max(ld_score_expr, 1.0),
+            },
+            row_key=['__locus', '__alleles'],
+            col_exprs={'__y_name': ds[col_key[0]]},
+            col_key=['__y_name'],
+            entry_exprs={'__y': chi_sq_exprs[0], '__n': n_samples_exprs[0]},
+        )
         ds = ds.annotate_entries(**{'__w': ds.__w_initial})
 
-        ds = ds.filter_rows(hl.is_defined(ds.__locus)
-                            & hl.is_defined(ds.__alleles)
-                            & hl.is_defined(ds.__w_initial)
-                            & hl.is_defined(ds.__x))
+        ds = ds.filter_rows(
+            hl.is_defined(ds.__locus)
+            & hl.is_defined(ds.__alleles)
+            & hl.is_defined(ds.__w_initial)
+            & hl.is_defined(ds.__x)
+        )
 
     else:
         assert isinstance(ds, hl.Table)
@@ -269,49 +271,55 @@ def ld_score_regression(weight_expr,
         ws = ['__w{:}'.format(i) for i, _ in enumerate(chi_sq_exprs)]
         ns = ['__n{:}'.format(i) for i, _ in enumerate(n_samples_exprs)]
 
-        ds = ds.select(**dict(**{'__locus': ds.locus,
-                                 '__alleles': ds.alleles,
-                                 '__w_initial': weight_expr,
-                                 '__x': ld_score_expr},
-                              **{y: chi_sq_exprs[i]
-                                 for i, y in enumerate(ys)},
-                              **{w: weight_expr for w in ws},
-                              **{n: n_samples_exprs[i]
-                                 for i, n in enumerate(ns)}))
+        ds = ds.select(
+            **dict(
+                **{'__locus': ds.locus, '__alleles': ds.alleles, '__w_initial': weight_expr, '__x': ld_score_expr},
+                **{y: chi_sq_exprs[i] for i, y in enumerate(ys)},
+                **{w: weight_expr for w in ws},
+                **{n: n_samples_exprs[i] for i, n in enumerate(ns)}
+            )
+        )
         ds = ds.key_by(ds.__locus, ds.__alleles)
 
         table_tmp_file = new_temp_file()
         ds.write(table_tmp_file)
         ds = hl.read_table(table_tmp_file)
 
-        hts = [ds.select(**{'__w_initial': ds.__w_initial,
-                            '__w_initial_floor': hl.max(ds.__w_initial,
-                                                        1.0),
-                            '__x': ds.__x,
-                            '__x_floor': hl.max(ds.__x, 1.0),
-                            '__y_name': i,
-                            '__y': ds[ys[i]],
-                            '__w': ds[ws[i]],
-                            '__n': hl.int(ds[ns[i]])})
-               for i, y in enumerate(ys)]
+        hts = [
+            ds.select(
+                **{
+                    '__w_initial': ds.__w_initial,
+                    '__w_initial_floor': hl.max(ds.__w_initial, 1.0),
+                    '__x': ds.__x,
+                    '__x_floor': hl.max(ds.__x, 1.0),
+                    '__y_name': i,
+                    '__y': ds[ys[i]],
+                    '__w': ds[ws[i]],
+                    '__n': hl.int(ds[ns[i]]),
+                }
+            )
+            for i, y in enumerate(ys)
+        ]
 
-        mts = [ht.to_matrix_table(row_key=['__locus',
-                                           '__alleles'],
-                                  col_key=['__y_name'],
-                                  row_fields=['__w_initial',
-                                              '__w_initial_floor',
-                                              '__x',
-                                              '__x_floor'])
-               for ht in hts]
+        mts = [
+            ht.to_matrix_table(
+                row_key=['__locus', '__alleles'],
+                col_key=['__y_name'],
+                row_fields=['__w_initial', '__w_initial_floor', '__x', '__x_floor'],
+            )
+            for ht in hts
+        ]
 
         ds = mts[0]
         for i in range(1, len(ys)):
             ds = ds.union_cols(mts[i])
 
-        ds = ds.filter_rows(hl.is_defined(ds.__locus)
-                            & hl.is_defined(ds.__alleles)
-                            & hl.is_defined(ds.__w_initial)
-                            & hl.is_defined(ds.__x))
+        ds = ds.filter_rows(
+            hl.is_defined(ds.__locus)
+            & hl.is_defined(ds.__alleles)
+            & hl.is_defined(ds.__w_initial)
+            & hl.is_defined(ds.__x)
+        )
 
     mt_tmp_file1 = new_temp_file()
     ds.write(mt_tmp_file1)
@@ -322,44 +330,46 @@ def ld_score_regression(weight_expr,
     else:
         M = n_reference_panel_variants
 
-    mt = mt.annotate_entries(__in_step1=(hl.is_defined(mt.__y)
-                                         & (mt.__y < two_step_threshold)),
-                             __in_step2=hl.is_defined(mt.__y))
+    mt = mt.annotate_entries(
+        __in_step1=(hl.is_defined(mt.__y) & (mt.__y < two_step_threshold)), __in_step2=hl.is_defined(mt.__y)
+    )
 
-    mt = mt.annotate_cols(__col_idx=hl.int(hl.scan.count()),
-                          __m_step1=hl.agg.count_where(mt.__in_step1),
-                          __m_step2=hl.agg.count_where(mt.__in_step2))
+    mt = mt.annotate_cols(
+        __col_idx=hl.int(hl.scan.count()),
+        __m_step1=hl.agg.count_where(mt.__in_step1),
+        __m_step2=hl.agg.count_where(mt.__in_step2),
+    )
 
     col_keys = list(mt.col_key)
 
-    ht = mt.localize_entries(entries_array_field_name='__entries',
-                             columns_array_field_name='__cols')
+    ht = mt.localize_entries(entries_array_field_name='__entries', columns_array_field_name='__cols')
 
-    ht = ht.annotate(__entries=hl.rbind(
-        hl.scan.array_agg(
-            lambda entry: hl.scan.count_where(entry.__in_step1),
-            ht.__entries),
-        lambda step1_indices: hl.map(
-            lambda i: hl.rbind(
-                hl.int(hl.or_else(step1_indices[i], 0)),
-                ht.__cols[i].__m_step1,
-                ht.__entries[i],
-                lambda step1_idx, m_step1, entry: hl.rbind(
-                    hl.map(
-                        lambda j: hl.int(hl.floor(j * (m_step1 / n_blocks))),
-                        hl.range(0, n_blocks + 1)),
-                    lambda step1_separators: hl.rbind(
-                        hl.set(step1_separators).contains(step1_idx),
-                        hl.sum(
-                            hl.map(
-                                lambda s1: step1_idx >= s1,
-                                step1_separators)) - 1,
-                        lambda is_separator, step1_block: entry.annotate(
-                            __step1_block=step1_block,
-                            __step2_block=hl.if_else(~entry.__in_step1 & is_separator,
-                                                     step1_block - 1,
-                                                     step1_block))))),
-            hl.range(0, hl.len(ht.__entries)))))
+    ht = ht.annotate(
+        __entries=hl.rbind(
+            hl.scan.array_agg(lambda entry: hl.scan.count_where(entry.__in_step1), ht.__entries),
+            lambda step1_indices: hl.map(
+                lambda i: hl.rbind(
+                    hl.int(hl.or_else(step1_indices[i], 0)),
+                    ht.__cols[i].__m_step1,
+                    ht.__entries[i],
+                    lambda step1_idx, m_step1, entry: hl.rbind(
+                        hl.map(lambda j: hl.int(hl.floor(j * (m_step1 / n_blocks))), hl.range(0, n_blocks + 1)),
+                        lambda step1_separators: hl.rbind(
+                            hl.set(step1_separators).contains(step1_idx),
+                            hl.sum(hl.map(lambda s1: step1_idx >= s1, step1_separators)) - 1,
+                            lambda is_separator, step1_block: entry.annotate(
+                                __step1_block=step1_block,
+                                __step2_block=hl.if_else(
+                                    ~entry.__in_step1 & is_separator, step1_block - 1, step1_block
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                hl.range(0, hl.len(ht.__entries)),
+            ),
+        )
+    )
 
     mt = ht._unlocalize_entries('__entries', '__cols', col_keys)
 
@@ -368,152 +378,152 @@ def ld_score_regression(weight_expr,
     mt = hl.read_matrix_table(mt_tmp_file2)
 
     # initial coefficient estimates
-    mt = mt.annotate_cols(__initial_betas=[
-        1.0, (hl.agg.mean(mt.__y) - 1.0) / hl.agg.mean(mt.__x)])
-    mt = mt.annotate_cols(__step1_betas=mt.__initial_betas,
-                          __step2_betas=mt.__initial_betas)
+    mt = mt.annotate_cols(__initial_betas=[1.0, (hl.agg.mean(mt.__y) - 1.0) / hl.agg.mean(mt.__x)])
+    mt = mt.annotate_cols(__step1_betas=mt.__initial_betas, __step2_betas=mt.__initial_betas)
 
     # step 1 iteratively reweighted least squares
     for i in range(3):
-        mt = mt.annotate_entries(__w=hl.if_else(
-            mt.__in_step1,
-            1.0 / (mt.__w_initial_floor * 2.0 * (mt.__step1_betas[0]
-                                                 + mt.__step1_betas[1]
-                                                 * mt.__x_floor) ** 2),
-            0.0))
-        mt = mt.annotate_cols(__step1_betas=hl.agg.filter(
-            mt.__in_step1,
-            hl.agg.linreg(y=mt.__y,
-                          x=[1.0, mt.__x],
-                          weight=mt.__w).beta))
-        mt = mt.annotate_cols(__step1_h2=hl.max(hl.min(
-            mt.__step1_betas[1] * M / hl.agg.mean(mt.__n), 1.0), 0.0))
-        mt = mt.annotate_cols(__step1_betas=[
-            mt.__step1_betas[0],
-            mt.__step1_h2 * hl.agg.mean(mt.__n) / M])
+        mt = mt.annotate_entries(
+            __w=hl.if_else(
+                mt.__in_step1,
+                1.0 / (mt.__w_initial_floor * 2.0 * (mt.__step1_betas[0] + mt.__step1_betas[1] * mt.__x_floor) ** 2),
+                0.0,
+            )
+        )
+        mt = mt.annotate_cols(
+            __step1_betas=hl.agg.filter(mt.__in_step1, hl.agg.linreg(y=mt.__y, x=[1.0, mt.__x], weight=mt.__w).beta)
+        )
+        mt = mt.annotate_cols(__step1_h2=hl.max(hl.min(mt.__step1_betas[1] * M / hl.agg.mean(mt.__n), 1.0), 0.0))
+        mt = mt.annotate_cols(__step1_betas=[mt.__step1_betas[0], mt.__step1_h2 * hl.agg.mean(mt.__n) / M])
 
     # step 1 block jackknife
-    mt = mt.annotate_cols(__step1_block_betas=hl.agg.array_agg(
-        lambda i: hl.agg.filter((mt.__step1_block != i) & mt.__in_step1,
-                                hl.agg.linreg(y=mt.__y,
-                                              x=[1.0, mt.__x],
-                                              weight=mt.__w).beta),
-        hl.range(n_blocks)))
+    mt = mt.annotate_cols(
+        __step1_block_betas=hl.agg.array_agg(
+            lambda i: hl.agg.filter(
+                (mt.__step1_block != i) & mt.__in_step1, hl.agg.linreg(y=mt.__y, x=[1.0, mt.__x], weight=mt.__w).beta
+            ),
+            hl.range(n_blocks),
+        )
+    )
 
-    mt = mt.annotate_cols(__step1_block_betas_bias_corrected=hl.map(
-        lambda x: n_blocks * mt.__step1_betas - (n_blocks - 1) * x,
-        mt.__step1_block_betas))
+    mt = mt.annotate_cols(
+        __step1_block_betas_bias_corrected=hl.map(
+            lambda x: n_blocks * mt.__step1_betas - (n_blocks - 1) * x, mt.__step1_block_betas
+        )
+    )
 
     mt = mt.annotate_cols(
         __step1_jackknife_mean=hl.map(
-            lambda i: hl.mean(
-                hl.map(lambda x: x[i],
-                       mt.__step1_block_betas_bias_corrected)),
-            hl.range(0, __k)),
+            lambda i: hl.mean(hl.map(lambda x: x[i], mt.__step1_block_betas_bias_corrected)), hl.range(0, __k)
+        ),
         __step1_jackknife_variance=hl.map(
-            lambda i: (hl.sum(
-                hl.map(lambda x: x[i]**2,
-                       mt.__step1_block_betas_bias_corrected))
-                       - hl.sum(
-                hl.map(lambda x: x[i],
-                       mt.__step1_block_betas_bias_corrected)) ** 2
-                       / n_blocks)
-            / (n_blocks - 1) / n_blocks,
-            hl.range(0, __k)))
+            lambda i: (
+                hl.sum(hl.map(lambda x: x[i] ** 2, mt.__step1_block_betas_bias_corrected))
+                - hl.sum(hl.map(lambda x: x[i], mt.__step1_block_betas_bias_corrected)) ** 2 / n_blocks
+            )
+            / (n_blocks - 1)
+            / n_blocks,
+            hl.range(0, __k),
+        ),
+    )
 
     # step 2 iteratively reweighted least squares
     for i in range(3):
-        mt = mt.annotate_entries(__w=hl.if_else(
-            mt.__in_step2,
-            1.0 / (mt.__w_initial_floor
-                   * 2.0 * (mt.__step2_betas[0] +
-                            + mt.__step2_betas[1]
-                            * mt.__x_floor) ** 2),
-            0.0))
-        mt = mt.annotate_cols(__step2_betas=[
-            mt.__step1_betas[0],
-            hl.agg.filter(mt.__in_step2,
-                          hl.agg.linreg(y=mt.__y - mt.__step1_betas[0],
-                                        x=[mt.__x],
-                                        weight=mt.__w).beta[0])])
-        mt = mt.annotate_cols(__step2_h2=hl.max(hl.min(
-            mt.__step2_betas[1] * M / hl.agg.mean(mt.__n), 1.0), 0.0))
-        mt = mt.annotate_cols(__step2_betas=[
-            mt.__step1_betas[0],
-            mt.__step2_h2 * hl.agg.mean(mt.__n) / M])
+        mt = mt.annotate_entries(
+            __w=hl.if_else(
+                mt.__in_step2,
+                1.0 / (mt.__w_initial_floor * 2.0 * (mt.__step2_betas[0] + +mt.__step2_betas[1] * mt.__x_floor) ** 2),
+                0.0,
+            )
+        )
+        mt = mt.annotate_cols(
+            __step2_betas=[
+                mt.__step1_betas[0],
+                hl.agg.filter(
+                    mt.__in_step2, hl.agg.linreg(y=mt.__y - mt.__step1_betas[0], x=[mt.__x], weight=mt.__w).beta[0]
+                ),
+            ]
+        )
+        mt = mt.annotate_cols(__step2_h2=hl.max(hl.min(mt.__step2_betas[1] * M / hl.agg.mean(mt.__n), 1.0), 0.0))
+        mt = mt.annotate_cols(__step2_betas=[mt.__step1_betas[0], mt.__step2_h2 * hl.agg.mean(mt.__n) / M])
 
     # step 2 block jackknife
-    mt = mt.annotate_cols(__step2_block_betas=hl.agg.array_agg(
-        lambda i: hl.agg.filter((mt.__step2_block != i) & mt.__in_step2,
-                                hl.agg.linreg(y=mt.__y - mt.__step1_betas[0],
-                                              x=[mt.__x],
-                                              weight=mt.__w).beta[0]),
-        hl.range(n_blocks)))
-
-    mt = mt.annotate_cols(__step2_block_betas_bias_corrected=hl.map(
-        lambda x: n_blocks * mt.__step2_betas[1] - (n_blocks - 1) * x,
-        mt.__step2_block_betas))
+    mt = mt.annotate_cols(
+        __step2_block_betas=hl.agg.array_agg(
+            lambda i: hl.agg.filter(
+                (mt.__step2_block != i) & mt.__in_step2,
+                hl.agg.linreg(y=mt.__y - mt.__step1_betas[0], x=[mt.__x], weight=mt.__w).beta[0],
+            ),
+            hl.range(n_blocks),
+        )
+    )
 
     mt = mt.annotate_cols(
-        __step2_jackknife_mean=hl.mean(
-            mt.__step2_block_betas_bias_corrected),
+        __step2_block_betas_bias_corrected=hl.map(
+            lambda x: n_blocks * mt.__step2_betas[1] - (n_blocks - 1) * x, mt.__step2_block_betas
+        )
+    )
+
+    mt = mt.annotate_cols(
+        __step2_jackknife_mean=hl.mean(mt.__step2_block_betas_bias_corrected),
         __step2_jackknife_variance=(
-            hl.sum(mt.__step2_block_betas_bias_corrected ** 2)
-            - hl.sum(mt.__step2_block_betas_bias_corrected) ** 2
-            / n_blocks) / (n_blocks - 1) / n_blocks)
+            hl.sum(mt.__step2_block_betas_bias_corrected**2)
+            - hl.sum(mt.__step2_block_betas_bias_corrected) ** 2 / n_blocks
+        )
+        / (n_blocks - 1)
+        / n_blocks,
+    )
 
     # combine step 1 and step 2 block jackknifes
     mt = mt.annotate_entries(
-        __step2_initial_w=1.0 / (mt.__w_initial_floor
-                                 * 2.0 * (mt.__initial_betas[0] +
-                                          + mt.__initial_betas[1]
-                                          * mt.__x_floor) ** 2))
+        __step2_initial_w=1.0
+        / (mt.__w_initial_floor * 2.0 * (mt.__initial_betas[0] + +mt.__initial_betas[1] * mt.__x_floor) ** 2)
+    )
 
     mt = mt.annotate_cols(
-        __final_betas=[
-            mt.__step1_betas[0],
-            mt.__step2_betas[1]],
-        __c=(hl.agg.sum(mt.__step2_initial_w * mt.__x)
-             / hl.agg.sum(mt.__step2_initial_w * mt.__x**2)))
-
-    mt = mt.annotate_cols(__final_block_betas=hl.map(
-        lambda i: (mt.__step2_block_betas[i] - mt.__c
-                   * (mt.__step1_block_betas[i][0] - mt.__final_betas[0])),
-        hl.range(0, n_blocks)))
+        __final_betas=[mt.__step1_betas[0], mt.__step2_betas[1]],
+        __c=(hl.agg.sum(mt.__step2_initial_w * mt.__x) / hl.agg.sum(mt.__step2_initial_w * mt.__x**2)),
+    )
 
     mt = mt.annotate_cols(
-        __final_block_betas_bias_corrected=(n_blocks * mt.__final_betas[1]
-                                            - (n_blocks - 1)
-                                            * mt.__final_block_betas))
+        __final_block_betas=hl.map(
+            lambda i: (mt.__step2_block_betas[i] - mt.__c * (mt.__step1_block_betas[i][0] - mt.__final_betas[0])),
+            hl.range(0, n_blocks),
+        )
+    )
 
     mt = mt.annotate_cols(
-        __final_jackknife_mean=[
-            mt.__step1_jackknife_mean[0],
-            hl.mean(mt.__final_block_betas_bias_corrected)],
+        __final_block_betas_bias_corrected=(n_blocks * mt.__final_betas[1] - (n_blocks - 1) * mt.__final_block_betas)
+    )
+
+    mt = mt.annotate_cols(
+        __final_jackknife_mean=[mt.__step1_jackknife_mean[0], hl.mean(mt.__final_block_betas_bias_corrected)],
         __final_jackknife_variance=[
             mt.__step1_jackknife_variance[0],
-            (hl.sum(mt.__final_block_betas_bias_corrected ** 2)
-             - hl.sum(mt.__final_block_betas_bias_corrected) ** 2
-             / n_blocks) / (n_blocks - 1) / n_blocks])
+            (
+                hl.sum(mt.__final_block_betas_bias_corrected**2)
+                - hl.sum(mt.__final_block_betas_bias_corrected) ** 2 / n_blocks
+            )
+            / (n_blocks - 1)
+            / n_blocks,
+        ],
+    )
 
     # convert coefficient to heritability estimate
     mt = mt.annotate_cols(
         phenotype=mt.__y_name,
         mean_chi_sq=hl.agg.mean(mt.__y),
-        intercept=hl.struct(
-            estimate=mt.__final_betas[0],
-            standard_error=hl.sqrt(mt.__final_jackknife_variance[0])),
+        intercept=hl.struct(estimate=mt.__final_betas[0], standard_error=hl.sqrt(mt.__final_jackknife_variance[0])),
         snp_heritability=hl.struct(
             estimate=(M / hl.agg.mean(mt.__n)) * mt.__final_betas[1],
-            standard_error=hl.sqrt((M / hl.agg.mean(mt.__n)) ** 2
-                                   * mt.__final_jackknife_variance[1])))
+            standard_error=hl.sqrt((M / hl.agg.mean(mt.__n)) ** 2 * mt.__final_jackknife_variance[1]),
+        ),
+    )
 
     # format and return results
     ht = mt.cols()
     ht = ht.key_by(ht.phenotype)
-    ht = ht.select(ht.mean_chi_sq,
-                   ht.intercept,
-                   ht.snp_heritability)
+    ht = ht.select(ht.mean_chi_sq, ht.intercept, ht.snp_heritability)
 
     ht_tmp_file = new_temp_file()
     ht.write(ht_tmp_file)

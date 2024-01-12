@@ -11,17 +11,14 @@ from .config.deploy_config import get_deploy_config
 
 
 class ClientResponseError(aiohttp.ClientResponseError):
-    def __init__(self,
-                 request_info: aiohttp.RequestInfo,
-                 history: Tuple[aiohttp.ClientResponse, ...],
-                 body: str = "",
-                 **kwargs):
+    def __init__(
+        self, request_info: aiohttp.RequestInfo, history: Tuple[aiohttp.ClientResponse, ...], body: str = "", **kwargs
+    ):
         super().__init__(request_info, history, **kwargs)
         self.body = body
 
     def __str__(self) -> str:
-        return (f"{self.status}, message={self.message!r}, "
-                f"url={self.request_info.real_url!r} body={self.body!r}")
+        return f"{self.status}, message={self.message!r}, " f"url={self.request_info.real_url!r} body={self.body!r}"
 
     def __repr__(self) -> str:
         args = f"{self.request_info!r}, {self.history!r}"
@@ -85,11 +82,9 @@ class ClientResponse:
 
 
 class ClientSession:
-    def __init__(self,
-                 *args,
-                 raise_for_status: bool = True,
-                 timeout: Union[aiohttp.ClientTimeout, float, None] = None,
-                 **kwargs):
+    def __init__(
+        self, *args, raise_for_status: bool = True, timeout: Union[aiohttp.ClientTimeout, float, None] = None, **kwargs
+    ):
         location = get_deploy_config().location()
         if location == 'external':
             tls = external_client_ssl_context()
@@ -105,26 +100,26 @@ class ClientSession:
         if timeout is None:
             timeout = aiohttp.ClientTimeout(total=5)
 
+        self.loop = asyncio.get_running_loop()
         self.raise_for_status = raise_for_status
         self.client_session = aiohttp.ClientSession(
-            *args,
-            timeout=timeout,
-            raise_for_status=False,
-            connector=aiohttp.TCPConnector(ssl=tls),
-            **kwargs
+            *args, timeout=timeout, raise_for_status=False, connector=aiohttp.TCPConnector(ssl=tls), **kwargs
         )
 
     def request(
         self, method: str, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
+        if self.loop != asyncio.get_running_loop():
+            raise ValueError(
+                f'ClientSession must be created and used in same loop {self.loop} != {asyncio.get_running_loop()}.'
+            )
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
 
         async def request_and_raise_for_status():
             json_data = kwargs.pop('json', None)
             if json_data is not None:
                 if kwargs.get('data') is not None:
-                    raise ValueError(
-                        'data and json parameters cannot be used at the same time')
+                    raise ValueError('data and json parameters cannot be used at the same time')
                 kwargs['data'] = aiohttp.BytesPayload(
                     value=orjson.dumps(json_data),
                     # https://github.com/ijl/orjson#serialize
@@ -146,14 +141,13 @@ class ClientSession:
                         status=resp.status,
                         message=resp.reason,
                         headers=resp.headers,
-                        body=body
+                        body=body,
                     )
             return resp
+
         return aiohttp.client._RequestContextManager(request_and_raise_for_status())
 
-    def ws_connect(
-        self, *args, **kwargs
-    ) -> aiohttp.client._WSRequestContextManager:
+    def ws_connect(self, *args, **kwargs) -> aiohttp.client._WSRequestContextManager:
         return self.client_session.ws_connect(*args, **kwargs)
 
     def get(
@@ -161,15 +155,11 @@ class ClientSession:
     ) -> aiohttp.client._RequestContextManager:
         return self.request('GET', url, allow_redirects=allow_redirects, **kwargs)
 
-    async def get_read_json(
-        self, *args, **kwargs
-    ) -> Any:
+    async def get_read_json(self, *args, **kwargs) -> Any:
         async with self.get(*args, **kwargs) as resp:
             return await resp.json()
 
-    async def get_read(
-        self, *args, **kwargs
-    ) -> bytes:
+    async def get_read(self, *args, **kwargs) -> bytes:
         async with self.get(*args, **kwargs) as resp:
             return await resp.read()
 
@@ -188,15 +178,11 @@ class ClientSession:
     ) -> aiohttp.client._RequestContextManager:
         return self.request('POST', url, data=data, **kwargs)
 
-    async def post_read_json(
-        self, *args, **kwargs
-    ) -> Any:
+    async def post_read_json(self, *args, **kwargs) -> Any:
         async with self.post(*args, **kwargs) as resp:
             return await resp.json()
 
-    async def post_read(
-        self, *args, **kwargs
-    ) -> bytes:
+    async def post_read(self, *args, **kwargs) -> bytes:
         async with self.post(*args, **kwargs) as resp:
             return await resp.read()
 
@@ -210,9 +196,7 @@ class ClientSession:
     ) -> aiohttp.client._RequestContextManager:
         return self.request('PATCH', url, data=data, **kwargs)
 
-    def delete(
-        self, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
-    ) -> aiohttp.client._RequestContextManager:
+    def delete(self, url: aiohttp.typedefs.StrOrURL, **kwargs: Any) -> aiohttp.client._RequestContextManager:
         return self.request('DELETE', url, **kwargs)
 
     async def close(self) -> None:

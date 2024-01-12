@@ -16,9 +16,7 @@ _transform_reference_fuction_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Func
 _merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
 
 
-def make_variants_matrix_table(mt: MatrixTable,
-                               info_to_keep: Optional[Collection[str]] = None
-                               ) -> MatrixTable:
+def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collection[str]] = None) -> MatrixTable:
     if info_to_keep is None:
         info_to_keep = []
     if not info_to_keep:
@@ -29,24 +27,22 @@ def make_variants_matrix_table(mt: MatrixTable,
 
     transform_row = _transform_variant_function_map.get((mt.row.dtype, info_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
+
         def get_lgt(gt, n_alleles, has_non_ref, row):
             index = gt.unphase().unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
             triangle_without_nonref = hl.triangle(n_no_nonref)
-            return (hl.case()
-                    .when(gt.is_haploid(),
-                          hl.or_missing(gt[0] < n_no_nonref, gt))
-                    .when(index < triangle_without_nonref, gt)
-                    .when(index < hl.triangle(n_alleles), hl.missing('call'))
-                    .or_error('invalid call ' + hl.str(gt) + ' at site ' + hl.str(row.locus)))
+            return (
+                hl.case()
+                .when(gt.is_haploid(), hl.or_missing(gt[0] < n_no_nonref, gt))
+                .when(index < triangle_without_nonref, gt)
+                .when(index < hl.triangle(n_alleles), hl.missing('call'))
+                .or_error('invalid call ' + hl.str(gt) + ' at site ' + hl.str(row.locus))
+            )
 
         def make_entry_struct(e, alleles_len, has_non_ref, row):
             handled_fields = dict()
-            handled_names = {'LA', 'gvcf_info',
-                             'LAD', 'AD',
-                             'LGT', 'GT',
-                             'LPL', 'PL',
-                             'LPGT', 'PGT'}
+            handled_names = {'LA', 'gvcf_info', 'LAD', 'AD', 'LGT', 'GT', 'LPL', 'PL', 'LPGT', 'PGT'}
 
             if 'GT' not in e:
                 raise hl.utils.FatalError("the Hail VDS combiner expects input GVCFs to have a 'GT' field in FORMAT.")
@@ -56,44 +52,50 @@ def make_variants_matrix_table(mt: MatrixTable,
             if 'AD' in e:
                 handled_fields['LAD'] = hl.if_else(has_non_ref, e.AD[:-1], e.AD)
             if 'PGT' in e:
-                handled_fields['LPGT'] = e.PGT if e.PGT.dtype != hl.tcall \
-                                               else get_lgt(e.PGT, alleles_len, has_non_ref, row)
+                handled_fields['LPGT'] = (
+                    e.PGT if e.PGT.dtype != hl.tcall else get_lgt(e.PGT, alleles_len, has_non_ref, row)
+                )
             if 'PL' in e:
-                handled_fields['LPL'] = hl.if_else(has_non_ref,
-                                                   hl.if_else(alleles_len > 2,
-                                                              e.PL[:-alleles_len],
-                                                              hl.missing(e.PL.dtype)),
-                                                   hl.if_else(alleles_len > 1,
-                                                              e.PL,
-                                                              hl.missing(e.PL.dtype)))
+                handled_fields['LPL'] = hl.if_else(
+                    has_non_ref,
+                    hl.if_else(alleles_len > 2, e.PL[:-alleles_len], hl.missing(e.PL.dtype)),
+                    hl.if_else(alleles_len > 1, e.PL, hl.missing(e.PL.dtype)),
+                )
                 handled_fields['RGQ'] = hl.if_else(
                     has_non_ref,
-                    hl.if_else(e.GT.is_haploid(),
-                               e.PL[alleles_len - 1],
-                               e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()]),
-                    hl.missing(e.PL.dtype.element_type))
+                    hl.if_else(
+                        e.GT.is_haploid(),
+                        e.PL[alleles_len - 1],
+                        e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
+                    ),
+                    hl.missing(e.PL.dtype.element_type),
+                )
 
-            handled_fields['gvcf_info'] = (hl.case()
-                                           .when(hl.is_missing(row.info.END),
-                                                 parse_allele_specific_fields(
-                                                     row.info.select(*info_to_keep),
-                                                     has_non_ref
-                                                 ))
-                                           .or_missing())
+            handled_fields['gvcf_info'] = (
+                hl.case()
+                .when(
+                    hl.is_missing(row.info.END),
+                    parse_allele_specific_fields(row.info.select(*info_to_keep), has_non_ref),
+                )
+                .or_missing()
+            )
 
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
             return hl.struct(**handled_fields, **pass_through_fields)
 
         transform_row = hl.experimental.define_function(
             lambda row: hl.rbind(
-                hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
+                hl.len(row.alleles),
+                '<NON_REF>' == row.alleles[-1],
                 lambda alleles_len, has_non_ref: hl.struct(
                     locus=row.locus,
                     alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
                     **({'rsid': row.rsid} if 'rsid' in row else {}),
-                    __entries=row.__entries.map(
-                        lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
-            mt.row.dtype)
+                    __entries=row.__entries.map(lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)),
+                ),
+            ),
+            mt.row.dtype,
+        )
         _transform_variant_function_map[mt.row.dtype, info_key] = transform_row
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
@@ -101,9 +103,7 @@ def make_variants_matrix_table(mt: MatrixTable,
 def defined_entry_fields(mt: MatrixTable, sample=None) -> Set[str]:
     if sample is not None:
         mt = mt.head(sample)
-    used = mt.aggregate_entries(hl.struct(**{
-        k: hl.agg.any(hl.is_defined(v)) for k, v in mt.entry.items()
-    }))
+    used = mt.aggregate_entries(hl.struct(**{k: hl.agg.any(hl.is_defined(v)) for k, v in mt.entry.items()}))
     return set(k for k in mt.entry if used[k])
 
 
@@ -122,28 +122,25 @@ def make_reference_stream(stream, entry_to_keep: Collection[str]):
         if 'PL' in entry_to_keep:
             handled_fields['LPL'] = e['PL'][:1]
 
-        reference_fields = {k: v for k, v in e.items()
-                            if k in entry_to_keep and k not in handled_names}
-        return (hl.case()
-                .when(e.GT.is_hom_ref(),
-                      hl.struct(END=row.info.END, **reference_fields, **handled_fields))
-                .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
+        reference_fields = {k: v for k, v in e.items() if k in entry_to_keep and k not in handled_names}
+        return (
+            hl.case()
+            .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields, **handled_fields))
+            .or_error('found END with non reference-genotype at' + hl.str(row.locus))
+        )
 
     row_type = stream.dtype.element_type
     transform_row = _transform_reference_fuction_map.get((row_type, entry_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
-            lambda row: hl.struct(
-                locus=row.locus,
-                __entries=row.__entries.map(
-                    lambda e: make_entry_struct(e, row))),
-            row_type)
+            lambda row: hl.struct(locus=row.locus, __entries=row.__entries.map(lambda e: make_entry_struct(e, row))),
+            row_type,
+        )
         _transform_reference_fuction_map[row_type, entry_key] = transform_row
 
-    return stream.map(lambda row: hl.struct(
-        locus=row.locus,
-        __entries=row.__entries.map(
-            lambda e: make_entry_struct(e, row))))
+    return stream.map(
+        lambda row: hl.struct(locus=row.locus, __entries=row.__entries.map(lambda e: make_entry_struct(e, row)))
+    )
 
 
 def make_variant_stream(stream, info_to_keep):
@@ -159,24 +156,22 @@ def make_variant_stream(stream, info_to_keep):
 
     transform_row = _transform_variant_function_map.get((row_type, info_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
+
         def get_lgt(e, n_alleles, has_non_ref, row):
             index = e.GT.unphased_diploid_gt_index()
             n_no_nonref = n_alleles - hl.int(has_non_ref)
             triangle_without_nonref = hl.triangle(n_no_nonref)
-            return (hl.case()
-                    .when(e.GT.is_haploid(),
-                          hl.or_missing(e.GT[0] < n_no_nonref, e.GT))
-                    .when(index < triangle_without_nonref, e.GT)
-                    .when(index < hl.triangle(n_alleles), hl.missing('call'))
-                    .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
+            return (
+                hl.case()
+                .when(e.GT.is_haploid(), hl.or_missing(e.GT[0] < n_no_nonref, e.GT))
+                .when(index < triangle_without_nonref, e.GT)
+                .when(index < hl.triangle(n_alleles), hl.missing('call'))
+                .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus))
+            )
 
         def make_entry_struct(e, alleles_len, has_non_ref, row):
             handled_fields = dict()
-            handled_names = {'LA', 'gvcf_info',
-                             'LAD', 'AD',
-                             'LGT', 'GT',
-                             'LPL', 'PL',
-                             'LPGT', 'PGT'}
+            handled_names = {'LA', 'gvcf_info', 'LAD', 'AD', 'LGT', 'GT', 'LPL', 'PL', 'LPGT', 'PGT'}
 
             if 'GT' not in e:
                 raise hl.utils.FatalError("the Hail GVCF combiner expects GVCFs to have a 'GT' field in FORMAT.")
@@ -188,55 +183,63 @@ def make_variant_stream(stream, info_to_keep):
             if 'PGT' in e:
                 handled_fields['LPGT'] = e.PGT
             if 'PL' in e:
-                handled_fields['LPL'] = hl.if_else(has_non_ref,
-                                                   hl.if_else(alleles_len > 2,
-                                                              e.PL[:-alleles_len],
-                                                              hl.missing(e.PL.dtype)),
-                                                   hl.if_else(alleles_len > 1,
-                                                              e.PL,
-                                                              hl.missing(e.PL.dtype)))
+                handled_fields['LPL'] = hl.if_else(
+                    has_non_ref,
+                    hl.if_else(alleles_len > 2, e.PL[:-alleles_len], hl.missing(e.PL.dtype)),
+                    hl.if_else(alleles_len > 1, e.PL, hl.missing(e.PL.dtype)),
+                )
                 handled_fields['RGQ'] = hl.if_else(
                     has_non_ref,
-                    hl.if_else(e.GT.is_haploid(),
-                               e.PL[alleles_len - 1],
-                               e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()]),
-                    hl.missing(e.PL.dtype.element_type))
+                    hl.if_else(
+                        e.GT.is_haploid(),
+                        e.PL[alleles_len - 1],
+                        e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
+                    ),
+                    hl.missing(e.PL.dtype.element_type),
+                )
 
-            handled_fields['gvcf_info'] = (hl.case()
-                                           .when(hl.is_missing(row.info.END),
-                                                 parse_allele_specific_fields(
-                                                     row.info.select(*info_to_keep),
-                                                     has_non_ref
-                                                 ))
-                                           .or_missing())
+            handled_fields['gvcf_info'] = (
+                hl.case()
+                .when(
+                    hl.is_missing(row.info.END),
+                    parse_allele_specific_fields(row.info.select(*info_to_keep), has_non_ref),
+                )
+                .or_missing()
+            )
 
             pass_through_fields = {k: v for k, v in e.items() if k not in handled_names}
             return hl.struct(**handled_fields, **pass_through_fields)
 
         transform_row = hl.experimental.define_function(
             lambda row: hl.rbind(
-                hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
+                hl.len(row.alleles),
+                '<NON_REF>' == row.alleles[-1],
                 lambda alleles_len, has_non_ref: hl.struct(
                     locus=row.locus,
                     alleles=hl.if_else(has_non_ref, row.alleles[:-1], row.alleles),
                     **({'rsid': row.rsid} if 'rsid' in row else {}),
-                    __entries=row.__entries.map(
-                        lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)))),
-            row_type)
+                    __entries=row.__entries.map(lambda e: make_entry_struct(e, alleles_len, has_non_ref, row)),
+                ),
+            ),
+            row_type,
+        )
         _transform_variant_function_map[row_type, info_key] = transform_row
 
     from hail.expr import construct_expr
     from hail.utils.java import Env
+
     uid = Env.get_uid()
-    map_ir = hl.ir.ToArray(hl.ir.StreamMap(hl.ir.ToStream(stream._ir), uid,
-                                           Apply(transform_row._name, transform_row._ret_type,
-                                                 hl.ir.Ref(uid, type=row_type))))
+    map_ir = hl.ir.ToArray(
+        hl.ir.StreamMap(
+            hl.ir.ToStream(stream._ir),
+            uid,
+            Apply(transform_row._name, transform_row._ret_type, hl.ir.Ref(uid, type=row_type)),
+        )
+    )
     return construct_expr(map_ir, map_ir.typ, stream._indices, stream._aggregations)
 
 
-def make_reference_matrix_table(mt: MatrixTable,
-                                entry_to_keep: Collection[str]
-                                ) -> MatrixTable:
+def make_reference_matrix_table(mt: MatrixTable, entry_to_keep: Collection[str]) -> MatrixTable:
     mt = mt.filter_rows(hl.is_defined(mt.info.END))
     entry_key = tuple(sorted(entry_to_keep))  # hashable stable value
 
@@ -251,30 +254,28 @@ def make_reference_matrix_table(mt: MatrixTable,
         if 'PL' in entry_to_keep:
             handled_fields['LPL'] = e['PL'][:1]
 
-        reference_fields = {k: v for k, v in e.items()
-                            if k in entry_to_keep and k not in handled_names}
-        return (hl.case()
-                .when(e.GT.is_hom_ref(),
-                      hl.struct(END=row.info.END, **reference_fields, **handled_fields))
-                .or_error('found END with non reference-genotype at' + hl.str(row.locus)))
+        reference_fields = {k: v for k, v in e.items() if k in entry_to_keep and k not in handled_names}
+        return (
+            hl.case()
+            .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields, **handled_fields))
+            .or_error('found END with non reference-genotype at' + hl.str(row.locus))
+        )
 
     mt = localize(mt).key_by('locus')
     transform_row = _transform_reference_fuction_map.get((mt.row.dtype, entry_key))
     if transform_row is None or not hl.current_backend()._is_registered_ir_function_name(transform_row._name):
         transform_row = hl.experimental.define_function(
-            lambda row: hl.struct(
-                locus=row.locus,
-                __entries=row.__entries.map(
-                    lambda e: make_entry_struct(e, row))),
-            mt.row.dtype)
+            lambda row: hl.struct(locus=row.locus, __entries=row.__entries.map(lambda e: make_entry_struct(e, row))),
+            mt.row.dtype,
+        )
         _transform_reference_fuction_map[mt.row.dtype, entry_key] = transform_row
 
     return unlocalize(Table(TableMapRows(mt._tir, Apply(transform_row._name, transform_row._ret_type, mt.row._ir))))
 
 
-def transform_gvcf(mt: MatrixTable,
-                   reference_entry_fields_to_keep: Collection[str],
-                   info_to_keep: Optional[Collection[str]] = None) -> VariantDataset:
+def transform_gvcf(
+    mt: MatrixTable, reference_entry_fields_to_keep: Collection[str], info_to_keep: Optional[Collection[str]] = None
+) -> VariantDataset:
     """Transforms a GVCF into a single sample VariantDataSet
 
     The input to this should be some result of :func:`.import_vcf`
@@ -332,21 +333,23 @@ def combine_reference_row(row, globals):
     merge_function = _merge_function_map.get((row.dtype, globals))
     if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
         merge_function = hl.experimental.define_function(
-            lambda row, gbl:
-            hl.struct(
+            lambda row, gbl: hl.struct(
                 locus=row.locus,
                 __entries=hl.range(0, hl.len(row.data)).flatmap(
-                    lambda i:
-                    hl.if_else(hl.is_missing(row.data[i]),
-                               hl.range(0, hl.len(gbl.g[i].__cols))
-                               .map(lambda _: hl.missing(row.data[i].__entries.dtype.element_type)),
-                               row.data[i].__entries))),
-            row.dtype, globals.dtype)
+                    lambda i: hl.if_else(
+                        hl.is_missing(row.data[i]),
+                        hl.range(0, hl.len(gbl.g[i].__cols)).map(
+                            lambda _: hl.missing(row.data[i].__entries.dtype.element_type)
+                        ),
+                        row.data[i].__entries,
+                    )
+                ),
+            ),
+            row.dtype,
+            globals.dtype,
+        )
         _merge_function_map[(row.dtype, globals.dtype)] = merge_function
-    apply_ir = Apply(merge_function._name,
-                     merge_function._ret_type,
-                     row._ir,
-                     globals._ir)
+    apply_ir = Apply(merge_function._name, merge_function._ret_type, row._ir, globals._ir)
     indices, aggs = unify_all(row, globals)
     return construct_expr(apply_ir, apply_ir.typ, indices, aggs)
 
@@ -406,13 +409,20 @@ def parse_allele_specific_ranksum(string, has_non_ref):
     typ = hl.ttuple(hl.tfloat64, hl.tint32)
     items = string.split(r'\|')
     items = hl.if_else(has_non_ref, items[:-1], items)
-    return items.map(lambda s: hl.if_else(
-        (hl.len(s) == 0) | (s == '.'),
-        hl.missing(typ),
-        hl.rbind(s.split(','), lambda ss: hl.if_else(
-            hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
-            hl.missing(hl.ttuple(hl.tfloat64, hl.tint32)),
-            hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
+    return items.map(
+        lambda s: hl.if_else(
+            (hl.len(s) == 0) | (s == '.'),
+            hl.missing(typ),
+            hl.rbind(
+                s.split(','),
+                lambda ss: hl.if_else(
+                    hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
+                    hl.missing(hl.ttuple(hl.tfloat64, hl.tint32)),
+                    hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])]),
+                ),
+            ),
+        )
+    )
 
 
 _allele_specific_field_parsers = {
@@ -425,9 +435,9 @@ _allele_specific_field_parsers = {
 }
 
 
-def parse_allele_specific_fields(info: hl.StructExpression,
-                                 has_non_ref: Union[bool, hl.BooleanExpression]
-                                 ) -> hl.StructExpression:
+def parse_allele_specific_fields(
+    info: hl.StructExpression, has_non_ref: Union[bool, hl.BooleanExpression]
+) -> hl.StructExpression:
     def parse_field(field: str) -> hl.Expression:
         if parse := _allele_specific_field_parsers.get(field):
             return parse(info[field], has_non_ref)
@@ -450,33 +460,36 @@ def unlocalize(mt):
 
 def merge_alleles(alleles):
     from hail.expr.functions import _num_allele_type, _allele_ints
+
     return hl.rbind(
-        alleles.map(lambda a: hl.or_else(a[0], ''))
-        .fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
-        lambda ref:
-        hl.rbind(
+        alleles.map(lambda a: hl.or_else(a[0], '')).fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
+        lambda ref: hl.rbind(
             alleles.map(
                 lambda al: hl.rbind(
                     al[0],
-                    lambda r:
-                    hl.array([ref]).extend(
+                    lambda r: hl.array([ref]).extend(
                         al[1:].map(
-                            lambda a:
-                            hl.rbind(
+                            lambda a: hl.rbind(
                                 _num_allele_type(r, a),
-                                lambda at:
-                                hl.if_else(
+                                lambda at: hl.if_else(
                                     (_allele_ints['SNP'] == at)
                                     | (_allele_ints['Insertion'] == at)
                                     | (_allele_ints['Deletion'] == at)
                                     | (_allele_ints['MNP'] == at)
                                     | (_allele_ints['Complex'] == at),
-                                    a + ref[hl.len(r):],
-                                    a)))))),
-            lambda lal:
-            hl.struct(
-                globl=hl.array([ref]).extend(hl.array(hl.set(hl.flatten(lal)).remove(ref))),
-                local=lal)))
+                                    a + ref[hl.len(r) :],
+                                    a,
+                                ),
+                            )
+                        )
+                    ),
+                )
+            ),
+            lambda lal: hl.struct(
+                globl=hl.array([ref]).extend(hl.array(hl.set(hl.flatten(lal)).remove(ref))), local=lal
+            ),
+        ),
+    )
 
 
 def combine_variant_rows(row, globals):
@@ -487,43 +500,48 @@ def combine_variant_rows(row, globals):
     merge_function = _merge_function_map.get((row.dtype, globals.dtype))
     if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
         merge_function = hl.experimental.define_function(
-            lambda row, gbl:
-            hl.rbind(
+            lambda row, gbl: hl.rbind(
                 merge_alleles(row.data.map(lambda d: d.alleles)),
-                lambda alleles:
-                hl.struct(
+                lambda alleles: hl.struct(
                     locus=row.locus,
                     alleles=alleles.globl,
-                    **({'rsid': hl.find(hl.is_defined, row.data.map(
-                        lambda d: d.rsid))} if 'rsid' in row.data.dtype.element_type else {}),
+                    **(
+                        {'rsid': hl.find(hl.is_defined, row.data.map(lambda d: d.rsid))}
+                        if 'rsid' in row.data.dtype.element_type
+                        else {}
+                    ),
                     __entries=hl.bind(
-                        lambda combined_allele_index:
-                        hl.range(0, hl.len(row.data)).flatmap(
-                            lambda i:
-                            hl.if_else(hl.is_missing(row.data[i].__entries),
-                                       hl.range(0, hl.len(gbl.g[i].__cols))
-                                       .map(lambda _: hl.missing(row.data[i].__entries.dtype.element_type)),
-                                       hl.bind(
-                                           lambda old_to_new: row.data[i].__entries.map(
-                                               lambda e: renumber_entry(e, old_to_new)),
-                                           hl.range(0, hl.len(alleles.local[i])).map(
-                                               lambda j: combined_allele_index[alleles.local[i][j]])))),
-                        hl.dict(hl.range(0, hl.len(alleles.globl)).map(
-                            lambda j: hl.tuple([alleles.globl[j], j])))))),
-            row.dtype, globals.dtype)
+                        lambda combined_allele_index: hl.range(0, hl.len(row.data)).flatmap(
+                            lambda i: hl.if_else(
+                                hl.is_missing(row.data[i].__entries),
+                                hl.range(0, hl.len(gbl.g[i].__cols)).map(
+                                    lambda _: hl.missing(row.data[i].__entries.dtype.element_type)
+                                ),
+                                hl.bind(
+                                    lambda old_to_new: row.data[i].__entries.map(
+                                        lambda e: renumber_entry(e, old_to_new)
+                                    ),
+                                    hl.range(0, hl.len(alleles.local[i])).map(
+                                        lambda j: combined_allele_index[alleles.local[i][j]]
+                                    ),
+                                ),
+                            )
+                        ),
+                        hl.dict(hl.range(0, hl.len(alleles.globl)).map(lambda j: hl.tuple([alleles.globl[j], j]))),
+                    ),
+                ),
+            ),
+            row.dtype,
+            globals.dtype,
+        )
         _merge_function_map[(row.dtype, globals.dtype)] = merge_function
     indices, aggs = unify_all(row, globals)
-    apply_ir = Apply(merge_function._name,
-                     merge_function._ret_type,
-                     row._ir,
-                     globals._ir)
+    apply_ir = Apply(merge_function._name, merge_function._ret_type, row._ir, globals._ir)
     return construct_expr(apply_ir, apply_ir.typ, indices, aggs)
 
 
 def combine(ts):
-    ts = Table(TableMapRows(ts._tir, combine_variant_rows(
-        ts.row,
-        ts.globals)._ir))
+    ts = Table(TableMapRows(ts._tir, combine_variant_rows(ts.row, ts.globals)._ir))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
 
@@ -571,9 +589,11 @@ def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: s
     assert list(mt.row_key) == ['locus']
     assert isinstance(mt.locus.dtype, hl.tlocus)
     reference_genome = mt.locus.dtype.reference_genome
-    end = hl.Locus(reference_genome.contigs[-1],
-                   reference_genome.lengths[reference_genome.contigs[-1]],
-                   reference_genome=reference_genome)
+    end = hl.Locus(
+        reference_genome.contigs[-1],
+        reference_genome.lengths[reference_genome.contigs[-1]],
+        reference_genome=reference_genome,
+    )
 
     (n_rows, n_cols) = mt.count()
 
@@ -589,9 +609,9 @@ def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: s
     total_weight = ht.aggregate(hl.agg.sum(ht.weight))
     partition_weight = int(total_weight / (n_rows / desired_average_partition_size))
 
-    ht = ht.annotate(cumulative_weight=hl.scan.sum(ht.weight),
-                     last_weight=hl.scan._prev_nonnull(ht.weight),
-                     row_idx=hl.scan.count())
+    ht = ht.annotate(
+        cumulative_weight=hl.scan.sum(ht.weight), last_weight=hl.scan._prev_nonnull(ht.weight), row_idx=hl.scan.count()
+    )
 
     def partition_bound(x):
         return x - (x % hl.int64(partition_weight))
@@ -599,18 +619,25 @@ def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: s
     at_partition_bound = partition_bound(ht.cumulative_weight) != partition_bound(ht.cumulative_weight - ht.last_weight)
 
     ht = ht.filter(at_partition_bound | (ht.row_idx == n_rows - 1))
-    ht = ht.annotate(start=hl.or_else(
-        hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
-                                                            reference_genome=reference_genome)),
-        hl.locus_from_global_position(0, reference_genome=reference_genome)))
+    ht = ht.annotate(
+        start=hl.or_else(
+            hl.scan._prev_nonnull(
+                hl.locus_from_global_position(ht.locus.global_position() + 1, reference_genome=reference_genome)
+            ),
+            hl.locus_from_global_position(0, reference_genome=reference_genome),
+        )
+    )
     ht = ht.select(
-        interval=hl.interval(start=hl.struct(locus=ht.start), end=hl.struct(locus=ht.locus), includes_end=True))
+        interval=hl.interval(start=hl.struct(locus=ht.start), end=hl.struct(locus=ht.locus), includes_end=True)
+    )
 
     intervals_dtype = hl.tarray(ht.interval.dtype)
     intervals = ht.aggregate(hl.agg.collect(ht.interval))
     last_st = hl.eval(
-        hl.locus_from_global_position(hl.literal(intervals[-1].end.locus).global_position() + 1,
-                                      reference_genome=reference_genome))
+        hl.locus_from_global_position(
+            hl.literal(intervals[-1].end.locus).global_position() + 1, reference_genome=reference_genome
+        )
+    )
     interval = hl.Interval(start=hl.Struct(locus=last_st), end=hl.Struct(locus=end), includes_end=True)
     intervals.append(interval)
     return intervals, intervals_dtype
@@ -638,7 +665,8 @@ def calculate_even_genome_partitioning(reference_genome, interval_size) -> List[
             return hl.Interval(
                 start=hl.Locus(contig=contig, position=start, reference_genome=reference_genome),
                 end=hl.Locus(contig=contig, position=end, reference_genome=reference_genome),
-                includes_end=True)
+                includes_end=True,
+            )
 
         contig_length = reference_genome.lengths[contig]
         n_parts = math.ceil(contig_length / interval_size)
@@ -659,8 +687,8 @@ def calculate_even_genome_partitioning(reference_genome, interval_size) -> List[
         contigs = [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM']
     else:
         raise ValueError(
-            f"Unsupported reference genome '{reference_genome.name}', "
-            "only 'GRCh37' and 'GRCh38' are supported")
+            f"Unsupported reference genome '{reference_genome.name}', " "only 'GRCh37' and 'GRCh38' are supported"
+        )
 
     intervals = []
     for ctg in contigs:

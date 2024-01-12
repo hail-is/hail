@@ -8,18 +8,38 @@ from avro.io import DatumReader
 
 import hail as hl
 from hail import ir
-from hail.expr import StructExpression, LocusExpression, \
-    expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
-    expr_int32, to_expr, analyze
-from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
-    tcall, tbool, tint64, tfloat32
+from hail.expr import (
+    StructExpression,
+    LocusExpression,
+    expr_array,
+    expr_float64,
+    expr_str,
+    expr_numeric,
+    expr_call,
+    expr_bool,
+    expr_int32,
+    to_expr,
+    analyze,
+)
+from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir.utils import parse_type
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
 from hail.table import Table
-from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
-    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
+from hail.typecheck import (
+    typecheck,
+    nullable,
+    oneof,
+    dictof,
+    anytype,
+    sequenceof,
+    enumeration,
+    sized_tupleof,
+    numeric,
+    table_key_type,
+    char,
+)
 from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
 from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
@@ -28,20 +48,21 @@ from hail.utils.misc import wrap_to_list, plural
 from .import_lines_helpers import split_lines, should_remove_line
 
 
-def locus_interval_expr(contig, start, end, includes_start, includes_end,
-                        reference_genome, skip_invalid_intervals):
+def locus_interval_expr(contig, start, end, includes_start, includes_end, reference_genome, skip_invalid_intervals):
     includes_start = hl.bool(includes_start)
     includes_end = hl.bool(includes_end)
 
     if reference_genome:
-        return hl.locus_interval(contig, start, end, includes_start,
-                                 includes_end, reference_genome,
-                                 skip_invalid_intervals)
+        return hl.locus_interval(
+            contig, start, end, includes_start, includes_end, reference_genome, skip_invalid_intervals
+        )
     else:
-        return hl.interval(hl.struct(contig=contig, position=start),
-                           hl.struct(contig=contig, position=end),
-                           includes_start,
-                           includes_end)
+        return hl.interval(
+            hl.struct(contig=contig, position=start),
+            hl.struct(contig=contig, position=end),
+            includes_start,
+            includes_end,
+        )
 
 
 def expr_or_else(expr, default, f=lambda x: x):
@@ -51,17 +72,18 @@ def expr_or_else(expr, default, f=lambda x: x):
         return to_expr(default)
 
 
-@typecheck(dataset=MatrixTable,
-           output=str,
-           precision=int,
-           gp=nullable(expr_array(expr_float64)),
-           id1=nullable(expr_str),
-           id2=nullable(expr_str),
-           missing=nullable(expr_numeric),
-           varid=nullable(expr_str),
-           rsid=nullable(expr_str))
-def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
-               missing=None, varid=None, rsid=None):
+@typecheck(
+    dataset=MatrixTable,
+    output=str,
+    precision=int,
+    gp=nullable(expr_array(expr_float64)),
+    id1=nullable(expr_str),
+    id2=nullable(expr_str),
+    missing=nullable(expr_numeric),
+    varid=nullable(expr_str),
+    rsid=nullable(expr_str),
+)
+def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None, missing=None, varid=None, rsid=None):
     """Export a :class:`.MatrixTable` as GEN and SAMPLE files.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -127,9 +149,11 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
         if 'GP' in dataset.entry and dataset.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': dataset.GP}
         else:
-            raise ValueError('exporting to GEN requires a GP (genotype probability) array<float64> field in the entry'
-                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
-                             '\n  right format.')
+            raise ValueError(
+                'exporting to GEN requires a GP (genotype probability) array<float64> field in the entry'
+                '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                '\n  right format.'
+            )
     else:
         entry_exprs = {'GP': gp}
 
@@ -157,31 +181,34 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     locus = dataset.locus
     a = dataset.alleles
 
-    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
-                 'rsid': expr_or_else(rsid, ".")}
+    gen_exprs = {
+        'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
+        'rsid': expr_or_else(rsid, "."),
+    }
 
-    for exprs, axis in [(sample_exprs, dataset._col_indices),
-                        (gen_exprs, dataset._row_indices),
-                        (entry_exprs, dataset._entry_indices)]:
+    for exprs, axis in [
+        (sample_exprs, dataset._col_indices),
+        (gen_exprs, dataset._row_indices),
+        (entry_exprs, dataset._entry_indices),
+    ]:
         for name, expr in exprs.items():
             analyze('export_gen/{}'.format(name), expr, axis)
 
-    dataset = dataset._select_all(col_exprs=sample_exprs,
-                                  col_key=[],
-                                  row_exprs=gen_exprs,
-                                  entry_exprs=entry_exprs)
+    dataset = dataset._select_all(col_exprs=sample_exprs, col_key=[], row_exprs=gen_exprs, entry_exprs=entry_exprs)
 
     writer = ir.MatrixGENWriter(output, precision)
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
-@typecheck(mt=MatrixTable,
-           output=str,
-           gp=nullable(expr_array(expr_float64)),
-           varid=nullable(expr_str),
-           rsid=nullable(expr_str),
-           parallel=nullable(ir.ExportType.checker),
-           compression_codec=enumeration('zlib', 'zstd'))
+@typecheck(
+    mt=MatrixTable,
+    output=str,
+    gp=nullable(expr_array(expr_float64)),
+    varid=nullable(expr_str),
+    rsid=nullable(expr_str),
+    parallel=nullable(ir.ExportType.checker),
+    compression_codec=enumeration('zlib', 'zstd'),
+)
 def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compression_codec='zlib'):
     """Export MatrixTable as :class:`.MatrixTable` as BGEN 1.2 file with 8
     bits of per probability.  Also writes SAMPLE file.
@@ -244,9 +271,11 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
         if 'GP' in mt.entry and mt.GP.dtype == tarray(tfloat64):
             entry_exprs = {'GP': mt.GP}
         else:
-            raise ValueError('exporting to BGEN requires a GP (genotype probability) array<float64> field in the entry'
-                             '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
-                             '\n  right format.')
+            raise ValueError(
+                'exporting to BGEN requires a GP (genotype probability) array<float64> field in the entry'
+                '\n  of the matrix table. If you only have hard calls (GT), BGEN is probably not the'
+                '\n  right format.'
+            )
     else:
         entry_exprs = {'GP': gp}
 
@@ -262,38 +291,46 @@ def export_bgen(mt, output, gp=None, varid=None, rsid=None, parallel=None, compr
 
     locus = mt.locus
     a = mt.alleles
-    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
-                 'rsid': expr_or_else(rsid, ".")}
+    gen_exprs = {
+        'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
+        'rsid': expr_or_else(rsid, "."),
+    }
 
-    for exprs, axis in [(gen_exprs, mt._row_indices),
-                        (entry_exprs, mt._entry_indices)]:
+    for exprs, axis in [(gen_exprs, mt._row_indices), (entry_exprs, mt._entry_indices)]:
         for name, expr in exprs.items():
             analyze('export_bgen/{}'.format(name), expr, axis)
 
-    mt = mt._select_all(col_exprs={},
-                        row_exprs=gen_exprs,
-                        entry_exprs=entry_exprs)
+    mt = mt._select_all(col_exprs={}, row_exprs=gen_exprs, entry_exprs=entry_exprs)
 
-    Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixBGENWriter(
-        output,
-        parallel,
-        compression_codec)))
+    Env.backend().execute(ir.MatrixWrite(mt._mir, ir.MatrixBGENWriter(output, parallel, compression_codec)))
 
 
-@typecheck(dataset=MatrixTable,
-           output=str,
-           call=nullable(expr_call),
-           fam_id=nullable(expr_str),
-           ind_id=nullable(expr_str),
-           pat_id=nullable(expr_str),
-           mat_id=nullable(expr_str),
-           is_female=nullable(expr_bool),
-           pheno=oneof(nullable(expr_bool), nullable(expr_numeric)),
-           varid=nullable(expr_str),
-           cm_position=nullable(expr_float64))
-def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=None,
-                 mat_id=None, is_female=None, pheno=None, varid=None,
-                 cm_position=None):
+@typecheck(
+    dataset=MatrixTable,
+    output=str,
+    call=nullable(expr_call),
+    fam_id=nullable(expr_str),
+    ind_id=nullable(expr_str),
+    pat_id=nullable(expr_str),
+    mat_id=nullable(expr_str),
+    is_female=nullable(expr_bool),
+    pheno=oneof(nullable(expr_bool), nullable(expr_numeric)),
+    varid=nullable(expr_str),
+    cm_position=nullable(expr_float64),
+)
+def export_plink(
+    dataset,
+    output,
+    call=None,
+    fam_id=None,
+    ind_id=None,
+    pat_id=None,
+    mat_id=None,
+    is_female=None,
+    pheno=None,
+    varid=None,
+    cm_position=None,
+):
     """Export a :class:`.MatrixTable` as
     `PLINK2 <https://www.cog-genomics.org/plink2/formats>`__
     BED, BIM and FAM files.
@@ -378,31 +415,32 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     else:
         entry_exprs = {'GT': call}
 
-    fam_exprs = {'fam_id': expr_or_else(fam_id, '0'),
-                 'ind_id': hl.or_else(ind_id, '0'),
-                 'pat_id': expr_or_else(pat_id, '0'),
-                 'mat_id': expr_or_else(mat_id, '0'),
-                 'is_female': expr_or_else(is_female, '0',
-                                           lambda x: hl.if_else(x, '2', '1')),
-                 'pheno': expr_or_else(pheno, 'NA',
-                                       lambda x: hl.if_else(x, '2', '1') if x.dtype == tbool else hl.str(x))}
+    fam_exprs = {
+        'fam_id': expr_or_else(fam_id, '0'),
+        'ind_id': hl.or_else(ind_id, '0'),
+        'pat_id': expr_or_else(pat_id, '0'),
+        'mat_id': expr_or_else(mat_id, '0'),
+        'is_female': expr_or_else(is_female, '0', lambda x: hl.if_else(x, '2', '1')),
+        'pheno': expr_or_else(pheno, 'NA', lambda x: hl.if_else(x, '2', '1') if x.dtype == tbool else hl.str(x)),
+    }
 
     locus = dataset.locus
     a = dataset.alleles
 
-    bim_exprs = {'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
-                 'cm_position': expr_or_else(cm_position, 0.0)}
+    bim_exprs = {
+        'varid': expr_or_else(varid, hl.delimit([locus.contig, hl.str(locus.position), a[0], a[1]], ':')),
+        'cm_position': expr_or_else(cm_position, 0.0),
+    }
 
-    for exprs, axis in [(fam_exprs, dataset._col_indices),
-                        (bim_exprs, dataset._row_indices),
-                        (entry_exprs, dataset._entry_indices)]:
+    for exprs, axis in [
+        (fam_exprs, dataset._col_indices),
+        (bim_exprs, dataset._row_indices),
+        (entry_exprs, dataset._entry_indices),
+    ]:
         for name, expr in exprs.items():
             analyze('export_plink/{}'.format(name), expr, axis)
 
-    dataset = dataset._select_all(col_exprs=fam_exprs,
-                                  col_key=[],
-                                  row_exprs=bim_exprs,
-                                  entry_exprs=entry_exprs)
+    dataset = dataset._select_all(col_exprs=fam_exprs, col_key=[], row_exprs=bim_exprs, entry_exprs=entry_exprs)
 
     # check FAM ids for white space
     t_cols = dataset.cols()
@@ -422,12 +460,14 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
-@typecheck(dataset=oneof(MatrixTable, Table),
-           output=str,
-           append_to_header=nullable(str),
-           parallel=nullable(ir.ExportType.checker),
-           metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
-           tabix=bool)
+@typecheck(
+    dataset=oneof(MatrixTable, Table),
+    output=str,
+    append_to_header=nullable(str),
+    parallel=nullable(ir.ExportType.checker),
+    metadata=nullable(dictof(str, dictof(str, dictof(str, str)))),
+    tabix=bool,
+)
 def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=None, *, tabix=False):
     """Export a :class:`.MatrixTable` or :class:`.Table` as a VCF file.
 
@@ -543,10 +583,12 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     _, ext = os.path.splitext(output)
     if ext == '.gz':
-        warning('VCF export with standard gzip compression requested. This is almost *never* desired and will '
-                'cause issues with other tools that consume VCF files. The compression format used for VCF '
-                'files is traditionally *block* gzip compression. To use block gzip compression with hail VCF '
-                'export, use a path ending in `.bgz`.')
+        warning(
+            'VCF export with standard gzip compression requested. This is almost *never* desired and will '
+            'cause issues with other tools that consume VCF files. The compression format used for VCF '
+            'files is traditionally *block* gzip compression. To use block gzip compression with hail VCF '
+            'export, use a path ending in `.bgz`.'
+        )
 
     if isinstance(dataset, Table):
         mt = MatrixTable.from_rows_table(dataset)
@@ -556,15 +598,19 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     require_row_key_variant(dataset, 'export_vcf')
 
     if 'filters' in dataset.row and dataset.filters.dtype != hl.tset(hl.tstr):
-        raise ValueError(f"'export_vcf': expect the 'filters' field to be set<str>, found {dataset.filters.dtype}"
-                         f"\n  Either transform this field to set<str> to export as VCF FILTERS field, or drop it from the dataset.")
+        raise ValueError(
+            f"'export_vcf': expect the 'filters' field to be set<str>, found {dataset.filters.dtype}"
+            f"\n  Either transform this field to set<str> to export as VCF FILTERS field, or drop it from the dataset."
+        )
 
     info_fields = list(dataset.info) if "info" in dataset.row else []
     invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
     if invalid_info_fields:
         invalid_info_str = ''.join(f'\n    {f!r}' for f in invalid_info_fields)
         warning(
-            'export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
+            'export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: '
+            + invalid_info_str
+        )
 
     row_fields_used = {'rsid', 'info', 'filters', 'qual'}
 
@@ -584,24 +630,20 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     parallel = ir.ExportType.default(parallel)
 
-    writer = ir.MatrixVCFWriter(output,
-                                append_to_header,
-                                parallel,
-                                metadata,
-                                tabix)
+    writer = ir.MatrixVCFWriter(output, append_to_header, parallel, metadata, tabix)
     Env.backend().execute(ir.MatrixWrite(dataset._mir, writer))
 
 
-@typecheck(path=str,
-           reference_genome=nullable(reference_genome_type),
-           skip_invalid_intervals=bool,
-           contig_recoding=nullable(dictof(str, str)),
-           kwargs=anytype)
-def import_locus_intervals(path,
-                           reference_genome='default',
-                           skip_invalid_intervals=False,
-                           contig_recoding=None,
-                           **kwargs) -> Table:
+@typecheck(
+    path=str,
+    reference_genome=nullable(reference_genome_type),
+    skip_invalid_intervals=bool,
+    contig_recoding=nullable(dictof(str, str)),
+    kwargs=anytype,
+)
+def import_locus_intervals(
+    path, reference_genome='default', skip_invalid_intervals=False, contig_recoding=None, **kwargs
+) -> Table:
     """Import a locus interval list as a :class:`.Table`.
 
     Examples
@@ -683,66 +725,76 @@ def import_locus_intervals(path,
             return x
         return contig_recoding.get(x, x)
 
-    t = import_table(path, comment="@", impute=False, no_header=True,
-                     types={'f0': tstr, 'f1': tint32, 'f2': tint32,
-                            'f3': tstr, 'f4': tstr},
-                     **kwargs)
+    t = import_table(
+        path,
+        comment="@",
+        impute=False,
+        no_header=True,
+        types={'f0': tstr, 'f1': tint32, 'f2': tint32, 'f3': tstr, 'f4': tstr},
+        **kwargs,
+    )
 
     if t.row.dtype == tstruct(f0=tstr):
         if reference_genome:
-            t = t.select(interval=hl.parse_locus_interval(t['f0'],
-                                                          reference_genome))
+            t = t.select(interval=hl.parse_locus_interval(t['f0'], reference_genome))
         else:
             interval_regex = r"([^:]*):(\d+)\-(\d+)"
 
             def checked_match_interval_expr(match):
-                return hl.or_missing(hl.len(match) == 3,
-                                     locus_interval_expr(recode_contig(match[0]),
-                                                         hl.int32(match[1]),
-                                                         hl.int32(match[2]),
-                                                         True,
-                                                         True,
-                                                         reference_genome,
-                                                         skip_invalid_intervals))
+                return hl.or_missing(
+                    hl.len(match) == 3,
+                    locus_interval_expr(
+                        recode_contig(match[0]),
+                        hl.int32(match[1]),
+                        hl.int32(match[2]),
+                        True,
+                        True,
+                        reference_genome,
+                        skip_invalid_intervals,
+                    ),
+                )
 
-            expr = (
-                hl.bind(t['f0'].first_match_in(interval_regex),
-                        lambda match: hl.if_else(hl.bool(skip_invalid_intervals),
-                                                 checked_match_interval_expr(match),
-                                                 locus_interval_expr(recode_contig(match[0]),
-                                                                     hl.int32(match[1]),
-                                                                     hl.int32(match[2]),
-                                                                     True,
-                                                                     True,
-                                                                     reference_genome,
-                                                                     skip_invalid_intervals))))
+            expr = hl.bind(
+                t['f0'].first_match_in(interval_regex),
+                lambda match: hl.if_else(
+                    hl.bool(skip_invalid_intervals),
+                    checked_match_interval_expr(match),
+                    locus_interval_expr(
+                        recode_contig(match[0]),
+                        hl.int32(match[1]),
+                        hl.int32(match[2]),
+                        True,
+                        True,
+                        reference_genome,
+                        skip_invalid_intervals,
+                    ),
+                ),
+            )
 
             t = t.select(interval=expr)
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
-                                                  t['f1'],
-                                                  t['f2'],
-                                                  True,
-                                                  True,
-                                                  reference_genome,
-                                                  skip_invalid_intervals))
+        t = t.select(
+            interval=locus_interval_expr(
+                recode_contig(t['f0']), t['f1'], t['f2'], True, True, reference_genome, skip_invalid_intervals
+            )
+        )
 
     elif t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr, f4=tstr):
-        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
-                                                  t['f1'],
-                                                  t['f2'],
-                                                  True,
-                                                  True,
-                                                  reference_genome,
-                                                  skip_invalid_intervals),
-                     target=t['f4'])
+        t = t.select(
+            interval=locus_interval_expr(
+                recode_contig(t['f0']), t['f1'], t['f2'], True, True, reference_genome, skip_invalid_intervals
+            ),
+            target=t['f4'],
+        )
 
     else:
-        raise FatalError("""invalid interval format.  Acceptable formats:
+        raise FatalError(
+            """invalid interval format.  Acceptable formats:
               'chr:start-end'
               'chr  start  end' (tab-separated)
-              'chr  start  end  strand  target' (tab-separated, strand is '+' or '-')""")
+              'chr  start  end  strand  target' (tab-separated, strand is '+' or '-')"""
+        )
 
     if skip_invalid_intervals and reference_genome:
         t = t.filter(hl.is_defined(t.interval))
@@ -750,16 +802,14 @@ def import_locus_intervals(path,
     return t.key_by('interval')
 
 
-@typecheck(path=str,
-           reference_genome=nullable(reference_genome_type),
-           skip_invalid_intervals=bool,
-           contig_recoding=nullable(dictof(str, str)),
-           kwargs=anytype)
-def import_bed(path,
-               reference_genome='default',
-               skip_invalid_intervals=False,
-               contig_recoding=None,
-               **kwargs) -> Table:
+@typecheck(
+    path=str,
+    reference_genome=nullable(reference_genome_type),
+    skip_invalid_intervals=bool,
+    contig_recoding=nullable(dictof(str, str)),
+    kwargs=anytype,
+)
+def import_bed(path, reference_genome='default', skip_invalid_intervals=False, contig_recoding=None, **kwargs) -> Table:
     """Import a UCSC BED file as a :class:`.Table`.
 
     Examples
@@ -849,13 +899,16 @@ def import_bed(path,
 
     # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
-    t = import_table(path, no_header=True, delimiter=r"\s+", impute=False,
-                     skip_blank_lines=True, types={'f0': tstr, 'f1': tint32,
-                                                   'f2': tint32, 'f3': tstr,
-                                                   'f4': tstr},
-                     comment=["""^browser.*""", """^track.*""",
-                              r"""^\w+=("[\w\d ]+"|\d+).*"""],
-                     **kwargs)
+    t = import_table(
+        path,
+        no_header=True,
+        delimiter=r"\s+",
+        impute=False,
+        skip_blank_lines=True,
+        types={'f0': tstr, 'f1': tint32, 'f2': tint32, 'f3': tstr, 'f4': tstr},
+        comment=["""^browser.*""", """^track.*""", r"""^\w+=("[\w\d ]+"|\d+).*"""],
+        **kwargs,
+    )
 
     if contig_recoding is not None:
         contig_recoding = hl.literal(contig_recoding)
@@ -866,24 +919,21 @@ def import_bed(path,
         return contig_recoding.get(x, x)
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
-        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
-                                                  t['f1'] + 1,
-                                                  t['f2'] + 1,
-                                                  True,
-                                                  False,
-                                                  reference_genome,
-                                                  skip_invalid_intervals))
+        t = t.select(
+            interval=locus_interval_expr(
+                recode_contig(t['f0']), t['f1'] + 1, t['f2'] + 1, True, False, reference_genome, skip_invalid_intervals
+            )
+        )
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(
-            f0=tstr, f1=tint32, f2=tint32, f3=tstr):
-        t = t.select(interval=locus_interval_expr(recode_contig(t['f0']),
-                                                  t['f1'] + 1,
-                                                  t['f2'] + 1,
-                                                  True,
-                                                  False,
-                                                  reference_genome,
-                                                  skip_invalid_intervals),
-                     target=t['f3'])
+        f0=tstr, f1=tint32, f2=tint32, f3=tstr
+    ):
+        t = t.select(
+            interval=locus_interval_expr(
+                recode_contig(t['f0']), t['f1'] + 1, t['f2'] + 1, True, False, reference_genome, skip_invalid_intervals
+            ),
+            target=t['f3'],
+        )
 
     else:
         raise FatalError("too few fields for BED file: expected 3 or more, but found {}".format(len(t.row)))
@@ -894,10 +944,7 @@ def import_bed(path,
     return t.key_by('interval')
 
 
-@typecheck(path=str,
-           quant_pheno=bool,
-           delimiter=str,
-           missing=str)
+@typecheck(path=str, quant_pheno=bool, delimiter=str, missing=str)
 def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Table:
     """Import a PLINK FAM file into a :class:`.Table`.
 
@@ -961,16 +1008,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     """
     type_and_data = Env.backend().import_fam(path, quant_pheno, delimiter, missing)
     typ = hl.dtype(type_and_data['type'])
-    return hl.Table.parallelize(
-        hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
+    return hl.Table.parallelize(hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
 
 
-@typecheck(regex=str,
-           path=oneof(str, sequenceof(str)),
-           max_count=int,
-           show=bool,
-           force=bool,
-           force_bgz=bool)
+@typecheck(regex=str, path=oneof(str, sequenceof(str)), max_count=int, show=bool, force=bool, force_bgz=bool)
 def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, force_bgz: bool = False):
     r"""Searches given paths for all lines containing regex matches.
 
@@ -1046,23 +1087,28 @@ def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, 
     return results
 
 
-@typecheck(path=oneof(str, sequenceof(str)),
-           sample_file=nullable(str),
-           entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
-           n_partitions=nullable(int),
-           block_size=nullable(int),
-           index_file_map=nullable(dictof(str, str)),
-           variants=nullable(oneof(sequenceof(hl.utils.Struct), sequenceof(hl.genetics.Locus),
-                                   StructExpression, LocusExpression, Table)),
-           _row_fields=sequenceof(enumeration('varid', 'rsid')))
-def import_bgen(path,
-                entry_fields,
-                sample_file=None,
-                n_partitions=None,
-                block_size=None,
-                index_file_map=None,
-                variants=None,
-                _row_fields=['varid', 'rsid']) -> MatrixTable:
+@typecheck(
+    path=oneof(str, sequenceof(str)),
+    sample_file=nullable(str),
+    entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
+    n_partitions=nullable(int),
+    block_size=nullable(int),
+    index_file_map=nullable(dictof(str, str)),
+    variants=nullable(
+        oneof(sequenceof(hl.utils.Struct), sequenceof(hl.genetics.Locus), StructExpression, LocusExpression, Table)
+    ),
+    _row_fields=sequenceof(enumeration('varid', 'rsid')),
+)
+def import_bgen(
+    path,
+    entry_fields,
+    sample_file=None,
+    n_partitions=None,
+    block_size=None,
+    index_file_map=None,
+    variants=None,
+    _row_fields=['varid', 'rsid'],
+) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1220,7 +1266,8 @@ def import_bgen(path,
 
     if variants is not None:
         mt_type = Env.backend().matrix_type(
-            ir.MatrixRead(ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
+            ir.MatrixRead(ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None))
+        )
         lt = mt_type.row_type['locus']
 
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
@@ -1233,12 +1280,14 @@ def import_bgen(path,
                 raise TypeError(
                     "'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
                     + f"\tFound: {repr(variants.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n")
+                    + f"\tExpected: {repr(expected_vtype)}\n"
+                )
 
             uid = Env.get_uid()
             fnames = list(variants.dtype)
             name, variants = variants._to_table(
-                uid)  # This will add back the other key fields of the source, which we don't want
+                uid
+            )  # This will add back the other key fields of the source, which we don't want
             variants = variants.key_by(**{fname: variants[name][fname] for fname in fnames})
             variants = variants.select()
         elif isinstance(variants, Table):
@@ -1246,40 +1295,38 @@ def import_bgen(path,
                 raise TypeError(
                     "'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
                     + f"\tFound: {repr(variants.key.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n")
+                    + f"\tExpected: {repr(expected_vtype)}\n"
+                )
             variants = variants.select()
         else:
             assert isinstance(variants, list)
             try:
                 if len(variants) == 0:
-                    variants = hl.Table.parallelize(variants,
-                                                    schema=expected_vtype,
-                                                    key=['locus', 'alleles'])
+                    variants = hl.Table.parallelize(variants, schema=expected_vtype, key=['locus', 'alleles'])
                 else:
                     first_v = variants[0]
                     if isinstance(first_v, hl.Locus):
-                        variants = hl.Table.parallelize([hl.Struct(locus=v) for v in variants],
-                                                        schema=hl.tstruct(locus=lt),
-                                                        key='locus')
+                        variants = hl.Table.parallelize(
+                            [hl.Struct(locus=v) for v in variants], schema=hl.tstruct(locus=lt), key='locus'
+                        )
                     else:
                         assert isinstance(first_v, hl.utils.Struct)
                         if len(first_v) == 1:
-                            variants = hl.Table.parallelize(variants,
-                                                            schema=hl.tstruct(locus=lt),
-                                                            key='locus')
+                            variants = hl.Table.parallelize(variants, schema=hl.tstruct(locus=lt), key='locus')
                         else:
-                            variants = hl.Table.parallelize(variants,
-                                                            schema=expected_vtype,
-                                                            key=['locus', 'alleles'])
+                            variants = hl.Table.parallelize(variants, schema=expected_vtype, key=['locus', 'alleles'])
             except Exception:
                 raise TypeError(
-                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
+                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}"
+                )
 
         vir = variants._tir
-        if isinstance(vir, ir.TableRead) \
-                and isinstance(vir.reader, ir.TableNativeReader) \
-                and vir.reader.intervals is None \
-                and variants.count() == variants.distinct().count():
+        if (
+            isinstance(vir, ir.TableRead)
+            and isinstance(vir.reader, ir.TableNativeReader)
+            and vir.reader.intervals is None
+            and variants.count() == variants.distinct().count()
+        ):
             variants_path = vir.reader.path
         else:
             variants_path = new_temp_file(prefix='bgen_included_vars', extension='ht')
@@ -1289,29 +1336,34 @@ def import_bgen(path,
 
     reader = ir.MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants_path)
 
-    mt = (MatrixTable(ir.MatrixRead(reader))
-          .drop(*[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
-                *[fd for fd in ['rsid', 'varid', 'offset', 'file_idx'] if fd not in row_set]))
+    mt = MatrixTable(ir.MatrixRead(reader)).drop(
+        *[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
+        *[fd for fd in ['rsid', 'varid', 'offset', 'file_idx'] if fd not in row_set],
+    )
 
     return mt
 
 
-@typecheck(path=oneof(str, sequenceof(str)),
-           sample_file=nullable(str),
-           tolerance=numeric,
-           min_partitions=nullable(int),
-           chromosome=nullable(str),
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool)
-def import_gen(path,
-               sample_file=None,
-               tolerance=0.2,
-               min_partitions=None,
-               chromosome=None,
-               reference_genome='default',
-               contig_recoding=None,
-               skip_invalid_loci=False) -> MatrixTable:
+@typecheck(
+    path=oneof(str, sequenceof(str)),
+    sample_file=nullable(str),
+    tolerance=numeric,
+    min_partitions=nullable(int),
+    chromosome=nullable(str),
+    reference_genome=nullable(reference_genome_type),
+    contig_recoding=nullable(dictof(str, str)),
+    skip_invalid_loci=bool,
+)
+def import_gen(
+    path,
+    sample_file=None,
+    tolerance=0.2,
+    min_partitions=None,
+    chromosome=None,
+    reference_genome='default',
+    contig_recoding=None,
+    skip_invalid_loci=False,
+) -> MatrixTable:
     """
     Import GEN file(s) as a :class:`.MatrixTable`.
 
@@ -1423,15 +1475,21 @@ def import_gen(path,
         locus = hl.struct(contig=contig_holder, position=position)
     else:
         if skip_invalid_loci:
-            locus = hl.if_else(hl.is_valid_locus(contig_holder, position, rg),
-                               hl.locus(contig_holder, position, rg),
-                               hl.missing(hl.tlocus(rg)))
+            locus = hl.if_else(
+                hl.is_valid_locus(contig_holder, position, rg),
+                hl.locus(contig_holder, position, rg),
+                hl.missing(hl.tlocus(rg)),
+            )
         else:
             locus = hl.locus(contig_holder, position, rg)
 
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
-    gen_table = gen_table.annotate(entries=gen_table.data[last_rowf_idx + 1:].map(lambda x: hl.float64(x))
-                                   .grouped(3).map(lambda x: hl.struct(GP=x)))
+    gen_table = gen_table.annotate(
+        entries=gen_table.data[last_rowf_idx + 1 :]
+        .map(lambda x: hl.float64(x))
+        .grouped(3)
+        .map(lambda x: hl.struct(GP=x))
+    )
     if skip_invalid_loci:
         gen_table = gen_table.filter(hl.is_defined(gen_table.locus))
 
@@ -1444,18 +1502,28 @@ def import_gen(path,
     sample_table = sample_table.key_by(sample_table.idx)
     mt = mt.annotate_cols(s=sample_table[hl.int64(mt.col_idx)].s)
 
-    mt = mt.annotate_entries(GP=hl.rbind(hl.sum(mt.GP), lambda gp_sum: hl.if_else(hl.abs(1.0 - gp_sum) > tolerance,
-                                                                                  hl.missing(hl.tarray(hl.tfloat64)),
-                                                                                  hl.abs((1 / gp_sum) * mt.GP))))
-    mt = mt.annotate_entries(GT=hl.rbind(hl.argmax(mt.GP),
-                                         lambda max_idx: hl.if_else(
-                                             hl.len(mt.GP.filter(lambda y: y == mt.GP[max_idx])) == 1,
-                                             hl.switch(max_idx)
-                                             .when(0, hl.call(0, 0))
-                                             .when(1, hl.call(0, 1))
-                                             .when(2, hl.call(1, 1))
-                                             .or_error("error creating gt field."),
-                                             hl.missing(hl.tcall))))
+    mt = mt.annotate_entries(
+        GP=hl.rbind(
+            hl.sum(mt.GP),
+            lambda gp_sum: hl.if_else(
+                hl.abs(1.0 - gp_sum) > tolerance, hl.missing(hl.tarray(hl.tfloat64)), hl.abs((1 / gp_sum) * mt.GP)
+            ),
+        )
+    )
+    mt = mt.annotate_entries(
+        GT=hl.rbind(
+            hl.argmax(mt.GP),
+            lambda max_idx: hl.if_else(
+                hl.len(mt.GP.filter(lambda y: y == mt.GP[max_idx])) == 1,
+                hl.switch(max_idx)
+                .when(0, hl.call(0, 0))
+                .when(1, hl.call(0, 1))
+                .when(2, hl.call(1, 1))
+                .or_error("error creating gt field."),
+                hl.missing(hl.tcall),
+            ),
+        )
+    )
     mt = mt.filter_entries(hl.is_defined(mt.GP))
 
     mt = mt.key_cols_by('s').drop('col_idx', 'file', 'data')
@@ -1463,38 +1531,42 @@ def import_gen(path,
     return mt
 
 
-@typecheck(paths=oneof(str, sequenceof(str)),
-           key=table_key_type,
-           min_partitions=nullable(int),
-           impute=bool,
-           no_header=bool,
-           comment=oneof(str, sequenceof(str)),
-           delimiter=str,
-           missing=oneof(str, sequenceof(str)),
-           types=dictof(str, hail_type),
-           quote=nullable(char),
-           skip_blank_lines=bool,
-           force_bgz=bool,
-           filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           force=bool,
-           source_file_field=nullable(str))
-def import_table(paths,
-                 key=None,
-                 min_partitions=None,
-                 impute=False,
-                 no_header=False,
-                 comment=(),
-                 delimiter="\t",
-                 missing="NA",
-                 types={},
-                 quote=None,
-                 skip_blank_lines=False,
-                 force_bgz=False,
-                 filter=None,
-                 find_replace=None,
-                 force=False,
-                 source_file_field=None) -> Table:
+@typecheck(
+    paths=oneof(str, sequenceof(str)),
+    key=table_key_type,
+    min_partitions=nullable(int),
+    impute=bool,
+    no_header=bool,
+    comment=oneof(str, sequenceof(str)),
+    delimiter=str,
+    missing=oneof(str, sequenceof(str)),
+    types=dictof(str, hail_type),
+    quote=nullable(char),
+    skip_blank_lines=bool,
+    force_bgz=bool,
+    filter=nullable(str),
+    find_replace=nullable(sized_tupleof(str, str)),
+    force=bool,
+    source_file_field=nullable(str),
+)
+def import_table(
+    paths,
+    key=None,
+    min_partitions=None,
+    impute=False,
+    no_header=False,
+    comment=(),
+    delimiter="\t",
+    missing="NA",
+    types={},
+    quote=None,
+    skip_blank_lines=False,
+    force_bgz=False,
+    filter=None,
+    find_replace=None,
+    force=False,
+    source_file_field=None,
+) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1717,7 +1789,8 @@ def import_table(paths,
 
         first_rows = first_row_ht.annotate(
             header=first_row_ht.text._split_line(
-                delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1)
+                delimiter, missing=hl.empty_array(hl.tstr), quote=quote, regex=len(delimiter) > 1
+            )
         ).collect()
     except FatalError as err:
         if '_filter_partitions: no partition with index 0' in err.args[0]:
@@ -1734,7 +1807,9 @@ def import_table(paths,
     else:
         maybe_duplicated_fields = first_row.header
         renamings, fields = deduplicate(maybe_duplicated_fields)
-        ht = ht.filter(ht.text == first_row.text, keep=False)  # FIXME: seems wrong. Could easily fix with partition index and row_within_partition_index.
+        ht = ht.filter(
+            ht.text == first_row.text, keep=False
+        )  # FIXME: seems wrong. Could easily fix with partition index and row_within_partition_index.
         if renamings:
             hl.utils.warning(
                 f'import_table: renamed the following {plural("field", len(renamings))} to avoid name conflicts:'
@@ -1744,10 +1819,7 @@ def import_table(paths,
     ht = ht.annotate(
         split_text=(
             hl.case()
-            .when(
-                hl.len(ht.text) > 0,
-                split_lines(ht, fields, delimiter=delimiter, missing=missing, quote=quote)
-            )
+            .when(hl.len(ht.text) > 0, split_lines(ht, fields, delimiter=delimiter, missing=missing, quote=quote))
             .or_error(hl.str("Blank line found in file ") + ht.file)
         )
     )
@@ -1764,8 +1836,9 @@ def import_table(paths,
                 fields_to_guess.append(field)
 
         hl.utils.info('Reading table to impute column types')
-        guessed = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg._impute_type(x),
-                                                [ht.split_text[i] for i in fields_to_impute_idx]))
+        guessed = ht.aggregate(
+            hl.agg.array_agg(lambda x: hl.agg._impute_type(x), [ht.split_text[i] for i in fields_to_impute_idx])
+        )
 
         reasons = {f: 'user-supplied type' for f in types}
         imputed_types = dict()
@@ -1811,6 +1884,7 @@ def import_table(paths,
         hl.utils.info('\n'.join(strs))
     else:
         from collections import Counter
+
         strs2 = [f'Loading {ht.row} fields. Counts by type:']
         for name, count in Counter(ht[f].dtype for f in fields).most_common():
             strs2.append(f'  {name}: {count}')
@@ -1822,8 +1896,9 @@ def import_table(paths,
     return ht
 
 
-@typecheck(paths=oneof(str, sequenceof(str)), min_partitions=nullable(int), force_bgz=bool,
-           force=bool, file_per_partition=bool)
+@typecheck(
+    paths=oneof(str, sequenceof(str)), min_partitions=nullable(int), force_bgz=bool, force=bool, file_per_partition=bool
+)
 def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_per_partition=False) -> Table:
     """Import lines of file(s) as a :class:`.Table` of strings.
 
@@ -1876,42 +1951,43 @@ def import_lines(paths, min_partitions=None, force_bgz=False, force=False, file_
 
     if file_per_partition and min_partitions is not None:
         if min_partitions > len(paths):
-            raise FatalError(f'file_per_partition is True while min partitions is {min_partitions} ,which is greater'
-                             f' than the number of files, {len(paths)}')
+            raise FatalError(
+                f'file_per_partition is True while min partitions is {min_partitions} ,which is greater'
+                f' than the number of files, {len(paths)}'
+            )
 
     st_reader = ir.StringTableReader(paths, min_partitions, force_bgz, force, file_per_partition)
-    table_type = hl.ttable(
-        global_type=hl.tstruct(),
-        row_type=hl.tstruct(file=hl.tstr, text=hl.tstr),
-        row_key=[]
-    )
+    table_type = hl.ttable(global_type=hl.tstruct(), row_type=hl.tstruct(file=hl.tstr, text=hl.tstr), row_key=[])
     string_table = Table(ir.TableRead(st_reader, _assert_type=table_type))
     return string_table
 
 
-@typecheck(paths=oneof(str, sequenceof(str)),
-           row_fields=dictof(str, hail_type),
-           row_key=oneof(str, sequenceof(str)),
-           entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
-           missing=str,
-           min_partitions=nullable(int),
-           no_header=bool,
-           force_bgz=bool,
-           sep=nullable(str),
-           delimiter=nullable(str),
-           comment=oneof(str, sequenceof(str)),
-           )
-def import_matrix_table(paths,
-                        row_fields={},
-                        row_key=[],
-                        entry_type=tint32,
-                        missing="NA",
-                        min_partitions=None,
-                        no_header=False,
-                        force_bgz=False,
-                        sep=None,
-                        delimiter=None,
-                        comment=()) -> MatrixTable:
+@typecheck(
+    paths=oneof(str, sequenceof(str)),
+    row_fields=dictof(str, hail_type),
+    row_key=oneof(str, sequenceof(str)),
+    entry_type=enumeration(tint32, tint64, tfloat32, tfloat64, tstr),
+    missing=str,
+    min_partitions=nullable(int),
+    no_header=bool,
+    force_bgz=bool,
+    sep=nullable(str),
+    delimiter=nullable(str),
+    comment=oneof(str, sequenceof(str)),
+)
+def import_matrix_table(
+    paths,
+    row_fields={},
+    row_key=[],
+    entry_type=tint32,
+    missing="NA",
+    min_partitions=None,
+    no_header=False,
+    force_bgz=False,
+    sep=None,
+    delimiter=None,
+    comment=(),
+) -> MatrixTable:
     """Import tab-delimited file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -2072,11 +2148,16 @@ def import_matrix_table(paths,
     missing_list = wrap_to_list(missing)
 
     def comment_filter(table):
-        return hl.rbind(hl.array(comment),
-                        lambda hl_comment: hl_comment.any(lambda com: hl.if_else(hl.len(com) == 1,
-                                                                                 table.text.startswith(com),
-                                                                                 table.text.matches(com, False)))) \
-            if len(comment) > 0 else False
+        return (
+            hl.rbind(
+                hl.array(comment),
+                lambda hl_comment: hl_comment.any(
+                    lambda com: hl.if_else(hl.len(com) == 1, table.text.startswith(com), table.text.matches(com, False))
+                ),
+            )
+            if len(comment) > 0
+            else False
+        )
 
     def truncate(string_array, delim=", "):
         if len(string_array) > 10:
@@ -2088,12 +2169,20 @@ def import_matrix_table(paths,
 
     def format_file(file_name, hl_value=False):
         if hl_value:
-            return hl.rbind(file_name.split('/'), lambda split_file:
-                            hl.if_else(hl.len(split_file) <= 4, hl.str("/").join(file_name.split('/')[-4:]),
-                                       hl.str("/") + hl.str("/").join(file_name.split('/')[-4:])))
+            return hl.rbind(
+                file_name.split('/'),
+                lambda split_file: hl.if_else(
+                    hl.len(split_file) <= 4,
+                    hl.str("/").join(file_name.split('/')[-4:]),
+                    hl.str("/") + hl.str("/").join(file_name.split('/')[-4:]),
+                ),
+            )
         else:
-            return "/".join(file_name.split('/')[-3:]) if len(file_name) <= 4 else \
-                "/" + "/".join(file_name.split('/')[-3:])
+            return (
+                "/".join(file_name.split('/')[-3:])
+                if len(file_name) <= 4
+                else "/" + "/".join(file_name.split('/')[-3:])
+            )
 
     file_start_array = None
 
@@ -2103,9 +2192,11 @@ def import_matrix_table(paths,
             collect_expr = first_lines_table.collect(_localize=False).map(lambda line: (line.file, line.idx))
             file_start_array = hl.literal(hl.eval(collect_expr), dtype=collect_expr.dtype)
         return hl.coalesce(
-            file_start_array.filter(lambda line_tuple: line_tuple[0] == row.file).map(
-                lambda line_tuple: line_tuple[1]).first(),
-            0)
+            file_start_array.filter(lambda line_tuple: line_tuple[0] == row.file)
+            .map(lambda line_tuple: line_tuple[1])
+            .first(),
+            0,
+        )
 
     def validate_row_fields():
         unique_fields = {}
@@ -2115,12 +2206,20 @@ def import_matrix_table(paths,
             rowf_type = row_fields.get(header_rowf)
             if rowf_type is None:
                 import itertools as it
-                row_fields_string = '\n'.join(list(it.starmap(
-                    lambda row_field, row_type: f"      '{row_field}': {str(row_type)}", row_fields.items())))
+
+                row_fields_string = '\n'.join(
+                    list(
+                        it.starmap(
+                            lambda row_field, row_type: f"      '{row_field}': {str(row_type)}", row_fields.items()
+                        )
+                    )
+                )
                 header_fields_string = "\n      ".join(map(lambda field: f"'{field}'", header_dict['row_fields']))
-                raise FatalError(f"in file {format_file(header_dict['path'])} found row field '{header_rowf}' that's"
-                                 f" not in 'row fields'\nrow fields found in file:\n      {header_fields_string}"
-                                 f"\n'row fields':\n{row_fields_string}")
+                raise FatalError(
+                    f"in file {format_file(header_dict['path'])} found row field '{header_rowf}' that's"
+                    f" not in 'row fields'\nrow fields found in file:\n      {header_fields_string}"
+                    f"\n'row fields':\n{row_fields_string}"
+                )
             if header_rowf in unique_fields:
                 duplicates.append(header_rowf)
             else:
@@ -2131,17 +2230,24 @@ def import_matrix_table(paths,
 
     def parse_entries(row):
         return hl.range(num_of_row_fields, len(header_dict['column_ids']) + num_of_row_fields).map(
-            lambda entry_idx: parse_type_or_error(entry_type, row, entry_idx, not_entries=False))
+            lambda entry_idx: parse_type_or_error(entry_type, row, entry_idx, not_entries=False)
+        )
 
     def parse_rows(row):
         rows_list = list(row_fields.items())
-        return {rows_list[idx][0]:
-                parse_type_or_error(rows_list[idx][1], row, idx) for idx in range(num_of_row_fields)}
+        return {rows_list[idx][0]: parse_type_or_error(rows_list[idx][1], row, idx) for idx in range(num_of_row_fields)}
 
     def error_msg(row, idx, msg):
-        return (hl.str("in file ") + hl.str(format_file(row.file, True))
-                + hl.str(" on line ") + hl.str(row.row_id - get_file_start(row) + 1)
-                + hl.str(" at value '") + hl.str(row.split_array[idx]) + hl.str("':\n") + hl.str(msg))
+        return (
+            hl.str("in file ")
+            + hl.str(format_file(row.file, True))
+            + hl.str(" on line ")
+            + hl.str(row.row_id - get_file_start(row) + 1)
+            + hl.str(" at value '")
+            + hl.str(row.split_array[idx])
+            + hl.str("':\n")
+            + hl.str(msg)
+        )
 
     def parse_type_or_error(hail_type, row, idx, not_entries=True):
         value = row.split_array[idx]
@@ -2159,13 +2265,19 @@ def import_matrix_table(paths,
         if not_entries:
             error_clarify_msg = hl.str(" at row field '") + hl.str(hl_row_fields[idx]) + hl.str("'")
         else:
-            error_clarify_msg = (hl.str(" at column id '") + hl.str(hl_columns[idx - num_of_row_fields])
-                                 + hl.str("' for entry field 'x' "))
+            error_clarify_msg = (
+                hl.str(" at column id '")
+                + hl.str(hl_columns[idx - num_of_row_fields])
+                + hl.str("' for entry field 'x' ")
+            )
 
-        return hl.if_else(hl.is_missing(value), hl.missing(hail_type),
-                          hl.case().when(~hl.is_missing(parsed_type), parsed_type)
-                          .or_error(
-                              error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)))
+        return hl.if_else(
+            hl.is_missing(value),
+            hl.missing(hail_type),
+            hl.case()
+            .when(~hl.is_missing(parsed_type), parsed_type)
+            .or_error(error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)),
+        )
 
     num_of_row_fields = len(row_fields.keys())
     add_row_id = False
@@ -2175,9 +2287,7 @@ def import_matrix_table(paths,
 
     if sep is not None:
         if delimiter is not None:
-            raise ValueError(
-                f'expecting either sep or delimiter but received both: '
-                f'{sep}, {delimiter}')
+            raise ValueError(f'expecting either sep or delimiter but received both: ' f'{sep}, {delimiter}')
         delimiter = sep
     del sep
 
@@ -2189,18 +2299,23 @@ def import_matrix_table(paths,
     if add_row_id:
         if 'row_id' in row_fields:
             raise FatalError(
-                "import_matrix_table reserves the field name 'row_id' for"
-                'its own use, please use a different name')
+                "import_matrix_table reserves the field name 'row_id' for" 'its own use, please use a different name'
+            )
 
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError(
                 f'import_matrix_table expects field types to be one of:'
-                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'")
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'"
+            )
 
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-        raise FatalError("""import_matrix_table expects entry types to be one of:
-        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
+        raise FatalError(
+            """import_matrix_table expects entry types to be one of:
+        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(
+                entry_type
+            )
+        )
 
     if missing in delimiter:
         raise FatalError(f"Missing value {missing} contains delimiter {delimiter}")
@@ -2208,12 +2323,14 @@ def import_matrix_table(paths,
     ht = import_lines(paths, min_partitions, force_bgz=force_bgz).add_index(name='row_id')
     # for checking every header matches
     file_per_partition = import_lines(paths, force_bgz=force_bgz, file_per_partition=True)
-    file_per_partition = file_per_partition.filter(hl.bool(hl.len(file_per_partition.text) == 0)
-                                                   | comment_filter(file_per_partition), False)
+    file_per_partition = file_per_partition.filter(
+        hl.bool(hl.len(file_per_partition.text) == 0) | comment_filter(file_per_partition), False
+    )
     first_lines_table = file_per_partition._map_partitions(lambda rows: rows.take(1))
     first_lines_table = first_lines_table.annotate(split_array=first_lines_table.text.split(delimiter)).add_index()
 
     if not no_header:
+
         def validate_header_get_info_dict():
             two_first_lines = file_per_partition.head(2)
             two_first_lines = two_first_lines.annotate(split_array=two_first_lines.text.split(delimiter)).collect()
@@ -2226,9 +2343,11 @@ def import_matrix_table(paths,
             elif not first_data_line or first_data_line.file != header_line.file:
                 hl.utils.warning(f"File {format_file(header_line.file)} contains a header, but no lines of data")
                 if num_of_header_values < num_of_data_line_values:
-                    raise ValueError(f"File {format_file(header_line.file)} contains one line assumed to be the header."
-                                     f"The header had a length of {num_of_header_values} while the number"
-                                     f"of row fields is {num_of_row_fields}")
+                    raise ValueError(
+                        f"File {format_file(header_line.file)} contains one line assumed to be the header."
+                        f"The header had a length of {num_of_header_values} while the number"
+                        f"of row fields is {num_of_row_fields}"
+                    )
                 user_row_fields = header_line.split_array[:num_of_row_fields]
                 column_ids = header_line.split_array[num_of_row_fields:]
             elif num_of_data_line_values != num_of_header_values:
@@ -2242,12 +2361,18 @@ def import_matrix_table(paths,
                         f" colId0 colId1 ...\nInstead the first two lines were:\nInstead the first two lin"
                         f"es were:\n{header_line.text}\n{first_data_line.text}\nThe first line contained"
                         f" {num_of_header_values} separated values and the second line"
-                        f" contained {num_of_data_line_values}")
+                        f" contained {num_of_data_line_values}"
+                    )
             else:
                 user_row_fields = header_line.split_array[:num_of_row_fields]
                 column_ids = header_line.split_array[num_of_row_fields:]
-            return {'text': header_line.text, 'header_values': header_line.split_array, 'path': header_line.file,
-                    'row_fields': user_row_fields, 'column_ids': column_ids}
+            return {
+                'text': header_line.text,
+                'header_values': header_line.split_array,
+                'path': header_line.file,
+                'row_fields': user_row_fields,
+                'column_ids': column_ids,
+            }
 
         def warn_if_duplicate_col_ids():
             time_col_id_encountered_dict = {}
@@ -2261,15 +2386,24 @@ def import_matrix_table(paths,
                 return
 
             import itertools as it
+
             duplicates_to_print = sorted(
-                [('"' + dup_field + '"', '(' + str(time_col_id_encountered_dict[dup_field]) + ')')
-                 for dup_field in duplicate_cols], key=lambda dup_values: dup_values[1])
+                [
+                    ('"' + dup_field + '"', '(' + str(time_col_id_encountered_dict[dup_field]) + ')')
+                    for dup_field in duplicate_cols
+                ],
+                key=lambda dup_values: dup_values[1],
+            )
 
             duplicates_to_print = truncate(duplicates_to_print)
-            duplicates_to_print_formatted = it.starmap(lambda dup, time_found: time_found
-                                                       + " " + dup, duplicates_to_print)
-            ht.utils.warning(f"Found {len(duplicate_cols)} duplicate column id"
-                             + f"{'s' if len(duplicate_cols) > 1 else ''}\n" + '\n'.join(duplicates_to_print_formatted))
+            duplicates_to_print_formatted = it.starmap(
+                lambda dup, time_found: time_found + " " + dup, duplicates_to_print
+            )
+            ht.utils.warning(
+                f"Found {len(duplicate_cols)} duplicate column id"
+                + f"{'s' if len(duplicate_cols) > 1 else ''}\n"
+                + '\n'.join(duplicates_to_print_formatted)
+            )
 
         def validate_all_headers():
             all_headers = first_lines_table.collect()
@@ -2281,17 +2415,21 @@ def import_matrix_table(paths,
                             main_header_value = header_values[0]
                             error_header_value = header_values[1]
                             if main_header_value != error_header_value:
-                                raise ValueError("invalid header: expected elements to be identical for all input paths"
-                                                 f". Found different elements at position {header_idx + 1}"
-                                                 f"\n in file {format_file(header.file)} with value "
-                                                 f"'{error_header_value}' when expecting value '{main_header_value}'")
+                                raise ValueError(
+                                    "invalid header: expected elements to be identical for all input paths"
+                                    f". Found different elements at position {header_idx + 1}"
+                                    f"\n in file {format_file(header.file)} with value "
+                                    f"'{error_header_value}' when expecting value '{main_header_value}'"
+                                )
                     else:
-                        raise ValueError(f"invalid header: lengths of headers differ. \n"
-                                         f"{len(header_dict['header_values'])} elements in "
-                                         f"{format_file(header_dict['path'])}:\n"
-                                         + truncate(["'{}'".format(value) for value in header_dict['header_values']])
-                                         + f" {len(header.split_array)} elements in {format_file(header.file)}:\n"
-                                         + truncate(["'{}'".format(value) for value in header.split_array]))
+                        raise ValueError(
+                            f"invalid header: lengths of headers differ. \n"
+                            f"{len(header_dict['header_values'])} elements in "
+                            f"{format_file(header_dict['path'])}:\n"
+                            + truncate(["'{}'".format(value) for value in header_dict['header_values']])
+                            + f" {len(header.split_array)} elements in {format_file(header.file)}:\n"
+                            + truncate(["'{}'".format(value) for value in header.split_array])
+                        )
 
         header_dict = validate_header_get_info_dict()
         warn_if_duplicate_col_ids()
@@ -2300,19 +2438,19 @@ def import_matrix_table(paths,
     else:
         first_line = first_lines_table.head(1).collect()
         if not first_line or path_to_index[first_line[0].file] != 0:
-            hl.utils.warning(
-                f"File {format_file(paths[0])} is empty and has no header, so we assume no columns")
-            header_dict = {'header_values': [],
-                           'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
-                           'column_ids': []
-                           }
+            hl.utils.warning(f"File {format_file(paths[0])} is empty and has no header, so we assume no columns")
+            header_dict = {
+                'header_values': [],
+                'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
+                'column_ids': [],
+            }
         else:
             first_line = first_line[0]
-            header_dict = {'header_values': [],
-                           'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
-                           'column_ids':
-                               [col_id for col_id in list(range(0, len(first_line.split_array) - num_of_row_fields))]
-                           }
+            header_dict = {
+                'header_values': [],
+                'row_fields': ["f" + str(f_idx) for f_idx in list(range(0, num_of_row_fields))],
+                'column_ids': [col_id for col_id in list(range(0, len(first_line.split_array) - num_of_row_fields))],
+            }
 
     validate_row_fields()
     header_filter = ht.text == header_dict['text'] if not no_header else False
@@ -2320,33 +2458,34 @@ def import_matrix_table(paths,
     ht = ht.filter(hl.bool(hl.len(ht.text) == 0) | comment_filter(ht) | header_filter, False)
 
     hl_columns = hl.array(header_dict['column_ids']) if len(header_dict['column_ids']) > 0 else hl.empty_array(hl.tstr)
-    hl_row_fields = hl.array(header_dict['row_fields']) if len(header_dict['row_fields']) > 0 \
-        else hl.empty_array(hl.tstr)
+    hl_row_fields = (
+        hl.array(header_dict['row_fields']) if len(header_dict['row_fields']) > 0 else hl.empty_array(hl.tstr)
+    )
     ht = ht.annotate(split_array=ht.text._split_line(delimiter, missing_list, quote=None, regex=False)).add_index(
-        'row_id')
+        'row_id'
+    )
 
-    ht = ht.annotate(split_array=hl.case().when(hl.len(ht.split_array) >= num_of_row_fields, ht.split_array)
-                     .or_error(error_msg(ht, hl.len(ht.split_array) - 1,
-                                         " unexpected end of line while reading row field")))
+    ht = ht.annotate(
+        split_array=hl.case()
+        .when(hl.len(ht.split_array) >= num_of_row_fields, ht.split_array)
+        .or_error(error_msg(ht, hl.len(ht.split_array) - 1, " unexpected end of line while reading row field"))
+    )
 
     n_column_ids = len(header_dict['column_ids'])
-    n_in_split_array = hl.len(ht.split_array[num_of_row_fields:(num_of_row_fields + n_column_ids)])
-    ht = ht.annotate(split_array=hl.case().when(
-        n_column_ids <= n_in_split_array,
-        ht.split_array
-    ).or_error(
-        error_msg(
-            ht,
-            hl.len(ht.split_array) - 1,
-            " unexpected end of line while reading entries"
-        )
-    ))
+    n_in_split_array = hl.len(ht.split_array[num_of_row_fields : (num_of_row_fields + n_column_ids)])
+    ht = ht.annotate(
+        split_array=hl.case()
+        .when(n_column_ids <= n_in_split_array, ht.split_array)
+        .or_error(error_msg(ht, hl.len(ht.split_array) - 1, " unexpected end of line while reading entries"))
+    )
 
-    ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry)))\
-        .drop('text', 'split_array', 'file')
+    ht = ht.annotate(**parse_rows(ht), entries=parse_entries(ht).map(lambda entry: hl.struct(x=entry))).drop(
+        'text', 'split_array', 'file'
+    )
 
-    ht = ht.annotate_globals(cols=hl.range(0, len(header_dict['column_ids']))
-                             .map(lambda col_idx: hl.struct(col_id=hl_columns[col_idx])))
+    ht = ht.annotate_globals(
+        cols=hl.range(0, len(header_dict['column_ids'])).map(lambda col_idx: hl.struct(col_id=hl_columns[col_idx]))
+    )
 
     if not add_row_id:
         ht = ht.drop('row_id')
@@ -2356,30 +2495,36 @@ def import_matrix_table(paths,
     return mt
 
 
-@typecheck(bed=str,
-           bim=str,
-           fam=str,
-           min_partitions=nullable(int),
-           delimiter=str,
-           missing=str,
-           quant_pheno=bool,
-           a2_reference=bool,
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool,
-           n_partitions=nullable(int),
-           block_size=nullable(int))
-def import_plink(bed, bim, fam,
-                 min_partitions=None,
-                 delimiter='\\\\s+',
-                 missing='NA',
-                 quant_pheno=False,
-                 a2_reference=True,
-                 reference_genome='default',
-                 contig_recoding=None,
-                 skip_invalid_loci=False,
-                 n_partitions=None,
-                 block_size=None) -> MatrixTable:
+@typecheck(
+    bed=str,
+    bim=str,
+    fam=str,
+    min_partitions=nullable(int),
+    delimiter=str,
+    missing=str,
+    quant_pheno=bool,
+    a2_reference=bool,
+    reference_genome=nullable(reference_genome_type),
+    contig_recoding=nullable(dictof(str, str)),
+    skip_invalid_loci=bool,
+    n_partitions=nullable(int),
+    block_size=nullable(int),
+)
+def import_plink(
+    bed,
+    bim,
+    fam,
+    min_partitions=None,
+    delimiter='\\\\s+',
+    missing='NA',
+    quant_pheno=False,
+    a2_reference=True,
+    reference_genome='default',
+    contig_recoding=None,
+    skip_invalid_loci=False,
+    n_partitions=None,
+    block_size=None,
+) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
     Examples
@@ -2508,31 +2653,56 @@ def import_plink(bed, bim, fam,
         elif reference_genome.name == "GRCh37":
             contig_recoding = {'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}
         elif reference_genome.name == "GRCh38":
-            contig_recoding = {**{str(i): f'chr{i}' for i in range(1, 23)},
-                               **{'23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'}}
+            contig_recoding = {
+                **{str(i): f'chr{i}' for i in range(1, 23)},
+                **{'23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'},
+            }
         else:
             contig_recoding = {}
 
-    reader = ir.MatrixPLINKReader(bed, bim, fam,
-                                  n_partitions, block_size, min_partitions,
-                                  missing, delimiter, quant_pheno, a2_reference, reference_genome,
-                                  contig_recoding, skip_invalid_loci)
+    reader = ir.MatrixPLINKReader(
+        bed,
+        bim,
+        fam,
+        n_partitions,
+        block_size,
+        min_partitions,
+        missing,
+        delimiter,
+        quant_pheno,
+        a2_reference,
+        reference_genome,
+        contig_recoding,
+        skip_invalid_loci,
+    )
     return MatrixTable(ir.MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 
-@typecheck(path=str,
-           _intervals=nullable(sequenceof(anytype)),
-           _filter_intervals=bool,
-           _drop_cols=bool,
-           _drop_rows=bool,
-           _create_row_uids=bool,
-           _create_col_uids=bool,
-           _n_partitions=nullable(int),
-           _assert_type=nullable(hl.tmatrix),
-           _load_refs=bool)
-def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
-                      _drop_rows=False, _create_row_uids=False, _create_col_uids=False,
-                      _n_partitions=None, _assert_type=None, _load_refs=True) -> MatrixTable:
+@typecheck(
+    path=str,
+    _intervals=nullable(sequenceof(anytype)),
+    _filter_intervals=bool,
+    _drop_cols=bool,
+    _drop_rows=bool,
+    _create_row_uids=bool,
+    _create_col_uids=bool,
+    _n_partitions=nullable(int),
+    _assert_type=nullable(hl.tmatrix),
+    _load_refs=bool,
+)
+def read_matrix_table(
+    path,
+    *,
+    _intervals=None,
+    _filter_intervals=False,
+    _drop_cols=False,
+    _drop_rows=False,
+    _create_row_uids=False,
+    _create_col_uids=False,
+    _n_partitions=None,
+    _assert_type=None,
+    _load_refs=True,
+) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -2551,12 +2721,16 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     if _intervals is not None and _n_partitions is not None:
         raise ValueError("'read_matrix_table' does not support both _intervals and _n_partitions")
 
-    mt = MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
-                                   _drop_cols,
-                                   _drop_rows,
-                                   drop_row_uids=not _create_row_uids,
-                                   drop_col_uids=not _create_col_uids,
-                                   _assert_type=_assert_type))
+    mt = MatrixTable(
+        ir.MatrixRead(
+            ir.MatrixNativeReader(path, _intervals, _filter_intervals),
+            _drop_cols,
+            _drop_rows,
+            drop_row_uids=not _create_row_uids,
+            drop_col_uids=not _create_col_uids,
+            _assert_type=_assert_type,
+        )
+    )
     if _n_partitions:
         intervals = mt._calculate_new_partitions(_n_partitions)
         return read_matrix_table(
@@ -2565,7 +2739,7 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
             _drop_cols=_drop_cols,
             _intervals=intervals,
             _assert_type=_assert_type,
-            _load_refs=_load_refs
+            _load_refs=_load_refs,
         )
     return mt
 
@@ -2628,42 +2802,46 @@ def get_vcf_metadata(path):
     return Env.backend().parse_vcf_metadata(path)
 
 
-@typecheck(path=oneof(str, sequenceof(str)),
-           force=bool,
-           force_bgz=bool,
-           header_file=nullable(str),
-           min_partitions=nullable(int),
-           drop_samples=bool,
-           call_fields=oneof(str, sequenceof(str)),
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
-           array_elements_required=bool,
-           skip_invalid_loci=bool,
-           entry_float_type=enumeration(tfloat32, tfloat64),
-           filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           n_partitions=nullable(int),
-           block_size=nullable(int),
-           _create_row_uids=bool,
-           _create_col_uids=bool)
-def import_vcf(path,
-               force=False,
-               force_bgz=False,
-               header_file=None,
-               min_partitions=None,
-               drop_samples=False,
-               call_fields=['PGT'],
-               reference_genome='default',
-               contig_recoding=None,
-               array_elements_required=True,
-               skip_invalid_loci=False,
-               entry_float_type=tfloat64,
-               filter=None,
-               find_replace=None,
-               n_partitions=None,
-               block_size=None,
-               _create_row_uids=False, _create_col_uids=False,
-               ) -> MatrixTable:
+@typecheck(
+    path=oneof(str, sequenceof(str)),
+    force=bool,
+    force_bgz=bool,
+    header_file=nullable(str),
+    min_partitions=nullable(int),
+    drop_samples=bool,
+    call_fields=oneof(str, sequenceof(str)),
+    reference_genome=nullable(reference_genome_type),
+    contig_recoding=nullable(dictof(str, str)),
+    array_elements_required=bool,
+    skip_invalid_loci=bool,
+    entry_float_type=enumeration(tfloat32, tfloat64),
+    filter=nullable(str),
+    find_replace=nullable(sized_tupleof(str, str)),
+    n_partitions=nullable(int),
+    block_size=nullable(int),
+    _create_row_uids=bool,
+    _create_col_uids=bool,
+)
+def import_vcf(
+    path,
+    force=False,
+    force_bgz=False,
+    header_file=None,
+    min_partitions=None,
+    drop_samples=False,
+    call_fields=['PGT'],
+    reference_genome='default',
+    contig_recoding=None,
+    array_elements_required=True,
+    skip_invalid_loci=False,
+    entry_float_type=tfloat64,
+    filter=None,
+    find_replace=None,
+    n_partitions=None,
+    block_size=None,
+    _create_row_uids=False,
+    _create_col_uids=False,
+) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -2692,7 +2870,49 @@ def import_vcf(path,
 
     Import a bgzipped VCF which uses the "gz" extension rather than the "bgz" extension:
 
-    >>> ds = hl.import_vcf('data/samplepart*.vcf.gz', force_bgz=True)
+    >>> ds = hl.import_vcf('data/sample.vcf.gz', force_bgz=True)
+
+    Import a VCF which has missing values (".") inside INFO or FORMAT array fields:
+
+    >>> print(open('data/missing-values-in-array-fields.vcf').read())
+    ##fileformat=VCFv4.1
+    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+    ##FORMAT=<ID=X,Number=.,Type=Integer,Description="">
+    ##FORMAT=<ID=Y,Number=.,Type=Integer,Description="">
+    ##FORMAT=<ID=Z,Number=.,Type=Integer,Description="">
+    ##INFO=<ID=A,Number=A,Type=Integer,Description="">
+    ##INFO=<ID=B,Number=R,Type=Float,Description="">
+    ##INFO=<ID=C,Number=3,Type=Float,Description="">
+    ##INFO=<ID=D,Number=.,Type=Float,Description="">
+    #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE1
+    1	123456	.	A	C	.	.	A=1,.;B=.,2,.;C=.	GT:X:Y:Z	0/0:1,.,1:.
+
+    >>> ds = hl.import_vcf('data/missing-values-in-array-fields.vcf', array_elements_required=False)
+    >>> ds.show(n_rows=1, n_cols=1, include_row_fields=True)
+    +---------------+------------+------+-----------+----------+--------------+
+    | locus         | alleles    | rsid |      qual | filters  | info.A       |
+    +---------------+------------+------+-----------+----------+--------------+
+    | locus<GRCh37> | array<str> | str  |   float64 | set<str> | array<int32> |
+    +---------------+------------+------+-----------+----------+--------------+
+    | 1:123456      | ["A","C"]  | NA   | -1.00e+01 | NA       | [1,NA]       |
+    +---------------+------------+------+-----------+----------+--------------+
+    <BLANKLINE>
+    +------------------+----------------+----------------+--------------+
+    | info.B           | info.C         | info.D         | 'SAMPLE1'.GT |
+    +------------------+----------------+----------------+--------------+
+    | array<float64>   | array<float64> | array<float64> | call         |
+    +------------------+----------------+----------------+--------------+
+    | [NA,2.00e+00,NA] | NA             | NA             | 0/0          |
+    +------------------+----------------+----------------+--------------+
+    <BLANKLINE>
+    +--------------+--------------+--------------+
+    | 'SAMPLE1'.X  | 'SAMPLE1'.Y  | 'SAMPLE1'.Z  |
+    +--------------+--------------+--------------+
+    | array<int32> | array<int32> | array<int32> |
+    +--------------+--------------+--------------+
+    | [1,NA,1]     | NA           | NA           |
+    +--------------+--------------+--------------+
+
 
     Notes
     -----
@@ -2835,54 +3055,101 @@ def import_vcf(path,
             'force_bgz=True instead.'
         )
 
-    reader = ir.MatrixVCFReader(path, call_fields, entry_float_type, header_file,
-                                n_partitions, block_size, min_partitions,
-                                reference_genome, contig_recoding, array_elements_required,
-                                skip_invalid_loci, force_bgz, force, filter, find_replace)
-    return MatrixTable(ir.MatrixRead(reader, drop_cols=drop_samples, drop_row_uids=not _create_row_uids, drop_col_uids=not _create_col_uids))
+    reader = ir.MatrixVCFReader(
+        path,
+        call_fields,
+        entry_float_type,
+        header_file,
+        n_partitions,
+        block_size,
+        min_partitions,
+        reference_genome,
+        contig_recoding,
+        array_elements_required,
+        skip_invalid_loci,
+        force_bgz,
+        force,
+        filter,
+        find_replace,
+    )
+    return MatrixTable(
+        ir.MatrixRead(
+            reader, drop_cols=drop_samples, drop_row_uids=not _create_row_uids, drop_col_uids=not _create_col_uids
+        )
+    )
 
 
-@typecheck(path=expr_str,
-           file_num=expr_int32,
-           contig=expr_str,
-           start=expr_int32,
-           end=expr_int32,
-           header_info=anytype,
-           call_fields=sequenceof(str),
-           entry_float_type=hail_type,
-           array_elements_required=bool,
-           reference_genome=reference_genome_type,
-           contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool,
-           filter=nullable(str),
-           find=nullable(str),
-           replace=nullable(str))
-def import_gvcf_interval(path, file_num, contig, start, end, header_info, call_fields=['PGT'], entry_float_type='float64',
-                         array_elements_required=True, reference_genome='default', contig_recoding=None,
-                         skip_invalid_loci=False, filter=None, find=None, replace=None):
+@typecheck(
+    path=expr_str,
+    file_num=expr_int32,
+    contig=expr_str,
+    start=expr_int32,
+    end=expr_int32,
+    header_info=anytype,
+    call_fields=sequenceof(str),
+    entry_float_type=hail_type,
+    array_elements_required=bool,
+    reference_genome=reference_genome_type,
+    contig_recoding=nullable(dictof(str, str)),
+    skip_invalid_loci=bool,
+    filter=nullable(str),
+    find=nullable(str),
+    replace=nullable(str),
+)
+def import_gvcf_interval(
+    path,
+    file_num,
+    contig,
+    start,
+    end,
+    header_info,
+    call_fields=['PGT'],
+    entry_float_type='float64',
+    array_elements_required=True,
+    reference_genome='default',
+    contig_recoding=None,
+    skip_invalid_loci=False,
+    filter=None,
+    find=None,
+    replace=None,
+):
     indices, aggs = hl.expr.unify_all(path, file_num, contig, start, end)
-    stream_ir = ir.ReadPartition(hl.struct(fileNum=file_num, path=path, contig=contig, start=start, end=end)._ir,
-                                 ir.GVCFPartitionReader(header_info, call_fields, entry_float_type,
-                                                        array_elements_required,
-                                                        reference_genome, contig_recoding or {},
-                                                        skip_invalid_loci, filter, find, replace,
-                                                        None))
+    stream_ir = ir.ReadPartition(
+        hl.struct(fileNum=file_num, path=path, contig=contig, start=start, end=end)._ir,
+        ir.GVCFPartitionReader(
+            header_info,
+            call_fields,
+            entry_float_type,
+            array_elements_required,
+            reference_genome,
+            contig_recoding or {},
+            skip_invalid_loci,
+            filter,
+            find,
+            replace,
+            None,
+        ),
+    )
     arr = ir.ToArray(stream_ir)
     return hl.expr.construct_expr(arr, arr.typ, indices, aggs)
 
 
-@typecheck(path=oneof(str, sequenceof(str)),
-           index_file_map=nullable(dictof(str, str)),
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool,
-           _buffer_size=int)
-def index_bgen(path,
-               index_file_map=None,
-               reference_genome='default',
-               contig_recoding=None,
-               skip_invalid_loci=False,
-               _buffer_size=16_000_000):
+@typecheck(
+    path=oneof(str, sequenceof(str)),
+    index_file_map=nullable(dictof(str, str)),
+    reference_genome=nullable(reference_genome_type),
+    contig_recoding=nullable(dictof(str, str)),
+    skip_invalid_loci=bool,
+    _buffer_size=int,
+)
+def index_bgen(
+    path,
+    index_file_map=None,
+    reference_genome='default',
+    contig_recoding=None,
+    skip_invalid_loci=False,
+    _buffer_size=16_000_000,
+):
     """Index BGEN files as required by :func:`.import_bgen`.
 
     If `index_file_map` is unspecified, then, for each BGEN file, the index file is written in the
@@ -2941,8 +3208,10 @@ def index_bgen(path,
             if not fs.is_dir(p):
                 raise ValueError(f'index_bgen: no file or directory at {p}')
             for stat_result in fs.ls(p):
-                if re.match(r"^.*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$",
-                            os.path.basename(stat_result.path)):
+                if re.match(
+                    r"^.*part-[0-9]+(-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?$",
+                    os.path.basename(stat_result.path),
+                ):
                     paths.append(stat_result.path)
 
     paths_lit = hl.literal(paths, hl.tarray(hl.tstr))
@@ -2953,15 +3222,18 @@ def index_bgen(path,
     contig_recoding_lit = hl.literal(contig_recoding, hl.tdict(hl.tstr, hl.tstr))
     ht = hl.utils.range_table(len(paths), len(paths))
     path_fd = paths_lit[ht.idx]
-    ht = ht.annotate(n_indexed=hl.expr.functions._func(
-        "index_bgen",
-        hl.tint64,
-        path_fd,
-        index_file_map_lit.get(path_fd, path_fd + ".idx2"),
-        contig_recoding_lit,
-        hl.bool(skip_invalid_loci),
-        hl.int32(_buffer_size),
-        type_args=(rg_t,)))
+    ht = ht.annotate(
+        n_indexed=hl.expr.functions._func(
+            "index_bgen",
+            hl.tint64,
+            path_fd,
+            index_file_map_lit.get(path_fd, path_fd + ".idx2"),
+            contig_recoding_lit,
+            hl.bool(skip_invalid_loci),
+            hl.int32(_buffer_size),
+            type_args=(rg_t,),
+        )
+    )
 
     for r in ht.collect():
         idx = r.idx
@@ -2974,30 +3246,36 @@ def index_bgen(path,
 @typecheck(path=expr_str, filter=nullable(expr_str), find=nullable(expr_str), replace=nullable(expr_str))
 def get_vcf_header_info(path, filter=None, find=None, replace=None):
     from hail.ir.register_functions import vcf_header_type_str
+
     return hl.expr.functions._func(
         "getVCFHeader",
         hl.dtype(vcf_header_type_str),
         path,
         hl.missing('str') if filter is None else filter,
         hl.missing('str') if find is None else find,
-        hl.missing('str') if replace is None else replace)
+        hl.missing('str') if replace is None else replace,
+    )
 
 
-@typecheck(path=str,
-           _intervals=nullable(sequenceof(anytype)),
-           _filter_intervals=bool,
-           _n_partitions=nullable(int),
-           _assert_type=nullable(hl.ttable),
-           _load_refs=bool,
-           _create_row_uids=bool)
-def read_table(path,
-               *,
-               _intervals=None,
-               _filter_intervals=False,
-               _n_partitions=None,
-               _assert_type=None,
-               _load_refs=True,
-               _create_row_uids=False) -> Table:
+@typecheck(
+    path=str,
+    _intervals=nullable(sequenceof(anytype)),
+    _filter_intervals=bool,
+    _n_partitions=nullable(int),
+    _assert_type=nullable(hl.ttable),
+    _load_refs=bool,
+    _create_row_uids=bool,
+)
+def read_table(
+    path,
+    *,
+    _intervals=None,
+    _filter_intervals=False,
+    _n_partitions=None,
+    _assert_type=None,
+    _load_refs=True,
+    _create_row_uids=False,
+) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -3020,18 +3298,26 @@ def read_table(path,
 
     if _n_partitions:
         intervals = ht._calculate_new_partitions(_n_partitions)
-        return read_table(path, _intervals=intervals, _assert_type=_assert_type, _load_refs=_load_refs, _create_row_uids=_create_row_uids)
+        return read_table(
+            path,
+            _intervals=intervals,
+            _assert_type=_assert_type,
+            _load_refs=_load_refs,
+            _create_row_uids=_create_row_uids,
+        )
     return ht
 
 
-@typecheck(t=Table,
-           host=str,
-           port=int,
-           index=str,
-           index_type=str,
-           block_size=int,
-           config=nullable(dictof(str, str)),
-           verbose=bool)
+@typecheck(
+    t=Table,
+    host=str,
+    port=int,
+    index=str,
+    index_type=str,
+    block_size=int,
+    config=nullable(dictof(str, str)),
+    verbose=bool,
+)
 def export_elasticsearch(t, host, port, index, index_type, block_size, config=None, verbose=True):
     """Export a :class:`.Table` to Elasticsearch.
 
@@ -3084,36 +3370,41 @@ def import_avro(paths, *, key=None, intervals=None):
     return Table(ir.TableRead(tr))
 
 
-@typecheck(paths=oneof(str, sequenceof(str)),
-           key=table_key_type,
-           min_partitions=nullable(int),
-           impute=bool,
-           no_header=bool,
-           comment=oneof(str, sequenceof(str)),
-           missing=oneof(str, sequenceof(str)),
-           types=dictof(str, hail_type),
-           skip_blank_lines=bool,
-           force_bgz=bool,
-           filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)),
-           force=bool,
-           source_file_field=nullable(str))
-def import_csv(paths,
-               *,
-               key=None,
-               min_partitions=None,
-               impute=False,
-               no_header=False,
-               comment=(),
-               missing="NA",
-               types={},
-               quote='"',
-               skip_blank_lines=False,
-               force_bgz=False,
-               filter=None,
-               find_replace=None,
-               force=False,
-               source_file_field=None) -> Table:
+@typecheck(
+    paths=oneof(str, sequenceof(str)),
+    key=table_key_type,
+    min_partitions=nullable(int),
+    impute=bool,
+    no_header=bool,
+    comment=oneof(str, sequenceof(str)),
+    missing=oneof(str, sequenceof(str)),
+    types=dictof(str, hail_type),
+    quote=nullable(char),
+    skip_blank_lines=bool,
+    force_bgz=bool,
+    filter=nullable(str),
+    find_replace=nullable(sized_tupleof(str, str)),
+    force=bool,
+    source_file_field=nullable(str),
+)
+def import_csv(
+    paths,
+    *,
+    key=None,
+    min_partitions=None,
+    impute=False,
+    no_header=False,
+    comment=(),
+    missing="NA",
+    types={},
+    quote='"',
+    skip_blank_lines=False,
+    force_bgz=False,
+    filter=None,
+    find_replace=None,
+    force=False,
+    source_file_field=None,
+) -> Table:
     """Import a csv file as a :class:`.Table`.
 
     Examples
@@ -3246,20 +3537,22 @@ def import_csv(paths,
     :class:`.Table`
     """
 
-    ht = hl.import_table(paths,
-                         key=key,
-                         min_partitions=min_partitions,
-                         impute=impute,
-                         no_header=no_header,
-                         comment=comment,
-                         missing=missing,
-                         types=types,
-                         skip_blank_lines=skip_blank_lines,
-                         force_bgz=force_bgz,
-                         filter=filter,
-                         find_replace=find_replace,
-                         force=force,
-                         source_file_field=source_file_field,
-                         delimiter=",",
-                         quote=quote)
+    ht = hl.import_table(
+        paths,
+        key=key,
+        min_partitions=min_partitions,
+        impute=impute,
+        no_header=no_header,
+        comment=comment,
+        missing=missing,
+        types=types,
+        skip_blank_lines=skip_blank_lines,
+        force_bgz=force_bgz,
+        filter=filter,
+        find_replace=find_replace,
+        force=force,
+        source_file_field=source_file_field,
+        delimiter=",",
+        quote=quote,
+    )
     return ht

@@ -1,9 +1,10 @@
 package is.hail.stats
 
 import is.hail.HailSuite
-import org.testng.annotations.Test
 
 import scala.language.postfixOps
+
+import org.testng.annotations.Test
 
 class FisherExactTestSuite extends HailSuite {
 

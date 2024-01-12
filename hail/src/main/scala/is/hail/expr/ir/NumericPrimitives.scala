@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s.{Settable, coerce}
-import is.hail.types.virtual.{Type, TInt32, TInt64, TFloat32, TFloat64}
+import is.hail.asm4s.{coerce, Settable}
+import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, Type}
 
 object NumericPrimitives {
 

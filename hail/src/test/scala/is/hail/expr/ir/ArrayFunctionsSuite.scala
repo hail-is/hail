@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.testng.annotations.{DataProvider, Test}
 
 class ArrayFunctionsSuite extends HailSuite {
@@ -17,7 +18,7 @@ class ArrayFunctionsSuite extends HailSuite {
     Array(FastSeq(3, 7)),
     Array(null),
     Array(FastSeq(3, null, 7, null)),
-    Array(FastSeq())
+    Array(FastSeq()),
   )
 
   @DataProvider(name = "basicPairs")
@@ -25,32 +26,43 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "basic")
   def isEmpty(a: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)),
-      Option(a).map(_.isEmpty).orNull)
+    assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)), Option(a).map(_.isEmpty).orNull)
   }
 
   @Test(dataProvider = "basic")
   def append(a: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
-      Option(a).map(_ :+ 1).orNull)
+    assertEvalsTo(
+      invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
+      Option(a).map(_ :+ 1).orNull,
+    )
   }
 
   @Test(dataProvider = "basic")
   def appendNull(a: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
-      Option(a).map(_ :+ null).orNull)
+    assertEvalsTo(
+      invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
+      Option(a).map(_ :+ null).orNull,
+    )
   }
 
   @Test(dataProvider = "basic")
   def sum(a: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("sum", TInt32, toIRArray(a)),
-      Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) => comb.flatMap(c => Option(x).map(_ + c)))).orNull)
+    assertEvalsTo(
+      invoke("sum", TInt32, toIRArray(a)),
+      Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) =>
+        comb.flatMap(c => Option(x).map(_ + c))
+      )).orNull,
+    )
   }
 
   @Test(dataProvider = "basic")
   def product(a: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("product", TInt32, toIRArray(a)),
-      Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) => comb.flatMap(c => Option(x).map(_ * c)))).orNull)
+    assertEvalsTo(
+      invoke("product", TInt32, toIRArray(a)),
+      Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) =>
+        comb.flatMap(c => Option(x).map(_ * c))
+      )).orNull,
+    )
   }
 
   @Test def mean() {
@@ -73,11 +85,13 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("median", TInt32, IRArray(null)), null)
     assertEvalsTo(invoke("median", TInt32, naa), null)
   }
-  
+
   @Test(dataProvider = "basicPairs")
   def extend(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("extend", TArray(TInt32), toIRArray(a), toIRArray(b)),
-      Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y}.orNull)
+    assertEvalsTo(
+      invoke("extend", TArray(TInt32), toIRArray(a), toIRArray(b)),
+      Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y }.orNull,
+    )
   }
 
   @DataProvider(name = "sort")
@@ -86,28 +100,72 @@ class ArrayFunctionsSuite extends HailSuite {
     Array(null, null, null),
     Array(FastSeq(3, null, 1, null, 3), FastSeq(1, 3, 3, null, null), FastSeq(3, 3, 1, null, null)),
     Array(FastSeq(1, null, 3, null, 1), FastSeq(1, 1, 3, null, null), FastSeq(3, 1, 1, null, null)),
-    Array(FastSeq(), FastSeq(), FastSeq())
+    Array(FastSeq(), FastSeq(), FastSeq()),
   )
 
   @Test(dataProvider = "sort")
   def min(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("min", TInt32, toIRArray(a)),
-      Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
+    assertEvalsTo(
+      invoke("min", TInt32, toIRArray(a)),
+      Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
+    )
   }
 
   @Test def testMinMaxNans() {
     assertAllEvalTo(
-      (invoke("min", TFloat32, MakeArray(FastSeq(F32(Float.NaN), F32(1.0f), F32(Float.NaN), F32(111.0f)), TArray(TFloat32))), Float.NaN),
-      (invoke("max", TFloat32, MakeArray(FastSeq(F32(Float.NaN), F32(1.0f), F32(Float.NaN), F32(111.0f)), TArray(TFloat32))), Float.NaN),
-      (invoke("min", TFloat64, MakeArray(FastSeq(F64(Double.NaN), F64(1.0), F64(Double.NaN), F64(111.0)), TArray(TFloat64))), Double.NaN),
-      (invoke("max", TFloat64, MakeArray(FastSeq(F64(Double.NaN), F64(1.0), F64(Double.NaN), F64(111.0)), TArray(TFloat64))), Double.NaN)
+      (
+        invoke(
+          "min",
+          TFloat32,
+          MakeArray(
+            FastSeq(F32(Float.NaN), F32(1.0f), F32(Float.NaN), F32(111.0f)),
+            TArray(TFloat32),
+          ),
+        ),
+        Float.NaN,
+      ),
+      (
+        invoke(
+          "max",
+          TFloat32,
+          MakeArray(
+            FastSeq(F32(Float.NaN), F32(1.0f), F32(Float.NaN), F32(111.0f)),
+            TArray(TFloat32),
+          ),
+        ),
+        Float.NaN,
+      ),
+      (
+        invoke(
+          "min",
+          TFloat64,
+          MakeArray(
+            FastSeq(F64(Double.NaN), F64(1.0), F64(Double.NaN), F64(111.0)),
+            TArray(TFloat64),
+          ),
+        ),
+        Double.NaN,
+      ),
+      (
+        invoke(
+          "max",
+          TFloat64,
+          MakeArray(
+            FastSeq(F64(Double.NaN), F64(1.0), F64(Double.NaN), F64(111.0)),
+            TArray(TFloat64),
+          ),
+        ),
+        Double.NaN,
+      ),
     )
   }
 
   @Test(dataProvider = "sort")
   def max(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("max", TInt32, toIRArray(a)),
-      Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
+    assertEvalsTo(
+      invoke("max", TInt32, toIRArray(a)),
+      Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
+    )
   }
 
   @DataProvider(name = "argminmax")
@@ -116,7 +174,7 @@ class ArrayFunctionsSuite extends HailSuite {
     Array(null, null, null),
     Array(FastSeq(3, null, 1, null, 3), 2, 0),
     Array(FastSeq(1, null, 3, null, 1), 0, 2),
-    Array(FastSeq(), null, null)
+    Array(FastSeq(), null, null),
   )
 
   @Test(dataProvider = "argminmax")
@@ -135,7 +193,7 @@ class ArrayFunctionsSuite extends HailSuite {
     Array(null, null, null),
     Array(FastSeq(3, null, 1, null, 3), 2, null),
     Array(FastSeq(1, null, 3, null, 1), null, 2),
-    Array(FastSeq(), null, null)
+    Array(FastSeq(), null, null),
   )
 
   @Test(dataProvider = "uniqueMinMaxIndex")
@@ -153,7 +211,7 @@ class ArrayFunctionsSuite extends HailSuite {
     FastSeq(3, 9, 7, 1),
     FastSeq(null, 2, null, 8),
     FastSeq(5, 3, null, null),
-    null
+    null,
   ).combinations(2).toArray
 
   @DataProvider(name = "arrayOpsOperations")
@@ -162,18 +220,23 @@ class ArrayFunctionsSuite extends HailSuite {
     ("sub", _ - _),
     ("mul", _ * _),
     ("floordiv", _ / _),
-    ("mod", _ % _)
+    ("mod", _ % _),
   ).map(_.productIterator.toArray)
 
   @DataProvider(name = "arrayOps")
   def arrayOpsPairs(): Array[Array[Any]] =
-    for (Array(a, b) <- arrayOpsData(); Array(s, f) <- arrayOpsOperations)
-      yield Array(a, b, s, f)
+    for {
+      Array(a, b) <- arrayOpsData()
+      Array(s, f) <- arrayOpsOperations
+    } yield Array(a, b, s, f)
 
-  def lift(f: (Int, Int) => Int): (IndexedSeq[Integer], IndexedSeq[Integer]) => IndexedSeq[Integer] = {
+  def lift(f: (Int, Int) => Int)
+    : (IndexedSeq[Integer], IndexedSeq[Integer]) => IndexedSeq[Integer] = {
     case (a, b) =>
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[Integer] { case (m, n) => f(m, n) }.orNull }
+        a0.zip(b0).map { case (i, j) =>
+          Option(i).zip(Option(j)).headOption.map[Integer] { case (m, n) => f(m, n) }.orNull
+        }
       }.orNull
   }
 
@@ -184,18 +247,30 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "arrayOpsData")
   def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
+    assertEvalsTo(
+      invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) => m.toDouble / n }.orNull }
-      }.orNull )
+        a0.zip(b0).map { case (i, j) =>
+          Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) =>
+            m.toDouble / n
+          }.orNull
+        }
+      }.orNull,
+    )
   }
 
   @Test(dataProvider = "arrayOpsData")
   def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("pow", TArray(TFloat64), toIRArray(a), toIRArray(b)),
+    assertEvalsTo(
+      invoke("pow", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) => math.pow(m.toDouble, n.toDouble) }.orNull }
-      }.orNull )
+        a0.zip(b0).map { case (i, j) =>
+          Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) =>
+            math.pow(m.toDouble, n.toDouble)
+          }.orNull
+        }
+      }.orNull,
+    )
   }
 
   @Test(dataProvider = "arrayOpsOperations")
@@ -237,7 +312,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(ArraySlice(a, I32(1), Some(I32(2))), FastSeq(null))
     assertEvalsTo(ArraySlice(a, I32(0), Some(I32(2))), FastSeq(0, null))
     assertEvalsTo(ArraySlice(a, I32(0), Some(I32(3))), FastSeq(0, null, 2))
-    assertEvalsTo(ArraySlice(a, I32(-1),Some( I32(3))), FastSeq(2))
+    assertEvalsTo(ArraySlice(a, I32(-1), Some(I32(3))), FastSeq(2))
     assertEvalsTo(ArraySlice(a, I32(-4), Some(I32(4))), FastSeq(0, null, 2))
     assertEvalsTo(ArraySlice(naa, I32(1), Some(I32(2))), null)
     assertEvalsTo(ArraySlice(a, I32(1), Some(NA(TInt32))), null)
@@ -251,12 +326,15 @@ class ArrayFunctionsSuite extends HailSuite {
     Array(FastSeq(null, FastSeq(1)), FastSeq(1)),
     Array(FastSeq(null, null), FastSeq()),
     Array(FastSeq(FastSeq(null), FastSeq(), FastSeq(7)), FastSeq(null, 7)),
-    Array(FastSeq(FastSeq(), FastSeq()), FastSeq())
+    Array(FastSeq(FastSeq(), FastSeq()), FastSeq()),
   )
 
   @Test(dataProvider = "flatten")
   def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]) {
-    assertEvalsTo(invoke("flatten", TArray(TInt32), MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32)))), expected)
+    assertEvalsTo(
+      invoke("flatten", TArray(TInt32), MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32)))),
+      expected,
+    )
   }
 
   @Test def testContains() {
@@ -265,36 +343,43 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastSeq(FastSeq() -> t),
-      expected=false)
+      expected = false,
+    )
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastSeq(FastSeq(null) -> t),
-      expected=false)
+      expected = false,
+    )
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastSeq(FastSeq("c", "a", "b") -> t),
-      expected=true)
+      expected = true,
+    )
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastSeq(FastSeq("c", "a", "b", null) -> t),
-      expected=true)
+      expected = true,
+    )
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), Str("a")),
       args = FastSeq((null, t)),
-      expected=null)
+      expected = null,
+    )
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), NA(t.elementType)),
       args = FastSeq((null, t)),
-      expected=null)
+      expected = null,
+    )
 
     assertEvalsTo(
       invoke("contains", TBoolean, In(0, t), NA(t.elementType)),
       args = FastSeq(FastSeq("a", null) -> t),
-      expected=true)
+      expected = true,
+    )
   }
 }

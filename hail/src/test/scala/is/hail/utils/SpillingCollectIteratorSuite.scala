@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.HailSuite
+
 import org.testng.annotations.Test
 
 class SpillingCollectIteratorSuite extends HailSuite {

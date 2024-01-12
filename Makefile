@@ -8,7 +8,7 @@ SERVICES_IMAGES := $(patsubst %, %-image, $(SERVICES_PLUS_ADMIN_POD))
 SERVICES_DATABASES := $(patsubst %, %-db, $(SERVICES))
 SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
-SPECIAL_IMAGES := hail-ubuntu batch-worker
+SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
 CI_IMAGES = ci-utils ci-buildkit base hail-run
@@ -42,6 +42,7 @@ check-hail-fast:
 	ruff check hail/python/hail
 	ruff check hail/python/hailtop
 	$(PYTHON) -m pyright hail/python/hailtop
+	$(PYTHON) -m black hail --check --diff
 
 .PHONY: pylint-hailtop
 pylint-hailtop:
@@ -173,7 +174,8 @@ hail-0.1-docs-5a6778710097.tar.gz:
 	gcloud storage cp gs://hail-common/builds/0.1/docs/$@ .
 
 hail/build/www: hail-0.1-docs-5a6778710097.tar.gz $(shell git ls-files hail)
-	$(MAKE) -C hail hail-docs-no-test batch-docs
+	@echo !!! This target does not render the notebooks because it takes a long time !!!
+	$(MAKE) -C hail hail-docs-do-not-render-notebooks batch-docs
 	mkdir -p hail/build/www/docs/0.1
 	tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 	touch $@  # Copying into the dir does not necessarily touch it
@@ -215,6 +217,10 @@ hailgenetics-vep-grch37-85-image: hail-ubuntu-image
 hailgenetics-vep-grch38-95-image: hail-ubuntu-image
 	./docker-build.sh docker/vep docker/vep/grch38/95/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
+
+letsencrypt-image:
+	./docker-build.sh letsencrypt Dockerfile $(IMAGE_NAME)
 	echo $(IMAGE_NAME) > $@
 
 $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image

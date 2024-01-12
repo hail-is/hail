@@ -19,6 +19,7 @@ with open('requirements.txt', 'r') as f:
 
         pkg = stripped
 
+
 def add_dependencies(fname):
     with open(fname, 'r') as f:
         for line in f:
@@ -28,7 +29,7 @@ def add_dependencies(fname):
             if stripped.startswith('-c'):
                 continue
             if stripped.startswith('-r'):
-                additional_requirements = stripped[len('-r'):].strip()
+                additional_requirements = stripped[len('-r') :].strip()
                 add_dependencies(additional_requirements)
                 continue
             pkg = stripped
@@ -39,6 +40,8 @@ def add_dependencies(fname):
                 dependencies.append(f'pyspark>={major}.{minor},<{int(major)+1}')
             else:
                 dependencies.append(pkg)
+
+
 add_dependencies('requirements.txt')
 
 setup(
@@ -56,26 +59,20 @@ setup(
         'Change Log': 'https://hail.is/docs/0.2/change_log.html',
     },
     packages=find_packages('.'),
-    package_dir={
-        'hail': 'hail',
-        'hailtop': 'hailtop'},
+    package_dir={'hail': 'hail', 'hailtop': 'hailtop'},
     package_data={
-        'hail': ['hail_pip_version',
-                 'hail_version',
-                 'hail_revision',
-                 'experimental/datasets.json'],
+        'hail': ['hail_pip_version', 'hail_version', 'hail_revision', 'experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
         'hailtop': ['hail_version', 'py.typed'],
-        'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
+        'hailtop.hailctl': ['hail_version', 'deploy.yaml'],
+    },
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
     python_requires=">=3.9",
     install_requires=dependencies,
-    entry_points={
-        'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
-    },
+    entry_points={'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']},
     setup_requires=["pytest-runner", "wheel"],
     tests_require=["pytest"],
     include_package_data=True,

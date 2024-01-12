@@ -11,9 +11,8 @@ object Optimize {
     var iter = 0
     val maxIter = HailContext.get.optimizerIterations
 
-    def runOpt(f: BaseIR => BaseIR, iter: Int, optContext: String): Unit = {
+    def runOpt(f: BaseIR => BaseIR, iter: Int, optContext: String): Unit =
       ir = ctx.timer.time(optContext)(f(ir).asInstanceOf[T])
-    }
 
     ctx.timer.time("Optimize") {
       val normalizeNames = new NormalizeNames(_ => genUID(), allowFreeVariables = true)
@@ -33,10 +32,10 @@ object Optimize {
 
     if (ir.typ != ir0.typ)
       throw new RuntimeException(s"optimization changed type!" +
-        s"\n  before: ${ ir0.typ.parsableString() }" +
-        s"\n  after:  ${ ir.typ.parsableString() }" +
-        s"\n  Before IR:\n  ----------\n${ Pretty(ctx, ir0) }" +
-        s"\n  After IR:\n  ---------\n${ Pretty(ctx, ir) }")
+        s"\n  before: ${ir0.typ.parsableString()}" +
+        s"\n  after:  ${ir.typ.parsableString()}" +
+        s"\n  Before IR:\n  ----------\n${Pretty(ctx, ir0)}" +
+        s"\n  After IR:\n  ---------\n${Pretty(ctx, ir)}")
 
     ir
   }

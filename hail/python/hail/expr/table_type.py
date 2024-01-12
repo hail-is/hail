@@ -10,17 +10,11 @@ class ttable(object):
 
     @staticmethod
     def _from_java(jtt):
-        return ttable(
-            dtype(jtt.globalType().toString()),
-            dtype(jtt.rowType().toString()),
-            jiterable_to_list(jtt.key()))
+        return ttable(dtype(jtt.globalType().toString()), dtype(jtt.rowType().toString()), jiterable_to_list(jtt.key()))
 
     @staticmethod
     def _from_json(json):
-        return ttable(
-            global_type=dtype(json['global_type']),
-            row_type=dtype(json['row_type']),
-            row_key=json['row_key'])
+        return ttable(global_type=dtype(json['global_type']), row_type=dtype(json['row_type']), row_key=json['row_key'])
 
     @typecheck_method(global_type=tstruct, row_type=tstruct, row_key=sequenceof(str))
     def __init__(self, global_type, row_type, row_key):
@@ -29,15 +23,15 @@ class ttable(object):
         self.row_key = row_key
 
     def to_dict(self):
-        return dict(global_type=str(self.global_type),
-                    row_type=str(self.row_type),
-                    row_key=self.row_key)
+        return dict(global_type=str(self.global_type), row_type=str(self.row_type), row_key=self.row_key)
 
     def __eq__(self, other):
-        return (isinstance(other, ttable)
-                and self.global_type == other.global_type
-                and self.row_type == other.row_type
-                and self.row_key == other.row_key)
+        return (
+            isinstance(other, ttable)
+            and self.global_type == other.global_type
+            and self.row_type == other.row_type
+            and self.row_key == other.row_key
+        )
 
     def __hash__(self):
         return 43 + hash(str(self))
@@ -85,9 +79,11 @@ class ttable(object):
         return self.row_type._drop_fields(set(self.row_key))
 
     def _rename(self, global_map, row_map):
-        return ttable(self.global_type._rename(global_map),
-                      self.row_type._rename(row_map),
-                      [row_map.get(k, k) for k in self.row_key])
+        return ttable(
+            self.global_type._rename(global_map),
+            self.row_type._rename(row_map),
+            [row_map.get(k, k) for k in self.row_key],
+        )
 
     def row_env(self, default_value=None):
         if default_value is None:

@@ -58,9 +58,9 @@ frozenlist==1.4.0
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.14.0
+google-api-core==2.15.0
     # via google-api-python-client
-google-api-python-client==2.108.0
+google-api-python-client==2.111.0
     # via google-cloud-profiler
 google-auth==2.23.4
     # via
@@ -70,13 +70,13 @@ google-auth==2.23.4
     #   google-api-python-client
     #   google-auth-httplib2
     #   google-cloud-profiler
-google-auth-httplib2==0.1.1
+google-auth-httplib2==0.2.0
     # via
     #   google-api-python-client
     #   google-cloud-profiler
 google-cloud-profiler==3.1.0
     # via -r hail/gear/requirements.txt
-googleapis-common-protos==1.61.0
+googleapis-common-protos==1.62.0
     # via google-api-core
 httplib2==0.22.0
     # via

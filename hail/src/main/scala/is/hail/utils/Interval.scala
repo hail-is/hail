@@ -3,11 +3,13 @@ package is.hail.utils
 import is.hail.annotations._
 import is.hail.check._
 import is.hail.types.virtual.TBoolean
-import org.apache.spark.sql.Row
-import org.json4s.JValue
+
 import org.json4s.JsonAST.JObject
+import org.json4s.JValue
 
 import scala.language.implicitConversions
+
+import org.apache.spark.sql.Row
 
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   require(sign == -1 || sign == 1)
@@ -27,28 +29,23 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   }
 }
 
-/** 'Interval' has an implicit precondition that 'start' and 'end' either have
-  * the same type, or are of compatible 'TBaseStruct' types, i.e. their types
-  * agree on all fields up to the min of their lengths. Moreover, it assumes
-  * that the interval is well formed, as coded in 'Interval.isValid', roughly
-  * meaning that start is less than end. Each method assumes that the 'pord'
-  * parameter is compatible with the endpoints, and with 'p' or the endpoints
-  * of 'other'.
+/** 'Interval' has an implicit precondition that 'start' and 'end' either have the same type, or are
+  * of compatible 'TBaseStruct' types, i.e. their types agree on all fields up to the min of their
+  * lengths. Moreover, it assumes that the interval is well formed, as coded in 'Interval.isValid',
+  * roughly meaning that start is less than end. Each method assumes that the 'pord' parameter is
+  * compatible with the endpoints, and with 'p' or the endpoints of 'other'.
   *
-  * Precisely, 'Interval' assumes that there exists a Hail type 't: Type' such
-  * that either
-  * - 't: TBaseStruct', and 't.relaxedTypeCheck(left)', 't.relaxedTypeCheck(right),
-  * and 't.ordering.intervalEndpointOrdering.lt(left, right)', or
-  * - 't.typeCheck(left)', 't.typeCheck(right)', and 't.ordering.lt(left, right)'
+  * Precisely, 'Interval' assumes that there exists a Hail type 't: Type' such that either
+  *   - 't: TBaseStruct', and 't.relaxedTypeCheck(left)', 't.relaxedTypeCheck(right), and
+  *     't.ordering.intervalEndpointOrdering.lt(left, right)', or
+  *   - 't.typeCheck(left)', 't.typeCheck(right)', and 't.ordering.lt(left, right)'
   *
-  * Moreover, every method on 'Interval' taking a 'pord' has the precondition
-  * that there exists a Hail type 't: Type' such that 'pord' was constructed by
-  * 't.ordering', and either
-  * - 't: TBaseStruct' and 't.relaxedTypeCheck(x)', or
-  * - 't.typeCheck(x)',
-  * where 'x' is each of 'left', 'right', 'p', 'other.left', and 'other.right'
-  * as appropriate. In the case 't: TBaseStruct', 't' could be replaced by any
-  * 't2' such that 't.isPrefixOf(t2)' without changing the behavior.
+  * Moreover, every method on 'Interval' taking a 'pord' has the precondition that there exists a
+  * Hail type 't: Type' such that 'pord' was constructed by 't.ordering', and either
+  *   - 't: TBaseStruct' and 't.relaxedTypeCheck(x)', or
+  *   - 't.typeCheck(x)', where 'x' is each of 'left', 'right', 'p', 'other.left', and 'other.right'
+  *     as appropriate. In the case 't: TBaseStruct', 't' could be replaced by any 't2' such that
+  *     't.isPrefixOf(t2)' without changing the behavior.
   */
 class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends Serializable {
   require(left != null)
@@ -81,7 +78,12 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def isDisjointFrom(pord: ExtendedOrdering, other: Interval): Boolean =
     !overlaps(pord, other)
 
-  def copy(start: Any = start, end: Any = end, includesStart: Boolean = includesStart, includesEnd: Boolean = includesEnd): Interval =
+  def copy(
+    start: Any = start,
+    end: Any = end,
+    includesStart: Boolean = includesStart,
+    includesEnd: Boolean = includesEnd,
+  ): Interval =
     Interval(start, end, includesStart, includesEnd)
 
   def extendLeft(newLeft: IntervalEndpoint): Interval = Interval(newLeft, right)
@@ -89,10 +91,12 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def extendRight(newRight: IntervalEndpoint): Interval = Interval(left, newRight)
 
   def toJSON(f: (Any) => JValue): JValue =
-    JObject("start" -> f(start),
+    JObject(
+      "start" -> f(start),
       "end" -> f(end),
       "includeStart" -> TBoolean.toJSON(includesStart),
-      "includeEnd" -> TBoolean.toJSON(includesEnd))
+      "includeEnd" -> TBoolean.toJSON(includesEnd),
+    )
 
   def isBelow(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).compare(this.right, other.left) <= 0
@@ -123,7 +127,8 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
       if (ext(pord).compare(this.right, other.right) < 0)
         other.right
       else
-        this.right)
+        this.right,
+    )
 
   def intersect(pord: ExtendedOrdering, other: Interval): Option[Interval] =
     if (overlaps(pord, other)) {
@@ -137,14 +142,16 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
         if (ext(pord).compare(this.right, other.right) < 0)
           this.right
         else
-          other.right))
+          other.right,
+      ))
     } else
       None
 
   def coarsen(newKeyLen: Int): Interval =
     Interval(left.coarsenLeft(newKeyLen), right.coarsenRight(newKeyLen))
 
-  override def toString: String = (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")")
+  override def toString: String =
+    (if (includesStart) "[" else "(") + start + "-" + end + (if (includesEnd) "]" else ")")
 
   override def equals(other: Any): Boolean = other match {
     case that: Interval => left == that.left && right == that.right
@@ -166,32 +173,43 @@ object Interval {
   def unapply(interval: Interval): Option[(Any, Any, Boolean, Boolean)] =
     Some((interval.start, interval.end, interval.includesStart, interval.includesEnd))
 
-  def orNone(pord: ExtendedOrdering,
-    start: Any, end: Any,
-    includesStart: Boolean, includesEnd: Boolean
+  def orNone(
+    pord: ExtendedOrdering,
+    start: Any,
+    end: Any,
+    includesStart: Boolean,
+    includesEnd: Boolean,
   ): Option[Interval] =
     if (isValid(pord, start, end, includesStart, includesEnd))
       Some(Interval(start, end, includesStart, includesEnd))
     else
       None
 
-  def orNone(pord: ExtendedOrdering, left: IntervalEndpoint, right: IntervalEndpoint): Option[Interval] =
+  def orNone(pord: ExtendedOrdering, left: IntervalEndpoint, right: IntervalEndpoint)
+    : Option[Interval] =
     orNone(pord, left.point, right.point, left.sign < 0, right.sign > 0)
 
-  def isValid(pord: ExtendedOrdering,
-    start: Any, end: Any,
-    includesStart: Boolean, includesEnd: Boolean
+  def isValid(
+    pord: ExtendedOrdering,
+    start: Any,
+    end: Any,
+    includesStart: Boolean,
+    includesEnd: Boolean,
   ): Boolean = {
     val (left, right) = toIntervalEndpoints(start, end, includesStart, includesEnd)
     pord.intervalEndpointOrdering.compare(left, right) < 0
   }
 
   def toIntervalEndpoints(
-    start: Any, end: Any,
-    includesStart: Boolean, includesEnd: Boolean
+    start: Any,
+    end: Any,
+    includesStart: Boolean,
+    includesEnd: Boolean,
   ): (IntervalEndpoint, IntervalEndpoint) =
-    (IntervalEndpoint(start, if (includesStart) -1 else 1),
-      IntervalEndpoint(end, if (includesEnd) 1 else -1))
+    (
+      IntervalEndpoint(start, if (includesStart) -1 else 1),
+      IntervalEndpoint(end, if (includesEnd) 1 else -1),
+    )
 
   def gen[P](pord: ExtendedOrdering, pgen: Gen[P]): Gen[Interval] =
     Gen.zip(pgen, pgen, Gen.coin(), Gen.coin())
@@ -203,7 +221,8 @@ object Interval {
           Interval(y, x, s, e)
       }
 
-  def ordering(pord: ExtendedOrdering, startPrimary: Boolean, _missingEqual: Boolean = true): ExtendedOrdering = new ExtendedOrdering {
+  def ordering(pord: ExtendedOrdering, startPrimary: Boolean, _missingEqual: Boolean = true)
+    : ExtendedOrdering = new ExtendedOrdering {
     val missingEqual = _missingEqual
 
     override def compareNonnull(x: Any, y: Any): Int = {
@@ -240,7 +259,11 @@ object Interval {
   }
 
   // assumes that both `x1` and `x2` are both sorted, non-overlapping interval sequences.
-  def intersection(x1: IndexedSeq[Interval], x2: IndexedSeq[Interval], ord: IntervalEndpointOrdering): Array[Interval] = {
+  def intersection(
+    x1: IndexedSeq[Interval],
+    x2: IndexedSeq[Interval],
+    ord: IntervalEndpointOrdering,
+  ): Array[Interval] = {
 
     var i = 0
     var j = 0
