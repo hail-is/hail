@@ -25,7 +25,11 @@ async def test_copy_file():
 
         await copy_from_dict(files=inputs)
 
-        expected_files = [f"{test_dir}/file1", f"{test_dir}/file2", f"{test_dir}/dir1/file1"]
+        expected_files = [
+            f"{test_dir}/file1",
+            f"{test_dir}/file2",
+            f"{test_dir}/dir1/file1",
+        ]
         for file in expected_files:
             assert read_file(file) == "hello world\n"
 

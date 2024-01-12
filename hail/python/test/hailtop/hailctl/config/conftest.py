@@ -12,4 +12,4 @@ def config_dir():
 
 @pytest.fixture
 def runner(config_dir):
-    yield CliRunner(mix_stderr=False, env={'XDG_CONFIG_HOME': config_dir})
+    yield CliRunner(mix_stderr=False, env={"XDG_CONFIG_HOME": config_dir})

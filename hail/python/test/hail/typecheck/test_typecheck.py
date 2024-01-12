@@ -26,7 +26,7 @@ class Tests(unittest.TestCase):
         # ensure that f1 and f2 both run with correct arguments
         f1(1, 2)
 
-        self.assertRaises(TypeError, lambda: f1('2', 3))
+        self.assertRaises(TypeError, lambda: f1("2", 3))
 
         @typecheck(x=int, y=int)
         def bad_signature_1(x, y, *args):
@@ -57,8 +57,8 @@ class Tests(unittest.TestCase):
         good_signature_1(1, 2, 3)
         good_signature_1(1, 2, 3, 4, 5)
 
-        self.assertRaises(TypeError, lambda: good_signature_1(1, 2, 3, '4'))
-        self.assertRaises(TypeError, lambda: good_signature_1(1, 2, '4'))
+        self.assertRaises(TypeError, lambda: good_signature_1(1, 2, 3, "4"))
+        self.assertRaises(TypeError, lambda: good_signature_1(1, 2, "4"))
 
         @typecheck(x=int, y=int, kwargs=int)
         def good_signature_2(x, y, **kwargs):
@@ -68,8 +68,8 @@ class Tests(unittest.TestCase):
         good_signature_2(1, 2)
         good_signature_2(1, 2, a=5)
 
-        self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a='2'))
-        self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a='2', b=5, c=10))
+        self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a="2"))
+        self.assertRaises(TypeError, lambda: good_signature_2(1, 2, a="2", b=5, c=10))
 
         @typecheck(x=int, y=int, args=int, kwargs=int)
         def good_signature_3(x, y, *args, **kwargs):
@@ -80,9 +80,9 @@ class Tests(unittest.TestCase):
         good_signature_3(1, 2, a=3)
         good_signature_3(1, 2, 3, a=4)
 
-        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, a='2'))
-        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b=5, c=10))
-        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, '3', b='5', c=10))
+        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, a="2"))
+        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, "3", b=5, c=10))
+        self.assertRaises(TypeError, lambda: good_signature_3(1, 2, "3", b="5", c=10))
 
         @typecheck(x=int, y=int, args=int, kwargs=oneof(sequenceof(int), str))
         def good_signature_4(x, y, *args, **kwargs):
@@ -90,13 +90,13 @@ class Tests(unittest.TestCase):
 
         good_signature_4(1, 2)
         good_signature_4(1, 2, 3)
-        good_signature_4(1, 2, a='1')
+        good_signature_4(1, 2, a="1")
         good_signature_4(1, 2, 3, a=[1, 2, 3])
-        good_signature_4(1, 2, 3, a=[1, 2, 3], b='5')
-        good_signature_4(1, 2, a=[1, 2, 3], b='5')
+        good_signature_4(1, 2, 3, a=[1, 2, 3], b="5")
+        good_signature_4(1, 2, a=[1, 2, 3], b="5")
 
         self.assertRaises(TypeError, lambda: good_signature_4(1, 2, a=2))
-        self.assertRaises(TypeError, lambda: good_signature_4(1, 2, '3', b='5', c=10))
+        self.assertRaises(TypeError, lambda: good_signature_4(1, 2, "3", b="5", c=10))
 
         @typecheck(x=sized_tupleof(str, int, int))
         def good_signature_5(x):
@@ -115,7 +115,10 @@ class Tests(unittest.TestCase):
         good_signature_6(7, "hello", [], 1, 2)
         good_signature_6(7, "hello", [])
         self.assertRaises(TypeError, lambda: good_signature_6(1, "2", ("3", 4, 5)))
-        self.assertRaises(TypeError, lambda: good_signature_6(7, "hello", [(9, 5.6, 10), (4, "hello", 1)], 1, 2, 3))
+        self.assertRaises(
+            TypeError,
+            lambda: good_signature_6(7, "hello", [(9, 5.6, 10), (4, "hello", 1)], 1, 2, 3),
+        )
 
     def test_helpers(self):
         # check nullable
@@ -125,7 +128,7 @@ class Tests(unittest.TestCase):
 
         f(5)
         f(None)
-        self.assertRaises(TypeError, lambda: f('2'))
+        self.assertRaises(TypeError, lambda: f("2"))
 
         # check integral
         @typecheck(x=int)
@@ -142,30 +145,33 @@ class Tests(unittest.TestCase):
 
         f(1)
         f(1.0)
-        self.assertRaises(TypeError, lambda: f('1.1'))
+        self.assertRaises(TypeError, lambda: f("1.1"))
 
         # check strlike
         @typecheck(x=str)
         def f(x):
             pass
 
-        f('str')
-        f('unicode')
-        self.assertRaises(TypeError, lambda: f(['abc']))
+        f("str")
+        f("unicode")
+        self.assertRaises(TypeError, lambda: f(["abc"]))
 
     def test_nested(self):
-        @typecheck(x=int, y=oneof(nullable(str), sequenceof(sequenceof(dictof(oneof(str, int), anytype)))))
+        @typecheck(
+            x=int,
+            y=oneof(nullable(str), sequenceof(sequenceof(dictof(oneof(str, int), anytype)))),
+        )
         def f(x, y):
             pass
 
         f(5, None)
-        f(5, '7')
+        f(5, "7")
         f(5, [])
         f(5, [[]])
         f(5, [[{}]])
-        f(5, [[{'6': None}]])
-        f(5, [[{'6': None}]])
-        f(5, [[{'6': None, 5: {1, 2, 3, 4}}]])
+        f(5, [[{"6": None}]])
+        f(5, [[{"6": None}]])
+        f(5, [[{"6": None, 5: {1, 2, 3, 4}}]])
         self.assertRaises(TypeError, lambda: f(2, 2))
 
     def test_class_methods(self):
@@ -192,25 +198,25 @@ class Tests(unittest.TestCase):
             def d(self, x, y, *args, **kwargs):
                 pass
 
-        Foo(2, '2')
+        Foo(2, "2")
 
-        self.assertRaises(TypeError, lambda: Foo('2', '2'))
+        self.assertRaises(TypeError, lambda: Foo("2", "2"))
 
-        f = Foo(2, '2')
+        f = Foo(2, "2")
 
         f.a(2, 2)
         f.b(2, 2)
         Foo.b(2, 2)
         f.d(1, 2)
-        f.d(1, 2, '3')
-        f.d(1, 2, '3', z=5)
+        f.d(1, 2, "3")
+        f.d(1, 2, "3", z=5)
 
-        self.assertRaises(TypeError, lambda: f.a('2', '2'))
-        self.assertRaises(TypeError, lambda: f.b('2', '2'))
-        self.assertRaises(TypeError, lambda: Foo.b('2', '2'))
+        self.assertRaises(TypeError, lambda: f.a("2", "2"))
+        self.assertRaises(TypeError, lambda: f.b("2", "2"))
+        self.assertRaises(TypeError, lambda: Foo.b("2", "2"))
         self.assertRaises(RuntimeError, lambda: f.c(2, 2))
         self.assertRaises(TypeError, lambda: f.d(2, 2, 3))
-        self.assertRaises(TypeError, lambda: f.d(2, 2, z='2'))
+        self.assertRaises(TypeError, lambda: f.d(2, 2, z="2"))
 
     def test_lazy(self):
         foo_type = lazy()
@@ -235,24 +241,24 @@ class Tests(unittest.TestCase):
 
     def test_coercion(self):
         @typecheck(
-            a=transformed((int, lambda x: 'int'), (str, lambda x: 'str')),
-            b=sequenceof(dictof(str, transformed((int, lambda x: 'int'), (str, lambda x: 'str')))),
+            a=transformed((int, lambda x: "int"), (str, lambda x: "str")),
+            b=sequenceof(dictof(str, transformed((int, lambda x: "int"), (str, lambda x: "str")))),
         )
         def foo(a, b):
             return a, b
 
-        self.assertRaises(TypeError, lambda: foo(5.5, [{'5': 5}]))
-        self.assertRaises(TypeError, lambda: foo(5, [{'5': 5.5}]))
+        self.assertRaises(TypeError, lambda: foo(5.5, [{"5": 5}]))
+        self.assertRaises(TypeError, lambda: foo(5, [{"5": 5.5}]))
 
         a, b = foo(5, [])
-        self.assertEqual(a, 'int')
+        self.assertEqual(a, "int")
 
-        a, b = foo('5', [])
-        self.assertEqual(a, 'str')
+        a, b = foo("5", [])
+        self.assertEqual(a, "str")
 
-        a, b = foo(5, [{'5': 5, '6': '6'}, {'10': 10}])
-        self.assertEqual(a, 'int')
-        self.assertEqual(b, [{'5': 'int', '6': 'str'}, {'10': 'int'}])
+        a, b = foo(5, [{"5": 5, "6": "6"}, {"10": 10}])
+        self.assertEqual(a, "int")
+        self.assertEqual(b, [{"5": "int", "6": "str"}, {"10": "int"}])
 
     def test_function_checker(self):
         @typecheck(f=func_spec(3, int))
@@ -283,18 +289,18 @@ class Tests(unittest.TestCase):
 
     def test_complex_signature(self):
         @typecheck(a=int, b=str, c=sequenceof(int), d=tupleof(str), e=dict)
-        def f(a, b='5', c=[10], *d, **e):
+        def f(a, b="5", c=[10], *d, **e):
             pass
 
         f(
             1,
-            'a',
+            "a",
         )
         f(1, foo={})
-        f(1, 'a', foo={})
+        f(1, "a", foo={})
         f(1, c=[25, 2])
         with self.assertRaises(TypeError):
-            f(1, '2', a=2)
+            f(1, "2", a=2)
 
     def test_extra_args(self):
         @typecheck(x=int)

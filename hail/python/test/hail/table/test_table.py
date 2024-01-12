@@ -28,12 +28,19 @@ from ..helpers import (
 class Tests(unittest.TestCase):
     @qobtest
     def test_annotate(self):
-        schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
+        schema = hl.tstruct(
+            a=hl.tint32,
+            b=hl.tint32,
+            c=hl.tint32,
+            d=hl.tint32,
+            e=hl.tstr,
+            f=hl.tarray(hl.tint32),
+        )
 
         rows = [
-            {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
-            {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
-            {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]},
+            {"a": 4, "b": 1, "c": 3, "d": 5, "e": "hello", "f": [1, 2, 3]},
+            {"a": 0, "b": 5, "c": 13, "d": -1, "e": "cat", "f": []},
+            {"a": 4, "b": 2, "c": 20, "d": 3, "e": "dog", "f": [5, 6, 7]},
         ]
 
         kt = hl.Table.parallelize(rows, schema)
@@ -43,7 +50,17 @@ class Tests(unittest.TestCase):
         result1 = convert_struct_to_dict(kt.annotate(foo=kt.a + 1, foo2=kt.a).take(1)[0])
 
         self.assertDictEqual(
-            result1, {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'foo': 5, 'foo2': 4}
+            result1,
+            {
+                "a": 4,
+                "b": 1,
+                "c": 3,
+                "d": 5,
+                "e": "hello",
+                "f": [1, 2, 3],
+                "foo": 5,
+                "foo2": 4,
+            },
         )
 
         result3 = convert_struct_to_dict(
@@ -69,27 +86,27 @@ class Tests(unittest.TestCase):
         self.assertDictEqual(
             result3,
             {
-                'a': 4,
-                'b': 1,
-                'c': 3,
-                'd': 5,
-                'e': "hello",
-                'f': [1, 2, 3],
-                'x1': [2, 4, 6],
-                'x2': [1, 2, 2, 3, 3, 4],
-                'x3': 1,
-                'x4': 3,
-                'x5': 6,
-                'x6': 6,
-                'x7': 3,
-                'x8': [3],
-                'x9': [2, 3],
-                'x10': [1, 2, 3],
-                'x11': [2],
-                'x12': [[1, 2], [2, 3], [3, 4]],
-                'x13': [[1, 2], [3], [2, 3], [4], [3, 4], [5]],
-                'x14': None,
-                'x15': set([1, 2, 3]),
+                "a": 4,
+                "b": 1,
+                "c": 3,
+                "d": 5,
+                "e": "hello",
+                "f": [1, 2, 3],
+                "x1": [2, 4, 6],
+                "x2": [1, 2, 2, 3, 3, 4],
+                "x3": 1,
+                "x4": 3,
+                "x5": 6,
+                "x6": 6,
+                "x7": 3,
+                "x8": [3],
+                "x9": [2, 3],
+                "x10": [1, 2, 3],
+                "x11": [2],
+                "x12": [[1, 2], [2, 3], [3, 4]],
+                "x13": [[1, 2], [3], [2, 3], [4], [3, 4], [5]],
+                "x14": None,
+                "x15": set([1, 2, 3]),
             },
         )
         kt.annotate(
@@ -133,12 +150,19 @@ class Tests(unittest.TestCase):
 
     @qobtest
     def test_aggregate1(self):
-        schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
+        schema = hl.tstruct(
+            a=hl.tint32,
+            b=hl.tint32,
+            c=hl.tint32,
+            d=hl.tint32,
+            e=hl.tstr,
+            f=hl.tarray(hl.tint32),
+        )
 
         rows = [
-            {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
-            {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
-            {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]},
+            {"a": 4, "b": 1, "c": 3, "d": 5, "e": "hello", "f": [1, 2, 3]},
+            {"a": 0, "b": 5, "c": 13, "d": -1, "e": "cat", "f": []},
+            {"a": 4, "b": 2, "c": 20, "d": 3, "e": "dog", "f": [5, 6, 7]},
         ]
 
         kt = hl.Table.parallelize(rows, schema)
@@ -161,7 +185,10 @@ class Tests(unittest.TestCase):
     def test_aggregate2(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
 
-        rows = [{'status': 0, 'GT': hl.Call([0, 0]), 'qPheno': 3}, {'status': 0, 'GT': hl.Call([0, 1]), 'qPheno': 13}]
+        rows = [
+            {"status": 0, "GT": hl.Call([0, 0]), "qPheno": 3},
+            {"status": 0, "GT": hl.Call([0, 1]), "qPheno": 13},
+        ]
 
         kt = hl.Table.parallelize(rows, schema)
 
@@ -181,8 +208,8 @@ class Tests(unittest.TestCase):
                 x11=agg.hardy_weinberg_test(kt.GT),
                 x13=agg.inbreeding(kt.GT, 0.1),
                 x14=agg.call_stats(kt.GT, ["A", "T"]),
-                x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
-                x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
+                x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana="apple")))[0],
+                x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana="apple")).c.banana)[0],
                 x17=agg.explode(lambda elt: agg.collect(elt), hl.missing(hl.tarray(hl.tint32))),
                 x18=agg.explode(lambda elt: agg.collect(elt), hl.missing(hl.tset(hl.tint32))),
                 x19=agg.take(kt.GT, 1, ordering=-kt.qPheno),
@@ -191,25 +218,42 @@ class Tests(unittest.TestCase):
         )
 
         expected = {
-            'status': 0,
-            'x13': {'n_called': 2, 'expected_homs': 1.64, 'f_stat': -1.777777777777777, 'observed_homs': 1},
-            'x14': {'AC': [3, 1], 'AF': [0.75, 0.25], 'AN': 4, 'homozygote_count': [1, 0]},
-            'x15': {'a': 5, 'c': {'banana': 'apple'}, 'b': 'foo'},
-            'x10': {'min': 3.0, 'max': 13.0, 'sum': 16.0, 'stdev': 5.0, 'n': 2, 'mean': 8.0},
-            'x8': 1,
-            'x9': 0.0,
-            'x16': 'apple',
-            'x11': {'het_freq_hwe': 0.5, 'p_value': 0.5},
-            'x2': [3, 4, 13, 14],
-            'x3': 3,
-            'x1': [6, 26],
-            'x6': 39,
-            'x7': 2,
-            'x4': 13,
-            'x5': 16,
-            'x17': [],
-            'x18': [],
-            'x19': [hl.Call([0, 1])],
+            "status": 0,
+            "x13": {
+                "n_called": 2,
+                "expected_homs": 1.64,
+                "f_stat": -1.777777777777777,
+                "observed_homs": 1,
+            },
+            "x14": {
+                "AC": [3, 1],
+                "AF": [0.75, 0.25],
+                "AN": 4,
+                "homozygote_count": [1, 0],
+            },
+            "x15": {"a": 5, "c": {"banana": "apple"}, "b": "foo"},
+            "x10": {
+                "min": 3.0,
+                "max": 13.0,
+                "sum": 16.0,
+                "stdev": 5.0,
+                "n": 2,
+                "mean": 8.0,
+            },
+            "x8": 1,
+            "x9": 0.0,
+            "x16": "apple",
+            "x11": {"het_freq_hwe": 0.5, "p_value": 0.5},
+            "x2": [3, 4, 13, 14],
+            "x3": 3,
+            "x1": [6, 26],
+            "x6": 39,
+            "x7": 2,
+            "x4": 13,
+            "x5": 16,
+            "x17": [],
+            "x18": [],
+            "x19": [hl.Call([0, 1])],
         }
 
         self.maxDiff = None
@@ -225,7 +269,7 @@ class Tests(unittest.TestCase):
                 z=agg.sum(kt.g1 + kt.idx) + kt.g1,
             )
         )
-        self.assertEqual(convert_struct_to_dict(r), {'x': 50, 'y': 40, 'z': 100})
+        self.assertEqual(convert_struct_to_dict(r), {"x": 50, "y": 40, "z": 100})
 
         r = kt.aggregate(5)
         self.assertEqual(r, 5)
@@ -239,29 +283,29 @@ class Tests(unittest.TestCase):
     def test_java_array_string_encoding(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(foo=hl.str(ht.idx).split(","))
-        path = new_temp_file(extension='ht')
+        path = new_temp_file(extension="ht")
         ht.write(path)
         hl.read_table(path)._force_count()
 
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
-        mt = mt.key_cols_by(s='Col' + hl.str(M - mt.col_idx))
+        mt = mt.key_cols_by(s="Col" + hl.str(M - mt.col_idx))
         mt = mt.annotate_cols(c1=hl.rand_bool(0.5))
         mt = mt.annotate_rows(r1=hl.rand_bool(0.5))
         mt = mt.annotate_entries(e1=hl.rand_bool(0.5))
 
-        re_mt = mt.entries().to_matrix_table(['row_idx'], ['s'], ['r1'], ['col_idx', 'c1'])
+        re_mt = mt.entries().to_matrix_table(["row_idx"], ["s"], ["r1"], ["col_idx", "c1"])
         new_col_order = re_mt.col_idx.collect()
         mapping = [t[1] for t in sorted([(old, new) for new, old in enumerate(new_col_order)])]
 
-        assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
+        assert re_mt.choose_cols(mapping).drop("col_idx")._same(mt.drop("col_idx"))
 
     def test_to_matrix_table_row_major(self):
         t = hl.utils.range_table(10)
         t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
-        mt = t.to_matrix_table_row_major(['bar', 'baz'], 'entry', 'col')
-        round_trip = mt.localize_entries('entries', 'cols')
+        mt = t.to_matrix_table_row_major(["bar", "baz"], "entry", "col")
+        round_trip = mt.localize_entries("entries", "cols")
         round_trip = round_trip.transmute(**{
             col.col: round_trip.entries[i].entry for i, col in enumerate(hl.eval(round_trip.cols))
         })
@@ -271,8 +315,8 @@ class Tests(unittest.TestCase):
 
         t = hl.utils.range_table(10)
         t = t.annotate(foo=t.idx, bar=hl.struct(val=2 * t.idx), baz=hl.struct(val=3 * t.idx))
-        mt = t.to_matrix_table_row_major(['bar', 'baz'])
-        round_trip = mt.localize_entries('entries', 'cols')
+        mt = t.to_matrix_table_row_major(["bar", "baz"])
+        round_trip = mt.localize_entries("entries", "cols")
         round_trip = round_trip.transmute(**{
             col.col: round_trip.entries[i] for i, col in enumerate(hl.eval(round_trip.cols))
         })
@@ -280,15 +324,15 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(t._same(round_trip))
 
-        t = t.annotate(**{'a': 1, 'b': 2, 'c': 'v', 'd': hl.struct(e=2)})
-        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['a', 'b']))
-        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['a', 'd']))
-        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['d'], entry_field_name='c'))
+        t = t.annotate(**{"a": 1, "b": 2, "c": "v", "d": hl.struct(e=2)})
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(["a", "b"]))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(["a", "d"]))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(["d"], entry_field_name="c"))
         self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major([]))
 
     def test_group_by_field_lifetimes(self):
         ht = hl.utils.range_table(3)
-        ht2 = ht.group_by(idx='100').aggregate(x=hl.agg.collect_as_set(ht.idx + 5))
+        ht2 = ht.group_by(idx="100").aggregate(x=hl.agg.collect_as_set(ht.idx + 5))
         assert ht2.all(ht2.x == hl.set({5, 6, 7}))
 
     def test_group_aggregate_by_key(self):
@@ -301,13 +345,13 @@ class Tests(unittest.TestCase):
 
     def test_aggregate_by_key_partitioning(self):
         ht1 = hl.Table.parallelize(
-            [{'k': 'foo', 'b': 1}, {'k': 'bar', 'b': 2}, {'k': 'bar', 'b': 2}],
+            [{"k": "foo", "b": 1}, {"k": "bar", "b": 2}, {"k": "bar", "b": 2}],
             hl.tstruct(k=hl.tstr, b=hl.tint32),
-            key='k',
+            key="k",
         )
         self.assertEqual(
-            set(ht1.group_by('k').aggregate(mean_b=hl.agg.mean(ht1.b)).collect()),
-            {hl.Struct(k='foo', mean_b=1.0), hl.Struct(k='bar', mean_b=2.0)},
+            set(ht1.group_by("k").aggregate(mean_b=hl.agg.mean(ht1.b)).collect()),
+            {hl.Struct(k="foo", mean_b=1.0), hl.Struct(k="bar", mean_b=2.0)},
         )
 
     @test_timeout(batch=6 * 60)
@@ -315,7 +359,11 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(100, 8)
         ht = ht.key_by(k=hl.or_missing(ht.idx % 10 == 0, ht.idx % 4))
 
-        expected = [hl.utils.Struct(k=0, n=5), hl.utils.Struct(k=2, n=5), hl.utils.Struct(k=None, n=90)]
+        expected = [
+            hl.utils.Struct(k=0, n=5),
+            hl.utils.Struct(k=2, n=5),
+            hl.utils.Struct(k=None, n=90),
+        ]
         # test map side combine and shuffle aggregation
         assert ht.group_by(ht.k).aggregate(n=hl.agg.count()).collect() == expected
 
@@ -324,12 +372,19 @@ class Tests(unittest.TestCase):
         assert ht.group_by(ht.k).aggregate(n=hl.agg.count()).collect() == expected
 
     def test_filter(self):
-        schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
+        schema = hl.tstruct(
+            a=hl.tint32,
+            b=hl.tint32,
+            c=hl.tint32,
+            d=hl.tint32,
+            e=hl.tstr,
+            f=hl.tarray(hl.tint32),
+        )
 
         rows = [
-            {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
-            {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': []},
-            {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7]},
+            {"a": 4, "b": 1, "c": 3, "d": 5, "e": "hello", "f": [1, 2, 3]},
+            {"a": 0, "b": 5, "c": 13, "d": -1, "e": "cat", "f": []},
+            {"a": 4, "b": 2, "c": 20, "d": 3, "e": "dog", "f": [5, 6, 7]},
         ]
 
         kt = hl.Table.parallelize(rows, schema)
@@ -356,27 +411,49 @@ class Tests(unittest.TestCase):
         )
 
         rows = [
-            {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
-            {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
-            {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7], 'g': None},
+            {
+                "a": 4,
+                "b": 1,
+                "c": 3,
+                "d": 5,
+                "e": "hello",
+                "f": [1, 2, 3],
+                "g": {"x": True, "y": 2},
+            },
+            {
+                "a": 0,
+                "b": 5,
+                "c": 13,
+                "d": -1,
+                "e": "cat",
+                "f": [],
+                "g": {"x": True, "y": 2},
+            },
+            {"a": 4, "b": 2, "c": 20, "d": 3, "e": "dog", "f": [5, 6, 7], "g": None},
         ]
         df = hl.Table.parallelize(rows, schema)
 
         df = df.transmute(h=df.a + df.b + df.c + df.g.y)
-        r = df.select('h').collect()
+        r = df.select("h").collect()
 
-        self.assertEqual(list(df.row), ['d', 'e', 'f', 'h'])
+        self.assertEqual(list(df.row), ["d", "e", "f", "h"])
         self.assertEqual(r, [hl.Struct(h=x) for x in [10, 20, None]])
 
     def test_transmute_globals(self):
         ht = hl.utils.range_table(1).annotate_globals(a=5, b=10)
-        self.assertEqual(ht.transmute_globals(c=ht.a + 5).globals.dtype, hl.tstruct(b=hl.tint, c=hl.tint))
+        self.assertEqual(
+            ht.transmute_globals(c=ht.a + 5).globals.dtype,
+            hl.tstruct(b=hl.tint, c=hl.tint),
+        )
 
     def test_transmute_key(self):
         ht = hl.utils.range_table(10)
-        self.assertEqual(ht.transmute(y=ht.idx + 2).row.dtype, hl.dtype('struct{idx: int32, y: int32}'))
+        self.assertEqual(
+            ht.transmute(y=ht.idx + 2).row.dtype,
+            hl.dtype("struct{idx: int32, y: int32}"),
+        )
         ht = ht.key_by()
-        self.assertEqual(ht.transmute(y=ht.idx + 2).row.dtype, hl.dtype('struct{y: int32}'))
+        self.assertEqual(ht.transmute(y=ht.idx + 2).row.dtype, hl.dtype("struct{y: int32}"))
 
     def test_select(self):
         schema = hl.tstruct(
@@ -390,24 +467,43 @@ class Tests(unittest.TestCase):
         )
 
         rows = [
-            {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3], 'g': {'x': True, 'y': 2}},
-            {'a': 0, 'b': 5, 'c': 13, 'd': -1, 'e': "cat", 'f': [], 'g': {'x': True, 'y': 2}},
-            {'a': 4, 'b': 2, 'c': 20, 'd': 3, 'e': "dog", 'f': [5, 6, 7], 'g': None},
+            {
+                "a": 4,
+                "b": 1,
+                "c": 3,
+                "d": 5,
+                "e": "hello",
+                "f": [1, 2, 3],
+                "g": {"x": True, "y": 2},
+            },
+            {
+                "a": 0,
+                "b": 5,
+                "c": 13,
+                "d": -1,
+                "e": "cat",
+                "f": [],
+                "g": {"x": True, "y": 2},
+            },
+            {"a": 4, "b": 2, "c": 20, "d": 3, "e": "dog", "f": [5, 6, 7], "g": None},
         ]
 
         kt = hl.Table.parallelize(rows, schema)
 
         t1 = kt.select(kt.a, kt.e)
-        self.assertEqual(list(t1.row), ['a', 'e'])
+        self.assertEqual(list(t1.row), ["a", "e"])
         self.assertEqual(list(t1.key), [])
 
-        t2 = kt.key_by('e')
+        t2 = kt.key_by("e")
         t2 = t2.select(t2.a)
-        self.assertEqual(list(t2.row), ['e', 'a'])
-        self.assertEqual(list(t2.key), ['e'])
+        self.assertEqual(list(t2.row), ["e", "a"])
+        self.assertEqual(list(t2.key), ["e"])
 
-        self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ['a', 'foo'])
-        self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).row), ['a', 'foo', 'x', 'y'])
+        self.assertEqual(list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d).row), ["a", "foo"])
+        self.assertEqual(
+            list(kt.select(kt.a, foo=kt.a + kt.b - kt.c - kt.d, **kt.g).row),
+            ["a", "foo", "x", "y"],
+        )
 
         # select no fields
         s = kt.select()
@@ -418,9 +514,9 @@ class Tests(unittest.TestCase):
         schema = hl.tstruct(status=hl.tint32, gt=hl.tcall, qPheno=hl.tint32)
 
         rows = [
-            {'status': 0, 'gt': hl.Call([0, 0]), 'qPheno': 3},
-            {'status': 0, 'gt': hl.Call([0, 1]), 'qPheno': 13},
-            {'status': 1, 'gt': hl.Call([0, 1]), 'qPheno': 20},
+            {"status": 0, "gt": hl.Call([0, 0]), "qPheno": 3},
+            {"status": 0, "gt": hl.Call([0, 1]), "qPheno": 13},
+            {"status": 1, "gt": hl.Call([0, 1]), "qPheno": 20},
         ]
 
         kt = hl.Table.parallelize(rows, schema)
@@ -455,36 +551,36 @@ class Tests(unittest.TestCase):
         assert ht_2k.semi_join(ht2_2k).count() == 3
         assert ht_2k.anti_join(ht2_2k).count() == 7
 
-        with pytest.raises(ValueError, match='semi_join: cannot join'):
+        with pytest.raises(ValueError, match="semi_join: cannot join"):
             ht.semi_join(ht2_2k)
-        with pytest.raises(ValueError, match='semi_join: cannot join'):
+        with pytest.raises(ValueError, match="semi_join: cannot join"):
             ht.semi_join(ht2.key_by())
 
-        with pytest.raises(ValueError, match='anti_join: cannot join'):
+        with pytest.raises(ValueError, match="anti_join: cannot join"):
             ht.anti_join(ht2_2k)
-        with pytest.raises(ValueError, match='anti_join: cannot join'):
+        with pytest.raises(ValueError, match="anti_join: cannot join"):
             ht.anti_join(ht2.key_by())
 
     def test_indirected_joins(self):
         kt = hl.utils.range_table(1)
-        kt = kt.annotate(a='foo')
+        kt = kt.annotate(a="foo")
 
         kt1 = hl.utils.range_table(1)
-        kt1 = kt1.annotate(a='foo', b='bar').key_by('a')
+        kt1 = kt1.annotate(a="foo", b="bar").key_by("a")
 
         kt2 = hl.utils.range_table(1)
-        kt2 = kt2.annotate(b='bar', c='baz').key_by('b')
+        kt2 = kt2.annotate(b="bar", c="baz").key_by("b")
 
         kt3 = hl.utils.range_table(1)
-        kt3 = kt3.annotate(c='baz', d='qux').key_by('c')
+        kt3 = kt3.annotate(c="baz", d="qux").key_by("c")
 
         kt4 = hl.utils.range_table(1)
-        kt4 = kt4.annotate(d='qux', e='quam').key_by('d')
+        kt4 = kt4.annotate(d="qux", e="quam").key_by("d")
 
-        assert kt.aggregate(agg.collect(kt4[kt3[kt2[kt1[kt.a].b].c].d].e)) == ['quam']
+        assert kt.aggregate(agg.collect(kt4[kt3[kt2[kt1[kt.a].b].c].d].e)) == ["quam"]
 
     def test_table_matrix_join_combinations(self):
-        m = hl.import_vcf(resource('sample.vcf'))
+        m = hl.import_vcf(resource("sample.vcf"))
         vkt = m.rows()
         assert vkt.filter(vkt.qual != m.index_rows(vkt.key).qual).count() == 0
 
@@ -492,8 +588,8 @@ class Tests(unittest.TestCase):
 
         assert m.filter_rows(m.qual != m.index_rows(m.row_key).qual).count_rows() == 0
 
-        kt5 = hl.utils.range_table(1).annotate(s='C1589').key_by('s')
-        n_C1589 = m.filter_cols(m.s[:5] == 'C1589').count_cols()
+        kt5 = hl.utils.range_table(1).annotate(s="C1589").key_by("s")
+        n_C1589 = m.filter_cols(m.s[:5] == "C1589").count_cols()
         assert n_C1589 > 1
 
         m2 = m.annotate_cols(foo=m.s[:5])
@@ -556,7 +652,8 @@ class Tests(unittest.TestCase):
         intervals = hl.utils.range_table(25)
         intervals = intervals.key_by(
             interval=hl.interval(
-                1 + (intervals.idx // 5) * 10 + (intervals.idx % 5), (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)
+                1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+                (1 + intervals.idx // 5) * 10 - (intervals.idx % 5),
             )
         )
         intervals = intervals.annotate(i=intervals.idx % 5)
@@ -573,13 +670,14 @@ class Tests(unittest.TestCase):
         intervals = hl.utils.range_table(25)
         intervals = intervals.key_by(
             interval=hl.interval(
-                1 + (intervals.idx // 5) * 10 + (intervals.idx % 5), (1 + intervals.idx // 5) * 10 - (intervals.idx % 5)
+                1 + (intervals.idx // 5) * 10 + (intervals.idx % 5),
+                (1 + intervals.idx // 5) * 10 - (intervals.idx % 5),
             ),
             k2=1,
         )
-        intervals = intervals.checkpoint('/tmp/bar.ht', overwrite=True)
+        intervals = intervals.checkpoint("/tmp/bar.ht", overwrite=True)
         intervals = intervals.annotate(i=intervals.idx % 5)
-        intervals = intervals.key_by('interval')
+        intervals = intervals.key_by("interval")
         left = left.annotate(interval_matches=intervals.index(left.idx, all_matches=True))
         self.assertTrue(
             left.all(
@@ -601,7 +699,7 @@ class Tests(unittest.TestCase):
     def test_product_join(self):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
-        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode('i').key_by('i')
+        right = right.annotate(i=hl.range(right.idx + 1, 5)).explode("i").key_by("i")
         left = left.annotate(matches=right.index(left.key, all_matches=True))
         self.assertTrue(left.all(left.matches.length() == left.idx))
         self.assertTrue(left.all(left.matches.map(lambda x: x.idx) == hl.range(0, left.idx)))
@@ -626,29 +724,50 @@ class Tests(unittest.TestCase):
             {"id": 3, "name": "z", "data": 0.01},
         ]
         s = hl.tstruct(id=hl.tint32, name=hl.tstr, data=hl.tfloat64)
-        ts = [hl.Table.parallelize(r, schema=s, key='id') for r in [d1, d2, d3]]
-        joined = hl.Table.multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
+        ts = [hl.Table.parallelize(r, schema=s, key="id") for r in [d1, d2, d3]]
+        joined = hl.Table.multi_way_zip_join(ts, "__data", "__globals").drop("__globals")
         dexpected = [
-            {"id": 0, "__data": [{"name": "a", "data": 0.0}, {"name": "d", "data": 1.1}, None]},
-            {"id": 1, "__data": [{"name": "b", "data": 3.14}, None, {"name": "f", "data": 9.99}]},
+            {
+                "id": 0,
+                "__data": [
+                    {"name": "a", "data": 0.0},
+                    {"name": "d", "data": 1.1},
+                    None,
+                ],
+            },
+            {
+                "id": 1,
+                "__data": [
+                    {"name": "b", "data": 3.14},
+                    None,
+                    {"name": "f", "data": 9.99},
+                ],
+            },
             {
                 "id": 2,
-                "__data": [{"name": "c", "data": 2.78}, {"name": "v", "data": 7.89}, {"name": "g", "data": -1.0}],
+                "__data": [
+                    {"name": "c", "data": 2.78},
+                    {"name": "v", "data": 7.89},
+                    {"name": "g", "data": -1.0},
+                ],
             },
             {"id": 3, "__data": [None, None, {"name": "z", "data": 0.01}]},
         ]
         expected = hl.Table.parallelize(
             dexpected,
-            schema=hl.tstruct(id=hl.tint32, __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64))),
-            key='id',
+            schema=hl.tstruct(
+                id=hl.tint32,
+                __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64)),
+            ),
+            key="id",
         )
         self.assertTrue(expected._same(joined))
 
-        expected2 = expected.transmute(data=expected['__data'])
-        joined_same_name = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        expected2 = expected.transmute(data=expected["__data"])
+        joined_same_name = hl.Table.multi_way_zip_join(ts, "data", "globals").drop("globals")
         self.assertTrue(expected2._same(joined_same_name))
 
-        joined_nothing = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        joined_nothing = hl.Table.multi_way_zip_join(ts, "data", "globals").drop("data", "globals")
         self.assertEqual(joined_nothing._force_count(), 4)
 
     def test_multi_way_zip_join_globals(self):
@@ -656,38 +775,51 @@ class Tests(unittest.TestCase):
         t2 = hl.utils.range_table(1).annotate_globals(x=5)
         t3 = hl.utils.range_table(1).annotate_globals(x=0)
         expected = hl.struct(__globals=hl.array([hl.struct(x=hl.missing(hl.tint32)), hl.struct(x=5), hl.struct(x=0)]))
-        joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
+        joined = hl.Table.multi_way_zip_join([t1, t2, t3], "__data", "__globals")
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
     def test_multi_way_zip_join_key_downcast(self):
-        mt = hl.import_vcf(resource('sample.vcf.bgz'))
-        mt = mt.key_rows_by('locus')
+        mt = hl.import_vcf(resource("sample.vcf.bgz"))
+        mt = mt.key_rows_by("locus")
         ht = mt.rows()
-        j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
+        j = hl.Table.multi_way_zip_join([ht, ht], "d", "g")
         j._force_count()
 
     def test_multi_way_zip_join_key_downcast2(self):
-        vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
-        vcf1 = hl.import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
-        vcfs = [vcf1.rows().key_by('locus'), vcf2.rows().key_by('locus')]
+        vcf2 = hl.import_vcf(
+            resource("gvcfs/HG00268.g.vcf.gz"),
+            force_bgz=True,
+            reference_genome="GRCh38",
+        )
+        vcf1 = hl.import_vcf(
+            resource("gvcfs/HG00096.g.vcf.gz"),
+            force_bgz=True,
+            reference_genome="GRCh38",
+        )
+        vcfs = [vcf1.rows().key_by("locus"), vcf2.rows().key_by("locus")]
         exp_count = (
             vcfs[0].count()
             + vcfs[1].count()
             - vcfs[0].aggregate(hl.agg.count_where(hl.is_defined(vcfs[1][vcfs[0].locus])))
         )
-        ht = hl.Table.multi_way_zip_join(vcfs, 'data', 'new_globals')
+        ht = hl.Table.multi_way_zip_join(vcfs, "data", "new_globals")
         assert exp_count == ht._force_count()
 
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize(
-            [{'a': 'foo', 'b': 1}, {'a': 'bar', 'b': 2}, {'a': 'bar', 'b': 2}],
+            [{"a": "foo", "b": 1}, {"a": "bar", "b": 2}, {"a": "bar", "b": 2}],
             hl.tstruct(a=hl.tstr, b=hl.tint32),
-            key='a',
+            key="a",
         )
         t2 = hl.Table.parallelize(
-            [{'t': 'foo', 'x': 3.14}, {'t': 'bar', 'x': 2.78}, {'t': 'bar', 'x': -1}, {'t': 'quam', 'x': 0}],
+            [
+                {"t": "foo", "x": 3.14},
+                {"t": "bar", "x": 2.78},
+                {"t": "bar", "x": -1},
+                {"t": "quam", "x": 0},
+            ],
             hl.tstruct(t=hl.tstr, x=hl.tfloat64),
-            key='t',
+            key="t",
         )
 
         j = t1.annotate(f=t2[t1.a].x)
@@ -704,14 +836,14 @@ class Tests(unittest.TestCase):
 
     def test_drop(self):
         kt = hl.utils.range_table(10)
-        kt = kt.annotate(sq=kt.idx**2, foo='foo', bar='bar').key_by('foo')
+        kt = kt.annotate(sq=kt.idx**2, foo="foo", bar="bar").key_by("foo")
 
-        ktd = kt.drop('idx')
-        self.assertEqual(set(ktd.row), {'foo', 'sq', 'bar'})
-        ktd = ktd.key_by().drop('foo')
+        ktd = kt.drop("idx")
+        self.assertEqual(set(ktd.row), {"foo", "sq", "bar"})
+        ktd = ktd.key_by().drop("foo")
         self.assertEqual(list(ktd.key), [])
 
-        self.assertEqual(set(kt.drop(kt['idx']).row), {'foo', 'sq', 'bar'})
+        self.assertEqual(set(kt.drop(kt["idx"]).row), {"foo", "sq", "bar"})
 
         d = kt.key_by().drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
@@ -722,7 +854,7 @@ class Tests(unittest.TestCase):
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)
-        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
+        exprs = {"a": 5, "   a    ": 5, r"\%!^!@#&#&$%#$%": [5], "$": 5, "ß": 5}
 
         df.annotate_globals(**exprs)
         df.select_globals(**exprs)
@@ -731,12 +863,12 @@ class Tests(unittest.TestCase):
         df.select(**exprs)
         df = df.transmute(**exprs)
 
-        df.explode(r'\%!^!@#&#&$%#$%')
-        df.explode(df[r'\%!^!@#&#&$%#$%'])
+        df.explode(r"\%!^!@#&#&$%#$%")
+        df.explode(df[r"\%!^!@#&#&$%#$%"])
 
-        df.drop(r'\%!^!@#&#&$%#$%')
-        df.drop(df[r'\%!^!@#&#&$%#$%'])
-        df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
+        df.drop(r"\%!^!@#&#&$%#$%")
+        df.drop(df[r"\%!^!@#&#&$%#$%"])
+        df.group_by(**{"*``81": df.a}).aggregate(c=agg.count())
 
     def test_sample(self):
         kt = hl.utils.range_table(10)
@@ -746,20 +878,20 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     def test_from_spark_works(self):
         spark_session = Env.spark_session()
-        df = spark_session.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
+        df = spark_session.createDataFrame([pyspark.sql.Row(x=5, y="foo")])
         t = hl.Table.from_spark(df)
         rows = t.collect()
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0].x, 5)
-        self.assertEqual(rows[0].y, 'foo')
+        self.assertEqual(rows[0].y, "foo")
 
     def test_from_pandas_works(self):
-        d = {'a': [1, 2], 'b': ['foo', 'bar']}
+        d = {"a": [1, 2], "b": ["foo", "bar"]}
         df = pd.DataFrame(data=d)
-        t = hl.Table.from_pandas(df, key='a')
+        t = hl.Table.from_pandas(df, key="a")
 
-        d2 = [hl.struct(a=hl.int32(1), b='foo'), hl.struct(a=hl.int32(2), b='bar')]
-        t2 = hl.Table.parallelize(d2, key='a')
+        d2 = [hl.struct(a=hl.int32(1), b="foo"), hl.struct(a=hl.int32(2), b="bar")]
+        t2 = hl.Table.parallelize(d2, key="a")
 
         self.assertTrue(t._same(t2))
 
@@ -767,9 +899,9 @@ class Tests(unittest.TestCase):
         import numpy as np
 
         d = {
-            'a': [[1, 2], [3, 4]],
-            'b': [{'a': 22, 'b': 21}, {'a': 23, 'b': 23}],
-            'c': [
+            "a": [[1, 2], [3, 4]],
+            "b": [{"a": 22, "b": 21}, {"a": 23, "b": 23}],
+            "c": [
                 np.array([np.array([1], dtype=np.int32), np.array([1], dtype=np.int32)]),
                 np.array([np.array([2], dtype=np.int32), np.array([2], dtype=np.int32)]),
             ],
@@ -778,8 +910,16 @@ class Tests(unittest.TestCase):
         t = hl.Table.from_pandas(df)
 
         d2 = [
-            hl.struct(a=hl.array([1, 2]), b=hl.literal({'a': 22, 'b': 21}), c=hl.nd.array([[1], [1]])),
-            hl.struct(a=hl.array([3, 4]), b=hl.literal({'a': 23, 'b': 23}), c=hl.nd.array([[2], [2]])),
+            hl.struct(
+                a=hl.array([1, 2]),
+                b=hl.literal({"a": 22, "b": 21}),
+                c=hl.nd.array([[1], [1]]),
+            ),
+            hl.struct(
+                a=hl.array([3, 4]),
+                b=hl.literal({"a": 23, "b": 23}),
+                c=hl.nd.array([[2], [2]]),
+            ),
         ]
         t2 = hl.Table.parallelize(d2)
 
@@ -805,10 +945,10 @@ class Tests(unittest.TestCase):
         assert [s.z for s in collected[1:-1]] == [1.0, 3.0, 4.0]
 
     def test_from_pandas_mismatched_object_rows(self):
-        d = {'a': [[1, 2], {1, 2}]}
+        d = {"a": [[1, 2], {1, 2}]}
         df = pd.DataFrame(data=d)
 
-        with pytest.raises(ExpressionException, match='cannot impute array elements'):
+        with pytest.raises(ExpressionException, match="cannot impute array elements"):
             hl.Table.from_pandas(df)
 
     def test_table_parallelize_infer_types(self):
@@ -821,7 +961,7 @@ class Tests(unittest.TestCase):
         g = hl.array([(True, False), (False, True)])
         h = hl.array([np.array([1, 2, 3]), np.array([3, 4, 5])])
         i = hl.array([hl.Call([0, 0]), hl.Call([0, 1])])
-        j = hl.array([hl.locus('20', 17434581), hl.locus('19', 15434581)])
+        j = hl.array([hl.locus("20", 17434581), hl.locus("19", 15434581)])
         k = hl.array([hl.struct(a=1, b="2"), hl.struct(a=3, b="5")])
         data = [
             {
@@ -833,7 +973,7 @@ class Tests(unittest.TestCase):
                 "g": (True, False),
                 "h": np.array([1, 2, 3]),
                 "i": hl.Call([0, 0]),
-                "j": hl.locus('20', 17434581),
+                "j": hl.locus("20", 17434581),
                 "k": hl.struct(a=1, b="2"),
             },
             {
@@ -845,15 +985,15 @@ class Tests(unittest.TestCase):
                 "g": (False, True),
                 "h": np.array([3, 4, 5]),
                 "i": hl.Call([0, 1]),
-                "j": hl.locus('19', 15434581),
+                "j": hl.locus("19", 15434581),
                 "k": hl.struct(a=3, b="5"),
             },
         ]
-        table = hl.Table.parallelize(data, key='idx')
+        table = hl.Table.parallelize(data, key="idx")
 
         ht = hl.utils.range_table(2)
         ht = ht.annotate(
-            a=hl.struct(b=a[ht.idx]['b'], c=a[ht.idx]['c']),
+            a=hl.struct(b=a[ht.idx]["b"], c=a[ht.idx]["c"]),
             d=d[ht.idx],
             e=e[ht.idx],
             f=f[ht.idx],
@@ -871,11 +1011,21 @@ class Tests(unittest.TestCase):
         e = hl.array([[[3], [4], [5]], [[1], [2], [3]]])
         f = hl.array([hl.struct(a=1, b=2), hl.struct(a=3, b=4)])
         data = [
-            {"idx": 0, "b": {"c": {1, 2, 3}, "d": {3, 4, 5}}, "e": [[3], [4], [5]], "f": {"a": 1, "b": 2}},
-            {"idx": 1, "b": {"c": {6, 7, 8}, "d": {9, 10, 11}}, "e": [[1], [2], [3]], "f": {"a": 3, "b": 4}},
+            {
+                "idx": 0,
+                "b": {"c": {1, 2, 3}, "d": {3, 4, 5}},
+                "e": [[3], [4], [5]],
+                "f": {"a": 1, "b": 2},
+            },
+            {
+                "idx": 1,
+                "b": {"c": {6, 7, 8}, "d": {9, 10, 11}},
+                "e": [[1], [2], [3]],
+                "f": {"a": 3, "b": 4},
+            },
         ]
         partial_type = {"idx": hl.tint32, "f": hl.tstruct(a=hl.tint32, b=hl.tint32)}
-        table = hl.Table.parallelize(data, partial_type=partial_type, key='idx')
+        table = hl.Table.parallelize(data, partial_type=partial_type, key="idx")
         ht = hl.utils.range_table(2)
         ht = ht.annotate(b=b[ht.idx], e=e[ht.idx], f=f[ht.idx])
 
@@ -883,57 +1033,57 @@ class Tests(unittest.TestCase):
 
     def test_table_parallelize_error_both_schema_partial_type_defined(self):
         data = [{"a": 1, "b": "a"}, {"a": 2, "b": "c"}]
-        schema = 'array<struct{a: int, b: str}>'
+        schema = "array<struct{a: int, b: str}>"
         partial_type = {"a": hl.tint32}
 
-        with pytest.raises(ValueError, match='define either schema or partial type'):
+        with pytest.raises(ValueError, match="define either schema or partial type"):
             hl.Table.parallelize(data, schema=schema, partial_type=partial_type)
 
     def test_rename(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate_globals(foo=5, fi=3)
-        kt = kt.annotate(bar=45, baz=32).key_by('bar')
-        renamed = kt.rename({'foo': 'foo2', 'bar': 'bar2'})
+        kt = kt.annotate(bar=45, baz=32).key_by("bar")
+        renamed = kt.rename({"foo": "foo2", "bar": "bar2"})
         renamed.count()
 
-        self.assertEqual(list(renamed.key), ['bar2'])
-        self.assertEqual(renamed['foo2'].dtype, kt['foo'].dtype)
-        self.assertEqual(renamed['fi'].dtype, kt['fi'].dtype)
-        self.assertEqual(renamed['bar2'].dtype, kt['bar'].dtype)
-        self.assertEqual(renamed['baz'].dtype, kt['baz'].dtype)
+        self.assertEqual(list(renamed.key), ["bar2"])
+        self.assertEqual(renamed["foo2"].dtype, kt["foo"].dtype)
+        self.assertEqual(renamed["fi"].dtype, kt["fi"].dtype)
+        self.assertEqual(renamed["bar2"].dtype, kt["bar"].dtype)
+        self.assertEqual(renamed["baz"].dtype, kt["baz"].dtype)
 
-        self.assertEqual(renamed['bar2']._indices, renamed._row_indices)
+        self.assertEqual(renamed["bar2"]._indices, renamed._row_indices)
 
-        self.assertFalse('foo' in renamed._fields)
-        self.assertFalse('bar' in renamed._fields)
-
-        with self.assertRaises(ValueError):
-            kt.rename({'foo': 'bar'})
+        self.assertFalse("foo" in renamed._fields)
+        self.assertFalse("bar" in renamed._fields)
 
         with self.assertRaises(ValueError):
-            kt.rename({'bar': 'a', 'baz': 'a'})
+            kt.rename({"foo": "bar"})
+
+        with self.assertRaises(ValueError):
+            kt.rename({"bar": "a", "baz": "a"})
 
         with self.assertRaises(LookupError):
-            kt.rename({'hello': 'a'})
+            kt.rename({"hello": "a"})
 
     def test_distinct(self):
         t1 = hl.Table.parallelize(
             [
-                {'a': 'foo', 'b': 1},
-                {'a': 'bar', 'b': 2},
-                {'a': 'bar', 'b': 2},
-                {'a': 'bar', 'b': 3},
-                {'a': 'bar', 'b': 3},
-                {'a': 'baz', 'b': 2},
-                {'a': 'baz', 'b': 0},
-                {'a': 'baz', 'b': 0},
-                {'a': 'foo', 'b': 0},
-                {'a': '1', 'b': 0},
-                {'a': '2', 'b': 0},
-                {'a': '3', 'b': 0},
+                {"a": "foo", "b": 1},
+                {"a": "bar", "b": 2},
+                {"a": "bar", "b": 2},
+                {"a": "bar", "b": 3},
+                {"a": "bar", "b": 3},
+                {"a": "baz", "b": 2},
+                {"a": "baz", "b": 0},
+                {"a": "baz", "b": 0},
+                {"a": "foo", "b": 0},
+                {"a": "1", "b": 0},
+                {"a": "2", "b": 0},
+                {"a": "3", "b": 0},
             ],
             hl.tstruct(a=hl.tstr, b=hl.tint32),
-            key='a',
+            key="a",
             n_partitions=4,
         )
 
@@ -945,29 +1095,29 @@ class Tests(unittest.TestCase):
     def test_group_by_key(self):
         t1 = hl.Table.parallelize(
             [
-                {'a': 'foo', 'b': 1},
-                {'a': 'bar', 'b': 2},
-                {'a': 'bar', 'b': 2},
-                {'a': 'bar', 'b': 3},
-                {'a': 'bar', 'b': 3},
-                {'a': 'baz', 'b': 2},
-                {'a': 'baz', 'b': 0},
-                {'a': 'baz', 'b': 0},
-                {'a': 'foo', 'b': 0},
-                {'a': '1', 'b': 0},
-                {'a': '2', 'b': 0},
-                {'a': '3', 'b': 0},
+                {"a": "foo", "b": 1},
+                {"a": "bar", "b": 2},
+                {"a": "bar", "b": 2},
+                {"a": "bar", "b": 3},
+                {"a": "bar", "b": 3},
+                {"a": "baz", "b": 2},
+                {"a": "baz", "b": 0},
+                {"a": "baz", "b": 0},
+                {"a": "foo", "b": 0},
+                {"a": "1", "b": 0},
+                {"a": "2", "b": 0},
+                {"a": "3", "b": 0},
             ],
             hl.tstruct(a=hl.tstr, b=hl.tint32),
-            key='a',
+            key="a",
             n_partitions=4,
         )
-        g = t1.collect_by_key().explode('values')
+        g = t1.collect_by_key().explode("values")
         g = g.transmute(**g.values)
         self.assertTrue(g._same(t1))
 
     def test_str_annotation_regression(self):
-        t = hl.Table.parallelize([{'alleles': ['A', 'T']}], hl.tstruct(alleles=hl.tarray(hl.tstr)))
+        t = hl.Table.parallelize([{"alleles": ["A", "T"]}], hl.tstruct(alleles=hl.tarray(hl.tstr)))
         t = t.annotate(ref=t.alleles[0])
         t._force_count()
 
@@ -976,7 +1126,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(t.globals.dtype, hl.tstruct())
         self.assertEqual(t.row.dtype, hl.tstruct(idx=hl.tint32))
         self.assertEqual(t.row_value.dtype, hl.tstruct())
-        self.assertEqual(list(t.key), ['idx'])
+        self.assertEqual(list(t.key), ["idx"])
 
         self.assertEqual([r.idx for r in t.collect()], list(range(26)))
 
@@ -992,17 +1142,23 @@ class Tests(unittest.TestCase):
 
     def test_explode_key_error(self):
         t = hl.utils.range_table(1)
-        t = t.key_by(a=['a', 'b', 'c'])
+        t = t.key_by(a=["a", "b", "c"])
         with self.assertRaises(ValueError):
-            t.explode('a')
+            t.explode("a")
 
     def test_explode_on_set(self):
         t = hl.utils.range_table(1)
-        t = t.annotate(a=hl.set(['a', 'b', 'c']))
-        t = t.explode('a')
+        t = t.annotate(a=hl.set(["a", "b", "c"]))
+        t = t.explode("a")
         self.assertEqual(
             set(t.collect()),
-            hl.eval(hl.set([hl.struct(idx=0, a='a'), hl.struct(idx=0, a='b'), hl.struct(idx=0, a='c')])),
+            hl.eval(
+                hl.set([
+                    hl.struct(idx=0, a="a"),
+                    hl.struct(idx=0, a="b"),
+                    hl.struct(idx=0, a="c"),
+                ])
+            ),
         )
 
     def test_explode_nested(self):
@@ -1015,23 +1171,23 @@ class Tests(unittest.TestCase):
         t = hl.utils.range_table(2)
         t = t.annotate(foo=hl.struct(bar=[1, 2, 3]))
         with pytest.raises(ValueError):
-            t.explode(t.foo.bar, name='baz')
+            t.explode(t.foo.bar, name="baz")
 
     def test_export(self):
         t = hl.utils.range_table(1).annotate(foo=3)
         tmp_file = new_temp_file()
         t.export(tmp_file)
 
-        with hl.hadoop_open(tmp_file, 'r') as f_in:
-            assert f_in.read() == 'idx\tfoo\n0\t3\n'
+        with hl.hadoop_open(tmp_file, "r") as f_in:
+            assert f_in.read() == "idx\tfoo\n0\t3\n"
 
     def test_export_delim(self):
         t = hl.utils.range_table(1).annotate(foo=3)
         tmp_file = new_temp_file()
-        t.export(tmp_file, delimiter=',')
+        t.export(tmp_file, delimiter=",")
 
-        with hl.hadoop_open(tmp_file, 'r') as f_in:
-            assert f_in.read() == 'idx,foo\n0,3\n'
+        with hl.hadoop_open(tmp_file, "r") as f_in:
+            assert f_in.read() == "idx,foo\n0,3\n"
 
     def test_export_parallel_manifest(self):
         t = hl.utils.range_table(10, n_partitions=8).key_by()
@@ -1039,49 +1195,49 @@ class Tests(unittest.TestCase):
         fs = hl.current_backend().fs
 
         tmp_file = new_temp_file()
-        t.export(tmp_file, parallel='separate_header')
+        t.export(tmp_file, parallel="separate_header")
 
-        with fs.open(f'{tmp_file}/shard-manifest.txt') as lines:
+        with fs.open(f"{tmp_file}/shard-manifest.txt") as lines:
             manifest_files = [os.path.join(tmp_file, line.strip()) for line in lines]
-        ht2 = hl.import_table(manifest_files, types={'idx': hl.tint32})
+        ht2 = hl.import_table(manifest_files, types={"idx": hl.tint32})
         assert ht2.collect() == values
 
         tmp_file2 = new_temp_file()
-        t.export(tmp_file2, parallel='header_per_shard')
+        t.export(tmp_file2, parallel="header_per_shard")
 
-        with fs.open(f'{tmp_file2}/shard-manifest.txt') as lines:
+        with fs.open(f"{tmp_file2}/shard-manifest.txt") as lines:
             manifest_files = [os.path.join(tmp_file2, line.strip()) for line in lines]
-        ht3 = hl.import_table(manifest_files, types={'idx': hl.tint32})
+        ht3 = hl.import_table(manifest_files, types={"idx": hl.tint32})
         assert ht3.collect() == values
 
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
-        f = new_temp_file(extension='ht')
+        f = new_temp_file(extension="ht")
         t.write(f, stage_locally=True)
         t2 = hl.read_table(f)
         self.assertTrue(t._same(t2))
 
     def test_write_no_parts(self):
         ht = hl.utils.range_table(10, n_partitions=2).filter(False)
-        path = new_temp_file(extension='ht')
-        path2 = new_temp_file(extension='ht')
+        path = new_temp_file(extension="ht")
+        path2 = new_temp_file(extension="ht")
         assert ht.checkpoint(path)._same(ht)
         hl.read_table(path).write(path2)
 
     def test_min_partitions(self):
-        assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
+        assert hl.import_table(resource("variantAnnotations.tsv"), min_partitions=50).n_partitions() == 50
 
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
         tmp_file = new_temp_file(prefix="test", extension=".tsv")
         t.export(tmp_file)
-        t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
+        t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by("idx")
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
     def test_indexed_read_1(self):
-        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t1 = hl.read_table(resource("range-table-2000-with-10-parts.ht"), _create_row_uids=True)
         t2 = hl.read_table(
-            resource('range-table-2000-with-10-parts.ht'),
+            resource("range-table-2000-with-10-parts.ht"),
             _intervals=[
                 hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
                 hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
@@ -1094,9 +1250,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
     def test_indexed_read_2(self):
-        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t1 = hl.read_table(resource("range-table-2000-with-10-parts.ht"), _create_row_uids=True)
         t2 = hl.read_table(
-            resource('range-table-2000-with-10-parts.ht'),
+            resource("range-table-2000-with-10-parts.ht"),
             _intervals=[
                 hl.Interval(start=150, end=250, includes_start=True, includes_end=False),
                 hl.Interval(start=250, end=500, includes_start=True, includes_end=False),
@@ -1108,9 +1264,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.filter((t1.idx >= 150) & (t1.idx < 500))._same(t2))
 
     def test_indexed_read_3(self):
-        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t1 = hl.read_table(resource("range-table-2000-with-10-parts.ht"), _create_row_uids=True)
         t2 = hl.read_table(
-            resource('range-table-2000-with-10-parts.ht'),
+            resource("range-table-2000-with-10-parts.ht"),
             _intervals=[
                 hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
                 hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
@@ -1123,9 +1279,9 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
 
     def test_indexed_read_4(self):
-        t1 = hl.read_table(resource('range-table-2000-with-10-parts.ht'), _create_row_uids=True)
+        t1 = hl.read_table(resource("range-table-2000-with-10-parts.ht"), _create_row_uids=True)
         t2 = hl.read_table(
-            resource('range-table-2000-with-10-parts.ht'),
+            resource("range-table-2000-with-10-parts.ht"),
             _intervals=[
                 hl.Interval(start=150, end=250, includes_start=False, includes_end=True),
                 hl.Interval(start=250, end=500, includes_start=False, includes_end=True),
@@ -1137,7 +1293,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.filter((t1.idx > 150) & (t1.idx <= 500))._same(t2))
 
     def test_order_by_parsing(self):
-        hl.utils.range_table(1).annotate(**{'a b c': 5}).order_by('a b c')._force_count()
+        hl.utils.range_table(1).annotate(**{"a b c": 5}).order_by("a b c")._force_count()
 
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
@@ -1152,30 +1308,35 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht._filter_partitions(range(3)).n_partitions(), 3)
         self.assertEqual(ht._filter_partitions([4, 5, 7], keep=False).n_partitions(), 5)
         self.assertTrue(
-            ht._same(hl.Table.union(ht._filter_partitions([0, 3, 7]), ht._filter_partitions([0, 3, 7], keep=False)))
+            ht._same(
+                hl.Table.union(
+                    ht._filter_partitions([0, 3, 7]),
+                    ht._filter_partitions([0, 3, 7], keep=False),
+                )
+            )
         )
         # ht = [0, 1, 2], [3, 4, 5], ..., [21, 22]
         self.assertEqual(ht._filter_partitions([0, 7]).idx.collect(), [0, 1, 2, 21, 22])
 
     def test_localize_entries(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32, __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
-        ref_data = [{'row_idx': i, '__entries': [{'v': i + j} for j in range(6)]} for i in range(8)]
-        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
+        ref_data = [{"row_idx": i, "__entries": [{"v": i + j} for j in range(6)]} for i in range(8)]
+        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by("row_idx")
         ref_tab = ref_tab.select_globals(__cols=[hl.struct(col_idx=i) for i in range(6)])
         mt = hl.utils.range_matrix_table(8, 6)
         mt = mt.annotate_entries(v=mt.row_idx + mt.col_idx)
-        t = mt._localize_entries('__entries', '__cols')
+        t = mt._localize_entries("__entries", "__cols")
         self.assertTrue(t._same(ref_tab))
 
     def test_localize_self_join(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32, __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
-        ref_data = [{'row_idx': i, '__entries': [{'v': i + j} for j in range(6)]} for i in range(8)]
-        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
-        ref_tab = ref_tab.join(ref_tab, how='outer')
+        ref_data = [{"row_idx": i, "__entries": [{"v": i + j} for j in range(6)]} for i in range(8)]
+        ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by("row_idx")
+        ref_tab = ref_tab.join(ref_tab, how="outer")
         mt = hl.utils.range_matrix_table(8, 6)
         mt = mt.annotate_entries(v=mt.row_idx + mt.col_idx)
-        t = mt._localize_entries('__entries', '__cols').drop('__cols')
-        t = t.join(t, how='outer')
+        t = mt._localize_entries("__entries", "__cols").drop("__cols")
+        t = t.join(t, how="outer")
         self.assertTrue(t._same(ref_tab))
 
     def test_union(self):
@@ -1205,27 +1366,27 @@ class Tests(unittest.TestCase):
     def test_nested_union_100(self):
         self.nested_union(10, 100)
 
-    @pytest.mark.skip('causes intermitted stack overflow in compiler due ')
+    @pytest.mark.skip("causes intermitted stack overflow in compiler due ")
     def test_nested_union_200(self):
         self.nested_union(10, 200)
 
     def test_union_unify(self):
         t1 = hl.utils.range_table(2)
-        t2 = t1.annotate(x=hl.int32(1), y='A')
+        t2 = t1.annotate(x=hl.int32(1), y="A")
         t3 = t1.annotate(z=(1, 2, 3), x=hl.float64(1.5))
         t4 = t1.key_by(idx=t1.idx + 10)
 
         u = t1.union(t2, t3, t4, unify=True)
 
         assert u.x.dtype == hl.tfloat64
-        assert list(u.row) == ['idx', 'x', 'y', 'z']
+        assert list(u.row) == ["idx", "x", "y", "z"]
 
         assert u.collect() == [
             hl.utils.Struct(idx=0, x=None, y=None, z=None),
-            hl.utils.Struct(idx=0, x=1.0, y='A', z=None),
+            hl.utils.Struct(idx=0, x=1.0, y="A", z=None),
             hl.utils.Struct(idx=0, x=1.5, y=None, z=(1, 2, 3)),
             hl.utils.Struct(idx=1, x=None, y=None, z=None),
-            hl.utils.Struct(idx=1, x=1.0, y='A', z=None),
+            hl.utils.Struct(idx=1, x=1.0, y="A", z=None),
             hl.utils.Struct(idx=1, x=1.5, y=None, z=(1, 2, 3)),
             hl.utils.Struct(idx=10, x=None, y=None, z=None),
             hl.utils.Struct(idx=11, x=None, y=None, z=None),
@@ -1235,8 +1396,8 @@ class Tests(unittest.TestCase):
         rt = hl.utils.range_table(10, 2)
         rt = rt.annotate(x=10 - rt.idx)
         expected = list(range(10))[::-1]
-        self.assertEqual(rt.order_by('x').idx.take(10), expected)
-        self.assertEqual(rt.order_by('x').idx.collect(), expected)
+        self.assertEqual(rt.order_by("x").idx.take(10), expected)
+        self.assertEqual(rt.order_by("x").idx.collect(), expected)
 
     def test_order_by_expr(self):
         ht = hl.utils.range_table(10, 3)
@@ -1252,19 +1413,25 @@ class Tests(unittest.TestCase):
 
         assert asc.xs[0].collect() == res_asc
         assert desc.xs[0].collect() == res_desc
-        assert [s['xs'][0] for s in desc.take(5)] == res_desc[:5]
+        assert [s["xs"][0] for s in desc.take(5)] == res_desc[:5]
 
     def test_null_joins(self):
         tr = hl.utils.range_table(7, 1)
-        table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5), hl.missing(hl.tint32), tr.idx), key2=1)
+        table1 = tr.key_by(
+            new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5), hl.missing(hl.tint32), tr.idx),
+            key2=1,
+        )
         table1 = table1.select(idx1=table1.idx)
-        table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.missing(hl.tint32), tr.idx), key2=1)
+        table2 = tr.key_by(
+            new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.missing(hl.tint32), tr.idx),
+            key2=1,
+        )
         table2 = table2.select(idx2=table2.idx)
 
-        left_join = table1.join(table2, 'left')
-        right_join = table1.join(table2, 'right')
-        inner_join = table1.join(table2, 'inner')
-        outer_join = table1.join(table2, 'outer')
+        left_join = table1.join(table2, "left")
+        right_join = table1.join(table2, "right")
+        inner_join = table1.join(table2, "inner")
+        outer_join = table1.join(table2, "outer")
 
         def row(new_key, idx1, idx2):
             return hl.Struct(new_key=new_key, key2=1, idx1=idx1, idx2=idx2)
@@ -1313,18 +1480,20 @@ class Tests(unittest.TestCase):
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(
-            new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5), hl.missing(hl.tint32), tr.idx), key2=tr.idx
+            new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5), hl.missing(hl.tint32), tr.idx),
+            key2=tr.idx,
         )
         table1 = table1.select(idx1=table1.idx)
         table2 = tr.key_by(
-            new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.missing(hl.tint32), tr.idx), key2=tr.idx
+            new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.missing(hl.tint32), tr.idx),
+            key2=tr.idx,
         )
         table2 = table2.select(idx2=table2.idx)
 
-        left_join = table1.join(table2, 'left')
-        right_join = table1.join(table2, 'right')
-        inner_join = table1.join(table2, 'inner')
-        outer_join = table1.join(table2, 'outer')
+        left_join = table1.join(table2, "left")
+        right_join = table1.join(table2, "right")
+        inner_join = table1.join(table2, "inner")
+        outer_join = table1.join(table2, "outer")
 
         def row(new_key, key2, idx1, idx2):
             return hl.Struct(new_key=new_key, key2=key2, idx1=idx1, idx2=idx2)
@@ -1380,10 +1549,10 @@ class Tests(unittest.TestCase):
         table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.missing(hl.tint32), tr.idx))
         table2 = table2.select(idx2=table2.idx)
 
-        left_join = table1.join(table2, 'left')
-        right_join = table1.join(table2, 'right')
-        inner_join = table1.join(table2, 'inner')
-        outer_join = table1.join(table2, 'outer')
+        left_join = table1.join(table2, "left")
+        right_join = table1.join(table2, "right")
+        inner_join = table1.join(table2, "inner")
+        outer_join = table1.join(table2, "outer")
 
         def row(new_key, idx1, idx2):
             return hl.Struct(new_key=new_key, idx1=idx1, idx2=idx2)
@@ -1408,7 +1577,13 @@ class Tests(unittest.TestCase):
             row(None, None, 6),
         ]
 
-        inner_join_expected = [row(0, 0, 0), row(1, 1, 1), row(2, 2, 2), row(3, 3, 3), row(5, 5, 5)]
+        inner_join_expected = [
+            row(0, 0, 0),
+            row(1, 1, 1),
+            row(2, 2, 2),
+            row(3, 3, 3),
+            row(5, 5, 5),
+        ]
 
         outer_join_expected = [
             row(0, 0, 0),
@@ -1430,11 +1605,11 @@ class Tests(unittest.TestCase):
     def get_test_join_types_hts(self):
         ht1 = hl.utils.range_table(3, 3)
         ht1 = ht1.key_by(idx=ht1.idx + 1)
-        ht1 = ht1.annotate(L_DUP=hl.range(ht1.idx)).explode('L_DUP')
+        ht1 = ht1.annotate(L_DUP=hl.range(ht1.idx)).explode("L_DUP")
 
         ht2 = hl.utils.range_table(3, 3)
         ht2 = ht2.key_by(idx=ht2.idx + 2)
-        ht2 = ht2.annotate(R_DUP=hl.range(ht2.idx)).explode('R_DUP')
+        ht2 = ht2.annotate(R_DUP=hl.range(ht2.idx)).explode("R_DUP")
         return ht1, ht2
 
     def test_join_types_ht1_is_what_we_expect(self):
@@ -1447,22 +1622,22 @@ class Tests(unittest.TestCase):
 
     def test_join_types_left(self):
         ht1, ht2 = self.get_test_join_types_hts()
-        left = ht1.join(ht2, 'left')
+        left = ht1.join(ht2, "left")
         assert left.idx.collect() == [1, *([2] * 4), *([3] * 9)]
 
     def test_join_types_right(self):
         ht1, ht2 = self.get_test_join_types_hts()
-        right = ht1.join(ht2, 'right')
+        right = ht1.join(ht2, "right")
         assert right.idx.collect() == [*([2] * 4), *([3] * 9), *([4] * 4)]
 
     def test_join_types_inner(self):
         ht1, ht2 = self.get_test_join_types_hts()
-        inner = ht1.join(ht2, 'inner')
+        inner = ht1.join(ht2, "inner")
         assert inner.idx.collect() == [*([2] * 4), *([3] * 9)]
 
     def test_join_types_outer(self):
         ht1, ht2 = self.get_test_join_types_hts()
-        outer = ht1.join(ht2, 'outer')
+        outer = ht1.join(ht2, "outer")
         assert outer.idx.collect() == [1, *([2] * 4), *([3] * 9), *([4] * 4)]
 
     def test_partitioning_rewrite(self):
@@ -1475,14 +1650,14 @@ class Tests(unittest.TestCase):
         t1 = hl.utils.range_table(10)
         t1 = t1.key_by(x=hl.struct(a=t1.idx, b=0)).flatten()
         t2 = hl.utils.range_table(10).key_by()
-        t2 = t2.annotate(**{'x.a': t2.idx, 'x.b': 0})
+        t2 = t2.annotate(**{"x.a": t2.idx, "x.b": 0})
         self.assertTrue(t1._same(t2))
 
     def test_expand_types(self):
         t1 = hl.utils.range_table(10)
-        t1 = t1.key_by(x=hl.locus('1', t1.idx + 1)).expand_types()
+        t1 = t1.key_by(x=hl.locus("1", t1.idx + 1)).expand_types()
         t2 = hl.utils.range_table(10).key_by()
-        t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx + 1))
+        t2 = t2.annotate(x=hl.struct(contig="1", position=t2.idx + 1))
         self.assertTrue(t1._same(t2))
 
     def test_expand_types_ordering(self):
@@ -1496,7 +1671,7 @@ class Tests(unittest.TestCase):
 
     def test_join_mangling(self):
         t1 = hl.utils.range_table(10).annotate_globals(glob1=5).annotate(row1=5)
-        j = t1.join(t1, 'inner')
+        j = t1.join(t1, "inner")
         assert j.row.dtype == hl.tstruct(idx=hl.tint32, row1=hl.tint32, row1_1=hl.tint32)
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
@@ -1505,8 +1680,8 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(100, 5)
         ht = ht.key_by(idx2=ht.idx // 2)
 
-        f1 = new_temp_file(extension='ht')
-        f2 = new_temp_file(extension='ht')
+        f1 = new_temp_file(extension="ht")
+        f2 = new_temp_file(extension="ht")
 
         ht.write(f1)
         ht.write(f2)
@@ -1526,14 +1701,14 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(sample=1)
         ht = ht.annotate(_row=2)
-        assert ht['sample'].dtype == hl.tint32
-        assert ht['_row'].dtype == hl.tint32
+        assert ht["sample"].dtype == hl.tint32
+        assert ht["_row"].dtype == hl.tint32
 
     def test_refs_with_process_joins(self):
         ht = hl.utils.range_table(10).annotate(foo=5)
         ht.annotate(
             a_join=ht[ht.key],
-            a_literal=hl.literal(['a']),
+            a_literal=hl.literal(["a"]),
             the_row_failure=hl.if_else(True, ht.row, hl.missing(ht.row.dtype)),
             the_global_failure=hl.if_else(True, ht.globals, hl.missing(ht.globals.dtype)),
         ).count()
@@ -1558,8 +1733,8 @@ class Tests(unittest.TestCase):
     def test_expr_collect(self):
         t = hl.utils.range_table(3)
 
-        globe = 'the globe!'
-        keys = ['Bob', 'Alice', 'David']
+        globe = "the globe!"
+        keys = ["Bob", "Alice", "David"]
         fields = [1, 0, 3]
 
         t = t.annotate_globals(globe=globe)
@@ -1575,7 +1750,7 @@ class Tests(unittest.TestCase):
         assert t.key.collect() == [hl.Struct(k=r.k) for r in ordered_rows]
         assert t.k.collect() == [r.k for r in ordered_rows]
 
-        assert (t.k + '1').collect() == [r.k + '1' for r in ordered_rows]
+        assert (t.k + "1").collect() == [r.k + "1" for r in ordered_rows]
         assert (t.field + 1).collect() == [r.field + 1 for r in ordered_rows]
 
     def test_expr_take_localize_false(self):
@@ -1625,16 +1800,16 @@ class Tests(unittest.TestCase):
         self.assertFalse(t1._same(t3))
 
     def test_rvd_key_write(self):
-        with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as tempfile:
-            ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
+        with hl.TemporaryDirectory(suffix=".ht", ensure_exists=False) as tempfile:
+            ht1 = hl.utils.range_table(1).key_by(foo="a", bar="b")
             ht1.write(tempfile)  # write ensures that table is written with both key fields
 
             ht1 = hl.read_table(tempfile)
-            ht2 = hl.utils.range_table(1).annotate(foo='a')
-            assert ht2.annotate(x=ht1.key_by('foo')[ht2.foo])._force_count() == 1
+            ht2 = hl.utils.range_table(1).annotate(foo="a")
+            assert ht2.annotate(x=ht1.key_by("foo")[ht2.foo])._force_count() == 1
 
     def test_show_long_field_names(self):
-        hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
+        hl.utils.range_table(1).annotate(**{"a" * 256: 5}).show()
 
     def test_show__various_types(self):
         ht = hl.utils.range_table(1)
@@ -1642,13 +1817,13 @@ class Tests(unittest.TestCase):
             x1=[1],
             x2=[hl.struct(y=[1])],
             x3={1},
-            x4={1: 'foo'},
-            x5={hl.struct(foo=5): 'bar'},
+            x4={1: "foo"},
+            x5={hl.struct(foo=5): "bar"},
             x6=hl.tuple(()),
-            x7=hl.tuple(('3',)),
-            x8=hl.tuple(('3', 3)),
+            x7=hl.tuple(("3",)),
+            x8=hl.tuple(("3", 3)),
             x9=4.2,
-            x10=hl.dict({'hello': 3, 'bar': 5}),
+            x10=hl.dict({"hello": 3, "bar": 5}),
             x11=(True, False),
         )
         result = ht.show(handler=str)
@@ -1683,20 +1858,22 @@ class Tests(unittest.TestCase):
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
             assert (
-                hl.import_table(resource('filter_replace.txt'), filter=filter, find_replace=find_replace)[
-                    'HEADER1'
-                ].collect()
+                hl.import_table(
+                    resource("filter_replace.txt"),
+                    filter=filter,
+                    find_replace=find_replace,
+                )["HEADER1"].collect()
                 == to
             )
 
-        assert_filter_equals('Foo', None, ['(Baz),(Qux)('])
-        assert_filter_equals(None, (r',', ''), ['(Foo(Bar))', '(Baz)(Qux)('])
-        assert_filter_equals(None, (r'\((\w+)\)', '$1'), ['(Foo,Bar)', 'Baz,Qux('])
+        assert_filter_equals("Foo", None, ["(Baz),(Qux)("])
+        assert_filter_equals(None, (r",", ""), ["(Foo(Bar))", "(Baz)(Qux)("])
+        assert_filter_equals(None, (r"\((\w+)\)", "$1"), ["(Foo,Bar)", "Baz,Qux("])
 
     def test_import_multiple_missing(self):
-        ht = hl.import_table(resource('global_list.txt'), missing=['gene1', 'gene2'], no_header=True)
+        ht = hl.import_table(resource("global_list.txt"), missing=["gene1", "gene2"], no_header=True)
 
-        assert ht.f0.collect() == [None, None, 'gene5', 'gene4', 'gene3']
+        assert ht.f0.collect() == [None, None, "gene5", "gene4", "gene3"]
 
     def test_unicode_ordering(self):
         a = hl.literal(["é", "e"])
@@ -1705,13 +1882,13 @@ class Tests(unittest.TestCase):
         assert ht.fd.collect()[0] == ["e", "é"]
 
     def test_physical_key_truncation(self):
-        path = new_temp_file(extension='ht')
-        hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
+        path = new_temp_file(extension="ht")
+        hl.import_vcf(resource("sample.vcf")).rows().key_by("locus").write(path)
         hl.read_table(path).select()._force_count()
 
     @test_timeout(batch=5 * 60)
     def test_repartition_empty_key(self):
-        data = [{'x': i} for i in range(1000)]
+        data = [{"x": i} for i in range(1000)]
         ht = hl.Table.parallelize(data, hl.tstruct(x=hl.tint32), key=None, n_partitions=11)
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
@@ -1725,7 +1902,7 @@ class Tests(unittest.TestCase):
         assert ht2.n_partitions() == 50
 
     def test_path_collision_error(self):
-        path = new_temp_file(extension='ht')
+        path = new_temp_file(extension="ht")
         ht = hl.utils.range_table(10)
         ht.write(path)
         ht = hl.read_table(path)
@@ -1745,7 +1922,7 @@ def test_large_number_of_fields():
 
 
 def test_import_many_fields():
-    assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)
+    assert_time(lambda: hl.import_table(resource("many_cols.txt")), 5)
 
 
 def test_segfault():
@@ -1753,7 +1930,7 @@ def test_segfault():
     t2 = hl.utils.range_table(3)
     t = t.annotate(foo=[0])
     t2 = t2.annotate(foo=[0])
-    joined = t.key_by('foo').join(t2.key_by('foo'))
+    joined = t.key_by("foo").join(t2.key_by("foo"))
     joined = joined.filter(hl.is_missing(joined.idx))
     assert joined.collect() == []
 
@@ -1836,12 +2013,15 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-@pytest.mark.parametrize("width", [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))])
+@pytest.mark.parametrize(
+    "width",
+    [256, 512, 1024, 2048, pytest.param(3072, marks=pytest.mark.xfail(strict=True))],
+)
 @test_timeout(6 * 60)
 def test_can_process_wide_tables(width):
-    path = resource(f'width_scale_tests/{width}.tsv')
+    path = resource(f"width_scale_tests/{width}.tsv")
     ht = hl.import_table(path, impute=False)
-    out_path = new_temp_file(extension='ht')
+    out_path = new_temp_file(extension="ht")
     ht.write(out_path)
     ht = hl.read_table(out_path)
     ht.annotate(another_field=5)._force_count()
@@ -1854,23 +2034,23 @@ def create_width_scale_files():
         n2 = n // 4
         header = []
         for i in range(n2):
-            header.append(f'i{i}')
-            header.append(f'f{i}')
-            header.append(f's{i}')
-            header.append(f'b{i}')
-        with open(resource(f'width_scale_tests/{n}.tsv'), 'w') as out:
-            out.write('\t'.join(header))
+            header.append(f"i{i}")
+            header.append(f"f{i}")
+            header.append(f"s{i}")
+            header.append(f"b{i}")
+        with open(resource(f"width_scale_tests/{n}.tsv"), "w") as out:
+            out.write("\t".join(header))
             for i in range(n_rows):
-                out.write('\n')
+                out.write("\n")
                 for j in range(n2):
                     if j > 0:
-                        out.write('\t')
+                        out.write("\t")
                     out.write(str(j))
-                    out.write('\t')
+                    out.write("\t")
                     out.write(str(i / (i + 1)))
-                    out.write('\t')
-                    out.write(f's_{i}_{j}')
-                    out.write('\t')
+                    out.write("\t")
+                    out.write(f"s_{i}_{j}")
+                    out.write("\t")
                     out.write(str(i % 2 == 0))
 
     widths = [1 << k for k in range(8, 14)]
@@ -1882,7 +2062,7 @@ def create_width_scale_files():
 def test_join_with_key_prefix():
     t = hl.utils.range_table(20, 2)
     t = t.annotate(pk=1)
-    t = t.key_by('pk', 'idx')
+    t = t.key_by("pk", "idx")
     t2 = hl.utils.range_table(20, 2)
     t2 = t2.annotate(foo=t2.idx)
     t = t.annotate(foo=t2[t.pk].foo)
@@ -1893,8 +2073,8 @@ def test_join_with_key_prefix():
 def test_join_distinct_preserves_count():
     left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
     right_pos = [1, 1, 1, 3, 4, 4, 6, 6, 8, 9, 13, 15]
-    left_table = hl.Table.parallelize([hl.struct(i=i) for i in left_pos], key='i')
-    right_table = hl.Table.parallelize([hl.struct(i=i) for i in right_pos], key='i')
+    left_table = hl.Table.parallelize([hl.struct(i=i) for i in left_pos], key="i")
+    right_table = hl.Table.parallelize([hl.struct(i=i) for i in right_pos], key="i")
     joined = left_table.annotate(r=right_table.index(left_table.i))
     n_defined, keys = joined.aggregate((hl.agg.count_where(hl.is_defined(joined.r)), hl.agg.collect(joined.i)))
     assert n_defined == 7
@@ -1913,7 +2093,7 @@ def test_join_distinct_preserves_count():
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
     t = t.annotate(n=hl.nd.arange(t.idx))
-    f = new_temp_file(extension='ht')
+    f = new_temp_file(extension="ht")
     t.write(f)
     t2 = hl.read_table(f)
     assert t._same(t2)
@@ -1936,10 +2116,22 @@ def test_group_within_partitions():
     assert len(grouped5_collected) == 2
     assert grouped5_collected == grouped6_collected
     assert grouped3_collected == [
-        hl.Struct(idx=0, grouped_fields=[hl.Struct(idx=0, sq=0.0), hl.Struct(idx=1, sq=1.0), hl.Struct(idx=2, sq=4.0)]),
+        hl.Struct(
+            idx=0,
+            grouped_fields=[
+                hl.Struct(idx=0, sq=0.0),
+                hl.Struct(idx=1, sq=1.0),
+                hl.Struct(idx=2, sq=4.0),
+            ],
+        ),
         hl.Struct(idx=3, grouped_fields=[hl.Struct(idx=3, sq=9.0), hl.Struct(idx=4, sq=16.0)]),
         hl.Struct(
-            idx=5, grouped_fields=[hl.Struct(idx=5, sq=25.0), hl.Struct(idx=6, sq=36.0), hl.Struct(idx=7, sq=49.0)]
+            idx=5,
+            grouped_fields=[
+                hl.Struct(idx=5, sq=25.0),
+                hl.Struct(idx=6, sq=36.0),
+                hl.Struct(idx=7, sq=49.0),
+            ],
         ),
         hl.Struct(idx=8, grouped_fields=[hl.Struct(idx=8, sq=64.0), hl.Struct(idx=9, sq=81.0)]),
     ]
@@ -1948,7 +2140,14 @@ def test_group_within_partitions():
     ht = hl.utils.range_table(100).naive_coalesce(10)
     filter_then_group = ht.filter(ht.idx % 2 == 0)._group_within_partitions("grouped_fields", 5).collect()
     assert filter_then_group[0] == hl.Struct(
-        idx=0, grouped_fields=[hl.Struct(idx=0), hl.Struct(idx=2), hl.Struct(idx=4), hl.Struct(idx=6), hl.Struct(idx=8)]
+        idx=0,
+        grouped_fields=[
+            hl.Struct(idx=0),
+            hl.Struct(idx=2),
+            hl.Struct(idx=4),
+            hl.Struct(idx=6),
+            hl.Struct(idx=8),
+        ],
     )
 
     # Test that names other than "grouped_fields" work
@@ -1964,7 +2163,7 @@ def test_group_within_partitions_after_explode():
 
 
 def test_group_within_partitions_after_import_vcf():
-    gt_mt = hl.import_vcf(resource('small-gt.vcf'))
+    gt_mt = hl.import_vcf(resource("small-gt.vcf"))
     ht = gt_mt.rows()
     ht = ht._group_within_partitions("grouped_fields", 16)
     ht.collect()  # Just testing import without segault
@@ -1989,21 +2188,29 @@ def test_read_write_all_types():
 def test_map_partitions_flatmap():
     ht = hl.utils.range_table(2)
     ht2 = ht._map_partitions(lambda rows: rows.flatmap(lambda r: hl._stream_range(2).map(lambda x: r.annotate(x=x))))
-    assert ht2.collect() == [hl.Struct(idx=0, x=0), hl.Struct(idx=0, x=1), hl.Struct(idx=1, x=0), hl.Struct(idx=1, x=1)]
+    assert ht2.collect() == [
+        hl.Struct(idx=0, x=0),
+        hl.Struct(idx=0, x=1),
+        hl.Struct(idx=1, x=0),
+        hl.Struct(idx=1, x=1),
+    ]
 
 
 def test_map_partitions_errors():
     ht = hl.utils.range_table(2)
-    with pytest.raises(TypeError, match='expected return type expression of type stream<struct>'):
+    with pytest.raises(TypeError, match="expected return type expression of type stream<struct>"):
         ht._map_partitions(lambda rows: 5)
-    with pytest.raises(ValueError, match='must preserve key fields'):
-        ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
+    with pytest.raises(ValueError, match="must preserve key fields"):
+        ht._map_partitions(lambda rows: rows.map(lambda r: r.drop("idx")))
 
 
 def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)
-    ht = hl.read_table(tmp_file, _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))])
+    ht = hl.read_table(
+        tmp_file,
+        _intervals=[hl.Interval(start=hl.Struct(idx=11), end=hl.Struct(idx=55))],
+    )
     ht = ht.key_by()._map_partitions(lambda partition: hl.array([hl.struct(foo=partition.to_array())])._to_stream())
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
@@ -2016,7 +2223,14 @@ def test_keys_before_scans():
     ht = ht.annotate(idx_scan=hl.scan.collect(ht.idx))
 
     ht = ht.key_by(ht.idx)
-    assert ht.idx_scan.collect() == [[5, 4, 3, 2, 1], [5, 4, 3, 2], [5, 4, 3], [5, 4], [5], []]
+    assert ht.idx_scan.collect() == [
+        [5, 4, 3, 2, 1],
+        [5, 4, 3, 2],
+        [5, 4, 3],
+        [5, 4],
+        [5],
+        [],
+    ]
 
 
 @qobtest
@@ -2085,7 +2299,7 @@ def test_interval_filter_partitions():
 
 
 def test_grouped_flatmap_streams():
-    ht = hl.import_vcf(resource('sample.vcf')).rows()
+    ht = hl.import_vcf(resource("sample.vcf")).rows()
     ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
     ht = ht._map_partitions(
         lambda part: part.grouped(8).flatmap(lambda group: group._to_stream().map(lambda x: x.annotate(z=1)))
@@ -2096,17 +2310,19 @@ def test_grouped_flatmap_streams():
 def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
     # NOTE: we cannot use Hail during test parameter initialization
     def test():
-        if table_name == 'rt':
+        if table_name == "rt":
             table = hl.utils.range_table(10, n_partitions=num_parts)
-        elif table_name == 'par':
+        elif table_name == "par":
             table = hl.Table.parallelize(
-                [hl.Struct(x=x) for x in range(10)], schema='struct{x: int32}', n_partitions=num_parts
+                [hl.Struct(x=x) for x in range(10)],
+                schema="struct{x: int32}",
+                n_partitions=num_parts,
             )
-        elif table_name == 'rtcache':
+        elif table_name == "rtcache":
             table = hl.utils.range_table(10, n_partitions=num_parts).cache()
         else:
-            assert table_name == 'chkpt'
-            table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension='ht'))
+            assert table_name == "chkpt"
+            table = hl.utils.range_table(10, n_partitions=num_parts).checkpoint(new_temp_file(extension="ht"))
         assert counter(truncator(table, n)) == min(10, n)
 
     return test
@@ -2115,13 +2331,16 @@ def make_test(table_name: str, num_parts: int, counter: str, truncator, n: int):
 head_tail_test_data = [
     pytest.param(
         make_test(table_name, num_parts, counter, truncator, n),
-        id='__'.join([table_name, str(num_parts), str(n), truncator_name, counter_name]),
+        id="__".join([table_name, str(num_parts), str(n), truncator_name, counter_name]),
     )
-    for table_name in ['rt', 'par', 'rtcache', 'chkpt']
+    for table_name in ["rt", "par", "rtcache", "chkpt"]
     for num_parts in [3, 11]
     for n in (10, 9, 11, 0, 7)
-    for truncator_name, truncator in (('head', hl.Table.head), ('tail', hl.Table.tail))
-    for counter_name, counter in (('count', hl.Table.count), ('_force_count', hl.Table._force_count))
+    for truncator_name, truncator in (("head", hl.Table.head), ("tail", hl.Table.tail))
+    for counter_name, counter in (
+        ("count", hl.Table.count),
+        ("_force_count", hl.Table._force_count),
+    )
 ]
 
 
@@ -2137,10 +2356,15 @@ def test_to_pandas():
     df_from_hail = ht.to_pandas(flatten=False)
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype='Int32'),
-        "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
+        "idx": pd.Series([0, 1, 2], dtype="Int32"),
+        "s": pd.Series(["foo", "bar", "baz"], dtype="string"),
         "nested": pd.Series(
-            [hl.Struct(foo=0, bar=[]), hl.Struct(foo=1, bar=[0]), hl.Struct(foo=2, bar=[0, 1])], dtype=object
+            [
+                hl.Struct(foo=0, bar=[]),
+                hl.Struct(foo=1, bar=[0]),
+                hl.Struct(foo=2, bar=[0, 1]),
+            ],
+            dtype=object,
         ),
     }
 
@@ -2150,22 +2374,28 @@ def test_to_pandas():
 
 def test_to_pandas_types_type_to_type():
     ht = hl.utils.range_table(3)
-    ht = ht.annotate(s=hl.array(["foo", "bar", "baz"])[ht.idx], nested=hl.struct(foo=ht.idx, bar=hl.range(ht.idx)))
-    actual = dict(ht.to_pandas(types={hl.tint32: 'Int64'}).dtypes)
-    assert isinstance(actual['idx'], pd.Int64Dtype)
-    assert isinstance(actual['s'], pd.StringDtype)
-    assert isinstance(actual['nested.foo'], pd.Int64Dtype)
-    assert actual['nested.bar'] == np.dtype('O')
+    ht = ht.annotate(
+        s=hl.array(["foo", "bar", "baz"])[ht.idx],
+        nested=hl.struct(foo=ht.idx, bar=hl.range(ht.idx)),
+    )
+    actual = dict(ht.to_pandas(types={hl.tint32: "Int64"}).dtypes)
+    assert isinstance(actual["idx"], pd.Int64Dtype)
+    assert isinstance(actual["s"], pd.StringDtype)
+    assert isinstance(actual["nested.foo"], pd.Int64Dtype)
+    assert actual["nested.bar"] == np.dtype("O")
 
 
 def test_to_pandas_types_column_to_type():
     ht = hl.utils.range_table(3)
-    ht = ht.annotate(s=hl.array(["foo", "bar", "baz"])[ht.idx], nested=hl.struct(foo=ht.idx, bar=hl.range(ht.idx)))
-    actual = dict(ht.to_pandas(types={'nested.foo': 'Int64'}).dtypes)
-    assert isinstance(actual['idx'], pd.Int32Dtype)
-    assert isinstance(actual['s'], pd.StringDtype)
-    assert isinstance(actual['nested.foo'], pd.Int64Dtype)
-    assert actual['nested.bar'] == np.dtype('O')
+    ht = ht.annotate(
+        s=hl.array(["foo", "bar", "baz"])[ht.idx],
+        nested=hl.struct(foo=ht.idx, bar=hl.range(ht.idx)),
+    )
+    actual = dict(ht.to_pandas(types={"nested.foo": "Int64"}).dtypes)
+    assert isinstance(actual["idx"], pd.Int32Dtype)
+    assert isinstance(actual["s"], pd.StringDtype)
+    assert isinstance(actual["nested.foo"], pd.Int64Dtype)
+    assert actual["nested.bar"] == np.dtype("O")
 
 
 def test_to_pandas_flatten():
@@ -2175,9 +2405,9 @@ def test_to_pandas_flatten():
     df_from_hail = ht.to_pandas(flatten=True)
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype='Int32'),
-        "s": pd.Series(["foo", "bar", "baz"], dtype='string'),
-        "nested.foo": pd.Series([0, 1, 2], dtype='Int32'),
+        "idx": pd.Series([0, 1, 2], dtype="Int32"),
+        "s": pd.Series(["foo", "bar", "baz"], dtype="string"),
+        "nested.foo": pd.Series([0, 1, 2], dtype="Int32"),
         "nested.bar": pd.Series([[], [0], [0, 1]], dtype=object),
     }
 
@@ -2193,18 +2423,18 @@ def test_to_pandas_null_ints():
         missing_float32=hl.or_missing(ht.idx == 0, hl.float32(ht.idx)),
         missing_float64=hl.or_missing(ht.idx == 0, hl.float64(ht.idx)),
         missing_bool=hl.or_missing(ht.idx == 0, True),
-        missing_str=hl.or_missing(ht.idx == 0, 'foo'),
+        missing_str=hl.or_missing(ht.idx == 0, "foo"),
     )
     df_from_hail = ht.to_pandas()
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype='Int32'),
-        "missing_int32": pd.Series([0, None, None], dtype='Int32'),
-        "missing_int64": pd.Series([0, None, None], dtype='Int64'),
-        "missing_float32": pd.Series([0, None, None], dtype='Float32'),
-        "missing_float64": pd.Series([0, None, None], dtype='Float64'),
-        "missing_bool": pd.Series([True, None, None], dtype='boolean'),
-        "missing_str": pd.Series(['foo', None, None], dtype='string'),
+        "idx": pd.Series([0, 1, 2], dtype="Int32"),
+        "missing_int32": pd.Series([0, None, None], dtype="Int32"),
+        "missing_int64": pd.Series([0, None, None], dtype="Int64"),
+        "missing_float32": pd.Series([0, None, None], dtype="Float32"),
+        "missing_float64": pd.Series([0, None, None], dtype="Float64"),
+        "missing_bool": pd.Series([True, None, None], dtype="boolean"),
+        "missing_str": pd.Series(["foo", None, None], dtype="string"),
     }
 
     df_from_python = pd.DataFrame(python_data)
@@ -2219,7 +2449,7 @@ def test_to_pandas_nd_array():
     df_from_hail = ht.to_pandas()
 
     python_data = {
-        "idx": pd.Series([0, 1, 2], dtype='Int32'),
+        "idx": pd.Series([0, 1, 2], dtype="Int32"),
         "nd": pd.Series([np.arange(3), np.arange(3), np.arange(3)]),
     }
 
@@ -2260,9 +2490,9 @@ def test_write_many():
     t = hl.utils.range_table(5)
     t = t.annotate(a=t.idx, b=t.idx * t.idx, c=hl.str(t.idx))
     with hl.TemporaryDirectory(ensure_exists=False) as f:
-        t.write_many(f, fields=('a', 'b', 'c'))
+        t.write_many(f, fields=("a", "b", "c"))
 
-        assert hl.read_table(f + '/a').collect() == [
+        assert hl.read_table(f + "/a").collect() == [
             hl.Struct(idx=0, a=0),
             hl.Struct(idx=1, a=1),
             hl.Struct(idx=2, a=2),
@@ -2270,7 +2500,7 @@ def test_write_many():
             hl.Struct(idx=4, a=4),
         ]
 
-        assert hl.read_table(f + '/b').collect() == [
+        assert hl.read_table(f + "/b").collect() == [
             hl.Struct(idx=0, b=0),
             hl.Struct(idx=1, b=1),
             hl.Struct(idx=2, b=4),
@@ -2278,21 +2508,21 @@ def test_write_many():
             hl.Struct(idx=4, b=16),
         ]
 
-        assert hl.read_table(f + '/c').collect() == [
-            hl.Struct(idx=0, c='0'),
-            hl.Struct(idx=1, c='1'),
-            hl.Struct(idx=2, c='2'),
-            hl.Struct(idx=3, c='3'),
-            hl.Struct(idx=4, c='4'),
+        assert hl.read_table(f + "/c").collect() == [
+            hl.Struct(idx=0, c="0"),
+            hl.Struct(idx=1, c="1"),
+            hl.Struct(idx=2, c="2"),
+            hl.Struct(idx=3, c="3"),
+            hl.Struct(idx=4, c="4"),
         ]
 
 
-@pytest.mark.parametrize('branching_factor', [2, 3, 5, 7, 121])
+@pytest.mark.parametrize("branching_factor", [2, 3, 5, 7, 121])
 def test_indexed_read_boundaries(branching_factor):
     with hl._with_flags(index_branching_factor=str(branching_factor)):
         t = hl.utils.range_table(1000, 4)
         t = t.filter(t.idx % 5 != 0)
-        f = new_temp_file(extension='ht')
+        f = new_temp_file(extension="ht")
         t.write(f)
         t1 = hl.read_table(
             f,
@@ -2333,7 +2563,7 @@ def test_table_randomness_join():
     t1 = t1.key_by(k=(t1.idx // 2) * 2)
     t2 = hl.utils.range_table(8, 3)
     t2 = t2.key_by(k=(t2.idx // 2) * 3)
-    t = t1.join(t2, how='outer')
+    t = t1.join(t2, how="outer")
     assert_contains_node(t, ir.TableJoin)
     assert_unique_uids(t)
 
@@ -2558,7 +2788,7 @@ def test_table_randomness_cast_matrix_to_table():
 
 def test_table_randomness_rename():
     rt = hl.utils.range_table(20, 3)
-    t = rt.rename({'idx': 'index'})
+    t = rt.rename({"idx": "index"})
     assert_contains_node(t, ir.TableRename)
     assert_unique_uids(t)
 
@@ -2570,7 +2800,7 @@ def test_table_randomness_multi_way_zip_join():
     t2 = t2.key_by(k=(t2.idx // 3) * 3)
     t3 = hl.utils.range_table(12, 3)
     t3 = t3.key_by(k=(t3.idx // 4) * 4)
-    t = hl.Table.multi_way_zip_join([t1, t2, t3], 'data', 'globals')
+    t = hl.Table.multi_way_zip_join([t1, t2, t3], "data", "globals")
     assert_contains_node(t, ir.TableMultiWayZipJoin)
     assert_unique_uids(t)
 
@@ -2608,7 +2838,7 @@ def test_order_by_desc():
 
 
 def test_query_table():
-    f = new_temp_file(extension='ht')
+    f = new_temp_file(extension="ht")
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
     ht.annotate(s=hl.str(ht.idx)).write(f)
@@ -2628,43 +2858,53 @@ def test_query_table():
     ]
 
     expected = [
-        [hl.Struct(idx=50, s='50')],
-        [hl.Struct(idx=50, s='50')],
+        [hl.Struct(idx=50, s="50")],
+        [hl.Struct(idx=50, s="50")],
         [],
         [],
         [],
         [],
-        [hl.Struct(idx=30, s='30'), hl.Struct(idx=40, s='40'), hl.Struct(idx=50, s='50'), hl.Struct(idx=60, s='60')],
-        [],
-        [],
-        [hl.Struct(idx=30, s='30'), hl.Struct(idx=40, s='40'), hl.Struct(idx=50, s='50'), hl.Struct(idx=60, s='60')],
         [
-            hl.Struct(idx=40, s='40'),
-            hl.Struct(idx=50, s='50'),
-            hl.Struct(idx=60, s='60'),
-            hl.Struct(idx=70, s='70'),
-            hl.Struct(idx=80, s='80'),
+            hl.Struct(idx=30, s="30"),
+            hl.Struct(idx=40, s="40"),
+            hl.Struct(idx=50, s="50"),
+            hl.Struct(idx=60, s="60"),
+        ],
+        [],
+        [],
+        [
+            hl.Struct(idx=30, s="30"),
+            hl.Struct(idx=40, s="40"),
+            hl.Struct(idx=50, s="50"),
+            hl.Struct(idx=60, s="60"),
+        ],
+        [
+            hl.Struct(idx=40, s="40"),
+            hl.Struct(idx=50, s="50"),
+            hl.Struct(idx=60, s="60"),
+            hl.Struct(idx=70, s="70"),
+            hl.Struct(idx=80, s="80"),
         ],
     ]
 
     assert hl.eval(queries) == expected
 
-    with pytest.raises(ValueError, match='query_table: key mismatch'):
-        hl.query_table(f, hl.interval('1', '2'))
-    with pytest.raises(ValueError, match='query_table: key mismatch: cannot query'):
-        hl.query_table(f, '1')
-    with pytest.raises(ValueError, match='query_table: cannot query with empty key'):
+    with pytest.raises(ValueError, match="query_table: key mismatch"):
+        hl.query_table(f, hl.interval("1", "2"))
+    with pytest.raises(ValueError, match="query_table: key mismatch: cannot query"):
+        hl.query_table(f, "1")
+    with pytest.raises(ValueError, match="query_table: cannot query with empty key"):
         hl.query_table(f, hl.struct())
-    with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
-        hl.query_table(f, hl.struct(idx=5, foo='s'))
+    with pytest.raises(ValueError, match="query_table: queried with 2 key field"):
+        hl.query_table(f, hl.struct(idx=5, foo="s"))
 
 
 def test_query_table_compound_key():
-    f = new_temp_file(extension='ht')
+    f = new_temp_file(extension="ht")
 
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
-    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(f)
+    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by("idx", "idx2").write(f)
 
     queries = [
         hl.query_table(f, 50),
@@ -2672,13 +2912,17 @@ def test_query_table_compound_key():
         hl.query_table(f, hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1))),
     ]
 
-    expected = [[hl.Struct(idx=50, idx2=10, s='50')], [hl.Struct(idx=50, idx2=10, s='50')], []]
+    expected = [
+        [hl.Struct(idx=50, idx2=10, s="50")],
+        [hl.Struct(idx=50, idx2=10, s="50")],
+        [],
+    ]
     assert hl.eval(queries) == expected
 
 
 @test_timeout(batch=5 * 60)
 def test_query_table_interval_key():
-    f = new_temp_file(extension='ht')
+    f = new_temp_file(extension="ht")
 
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)

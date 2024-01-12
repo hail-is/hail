@@ -33,7 +33,12 @@ def run_local_whitening_test(vec_size, num_rows, chunk_size, window_size, partit
 @test_timeout(local=5 * 60, batch=12 * 60)
 def test_local_whitening():
     run_local_whitening_test(
-        vec_size=100, num_rows=10000, chunk_size=32, window_size=64, partition_size=32 * 40, initial_num_partitions=50
+        vec_size=100,
+        num_rows=10000,
+        chunk_size=32,
+        window_size=64,
+        partition_size=32 * 40,
+        initial_num_partitions=50,
     )
 
 

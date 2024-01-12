@@ -51,30 +51,30 @@ def test_manhattan_plot():
     fig = ggplot(ht, aes(x=ht.locus, y=-hl.log10(ht.pval))) + geom_point() + geom_hline(yintercept=-math.log10(5e-8))
     pfig = fig.to_plotly()
     expected_ticks = (
-        '1',
-        '2',
-        '3',
-        '4',
-        '5',
-        '6',
-        '7',
-        '8',
-        '9',
-        '10',
-        '11',
-        '12',
-        '13',
-        '14',
-        '15',
-        '16',
-        '17',
-        '18',
-        '19',
-        '20',
-        '21',
-        '22',
-        'X',
-        'Y',
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "10",
+        "11",
+        "12",
+        "13",
+        "14",
+        "15",
+        "16",
+        "17",
+        "18",
+        "19",
+        "20",
+        "21",
+        "22",
+        "X",
+        "Y",
     )
     assert pfig.layout.xaxis.ticktext == expected_ticks
 
@@ -116,7 +116,7 @@ def test_default_scale_no_repeat_colors():
     fig = ggplot(ht, aes(x=ht.idx, y=ht.idx, color=hl.str(ht.idx))) + geom_point()
     pfig = fig.to_plotly()
 
-    scatter_colors = [scatter['marker']['color'] for scatter in pfig['data']]
+    scatter_colors = [scatter["marker"]["color"] for scatter in pfig["data"]]
     num_unique_colors = len(set(scatter_colors))
     assert num_unique_colors == num_rows
 
@@ -161,7 +161,10 @@ def test_matrix_tables():
     mt = mt.annotate_entries(entry_idx=mt.row_idx + mt.col_idx)
     for field, expected in [
         (mt.row_doubled, [(0, 0), (1, 2), (2, 4)]),
-        (mt.entry_idx, [(0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (1, 3), (2, 2), (2, 3), (2, 4)]),
+        (
+            mt.entry_idx,
+            [(0, 0), (0, 1), (0, 2), (1, 1), (1, 2), (1, 3), (2, 2), (2, 3), (2, 4)],
+        ),
     ]:
         data = (ggplot(mt, aes(x=mt.row_idx, y=field)) + geom_point()).to_plotly().data[0]
         assert len(data.x) == len(expected)

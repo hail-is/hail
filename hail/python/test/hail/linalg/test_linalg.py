@@ -9,7 +9,12 @@ from hail.expr.expressions import ExpressionException
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, HailUserError
 
-from ..helpers import fails_local_backend, fails_service_backend, fails_spark_backend, test_timeout
+from ..helpers import (
+    fails_local_backend,
+    fails_service_backend,
+    fails_spark_backend,
+    test_timeout,
+)
 
 
 def sparsify_numpy(np_mat, block_size, blocks_to_sparsify):
@@ -53,9 +58,9 @@ def _assert_close(a, b):
 
 def _assert_rectangles_eq(expected, rect_path, export_rects, binary=False):
     for i, r in enumerate(export_rects):
-        piece_path = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
+        piece_path = rect_path + "/rect-" + str(i) + "_" + "-".join(map(str, r))
 
-        with hl.current_backend().fs.open(piece_path, mode='rb' if binary else 'r') as file:
+        with hl.current_backend().fs.open(piece_path, mode="rb" if binary else "r") as file:
             expected_rect = expected[r[0] : r[1], r[2] : r[3]]
             actual_rect = (
                 np.loadtxt(file, ndmin=2)
@@ -85,7 +90,7 @@ def test_from_entry_expr_empty_parts():
 
 
 @pytest.mark.parametrize(
-    'mean_impute, center, normalize, mk_expected',
+    "mean_impute, center, normalize, mk_expected",
     [
         (
             False,
@@ -131,7 +136,7 @@ def test_from_entry_expr_options(mean_impute, center, normalize, mk_expected):
     a = np.array([0.0, 1.0, 2.0])
 
     mt = hl.utils.range_matrix_table(1, 3)
-    mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+    mt = mt.rename({"row_idx": "v", "col_idx": "s"})
 
     xs = hl.array([0.0, hl.missing(hl.tfloat), 2.0]) if mean_impute else hl.literal(a)
     mt = mt.annotate_entries(x=xs[mt.s])
@@ -145,10 +150,10 @@ def test_from_entry_expr_options(mean_impute, center, normalize, mk_expected):
 
 def test_from_entry_expr_raises_when_values_missing():
     mt = hl.utils.range_matrix_table(1, 3)
-    mt = mt.rename({'row_idx': 'v', 'col_idx': 's'})
+    mt = mt.rename({"row_idx": "v", "col_idx": "s"})
     actual = hl.array([0.0, hl.missing(hl.tfloat), 2.0])
     mt = mt.annotate_entries(x=actual[mt.s])
-    with pytest.raises(Exception, match='Cannot construct an ndarray with missing values'):
+    with pytest.raises(Exception, match="Cannot construct an ndarray with missing values"):
         BlockMatrix.from_entry_expr(mt.x)
 
 
@@ -203,7 +208,7 @@ def test_bm_transpose_to_numpy():
 
 
 @contextmanager
-def block_matrix_to_tmp_file(data: 'np.ndarray', transpose=False) -> 'str':
+def block_matrix_to_tmp_file(data: "np.ndarray", transpose=False) -> "str":
     with hl.TemporaryFilename() as f:
         (n_rows, n_cols) = data.shape
         bm = BlockMatrix._create(n_rows, n_cols, data.flatten().tolist(), block_size=4)
@@ -230,19 +235,25 @@ def test_block_matrix_from_numpy_transpose():
 def test_block_matrix_to_file_transpose():
     data = np.random.rand(10, 11)
     with block_matrix_to_tmp_file(data, transpose=True) as f:
-        _assert_eq(data.T, np.frombuffer(hl.current_backend().fs.open(f, mode='rb').read()).reshape((11, 10)))
+        _assert_eq(
+            data.T,
+            np.frombuffer(hl.current_backend().fs.open(f, mode="rb").read()).reshape((11, 10)),
+        )
 
 
 def test_numpy_read_block_matrix_to_file():
     data = np.random.rand(10, 11)
     with block_matrix_to_tmp_file(data) as f:
-        _assert_eq(data, np.frombuffer(hl.current_backend().fs.open(f, mode='rb').read()).reshape((10, 11)))
+        _assert_eq(
+            data,
+            np.frombuffer(hl.current_backend().fs.open(f, mode="rb").read()).reshape((10, 11)),
+        )
 
 
 def test_block_matrix_from_numpy_bytes():
     data = np.random.rand(10, 11)
     with hl.TemporaryFilename() as f:
-        hl.current_backend().fs.open(f, mode='wb').write(data.tobytes())
+        hl.current_backend().fs.open(f, mode="wb").write(data.tobytes())
         array = BlockMatrix.fromfile(f, 10, 11, block_size=3).to_numpy()
         _assert_eq(array, data)
 
@@ -269,19 +280,20 @@ def test_numpy_round_trip_force_blocking():
 @fails_service_backend()
 @fails_local_backend()
 @pytest.mark.parametrize(
-    'n_partitions,block_size', [(n_partitions, block_size) for n_partitions in [1, 2, 3] for block_size in [1, 2, 5]]
+    "n_partitions,block_size",
+    [(n_partitions, block_size) for n_partitions in [1, 2, 3] for block_size in [1, 2, 5]],
 )
 def test_to_table(n_partitions, block_size):
     schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
     rows = [
-        {'row_idx': 0, 'entries': [0.0, 1.0]},
-        {'row_idx': 1, 'entries': [2.0, 3.0]},
-        {'row_idx': 2, 'entries': [4.0, 5.0]},
-        {'row_idx': 3, 'entries': [6.0, 7.0]},
-        {'row_idx': 4, 'entries': [8.0, 9.0]},
+        {"row_idx": 0, "entries": [0.0, 1.0]},
+        {"row_idx": 1, "entries": [2.0, 3.0]},
+        {"row_idx": 2, "entries": [4.0, 5.0]},
+        {"row_idx": 3, "entries": [6.0, 7.0]},
+        {"row_idx": 4, "entries": [8.0, 9.0]},
     ]
 
-    expected = hl.Table.parallelize(rows, schema, 'row_idx', n_partitions)
+    expected = hl.Table.parallelize(rows, schema, "row_idx", n_partitions)
     bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], block_size)
     actual = bm.to_table_row_major(n_partitions)
     assert expected._same(actual)
@@ -296,7 +308,7 @@ def test_to_table_maximum_cache_memory_in_bytes_limits():
         bm.to_table_row_major(2, maximum_cache_memory_in_bytes=15)._force_count()
 
     assert (
-        'BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory'
+        "BlockMatrixCachedPartFile must be able to hold at least one row of every block in memory"
         in exc_info.value.args[0]
     )
 
@@ -329,7 +341,7 @@ def test_to_matrix_table_1():
     assert mt._same(mt_round_trip)
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def block_matrix_bindings():
     nc = np.array([[1.0], [2.0]])
     nr = np.array([[1.0, 2.0, 3.0]])
@@ -338,255 +350,273 @@ def block_matrix_bindings():
     nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
 
     yield {
-        'nx': np.array([[2.0]]),
-        'nc': nc,
-        'nr': nr,
-        'nm': nm,
-        'nrow': nrow,
-        'nsquare': nsquare,
-        'e': 2.0,
+        "nx": np.array([[2.0]]),
+        "nc": nc,
+        "nr": nr,
+        "nm": nm,
+        "nrow": nrow,
+        "nsquare": nsquare,
+        "e": 2.0,
         # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
         # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
         # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-        'x': BlockMatrix._create(1, 1, [2.0], block_size=8),
-        'c': BlockMatrix.from_ndarray(hl.literal(nc), block_size=8),
-        'r': BlockMatrix.from_ndarray(hl.literal(nr), block_size=8),
-        'm': BlockMatrix.from_ndarray(hl.literal(nm), block_size=8),
-        'row': BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=8),
-        'square': BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=8),
+        "x": BlockMatrix._create(1, 1, [2.0], block_size=8),
+        "c": BlockMatrix.from_ndarray(hl.literal(nc), block_size=8),
+        "r": BlockMatrix.from_ndarray(hl.literal(nr), block_size=8),
+        "m": BlockMatrix.from_ndarray(hl.literal(nm), block_size=8),
+        "row": BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=8),
+        "square": BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=8),
     }
 
 
 @pytest.mark.parametrize(
-    'x, y',
+    "x, y",
     [  # addition
-        ('+m', '0 + m'),
-        ('x + e', 'nx + e'),
-        ('c + e', 'nc + e'),
-        ('r + e', 'nr + e'),
-        ('m + e', 'nm + e'),
-        ('x + e', 'e + x'),
-        ('c + e', 'e + c'),
-        ('r + e', 'e + r'),
-        ('m + e', 'e + m'),
-        ('x + x', '2 * x'),
-        ('c + c', '2 * c'),
-        ('r + r', '2 * r'),
-        ('m + m', '2 * m'),
-        ('x + c', 'np.array([[3.0], [4.0]])'),
-        ('x + r', 'np.array([[3.0, 4.0, 5.0]])'),
-        ('x + m', 'np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]])'),
-        ('c + m', 'np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]])'),
-        ('r + m', 'np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]])'),
-        ('x + c', 'c + x'),
-        ('x + r', 'r + x'),
-        ('x + m', 'm + x'),
-        ('c + m', 'm + c'),
-        ('r + m', 'm + r'),
-        ('x + nx', 'x + x'),
-        ('x + nc', 'x + c'),
-        ('x + nr', 'x + r'),
-        ('x + nm', 'x + m'),
-        ('c + nx', 'c + x'),
-        ('c + nc', 'c + c'),
-        ('c + nm', 'c + m'),
-        ('r + nx', 'r + x'),
-        ('r + nr', 'r + r'),
-        ('r + nm', 'r + m'),
-        ('m + nx', 'm + x'),
-        ('m + nc', 'm + c'),
-        ('m + nr', 'm + r'),
-        ('m + nm', 'm + m'),
+        ("+m", "0 + m"),
+        ("x + e", "nx + e"),
+        ("c + e", "nc + e"),
+        ("r + e", "nr + e"),
+        ("m + e", "nm + e"),
+        ("x + e", "e + x"),
+        ("c + e", "e + c"),
+        ("r + e", "e + r"),
+        ("m + e", "e + m"),
+        ("x + x", "2 * x"),
+        ("c + c", "2 * c"),
+        ("r + r", "2 * r"),
+        ("m + m", "2 * m"),
+        ("x + c", "np.array([[3.0], [4.0]])"),
+        ("x + r", "np.array([[3.0, 4.0, 5.0]])"),
+        ("x + m", "np.array([[3.0, 4.0, 5.0], [6.0, 7.0, 8.0]])"),
+        ("c + m", "np.array([[2.0, 3.0, 4.0], [6.0, 7.0, 8.0]])"),
+        ("r + m", "np.array([[2.0, 4.0, 6.0], [5.0, 7.0, 9.0]])"),
+        ("x + c", "c + x"),
+        ("x + r", "r + x"),
+        ("x + m", "m + x"),
+        ("c + m", "m + c"),
+        ("r + m", "m + r"),
+        ("x + nx", "x + x"),
+        ("x + nc", "x + c"),
+        ("x + nr", "x + r"),
+        ("x + nm", "x + m"),
+        ("c + nx", "c + x"),
+        ("c + nc", "c + c"),
+        ("c + nm", "c + m"),
+        ("r + nx", "r + x"),
+        ("r + nr", "r + r"),
+        ("r + nm", "r + m"),
+        ("m + nx", "m + x"),
+        ("m + nc", "m + c"),
+        ("m + nr", "m + r"),
+        ("m + nm", "m + m"),
         # subtraction
-        ('-m', '0 - m'),
-        ('x - e', 'nx - e'),
-        ('c - e', 'nc - e'),
-        ('r - e', 'nr - e'),
-        ('m - e', 'nm - e'),
-        ('x - e', '-(e - x)'),
-        ('c - e', '-(e - c)'),
-        ('r - e', '-(e - r)'),
-        ('m - e', '-(e - m)'),
-        ('x - x', 'np.zeros((1, 1))'),
-        ('c - c', 'np.zeros((2, 1))'),
-        ('r - r', 'np.zeros((1, 3))'),
-        ('m - m', 'np.zeros((2, 3))'),
-        ('x - c', 'np.array([[1.0], [0.0]])'),
-        ('x - r', 'np.array([[1.0, 0.0, -1.0]])'),
-        ('x - m', 'np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]])'),
-        ('c - m', 'np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]])'),
-        ('r - m', 'np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]])'),
-        ('x - c', '-(c - x)'),
-        ('x - r', '-(r - x)'),
-        ('x - m', '-(m - x)'),
-        ('c - m', '-(m - c)'),
-        ('r - m', '-(m - r)'),
-        ('x - nx', 'x - x'),
-        ('x - nc', 'x - c'),
-        ('x - nr', 'x - r'),
-        ('x - nm', 'x - m'),
-        ('c - nx', 'c - x'),
-        ('c - nc', 'c - c'),
-        ('c - nm', 'c - m'),
-        ('r - nx', 'r - x'),
-        ('r - nr', 'r - r'),
-        ('r - nm', 'r - m'),
-        ('m - nx', 'm - x'),
-        ('m - nc', 'm - c'),
-        ('m - nr', 'm - r'),
-        ('m - nm', 'm - m'),
+        ("-m", "0 - m"),
+        ("x - e", "nx - e"),
+        ("c - e", "nc - e"),
+        ("r - e", "nr - e"),
+        ("m - e", "nm - e"),
+        ("x - e", "-(e - x)"),
+        ("c - e", "-(e - c)"),
+        ("r - e", "-(e - r)"),
+        ("m - e", "-(e - m)"),
+        ("x - x", "np.zeros((1, 1))"),
+        ("c - c", "np.zeros((2, 1))"),
+        ("r - r", "np.zeros((1, 3))"),
+        ("m - m", "np.zeros((2, 3))"),
+        ("x - c", "np.array([[1.0], [0.0]])"),
+        ("x - r", "np.array([[1.0, 0.0, -1.0]])"),
+        ("x - m", "np.array([[1.0, 0.0, -1.0], [-2.0, -3.0, -4.0]])"),
+        ("c - m", "np.array([[0.0, -1.0, -2.0], [-2.0, -3.0, -4.0]])"),
+        ("r - m", "np.array([[0.0, 0.0, 0.0], [-3.0, -3.0, -3.0]])"),
+        ("x - c", "-(c - x)"),
+        ("x - r", "-(r - x)"),
+        ("x - m", "-(m - x)"),
+        ("c - m", "-(m - c)"),
+        ("r - m", "-(m - r)"),
+        ("x - nx", "x - x"),
+        ("x - nc", "x - c"),
+        ("x - nr", "x - r"),
+        ("x - nm", "x - m"),
+        ("c - nx", "c - x"),
+        ("c - nc", "c - c"),
+        ("c - nm", "c - m"),
+        ("r - nx", "r - x"),
+        ("r - nr", "r - r"),
+        ("r - nm", "r - m"),
+        ("m - nx", "m - x"),
+        ("m - nc", "m - c"),
+        ("m - nr", "m - r"),
+        ("m - nm", "m - m"),
         # multiplication
-        ('x * e', 'nx * e'),
-        ('c * e', 'nc * e'),
-        ('r * e', 'nr * e'),
-        ('m * e', 'nm * e'),
-        ('x * e', 'e * x'),
-        ('c * e', 'e * c'),
-        ('r * e', 'e * r'),
-        ('m * e', 'e * m'),
-        ('x * x', 'x ** 2'),
-        ('c * c', 'c ** 2'),
-        ('r * r', 'r ** 2'),
-        ('m * m', 'm ** 2'),
-        ('x * c', 'np.array([[2.0], [4.0]])'),
-        ('x * r', 'np.array([[2.0, 4.0, 6.0]])'),
-        ('x * m', 'np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]])'),
-        ('c * m', 'np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]])'),
-        ('r * m', 'np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]])'),
-        ('x * c', 'c * x'),
-        ('x * r', 'r * x'),
-        ('x * m', 'm * x'),
-        ('c * m', 'm * c'),
-        ('r * m', 'm * r'),
-        ('x * nx', 'x * x'),
-        ('x * nc', 'x * c'),
-        ('x * nr', 'x * r'),
-        ('x * nm', 'x * m'),
-        ('c * nx', 'c * x'),
-        ('c * nc', 'c * c'),
-        ('c * nm', 'c * m'),
-        ('r * nx', 'r * x'),
-        ('r * nr', 'r * r'),
-        ('r * nm', 'r * m'),
-        ('m * nx', 'm * x'),
-        ('m * nc', 'm * c'),
-        ('m * nr', 'm * r'),
-        ('m * nm', 'm * m'),
-        ('m.T', 'nm.T'),
-        ('m.T', 'nm.T'),
-        ('row.T', 'nrow.T'),
-        ('m @ m.T', 'nm @ nm.T'),
-        ('m @ nm.T', 'nm @ nm.T'),
-        ('row @ row.T', 'nrow @ nrow.T'),
-        ('row @ nrow.T', 'nrow @ nrow.T'),
-        ('m.T @ m', 'nm.T @ nm'),
-        ('m.T @ nm', 'nm.T @ nm'),
-        ('row.T @ row', 'nrow.T @ nrow'),
-        ('row.T @ nrow', 'nrow.T @ nrow'),
+        ("x * e", "nx * e"),
+        ("c * e", "nc * e"),
+        ("r * e", "nr * e"),
+        ("m * e", "nm * e"),
+        ("x * e", "e * x"),
+        ("c * e", "e * c"),
+        ("r * e", "e * r"),
+        ("m * e", "e * m"),
+        ("x * x", "x ** 2"),
+        ("c * c", "c ** 2"),
+        ("r * r", "r ** 2"),
+        ("m * m", "m ** 2"),
+        ("x * c", "np.array([[2.0], [4.0]])"),
+        ("x * r", "np.array([[2.0, 4.0, 6.0]])"),
+        ("x * m", "np.array([[2.0, 4.0, 6.0], [8.0, 10.0, 12.0]])"),
+        ("c * m", "np.array([[1.0, 2.0, 3.0], [8.0, 10.0, 12.0]])"),
+        ("r * m", "np.array([[1.0, 4.0, 9.0], [4.0, 10.0, 18.0]])"),
+        ("x * c", "c * x"),
+        ("x * r", "r * x"),
+        ("x * m", "m * x"),
+        ("c * m", "m * c"),
+        ("r * m", "m * r"),
+        ("x * nx", "x * x"),
+        ("x * nc", "x * c"),
+        ("x * nr", "x * r"),
+        ("x * nm", "x * m"),
+        ("c * nx", "c * x"),
+        ("c * nc", "c * c"),
+        ("c * nm", "c * m"),
+        ("r * nx", "r * x"),
+        ("r * nr", "r * r"),
+        ("r * nm", "r * m"),
+        ("m * nx", "m * x"),
+        ("m * nc", "m * c"),
+        ("m * nr", "m * r"),
+        ("m * nm", "m * m"),
+        ("m.T", "nm.T"),
+        ("m.T", "nm.T"),
+        ("row.T", "nrow.T"),
+        ("m @ m.T", "nm @ nm.T"),
+        ("m @ nm.T", "nm @ nm.T"),
+        ("row @ row.T", "nrow @ nrow.T"),
+        ("row @ nrow.T", "nrow @ nrow.T"),
+        ("m.T @ m", "nm.T @ nm"),
+        ("m.T @ nm", "nm.T @ nm"),
+        ("row.T @ row", "nrow.T @ nrow"),
+        ("row.T @ nrow", "nrow.T @ nrow"),
     ],
 )
 def test_block_matrix_elementwise_arithmetic(block_matrix_bindings, x, y):
     lhs = eval(x, block_matrix_bindings)
-    rhs = eval(y, {'np': np}, block_matrix_bindings)
+    rhs = eval(y, {"np": np}, block_matrix_bindings)
     _assert_eq(lhs, rhs)
 
 
 @pytest.mark.parametrize(
-    'x, y',
+    "x, y",
     [  # division
-        ('x / e', 'nx / e'),
-        ('c / e', 'nc / e'),
-        ('r / e', 'nr / e'),
-        ('m / e', 'nm / e'),
-        ('x / e', '1 / (e / x)'),
-        ('c / e', '1 / (e / c)'),
-        ('r / e', '1 / (e / r)'),
-        ('m / e', '1 / (e / m)'),
-        ('x / x', 'np.ones((1, 1))'),
-        ('c / c', 'np.ones((2, 1))'),
-        ('r / r', 'np.ones((1, 3))'),
-        ('m / m', 'np.ones((2, 3))'),
-        ('x / c', 'np.array([[2 / 1.0], [2 / 2.0]])'),
-        ('x / r', 'np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]])'),
-        ('x / m', 'np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]])'),
-        ('c / m', 'np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]])'),
-        ('r / m', 'np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]])'),
-        ('x / c', '1 / (c / x)'),
-        ('x / r', '1 / (r / x)'),
-        ('x / m', '1 / (m / x)'),
-        ('c / m', '1 / (m / c)'),
-        ('r / m', '1 / (m / r)'),
-        ('x / nx', 'x / x'),
-        ('x / nc', 'x / c'),
-        ('x / nr', 'x / r'),
-        ('x / nm', 'x / m'),
-        ('c / nx', 'c / x'),
-        ('c / nc', 'c / c'),
-        ('c / nm', 'c / m'),
-        ('r / nx', 'r / x'),
-        ('r / nr', 'r / r'),
-        ('r / nm', 'r / m'),
-        ('m / nx', 'm / x'),
-        ('m / nc', 'm / c'),
-        ('m / nr', 'm / r'),
-        ('m / nm', 'm / m'),
+        ("x / e", "nx / e"),
+        ("c / e", "nc / e"),
+        ("r / e", "nr / e"),
+        ("m / e", "nm / e"),
+        ("x / e", "1 / (e / x)"),
+        ("c / e", "1 / (e / c)"),
+        ("r / e", "1 / (e / r)"),
+        ("m / e", "1 / (e / m)"),
+        ("x / x", "np.ones((1, 1))"),
+        ("c / c", "np.ones((2, 1))"),
+        ("r / r", "np.ones((1, 3))"),
+        ("m / m", "np.ones((2, 3))"),
+        ("x / c", "np.array([[2 / 1.0], [2 / 2.0]])"),
+        ("x / r", "np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0]])"),
+        (
+            "x / m",
+            "np.array([[2 / 1.0, 2 / 2.0, 2 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]])",
+        ),
+        (
+            "c / m",
+            "np.array([[1 / 1.0, 1 / 2.0, 1 / 3.0], [2 / 4.0, 2 / 5.0, 2 / 6.0]])",
+        ),
+        (
+            "r / m",
+            "np.array([[1 / 1.0, 2 / 2.0, 3 / 3.0], [1 / 4.0, 2 / 5.0, 3 / 6.0]])",
+        ),
+        ("x / c", "1 / (c / x)"),
+        ("x / r", "1 / (r / x)"),
+        ("x / m", "1 / (m / x)"),
+        ("c / m", "1 / (m / c)"),
+        ("r / m", "1 / (m / r)"),
+        ("x / nx", "x / x"),
+        ("x / nc", "x / c"),
+        ("x / nr", "x / r"),
+        ("x / nm", "x / m"),
+        ("c / nx", "c / x"),
+        ("c / nc", "c / c"),
+        ("c / nm", "c / m"),
+        ("r / nx", "r / x"),
+        ("r / nr", "r / r"),
+        ("r / nm", "r / m"),
+        ("m / nx", "m / x"),
+        ("m / nc", "m / c"),
+        ("m / nr", "m / r"),
+        ("m / nm", "m / m"),
         # other ops
-        ('m ** 3', 'nm ** 3'),
-        ('m.sqrt()', 'np.sqrt(nm)'),
-        ('m.ceil()', 'np.ceil(nm)'),
-        ('m.floor()', 'np.floor(nm)'),
-        ('m.log()', 'np.log(nm)'),
-        ('(m - 4).abs()', 'np.abs(nm - 4)'),
+        ("m ** 3", "nm ** 3"),
+        ("m.sqrt()", "np.sqrt(nm)"),
+        ("m.ceil()", "np.ceil(nm)"),
+        ("m.floor()", "np.floor(nm)"),
+        ("m.log()", "np.log(nm)"),
+        ("(m - 4).abs()", "np.abs(nm - 4)"),
     ],
 )
 def test_block_matrix_elementwise_close_arithmetic(block_matrix_bindings, x, y):
     lhs = eval(x, block_matrix_bindings)
-    rhs = eval(y, {'np': np}, block_matrix_bindings)
+    rhs = eval(y, {"np": np}, block_matrix_bindings)
     _assert_close(lhs, rhs)
 
 
 @pytest.mark.parametrize(
-    'expr, expectation',
+    "expr, expectation",
     [
-        ('x + np.array([\'one\'], dtype=str)', pytest.raises(TypeError)),
-        ('m @ m ', pytest.raises(ValueError)),
-        ('m @ nm', pytest.raises(ValueError)),
+        ("x + np.array(['one'], dtype=str)", pytest.raises(TypeError)),
+        ("m @ m ", pytest.raises(ValueError)),
+        ("m @ nm", pytest.raises(ValueError)),
     ],
 )
 def test_block_matrix_raises(block_matrix_bindings, expr, expectation):
     with expectation:
-        eval(expr, {'np': np}, block_matrix_bindings)
+        eval(expr, {"np": np}, block_matrix_bindings)
 
 
 @pytest.mark.parametrize(
-    'x, y',
+    "x, y",
     [
-        ('m.sum(axis=0).T', 'np.array([[5.0], [7.0], [9.0]])'),
-        ('m.sum(axis=1).T', 'np.array([[6.0, 15.0]])'),
-        ('m.sum(axis=0).T + row', 'np.array([[12.0, 13.0, 14.0],[14.0, 15.0, 16.0],[16.0, 17.0, 18.0]])'),
-        ('m.sum(axis=0) + row.T', 'np.array([[12.0, 14.0, 16.0],[13.0, 15.0, 17.0],[14.0, 16.0, 18.0]])'),
-        ('square.sum(axis=0).T + square.sum(axis=1)', 'np.array([[18.0], [30.0], [42.0]])'),
+        ("m.sum(axis=0).T", "np.array([[5.0], [7.0], [9.0]])"),
+        ("m.sum(axis=1).T", "np.array([[6.0, 15.0]])"),
+        (
+            "m.sum(axis=0).T + row",
+            "np.array([[12.0, 13.0, 14.0],[14.0, 15.0, 16.0],[16.0, 17.0, 18.0]])",
+        ),
+        (
+            "m.sum(axis=0) + row.T",
+            "np.array([[12.0, 14.0, 16.0],[13.0, 15.0, 17.0],[14.0, 16.0, 18.0]])",
+        ),
+        (
+            "square.sum(axis=0).T + square.sum(axis=1)",
+            "np.array([[18.0], [30.0], [42.0]])",
+        ),
     ],
 )
 def test_matrix_sums(block_matrix_bindings, x, y):
     lhs = eval(x, block_matrix_bindings)
-    rhs = eval(y, {'np': np}, block_matrix_bindings)
+    rhs = eval(y, {"np": np}, block_matrix_bindings)
     _assert_eq(lhs, rhs)
 
 
 @fails_service_backend()
 @fails_local_backend()
 @pytest.mark.parametrize(
-    'x, y',
+    "x, y",
     [
-        ('m.tree_matmul(m.T, splits=2)', 'nm @ nm.T'),
-        ('m.tree_matmul(nm.T, splits=2)', 'nm @ nm.T'),
-        ('row.tree_matmul(row.T, splits=2)', 'nrow @ nrow.T'),
-        ('row.tree_matmul(nrow.T, splits=2)', 'nrow @ nrow.T'),
-        ('m.T.tree_matmul(m, splits=2)', 'nm.T @ nm'),
-        ('m.T.tree_matmul(nm, splits=2)', 'nm.T @ nm'),
-        ('row.T.tree_matmul(row, splits=2)', 'nrow.T @ nrow'),
-        ('row.T.tree_matmul(nrow, splits=2)', 'nrow.T @ nrow'),
+        ("m.tree_matmul(m.T, splits=2)", "nm @ nm.T"),
+        ("m.tree_matmul(nm.T, splits=2)", "nm @ nm.T"),
+        ("row.tree_matmul(row.T, splits=2)", "nrow @ nrow.T"),
+        ("row.tree_matmul(nrow.T, splits=2)", "nrow @ nrow.T"),
+        ("m.T.tree_matmul(m, splits=2)", "nm.T @ nm"),
+        ("m.T.tree_matmul(nm, splits=2)", "nm.T @ nm"),
+        ("row.T.tree_matmul(row, splits=2)", "nrow.T @ nrow"),
+        ("row.T.tree_matmul(nrow, splits=2)", "nrow.T @ nrow"),
     ],
 )
 def test_tree_matmul(block_matrix_bindings, x, y):
@@ -598,7 +628,7 @@ def test_tree_matmul(block_matrix_bindings, x, y):
 @fails_service_backend()
 @fails_local_backend()
 @pytest.mark.parametrize(
-    'nrows,ncols,block_size,split_size',
+    "nrows,ncols,block_size,split_size",
     [
         (nrows, ncols, block_size, split_size)
         for (nrows, ncols) in [(50, 60), (60, 25)]
@@ -631,7 +661,7 @@ def test_sum():
 
 
 @fails_local_backend
-@fails_service_backend(reason='ExecuteContext.scoped requires SparkBackend')
+@fails_service_backend(reason="ExecuteContext.scoped requires SparkBackend")
 def test_sum_with_sparsify():
     nd = np.zeros(shape=(5, 7))
     nd[2, 4] = 1.0
@@ -655,7 +685,7 @@ def test_sum_with_sparsify():
     assert_sums_agree(bm4, nd4)
 
 
-@pytest.mark.parametrize('indices', [(0, 0), (5, 7), (-3, 9), (-8, -10)])
+@pytest.mark.parametrize("indices", [(0, 0), (5, 7), (-3, 9), (-8, -10)])
 def test_slicing_0(indices):
     nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
     bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
@@ -663,7 +693,7 @@ def test_slicing_0(indices):
 
 
 @pytest.mark.parametrize(
-    'indices',
+    "indices",
     [
         (slice(0, 8), slice(0, 10)),
         (slice(0, 8, 2), slice(0, 10, 2)),
@@ -684,7 +714,7 @@ def test_slicing_1(indices):
 
 
 @pytest.mark.parametrize(
-    'indices, axis',
+    "indices, axis",
     [
         ((0, slice(3, 4)), 0),
         ((1, slice(3, 4)), 0),
@@ -705,23 +735,23 @@ def test_slicing_2(indices, axis):
 
 
 @pytest.mark.parametrize(
-    'expr',
+    "expr",
     [
-        'square[0, ]',
-        'square[9, 0]',
-        'square[-9, 0]',
-        'square[0, 11]',
-        'square[0, -11]',
-        'square[::-1, 0]',
-        'square[0, ::-1]',
-        'square[:0, 0]',
-        'square[0, :0]',
-        'square[0:9, 0]',
-        'square[-9:, 0]',
-        'square[:-9, 0]',
-        'square[0, :11]',
-        'square[0, -11:]',
-        'square[0, :-11] ',
+        "square[0, ]",
+        "square[9, 0]",
+        "square[-9, 0]",
+        "square[0, 11]",
+        "square[0, -11]",
+        "square[::-1, 0]",
+        "square[0, ::-1]",
+        "square[:0, 0]",
+        "square[0, :0]",
+        "square[0:9, 0]",
+        "square[-9:, 0]",
+        "square[:-9, 0]",
+        "square[0, :11]",
+        "square[0, -11:]",
+        "square[0, :-11] ",
     ],
 )
 def test_block_matrix_illegal_indexing(block_matrix_bindings, expr):
@@ -765,22 +795,37 @@ def test_slices_with_sparsify():
 
 
 def test_sparsify_row_intervals_0():
-    nd = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]])
+    nd = np.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+        [13.0, 14.0, 15.0, 16.0],
+    ])
     bm = BlockMatrix.from_numpy(nd, block_size=2)
 
     _assert_eq(
         bm.sparsify_row_intervals(starts=[1, 0, 2, 2], stops=[2, 0, 3, 4]),
-        np.array([[0.0, 2.0, 0.0, 0.0], [0.0, 0.0, 0.0, 0.0], [0.0, 0.0, 11.0, 0.0], [0.0, 0.0, 15.0, 16.0]]),
+        np.array([
+            [0.0, 2.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 11.0, 0.0],
+            [0.0, 0.0, 15.0, 16.0],
+        ]),
     )
 
     _assert_eq(
         bm.sparsify_row_intervals(starts=[1, 0, 2, 2], stops=[2, 0, 3, 4], blocks_only=True),
-        np.array([[1.0, 2.0, 0.0, 0.0], [5.0, 6.0, 0.0, 0.0], [0.0, 0.0, 11.0, 12.0], [0.0, 0.0, 15.0, 16.0]]),
+        np.array([
+            [1.0, 2.0, 0.0, 0.0],
+            [5.0, 6.0, 0.0, 0.0],
+            [0.0, 0.0, 11.0, 12.0],
+            [0.0, 0.0, 15.0, 16.0],
+        ]),
     )
 
 
 @pytest.mark.parametrize(
-    'starts, stops',
+    "starts, stops",
     [
         ([0, 1, 2, 3, 4, 5, 6, 7], [1, 2, 3, 4, 5, 6, 7, 8]),
         ([0, 0, 5, 3, 4, 5, 8, 2], [9, 0, 5, 3, 4, 5, 9, 5]),
@@ -801,21 +846,36 @@ def test_row_intervals_1(starts, stops):
 
 
 def test_sparsify_band_0():
-    nd = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]])
+    nd = np.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+        [13.0, 14.0, 15.0, 16.0],
+    ])
     bm = BlockMatrix.from_numpy(nd, block_size=2)
 
     _assert_eq(
         bm.sparsify_band(lower=-1, upper=2),
-        np.array([[1.0, 2.0, 3.0, 0.0], [5.0, 6.0, 7.0, 8.0], [0.0, 10.0, 11.0, 12.0], [0.0, 0.0, 15.0, 16.0]]),
+        np.array([
+            [1.0, 2.0, 3.0, 0.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [0.0, 10.0, 11.0, 12.0],
+            [0.0, 0.0, 15.0, 16.0],
+        ]),
     )
 
     _assert_eq(
         bm.sparsify_band(lower=0, upper=0, blocks_only=True),
-        np.array([[1.0, 2.0, 0.0, 0.0], [5.0, 6.0, 0.0, 0.0], [0.0, 0.0, 11.0, 12.0], [0.0, 0.0, 15.0, 16.0]]),
+        np.array([
+            [1.0, 2.0, 0.0, 0.0],
+            [5.0, 6.0, 0.0, 0.0],
+            [0.0, 0.0, 11.0, 12.0],
+            [0.0, 0.0, 15.0, 16.0],
+        ]),
     )
 
 
-@pytest.mark.parametrize('lower, upper', [(0, 0), (1, 1), (2, 2), (-5, 5), (-7, 0), (0, 9), (-100, 100)])
+@pytest.mark.parametrize("lower, upper", [(0, 0), (1, 1), (2, 2), (-5, 5), (-7, 0), (0, 9), (-100, 100)])
 def test_sparsify_band_1(lower, upper):
     nd2 = np.arange(0, 80, dtype=float).reshape(8, 10)
     bm2 = BlockMatrix.from_numpy(nd2, block_size=3)
@@ -825,7 +885,12 @@ def test_sparsify_band_1(lower, upper):
 
 
 def test_sparsify_triangle():
-    nd = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]])
+    nd = np.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+        [13.0, 14.0, 15.0, 16.0],
+    ])
     bm = BlockMatrix.from_numpy(nd, block_size=2)
 
     # FIXME doesn't work in service, if test_is_sparse works, uncomment below
@@ -834,27 +899,52 @@ def test_sparsify_triangle():
 
     _assert_eq(
         bm.sparsify_triangle(),
-        np.array([[1.0, 2.0, 3.0, 4.0], [0.0, 6.0, 7.0, 8.0], [0.0, 0.0, 11.0, 12.0], [0.0, 0.0, 0.0, 16.0]]),
+        np.array([
+            [1.0, 2.0, 3.0, 4.0],
+            [0.0, 6.0, 7.0, 8.0],
+            [0.0, 0.0, 11.0, 12.0],
+            [0.0, 0.0, 0.0, 16.0],
+        ]),
     )
 
     _assert_eq(
         bm.sparsify_triangle(lower=True),
-        np.array([[1.0, 0.0, 0.0, 0.0], [5.0, 6.0, 0.0, 0.0], [9.0, 10.0, 11.0, 0.0], [13.0, 14.0, 15.0, 16.0]]),
+        np.array([
+            [1.0, 0.0, 0.0, 0.0],
+            [5.0, 6.0, 0.0, 0.0],
+            [9.0, 10.0, 11.0, 0.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ]),
     )
 
     _assert_eq(
         bm.sparsify_triangle(blocks_only=True),
-        np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [0.0, 0.0, 11.0, 12.0], [0.0, 0.0, 15.0, 16.0]]),
+        np.array([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [0.0, 0.0, 11.0, 12.0],
+            [0.0, 0.0, 15.0, 16.0],
+        ]),
     )
 
 
 def test_sparsify_rectangles():
-    nd = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]])
+    nd = np.array([
+        [1.0, 2.0, 3.0, 4.0],
+        [5.0, 6.0, 7.0, 8.0],
+        [9.0, 10.0, 11.0, 12.0],
+        [13.0, 14.0, 15.0, 16.0],
+    ])
     bm = BlockMatrix.from_numpy(nd, block_size=2)
 
     _assert_eq(
         bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]),
-        np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 0.0, 0.0], [13.0, 14.0, 0.0, 0.0]]),
+        np.array([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 0.0, 0.0],
+            [13.0, 14.0, 0.0, 0.0],
+        ]),
     )
 
     _assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
@@ -863,7 +953,7 @@ def test_sparsify_rectangles():
 @fails_service_backend()
 @fails_local_backend()
 @pytest.mark.parametrize(
-    'rects,block_size,binary',
+    "rects,block_size,binary",
     [
         (rects, block_size, binary)
         for binary in [False, True]
@@ -897,13 +987,23 @@ def test_export_rectangles(rects, block_size, binary):
 @fails_local_backend()
 def test_export_rectangles_sparse():
     with hl.TemporaryDirectory() as rect_uri:
-        nd = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]])
+        nd = np.array([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ])
         bm = BlockMatrix.from_numpy(nd, block_size=2)
         sparsify_rects = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
         export_rects = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4], [2, 4, 2, 4]]
         bm.sparsify_rectangles(sparsify_rects).export_rectangles(rect_uri, export_rects)
 
-        expected = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 0.0, 0.0], [13.0, 14.0, 0.0, 0.0]])
+        expected = np.array([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 0.0, 0.0],
+            [13.0, 14.0, 0.0, 0.0],
+        ])
 
         _assert_rectangles_eq(expected, rect_uri, export_rects)
 
@@ -912,7 +1012,12 @@ def test_export_rectangles_sparse():
 @fails_local_backend()
 def test_export_rectangles_filtered():
     with hl.TemporaryDirectory() as rect_uri:
-        nd = np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0], [13.0, 14.0, 15.0, 16.0]])
+        nd = np.array([
+            [1.0, 2.0, 3.0, 4.0],
+            [5.0, 6.0, 7.0, 8.0],
+            [9.0, 10.0, 11.0, 12.0],
+            [13.0, 14.0, 15.0, 16.0],
+        ])
         bm = BlockMatrix.from_numpy(nd)
         bm = bm[1:3, 1:3]
         export_rects = [[0, 1, 0, 2], [1, 2, 0, 2]]
@@ -937,7 +1042,7 @@ def test_export_blocks():
 
 @fails_service_backend()
 @fails_local_backend()
-@pytest.mark.parametrize('binary', [True, False])
+@pytest.mark.parametrize("binary", [True, False])
 def test_rectangles_to_numpy(binary):
     nd = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
     rects = [[0, 3, 0, 1], [1, 2, 0, 2]]
@@ -963,15 +1068,15 @@ def test_to_ndarray():
 
 
 @test_timeout(batch=5 * 60)
-@pytest.mark.parametrize('block_size', [1, 2, 1024])
+@pytest.mark.parametrize("block_size", [1, 2, 1024])
 def test_block_matrix_entries(block_size):
     n_rows, n_cols = 5, 3
-    rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
+    rows = [{"i": i, "j": j, "entry": float(i + j)} for i in range(n_rows) for j in range(n_cols)]
     schema = hl.tstruct(i=hl.tint32, j=hl.tint32, entry=hl.tfloat64)
-    table = hl.Table.parallelize([hl.struct(i=row['i'], j=row['j'], entry=row['entry']) for row in rows], schema)
-    table = table.annotate(i=hl.int64(table.i), j=hl.int64(table.j)).key_by('i', 'j')
+    table = hl.Table.parallelize([hl.struct(i=row["i"], j=row["j"], entry=row["entry"]) for row in rows], schema)
+    table = table.annotate(i=hl.int64(table.i), j=hl.int64(table.j)).key_by("i", "j")
 
-    ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
+    ndarray = np.reshape(list(map(lambda row: row["entry"], rows)), (n_rows, n_cols))
 
     block_matrix = BlockMatrix.from_ndarray(hl.literal(ndarray), block_size)
     entries_table = block_matrix.entries()
@@ -1006,21 +1111,21 @@ def test_array_windows():
     assert starts.size == 0
     assert stops.size == 0
 
-    starts, stops = hl.linalg.utils.array_windows(np.array([-float('inf'), -1, 0, 1, float("inf")]), 1)
+    starts, stops = hl.linalg.utils.array_windows(np.array([-float("inf"), -1, 0, 1, float("inf")]), 1)
     assert_eq(starts, [0, 1, 1, 2, 4])
     assert_eq(stops, [1, 3, 4, 4, 5])
 
 
 @pytest.mark.parametrize(
-    'array,radius',
+    "array,radius",
     [
         ([1, 0], -1),
-        ([0, float('nan')], 1),
-        ([float('nan')], 1),
-        ([0.0, float('nan')], 1),
+        ([0, float("nan")], 1),
+        ([float("nan")], 1),
+        ([0.0, float("nan")], 1),
         ([None], 1),
         ([], -1),
-        (['str'], 1),
+        (["str"], 1),
     ],
 )
 def test_array_windows_illegal_arguments(array, radius):
@@ -1068,15 +1173,15 @@ def test_locus_windows_3():
 
 def test_locus_windows_4():
     rows = [
-        {'locus': hl.Locus('1', 1), 'cm': 1.0},
-        {'locus': hl.Locus('1', 2), 'cm': 3.0},
-        {'locus': hl.Locus('1', 4), 'cm': 4.0},
-        {'locus': hl.Locus('2', 1), 'cm': 2.0},
-        {'locus': hl.Locus('2', 1), 'cm': 2.0},
-        {'locus': hl.Locus('3', 3), 'cm': 5.0},
+        {"locus": hl.Locus("1", 1), "cm": 1.0},
+        {"locus": hl.Locus("1", 2), "cm": 3.0},
+        {"locus": hl.Locus("1", 4), "cm": 4.0},
+        {"locus": hl.Locus("2", 1), "cm": 2.0},
+        {"locus": hl.Locus("2", 1), "cm": 2.0},
+        {"locus": hl.Locus("3", 3), "cm": 5.0},
     ]
 
-    ht = hl.Table.parallelize(rows, hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
+    ht = hl.Table.parallelize(rows, hl.tstruct(locus=hl.tlocus("GRCh37"), cm=hl.tfloat64), key=["locus"])
 
     starts, stops = hl.linalg.utils.locus_windows(ht.locus, 1)
     assert_np_arrays_eq(starts, [0, 0, 2, 3, 3, 5])
@@ -1085,15 +1190,15 @@ def test_locus_windows_4():
 
 def dummy_table_with_loci_and_cms():
     rows = [
-        {'locus': hl.Locus('1', 1), 'cm': 1.0},
-        {'locus': hl.Locus('1', 2), 'cm': 3.0},
-        {'locus': hl.Locus('1', 4), 'cm': 4.0},
-        {'locus': hl.Locus('2', 1), 'cm': 2.0},
-        {'locus': hl.Locus('2', 1), 'cm': 2.0},
-        {'locus': hl.Locus('3', 3), 'cm': 5.0},
+        {"locus": hl.Locus("1", 1), "cm": 1.0},
+        {"locus": hl.Locus("1", 2), "cm": 3.0},
+        {"locus": hl.Locus("1", 4), "cm": 4.0},
+        {"locus": hl.Locus("2", 1), "cm": 2.0},
+        {"locus": hl.Locus("2", 1), "cm": 2.0},
+        {"locus": hl.Locus("3", 3), "cm": 5.0},
     ]
 
-    return hl.Table.parallelize(rows, hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
+    return hl.Table.parallelize(rows, hl.tstruct(locus=hl.tlocus("GRCh37"), cm=hl.tfloat64), key=["locus"])
 
 
 def test_locus_windows_5():
@@ -1105,57 +1210,57 @@ def test_locus_windows_5():
 
 def test_locus_windows_6():
     ht = dummy_table_with_loci_and_cms()
-    with pytest.raises(HailUserError, match='ascending order'):
+    with pytest.raises(HailUserError, match="ascending order"):
         hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
 
 
 def test_locus_windows_7():
     ht = dummy_table_with_loci_and_cms()
-    with pytest.raises(ExpressionException, match='different source'):
+    with pytest.raises(ExpressionException, match="different source"):
         hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=hl.utils.range_table(1).idx)
 
 
 def test_locus_windows_8():
-    with pytest.raises(ExpressionException, match='no source'):
-        hl.linalg.utils.locus_windows(hl.locus('1', 1), 1.0)
+    with pytest.raises(ExpressionException, match="no source"):
+        hl.linalg.utils.locus_windows(hl.locus("1", 1), 1.0)
 
 
 def test_locus_windows_9():
     ht = dummy_table_with_loci_and_cms()
-    with pytest.raises(ExpressionException, match='no source'):
+    with pytest.raises(ExpressionException, match="no source"):
         hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=0.0)
 
 
 def test_locus_windows_10():
     ht = dummy_table_with_loci_and_cms()
-    ht = ht.annotate_globals(x=hl.locus('1', 1), y=1.0)
-    with pytest.raises(ExpressionException, match='row-indexed'):
+    ht = ht.annotate_globals(x=hl.locus("1", 1), y=1.0)
+    with pytest.raises(ExpressionException, match="row-indexed"):
         hl.linalg.utils.locus_windows(ht.x, 1.0)
 
-    with pytest.raises(ExpressionException, match='row-indexed'):
+    with pytest.raises(ExpressionException, match="row-indexed"):
         hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
 
 
 def test_locus_windows_11():
     ht = hl.Table.parallelize(
-        [{'locus': hl.missing(hl.tlocus()), 'cm': 1.0}],
-        hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
-        key=['locus'],
+        [{"locus": hl.missing(hl.tlocus()), "cm": 1.0}],
+        hl.tstruct(locus=hl.tlocus("GRCh37"), cm=hl.tfloat64),
+        key=["locus"],
     )
-    with pytest.raises(HailUserError, match='missing value for \'locus_expr\''):
+    with pytest.raises(HailUserError, match="missing value for 'locus_expr'"):
         hl.linalg.utils.locus_windows(ht.locus, 1.0)
 
-    with pytest.raises(HailUserError, match='missing value for \'locus_expr\''):
+    with pytest.raises(HailUserError, match="missing value for 'locus_expr'"):
         hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
 
 
 def test_locus_windows_12():
     ht = hl.Table.parallelize(
-        [{'locus': hl.Locus('1', 1), 'cm': hl.missing(hl.tfloat64)}],
-        hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64),
-        key=['locus'],
+        [{"locus": hl.Locus("1", 1), "cm": hl.missing(hl.tfloat64)}],
+        hl.tstruct(locus=hl.tlocus("GRCh37"), cm=hl.tfloat64),
+        key=["locus"],
     )
-    with pytest.raises(FatalError, match='missing value for \'coord_expr\''):
+    with pytest.raises(FatalError, match="missing value for 'coord_expr'"):
         hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
 
 
@@ -1261,10 +1366,16 @@ def test_is_sparse():
     bm = BlockMatrix.from_numpy(np_square, block_size=2)
     bm = bm._sparsify_blocks(block_list)
     assert bm.is_sparse
-    assert np.array_equal(bm.to_numpy(), np.array([[0, 0, 2, 3], [0, 0, 6, 7], [8, 9, 0, 0], [12, 13, 0, 0]]))
+    assert np.array_equal(
+        bm.to_numpy(),
+        np.array([[0, 0, 2, 3], [0, 0, 6, 7], [8, 9, 0, 0], [12, 13, 0, 0]]),
+    )
 
 
-@pytest.mark.parametrize('block_list,nrows,ncols,block_size', [([1, 2], 4, 4, 2), ([4, 8, 10, 12, 13, 14], 15, 15, 4)])
+@pytest.mark.parametrize(
+    "block_list,nrows,ncols,block_size",
+    [([1, 2], 4, 4, 2), ([4, 8, 10, 12, 13, 14], 15, 15, 4)],
+)
 def test_sparsify_blocks(block_list, nrows, ncols, block_size):
     np_square = np.arange(nrows * ncols, dtype=np.float64).reshape((nrows, ncols))
     bm = BlockMatrix.from_numpy(np_square, block_size=block_size)
@@ -1274,7 +1385,7 @@ def test_sparsify_blocks(block_list, nrows, ncols, block_size):
 
 
 @pytest.mark.parametrize(
-    'block_list,nrows,ncols,block_size',
+    "block_list,nrows,ncols,block_size",
     [
         ([1, 2], 4, 4, 2),
         ([4, 8, 10, 12, 13, 14], 15, 15, 4),

@@ -87,7 +87,10 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_zeroploid.is_het_ref())
 
         self.assertRaisesRegex(
-            NotImplementedError, "Calls with greater than 2 alleles are not supported.", hl.Call, [1, 1, 1, 1]
+            NotImplementedError,
+            "Calls with greater than 2 alleles are not supported.",
+            hl.Call,
+            [1, 1, 1, 1],
         )
 
 

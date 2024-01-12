@@ -59,22 +59,22 @@ def test_qq():
 
 def test_manhattan():
     ht = hl.balding_nichols_model(1, n_variants=100, n_samples=1).rows()
-    ht = ht.add_index('idx')
+    ht = ht.add_index("idx")
     hl.plot.manhattan(ht.idx / 100)
 
 
 @pytest.mark.parametrize(
-    'name, plot',
+    "name, plot",
     [
-        ('manhattan', hl.plot.manhattan),
-        ('scatter', lambda x, **kwargs: hl.plot.scatter(x, x, **kwargs)),
-        ('join_plot', lambda x, **kwargs: hl.plot.joint_plot(x, x, **kwargs)),
-        ('qq', hl.plot.qq),
+        ("manhattan", hl.plot.manhattan),
+        ("scatter", lambda x, **kwargs: hl.plot.scatter(x, x, **kwargs)),
+        ("join_plot", lambda x, **kwargs: hl.plot.joint_plot(x, x, **kwargs)),
+        ("qq", hl.plot.qq),
     ],
 )
 def test_plots_deprecated_collect_all(name, plot):
     ht = hl.balding_nichols_model(1, n_variants=100, n_samples=1).rows()
-    ht = ht.add_index('idx')
+    ht = ht.add_index("idx")
 
     with pytest.raises(ValueError):
         plot(ht.idx, collect_all=True)
@@ -82,11 +82,11 @@ def test_plots_deprecated_collect_all(name, plot):
     with pytest.raises(ValueError):
         plot(ht.idx, n_divisions=0)
 
-    with patch('warnings.warn') as mock:
+    with patch("warnings.warn") as mock:
         plot(ht.idx, n_divisions=None)
         mock.assert_not_called()
 
-    with patch('warnings.warn') as mock:
+    with patch("warnings.warn") as mock:
         plot(ht.idx, n_divisions=None, collect_all=True)
         mock.assert_called()
         assert name in mock.call_args_list[0][0][0]
@@ -94,5 +94,5 @@ def test_plots_deprecated_collect_all(name, plot):
 
 def test_visualize_missingness():
     mt = hl.balding_nichols_model(1, n_variants=100, n_samples=1)
-    mt = mt.key_rows_by('locus')
+    mt = mt.key_rows_by("locus")
     hl.plot.visualize_missingness(hl.or_missing(hl.rand_bool(0.2), mt.GT))

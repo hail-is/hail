@@ -8,7 +8,7 @@ def test_table_explode():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)
     ht = ht.annotate(x=hl.range(hl.rand_int32(5)))
-    ht = ht.explode('x')
+    ht = ht.explode("x")
     expected = [
         hl.Struct(idx=0, x=0),
         hl.Struct(idx=0, x=1),
@@ -34,7 +34,7 @@ def test_table_key_by():
     hl.reset_global_randomness()
     ht = hl.utils.range_table(5)
     ht = ht.annotate(x=hl.rand_int32(5))
-    ht = ht.key_by('x')
+    ht = ht.key_by("x")
     expected = [
         hl.Struct(idx=2, x=2),
         hl.Struct(idx=1, x=3),

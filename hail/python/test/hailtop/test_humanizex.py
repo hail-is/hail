@@ -2,41 +2,41 @@ from hailtop.humanizex import naturaldelta, naturaldelta_msec
 
 
 def test_humanize():
-    assert naturaldelta(15 * 24 * 60 * 60) == '2 weeks 1 day'
-    assert naturaldelta(7 * 24 * 60 * 60) == '1 week'
-    assert naturaldelta(7 * 24 * 60 * 60 - 1) == '6 days 23 hours'
-    assert naturaldelta(5 * 24 * 60 * 60 + 2 * 60 * 60 + 35 * 60 + 10) == '5 days 2 hours'
-    assert naturaldelta(1 * 24 * 60 * 60 + 1 * 60 * 60) == '1 day 1 hour'
-    assert naturaldelta(1 * 24 * 60 * 60 + 1) == '1 day'
-    assert naturaldelta(1 * 24 * 60 * 60) == '1 day'
-    assert naturaldelta(1 * 24 * 60 * 60 - 1 * 60) == '23 hours 59 minutes'
-    assert naturaldelta(1 * 24 * 60 * 60 - 1) == '23 hours 59 minutes'
-    assert naturaldelta(2 * 60 * 60 + 35 * 60 + 10) == '2 hours 35 minutes'
-    assert naturaldelta(1 * 60 * 60) == '1 hour'
-    assert naturaldelta(200) == '3 minutes 20s'
-    assert naturaldelta(120) == '2 minutes'
-    assert naturaldelta(119) == '1 minute 59s'
-    assert naturaldelta(60) == '1 minute'
-    assert naturaldelta(59) == '59s'
-    assert naturaldelta(1) == '1s'
-    assert naturaldelta(1.5) == '1s 500ms'
-    assert naturaldelta(0.001) == '1ms'
-    assert naturaldelta(0.000001) == '1μs'
+    assert naturaldelta(15 * 24 * 60 * 60) == "2 weeks 1 day"
+    assert naturaldelta(7 * 24 * 60 * 60) == "1 week"
+    assert naturaldelta(7 * 24 * 60 * 60 - 1) == "6 days 23 hours"
+    assert naturaldelta(5 * 24 * 60 * 60 + 2 * 60 * 60 + 35 * 60 + 10) == "5 days 2 hours"
+    assert naturaldelta(1 * 24 * 60 * 60 + 1 * 60 * 60) == "1 day 1 hour"
+    assert naturaldelta(1 * 24 * 60 * 60 + 1) == "1 day"
+    assert naturaldelta(1 * 24 * 60 * 60) == "1 day"
+    assert naturaldelta(1 * 24 * 60 * 60 - 1 * 60) == "23 hours 59 minutes"
+    assert naturaldelta(1 * 24 * 60 * 60 - 1) == "23 hours 59 minutes"
+    assert naturaldelta(2 * 60 * 60 + 35 * 60 + 10) == "2 hours 35 minutes"
+    assert naturaldelta(1 * 60 * 60) == "1 hour"
+    assert naturaldelta(200) == "3 minutes 20s"
+    assert naturaldelta(120) == "2 minutes"
+    assert naturaldelta(119) == "1 minute 59s"
+    assert naturaldelta(60) == "1 minute"
+    assert naturaldelta(59) == "59s"
+    assert naturaldelta(1) == "1s"
+    assert naturaldelta(1.5) == "1s 500ms"
+    assert naturaldelta(0.001) == "1ms"
+    assert naturaldelta(0.000001) == "1μs"
 
-    assert naturaldelta_msec(15 * 24 * 60 * 60 * 1000) == '2 weeks 1 day'
-    assert naturaldelta_msec(200_000) == '3 minutes 20s'
-    assert naturaldelta_msec(120_000) == '2 minutes'
-    assert naturaldelta_msec(119_000) == '1 minute 59s'
-    assert naturaldelta_msec(60_500) == '1 minute'
-    assert naturaldelta_msec(60_000) == '1 minute'
-    assert naturaldelta_msec(59_500) == '59s 500ms'
-    assert naturaldelta_msec(59_000) == '59s'
-    assert naturaldelta_msec(57_123) == '57s 123ms'
-    assert naturaldelta_msec(1_999) == '1s 999ms'
-    assert naturaldelta_msec(1_001) == '1s 1ms'
-    assert naturaldelta_msec(1_000) == '1s'
-    assert naturaldelta_msec(999) == '999ms'
-    assert naturaldelta_msec(999.5) == '999ms 500μs'
-    assert naturaldelta_msec(500.123) == '500ms 123μs'
-    assert naturaldelta_msec(1) == '1ms'
-    assert naturaldelta_msec(0.001) == '1μs'
+    assert naturaldelta_msec(15 * 24 * 60 * 60 * 1000) == "2 weeks 1 day"
+    assert naturaldelta_msec(200_000) == "3 minutes 20s"
+    assert naturaldelta_msec(120_000) == "2 minutes"
+    assert naturaldelta_msec(119_000) == "1 minute 59s"
+    assert naturaldelta_msec(60_500) == "1 minute"
+    assert naturaldelta_msec(60_000) == "1 minute"
+    assert naturaldelta_msec(59_500) == "59s 500ms"
+    assert naturaldelta_msec(59_000) == "59s"
+    assert naturaldelta_msec(57_123) == "57s 123ms"
+    assert naturaldelta_msec(1_999) == "1s 999ms"
+    assert naturaldelta_msec(1_001) == "1s 1ms"
+    assert naturaldelta_msec(1_000) == "1s"
+    assert naturaldelta_msec(999) == "999ms"
+    assert naturaldelta_msec(999.5) == "999ms 500μs"
+    assert naturaldelta_msec(500.123) == "500ms 123μs"
+    assert naturaldelta_msec(1) == "1ms"
+    assert naturaldelta_msec(0.001) == "1μs"

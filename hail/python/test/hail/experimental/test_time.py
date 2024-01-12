@@ -16,7 +16,13 @@ def test_strftime():
 
 def test_strptime():
     assert (
-        hl.eval(htime.strptime("Friday, October 10, 1997. 11:45:23 PM", "%A, %B %e, %Y. %r", "America/New_York"))
+        hl.eval(
+            htime.strptime(
+                "Friday, October 10, 1997. 11:45:23 PM",
+                "%A, %B %e, %Y. %r",
+                "America/New_York",
+            )
+        )
         == 876541523
     )
     assert hl.eval(htime.strptime("Friday, October 10, 1997. 11:45:23 PM", "%A, %B %e, %Y. %r", "GMT+2")) == 876519923

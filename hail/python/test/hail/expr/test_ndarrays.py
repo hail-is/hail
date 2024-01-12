@@ -105,7 +105,10 @@ def test_ndarray_slice():
         (rect_prism[:, :, 1:4:2], np_rect_prism[:, :, 1:4:2]),
         (rect_prism[:, 2, 1:4:2], np_rect_prism[:, 2, 1:4:2]),
         (rect_prism[0, 2, 1:4:2], np_rect_prism[0, 2, 1:4:2]),
-        (rect_prism[0, :, 1:4:2] + rect_prism[:, :1, 1:4:2], np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
+        (
+            rect_prism[0, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
+            np_rect_prism[0, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2],
+        ),
         (
             rect_prism[0:, :, 1:4:2] + rect_prism[:, :1, 1:4:2],
             np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2],
@@ -125,8 +128,14 @@ def test_ndarray_slice():
         # np.newaxis inclusion
         (rect_prism[hl.nd.newaxis, :, :], np_rect_prism[np.newaxis, :, :]),
         (rect_prism[hl.nd.newaxis], np_rect_prism[np.newaxis]),
-        (rect_prism[hl.nd.newaxis, np.newaxis, np.newaxis], np_rect_prism[np.newaxis, np.newaxis, np.newaxis]),
-        (rect_prism[hl.nd.newaxis, np.newaxis, 1:4:2], np_rect_prism[np.newaxis, np.newaxis, 1:4:2]),
+        (
+            rect_prism[hl.nd.newaxis, np.newaxis, np.newaxis],
+            np_rect_prism[np.newaxis, np.newaxis, np.newaxis],
+        ),
+        (
+            rect_prism[hl.nd.newaxis, np.newaxis, 1:4:2],
+            np_rect_prism[np.newaxis, np.newaxis, 1:4:2],
+        ),
         (rect_prism[1, :, hl.nd.newaxis], np_rect_prism[1, :, np.newaxis]),
         (rect_prism[1, hl.nd.newaxis, 1], np_rect_prism[1, np.newaxis, 1]),
         (rect_prism[..., hl.nd.newaxis, 1], np_rect_prism[..., np.newaxis, 1]),
@@ -188,7 +197,10 @@ def test_ndarray_slice():
         (ae[2, 3, 1:2:2, ...], ae_np[2, 3, 1:2:2, ...]),
         (ae[3, 2, 3, ..., 2], ae_np[3, 2, 3, ..., 2]),
         (ae[3, 2, 2, ..., 2, 1:2:2], ae_np[3, 2, 2, ..., 2, 1:2:2]),
-        (ae[3, :, hl.nd.newaxis, ..., :, hl.nd.newaxis, 2], ae_np[3, :, np.newaxis, ..., :, np.newaxis, 2]),
+        (
+            ae[3, :, hl.nd.newaxis, ..., :, hl.nd.newaxis, 2],
+            ae_np[3, :, np.newaxis, ..., :, np.newaxis, 2],
+        ),
     )
 
     assert hl.eval(flat[hl.missing(hl.tint32) : 4 : 1]) is None
@@ -209,7 +221,10 @@ def test_ndarray_slice():
     with pytest.raises(IndexError, match="an index can only have a single ellipsis"):
         hl.eval(rect_prism[..., ...])
 
-    with pytest.raises(IndexError, match="too many indices for array: array is 3-dimensional, but 4 were indexed"):
+    with pytest.raises(
+        IndexError,
+        match="too many indices for array: array is 3-dimensional, but 4 were indexed",
+    ):
         hl.eval(rect_prism[1, 1, 1, 1])
 
 
@@ -252,7 +267,8 @@ def test_ndarray_eval():
 
     # Testing from nested hail arrays
     assert np.array_equal(
-        hl.eval(hl.nd.array(hl.array([hl.array(x) for x in data_list]))), np.arange(9).reshape((3, 3)) + 1
+        hl.eval(hl.nd.array(hl.array([hl.array(x) for x in data_list]))),
+        np.arange(9).reshape((3, 3)) + 1,
     )
 
     # Testing missing data
@@ -340,7 +356,10 @@ def test_ndarray_reshape():
         (a.reshape((-1, 2)), np_a.reshape((-1, 2))),
         (cube_to_rect, np_cube_to_rect),
         (cube_t_to_rect, np_cube_t_to_rect),
-        (hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)), np_hypercube.reshape((7, 9, 3, 5))),
+        (
+            hypercube.reshape((5, 7, 9, 3)).reshape((7, 9, 3, 5)),
+            np_hypercube.reshape((7, 9, 3, 5)),
+        ),
         (hypercube.reshape(hl.tuple([5, 7, 9, 3])), np_hypercube.reshape((5, 7, 9, 3))),
         (shape_zero.reshape((0, 5)), np_shape_zero.reshape((0, 5))),
         (shape_zero.reshape((-1, 5)), np_shape_zero.reshape((-1, 5))),
@@ -378,7 +397,7 @@ def test_ndarray_reshape():
     assert "Can't reshape" in str(exc.value)
 
     with pytest.raises(TypeError):
-        a.reshape(hl.tuple(['4', '5']))
+        a.reshape(hl.tuple(["4", "5"]))
 
 
 def test_ndarray_map1():
@@ -514,7 +533,9 @@ def test_ndarray_sum():
     m = hl.nd.array(np_m)
 
     assert_ndarrays_eq(
-        (m.sum(axis=0), np_m.sum(axis=0)), (m.sum(axis=1), np_m.sum(axis=1)), (m.sum(tuple([])), np_m.sum(tuple([])))
+        (m.sum(axis=0), np_m.sum(axis=0)),
+        (m.sum(axis=1), np_m.sum(axis=1)),
+        (m.sum(tuple([])), np_m.sum(tuple([]))),
     )
 
     assert hl.eval(m.sum()) == 10
@@ -623,7 +644,10 @@ def test_ndarray_matmul():
         (broadcasted_mat @ rect_prism, np_broadcasted_mat @ np_rect_prism),
         (six_dim_tensor @ five_dim_tensor, np_six_dim_tensor @ np_five_dim_tensor),
         (zero_by_four @ ones_float64, np_zero_by_four, np_ones_float64),
-        (zero_by_four.transpose() @ zero_by_four, np_zero_by_four.transpose() @ np_zero_by_four),
+        (
+            zero_by_four.transpose() @ zero_by_four,
+            np_zero_by_four.transpose() @ np_zero_by_four,
+        ),
     )
 
     assert hl.eval(hl.missing(hl.tndarray(hl.tfloat64, 2)) @ hl.missing(hl.tndarray(hl.tfloat64, 2))) is None
@@ -1094,14 +1118,15 @@ def test_concatenate():
 
 def test_concatenate_differing_shapes():
     with pytest.raises(
-        ValueError, match='hl.nd.concatenate: ndarrays must have same number of dimensions, found: 1, 2'
+        ValueError,
+        match="hl.nd.concatenate: ndarrays must have same number of dimensions, found: 1, 2",
     ):
         hl.nd.concatenate([hl.nd.array([1]), hl.nd.array([[1]])])
 
     with pytest.raises(
         ValueError,
         match=re.escape(
-            'hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)'
+            "hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)"
         ),
     ):
         hl.nd.concatenate([hl.nd.array([1]), hl.nd.array([1.0])])
@@ -1109,7 +1134,7 @@ def test_concatenate_differing_shapes():
     with pytest.raises(
         ValueError,
         match=re.escape(
-            'hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)'
+            "hl.nd.concatenate: ndarrays must have same element types, found these element types: (int32, float64)"
         ),
     ):
         hl.nd.concatenate([hl.nd.array([1]), hl.nd.array([[1.0]])])

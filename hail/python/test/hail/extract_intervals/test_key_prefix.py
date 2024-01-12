@@ -59,16 +59,16 @@ def test_ht_eq(ht, probe_locus):
     actual = expr.collect()
     expected = [
         hl.Struct(
-            locus=hl.Locus(contig=20, position=17434581, reference_genome='GRCh37'),
-            alleles=['A', 'G'],
-            rsid='rs16999198',
+            locus=hl.Locus(contig=20, position=17434581, reference_genome="GRCh37"),
+            alleles=["A", "G"],
+            rsid="rs16999198",
             qual=21384.8,
             filters=set(),
             info=hl.Struct(
                 NEGATIVE_TRAIN_SITE=False,
                 HWP=1.0,
                 AC=[2],
-                culprit='InbreedingCoeff',
+                culprit="InbreedingCoeff",
                 MQ0=0,
                 ReadPosRankSum=0.534,
                 AN=200,
@@ -120,6 +120,6 @@ def test_ht_ge_with_bindings(ht, probe_locus):
 
 
 def test_GRCh38():
-    mt = hl.balding_nichols_model(1, 10, 100, n_partitions=10, reference_genome='GRCh38')
-    mt = mt.filter_rows(hl.all(mt.locus.contig == 'chr1', mt.locus.position < 5))
+    mt = hl.balding_nichols_model(1, 10, 100, n_partitions=10, reference_genome="GRCh38")
+    mt = mt.filter_rows(hl.all(mt.locus.contig == "chr1", mt.locus.position < 5))
     assert mt.n_partitions() == 1

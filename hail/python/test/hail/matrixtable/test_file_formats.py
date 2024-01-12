@@ -21,26 +21,32 @@ def create_backward_compatibility_files():
     all_values_table, all_values_matrix_table = create_all_values_datasets()
 
     file_version = Env.hail().expr.ir.FileFormat.version().toString()
-    supported_codecs = scala_object(Env.hail().io, 'BufferSpec').specs()
+    supported_codecs = scala_object(Env.hail().io, "BufferSpec").specs()
 
-    table_dir = resource(os.path.join('backward_compatability', str(file_version), 'table'))
+    table_dir = resource(os.path.join("backward_compatability", str(file_version), "table"))
     if not os.path.exists(table_dir):
         os.makedirs(table_dir)
 
-    matrix_table_dir = resource(os.path.join('backward_compatability', str(file_version), 'matrix_table'))
+    matrix_table_dir = resource(os.path.join("backward_compatability", str(file_version), "matrix_table"))
     if not os.path.exists(matrix_table_dir):
         os.makedirs(matrix_table_dir)
 
     i = 0
     for codec in supported_codecs:
-        all_values_table.write(os.path.join(table_dir, f'{i}.ht'), overwrite=True, _codec_spec=codec.toString())
+        all_values_table.write(
+            os.path.join(table_dir, f"{i}.ht"),
+            overwrite=True,
+            _codec_spec=codec.toString(),
+        )
         all_values_matrix_table.write(
-            os.path.join(matrix_table_dir, f'{i}.hmt'), overwrite=True, _codec_spec=codec.toString()
+            os.path.join(matrix_table_dir, f"{i}.hmt"),
+            overwrite=True,
+            _codec_spec=codec.toString(),
         )
         i += 1
 
 
-@pytest.mark.skip(reason='comment this line to generate files for new versions')
+@pytest.mark.skip(reason="comment this line to generate files for new versions")
 def test_write():
     create_backward_compatibility_files()
 
@@ -56,7 +62,7 @@ def all_values_table_fixture(init_hail):
 
 
 async def collect_paths() -> Tuple[List[str], List[str]]:
-    resource_dir = resource('backward_compatability/')
+    resource_dir = resource("backward_compatability/")
     from hailtop.aiotools.router_fs import RouterAsyncFS
 
     fs = RouterAsyncFS()
@@ -74,9 +80,9 @@ async def collect_paths() -> Tuple[List[str], List[str]]:
 
     try:
         versions = [await x.url() async for x in await fs.listfiles(resource_dir)]
-        ht_paths = [await x.url() for version in versions async for x in await contents_if_present(version + 'table/')]
+        ht_paths = [await x.url() for version in versions async for x in await contents_if_present(version + "table/")]
         mt_paths = [
-            await x.url() for version in versions async for x in await contents_if_present(version + 'matrix_table/')
+            await x.url() for version in versions async for x in await contents_if_present(version + "matrix_table/")
         ]
         return ht_paths, mt_paths
     finally:

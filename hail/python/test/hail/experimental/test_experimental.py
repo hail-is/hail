@@ -21,14 +21,21 @@ class Tests(unittest.TestCase):
     @qobtest
     def get_ld_score_mt(self):
         ht = hl.import_table(
-            doctest_resource('ldsc.annot'),
-            types={'BP': hl.tint, 'CM': hl.tfloat, 'binary': hl.tint, 'continuous': hl.tfloat},
+            doctest_resource("ldsc.annot"),
+            types={
+                "BP": hl.tint,
+                "CM": hl.tfloat,
+                "binary": hl.tint,
+                "continuous": hl.tfloat,
+            },
         )
         ht = ht.annotate(locus=hl.locus(ht.CHR, ht.BP))
-        ht = ht.key_by('locus')
+        ht = ht.key_by("locus")
 
         mt = hl.import_plink(
-            bed=doctest_resource('ldsc.bed'), bim=doctest_resource('ldsc.bim'), fam=doctest_resource('ldsc.fam')
+            bed=doctest_resource("ldsc.bed"),
+            bim=doctest_resource("ldsc.bim"),
+            fam=doctest_resource("ldsc.fam"),
         )
         return mt.annotate_rows(binary=ht[mt.locus].binary, continuous=ht[mt.locus].continuous)
 
@@ -37,17 +44,20 @@ class Tests(unittest.TestCase):
     def test_ld_score_univariate(self):
         mt = self.get_ld_score_mt()
         ht_univariate = hl.experimental.ld_score(
-            entry_expr=mt.GT.n_alt_alleles(), locus_expr=mt.locus, radius=1.0, coord_expr=mt.cm_position
+            entry_expr=mt.GT.n_alt_alleles(),
+            locus_expr=mt.locus,
+            radius=1.0,
+            coord_expr=mt.cm_position,
         )
 
         univariate = ht_univariate.aggregate(
             hl.struct(
                 chr20=hl.agg.filter(
-                    (ht_univariate.locus.contig == '20') & (ht_univariate.locus.position == 82079),
+                    (ht_univariate.locus.contig == "20") & (ht_univariate.locus.position == 82079),
                     hl.agg.collect(ht_univariate.univariate),
                 )[0],
                 chr22=hl.agg.filter(
-                    (ht_univariate.locus.contig == '22') & (ht_univariate.locus.position == 16894090),
+                    (ht_univariate.locus.contig == "22") & (ht_univariate.locus.position == 16894090),
                     hl.agg.collect(ht_univariate.univariate),
                 )[0],
                 mean=hl.agg.mean(ht_univariate.univariate),
@@ -74,26 +84,27 @@ class Tests(unittest.TestCase):
             hl.struct(
                 chr20=hl.struct(
                     binary=hl.agg.filter(
-                        (ht_annotated.locus.contig == '20') & (ht_annotated.locus.position == 82079),
+                        (ht_annotated.locus.contig == "20") & (ht_annotated.locus.position == 82079),
                         hl.agg.collect(ht_annotated.binary),
                     )[0],
                     continuous=hl.agg.filter(
-                        (ht_annotated.locus.contig == '20') & (ht_annotated.locus.position == 82079),
+                        (ht_annotated.locus.contig == "20") & (ht_annotated.locus.position == 82079),
                         hl.agg.collect(ht_annotated.continuous),
                     )[0],
                 ),
                 chr22=hl.struct(
                     binary=hl.agg.filter(
-                        (ht_annotated.locus.contig == '22') & (ht_annotated.locus.position == 16894090),
+                        (ht_annotated.locus.contig == "22") & (ht_annotated.locus.position == 16894090),
                         hl.agg.collect(ht_annotated.binary),
                     )[0],
                     continuous=hl.agg.filter(
-                        (ht_annotated.locus.contig == '22') & (ht_annotated.locus.position == 16894090),
+                        (ht_annotated.locus.contig == "22") & (ht_annotated.locus.position == 16894090),
                         hl.agg.collect(ht_annotated.continuous),
                     )[0],
                 ),
                 mean_stats=hl.struct(
-                    binary=hl.agg.mean(ht_annotated.binary), continuous=hl.agg.mean(ht_annotated.continuous)
+                    binary=hl.agg.mean(ht_annotated.binary),
+                    continuous=hl.agg.mean(ht_annotated.continuous),
                 ),
             )
         )
@@ -108,84 +119,101 @@ class Tests(unittest.TestCase):
     @test_timeout(local=8 * 60, batch=8 * 60)
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
-        x = x.annotate(tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
+        x = x.annotate(
+            tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False),
+            score3=x.score1 + hl.rand_norm(),
+        )
         ht = x.annotate(fp=hl.if_else(~x.tp, hl.rand_bool(0.2), False))
-        _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
+        _, aucs = hl.experimental.plot_roc_curve(ht, ["score1", "score2", "score3"])
 
     def test_import_keyby_count_ldsc_lowered_shuffle(self):
         # integration test pulled out of test_ld_score_regression to isolate issues with lowered shuffles
         # and RDD serialization, 2021-07-06
         # if this comment no longer reflects the backend system, that's a really good thing
         ht_scores = hl.import_table(
-            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
-            key='SNP',
-            types={'L2': hl.tfloat, 'BP': hl.tint},
+            doctest_resource("ld_score_regression.univariate_ld_scores.tsv"),
+            key="SNP",
+            types={"L2": hl.tfloat, "BP": hl.tint},
         )
 
         ht_20160 = hl.import_table(
-            doctest_resource('ld_score_regression.20160.sumstats.tsv'), key='SNP', types={'N': hl.tint, 'Z': hl.tfloat}
+            doctest_resource("ld_score_regression.20160.sumstats.tsv"),
+            key="SNP",
+            types={"N": hl.tint, "Z": hl.tfloat},
         )
 
-        j1 = ht_scores[ht_20160['SNP']]
+        j1 = ht_scores[ht_20160["SNP"]]
         ht_20160 = ht_20160.annotate(
-            ld_score=j1['L2'], locus=hl.locus(j1['CHR'], j1['BP']), alleles=hl.array([ht_20160['A2'], ht_20160['A1']])
+            ld_score=j1["L2"],
+            locus=hl.locus(j1["CHR"], j1["BP"]),
+            alleles=hl.array([ht_20160["A2"], ht_20160["A1"]]),
         )
 
-        ht_20160 = ht_20160.key_by(ht_20160['locus'], ht_20160['alleles'])
+        ht_20160 = ht_20160.key_by(ht_20160["locus"], ht_20160["alleles"])
         assert ht_20160._force_count() == 151
 
     def get_ht_50_irnt(self):
         ht_scores = hl.import_table(
-            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
-            key='SNP',
-            types={'L2': hl.tfloat, 'BP': hl.tint},
+            doctest_resource("ld_score_regression.univariate_ld_scores.tsv"),
+            key="SNP",
+            types={"L2": hl.tfloat, "BP": hl.tint},
         )
 
         ht_50_irnt = hl.import_table(
-            doctest_resource('ld_score_regression.50_irnt.sumstats.tsv'),
-            key='SNP',
-            types={'N': hl.tint, 'Z': hl.tfloat},
+            doctest_resource("ld_score_regression.50_irnt.sumstats.tsv"),
+            key="SNP",
+            types={"N": hl.tint, "Z": hl.tfloat},
         )
 
         ht_50_irnt = ht_50_irnt.annotate(
-            chi_squared=ht_50_irnt['Z'] ** 2,
-            n=ht_50_irnt['N'],
-            ld_score=ht_scores[ht_50_irnt['SNP']]['L2'],
-            locus=hl.locus(ht_scores[ht_50_irnt['SNP']]['CHR'], ht_scores[ht_50_irnt['SNP']]['BP']),
-            alleles=hl.array([ht_50_irnt['A2'], ht_50_irnt['A1']]),
-            phenotype='50_irnt',
+            chi_squared=ht_50_irnt["Z"] ** 2,
+            n=ht_50_irnt["N"],
+            ld_score=ht_scores[ht_50_irnt["SNP"]]["L2"],
+            locus=hl.locus(ht_scores[ht_50_irnt["SNP"]]["CHR"], ht_scores[ht_50_irnt["SNP"]]["BP"]),
+            alleles=hl.array([ht_50_irnt["A2"], ht_50_irnt["A1"]]),
+            phenotype="50_irnt",
         )
 
-        ht_50_irnt = ht_50_irnt.key_by(ht_50_irnt['locus'], ht_50_irnt['alleles'])
+        ht_50_irnt = ht_50_irnt.key_by(ht_50_irnt["locus"], ht_50_irnt["alleles"])
 
         ht_50_irnt = ht_50_irnt.select(
-            ht_50_irnt['chi_squared'], ht_50_irnt['n'], ht_50_irnt['ld_score'], ht_50_irnt['phenotype']
+            ht_50_irnt["chi_squared"],
+            ht_50_irnt["n"],
+            ht_50_irnt["ld_score"],
+            ht_50_irnt["phenotype"],
         )
         return ht_50_irnt
 
     def get_ht_20160(self):
         ht_scores = hl.import_table(
-            doctest_resource('ld_score_regression.univariate_ld_scores.tsv'),
-            key='SNP',
-            types={'L2': hl.tfloat, 'BP': hl.tint},
+            doctest_resource("ld_score_regression.univariate_ld_scores.tsv"),
+            key="SNP",
+            types={"L2": hl.tfloat, "BP": hl.tint},
         )
 
         ht_20160 = hl.import_table(
-            doctest_resource('ld_score_regression.20160.sumstats.tsv'), key='SNP', types={'N': hl.tint, 'Z': hl.tfloat}
+            doctest_resource("ld_score_regression.20160.sumstats.tsv"),
+            key="SNP",
+            types={"N": hl.tint, "Z": hl.tfloat},
         )
 
         ht_20160 = ht_20160.annotate(
-            chi_squared=ht_20160['Z'] ** 2,
-            n=ht_20160['N'],
-            ld_score=ht_scores[ht_20160['SNP']]['L2'],
-            locus=hl.locus(ht_scores[ht_20160['SNP']]['CHR'], ht_scores[ht_20160['SNP']]['BP']),
-            alleles=hl.array([ht_20160['A2'], ht_20160['A1']]),
-            phenotype='20160',
+            chi_squared=ht_20160["Z"] ** 2,
+            n=ht_20160["N"],
+            ld_score=ht_scores[ht_20160["SNP"]]["L2"],
+            locus=hl.locus(ht_scores[ht_20160["SNP"]]["CHR"], ht_scores[ht_20160["SNP"]]["BP"]),
+            alleles=hl.array([ht_20160["A2"], ht_20160["A1"]]),
+            phenotype="20160",
         )
 
-        ht_20160 = ht_20160.key_by(ht_20160['locus'], ht_20160['alleles'])
+        ht_20160 = ht_20160.key_by(ht_20160["locus"], ht_20160["alleles"])
 
-        ht_20160 = ht_20160.select(ht_20160['chi_squared'], ht_20160['n'], ht_20160['ld_score'], ht_20160['phenotype'])
+        ht_20160 = ht_20160.select(
+            ht_20160["chi_squared"],
+            ht_20160["n"],
+            ht_20160["ld_score"],
+            ht_20160["phenotype"],
+        )
         return ht_20160
 
     @pytest.mark.unchecked_allocator
@@ -196,7 +224,10 @@ class Tests(unittest.TestCase):
 
         ht = ht_50_irnt.union(ht_20160)
         mt = ht.to_matrix_table(
-            row_key=['locus', 'alleles'], col_key=['phenotype'], row_fields=['ld_score'], col_fields=[]
+            row_key=["locus", "alleles"],
+            col_key=["phenotype"],
+            row_fields=["ld_score"],
+            col_fields=[],
         )
 
         mt_tmp = new_temp_file()
@@ -204,37 +235,37 @@ class Tests(unittest.TestCase):
         mt = hl.read_matrix_table(mt_tmp)
 
         ht_results = hl.experimental.ld_score_regression(
-            weight_expr=mt['ld_score'],
-            ld_score_expr=mt['ld_score'],
-            chi_sq_exprs=mt['chi_squared'],
-            n_samples_exprs=mt['n'],
+            weight_expr=mt["ld_score"],
+            ld_score_expr=mt["ld_score"],
+            chi_sq_exprs=mt["chi_squared"],
+            n_samples_exprs=mt["n"],
             n_blocks=20,
             two_step_threshold=5,
             n_reference_panel_variants=1173569,
         )
 
         results = {
-            x['phenotype']: {
-                'mean_chi_sq': x['mean_chi_sq'],
-                'intercept_estimate': x['intercept']['estimate'],
-                'intercept_standard_error': x['intercept']['standard_error'],
-                'snp_heritability_estimate': x['snp_heritability']['estimate'],
-                'snp_heritability_standard_error': x['snp_heritability']['standard_error'],
+            x["phenotype"]: {
+                "mean_chi_sq": x["mean_chi_sq"],
+                "intercept_estimate": x["intercept"]["estimate"],
+                "intercept_standard_error": x["intercept"]["standard_error"],
+                "snp_heritability_estimate": x["snp_heritability"]["estimate"],
+                "snp_heritability_standard_error": x["snp_heritability"]["standard_error"],
             }
             for x in ht_results.collect()
         }
 
-        self.assertAlmostEqual(results['50_irnt']['mean_chi_sq'], 3.4386, places=4)
-        self.assertAlmostEqual(results['50_irnt']['intercept_estimate'], 0.7727, places=4)
-        self.assertAlmostEqual(results['50_irnt']['intercept_standard_error'], 0.2461, places=4)
-        self.assertAlmostEqual(results['50_irnt']['snp_heritability_estimate'], 0.3845, places=4)
-        self.assertAlmostEqual(results['50_irnt']['snp_heritability_standard_error'], 0.1067, places=4)
+        self.assertAlmostEqual(results["50_irnt"]["mean_chi_sq"], 3.4386, places=4)
+        self.assertAlmostEqual(results["50_irnt"]["intercept_estimate"], 0.7727, places=4)
+        self.assertAlmostEqual(results["50_irnt"]["intercept_standard_error"], 0.2461, places=4)
+        self.assertAlmostEqual(results["50_irnt"]["snp_heritability_estimate"], 0.3845, places=4)
+        self.assertAlmostEqual(results["50_irnt"]["snp_heritability_standard_error"], 0.1067, places=4)
 
-        self.assertAlmostEqual(results['20160']['mean_chi_sq'], 1.5209, places=4)
-        self.assertAlmostEqual(results['20160']['intercept_estimate'], 1.2109, places=4)
-        self.assertAlmostEqual(results['20160']['intercept_standard_error'], 0.2238, places=4)
-        self.assertAlmostEqual(results['20160']['snp_heritability_estimate'], 0.0486, places=4)
-        self.assertAlmostEqual(results['20160']['snp_heritability_standard_error'], 0.0416, places=4)
+        self.assertAlmostEqual(results["20160"]["mean_chi_sq"], 1.5209, places=4)
+        self.assertAlmostEqual(results["20160"]["intercept_estimate"], 1.2109, places=4)
+        self.assertAlmostEqual(results["20160"]["intercept_standard_error"], 0.2238, places=4)
+        self.assertAlmostEqual(results["20160"]["snp_heritability_estimate"], 0.0486, places=4)
+        self.assertAlmostEqual(results["20160"]["snp_heritability_standard_error"], 0.0416, places=4)
 
     @pytest.mark.unchecked_allocator
     @test_timeout(6 * 60, local=10 * 60, batch=10 * 60)
@@ -243,52 +274,52 @@ class Tests(unittest.TestCase):
         ht_20160 = self.get_ht_20160()
 
         ht = ht_50_irnt.annotate(
-            chi_squared_50_irnt=ht_50_irnt['chi_squared'],
-            n_50_irnt=ht_50_irnt['n'],
-            chi_squared_20160=ht_20160[ht_50_irnt.key]['chi_squared'],
-            n_20160=ht_20160[ht_50_irnt.key]['n'],
+            chi_squared_50_irnt=ht_50_irnt["chi_squared"],
+            n_50_irnt=ht_50_irnt["n"],
+            chi_squared_20160=ht_20160[ht_50_irnt.key]["chi_squared"],
+            n_20160=ht_20160[ht_50_irnt.key]["n"],
         )
 
         ht_results = hl.experimental.ld_score_regression(
-            weight_expr=ht['ld_score'],
-            ld_score_expr=ht['ld_score'],
-            chi_sq_exprs=[ht['chi_squared_50_irnt'], ht['chi_squared_20160']],
-            n_samples_exprs=[ht['n_50_irnt'], ht['n_20160']],
+            weight_expr=ht["ld_score"],
+            ld_score_expr=ht["ld_score"],
+            chi_sq_exprs=[ht["chi_squared_50_irnt"], ht["chi_squared_20160"]],
+            n_samples_exprs=[ht["n_50_irnt"], ht["n_20160"]],
             n_blocks=20,
             two_step_threshold=5,
             n_reference_panel_variants=1173569,
         )
 
         results = {
-            x['phenotype']: {
-                'mean_chi_sq': x['mean_chi_sq'],
-                'intercept_estimate': x['intercept']['estimate'],
-                'intercept_standard_error': x['intercept']['standard_error'],
-                'snp_heritability_estimate': x['snp_heritability']['estimate'],
-                'snp_heritability_standard_error': x['snp_heritability']['standard_error'],
+            x["phenotype"]: {
+                "mean_chi_sq": x["mean_chi_sq"],
+                "intercept_estimate": x["intercept"]["estimate"],
+                "intercept_standard_error": x["intercept"]["standard_error"],
+                "snp_heritability_estimate": x["snp_heritability"]["estimate"],
+                "snp_heritability_standard_error": x["snp_heritability"]["standard_error"],
             }
             for x in ht_results.collect()
         }
 
-        self.assertAlmostEqual(results[0]['mean_chi_sq'], 3.4386, places=4)
-        self.assertAlmostEqual(results[0]['intercept_estimate'], 0.7727, places=4)
-        self.assertAlmostEqual(results[0]['intercept_standard_error'], 0.2461, places=4)
-        self.assertAlmostEqual(results[0]['snp_heritability_estimate'], 0.3845, places=4)
-        self.assertAlmostEqual(results[0]['snp_heritability_standard_error'], 0.1067, places=4)
+        self.assertAlmostEqual(results[0]["mean_chi_sq"], 3.4386, places=4)
+        self.assertAlmostEqual(results[0]["intercept_estimate"], 0.7727, places=4)
+        self.assertAlmostEqual(results[0]["intercept_standard_error"], 0.2461, places=4)
+        self.assertAlmostEqual(results[0]["snp_heritability_estimate"], 0.3845, places=4)
+        self.assertAlmostEqual(results[0]["snp_heritability_standard_error"], 0.1067, places=4)
 
-        self.assertAlmostEqual(results[1]['mean_chi_sq'], 1.5209, places=4)
-        self.assertAlmostEqual(results[1]['intercept_estimate'], 1.2109, places=4)
-        self.assertAlmostEqual(results[1]['intercept_standard_error'], 0.2238, places=4)
-        self.assertAlmostEqual(results[1]['snp_heritability_estimate'], 0.0486, places=4)
-        self.assertAlmostEqual(results[1]['snp_heritability_standard_error'], 0.0416, places=4)
+        self.assertAlmostEqual(results[1]["mean_chi_sq"], 1.5209, places=4)
+        self.assertAlmostEqual(results[1]["intercept_estimate"], 1.2109, places=4)
+        self.assertAlmostEqual(results[1]["intercept_standard_error"], 0.2238, places=4)
+        self.assertAlmostEqual(results[1]["snp_heritability_estimate"], 0.0486, places=4)
+        self.assertAlmostEqual(results[1]["snp_heritability_standard_error"], 0.0416, places=4)
 
     @test_timeout(local=6 * 60)
     def test_sparse(self):
-        expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
-        unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
+        expected_split_mt = hl.import_vcf(resource("sparse_split_test_b.vcf"))
+        unsplit_mt = hl.import_vcf(resource("sparse_split_test.vcf"), call_fields=["LGT", "LPGT"])
         mt = (
             hl.experimental.sparse_split_multi(unsplit_mt)
-            .drop('a_index', 'was_split')
+            .drop("a_index", "was_split")
             .select_entries(*expected_split_mt.entry.keys())
         )
         assert mt._same(expected_split_mt)
@@ -333,7 +364,7 @@ class Tests(unittest.TestCase):
         assert mtj.count() == (15, 15)
 
     def test_mt_full_outer_join_self(self):
-        mt = hl.import_vcf(resource('sample.vcf'))
+        mt = hl.import_vcf(resource("sample.vcf"))
         jmt = hl.experimental.full_outer_join_mt(mt, mt)
         assert (
             jmt.filter_cols(hl.is_defined(jmt.left_col) & hl.is_defined(jmt.right_col)).count_cols() == mt.count_cols()
@@ -355,10 +386,10 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8),
         ]
         with hl.TemporaryDirectory() as prefix:
-            hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
+            hl.experimental.block_matrices_tofiles(bms, f"{prefix}/files")
             for i in range(len(bms)):
                 a = data[i]
-                a2 = np.frombuffer(hl.current_backend().fs.open(f'{prefix}/files/{i}', mode='rb').read())
+                a2 = np.frombuffer(hl.current_backend().fs.open(f"{prefix}/files/{i}", mode="rb").read())
                 self.assertTrue(np.array_equal(a, a2))
 
     @fails_service_backend()
@@ -371,18 +402,18 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8),
         ]
         with hl.TemporaryDirectory() as prefix:
-            hl.experimental.export_block_matrices(bms, f'{prefix}/files')
+            hl.experimental.export_block_matrices(bms, f"{prefix}/files")
             for i in range(len(bms)):
                 a = arrs[i]
-                a2 = np.loadtxt(hl.current_backend().fs.open(f'{prefix}/files/{i}.tsv'))
+                a2 = np.loadtxt(hl.current_backend().fs.open(f"{prefix}/files/{i}.tsv"))
                 self.assertTrue(np.array_equal(a, a2))
 
         with hl.TemporaryDirectory() as prefix2:
             custom_names = ["nameA", "inner/nameB.tsv"]
-            hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
+            hl.experimental.export_block_matrices(bms, f"{prefix2}/files", custom_filenames=custom_names)
             for i in range(len(bms)):
                 a = arrs[i]
-                a2 = np.loadtxt(hl.current_backend().fs.open(f'{prefix2}/files/{custom_names[i]}'))
+                a2 = np.loadtxt(hl.current_backend().fs.open(f"{prefix2}/files/{custom_names[i]}"))
                 self.assertTrue(np.array_equal(a, a2))
 
     def test_trivial_loop(self):
@@ -394,7 +425,9 @@ class Tests(unittest.TestCase):
 
         def triangle_with_tuple(n):
             return hl.experimental.loop(
-                lambda f, xc: hl.if_else(xc[0] > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]), hl.tint32, (n, 0)
+                lambda f, xc: hl.if_else(xc[0] > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]),
+                hl.tint32,
+                (n, 0),
             )
 
         for triangle in [triangle_with_ints, triangle_with_tuple]:
@@ -419,7 +452,8 @@ class Tests(unittest.TestCase):
 
         assert_evals_to(triangle_loop(5, lambda x, c: c + x), 15)
         assert_evals_to(
-            triangle_loop(5, lambda x, c: c + triangle_loop(x, lambda x2, c2: c2 + x2)), 15 + 10 + 6 + 3 + 1
+            triangle_loop(5, lambda x, c: c + triangle_loop(x, lambda x2, c2: c2 + x2)),
+            15 + 10 + 6 + 3 + 1,
         )
 
         n1 = 5
@@ -427,11 +461,14 @@ class Tests(unittest.TestCase):
             lambda f, x1, c1: hl.if_else(
                 x1 <= n1,
                 hl.experimental.loop(
-                    lambda f2, x2, c2: hl.if_else(x2 <= x1, f2(x2 + 1, c2 + x2), f(x1 + 1, c1 + c2)), 'int32', 0, 0
+                    lambda f2, x2, c2: hl.if_else(x2 <= x1, f2(x2 + 1, c2 + x2), f(x1 + 1, c1 + c2)),
+                    "int32",
+                    0,
+                    0,
                 ),
                 c1,
             ),
-            'int32',
+            "int32",
             0,
             0,
         )
@@ -440,7 +477,8 @@ class Tests(unittest.TestCase):
 
     def test_loop_errors(self):
         with pytest.raises(
-            TypeError, match="requested type ndarray<int32, 2> does not match inferred type ndarray<float64, 2>"
+            TypeError,
+            match="requested type ndarray<int32, 2> does not match inferred type ndarray<float64, 2>",
         ):
             hl.experimental.loop(
                 lambda f, my_nd: hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
@@ -465,16 +503,16 @@ class Tests(unittest.TestCase):
         def foo(recur, arr, idx):
             return hl.if_else(idx > 10, arr, recur(arr.append(hl.str(idx)), idx + 1))
 
-        assert hl.eval(hl.experimental.loop(foo, hl.tarray(hl.tstr), hl.literal(['foo']), 1)) == [
-            'foo',
-            '1',
-            '2',
-            '3',
-            '4',
-            '5',
-            '6',
-            '7',
-            '8',
-            '9',
-            '10',
+        assert hl.eval(hl.experimental.loop(foo, hl.tarray(hl.tstr), hl.literal(["foo"]), 1)) == [
+            "foo",
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "10",
         ]

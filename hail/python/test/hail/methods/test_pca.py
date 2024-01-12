@@ -6,7 +6,12 @@ import pytest
 import hail as hl
 from hail.methods.pca import _make_tsm
 
-from ..helpers import fails_local_backend, resource, skip_when_service_backend, test_timeout
+from ..helpers import (
+    fails_local_backend,
+    resource,
+    skip_when_service_backend,
+    test_timeout,
+)
 
 
 @fails_local_backend()
@@ -27,8 +32,11 @@ def test_hwe_normalized_pca():
 @fails_local_backend()
 @test_timeout(batch=10 * 60)
 def test_pca_against_numpy():
-    mt = hl.import_vcf(resource('tiny_m.vcf'))
-    mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()), n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
+    mt = hl.import_vcf(resource("tiny_m.vcf"))
+    mt = mt.annotate_rows(
+        AC=hl.agg.sum(mt.GT.n_alt_alleles()),
+        n_called=hl.agg.count_where(hl.is_defined(mt.GT)),
+    )
     n_rows = 3
     n_cols = 4
     k = 3
@@ -40,8 +48,8 @@ def test_pca_against_numpy():
         compute_loadings=True,
     )
 
-    hail_scores = scores.explode('scores').scores.collect()
-    hail_loadings = loadings.explode('loadings').loadings.collect()
+    hail_scores = scores.explode("scores").scores.collect()
+    hail_loadings = loadings.explode("loadings").loadings.collect()
 
     assert len(hail_scores) == n_cols * k
     assert len(hail_loadings) == n_rows * k
@@ -49,9 +57,12 @@ def test_pca_against_numpy():
     # compute PCA with numpy
     def normalize(a):
         ms = np.mean(a, axis=0, keepdims=True)
-        return np.divide(np.subtract(a, ms), np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]))
+        return np.divide(
+            np.subtract(a, ms),
+            np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]),
+        )
 
-    g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
+    g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode="constant")
     g[1, 0] = 1.0 / 3
     n = normalize(g)
     U, s, V = np.linalg.svd(n, full_matrices=0)
@@ -72,8 +83,11 @@ def test_blanczos_against_numpy():
         else:
             return np.concatenate(blocks, axis=1)
 
-    mt = hl.import_vcf(resource('tiny_m.vcf'))
-    mt = mt.annotate_rows(AC=hl.agg.sum(mt.GT.n_alt_alleles()), n_called=hl.agg.count_where(hl.is_defined(mt.GT)))
+    mt = hl.import_vcf(resource("tiny_m.vcf"))
+    mt = mt.annotate_rows(
+        AC=hl.agg.sum(mt.GT.n_alt_alleles()),
+        n_called=hl.agg.count_where(hl.is_defined(mt.GT)),
+    )
     n_rows = 3
     n_cols = 4
     k = 3
@@ -102,9 +116,12 @@ def test_blanczos_against_numpy():
     # compute PCA with numpy
     def normalize(a):
         ms = np.mean(a, axis=0, keepdims=True)
-        return np.divide(np.subtract(a, ms), np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]))
+        return np.divide(
+            np.subtract(a, ms),
+            np.sqrt(2.0 * np.multiply(ms / 2.0, 1 - ms / 2.0) * a.shape[1]),
+        )
 
-    g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode='constant')
+    g = np.pad(np.diag([1.0, 1, 2]), ((0, 1), (0, 0)), mode="constant")
     g[1, 0] = 1.0 / 3
     n = normalize(g)
     U, s, V = np.linalg.svd(n, full_matrices=0)
@@ -142,7 +159,12 @@ def test_blanczos_T():
     mt_A_T = matrix_table_from_numpy(A.T)
 
     eigenvalues, scores, loadings = hl._blanczos_pca(
-        mt_A_T.ent, k=k, oversampling_param=k, q_iterations=4, compute_loadings=True, transpose=True
+        mt_A_T.ent,
+        k=k,
+        oversampling_param=k,
+        q_iterations=4,
+        compute_loadings=True,
+        transpose=True,
     )
     singulars = np.sqrt(eigenvalues)
     hail_V = (np.array(scores.scores.collect()) / singulars).T
@@ -223,9 +245,17 @@ def spectra_helper(spec_func, triplet):
     approx_A = hail_U @ np.diag(singulars) @ hail_V
     norm_of_diff = np.linalg.norm(A - approx_A, 2)
     np.testing.assert_allclose(
-        norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet} "
+        norm_of_diff,
+        spec_func(k + 1, k),
+        rtol=1e-02,
+        err_msg=f"Norm test failed on triplet {triplet} ",
     )
-    np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
+    np.testing.assert_allclose(
+        singulars,
+        np.diag(sigma)[:k],
+        rtol=1e-01,
+        err_msg=f"Failed on triplet {triplet}",
+    )
 
 
 def spec1(j, k):
@@ -311,31 +341,31 @@ def spectral_moments_helper(spec_func):
         np.testing.assert_allclose(moments, true_moments, rtol=2e-01)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
+@skip_when_service_backend(reason="v slow & OOms")
 @test_timeout(4 * 60, batch=8 * 60)
 def test_spectral_moments_1():
     spectral_moments_helper(spec1)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
+@skip_when_service_backend(reason="v slow & OOms")
 @test_timeout(4 * 60, batch=8 * 60)
 def test_spectral_moments_2():
     spectral_moments_helper(spec2)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
+@skip_when_service_backend(reason="v slow & OOms")
 @test_timeout(4 * 60, batch=8 * 60)
 def test_spectral_moments_3():
     spectral_moments_helper(spec3)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
+@skip_when_service_backend(reason="v slow & OOms")
 @test_timeout(4 * 60, batch=8 * 60)
 def test_spectral_moments_4():
     spectral_moments_helper(spec4)
 
 
-@skip_when_service_backend(reason='v slow & OOms')
+@skip_when_service_backend(reason="v slow & OOms")
 @test_timeout(4 * 60, batch=8 * 60)
 def test_spectral_moments_5():
     spectral_moments_helper(spec5)
@@ -354,7 +384,12 @@ def spectra_and_moments_helper(spec_func):
         mt_A = matrix_table_from_numpy(A)
 
         eigenvalues, scores, loadings, moments, stdevs = hl._pca_and_moments(
-            _make_tsm(mt_A.ent, 128), k=k, num_moments=7, oversampling_param=k, compute_loadings=True, q_iterations=4
+            _make_tsm(mt_A.ent, 128),
+            k=k,
+            num_moments=7,
+            oversampling_param=k,
+            compute_loadings=True,
+            q_iterations=4,
         )
         singulars = np.sqrt(eigenvalues)
         hail_V = (np.array(scores.scores.collect()) / singulars).T
@@ -362,9 +397,17 @@ def spectra_and_moments_helper(spec_func):
         approx_A = hail_U @ np.diag(singulars) @ hail_V
         norm_of_diff = np.linalg.norm(A - approx_A, 2)
         np.testing.assert_allclose(
-            norm_of_diff, spec_func(k + 1, k), rtol=1e-02, err_msg=f"Norm test failed on triplet {triplet}"
+            norm_of_diff,
+            spec_func(k + 1, k),
+            rtol=1e-02,
+            err_msg=f"Norm test failed on triplet {triplet}",
         )
-        np.testing.assert_allclose(singulars, np.diag(sigma)[:k], rtol=1e-01, err_msg=f"Failed on triplet {triplet}")
+        np.testing.assert_allclose(
+            singulars,
+            np.diag(sigma)[:k],
+            rtol=1e-01,
+            err_msg=f"Failed on triplet {triplet}",
+        )
 
         true_moments = np.array([np.sum(np.power(sigma, 2 * i)) for i in range(1, 8)])
         np.testing.assert_allclose(moments, true_moments, rtol=1e-04)

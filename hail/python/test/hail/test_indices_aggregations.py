@@ -6,7 +6,7 @@ def test_array_slice_end():
     try:
         ht = ht.annotate_rows(c=hl.array([1, 2, 3])[: ht.col_idx])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -17,7 +17,7 @@ def test_array_slice_start():
     try:
         ht = ht.annotate_rows(c=hl.array([1, 2, 3])[ht.col_idx :])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -28,7 +28,7 @@ def test_array_slice_step():
     try:
         ht = ht.annotate_rows(c=hl.array([1, 2, 3])[:: ht.col_idx])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -41,7 +41,7 @@ def test_matmul():
     try:
         ht = ht.annotate_rows(c=ht.b @ ht.a)
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'a' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -53,7 +53,7 @@ def test_ndarray_index():
     try:
         ht = ht.annotate_rows(c=ht.b[ht.col_idx])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -65,7 +65,7 @@ def test_ndarray_index_with_slice_1():
     try:
         ht = ht.annotate_rows(c=ht.b[ht.col_idx, :])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -77,7 +77,7 @@ def test_ndarray_index_with_slice_2():
     try:
         ht = ht.annotate_rows(c=ht.b[:, ht.col_idx])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -89,7 +89,7 @@ def test_ndarray_index_with_None_1():
     try:
         ht = ht.annotate_rows(c=ht.b[ht.col_idx, None])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -101,7 +101,7 @@ def test_ndarray_index_with_None_2():
     try:
         ht = ht.annotate_rows(c=ht.b[None, ht.col_idx])
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -113,7 +113,7 @@ def test_ndarray_reshape_1():
     try:
         ht = ht.annotate_rows(c=ht.b.reshape((ht.col_idx, 1)))
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -125,7 +125,7 @@ def test_ndarray_reshape_2():
     try:
         ht = ht.annotate_rows(c=ht.b.reshape((1, ht.col_idx)))
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'col_idx' (indices ['column'])" in exc.args[0]
     else:
         assert False
@@ -138,7 +138,7 @@ def test_ndarray_reshape_tuple():
     try:
         ht = ht.annotate_rows(c=ht.b.reshape(ht.a))
     except hl.ExpressionException as exc:
-        assert 'scope violation' in exc.args[0]
+        assert "scope violation" in exc.args[0]
         assert "'a' (indices ['column'])" in exc.args[0]
     else:
         assert False

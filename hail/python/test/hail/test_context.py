@@ -1,4 +1,10 @@
-from test.hail.helpers import hl_init_for_test, hl_stop_for_test, qobtest, skip_unless_spark_backend, with_flags
+from test.hail.helpers import (
+    hl_init_for_test,
+    hl_stop_for_test,
+    qobtest,
+    skip_unless_spark_backend,
+    with_flags,
+)
 from typing import Dict, Optional, Tuple
 
 import hail as hl
@@ -7,7 +13,9 @@ from hail.backend.spark_backend import SparkBackend
 from hail.utils.java import Env
 
 
-def _scala_map_str_to_tuple_str_str_to_dict(scala) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
+def _scala_map_str_to_tuple_str_str_to_dict(
+    scala,
+) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
     it = scala.iterator()
     s: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
     while it.hasNext():
@@ -53,10 +61,10 @@ def test_tmpdir_runs():
 
 def test_get_flags():
     assert hl._get_flags() == {}
-    assert list(hl._get_flags('use_new_shuffle')) == ['use_new_shuffle']
+    assert list(hl._get_flags("use_new_shuffle")) == ["use_new_shuffle"]
 
 
-@skip_unless_spark_backend(reason='requires JVM')
+@skip_unless_spark_backend(reason="requires JVM")
 def test_flags_same_in_scala_and_python():
     b = hl.current_backend()
     assert isinstance(b, SparkBackend)
@@ -67,17 +75,23 @@ def test_flags_same_in_scala_and_python():
 
 def test_fast_restarts_feature():
     def is_featured_off():
-        return hl._get_flags('use_fast_restarts', 'cachedir') == {'use_fast_restarts': None, 'cachedir': None}
+        return hl._get_flags("use_fast_restarts", "cachedir") == {
+            "use_fast_restarts": None,
+            "cachedir": None,
+        }
 
-    @with_flags(use_fast_restarts='1')
+    @with_flags(use_fast_restarts="1")
     def uses_fast_restarts():
-        return hl._get_flags('use_fast_restarts', 'cachedir') == {'use_fast_restarts': '1', 'cachedir': None}
+        return hl._get_flags("use_fast_restarts", "cachedir") == {
+            "use_fast_restarts": "1",
+            "cachedir": None,
+        }
 
-    @with_flags(use_fast_restarts='1', cachedir='gs://my-bucket/object-prefix')
+    @with_flags(use_fast_restarts="1", cachedir="gs://my-bucket/object-prefix")
     def uses_cachedir():
-        return hl._get_flags('use_fast_restarts', 'cachedir') == {
-            'use_fast_restarts': '1',
-            'cachedir': 'gs://my-bucket/object-prefix',
+        return hl._get_flags("use_fast_restarts", "cachedir") == {
+            "use_fast_restarts": "1",
+            "cachedir": "gs://my-bucket/object-prefix",
         }
 
     assert is_featured_off()

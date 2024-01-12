@@ -26,8 +26,8 @@ def event_loop():
 
 
 def pytest_collection_modifyitems(items):
-    n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
-    split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
+    n_splits = int(os.environ.get("HAIL_RUN_IMAGE_SPLITS", "1"))
+    split_index = int(os.environ.get("HAIL_RUN_IMAGE_SPLIT_INDEX", "-1"))
     if n_splits <= 1:
         return
     if not (0 <= split_index < n_splits):
@@ -35,7 +35,7 @@ def pytest_collection_modifyitems(items):
     skip_this = pytest.mark.skip(reason="skipped in this round")
 
     def digest(s):
-        return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
+        return int.from_bytes(hashlib.md5(str(s).encode("utf-8")).digest(), "little")
 
     for item in items:
         if not digest(item.name) % n_splits == split_index:
@@ -77,7 +77,7 @@ def reinitialize_hail_for_each_qob_test(init_hail, request):
             batch = new_backend._batch
             report: Dict[str, CollectReport] = request.node.stash[test_results_key]
             if any(r.failed for r in report.values()):
-                log.info(f'cancelling failed test batch {batch.id}')
+                log.info(f"cancelling failed test batch {batch.id}")
                 hail_event_loop().run_until_complete(batch.cancel())
     else:
         yield

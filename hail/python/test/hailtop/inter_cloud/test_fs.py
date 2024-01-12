@@ -20,58 +20,60 @@ from hailtop.utils import bounded_gather2, retry_transient_errors, secret_alnum_
 
 @pytest.fixture(
     params=[
-        'file',
-        'gs',
-        's3',
-        'azure-https',
-        'router/file',
-        'router/gs',
-        'router/s3',
-        'router/azure-https',
-        'sas/azure-https',
+        "file",
+        "gs",
+        "s3",
+        "azure-https",
+        "router/file",
+        "router/gs",
+        "router/s3",
+        "router/azure-https",
+        "sas/azure-https",
     ]
 )
-async def filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
+async def filesystem(
+    request,
+) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]]:
     token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
         fs: AsyncFS
-        if request.param.startswith('router/'):
+        if request.param.startswith("router/"):
             fs = RouterAsyncFS(
-                local_kwargs={'thread_pool': thread_pool},
-                s3_kwargs={'thread_pool': thread_pool},
+                local_kwargs={"thread_pool": thread_pool},
+                s3_kwargs={"thread_pool": thread_pool},
             )
-        elif request.param == 'file':
+        elif request.param == "file":
             fs = LocalAsyncFS(thread_pool)
-        elif request.param.endswith('gs'):
+        elif request.param.endswith("gs"):
             fs = GoogleStorageAsyncFS()
-        elif request.param.endswith('s3'):
+        elif request.param.endswith("s3"):
             fs = S3AsyncFS(thread_pool)
         else:
-            assert request.param.endswith('azure-https')
+            assert request.param.endswith("azure-https")
             fs = AzureAsyncFS()
 
         async with fs:
-            if request.param.endswith('file'):
-                base = fs.parse_url(f'/tmp/{token}')
-            elif request.param.endswith('gs'):
-                bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-                base = fs.parse_url(f'gs://{bucket}/tmp/{token}/')
-            elif request.param.endswith('s3'):
-                bucket = os.environ['HAIL_TEST_S3_BUCKET']
-                base = fs.parse_url(f's3://{bucket}/tmp/{token}/')
+            if request.param.endswith("file"):
+                base = fs.parse_url(f"/tmp/{token}")
+            elif request.param.endswith("gs"):
+                bucket = os.environ["HAIL_TEST_GCS_BUCKET"]
+                base = fs.parse_url(f"gs://{bucket}/tmp/{token}/")
+            elif request.param.endswith("s3"):
+                bucket = os.environ["HAIL_TEST_S3_BUCKET"]
+                base = fs.parse_url(f"s3://{bucket}/tmp/{token}/")
             else:
-                assert request.param.endswith('azure-https')
-                account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
-                container = os.environ['HAIL_TEST_AZURE_CONTAINER']
-                if request.param.startswith('sas'):
-                    sub_id = os.environ['HAIL_TEST_AZURE_SUBID']
-                    res_grp = os.environ['HAIL_TEST_AZURE_RESGRP']
+                assert request.param.endswith("azure-https")
+                account = os.environ["HAIL_TEST_AZURE_ACCOUNT"]
+                container = os.environ["HAIL_TEST_AZURE_CONTAINER"]
+                if request.param.startswith("sas"):
+                    sub_id = os.environ["HAIL_TEST_AZURE_SUBID"]
+                    res_grp = os.environ["HAIL_TEST_AZURE_RESGRP"]
                     assert isinstance(fs, AzureAsyncFS)
                     sas_token = await fs.generate_sas_token(sub_id, res_grp, account, "rwdlc")
-                    base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/?{sas_token}')
+                    base = fs.parse_url(f"https://{account}.blob.core.windows.net/{container}/tmp/{token}/?{sas_token}")
                 else:
-                    base = fs.parse_url(f'https://{account}.blob.core.windows.net/{container}/tmp/{token}/')
+                    base = fs.parse_url(f"https://{account}.blob.core.windows.net/{container}/tmp/{token}/")
 
             await fs.mkdir(str(base))
             sema = asyncio.Semaphore(50)
@@ -87,7 +89,7 @@ async def local_filesystem(request):
 
     with ThreadPoolExecutor() as thread_pool:
         async with LocalAsyncFS(thread_pool) as fs:
-            base = f'/tmp/{token}/'
+            base = f"/tmp/{token}/"
             await fs.mkdir(base)
             sema = asyncio.Semaphore(50)
             async with sema:
@@ -96,14 +98,14 @@ async def local_filesystem(request):
             assert not await fs.isdir(base)
 
 
-@pytest.fixture(params=['small', 'multipart', 'large'])
+@pytest.fixture(params=["small", "multipart", "large"])
 def file_data(request):
-    if request.param == 'small':
-        return [b'foo']
-    elif request.param == 'multipart':
-        return [b'foo', b'bar', b'baz']
+    if request.param == "small":
+        return [b"foo"]
+    elif request.param == "multipart":
+        return [b"foo", b"bar", b"baz"]
     else:
-        assert request.param == 'large'
+        assert request.param == "large"
         return [secrets.token_bytes(1_000_000)]
 
 
@@ -114,13 +116,13 @@ async def test_write_read(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSU
         base,
     ) = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     async with await fs.create(file) as writer:
         for b in file_data:
             await writer.write(b)
 
-    expected = b''.join(file_data)
+    expected = b"".join(file_data)
     async with await fs.open(file) as reader:
         actual = await reader.read()
 
@@ -130,38 +132,38 @@ async def test_write_read(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSU
 async def test_open_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     async with await fs.create(file) as f:
-        await f.write(b'abcde')
+        await f.write(b"abcde")
 
     async with await fs.open_from(file, 2) as f:
         r = await f.read()
-        assert r == b'cde'
+        assert r == b"cde"
 
 
 async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     async with await fs.create(file) as f:
-        await f.write(b'abcde')
+        await f.write(b"abcde")
 
     async with await fs.open_from(file, 2, length=2) as f:
         r = await f.read()
-        assert r == b'cd'
+        assert r == b"cd"
 
     async with await fs.open_from(file, 2, length=1) as f:
         r = await f.read()
-        assert r == b'c'
+        assert r == b"c"
 
     async with await fs.open_from(file, 2, length=0) as f:
         r = await f.read()
-        assert r == b''
+        assert r == b""
 
     try:
-        await fs.open_from(str(base.with_new_path_component('foodoesnotexist')), 2, length=0)
+        await fs.open_from(str(base.with_new_path_component("foodoesnotexist")), 2, length=0)
     except FileNotFoundError:
         pass
     else:
@@ -178,20 +180,20 @@ async def test_open_from_with_length(filesystem: Tuple[asyncio.Semaphore, AsyncF
 async def test_open_empty(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     async with await fs.create(file) as f:
-        await f.write(b'')
+        await f.write(b"")
 
     async with await fs.open_from(file, 0, length=0) as f:
         r = await f.read()
-        assert r == b''
+        assert r == b""
 
 
 async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
     with pytest.raises(FileNotFoundError):
         await fs.open(file)
 
@@ -199,7 +201,7 @@ async def test_open_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncF
 async def test_open_from_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
     with pytest.raises(FileNotFoundError):
         await fs.open_from(file, 2)
 
@@ -207,25 +209,25 @@ async def test_open_from_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, A
 async def test_read_from(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
-    await fs.write(file, b'abcde')
+    await fs.write(file, b"abcde")
     r = await fs.read_from(file, 2)
-    assert r == b'cde'
+    assert r == b"cde"
 
 
 async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
-    await fs.write(file, b'abcde')
+    await fs.write(file, b"abcde")
 
     r = await fs.read_range(file, 2, 2)
-    assert r == b'c'
+    assert r == b"c"
 
     r = await fs.read_range(file, 2, 4)
-    assert r == b'cde'
+    assert r == b"cde"
 
     try:
         await fs.read_range(file, 2, 10)
@@ -238,11 +240,11 @@ async def test_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSU
 async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
-    await fs.write(file, b'')
+    await fs.write(file, b"")
 
-    assert await fs.read_range(file, 0, 0, end_inclusive=False) == b''
+    assert await fs.read_range(file, 0, 0, end_inclusive=False) == b""
 
 
 async def test_read_range_end_inclusive_empty_file_should_error(
@@ -250,12 +252,12 @@ async def test_read_range_end_inclusive_empty_file_should_error(
 ):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
-    await fs.write(file, b'')
+    await fs.write(file, b"")
 
     try:
-        assert await fs.read_range(file, 0, 0, end_inclusive=True) == b''
+        assert await fs.read_range(file, 0, 0, end_inclusive=True) == b""
     except UnexpectedEOFError:
         pass
     else:
@@ -265,17 +267,17 @@ async def test_read_range_end_inclusive_empty_file_should_error(
 async def test_read_range_end_exclusive_nonempty_file(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
-    await fs.write(file, b'abcde')
+    await fs.write(file, b"abcde")
 
-    assert await fs.read_range(file, 2, 4, end_inclusive=False) == b'cd'
+    assert await fs.read_range(file, 2, 4, end_inclusive=False) == b"cd"
 
 
 async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL], file_data):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     async with await fs.create(file) as f:
         for b in file_data:
@@ -286,7 +288,7 @@ async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, As
     start = min(pt1, pt2)
     end = max(pt1, pt2)
 
-    expected = b''.join(file_data)[start : end + 1]
+    expected = b"".join(file_data)[start : end + 1]
     actual = await fs.read_range(file, start, end)  # end is inclusive
 
     assert expected == actual
@@ -295,7 +297,7 @@ async def test_write_read_range(filesystem: Tuple[asyncio.Semaphore, AsyncFS, As
 async def test_isfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     # doesn't exist yet
     assert not await fs.isfile(file)
@@ -309,20 +311,20 @@ async def test_isdir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
     # mkdir with trailing slash
-    dir = str(base.with_new_path_component('dir/'))
+    dir = str(base.with_new_path_component("dir/"))
     await fs.mkdir(dir)
 
-    file = str(base.with_new_path_component('dir/foo'))
+    file = str(base.with_new_path_component("dir/foo"))
     await fs.touch(file)
 
     # can't test this until after creating foo
     assert await fs.isdir(dir)
 
     # mkdir without trailing slash
-    dir2 = str(base.with_new_path_component('dir2'))
+    dir2 = str(base.with_new_path_component("dir2"))
     await fs.mkdir(dir2)
 
-    file2 = str(base.with_new_path_component('dir2/foo'))
+    file2 = str(base.with_new_path_component("dir2/foo"))
     await fs.touch(file2)
 
     assert await fs.isdir(dir)
@@ -331,13 +333,13 @@ async def test_isdir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
 async def test_isdir_subdir_only(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    dir = str(base.with_new_path_component('dir/'))
+    dir = str(base.with_new_path_component("dir/"))
     await fs.mkdir(dir)
 
-    subdir = str(base.with_new_path_component('dir/subdir/'))
+    subdir = str(base.with_new_path_component("dir/subdir/"))
     await fs.mkdir(subdir)
 
-    file = str(base.with_new_path_component('dir/subdir/foo'))
+    file = str(base.with_new_path_component("dir/subdir/foo"))
     await fs.touch(file)
 
     # can't test this until after creating foo
@@ -348,7 +350,7 @@ async def test_isdir_subdir_only(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
 async def test_remove(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('foo'))
+    file = str(base.with_new_path_component("foo"))
 
     await fs.touch(file)
     assert await fs.isfile(file)
@@ -361,19 +363,19 @@ async def test_remove(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL])
 async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     sema, fs, base = filesystem
 
-    dir = base.with_new_path_component('foo/')
-    subdir1 = base.with_new_path_component('foo/foo/')
-    subdir1subdir1 = base.with_new_path_component('foo/foo/foo/')
-    subdir1subdir2 = base.with_new_path_component('foo/foo/bar/')
-    subdir1subdir3 = base.with_new_path_component('foo/foo/baz/')
-    subdir1subdir4_empty = base.with_new_path_component('foo/foo/qux/')
-    subdir2 = base.with_new_path_component('foo/bar/')
-    subdir3 = base.with_new_path_component('foo/baz/')
-    subdir4_empty = base.with_new_path_component('foo/qux/')
+    dir = base.with_new_path_component("foo/")
+    subdir1 = base.with_new_path_component("foo/foo/")
+    subdir1subdir1 = base.with_new_path_component("foo/foo/foo/")
+    subdir1subdir2 = base.with_new_path_component("foo/foo/bar/")
+    subdir1subdir3 = base.with_new_path_component("foo/foo/baz/")
+    subdir1subdir4_empty = base.with_new_path_component("foo/foo/qux/")
+    subdir2 = base.with_new_path_component("foo/bar/")
+    subdir3 = base.with_new_path_component("foo/baz/")
+    subdir4_empty = base.with_new_path_component("foo/qux/")
 
     await fs.mkdir(str(dir))
-    await fs.touch(str(dir.with_new_path_component('a')))
-    await fs.touch(str(dir.with_new_path_component('b')))
+    await fs.touch(str(dir.with_new_path_component("a")))
+    await fs.touch(str(dir.with_new_path_component("b")))
 
     await fs.mkdir(str(subdir1))
     await fs.mkdir(str(subdir1subdir1))
@@ -388,8 +390,16 @@ async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL])
     await bounded_gather2(
         sema,
         *[
-            functools.partial(fs.touch, str(subdir.with_new_path_component(f'a{i:02}')))
-            for subdir in [dir, subdir1, subdir2, subdir3, subdir1subdir1, subdir1subdir2, subdir1subdir3]
+            functools.partial(fs.touch, str(subdir.with_new_path_component(f"a{i:02}")))
+            for subdir in [
+                dir,
+                subdir1,
+                subdir2,
+                subdir3,
+                subdir1subdir1,
+                subdir1subdir2,
+                subdir1subdir3,
+            ]
             for i in range(30)
         ],
     )
@@ -407,25 +417,25 @@ async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL])
     await fs.rmtree(sema, str(subdir1subdir2))
 
     assert await fs.isdir(str(dir))
-    assert await fs.isfile(str(dir.with_new_path_component('a')))
-    assert await fs.isfile(str(dir.with_new_path_component('b')))
+    assert await fs.isfile(str(dir.with_new_path_component("a")))
+    assert await fs.isfile(str(dir.with_new_path_component("b")))
 
     assert await fs.isdir(str(subdir1))
-    assert await fs.isfile(str(subdir1.with_new_path_component('a00')))
+    assert await fs.isfile(str(subdir1.with_new_path_component("a00")))
 
     assert await fs.isdir(str(subdir1subdir1))
-    assert await fs.isfile(str(subdir1subdir1.with_new_path_component('a00')))
+    assert await fs.isfile(str(subdir1subdir1.with_new_path_component("a00")))
 
     assert not await fs.isdir(str(subdir1subdir2))
-    assert not await fs.isfile(str(subdir1subdir2.with_new_path_component('a00')))
+    assert not await fs.isfile(str(subdir1subdir2.with_new_path_component("a00")))
 
     assert await fs.isdir(str(subdir1subdir3))
-    assert await fs.isfile(str(subdir1subdir3.with_new_path_component('a00')))
+    assert await fs.isfile(str(subdir1subdir3.with_new_path_component("a00")))
 
     assert await fs.isdir(str(subdir2))
-    assert await fs.isfile(str(subdir2.with_new_path_component('a00')))
+    assert await fs.isfile(str(subdir2.with_new_path_component("a00")))
     assert await fs.isdir(str(subdir3))
-    assert await fs.isfile(str(subdir3.with_new_path_component('a00')))
+    assert await fs.isfile(str(subdir3.with_new_path_component("a00")))
 
     await fs.rmtree(sema, str(dir))
 
@@ -435,7 +445,7 @@ async def test_rmtree(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL])
 async def test_rmtree_empty_dir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     sema, fs, base = filesystem
 
-    dir = str(base.with_new_path_component('bar/'))
+    dir = str(base.with_new_path_component("bar/"))
 
     await fs.mkdir(dir)
     await fs.rmtree(sema, dir)
@@ -445,13 +455,13 @@ async def test_rmtree_empty_dir(filesystem: Tuple[asyncio.Semaphore, AsyncFS, As
 async def test_cloud_rmtree_file_ending_in_slash(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     sema, fs, base = filesystem
 
-    if isinstance(fs, LocalAsyncFS) or base.scheme in ('', 'file'):
+    if isinstance(fs, LocalAsyncFS) or base.scheme in ("", "file"):
         return
 
-    fname = str(base.with_new_path_component('bar/'))
+    fname = str(base.with_new_path_component("bar/"))
 
     async with await fs.create(fname) as f:
-        await f.write(b'test_rmtree_file_ending_in_slash')
+        await f.write(b"test_rmtree_file_ending_in_slash")
     await fs.rmtree(sema, fname)
     assert not await fs.isdir(fname)
     assert not await fs.isfile(fname)
@@ -462,25 +472,25 @@ async def test_statfile_nonexistent_file(filesystem: Tuple[asyncio.Semaphore, As
     _, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
-        await fs.statfile(str(base.with_new_path_component('foo')))
+        await fs.statfile(str(base.with_new_path_component("foo")))
 
 
 async def test_statfile_directory(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    await fs.mkdir(str(base.with_new_path_component('dir/')))
-    await fs.touch(str(base.with_new_path_component('dir/foo')))
+    await fs.mkdir(str(base.with_new_path_component("dir/")))
+    await fs.touch(str(base.with_new_path_component("dir/foo")))
 
     with pytest.raises(FileNotFoundError):
         # statfile raises FileNotFound on directories
-        await fs.statfile(str(base.with_new_path_component('dir/')))
+        await fs.statfile(str(base.with_new_path_component("dir/")))
 
 
 async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
     n = 37
-    file = str(base.with_new_path_component('bar'))
+    file = str(base.with_new_path_component("bar"))
     await fs.write(file, secrets.token_bytes(n))
     status = await fs.statfile(file)
     assert await status.size() == n
@@ -489,9 +499,9 @@ async def test_statfile(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL
 async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('bar'))
+    file = str(base.with_new_path_component("bar"))
     now = datetime.datetime.utcnow()
-    await fs.write(file, b'abc123')
+    await fs.write(file, b"abc123")
     status = await fs.statfile(file)
 
     if isinstance(fs, RouterAsyncFS):
@@ -503,7 +513,7 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
         try:
             status.time_created()
         except ValueError as err:
-            assert err.args[0] == 'LocalFS does not support time created.'
+            assert err.args[0] == "LocalFS does not support time created."
         else:
             assert False
 
@@ -519,41 +529,41 @@ async def test_statfile_creation_and_modified_time(filesystem: Tuple[asyncio.Sem
 async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    file = str(base.with_new_path_component('bar?baz'))
+    file = str(base.with_new_path_component("bar?baz"))
     await fs.write(file, secrets.token_bytes(10))
     assert await fs.exists(file)
     async for f in await fs.listfiles(str(base)):
-        if 'bar?baz' in f.basename():
+        if "bar?baz" in f.basename():
             break
     else:
-        assert False, 'File bar?baz not found'
+        assert False, "File bar?baz not found"
 
 
 async def test_basename_is_not_path(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
-    await fs.write(str(base.with_new_path_component('abc123')), b'foo')
-    assert (await fs.statfile(str(base.with_new_path_component('abc123')))).basename() == 'abc123'
+    await fs.write(str(base.with_new_path_component("abc123")), b"foo")
+    assert (await fs.statfile(str(base.with_new_path_component("abc123")))).basename() == "abc123"
 
 
 async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
     _, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
-        await fs.listfiles(str(base.with_new_path_component('does/not/exist')))
+        await fs.listfiles(str(base.with_new_path_component("does/not/exist")))
 
     with pytest.raises(FileNotFoundError):
-        await fs.listfiles(str(base.with_new_path_component('does/not/exist')), recursive=True)
+        await fs.listfiles(str(base.with_new_path_component("does/not/exist")), recursive=True)
 
     # create the following directory structure in base:
     # foobar
     # foo/a
     # foo/b/c
-    a = str(base.with_new_path_component('foo/a'))
-    b = str(base.with_new_path_component('/foo/b/'))
-    c = str(base.with_new_path_component('foo/b/c'))
-    await fs.touch(str(base.with_new_path_component('foobar')))
-    await fs.mkdir(str(base.with_new_path_component('foo/')))
+    a = str(base.with_new_path_component("foo/a"))
+    b = str(base.with_new_path_component("/foo/b/"))
+    c = str(base.with_new_path_component("foo/b/c"))
+    await fs.touch(str(base.with_new_path_component("foobar")))
+    await fs.mkdir(str(base.with_new_path_component("foo/")))
     await fs.touch(a)
     await fs.mkdir(b)
     await fs.touch(c)
@@ -561,7 +571,7 @@ async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSUR
     async def listfiles(dir, recursive):
         return {(await entry.url_full(), await entry.is_file()) async for entry in await fs.listfiles(dir, recursive)}
 
-    foo = str(base.with_new_path_component('foo/'))
+    foo = str(base.with_new_path_component("foo/"))
     assert await listfiles(foo, recursive=True) == {(a, True), (c, True)}
     assert await listfiles(foo, recursive=False) == {(a, True), (b, False)}
 
@@ -584,7 +594,7 @@ async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
     sema, fs, base = filesystem
 
     # S3 has a minimum part size (except for the last part) of 5MiB
-    if base.scheme == 's3':
+    if base.scheme == "s3":
         min_part_size = 5 * 1024 * 1024
         part_data_size = [min_part_size, min_part_size, min_part_size]
     else:
@@ -597,7 +607,7 @@ async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
         part_start.append(s)
         s += len(b)
 
-    path = str(base.with_new_path_component('a'))
+    path = str(base.with_new_path_component("a"))
     async with await fs.multi_part_create(sema, path, len(part_data)) as c:
 
         async def create_part(i):
@@ -612,7 +622,7 @@ async def test_multi_part_create(filesystem: Tuple[asyncio.Semaphore, AsyncFS, A
             # do in parallel
             await asyncio.gather(*[retry_transient_errors(create_part, i) for i in range(len(part_data))])
 
-    expected = b''.join(part_data)
+    expected = b"".join(part_data)
     async with await fs.open(path) as f:
         actual = await f.read()
     assert expected == actual
@@ -622,13 +632,13 @@ async def test_rmtree_on_symlink_to_directory():
     token = secret_alnum_string()
     with ThreadPoolExecutor() as thread_pool:
         fs = LocalAsyncFS(thread_pool)
-        base = fs.parse_url(f'/tmp/{token}')
+        base = fs.parse_url(f"/tmp/{token}")
         await fs.mkdir(str(base))
         sema = asyncio.Semaphore(50)
         try:
-            os.mkdir(f'/tmp/{token}/subdir')
-            os.symlink(f'/tmp/{token}/subdir', f'/tmp/{token}/subdir/loop')
-            await fs.rmtree(sema, str(base.with_new_path_component('/subdir')))
+            os.mkdir(f"/tmp/{token}/subdir")
+            os.symlink(f"/tmp/{token}/subdir", f"/tmp/{token}/subdir/loop")
+            await fs.rmtree(sema, str(base.with_new_path_component("/subdir")))
         finally:
             await fs.rmtree(sema, str(base))
             assert not await fs.isdir(str(base))
