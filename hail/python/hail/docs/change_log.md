@@ -57,6 +57,16 @@ critically depend on experimental functionality.**
 
 Released 2023-12-08
 
+If you have an Apple M1 laptop, verify that
+
+```
+file $JAVA_HOME/bin/java
+```
+
+returns a message including the phrase "arm64". If it instead includes the phrase "x86_64" then you
+must upgrade to a new version of Java. You may find such a version of Java
+[here](https://www.azul.com/downloads/?os=macos&architecture=arm-64-bit&package=jre#zulu).
+
 ### New Features
 
 - (hail#14093) `hailctl dataproc` now creates clusters using Dataproc version 2.1.33. It previously used version 2.1.2.
