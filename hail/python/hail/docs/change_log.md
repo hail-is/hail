@@ -77,6 +77,7 @@ Released 2023-12-08
 - (hail#14127) `hailctl dataproc start ... --dry-run` now uses shell escapes such that, after copied and pasted into a shell, the `gcloud` command works as expected.
 - (hail#14062) Fix (hail#14052) which caused incorrect results for identity by descent in Query-on-Batch.
 - (hail#14122) Ensure that stack traces are transmitted from workers to the driver to the client.
+- (hail#14105) When a VCF contains missing values in array fields, Hail now suggests using `array_elements_required=False`.
 
 ### Deprecations
 
