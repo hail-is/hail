@@ -239,11 +239,11 @@ def parse_batch_jobs_query_v2(
     where_args = [batch_id]
 
     if recursive:
-        jg_cond = '''
+        jg_cond = """
 ((jobs.batch_id, jobs.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_self_and_ancestors
   WHERE ancestor_id = %s))
-'''
+"""
     else:
         jg_cond = '(jobs.job_group_id = %s)'
 

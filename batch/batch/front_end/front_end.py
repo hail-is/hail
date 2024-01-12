@@ -1592,7 +1592,7 @@ async def _get_job_group(app, batch_id: int, job_group_id: int):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT job_groups.*,
   job_groups_cancelled.id IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
@@ -1618,7 +1618,7 @@ LEFT JOIN LATERAL (
   GROUP BY batch_id, job_group_id
 ) AS cost_t ON TRUE
 WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
-''',
+""",
         (batch_id, job_group_id),
     )
     if not record:
