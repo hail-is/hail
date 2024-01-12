@@ -521,13 +521,11 @@ class PR(Code):
         try:
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
-            await check_shell(
-                f"""
+            await check_shell(f"""
 set -ex
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-"""
-            )
+""")
 
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
@@ -964,12 +962,10 @@ url: {url}
         assert self.sha is not None
         try:
             repo_dir = self.repo_dir()
-            await check_shell(
-                f"""
+            await check_shell(f"""
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-"""
-            )
+""")
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
                 namespace = config.namespace()
@@ -1075,12 +1071,10 @@ class UnwatchedBranch(Code):
         deploy_batch = None
         try:
             repo_dir = self.repo_dir()
-            await check_shell(
-                f"""
+            await check_shell(f"""
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-"""
-            )
+""")
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(

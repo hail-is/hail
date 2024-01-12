@@ -277,8 +277,7 @@ class NetworkNamespace:
                 resolv.write('nameserver 8.8.8.8\n')
 
     async def create_netns(self):
-        await check_shell(
-            f"""
+        await check_shell(f"""
 ip netns add {self.network_ns_name} && \
 ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
 ip link set dev {self.veth_host} up && \
@@ -287,23 +286,18 @@ ip address add {self.host_ip}/24 dev {self.veth_host}
 ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
-ip -n {self.network_ns_name} route add default via {self.host_ip}"""
-        )
+ip -n {self.network_ns_name} route add default via {self.host_ip}""")
 
     async def enable_iptables_forwarding(self):
-        await check_shell(
-            f"""
+        await check_shell(f"""
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT"""
-        )
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT""")
 
     async def mark_packets(self):
-        await check_shell(
-            f"""
+        await check_shell(f"""
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
-"""
-        )
+""")
 
     async def expose_port(self, port, host_port):
         self.port = port
@@ -327,11 +321,9 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interfac
             await self.expose_port_rule(action='delete')
         self.host_port = None
         self.port = None
-        await check_shell(
-            f"""
+        await check_shell(f"""
 ip link delete {self.veth_host} && \
-ip netns delete {self.network_ns_name}"""
-        )
+ip netns delete {self.network_ns_name}""")
         await self.create_netns()
 
 
