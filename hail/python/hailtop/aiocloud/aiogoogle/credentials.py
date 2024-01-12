@@ -52,6 +52,14 @@ class GoogleCredentials(CloudCredentials):
             self._http_session = httpx.ClientSession(**kwargs)
 
     @staticmethod
+    def from_file_or_default(
+        credentials_file: Optional[str] = None,
+    ) -> 'GoogleCredentials':
+        if credentials_file:
+            return GoogleCredentials.from_file(credentials_file)
+        return GoogleCredentials.default_credentials()
+
+    @staticmethod
     def from_file(credentials_file: str, *, scopes: Optional[List[str]] = None) -> 'GoogleCredentials':
         with open(credentials_file, encoding='utf-8') as f:
             credentials = json.load(f)
@@ -124,6 +132,12 @@ class GoogleCredentials(CloudCredentials):
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         raise NotImplementedError
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        await self.close()
 
     async def close(self):
         await self._http_session.close()

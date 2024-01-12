@@ -21,7 +21,7 @@ object VariantMethods {
   }
 
   def locusAllelesToString(locus: Locus, alleles: IndexedSeq[String]): String =
-    s"$locus:${ alleles(0) }:${ alleles.tail.mkString(",") }"
+    s"$locus:${alleles(0)}:${alleles.tail.mkString(",")}"
 
   def minRep(locus: Locus, alleles: IndexedSeq[String]): (Locus, IndexedSeq[String]) = {
     if (alleles.isEmpty)
@@ -44,26 +44,28 @@ object VariantMethods {
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
       var ne = 0
 
-      while (ne < min_length - 1
+      while (
+        ne < min_length - 1
         && alts.forall(x => ref(ref.length - ne - 1) == x(x.length - ne - 1))
-      ) {
+      )
         ne += 1
-      }
 
       var ns = 0
-      while (ns < min_length - ne - 1
+      while (
+        ns < min_length - ne - 1
         && alts.forall(x => ref(ns) == x(ns))
-      ) {
+      )
         ns += 1
-      }
 
       if (ne + ns == 0)
         (locus, alleles)
       else {
         assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
-        (Locus(locus.contig, locus.position + ns),
+        (
+          Locus(locus.contig, locus.position + ns),
           ref.substring(ns, ref.length - ne) +:
-            altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray)
+            altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray,
+        )
       }
     }
   }
@@ -74,8 +76,8 @@ object VariantSubgen {
     contigGen = Contig.gen(rg),
     nAllelesGen = Gen.frequency((5, Gen.const(2)), (1, Gen.choose(2, 10))),
     refGen = genDNAString,
-    altGen = Gen.frequency((10, genDNAString),
-      (1, Gen.const("*"))))
+    altGen = Gen.frequency((10, genDNAString), (1, Gen.const("*"))),
+  )
 
   def plinkCompatible(rg: ReferenceGenome): VariantSubgen = {
     val r = random(rg)
@@ -83,7 +85,8 @@ object VariantSubgen {
     r.copy(
       contigGen = r.contigGen.filter { case (contig, len) =>
         compatible.contains(contig)
-      })
+      }
+    )
   }
 
   def biallelic(rg: ReferenceGenome): VariantSubgen = random(rg).copy(nAllelesGen = Gen.const(2))
@@ -96,7 +99,8 @@ case class VariantSubgen(
   contigGen: Gen[(String, Int)],
   nAllelesGen: Gen[Int],
   refGen: Gen[String],
-  altGen: Gen[String]) {
+  altGen: Gen[String],
+) {
 
   def genLocusAlleles: Gen[Annotation] =
     for {
@@ -106,8 +110,8 @@ case class VariantSubgen(
       ref <- refGen
       altAlleles <- Gen.distinctBuildableOfN[Array](
         nAlleles - 1,
-        altGen)
+        altGen,
+      )
         .filter(!_.contains(ref))
-    } yield
-      Annotation(Locus(contig, start), (ref +: altAlleles).toFastSeq)
+    } yield Annotation(Locus(contig, start), (ref +: altAlleles).toFastSeq)
 }

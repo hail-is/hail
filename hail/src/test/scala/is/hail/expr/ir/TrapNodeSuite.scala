@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -23,12 +24,10 @@ class TrapNodeSuite extends HailSuite {
   }
 
   @Test def testTrapNodeInLargerContext() {
-    def resultByIdx(idx: Int): IR = bindIR(Trap(ArrayRef(Literal(TArray(TInt32), FastSeq(100, 200, 300)), I32(idx)))) { value =>
-      If(IsNA(GetTupleElement(value, 0)),
-        GetTupleElement(value, 1),
-        I32(-1)
-      )
-    }
+    def resultByIdx(idx: Int): IR =
+      bindIR(Trap(ArrayRef(Literal(TArray(TInt32), FastSeq(100, 200, 300)), I32(idx)))) { value =>
+        If(IsNA(GetTupleElement(value, 0)), GetTupleElement(value, 1), I32(-1))
+      }
 
     assertEvalsTo(resultByIdx(-100), -1)
     assertEvalsTo(resultByIdx(2), 300)

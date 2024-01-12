@@ -1,7 +1,7 @@
 package is.hail.stats
 
-import is.hail.utils._
 import is.hail.types.physical._
+import is.hail.utils._
 
 case class DaviesAlgorithmTrace(
   var absoluteSum: Double,
@@ -10,14 +10,14 @@ case class DaviesAlgorithmTrace(
   var integrationIntervalInFinalIntegration: Double,
   var truncationPointInInitialIntegration: Double,
   var standardDeviationOfInitialConvergenceFactor: Double,
-  var cyclesToLocateIntegrationParameters: Int
+  var cyclesToLocateIntegrationParameters: Int,
 )
 
 class DaviesResultForPython(
   val value: Double,
   val nIterations: Int,
   val converged: Boolean,
-  val fault: Int
+  val fault: Int,
 )
 
 object DaviesAlgorithm {
@@ -30,7 +30,7 @@ object DaviesAlgorithm {
     "value" -> PFloat64(required = true),
     "n_iterations" -> PInt32(required = true),
     "converged" -> PBoolean(required = true),
-    "fault" -> PInt32(required = true)
+    "fault" -> PInt32(required = true),
   )
 }
 
@@ -40,29 +40,28 @@ class DaviesAlgorithm(
   private[this] val lb: Array[Double],
   private[this] val nc: Array[Double],
   private[this] val lim: Int,
-  private[this] val sigma: Double
+  private[this] val sigma: Double,
 ) {
-  /**
-    * This algorithm is a direct port of Robert Davies' algorithm described in
+
+  /** This algorithm is a direct port of Robert Davies' algorithm described in
     *
-    *     Davies, Robert. "The distribution of a linear combination of chi-squared
-    *     random variables." Applied Statistics 29 323-333. 1980.
+    * Davies, Robert. "The distribution of a linear combination of chi-squared random variables."
+    * Applied Statistics 29 323-333. 1980.
     *
     * The Fortran code was published with the aforementioned paper. A port to C is available on
     * Davies' website http://www.robertnz.net/download.html . At the time of retrieval (2023-01-15),
     * the code lacks a description of its license. On 2023-01-18 0304 ET I received personal e-mail
     * correspondence from Robert Davies indicating:
     *
-    *     Assume it has the MIT license. That is on my todo list to say the MIT license applies to
-    *     all the software on the website unless specified otherwise.
-    *
-    **/
-  import GeneralizedChiSquaredDistribution._
+    * Assume it has the MIT license. That is on my todo list to say the MIT license applies to all
+    * the software on the website unless specified otherwise.
+    */
   import DaviesAlgorithm._
+  import GeneralizedChiSquaredDistribution._
 
   private[this] val r: Int = lb.length
   private[this] var count: Int = 0
-  private[this] var ndtsrt: Boolean = true  // "need to sort"
+  private[this] var ndtsrt: Boolean = true // "need to sort"
   private[this] var fail: Boolean = true
   private[this] var th: Array[Int] = new Array[Int](r)
   private[this] var intl: Double = 0.0
@@ -120,8 +119,7 @@ class DaviesAlgorithm(
       xconst = xconst + lj * (ncj / y + nj) / y
       sum1 = (sum1 +
         ncj * square(x / y) +
-        nj * (square(x) / y + log1(-x, false))
-      )
+        nj * (square(x) / y + log1(-x, false)))
 
       j -= 1
     }
@@ -133,7 +131,8 @@ class DaviesAlgorithm(
     var u2 = _u2
     var u1 = 0.0
     var c1 = mean
-    val rb = 2.0 * (if (u2 > 0.0) { lmax } else { lmin })
+    val rb = 2.0 * (if (u2 > 0.0) { lmax }
+                    else { lmin })
 
     var u = u2 / (1.0 + u2 * rb)
 
@@ -263,7 +262,7 @@ class DaviesAlgorithm(
     while (i < 4) {
       u = ut / divisForFindu(i)
 
-      if ( truncation(u, 0.0)  <=  accx ) {
+      if (truncation(u, 0.0) <= accx) {
         ut = u
       }
 
@@ -278,9 +277,9 @@ class DaviesAlgorithm(
     var k = nterm
     while (k >= 0) {
       val u = (k + 0.5) * interv
-      var sum1 = - 2.0 * u * c
+      var sum1 = -2.0 * u * c
       var sum2 = Math.abs(sum1)
-      var sum3 = - 0.5 * sigsq * square(u)
+      var sum3 = -0.5 * sigsq * square(u)
 
       var j = r - 1
       while (j >= 0) {
@@ -311,14 +310,14 @@ class DaviesAlgorithm(
     }
   }
 
-
   def cfe(x: Double): Double = {
     counter();
     if (ndtsrt) {
       order()
     }
     var axl = Math.abs(x)
-    val sxl = if (x > 0.0) { 1.0 } else { -1.0 }
+    val sxl = if (x > 0.0) { 1.0 }
+    else { -1.0 }
     var sum1 = 0.0;
     var j = r - 1
     var break = false
@@ -375,10 +374,14 @@ class DaviesAlgorithm(
         val lj = lb(j)
         val ncj = nc(j)
         if (nj < 0) {
-          throw new HailException(s"Degrees of freedom parameters must all be positive, ${j}'th parameter is ${nj}.")
+          throw new HailException(
+            s"Degrees of freedom parameters must all be positive, $j'th parameter is $nj."
+          )
         }
         if (ncj < 0.0) {
-          throw new HailException(s"Non-centrality parameters must all be positive, ${j}'th parameter is ${ncj}.")
+          throw new HailException(
+            s"Non-centrality parameters must all be positive, $j'th parameter is $ncj."
+          )
         }
         sd = sd + square(lj) * (2 * nj + 4.0 * ncj)
         mean = mean + lj * (nj + ncj)
@@ -402,7 +405,9 @@ class DaviesAlgorithm(
 
       if (lmin == 0.0 && lmax == 0.0 && sigma == 0.0) {
         val lbStr = lb.mkString("(", ",", ")")
-        throw new HailException(s"Either weights vector must be non-zero or sigma must be non-zero, found: ${lbStr} and ${sigma}.")
+        throw new HailException(
+          s"Either weights vector must be non-zero or sigma must be non-zero, found: $lbStr and $sigma."
+        )
       }
 
       sd = Math.sqrt(sd)
@@ -420,7 +425,7 @@ class DaviesAlgorithm(
       /* truncation point with no convergence factor */
       utx = findu(utx, .5 * acc1)
       /* does convergence factor help */
-      if (c != 0.0  && (almx > 0.07 * sd)) {
+      if (c != 0.0 && (almx > 0.07 * sd)) {
         // FIXME: return the fail parameter
         val tausq = .25 * acc1 / cfe(c)
         if (fail) {
@@ -455,10 +460,10 @@ class DaviesAlgorithm(
           throw new DaviesException()
         }
         /* find integration interval */
-        val divisor = if (d1 > d2) { d1 } else { d2 }
+        val divisor = if (d1 > d2) { d1 }
+        else { d2 }
         intv = 2.0 * pi / divisor
-        /* calculate number of terms required for main and
-         auxillary integrations */
+        /* calculate number of terms required for main and auxillary integrations */
         xnt = utx / intv
         val xntm = 3.0 / Math.sqrt(acc1)
         if (xnt > xntm * 1.5) {
@@ -508,8 +513,7 @@ class DaviesAlgorithm(
       qfval = 0.5 - intl
       trace.absoluteSum = ersm
 
-      /* test whether round-off error could be significant
-       allow for radix 8 or 16 machines */
+      /* test whether round-off error could be significant allow for radix 8 or 16 machines */
       up = ersm
       val x = up + acc / 10.0
       j = 0
@@ -530,13 +534,12 @@ class DaviesAlgorithm(
 }
 
 object GeneralizedChiSquaredDistribution {
-  def exp1(x: Double): Double = {
+  def exp1(x: Double): Double =
     if (x < -50.0) {
       0.0
     } else {
       Math.exp(x)
     }
-  }
 
   def square(x: Double): Double = x * x
 
@@ -577,7 +580,7 @@ object GeneralizedChiSquaredDistribution {
     nc: Array[Double],
     sigma: Double,
     lim: Int,
-    acc: Double
+    acc: Double,
   ): Double = {
     assert(n.length == lb.length)
     assert(lb.length == nc.length)
@@ -589,11 +592,15 @@ object GeneralizedChiSquaredDistribution {
     assert(fault >= 0 && fault <= 2, fault)
 
     if (fault == 1) {
-      throw new RuntimeException(s"Required accuracy ($acc) not achieved. Best value found was: $value.")
+      throw new RuntimeException(
+        s"Required accuracy ($acc) not achieved. Best value found was: $value."
+      )
     }
 
     if (fault == 2) {
-      throw new RuntimeException(s"Round-off error is possibly significant. Best value found was: $value.")
+      throw new RuntimeException(
+        s"Round-off error is possibly significant. Best value found was: $value."
+      )
     }
 
     value
@@ -606,7 +613,7 @@ object GeneralizedChiSquaredDistribution {
     nc: Array[Double],
     sigma: Double,
     lim: Int,
-    acc: Double
+    acc: Double,
   ): DaviesResultForPython = {
     assert(n.length == lb.length)
     assert(lb.length == nc.length)

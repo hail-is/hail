@@ -6,9 +6,9 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SLocus, SLocusValue}
-import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -26,7 +26,8 @@ final case class EField(name: String, typ: EType, index: Int) {
   }
 }
 
-final case class EBaseStruct(fields: IndexedSeq[EField], override val required: Boolean = false) extends EType {
+final case class EBaseStruct(fields: IndexedSeq[EField], override val required: Boolean = false)
+    extends EType {
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
 
   val types: Array[EType] = fields.map(_.typ).toArray
@@ -40,13 +41,18 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   def fieldType(name: String): EType = types(fieldIdx(name))
 
-  val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
+  val (missingIdx: Array[Int], nMissing: Int) =
+    BaseStruct.getMissingIndexAndCount(types.map(_.required))
+
   val nMissingBytes = UnsafeUtils.packBitsToBytes(nMissing)
 
   if (!fieldNames.areDistinct()) {
     val duplicates = fieldNames.duplicates()
-    fatal(s"cannot create struct with duplicate ${ plural(duplicates.size, "field") }: " +
-      s"${ fieldNames.map(prettyIdentifier).mkString(", ") }", fieldNames.duplicates())
+    fatal(
+      s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
+        s"${fieldNames.map(prettyIdentifier).mkString(", ")}",
+      fieldNames.duplicates(),
+    )
   }
 
   def _decodedSType(requestedType: Type): SType = requestedType match {
@@ -73,21 +79,25 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val structValue = v.st match {
       case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerValue(
-        SBaseStructPointer(t.representation),
-        v.asInstanceOf[SIntervalPointerValue].a)
+          SBaseStructPointer(t.representation),
+          v.asInstanceOf[SIntervalPointerValue].a,
+        )
       case _: SLocus => v.asInstanceOf[SLocusValue].structRepr(cb)
       case _ => v.asInstanceOf[SBaseStructValue]
     }
     // write missing bytes
     structValue.st match {
-      case SBaseStructPointer(st) if st.size == size && st.fieldRequired.sameElements(fields.map(_.typ.required)) =>
+      case SBaseStructPointer(st)
+          if st.size == size && st.fieldRequired.sameElements(fields.map(_.typ.required)) =>
         val missingBytes = UnsafeUtils.packBitsToBytes(st.nMissing)
 
         val addr = structValue.asInstanceOf[SBaseStructPointerValue].a
         if (nMissingBytes > 1)
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
-          cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(st.nMissing & 0x7))).toB)
+          cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(
+            EType.lowBitMask(st.nMissing & 0x7)
+          )).toB)
 
       case _ =>
         var j = 0
@@ -113,26 +123,36 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
     // Write fields
     fields.foreach { ef =>
-      structValue.loadField(cb, ef.name).consume(cb,
-        {
-          if (ef.typ.required)
-            cb._fatal(s"required field ${ ef.name } saw missing value in encode")
-        },
-        { pc =>
+      structValue.loadField(cb, ef.name).consume(
+        cb,
+        if (ef.typ.required)
+          cb._fatal(s"required field ${ef.name} saw missing value in encode"),
+        pc =>
           ef.typ.buildEncoder(pc.st, cb.emb.ecb)
-            .apply(cb, pc, out)
-        })
+            .apply(cb, pc, out),
+      )
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
+  override def _buildDecoder(
+    cb: EmitCodeBuilder,
+    t: Type,
+    region: Value[Region],
+    in: Value[InputBuffer],
+  ): SValue = {
     val pt = decodedPType(t)
     val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)
     pt.loadCheapSCode(cb, addr)
   }
 
-  override def _buildInplaceDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], addr: Value[Long], in: Value[InputBuffer]): Unit = {
+  override def _buildInplaceDecoder(
+    cb: EmitCodeBuilder,
+    pt: PType,
+    region: Value[Region],
+    addr: Value[Long],
+    in: Value[InputBuffer],
+  ): Unit = {
     val structType: PBaseStruct = pt match {
       case t: PCanonicalLocus => t.representation
       case t: PCanonicalInterval => t.representation
@@ -151,12 +171,13 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           if (!rf.typ.required)
             structType.setFieldPresent(cb, addr, rf.index)
         } else {
-          cb.if_(Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), {
-            structType.setFieldMissing(cb, addr, rf.index)
-          }, {
-            structType.setFieldPresent(cb, addr, rf.index)
-            readElemF(cb, region, rFieldAddr, in)
-          })
+          cb.if_(
+            Region.loadBit(mbytes, const(missingIdx(f.index).toLong)),
+            structType.setFieldMissing(cb, addr, rf.index), {
+              structType.setFieldPresent(cb, addr, rf.index)
+              readElemF(cb, region, rFieldAddr, in)
+            },
+          )
         }
       } else {
         val skip = f.typ.buildSkip(cb.emb.ecb)
@@ -183,9 +204,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   def _asIdent: String = {
     val sb = new StringBuilder
     sb.append("struct_of_")
-    types.foreachBetween { ty =>
-      sb.append(ty.asIdent)
-    } {
+    types.foreachBetween(ty => sb.append(ty.asIdent)) {
       sb.append("AND")
     }
     sb.append("END")

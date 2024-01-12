@@ -62,6 +62,7 @@ object Emittable {
     case _: AggExplode => true
     case _ => false
   }
+
   def apply(ir: IR): Boolean = ir match {
     case x if isNonEmittableAgg(x) => false
     case _: ApplyIR => false

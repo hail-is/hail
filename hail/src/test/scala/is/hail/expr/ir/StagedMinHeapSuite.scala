@@ -7,16 +7,17 @@ import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.functions.LocusFunctions
 import is.hail.expr.ir.streams.StagedMinHeap
+import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32Required}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SIndexablePointerValue
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
-import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PInt32Required}
-import is.hail.utils.{FastSeq, using}
+import is.hail.utils.{using, FastSeq}
 import is.hail.variant.{Locus, ReferenceGenome}
-import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
-import org.testng.annotations.Test
 
 import scala.language.{higherKinds, implicitConversions}
+
+import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
+import org.testng.annotations.Test
 
 sealed trait StagedCoercions[A] {
   def ti: TypeInfo[A]
@@ -29,10 +30,13 @@ sealed trait StagedCoercionInstances {
   implicit object StagedIntCoercions extends StagedCoercions[Int] {
     override def ti: TypeInfo[Int] =
       implicitly
+
     override def sType: SType =
       SInt32
+
     override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Int]): SValue =
       new SInt32Value(a)
+
     override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Int] =
       sa.asInt.value
   }
@@ -41,10 +45,13 @@ sealed trait StagedCoercionInstances {
     new StagedCoercions[Locus] {
       override def ti: TypeInfo[Locus] =
         implicitly
+
       override def sType: SType =
         PCanonicalLocus(rg.name, required = true).sType
+
       override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
         LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])
+
       override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Locus] =
         sa.asLocus.getLocusObj(cb)
     }
@@ -53,24 +60,24 @@ sealed trait StagedCoercionInstances {
 class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
   @Test def testSorting(): Unit =
-    forAll { (xs: IndexedSeq[Int]) => sort(xs) == xs.sorted }.check()
+    forAll((xs: IndexedSeq[Int]) => sort(xs) == xs.sorted).check()
 
   @Test def testHeapProperty(): Unit =
     forAll { (xs: IndexedSeq[Int]) =>
       val heap = heapify(xs)
       (0 until heap.size / 2).forall { i =>
         ((2 * i + 1) >= heap.size || heap(i) <= heap(2 * i + 1)) &&
-          ((2 * i + 2) >= heap.size || heap(i) <= heap(2 * i + 2))
+        ((2 * i + 2) >= heap.size || heap(i) <= heap(2 * i + 2))
       }
     }.check()
 
   @Test def testNonEmpty(): Unit =
     gen("NonEmpty") { (heap: IntHeap) =>
-      heap.nonEmpty should be (false)
+      heap.nonEmpty should be(false)
       for (i <- 0 to 10) heap.push(i)
-      heap.nonEmpty should be (true)
+      heap.nonEmpty should be(true)
       for (_ <- 0 to 10) heap.pop()
-      heap.nonEmpty should be (false)
+      heap.nonEmpty should be(false)
     }
 
   val loci: Gen[(ReferenceGenome, IndexedSeq[Locus])] =
@@ -95,7 +102,8 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
   def withReferenceGenome[A](rg: ReferenceGenome)(f: => A): A = {
     ctx.backend.addReference(rg)
-    try { f } finally { ctx.backend.removeReference(rg.name) }
+    try f
+    finally ctx.backend.removeReference(rg.name)
   }
 
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
@@ -113,10 +121,23 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
       }
     }
 
-  def gen[H <: Heap[A], A, B](name: String, A: StagedCoercions[A])(f: H => B)(implicit H: TypeInfo[H]): B =
+  def gen[H <: Heap[A], A, B](
+    name: String,
+    A: StagedCoercions[A],
+  )(
+    f: H => B
+  )(implicit H: TypeInfo[H]
+  ): B =
     gen[H, A, B](name)(f)(H, A)
 
-  def gen[H <: Heap[A], A, B](name: String)(f: H => B)(implicit H: TypeInfo[H], A: StagedCoercions[A]): B = {
+  def gen[H <: Heap[A], A, B](
+    name: String
+  )(
+    f: H => B
+  )(implicit
+    H: TypeInfo[H],
+    A: StagedCoercions[A],
+  ): B = {
     val emodb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val Main = emodb.genEmitClass[H](name)(H)
 
@@ -141,7 +162,7 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     }
 
     Main.defineEmitMethod("nonEmpty", FastSeq(), BooleanInfo) { mb =>
-      mb.emitWithBuilder[Boolean] { MinHeap.nonEmpty }
+      mb.emitWithBuilder[Boolean](MinHeap.nonEmpty)
     }
 
     Main.defineEmitMethod("toArray", FastSeq(typeInfo[Region]), LongInfo) { mb =>
@@ -163,9 +184,7 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
         MinHeap.init(cb, Main.pool())
       }
     }
-    Main.defineEmitMethod("close", FastSeq(), UnitInfo) { mb =>
-      mb.voidWithBuilder { MinHeap.close }
-    }
+    Main.defineEmitMethod("close", FastSeq(), UnitInfo)(mb => mb.voidWithBuilder(MinHeap.close))
 
     pool.scopedRegion { r =>
       val heap = Main
@@ -192,4 +211,3 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     def toArray(r: Region): Long
   }
 }
-

@@ -7,12 +7,22 @@ import org.apache.hadoop.io.compress.CompressionOutputStream
 
 class BGzipConstants {
   val blockHeaderLength = 18 // Number of bytes in the gzip block before the deflated data.
-  val blockLengthOffset = 16 // Location in the gzip block of the total block size (actually total block size - 1)
+
+  val blockLengthOffset =
+    16 // Location in the gzip block of the total block size (actually total block size - 1)
   val blockFooterLength = 8 // Number of bytes that follow the deflated data
-  val maxCompressedBlockSize = 64 * 1024 // We require that a compressed block (including header and footer, be <= this)
-  val gzipOverhead = blockHeaderLength + blockFooterLength + 2 // Gzip overhead is the header, the footer, and the block size (encoded as a short).
-  val noCompressionOverhead = 10 // If Deflater has compression level == NO_COMPRESSION, 10 bytes of overhead (determined experimentally).
-  val defaultUncompressedBlockSize = 64 * 1024 - (gzipOverhead + noCompressionOverhead) // Push out a gzip block when this many uncompressed bytes have been accumulated.
+
+  val maxCompressedBlockSize =
+    64 * 1024 // We require that a compressed block (including header and footer, be <= this)
+
+  val gzipOverhead =
+    blockHeaderLength + blockFooterLength + 2 // Gzip overhead is the header, the footer, and the block size (encoded as a short).
+
+  val noCompressionOverhead =
+    10 // If Deflater has compression level == NO_COMPRESSION, 10 bytes of overhead (determined experimentally).
+
+  val defaultUncompressedBlockSize =
+    64 * 1024 - (gzipOverhead + noCompressionOverhead) // Push out a gzip block when this many uncompressed bytes have been accumulated.
 
   // gzip magic numbers
   val gzipId1 = 31
@@ -28,10 +38,11 @@ class BGzipConstants {
   val bgzfId1 = 66
   val bgzfId2 = 67
   val bgzfLen = 2
-  val emptyGzipBlock = Array(0x1f,0x8b,0x08,0x04,0x00,0x00,0x00,0x00,
-    0x00,0xff,0x06,0x00,0x42,0x43,0x02,0x00,
-    0x1b,0x00,0x03,0x00,0x00,0x00,0x00,0x00,
-    0x00,0x00,0x00,0x00).map(_.toByte)
+
+  val emptyGzipBlock = Array(0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00,
+    0x1b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00).map(_.toByte)
 }
 
 class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) {
@@ -40,13 +51,15 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
   val constants = new BGzipConstants
   var numUncompressedBytes = 0
   var uncompressedBuffer = new Array[Byte](constants.defaultUncompressedBlockSize)
-  var compressedBuffer = new Array[Byte](constants.maxCompressedBlockSize - constants.blockHeaderLength)
 
-  val deflater = new Deflater(constants.defaultCompressionLevel,true)
-  val noCompressionDeflater = new Deflater(Deflater.NO_COMPRESSION,true)
+  var compressedBuffer =
+    new Array[Byte](constants.maxCompressedBlockSize - constants.blockHeaderLength)
+
+  val deflater = new Deflater(constants.defaultCompressionLevel, true)
+  val noCompressionDeflater = new Deflater(Deflater.NO_COMPRESSION, true)
   val crc32 = new CRC32
 
-  def write(b:Int) {
+  def write(b: Int) {
     require(numUncompressedBytes < uncompressedBuffer.length)
     uncompressedBuffer(numUncompressedBytes) = b.toByte
     numUncompressedBytes += 1
@@ -55,15 +68,17 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
       deflateBlock()
   }
 
-  override def write(bytes: Array[Byte], offset:Int, length:Int) {
+  override def write(bytes: Array[Byte], offset: Int, length: Int) {
     require(numUncompressedBytes < uncompressedBuffer.length)
 
     var currentPosition = offset
     var numBytesRemaining = length
 
     while (numBytesRemaining > 0) {
-      var bytesToWrite = math.min(uncompressedBuffer.length - numUncompressedBytes, numBytesRemaining)
-      System.arraycopy(bytes, currentPosition, uncompressedBuffer, numUncompressedBytes, bytesToWrite)
+      var bytesToWrite =
+        math.min(uncompressedBuffer.length - numUncompressedBytes, numBytesRemaining)
+      System.arraycopy(bytes, currentPosition, uncompressedBuffer, numUncompressedBytes,
+        bytesToWrite)
       numUncompressedBytes += bytesToWrite
       currentPosition += bytesToWrite
       numBytesRemaining -= bytesToWrite
@@ -101,23 +116,22 @@ class BGzipOutputStream(out: OutputStream) extends CompressionOutputStream(out) 
     numUncompressedBytes = 0 // reset variable
   }
 
-  def writeInt8(i: Int) = {
+  def writeInt8(i: Int) =
     out.write(i & 0xff)
-  }
 
   def writeInt16(i: Int) = {
     out.write(i & 0xff)
     out.write((i >> 8) & 0xff)
   }
 
-  def writeInt32(i:Int) = {
+  def writeInt32(i: Int) = {
     out.write(i & 0xff)
     out.write((i >> 8) & 0xff)
     out.write((i >> 16) & 0xff)
     out.write((i >> 24) & 0xff)
   }
 
-  def writeGzipBlock(compressedSize:Int,bytesToCompress:Int,crc32val:Long): Int = {
+  def writeGzipBlock(compressedSize: Int, bytesToCompress: Int, crc32val: Long): Int = {
     val totalBlockSize = compressedSize + constants.blockHeaderLength + constants.blockFooterLength
 
     writeInt8(constants.gzipId1)

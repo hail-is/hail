@@ -18,7 +18,8 @@ object TVariable {
     "float64" -> ((t: Type) => t == TFloat64),
     "locus" -> ((t: Type) => t.isInstanceOf[TLocus]),
     "struct" -> ((t: Type) => t.isInstanceOf[TStruct]),
-    "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]))
+    "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]),
+  )
 
   private[this] val namedBoxes: mutable.Map[String, Box[Type]] = mutable.Map()
 
@@ -50,9 +51,8 @@ final case class TVariable(name: String, cond: String = null) extends Type {
     else
       s"?$name"
 
-  override def pyString(sb: StringBuilder): Unit = {
+  override def pyString(sb: StringBuilder): Unit =
     sb.append(_toPretty)
-  }
 
   override def isRealizable = false
 
@@ -75,7 +75,8 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
 
-  override def scalaClassTag: ClassTag[AnyRef] = throw new RuntimeException("TVariable is not realizable")
+  override def scalaClassTag: ClassTag[AnyRef] =
+    throw new RuntimeException("TVariable is not realizable")
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 }

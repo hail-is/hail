@@ -149,18 +149,25 @@ class AsyncFS(abc.ABC):
     FILE = 'file'
     DIR = 'dir'
 
-    @property
+    @staticmethod
     @abc.abstractmethod
-    def schemes(self) -> Set[str]:
+    def schemes() -> Set[str]:
         pass
+
+    @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        '''Part size when copying using multi-part uploads.  The part size of
+        the destination filesystem is used.'''
+        return 128 * 1024 * 1024
 
     @staticmethod
     @abc.abstractmethod
     def valid_url(url: str) -> bool:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def parse_url(self, url: str) -> AsyncFSURL:
+    def parse_url(url: str) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod
@@ -325,11 +332,6 @@ class AsyncFS(abc.ABC):
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
         await self.close()
-
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        '''Part size when copying using multi-part uploads.  The part size of
-        the destination filesystem is used.'''
-        return 128 * 1024 * 1024
 
 
 T = TypeVar('T', bound=AsyncFS)

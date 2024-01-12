@@ -22,7 +22,8 @@ case object PVoid extends PType with PUnrealizable {
 
   def setRequired(required: Boolean) = PVoid
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = throw new NotImplementedError()
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+    throw new NotImplementedError()
 
   def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
 

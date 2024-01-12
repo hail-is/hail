@@ -1,16 +1,15 @@
 package is.hail.utils
 
-import breeze.linalg.{DenseMatrix => BDM, _}
-import is.hail.{HailSuite}
+import is.hail.HailSuite
 import is.hail.linalg.BlockMatrix.ops._
+
+import breeze.linalg.{DenseMatrix => BDM, _}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
-/**
-  * Testing RichIndexedRowMatrix.
-  */
+/** Testing RichIndexedRowMatrix. */
 class RichIndexedRowMatrixSuite extends HailSuite {
 
   @Test def testToBlockMatrixDense() {
@@ -24,7 +23,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
       (5L, Vectors.dense(9.0, 0.0, 1.0, 1.0, 1.0, 1.0)),
       (6L, Vectors.dense(1.0, 2.0, 3.0, 1.0, 1.0, 1.0)),
       (7L, Vectors.dense(4.0, 5.0, 6.0, 1.0, 1.0, 1.0)),
-      (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 1.0, 1.0))
+      (8L, Vectors.dense(7.0, 8.0, 9.0, 1.0, 1.0, 1.0)),
     ).map(IndexedRow.tupled)
     val indexedRows: RDD[IndexedRow] = sc.parallelize(data)
 
@@ -58,7 +57,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
       (3L, Vectors.dense(1.0, 2.0)),
       (4L, Vectors.dense(1.0, 2.0)),
       (5L, Vectors.dense(1.0, 2.0)),
-      (8L, Vectors.dense(1.0, 2.0))
+      (8L, Vectors.dense(1.0, 2.0)),
     ).map(IndexedRow.tupled)
 
     val irm = new IndexedRowMatrix(sc.parallelize(data))
@@ -74,9 +73,13 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     (m.dot(m.T)).toBreezeMatrix() // assert no exception
 
     assert(m.mapWithIndex { case (i, j, v) => i + 10 * j + v }.toBreezeMatrix() ===
-      new BDM[Double](nRows, nCols, Array[Double](
-        0.0, 1.0, 2.0, 4.0, 5.0, 6.0, 6.0, 7.0, 9.0,
-        10.0, 11.0, 12.0, 15.0, 16.0, 17.0, 16.0, 17.0, 20.0
-      )))
+      new BDM[Double](
+        nRows,
+        nCols,
+        Array[Double](
+          0.0, 1.0, 2.0, 4.0, 5.0, 6.0, 6.0, 7.0, 9.0,
+          10.0, 11.0, 12.0, 15.0, 16.0, 17.0, 16.0, 17.0, 20.0,
+        ),
+      ))
   }
 }

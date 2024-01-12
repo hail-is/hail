@@ -1,8 +1,8 @@
 package is.hail.utils
 
-import java.io.InputStream
-
 import is.hail.io.fs.Seekable
+
+import java.io.InputStream
 
 class ByteTrackingInputStream(base: InputStream) extends InputStream {
   var bytesRead = 0L

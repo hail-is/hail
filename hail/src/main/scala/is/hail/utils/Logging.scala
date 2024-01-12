@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import org.apache.log4j.{LogManager, Logger}
+import org.apache.log4j.{Logger, LogManager}
 
 object LogHelper {
   // exposed more directly for generated code

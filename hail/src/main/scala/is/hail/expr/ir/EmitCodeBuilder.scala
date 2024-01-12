@@ -2,15 +2,15 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.utils._
-
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
 
-  def apply(mb: EmitMethodBuilder[_], code: Code[Unit]): EmitCodeBuilder = new EmitCodeBuilder(mb, code)
+  def apply(mb: EmitMethodBuilder[_], code: Code[Unit]): EmitCodeBuilder =
+    new EmitCodeBuilder(mb, code)
 
   def scoped[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => T): (Code[Unit], T) = {
     val cb = EmitCodeBuilder(mb)
@@ -40,12 +40,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def mb: MethodBuilder[_] = emb.mb
 
-  override def append(c: Code[Unit]): Unit = {
+  override def append(c: Code[Unit]): Unit =
     code = Code(code, c)
-  }
 
   override def define(L: CodeLabel): Unit =
-    if (isOpenEnded) append(L) else {
+    if (isOpenEnded) append(L)
+    else {
       val tmp = code
       code = new VCode(code.start, L.end, null)
       tmp.clear()
@@ -83,20 +83,24 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     define(Ltrue)
     val tval = emitThen
     val value = newSLocal(tval.st, "ifx_value")
-    tval.consume(this, {
-      goto(Lmissing)
-    }, { tval =>
-      assign(value, tval)
-      goto(Lpresent)
-    })
+    tval.consume(
+      this,
+      goto(Lmissing),
+      { tval =>
+        assign(value, tval)
+        goto(Lpresent)
+      },
+    )
     define(Lfalse)
     val fval = emitElse
-    fval.consume(this, {
-      goto(Lmissing)
-    }, { fval =>
-      assign(value, fval)
-      goto(Lpresent)
-    })
+    fval.consume(
+      this,
+      goto(Lmissing),
+      { fval =>
+        assign(value, fval)
+        goto(Lpresent)
+      },
+    )
     IEmitCode(Lmissing, Lpresent, value, tval.required && fval.required)
   }
 
@@ -107,17 +111,14 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
   }
 
-  def assign(s: EmitSettable, v: EmitCode): Unit = {
+  def assign(s: EmitSettable, v: EmitCode): Unit =
     s.store(this, v)
-  }
 
-  def assign(s: EmitSettable, v: IEmitCode): Unit = {
+  def assign(s: EmitSettable, v: IEmitCode): Unit =
     s.store(this, v)
-  }
 
-  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
-    (is, ix).zipped.foreach { (s, c) => s.store(this, c) }
-  }
+  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit =
+    (is, ix).zipped.foreach((s, c) => s.store(this, c))
 
   def memoizeField(pc: SValue, name: String): SValue = {
     val f = emb.newPField(name, pc.st)
@@ -125,13 +126,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     f
   }
 
-  def memoizeField[T: TypeInfo](v: Code[T], name: String): Value[T] = {
+  def memoizeField[T: TypeInfo](v: Code[T], name: String): Value[T] =
     newField[T](name, v)
-  }
 
-  def memoizeField[T: TypeInfo](v: Code[T]): Value[T] = {
+  def memoizeField[T: TypeInfo](v: Code[T]): Value[T] =
     memoizeField[T](v, "memoize")
-  }
 
   def memoize(v: EmitCode): EmitValue =
     memoize(v, "memoize")
@@ -198,23 +197,22 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
     if (expectedArgs.size != args.length)
       throw new RuntimeException(s"invoke ${callee.mb.methodName}: wrong number of parameters: " +
-        s"expected ${expectedArgs.size}, found ${args.length}"
-      )
+        s"expected ${expectedArgs.size}, found ${args.length}")
 
     val codeArgs = args.zip(expectedArgs).zipWithIndex.flatMap { case ((arg, pt), i) =>
       (arg, pt) match {
         case (CodeParam(c), cpt: CodeParamType) =>
           if (c.ti != cpt.ti)
-            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
-              s"\n  got ${ c.ti }" +
-              s"\n  expected ${ cpt.ti }" +
-              s"\n  all param types: ${expectedArgs}-")
+            throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
+              s"\n  got ${c.ti}" +
+              s"\n  expected ${cpt.ti}" +
+              s"\n  all param types: $expectedArgs-")
           FastSeq(c)
         case (SCodeParam(pc), pcpt: SCodeParamType) =>
           if (pc.st != pcpt.st)
-            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
-              s"\n  got ${ pc.st }" +
-              s"\n  expected ${ pcpt.st }")
+            throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
+              s"\n  got ${pc.st}" +
+              s"\n  expected ${pcpt.st}")
           pc.valueTuple
         case (EmitParam(ec), SCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
@@ -226,15 +224,15 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
           val castEc = (ec.required, et.required) match {
             case (true, false) => ec.setOptional
             case (false, true) =>
-              EmitCode.fromI(emb) { cb => IEmitCode.present(cb, ec.toI(cb).get(cb)) }
+              EmitCode.fromI(emb)(cb => IEmitCode.present(cb, ec.toI(cb).get(cb)))
             case _ => ec
           }
           val castEv = memoize(castEc, "_invoke")
           castEv.valueTuple()
         case (arg, expected) =>
-          throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
-            s"\n  got ${ arg }" +
-            s"\n  expected ${ expected }")
+          throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
+            s"\n  got $arg" +
+            s"\n  expected $expected")
       }
     }
 
@@ -251,7 +249,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       case CodeParamType(UnitInfo) =>
         throw new AssertionError("CodeBuilder.invokeCode had unit return type, use invokeVoid")
       case _: CodeParamType =>
-      case x => throw new AssertionError(s"CodeBuilder.invokeCode expects CodeParamType return, got $x")
+      case x =>
+        throw new AssertionError(s"CodeBuilder.invokeCode expects CodeParamType return, got $x")
     }
     _invoke[T](callee, args: _*)
   }
@@ -267,9 +266,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   // for debugging
-  def strValue(sc: SValue): Code[String] = {
+  def strValue(sc: SValue): Code[String] =
     StringFunctions.svalueToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
-  }
 
   def strValue(ec: EmitCode): Code[String] = {
     val s = newLocal[String]("s")
@@ -280,15 +278,24 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   // for debugging
   def println(cString: Code[String]*) = this += Code._printlns(cString: _*)
 
-  def logInfo(cs: Code[String]*): Unit = {
-    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
-  }
+  def logInfo(cs: Code[String]*): Unit =
+    this += Code.invokeScalaObject1[String, Unit](
+      LogHelper.getClass,
+      "logInfo",
+      cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) },
+    )
 
-  def warning(cs: Code[String]*): Unit = {
-    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "warning", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
-  }
+  def warning(cs: Code[String]*): Unit =
+    this += Code.invokeScalaObject1[String, Unit](
+      LogHelper.getClass,
+      "warning",
+      cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) },
+    )
 
-  def consoleInfo(cs: Code[String]*): Unit = {
-    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "consoleInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
-  }
+  def consoleInfo(cs: Code[String]*): Unit =
+    this += Code.invokeScalaObject1[String, Unit](
+      LogHelper.getClass,
+      "consoleInfo",
+      cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) },
+    )
 }

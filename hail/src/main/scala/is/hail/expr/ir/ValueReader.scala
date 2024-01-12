@@ -16,18 +16,21 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 object ValueReader {
-  implicit val formats: Formats = new DefaultFormats() {
-    override val typeHints = ShortTypeHints(List(
-      classOf[ETypeValueReader],
-      classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
-      typeHintFieldName = "name"
-    ) + BufferSpec.shortTypeHints
-  }  +
-    new TStructSerializer +
-    new TypeSerializer +
-    new PTypeSerializer +
-    new ETypeSerializer
+  implicit val formats: Formats =
+    new DefaultFormats() {
+      override val typeHints = ShortTypeHints(
+        List(
+          classOf[ETypeValueReader],
+          classOf[AbstractTypedCodecSpec],
+          classOf[TypedCodecSpec],
+        ),
+        typeHintFieldName = "name",
+      ) + BufferSpec.shortTypeHints
+    } +
+      new TStructSerializer +
+      new TypeSerializer +
+      new PTypeSerializer +
+      new ETypeSerializer
 }
 
 abstract class ValueReader {
@@ -38,12 +41,12 @@ abstract class ValueReader {
   def toJValue: JValue = Extraction.decompose(this)(ValueReader.formats)
 }
 
-
 final case class ETypeValueReader(spec: AbstractTypedCodecSpec) extends ValueReader {
   def unionRequiredness(requestedType: Type, requiredness: TypeWithRequiredness): Unit =
     requiredness.fromPType(spec.encodedType.decodedPType(requestedType))
 
-  def readValue(cb: EmitCodeBuilder, t: Type, region: Value[Region], is: Value[InputStream]): SValue = {
+  def readValue(cb: EmitCodeBuilder, t: Type, region: Value[Region], is: Value[InputStream])
+    : SValue = {
     val decoder = spec.encodedType.buildDecoder(t, cb.emb.ecb)
     val ib = cb.memoize(spec.buildCodeInputBuffer(is))
     val ret = decoder.apply(cb, region, ib)

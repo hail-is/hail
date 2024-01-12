@@ -1,4 +1,5 @@
 import json
+import re
 import os
 import pytest
 import shutil
@@ -212,17 +213,34 @@ class VCFTests(unittest.TestCase):
             )
         )
 
-    def test_import_vcf_missing_info_field_elements(self):
+    def test_import_vcf_has_good_error_message_when_info_fields_have_missing_elements(self):
+        mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37')
+        with pytest.raises(
+            FatalError,
+            match=".*Missing value in INFO array. Use 'hl.import_vcf[(][.][.][.], array_elements_required=False[)]'[.].*",
+        ):
+            mt._force_count_rows()
+
+    def test_import_vcf_array_elements_required_is_false_parses_info_fields_with_missing_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
-        mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
+        mt = mt.select_rows(**mt.info)
         expected = hl.Table.parallelize(
             [
-                {'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 'FOO': [1, None], 'BAR': [2, None, None]},
+                {
+                    'locus': hl.Locus('X', 16050036),
+                    'alleles': ['A', 'C'],
+                    'FOO': [1, None],
+                    'BAR': [2, None, None],
+                    'JUST_A_DOT': None,
+                    'NOT_EVEN_PRESENT': None,
+                },
                 {
                     'locus': hl.Locus('X', 16061250),
                     'alleles': ['T', 'A', 'C'],
                     'FOO': [None, 2, None],
                     'BAR': [None, 1.0, None],
+                    'JUST_A_DOT': None,
+                    'NOT_EVEN_PRESENT': None,
                 },
             ],
             hl.tstruct(
@@ -230,10 +248,12 @@ class VCFTests(unittest.TestCase):
                 alleles=hl.tarray(hl.tstr),
                 FOO=hl.tarray(hl.tint),
                 BAR=hl.tarray(hl.tfloat64),
+                JUST_A_DOT=hl.tarray(hl.tfloat64),
+                NOT_EVEN_PRESENT=hl.tarray(hl.tfloat64),
             ),
             key=['locus', 'alleles'],
         )
-        self.assertTrue(mt.rows()._same(expected))
+        assert mt.rows()._same(expected)
 
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
@@ -1511,14 +1531,17 @@ class BGENTests(unittest.TestCase):
 
         with hl.TemporaryFilename() as f:
             hl.current_backend().fs.copy(bgen_file, f)
-            with pytest.raises(FatalError, match='have no .idx2 index file'):
+
+            expected_missing_idx2_error_message = re.compile(f'have no .idx2 index file.*{f}.*', re.DOTALL)
+
+            with pytest.raises(FatalError, match=expected_missing_idx2_error_message):
                 hl.import_bgen(f, ['GT', 'GP'], sample_file, n_partitions=3)
 
             try:
                 with hl.current_backend().fs.open(f + '.idx', 'wb') as fobj:
                     fobj.write(b'')
 
-                with pytest.raises(FatalError, match='have no .idx2 index file'):
+                with pytest.raises(FatalError, match=expected_missing_idx2_error_message):
                     hl.import_bgen(f, ['GT', 'GP'], sample_file)
             finally:
                 hl.current_backend().fs.remove(f + '.idx')

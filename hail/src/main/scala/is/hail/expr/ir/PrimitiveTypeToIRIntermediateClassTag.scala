@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.types._
 import is.hail.types.virtual._
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{classTag, ClassTag}
 
 object PrimitiveTypeToIRIntermediateClassTag {
   def apply(t: Type): ClassTag[_] = t match {

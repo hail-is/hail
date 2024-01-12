@@ -1,7 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.expr.ir.lowering.{LowerMatrixToTablePass, LoweringPipeline, OptimizePass}
+import is.hail.expr.ir.lowering.{LoweringPipeline, LowerMatrixToTablePass, OptimizePass}
+
 import org.testng.annotations.Test
 
 class LoweringPipelineSuite extends HailSuite {
