@@ -229,6 +229,8 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `token` VARCHAR(100) DEFAULT NULL,
   `start_job_id` INT NOT NULL,
   `n_jobs` INT NOT NULL,
+  `start_job_group_id` INT NOT NULL DEFAULT 1,
+  `n_job_groups` INT NOT NULL DEFAULT 0,
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
   `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
@@ -238,6 +240,7 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
+CREATE INDEX `batch_updates_start_job_group_id` ON `batch_updates` (`batch_id`, `start_job_group_id`);
 
 CREATE TABLE IF NOT EXISTS `job_groups_n_jobs_in_complete_states` (
   `id` BIGINT NOT NULL,
