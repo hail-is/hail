@@ -1,6 +1,7 @@
 from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
 from types import TracebackType
 
+import aiohttp
 import abc
 import re
 import asyncio
@@ -364,7 +365,13 @@ def handle_public_access_error(fun):
 class AzureAsyncFS(AsyncFS):
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
-    def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
+    def __init__(
+        self,
+        *,
+        credential_file: Optional[str] = None,
+        credentials: Optional[AzureCredentials] = None,
+        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]],
+    ):
         if credentials is None:
             scopes = ['https://storage.azure.com/.default']
             if credential_file is not None:
@@ -373,6 +380,16 @@ class AzureAsyncFS(AsyncFS):
                 credentials = AzureCredentials.default_credentials(scopes=scopes)
         elif credential_file is not None:
             raise ValueError('credential and credential_file cannot both be defined')
+
+        if isinstance(timeout, aiohttp.ClientTimeout):
+            self.read_timeout = timeout.sock_read or timeout.total or 5
+            self.connection_timeout = timeout.sock_connect or timeout.connect or timeout.total or 5
+        elif isinstance(timeout, (int, float)):
+            self.read_timeout = timeout
+            self.connection_timeout = timeout
+        else:
+            self.read_timeout = 5
+            self.connection_timeout = 5
 
         self._credential = credentials.credential
         self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str, None]], BlobServiceClient] = {}
@@ -474,8 +491,8 @@ class AzureAsyncFS(AsyncFS):
             self._blob_service_clients[k] = BlobServiceClient(
                 f'https://{account}.blob.core.windows.net',
                 credential=credential,  # type: ignore
-                connection_timeout=5,
-                read_timeout=5,
+                connection_timeout=self.connection_timeout,
+                read_timeout=self.read_timeout,
             )
         return self._blob_service_clients[k]
 
