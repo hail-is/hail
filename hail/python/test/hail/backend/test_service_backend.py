@@ -1,9 +1,9 @@
 import os
 
 import hail as hl
-
-from ..helpers import skip_unless_service_backend, test_timeout, qobtest
 from hail.backend.service_backend import ServiceBackend
+
+from ..helpers import qobtest, skip_unless_service_backend, test_timeout
 
 
 @qobtest

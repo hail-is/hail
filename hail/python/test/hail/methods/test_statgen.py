@@ -1,17 +1,18 @@
-import os
 import math
-import pytest
+import os
+import unittest
+
 import numpy as np
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
-import hail.utils as utils
+from hail import utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
-from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout, qobtest
+from hail.utils.java import Env, choose_backend
 
-import unittest
+from ..helpers import fails_service_backend, qobtest, resource, skip_when_service_backend, test_timeout
 
 
 class Tests(unittest.TestCase):
@@ -93,9 +94,6 @@ class Tests(unittest.TestCase):
 
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
-        covs = hl.import_table(
-            resource('regressionLinear.cov'), types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64}, key='Sample'
-        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
@@ -256,7 +254,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+                y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, *covariates[mt.s].values()]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -297,7 +295,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=pheno[mt.s].Pheno, x=hl.pl_dosage(mt.PL), covariates=[1.0] + list(covariates[mt.s].values())
+                y=pheno[mt.s].Pheno, x=hl.pl_dosage(mt.PL), covariates=[1.0, *covariates[mt.s].values()]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -328,7 +326,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=pheno[mt.s].Pheno, x=hl.gp_dosage(mt.GP), covariates=[1.0] + list(covariates[mt.s].values())
+                y=pheno[mt.s].Pheno, x=hl.gp_dosage(mt.GP), covariates=[1.0, *covariates[mt.s].values()]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -374,7 +372,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=fam[mt.s].is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+                y=fam[mt.s].is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0, *covariates[mt.s].values()]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -404,7 +402,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=fam[mt.s].quant_pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+                y=fam[mt.s].quant_pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, *covariates[mt.s].values()]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -560,19 +558,12 @@ class Tests(unittest.TestCase):
             resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
         )
 
-        weights = hl.import_table(
-            resource('regressionLinear.weights'),
-            key='Sample',
-            missing='0',
-            types={'Sample': hl.tstr, 'Weight1': hl.tfloat, 'Weight2': hl.tfloat},
-        )
-
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
         mt = mt.add_col_index()
 
         mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
         mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
-        my_covs = [1.0] + list(covariates[mt.s].values())
+        my_covs = [1.0, *covariates[mt.s].values()]
 
         ht_with_weights = hl._linear_regression_rows_nd(y=mt.y, x=mt.x, covariates=my_covs, weights=mt.col_idx)
 
@@ -589,7 +580,7 @@ class Tests(unittest.TestCase):
         )
 
         ht_from_agg = mt.annotate_rows(
-            my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)
+            my_linreg=hl.agg.linreg(mt.y, [1, mt.x, *covariates[mt.s].values()], weight=mt.col_idx)
         ).rows()
 
         betas_with_weights = ht_with_weights.beta.collect()
@@ -1610,7 +1601,7 @@ class Tests(unittest.TestCase):
     @skip_when_service_backend(reason='flaky, incorrect alleles in output')
     def test_balding_nichols_model_phased(self):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
-        assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
+        assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) is True
         actual = bn_ds.GT.collect()
         self.assertListEqual(
             [c.alleles for c in actual],
@@ -1696,7 +1687,7 @@ class Tests(unittest.TestCase):
             [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()],
         ]:
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
-            self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
+            self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept, *covariates]))
 
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)

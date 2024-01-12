@@ -1,15 +1,22 @@
 import re
 import unittest
+
 import numpy as np
+import pytest
 from numpy.testing import assert_array_equal
+
 import hail as hl
-import hail.ir as ir
-from hail.ir.renderer import CSERenderer
+from hail import ir
 from hail.expr import construct_expr
 from hail.expr.types import tint32
-from hail.utils.java import Env
+from hail.ir.renderer import CSERenderer
 from hail.utils import new_temp_file
-from test.hail.helpers import *
+from hail.utils.java import Env
+
+from ..helpers import (
+    resource,
+    skip_unless_spark_backend,
+)
 
 
 class ValueIRTests(unittest.TestCase):
@@ -21,7 +28,6 @@ class ValueIRTests(unittest.TestCase):
             'whitenStream': hl.tstream(
                 hl.tstruct(prevWindow=hl.tndarray(hl.tfloat64, 2), newChunk=hl.tndarray(hl.tfloat64, 2))
             ),
-            'mat': hl.tndarray(hl.tfloat64, 2),
             'aa': hl.tarray(hl.tarray(hl.tint32)),
             'sta': hl.tstream(hl.tarray(hl.tint32)),
             'sts': hl.tstream(hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64)),
@@ -43,7 +49,6 @@ class ValueIRTests(unittest.TestCase):
         a = ir.Ref('a', env['a'])
         st = ir.Ref('st', env['st'])
         whitenStream = ir.Ref('whitenStream')
-        mat = ir.Ref('mat')
         aa = ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
         sts = ir.Ref('sts', env['sts'])
@@ -83,6 +88,7 @@ class ValueIRTests(unittest.TestCase):
             ir.If(b, i, j),
             ir.Coalesce(i, j),
             ir.Let('v', i, v),
+            ir.Let('v', call, v),
             ir.Ref('x', env['x']),
             ir.ApplyBinaryPrimOp('+', i, j),
             ir.ApplyUnaryPrimOp('-', i),
@@ -92,6 +98,12 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayLen(a),
             ir.ArraySort(
                 ir.ToStream(a), 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tint32), ir.Ref('r', hl.tint32))
+            ),
+            ir.ArraySort(
+                ir.ToStream(aa),
+                'l',
+                'r',
+                ir.ApplyComparisonOp("LT", ir.Ref('l', hl.tarray(hl.tint32)), ir.Ref('r', hl.tarray(hl.tint32))),
             ),
             ir.ToSet(st),
             ir.ToDict(da),
@@ -456,7 +468,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         backend.execute(ir.BlockMatrixWrite(bmir, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')))
         persist = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', bmir))
 
-        for x in self.blockmatrix_irs() + [persist]:
+        for x in [*self.blockmatrix_irs(), persist]:
             backend._parse_blockmatrix_ir(str(x))
 
 

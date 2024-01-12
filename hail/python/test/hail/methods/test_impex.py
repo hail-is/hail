@@ -1,21 +1,29 @@
 import json
-import re
 import os
-import pytest
+import re
 import shutil
 import unittest
-
 from unittest import mock
 
+import pytest
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
-from hail.context import TemporaryFilename
 
-import pytest
 import hail as hl
-from ..helpers import *
 from hail import ir
-from hail.utils import new_temp_file, new_local_temp_file, FatalError, run_command, uri_path, HailUserError
+from hail.context import TemporaryFilename
+from hail.utils import FatalError, HailUserError, new_local_temp_file, new_temp_file, run_command, uri_path
+
+from ..helpers import (
+    doctest_resource,
+    fails_local_backend,
+    fails_service_backend,
+    get_dataset,
+    qobtest,
+    resource,
+    test_timeout,
+    with_flags,
+)
 
 _FLOAT_INFO_FIELDS = [
     'BaseQRankSum',
@@ -332,13 +340,13 @@ class VCFTests(unittest.TestCase):
 
     def test_import_vcf_invalid_float_type(self):
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tstr)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tstr)
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint)
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint32)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint32)
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
 
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
@@ -536,7 +544,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._same(vcf))
 
     def test_combiner_works(self):
-        from hail.vds.combiner.combine import transform_gvcf, combine_variant_datasets
+        from hail.vds.combiner.combine import combine_variant_datasets, transform_gvcf
 
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
@@ -1077,7 +1085,6 @@ class PLINKTests(unittest.TestCase):
     def test_export_plink_quantitative_phenotype(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id', 'f4': 'is_female', 'f5': 'pheno'}
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position', 'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out3 = new_temp_file()
         hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
         fam3 = hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="").rename(fam_mapping)
@@ -1136,9 +1143,7 @@ class PLINKTests(unittest.TestCase):
             reference_genome='GRCh38',
         )
 
-        rg_random = hl.ReferenceGenome(
-            "random", ['1', '23', '24', '25', '26'], {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10}
-        )
+        hl.ReferenceGenome("random", ['1', '23', '24', '25', '26'], {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10})
 
         hl.import_plink(
             resource('sex_mt_contigs.bed'),
@@ -1271,8 +1276,6 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(mt.count(), (16, 10))
 
     def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
-        recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
-
         sample_file = resource('example.sample')
         bgen_file = resource('example.8bits.bgen')
 
@@ -1987,7 +1990,7 @@ class ImportMatrixTableTests(unittest.TestCase):
                 resource("samplenonintentries.txt"), row_fields={'f0': hl.tstr}, row_key=['f0']
             )._force_count_rows()
 
-    def test_key_by_after_empty_key_import(self):
+    def test_key_by_after_empty_key_import1(self):
         fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr}
         mt = hl.import_matrix_table(
             resource('sample2_va_nomulti.tsv'), row_fields=fields, row_key=[], entry_type=hl.tfloat
@@ -1995,7 +1998,7 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
 
-    def test_key_by_after_empty_key_import(self):
+    def test_key_by_after_empty_key_import2(self):
         fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr}
         mt = hl.import_matrix_table(
             resource('sample2_va_nomulti.tsv'), row_fields=fields, row_key=[], entry_type=hl.tfloat
@@ -2095,7 +2098,6 @@ def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
     actual = actual.rename({'col_id': 'col_idx'})
 
     row_key = mt.row_key
-    col_key = mt.col_key
     mt = mt.key_rows_by()
     mt = mt.annotate_entries(x=hl.if_else(hl.str(mt.x) == missing, hl.missing(entry_type), mt.x))
     mt = mt.annotate_rows(**{f: hl.if_else(hl.str(mt[f]) == missing, hl.missing(mt[f].dtype), mt[f]) for f in mt.row})

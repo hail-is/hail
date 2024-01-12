@@ -1,7 +1,7 @@
 import os
-import pytest
 import tempfile
 
+import pytest
 from typer.testing import CliRunner
 
 from hailtop.hailctl.batch import cli
@@ -45,7 +45,7 @@ def test_file_in_current_dir(runner: CliRunner):
     with tempfile.TemporaryDirectory() as dir:
         os.chdir(dir)
         write_hello(f'{dir}/hello.txt')
-        write_script(dir, f'/hello.txt')
+        write_script(dir, '/hello.txt')
         res = runner.invoke(cli.app, ['submit', '--files', 'hello.txt:/', 'test_job.py'], catch_exceptions=False)
         assert res.exit_code == 0, repr((res.output, res.stdout, res.stderr, res.exception))
 

@@ -1,3 +1,5 @@
+import re
+
 import pytest
 
 import hail as hl
@@ -30,9 +32,16 @@ def test_lgt_to_gt_invalid():
     c1 = hl.call(1, 1)
     c2 = hl.call(1, 1, phased=True)
     assert hl.eval(hl.vds.lgt_to_gt(c1, [0, 17495])) == hl.Call([17495, 17495])
-    # the below fails because phasing uses the sum of j and k for its second allele.
-    # we cannot represent this allele index in 28 bits
-    # assert hl.eval(hl.vds.lgt_to_gt(c2, [0, 17495])) == hl.Call([17495, 17495], phased=True)
+    with pytest.raises(
+        hl.utils.HailUserError,
+        match=re.compile(
+            r'Error summary: HailException: invalid allele representation: 612185040. Max value is 2\^29 - 1.*',
+            re.DOTALL,
+        ),
+    ):
+        # the below fails because phasing uses the sum of j and k for its second allele.
+        # we cannot represent this allele index in 28 bits
+        hl.eval(hl.vds.lgt_to_gt(c2, [0, 17495])) == hl.Call([17495, 17495], phased=True)
 
 
 def test_local_to_global():

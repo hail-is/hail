@@ -1,6 +1,4 @@
-import pytest
-from ..helpers import *
-
+import hail as hl
 import hail.experimental.time as htime
 
 

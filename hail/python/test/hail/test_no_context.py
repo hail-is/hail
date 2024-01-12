@@ -1,6 +1,6 @@
 import unittest
+
 import hail as hl
-from .helpers import *
 
 
 class Tests(unittest.TestCase):

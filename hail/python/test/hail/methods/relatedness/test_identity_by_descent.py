@@ -1,11 +1,13 @@
 import os
-import pytest
 import subprocess as sp
 import unittest
 
+import pytest
+
 import hail as hl
-import hail.utils as utils
-from ...helpers import test_timeout, qobtest
+from hail import utils
+
+from ...helpers import qobtest, test_timeout
 
 
 @pytest.fixture(scope='module')

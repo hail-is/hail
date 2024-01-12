@@ -1,10 +1,12 @@
 import math
-import pytest
+
 import numpy as np
+import pytest
 
 import hail as hl
 from hail.methods.pca import _make_tsm
-from ..helpers import resource, fails_local_backend, skip_when_service_backend, test_timeout
+
+from ..helpers import fails_local_backend, resource, skip_when_service_backend, test_timeout
 
 
 @fails_local_backend()
@@ -174,7 +176,7 @@ def test_blanczos_flags(compute_loadings, compute_scores, transpose):
     # compare absolute values to account for +-1 indeterminacy factor in singular vectors
     U = np.abs(U[:, :k])
     V = np.abs(V[:, :k])
-    Usigma = U * sigma[:k]
+    # Usigma = U * sigma[:k]
     Vsigma = V * sigma[:k]
 
     mt = mt_A_T if transpose else mt_A

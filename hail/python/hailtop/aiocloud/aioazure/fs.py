@@ -182,6 +182,7 @@ class AzureReadableStream(ReadableStream):
                 raise FileNotFoundError(self._url) from e
             data = await downloader.readall()
             self._eof = True
+            assert isinstance(data, bytes)
             return data
 
         if self._downloader is None:

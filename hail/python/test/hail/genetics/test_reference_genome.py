@@ -1,10 +1,11 @@
-import pytest
 from random import randint
 
+import pytest
+
 import hail as hl
-from hail.genetics import *
-from ..helpers import *
 from hail.utils import FatalError
+
+from ..helpers import qobtest, resource
 
 
 @qobtest
@@ -26,7 +27,7 @@ def test_reference_genome():
     mt_contigs = ["MT"]
     par = [("X", 5, 1000)]
 
-    gr2 = ReferenceGenome(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
+    gr2 = hl.ReferenceGenome(name, contigs, lengths, x_contigs, y_contigs, mt_contigs, par)
     assert gr2.name == name
     assert gr2.contigs == contigs
     assert gr2.x_contigs == x_contigs
@@ -42,11 +43,11 @@ def test_reference_genome():
 
 @qobtest
 def test_reference_genome_sequence():
-    gr3 = ReferenceGenome.read(resource("fake_ref_genome.json"))
+    gr3 = hl.ReferenceGenome.read(resource("fake_ref_genome.json"))
     assert gr3.name == "my_reference_genome"
     assert not gr3.has_sequence()
 
-    gr4 = ReferenceGenome.from_fasta_file(
+    gr4 = hl.ReferenceGenome.from_fasta_file(
         "test_rg",
         resource("fake_reference.fasta"),
         resource("fake_reference.fasta.fai"),

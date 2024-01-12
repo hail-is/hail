@@ -1,21 +1,18 @@
-from typing import Tuple, Dict, AsyncIterator, List
+import asyncio
+import functools
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
-import functools
+from typing import AsyncIterator, Dict, List, Tuple
+
 import pytest
-from hailtop.utils import url_scheme, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, Transfer, FileAndDirectoryError, Copier, AsyncFS, FileListEntry
+
+from hailtop.aiotools import AsyncFS, Copier, FileAndDirectoryError, FileListEntry, Transfer
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiocloud.aioaws import S3AsyncFS
-from hailtop.aiocloud.aioazure import AzureAsyncFS
-
-
-from .generate_copy_test_specs import run_test_spec, create_test_file, create_test_dir
+from hailtop.utils import bounded_gather2, url_scheme
 
 from .copy_test_specs import COPY_TEST_SPECS
+from .generate_copy_test_specs import create_test_dir, create_test_file, run_test_spec
 
 
 # This fixture is for test_copy_behavior.  It runs a series of copy
@@ -127,7 +124,7 @@ async def test_copy_behavior(copy_test_context, test_spec):
 
         dest_scheme = url_scheme(dest_base)
         if (
-            (dest_scheme == 'gs' or dest_scheme == 's3' or dest_scheme == 'https')
+            dest_scheme in ('gs', 's3', 'https')
             and (result is not None and 'files' in result)
             and expected.get('exception') in ('IsADirectoryError', 'NotADirectoryError')
         ):
@@ -156,7 +153,7 @@ class RaisedWrongExceptionError(Exception):
 class RaisesOrObjectStore:
     def __init__(self, dest_base, expected_type):
         scheme = url_scheme(dest_base)
-        self._object_store = scheme == 'gs' or scheme == 's3' or scheme == 'https'
+        self._object_store = scheme in ('gs', 's3', 'https')
         self._expected_type = expected_type
 
     def __enter__(self):

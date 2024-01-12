@@ -1,14 +1,15 @@
+import asyncio
+import concurrent.futures
+import functools
 import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
+
 import pytest
-import concurrent.futures
-import functools
-from hailtop.utils import secret_alnum_string, bounded_gather2, retry_transient_errors
-from hailtop.aiotools import LocalAsyncFS
+
+from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS, GoogleStorageClient
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageClient, GoogleStorageAsyncFS
+from hailtop.utils import bounded_gather2, retry_transient_errors, secret_alnum_string
 
 
 @pytest.fixture(params=['gs', 'router/gs'])

@@ -1,12 +1,11 @@
 import unittest
 
-from hail.genetics import *
-from ..helpers import *
+import hail as hl
 
 
 class Tests(unittest.TestCase):
     def test_hom_ref(self):
-        c_hom_ref = Call([0, 0])
+        c_hom_ref = hl.Call([0, 0])
         self.assertEqual(c_hom_ref.alleles, [0, 0])
         self.assertEqual(c_hom_ref.ploidy, 2)
         self.assertFalse(c_hom_ref.phased)
@@ -23,7 +22,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(c_hom_ref.unphased_diploid_gt_index() == 0)
 
     def test_het(self):
-        c_het_phased = Call([1, 0], phased=True)
+        c_het_phased = hl.Call([1, 0], phased=True)
         self.assertEqual(c_het_phased.alleles, [1, 0])
         self.assertEqual(c_het_phased.ploidy, 2)
         self.assertTrue(c_het_phased.phased)
@@ -39,7 +38,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(c_het_phased.is_het_ref())
 
     def test_hom_var(self):
-        c_hom_var = Call([1, 1])
+        c_hom_var = hl.Call([1, 1])
         self.assertEqual(c_hom_var.alleles, [1, 1])
         self.assertEqual(c_hom_var.ploidy, 2)
         self.assertFalse(c_hom_var.phased)
@@ -56,7 +55,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(c_hom_var.unphased_diploid_gt_index() == 2)
 
     def test_haploid(self):
-        c_haploid = Call([2], phased=True)
+        c_haploid = hl.Call([2], phased=True)
         self.assertEqual(c_haploid.alleles, [2])
         self.assertEqual(c_haploid.ploidy, 1)
         self.assertTrue(c_haploid.phased)
@@ -72,7 +71,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_haploid.is_het_ref())
 
     def test_zeroploid(self):
-        c_zeroploid = Call([])
+        c_zeroploid = hl.Call([])
         self.assertEqual(c_zeroploid.alleles, [])
         self.assertEqual(c_zeroploid.ploidy, 0)
         self.assertFalse(c_zeroploid.phased)
@@ -88,12 +87,12 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_zeroploid.is_het_ref())
 
         self.assertRaisesRegex(
-            NotImplementedError, "Calls with greater than 2 alleles are not supported.", Call, [1, 1, 1, 1]
+            NotImplementedError, "Calls with greater than 2 alleles are not supported.", hl.Call, [1, 1, 1, 1]
         )
 
 
 def test_call_rich_comparison():
-    val = Call([0, 0])
+    val = hl.Call([0, 0])
     expr = hl.call(0, 0)
 
     assert hl.eval(val == expr)

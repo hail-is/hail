@@ -1,11 +1,20 @@
+import os
 import unittest
+
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.utils.misc import new_temp_file
-from ..helpers import *
 from hail.methods.qc import VEPConfigGRCh37Version85, VEPConfigGRCh38Version95
 
+from ..helpers import (
+    get_dataset,
+    qobtest,
+    resource,
+    set_gcs_requester_pays_configuration,
+    skip_unless_service_backend,
+    test_timeout,
+)
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
@@ -321,7 +330,7 @@ class Tests(unittest.TestCase):
 
     def test_charr(self):
         mt = hl.import_vcf(resource('sample.vcf'))
-        es = mt.select_rows().entries()
+        mt.select_rows().entries()
         charr = hl.compute_charr(mt, ref_AF=0.9)
         d = charr.aggregate(hl.dict(hl.agg.collect((charr.s, charr.charr))))
 
@@ -361,10 +370,12 @@ class Tests(unittest.TestCase):
         )
         hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch38_95, csq=True)
 
-        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('\|')[:8])).rows()
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split(r'\|')[:8])
+        ).rows()
 
         actual = (
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('\|')[:8]))
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split(r'\|')[:8]))
             .rows()
             .drop('vep_csq_header')
         )

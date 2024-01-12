@@ -1,8 +1,10 @@
 import numpy as np
 from numpy.random import default_rng
-from hail.methods.pca import _make_tsm
+
 import hail as hl
-from ..helpers import *
+from hail.methods.pca import _make_tsm
+
+from ..helpers import test_timeout
 
 
 def naive_whiten(X, w):

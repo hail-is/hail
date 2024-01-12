@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 import hail as hl
 
@@ -31,12 +32,12 @@ def test_cumulative_histogram():
     hl.plot.cumulative_histogram(ht.idx)
 
 
-def test_histogram2d():
+def test_histogram2d_1():
     ht = hl.utils.range_matrix_table(100)
     hl.plot.histogram2d(ht.idx, ht.col_idx)
 
 
-def test_histogram2d():
+def test_histogram2d_2():
     ht = hl.utils.range_table(100)
     hl.plot.histogram2d(ht.idx, ht.idx * ht.idx)
 

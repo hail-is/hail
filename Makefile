@@ -41,6 +41,7 @@ check-all: check-hail check-services
 check-hail-fast:
 	ruff check hail/python/hail
 	ruff check hail/python/hailtop
+	ruff check hail/python/test
 	ruff format hail --check
 	$(PYTHON) -m pyright hail/python/hailtop
 

@@ -1,15 +1,17 @@
 import math
-import pytest
 import random
-from scipy.stats import pearsonr
+import unittest
+
 import numpy as np
+import pytest
+from scipy.stats import pearsonr
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr.types import *
-from hail.expr.functions import _error_from_cdf, _cdf_combine, _result_from_raw_cdf
-import hail.ir as ir
-from ..helpers import *
+from hail import ir
+from hail.expr.functions import _cdf_combine, _error_from_cdf, _result_from_raw_cdf
+
+from ..helpers import assert_evals_to, convert_struct_to_dict, qobtest, resource, test_timeout, with_flags
 
 
 def _test_many_equal(test_cases):
@@ -108,7 +110,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht.order_by(ht.x).take(5), expected)
 
     def test_operators(self):
-        schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
+        schema = hl.hl.hl.tstruct(
+            a=hl.hl.tint32, b=hl.hl.tint32, c=hl.hl.tint32, d=hl.hl.tint32, e=hl.hl.tstr, f=hl.hl.tarray(hl.hl.tint32)
+        )
 
         rows = [
             {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3]},
@@ -247,7 +251,7 @@ class Tests(unittest.TestCase):
                 self.assertEqual(v, result[k], msg=k)
 
     def test_array_slicing(self):
-        schema = hl.tstruct(a=hl.tarray(hl.tint32))
+        schema = hl.hl.hl.tstruct(a=hl.hl.tarray(hl.hl.tint32))
         rows = [{'a': [1, 2, 3, 4, 5]}]
         kt = hl.Table.parallelize(rows, schema)
         ha = hl.array(hl.range(100))
@@ -299,7 +303,7 @@ class Tests(unittest.TestCase):
             hl.eval(ha[::0])
 
     def test_dict_methods(self):
-        schema = hl.tstruct(x=hl.tfloat64)
+        schema = hl.hl.hl.tstruct(x=hl.hl.tfloat64)
         rows = [{'x': 2.0}]
         kt = hl.Table.parallelize(rows, schema)
 
@@ -340,10 +344,10 @@ class Tests(unittest.TestCase):
     def test_dict_missing_error(self):
         d = hl.dict({'a': 2, 'b': 3})
         with pytest.raises(hl.utils.HailUserError, match='Key NA not found in dictionary'):
-            hl.eval(d[hl.missing(hl.tstr)])
+            hl.eval(d[hl.missing(hl.hl.tstr)])
 
     def test_numeric_conversion(self):
-        schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
+        schema = hl.hl.hl.tstruct(a=hl.hl.tfloat64, b=hl.hl.tfloat64, c=hl.hl.tint32, d=hl.hl.tint32)
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
         kt = kt.annotate(d=hl.int64(kt.d))
@@ -351,15 +355,15 @@ class Tests(unittest.TestCase):
         kt = kt.annotate(x1=[1.0, kt.a, 1], x2=[1, 1.0], x3=[kt.a, kt.c], x4=[kt.c, kt.d], x5=[1, kt.c])
 
         expected_schema = {
-            'a': hl.tfloat64,
-            'b': hl.tfloat64,
-            'c': hl.tint32,
-            'd': hl.tint64,
-            'x1': hl.tarray(hl.tfloat64),
-            'x2': hl.tarray(hl.tfloat64),
-            'x3': hl.tarray(hl.tfloat64),
-            'x4': hl.tarray(hl.tint64),
-            'x5': hl.tarray(hl.tint32),
+            'a': hl.hl.tfloat64,
+            'b': hl.hl.tfloat64,
+            'c': hl.hl.tint32,
+            'd': hl.hl.tint64,
+            'x1': hl.hl.tarray(hl.hl.tfloat64),
+            'x2': hl.hl.tarray(hl.hl.tfloat64),
+            'x3': hl.hl.tarray(hl.hl.tfloat64),
+            'x4': hl.hl.tarray(hl.hl.tint64),
+            'x5': hl.hl.tarray(hl.hl.tint32),
         }
 
         for f, t in kt.row.dtype.items():
@@ -368,7 +372,7 @@ class Tests(unittest.TestCase):
     def test_genetics_constructors(self):
         rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
 
-        schema = hl.tstruct(a=hl.tfloat64, b=hl.tfloat64, c=hl.tint32, d=hl.tint32)
+        schema = hl.hl.hl.tstruct(a=hl.hl.tfloat64, b=hl.hl.tfloat64, c=hl.hl.tint32, d=hl.hl.tint32)
         rows = [{'a': 2.0, 'b': 4.0, 'c': 1, 'd': 5}]
         kt = hl.Table.parallelize(rows, schema)
         kt = kt.annotate(d=hl.int64(kt.d))
@@ -381,10 +385,10 @@ class Tests(unittest.TestCase):
         )
 
         expected_schema = {
-            'a': hl.tfloat64,
-            'b': hl.tfloat64,
-            'c': hl.tint32,
-            'd': hl.tint64,
+            'a': hl.hl.tfloat64,
+            'b': hl.hl.tfloat64,
+            'c': hl.hl.tint32,
+            'd': hl.hl.tint64,
             'l1': hl.tlocus(),
             'l2': hl.tlocus(rg),
             'i1': hl.tinterval(hl.tlocus(rg)),
@@ -456,7 +460,7 @@ class Tests(unittest.TestCase):
 
     def test_string_join(self):
         self.assertEqual(hl.eval(hl.str(":").join(["foo", "bar", "baz"])), "foo:bar:baz")
-        self.assertEqual(hl.eval(hl.str(",").join(hl.empty_array(hl.tstr))), "")
+        self.assertEqual(hl.eval(hl.str(",").join(hl.empty_array(hl.hl.tstr))), "")
 
         with pytest.raises(TypeError, match="Expected str collection, int32 found"):
             hl.eval(hl.str(",").join([1, 2, 3]))
@@ -472,16 +476,16 @@ class Tests(unittest.TestCase):
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
 
-        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.missing(hl.tstruct()))), hl.utils.Struct())
-        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
-        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.missing(hl.hl.hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.hl.tbool), 1, 2, missing_false=True)), 2)
 
     def test_if_else(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
 
-        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.missing(hl.tstruct()))), hl.utils.Struct())
-        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
-        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.missing(hl.hl.hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.hl.tbool), 1, 2, missing_false=True)), 2)
 
     @qobtest
     def test_aggregators(self):
@@ -491,10 +495,10 @@ class Tests(unittest.TestCase):
                 x=hl.agg.count(),
                 y=hl.agg.count_where(table.idx % 2 == 0),
                 z=hl.agg.filter(table.idx % 2 == 0, hl.agg.count()),
-                arr_sum=hl.agg.array_sum([1, 2, hl.missing(tint32)]),
+                arr_sum=hl.agg.array_sum([1, 2, hl.missing(hl.tint32)]),
                 bind_agg=hl.agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                 mean=hl.agg.mean(table.idx),
-                mean2=hl.agg.mean(hl.if_else(table.idx == 9, table.idx, hl.missing(tint32))),
+                mean2=hl.agg.mean(hl.if_else(table.idx == 9, table.idx, hl.missing(hl.tint32))),
                 foo=hl.min(3, hl.agg.sum(table.idx)),
             )
         )
@@ -508,7 +512,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.bind_agg, 5)
         self.assertEqual(r.foo, 3)
 
-        a = hl.literal([1, 2], tarray(tint32))
+        a = hl.literal([1, 2], hl.tarray(hl.tint32))
         self.assertEqual(table.aggregate(hl.agg.filter(True, hl.agg.array_sum(a))), [10, 20])
 
         r = table.aggregate(
@@ -579,7 +583,7 @@ class Tests(unittest.TestCase):
         )
         self.assertEqual(sum_and_product, hl.Struct(x=4950, y=9.332621544394414e157))
 
-        ht = ht.annotate(maybe=hl.if_else(ht.idx % 2 == 0, ht.idx, hl.missing(hl.tint32)))
+        ht = ht.annotate(maybe=hl.if_else(ht.idx % 2 == 0, ht.idx, hl.missing(hl.hl.tint32)))
         sum_evens_missing = ht.aggregate(hl.agg.fold(0, lambda x: x + ht.maybe, lambda a, b: a + b))
         assert sum_evens_missing is None
         sum_evens_only = ht.aggregate(
@@ -714,7 +718,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_array_empty(self):
         ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
-        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) is None
 
     def test_agg_array_non_trivial_post_op(self):
         ht = hl.utils.range_table(10)
@@ -836,55 +840,55 @@ class Tests(unittest.TestCase):
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.collect(elt + 1).append(0),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 [9, 10, 10, 11, 0],
             ),
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.explode(lambda elt2: hl.agg.collect(elt2 + 1).append(0), [elt, elt + 1]),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 [9, 10, 10, 11, 10, 11, 11, 12, 0],
             ),
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.filter(elt > 8, hl.agg.collect(elt + 1).append(0)),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 [10, 10, 11, 0],
             ),
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.group_by(elt % 3, hl.agg.collect(elt + 1).append(0)),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 {0: [10, 10, 0], 1: [11, 0], 2: [9, 0]},
             ),
             (
                 hl.agg.explode(
-                    lambda elt: hl.agg.count(), hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))
+                    lambda elt: hl.agg.count(), hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32))
                 ),
                 4,
             ),
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.explode(lambda elt2: hl.agg.count(), [elt, elt + 1]),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 8,
             ),
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.filter(elt > 8, hl.agg.count()),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 3,
             ),
             (
                 hl.agg.explode(
                     lambda elt: hl.agg.group_by(elt % 3, hl.agg.count()),
-                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                    hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                 ),
                 {0: 2, 1: 1, 2: 1},
             ),
@@ -910,7 +914,7 @@ class Tests(unittest.TestCase):
                     t.idx % 3,
                     hl.agg.explode(
                         lambda elt: hl.agg.collect(elt + 1).append(0),
-                        hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32)),
+                        hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                     ),
                 ),
                 {0: [10, 11, 0], 1: [0], 2: [9, 10, 0]},
@@ -921,7 +925,8 @@ class Tests(unittest.TestCase):
                 hl.agg.group_by(
                     t.idx % 3,
                     hl.agg.explode(
-                        lambda elt: hl.agg.count(), hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))
+                        lambda elt: hl.agg.count(),
+                        hl.if_else(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.hl.tint32)),
                     ),
                 ),
                 {0: 2, 1: 0, 2: 2},
@@ -947,7 +952,7 @@ class Tests(unittest.TestCase):
                 {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
                 {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])},
             ],
-            hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall),
+            hl.hl.hl.tstruct(cohort=hl.hl.tstr, pop=hl.hl.tstr, GT=hl.hl.tcall),
             n_partitions=3,
         )
 
@@ -1085,7 +1090,7 @@ class Tests(unittest.TestCase):
             scan_count=hl.scan.count(),
             scan_count_where=hl.scan.count_where(table.idx % 2 == 0),
             scan_count_where2=hl.scan.filter(table.idx % 2 == 0, hl.scan.count()),
-            arr_sum=hl.scan.array_sum([1, 2, hl.missing(tint32)]),
+            arr_sum=hl.scan.array_sum([1, 2, hl.missing(hl.tint32)]),
             bind_agg=hl.scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
             mean=hl.scan.mean(table.idx),
             foo=hl.min(3, hl.scan.sum(table.idx)),
@@ -1212,10 +1217,10 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10)
         # FIXME: add boolean when function registry is removed
         for f, typ in [
-            (lambda x: hl.int32(x), tint32),
-            (lambda x: hl.int64(x), tint64),
-            (lambda x: hl.float32(x), tfloat32),
-            (lambda x: hl.float64(x), tfloat64),
+            (lambda x: hl.int32(x), hl.tint32),
+            (lambda x: hl.int64(x), hl.tint64),
+            (lambda x: hl.float32(x), hl.tfloat32),
+            (lambda x: hl.float64(x), hl.tfloat64),
         ]:
             t = table.annotate(x=-1 * f(table.idx) - 5, y=hl.missing(typ))
             r = t.aggregate(
@@ -1228,10 +1233,10 @@ class Tests(unittest.TestCase):
     def test_aggregators_sum_product(self):
         table = hl.utils.range_table(5)
         for f, typ in [
-            (lambda x: hl.int32(x), tint32),
-            (lambda x: hl.int64(x), tint64),
-            (lambda x: hl.float32(x), tfloat32),
-            (lambda x: hl.float64(x), tfloat64),
+            (lambda x: hl.int32(x), hl.tint32),
+            (lambda x: hl.int64(x), hl.tint64),
+            (lambda x: hl.float32(x), hl.tfloat32),
+            (lambda x: hl.float64(x), hl.tfloat64),
         ]:
             t = table.annotate(x=-1 * f(table.idx) - 1, y=f(table.idx), z=hl.missing(typ))
             r = t.aggregate(
@@ -1313,7 +1318,7 @@ class Tests(unittest.TestCase):
                 {"y": -0.99106171, "x": -1.1688806},
                 {"y": 2.12823289, "x": 0.5587043},
             ],
-            hl.tstruct(y=hl.tfloat64, x=hl.tfloat64),
+            hl.hl.hl.tstruct(y=hl.hl.tfloat64, x=hl.hl.tfloat64),
             n_partitions=3,
         )
         r = t.aggregate(hl.struct(linreg=hl.agg.linreg(t.y, [1, t.x]))).linreg
@@ -1455,7 +1460,7 @@ class Tests(unittest.TestCase):
                 {"group": "m", "x": 4},
                 {"group": "m", "x": 5},
             ],
-            hl.tstruct(group=hl.tstr, x=hl.tint32),
+            hl.hl.hl.tstruct(group=hl.hl.tstr, x=hl.hl.tint32),
             n_partitions=1,
         )
 
@@ -1467,8 +1472,8 @@ class Tests(unittest.TestCase):
         ht = ht.annotate(
             tests=hl.range(0, 10).map(
                 lambda i: hl.struct(
-                    x=hl.if_else(hl.rand_bool(0.1), hl.missing(hl.tfloat64), hl.rand_unif(-10, 10)),
-                    y=hl.if_else(hl.rand_bool(0.1), hl.missing(hl.tfloat64), hl.rand_unif(-10, 10)),
+                    x=hl.if_else(hl.rand_bool(0.1), hl.missing(hl.hl.tfloat64), hl.rand_unif(-10, 10)),
+                    y=hl.if_else(hl.rand_bool(0.1), hl.missing(hl.hl.tfloat64), hl.rand_unif(-10, 10)),
                 )
             )
         )
@@ -1489,7 +1494,7 @@ class Tests(unittest.TestCase):
 
     def test_switch(self):
         x = hl.literal('1')
-        na = hl.missing(tint32)
+        na = hl.missing(hl.tint32)
 
         expr1 = hl.switch(x).when('123', 5).when('1', 6).when('0', 2).or_missing()
         self.assertEqual(hl.eval(expr1), 6)
@@ -1500,7 +1505,7 @@ class Tests(unittest.TestCase):
         expr3 = hl.switch(x).when('123', 5).when('0', 2).default(100)
         self.assertEqual(hl.eval(expr3), 100)
 
-        expr4 = hl.switch(na).when(5, 0).when(6, 1).when(0, 2).when(hl.missing(tint32), 3).default(4)  # NA != NA
+        expr4 = hl.switch(na).when(5, 0).when(6, 1).when(0, 2).when(hl.missing(hl.tint32), 3).default(4)  # NA != NA
         self.assertEqual(hl.eval(expr4), None)
 
         expr5 = (
@@ -1508,7 +1513,7 @@ class Tests(unittest.TestCase):
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(hl.missing(tint32), 3)  # NA != NA
+            .when(hl.missing(hl.tint32), 3)  # NA != NA
             .when_missing(-1)
             .default(4)
         )
@@ -1529,8 +1534,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(make_case(-1)), 'D')
         self.assertEqual(hl.eval(make_case(2)), None)
 
-        self.assertEqual(hl.eval(hl.case().when(hl.missing(hl.tbool), 1).default(2)), None)
-        self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.missing(hl.tbool), 1).default(2)), 2)
+        self.assertEqual(hl.eval(hl.case().when(hl.missing(hl.hl.tbool), 1).default(2)), None)
+        self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.missing(hl.hl.tbool), 1).default(2)), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
         with pytest.raises(hl.utils.java.HailUserError) as exc:
@@ -1546,31 +1551,33 @@ class Tests(unittest.TestCase):
             self.assertEqual(t, dtype)
             self.assertEqual(result, r)
 
-        assert_typed(s.drop('f3'), hl.Struct(f1=1, f2=2), tstruct(f1=tint32, f2=tint32))
+        assert_typed(s.drop('f3'), hl.Struct(f1=1, f2=2), hl.hl.tstruct(f1=hl.tint32, f2=hl.tint32))
 
-        assert_typed(s.drop('f1'), hl.Struct(f2=2, f3=3), tstruct(f2=tint32, f3=tint32))
+        assert_typed(s.drop('f1'), hl.Struct(f2=2, f3=3), hl.hl.tstruct(f2=hl.tint32, f3=hl.tint32))
 
-        assert_typed(s.drop(), hl.Struct(f1=1, f2=2, f3=3), tstruct(f1=tint32, f2=tint32, f3=tint32))
+        assert_typed(s.drop(), hl.Struct(f1=1, f2=2, f3=3), hl.hl.tstruct(f1=hl.tint32, f2=hl.tint32, f3=hl.tint32))
 
-        assert_typed(s.select('f1', 'f2'), hl.Struct(f1=1, f2=2), tstruct(f1=tint32, f2=tint32))
+        assert_typed(s.select('f1', 'f2'), hl.Struct(f1=1, f2=2), hl.hl.tstruct(f1=hl.tint32, f2=hl.tint32))
 
         assert_typed(
             s.select('f2', 'f1', f4=5, f5=6),
             hl.Struct(f2=2, f1=1, f4=5, f5=6),
-            tstruct(f2=tint32, f1=tint32, f4=tint32, f5=tint32),
+            hl.hl.tstruct(f2=hl.tint32, f1=hl.tint32, f4=hl.tint32, f5=hl.tint32),
         )
 
-        assert_typed(s.select(), hl.Struct(), tstruct())
+        assert_typed(s.select(), hl.Struct(), hl.hl.tstruct())
 
         assert_typed(
             s.annotate(f1=5, f2=10, f4=15),
             hl.Struct(f1=5, f2=10, f3=3, f4=15),
-            tstruct(f1=tint32, f2=tint32, f3=tint32, f4=tint32),
+            hl.hl.tstruct(f1=hl.tint32, f2=hl.tint32, f3=hl.tint32, f4=hl.tint32),
         )
 
-        assert_typed(s.annotate(f1=5), hl.Struct(f1=5, f2=2, f3=3), tstruct(f1=tint32, f2=tint32, f3=tint32))
+        assert_typed(
+            s.annotate(f1=5), hl.Struct(f1=5, f2=2, f3=3), hl.hl.tstruct(f1=hl.tint32, f2=hl.tint32, f3=hl.tint32)
+        )
 
-        assert_typed(s.annotate(), hl.Struct(f1=1, f2=2, f3=3), tstruct(f1=tint32, f2=tint32, f3=tint32))
+        assert_typed(s.annotate(), hl.Struct(f1=1, f2=2, f3=3), hl.hl.tstruct(f1=hl.tint32, f2=hl.tint32, f3=hl.tint32))
 
     def test_shadowed_struct_fields(self):
         from typing import Callable
@@ -1611,20 +1618,20 @@ class Tests(unittest.TestCase):
         self.assertRaises(hl.expr.ExpressionException, lambda: hl.eval(list(a)))
 
     def test_dict_get(self):
-        d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.missing(hl.tint32), hl.missing(hl.tstr): 5})
+        d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.missing(hl.hl.tint32), hl.missing(hl.hl.tstr): 5})
         self.assertEqual(hl.eval(d.get('a')), 1)
         self.assertEqual(hl.eval(d['a']), 1)
         self.assertEqual(hl.eval(d.get('b')), 2)
         self.assertEqual(hl.eval(d['b']), 2)
         self.assertEqual(hl.eval(d.get('c')), None)
-        self.assertEqual(hl.eval(d.get(hl.missing(hl.tstr))), 5)
-        self.assertEqual(hl.eval(d[hl.missing(hl.tstr)]), 5)
+        self.assertEqual(hl.eval(d.get(hl.missing(hl.hl.tstr))), 5)
+        self.assertEqual(hl.eval(d[hl.missing(hl.hl.tstr)]), 5)
 
         self.assertEqual(hl.eval(d.get('c', 5)), 5)
         self.assertEqual(hl.eval(d.get('a', 5)), 1)
 
         self.assertEqual(hl.eval(d.get('missing_values')), None)
-        self.assertEqual(hl.eval(d.get('missing_values', hl.missing(hl.tint32))), None)
+        self.assertEqual(hl.eval(d.get('missing_values', hl.missing(hl.hl.tint32))), None)
         self.assertEqual(hl.eval(d.get('missing_values', 5)), 5)
 
     def test_functions_any_and_all(self):
@@ -1662,9 +1669,9 @@ class Tests(unittest.TestCase):
         df = df.annotate(
             all_true=True,
             all_false=False,
-            true_or_missing=hl.if_else(df.idx % 2 == 0, True, hl.missing(tbool)),
-            false_or_missing=hl.if_else(df.idx % 2 == 0, False, hl.missing(tbool)),
-            all_missing=hl.missing(tbool),
+            true_or_missing=hl.if_else(df.idx % 2 == 0, True, hl.missing(hl.tbool)),
+            false_or_missing=hl.if_else(df.idx % 2 == 0, False, hl.missing(hl.tbool)),
+            all_missing=hl.missing(hl.tbool),
             mixed_true_false=hl.if_else(df.idx % 2 == 0, True, False),
             mixed_all=hl.switch(df.idx % 3).when(0, True).when(1, False).or_missing(),
         ).cache()
@@ -1695,7 +1702,7 @@ class Tests(unittest.TestCase):
                 hl._values_similar(
                     t.prev.idx,
                     hl.case()
-                    .when(t.idx < 2, hl.missing(hl.tint32))
+                    .when(t.idx < 2, hl.missing(hl.hl.tint32))
                     .when(((t.idx - 1) % 3) == 0, t.idx - 2)
                     .default(t.idx - 1),
                 )
@@ -1728,7 +1735,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_minmax(self):
         nan = float('nan')
-        na = hl.missing(hl.tfloat32)
+        na = hl.missing(hl.hl.tfloat32)
         size = 200
         for aggfunc in (agg.min, agg.max):
             array_with_nan = hl.array([0.0 if i == 1 else nan for i in range(size)])
@@ -1805,18 +1812,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.str(hl.missing('int32'))), None)
 
     def test_missing_with_field_starting_with_number(self):
-        assert hl.eval(hl.missing(hl.tstruct(**{"1kg": hl.tint32}))) is None
+        assert hl.eval(hl.missing(hl.hl.hl.tstruct(**{"1kg": hl.hl.tint32}))) is None
 
     def check_expr(self, expr, expected, expected_type):
         self.assertEqual(expected_type, expr.dtype)
         self.assertEqual((expected, expected_type), hl.eval_typed(expr))
 
     def test_division(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(hl.tint32)])
         int64_4 = hl.int64(4)
         int64_4s = int32_4s.map(lambda x: hl.int64(x))
         float32_4 = hl.float32(4)
@@ -1828,63 +1835,62 @@ class Tests(unittest.TestCase):
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
         _test_many_equal_typed([
-            (a_int32 / 4, expected, tarray(tfloat64)),
-            (a_int64 / 4, expected, tarray(tfloat64)),
-            (a_float32 / 4, expected, tarray(tfloat32)),
-            (a_float64 / 4, expected, tarray(tfloat64)),
-            (int32_4s / a_int32, expected_inv, tarray(tfloat64)),
-            (int32_4s / a_int64, expected_inv, tarray(tfloat64)),
-            (int32_4s / a_float32, expected_inv, tarray(tfloat32)),
-            (int32_4s / a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 / int32_4s, expected, tarray(tfloat64)),
-            (a_int64 / int32_4s, expected, tarray(tfloat64)),
-            (a_float32 / int32_4s, expected, tarray(tfloat32)),
-            (a_float64 / int32_4s, expected, tarray(tfloat64)),
-            (a_int32 / int64_4, expected, tarray(tfloat64)),
-            (a_int64 / int64_4, expected, tarray(tfloat64)),
-            (a_float32 / int64_4, expected, tarray(tfloat32)),
-            (a_float64 / int64_4, expected, tarray(tfloat64)),
-            (int64_4 / a_int32, expected_inv, tarray(tfloat64)),
-            (int64_4 / a_int64, expected_inv, tarray(tfloat64)),
-            (int64_4 / a_float32, expected_inv, tarray(tfloat32)),
-            (int64_4 / a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 / int64_4s, expected, tarray(tfloat64)),
-            (a_int64 / int64_4s, expected, tarray(tfloat64)),
-            (a_float32 / int64_4s, expected, tarray(tfloat32)),
-            (a_float64 / int64_4s, expected, tarray(tfloat64)),
-            (a_int32 / float32_4, expected, tarray(tfloat32)),
-            (a_int64 / float32_4, expected, tarray(tfloat32)),
-            (a_float32 / float32_4, expected, tarray(tfloat32)),
-            (a_float64 / float32_4, expected, tarray(tfloat64)),
-            (float32_4 / a_int32, expected_inv, tarray(tfloat32)),
-            (float32_4 / a_int64, expected_inv, tarray(tfloat32)),
-            (float32_4 / a_float32, expected_inv, tarray(tfloat32)),
-            (float32_4 / a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 / float32_4s, expected, tarray(tfloat32)),
-            (a_int64 / float32_4s, expected, tarray(tfloat32)),
-            (a_float32 / float32_4s, expected, tarray(tfloat32)),
-            (a_float64 / float32_4s, expected, tarray(tfloat64)),
-            (a_int32 / float64_4, expected, tarray(tfloat64)),
-            (a_int64 / float64_4, expected, tarray(tfloat64)),
-            (a_float32 / float64_4, expected, tarray(tfloat64)),
-            (a_float64 / float64_4, expected, tarray(tfloat64)),
-            (float64_4 / a_int32, expected_inv, tarray(tfloat64)),
-            (float64_4 / a_int64, expected_inv, tarray(tfloat64)),
-            (float64_4 / a_float32, expected_inv, tarray(tfloat64)),
-            (float64_4 / a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 / float64_4s, expected, tarray(tfloat64)),
-            (a_int64 / float64_4s, expected, tarray(tfloat64)),
-            (a_float32 / float64_4s, expected, tarray(tfloat64)),
-            (a_float64 / float64_4s, expected, tarray(tfloat64)),
+            (a_int32 / 4, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 / 4, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 / 4, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 / 4, expected, hl.tarray(hl.tfloat64)),
+            (int32_4s / a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (int32_4s / a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (int32_4s / a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int32_4s / a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 / int32_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 / int32_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 / int32_4s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 / int32_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 / int64_4, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 / int64_4, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 / int64_4, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 / int64_4, expected, hl.tarray(hl.tfloat64)),
+            (int64_4 / a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (int64_4 / a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (int64_4 / a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int64_4 / a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 / int64_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 / int64_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 / int64_4s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 / int64_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 / float32_4, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 / float32_4, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 / float32_4, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 / float32_4, expected, hl.tarray(hl.tfloat64)),
+            (float32_4 / a_int32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_4 / a_int64, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_4 / a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_4 / a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 / float32_4s, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 / float32_4s, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 / float32_4s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 / float32_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 / float64_4, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 / float64_4, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 / float64_4, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 / float64_4, expected, hl.tarray(hl.tfloat64)),
+            (float64_4 / a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_4 / a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_4 / a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_4 / a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 / float64_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 / float64_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 / float64_4s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 / float64_4s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_floor_division(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(hl.tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1896,63 +1902,62 @@ class Tests(unittest.TestCase):
         expected_inv = [1, 0, 0, 0, None]
 
         _test_many_equal_typed([
-            (a_int32 // 3, expected, tarray(tint32)),
-            (a_int64 // 3, expected, tarray(tint64)),
-            (a_float32 // 3, expected, tarray(tfloat32)),
-            (a_float64 // 3, expected, tarray(tfloat64)),
-            (3 // a_int32, expected_inv, tarray(tint32)),
-            (3 // a_int64, expected_inv, tarray(tint64)),
-            (3 // a_float32, expected_inv, tarray(tfloat32)),
-            (3 // a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 // int32_3s, expected, tarray(tint32)),
-            (a_int64 // int32_3s, expected, tarray(tint64)),
-            (a_float32 // int32_3s, expected, tarray(tfloat32)),
-            (a_float64 // int32_3s, expected, tarray(tfloat64)),
-            (a_int32 // int64_3, expected, tarray(tint64)),
-            (a_int64 // int64_3, expected, tarray(tint64)),
-            (a_float32 // int64_3, expected, tarray(tfloat32)),
-            (a_float64 // int64_3, expected, tarray(tfloat64)),
-            (int64_3 // a_int32, expected_inv, tarray(tint64)),
-            (int64_3 // a_int64, expected_inv, tarray(tint64)),
-            (int64_3 // a_float32, expected_inv, tarray(tfloat32)),
-            (int64_3 // a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 // int64_3s, expected, tarray(tint64)),
-            (a_int64 // int64_3s, expected, tarray(tint64)),
-            (a_float32 // int64_3s, expected, tarray(tfloat32)),
-            (a_float64 // int64_3s, expected, tarray(tfloat64)),
-            (a_int32 // float32_3, expected, tarray(tfloat32)),
-            (a_int64 // float32_3, expected, tarray(tfloat32)),
-            (a_float32 // float32_3, expected, tarray(tfloat32)),
-            (a_float64 // float32_3, expected, tarray(tfloat64)),
-            (float32_3 // a_int32, expected_inv, tarray(tfloat32)),
-            (float32_3 // a_int64, expected_inv, tarray(tfloat32)),
-            (float32_3 // a_float32, expected_inv, tarray(tfloat32)),
-            (float32_3 // a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 // float32_3s, expected, tarray(tfloat32)),
-            (a_int64 // float32_3s, expected, tarray(tfloat32)),
-            (a_float32 // float32_3s, expected, tarray(tfloat32)),
-            (a_float64 // float32_3s, expected, tarray(tfloat64)),
-            (a_int32 // float64_3, expected, tarray(tfloat64)),
-            (a_int64 // float64_3, expected, tarray(tfloat64)),
-            (a_float32 // float64_3, expected, tarray(tfloat64)),
-            (a_float64 // float64_3, expected, tarray(tfloat64)),
-            (float64_3 // a_int32, expected_inv, tarray(tfloat64)),
-            (float64_3 // a_int64, expected_inv, tarray(tfloat64)),
-            (float64_3 // a_float32, expected_inv, tarray(tfloat64)),
-            (float64_3 // a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 // float64_3s, expected, tarray(tfloat64)),
-            (a_int64 // float64_3s, expected, tarray(tfloat64)),
-            (a_float32 // float64_3s, expected, tarray(tfloat64)),
-            (a_float64 // float64_3s, expected, tarray(tfloat64)),
+            (a_int32 // 3, expected, hl.tarray(hl.tint32)),
+            (a_int64 // 3, expected, hl.tarray(hl.tint64)),
+            (a_float32 // 3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 // 3, expected, hl.tarray(hl.tfloat64)),
+            (3 // a_int32, expected_inv, hl.tarray(hl.tint32)),
+            (3 // a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (3 // a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (3 // a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 // int32_3s, expected, hl.tarray(hl.tint32)),
+            (a_int64 // int32_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 // int32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 // int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 // int64_3, expected, hl.tarray(hl.tint64)),
+            (a_int64 // int64_3, expected, hl.tarray(hl.tint64)),
+            (a_float32 // int64_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 // int64_3, expected, hl.tarray(hl.tfloat64)),
+            (int64_3 // a_int32, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 // a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 // a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int64_3 // a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 // int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_int64 // int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 // int64_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 // int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 // float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 // float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 // float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 // float32_3, expected, hl.tarray(hl.tfloat64)),
+            (float32_3 // a_int32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 // a_int64, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 // a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 // a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 // float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 // float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 // float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 // float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 // float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 // float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 // float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 // float64_3, expected, hl.tarray(hl.tfloat64)),
+            (float64_3 // a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 // a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 // a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 // a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 // float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 // float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 // float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 // float64_3s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_addition(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(hl.tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1964,63 +1969,62 @@ class Tests(unittest.TestCase):
         expected_inv = expected
 
         _test_many_equal_typed([
-            (a_int32 + 3, expected, tarray(tint32)),
-            (a_int64 + 3, expected, tarray(tint64)),
-            (a_float32 + 3, expected, tarray(tfloat32)),
-            (a_float64 + 3, expected, tarray(tfloat64)),
-            (3 + a_int32, expected_inv, tarray(tint32)),
-            (3 + a_int64, expected_inv, tarray(tint64)),
-            (3 + a_float32, expected_inv, tarray(tfloat32)),
-            (3 + a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 + int32_3s, expected, tarray(tint32)),
-            (a_int64 + int32_3s, expected, tarray(tint64)),
-            (a_float32 + int32_3s, expected, tarray(tfloat32)),
-            (a_float64 + int32_3s, expected, tarray(tfloat64)),
-            (a_int32 + int64_3, expected, tarray(tint64)),
-            (a_int64 + int64_3, expected, tarray(tint64)),
-            (a_float32 + int64_3, expected, tarray(tfloat32)),
-            (a_float64 + int64_3, expected, tarray(tfloat64)),
-            (int64_3 + a_int32, expected_inv, tarray(tint64)),
-            (int64_3 + a_int64, expected_inv, tarray(tint64)),
-            (int64_3 + a_float32, expected_inv, tarray(tfloat32)),
-            (int64_3 + a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 + int64_3s, expected, tarray(tint64)),
-            (a_int64 + int64_3s, expected, tarray(tint64)),
-            (a_float32 + int64_3s, expected, tarray(tfloat32)),
-            (a_float64 + int64_3s, expected, tarray(tfloat64)),
-            (a_int32 + float32_3, expected, tarray(tfloat32)),
-            (a_int64 + float32_3, expected, tarray(tfloat32)),
-            (a_float32 + float32_3, expected, tarray(tfloat32)),
-            (a_float64 + float32_3, expected, tarray(tfloat64)),
-            (float32_3 + a_int32, expected_inv, tarray(tfloat32)),
-            (float32_3 + a_int64, expected_inv, tarray(tfloat32)),
-            (float32_3 + a_float32, expected_inv, tarray(tfloat32)),
-            (float32_3 + a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 + float32_3s, expected, tarray(tfloat32)),
-            (a_int64 + float32_3s, expected, tarray(tfloat32)),
-            (a_float32 + float32_3s, expected, tarray(tfloat32)),
-            (a_float64 + float32_3s, expected, tarray(tfloat64)),
-            (a_int32 + float64_3, expected, tarray(tfloat64)),
-            (a_int64 + float64_3, expected, tarray(tfloat64)),
-            (a_float32 + float64_3, expected, tarray(tfloat64)),
-            (a_float64 + float64_3, expected, tarray(tfloat64)),
-            (float64_3 + a_int32, expected_inv, tarray(tfloat64)),
-            (float64_3 + a_int64, expected_inv, tarray(tfloat64)),
-            (float64_3 + a_float32, expected_inv, tarray(tfloat64)),
-            (float64_3 + a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 + float64_3s, expected, tarray(tfloat64)),
-            (a_int64 + float64_3s, expected, tarray(tfloat64)),
-            (a_float32 + float64_3s, expected, tarray(tfloat64)),
-            (a_float64 + float64_3s, expected, tarray(tfloat64)),
+            (a_int32 + 3, expected, hl.tarray(hl.tint32)),
+            (a_int64 + 3, expected, hl.tarray(hl.tint64)),
+            (a_float32 + 3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 + 3, expected, hl.tarray(hl.tfloat64)),
+            (3 + a_int32, expected_inv, hl.tarray(hl.tint32)),
+            (3 + a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (3 + a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (3 + a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 + int32_3s, expected, hl.tarray(hl.tint32)),
+            (a_int64 + int32_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 + int32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 + int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 + int64_3, expected, hl.tarray(hl.tint64)),
+            (a_int64 + int64_3, expected, hl.tarray(hl.tint64)),
+            (a_float32 + int64_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 + int64_3, expected, hl.tarray(hl.tfloat64)),
+            (int64_3 + a_int32, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 + a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 + a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int64_3 + a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 + int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_int64 + int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 + int64_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 + int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 + float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 + float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 + float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 + float32_3, expected, hl.tarray(hl.tfloat64)),
+            (float32_3 + a_int32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 + a_int64, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 + a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 + a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 + float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 + float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 + float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 + float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 + float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 + float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 + float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 + float64_3, expected, hl.tarray(hl.tfloat64)),
+            (float64_3 + a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 + a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 + a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 + a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 + float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 + float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 + float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 + float64_3s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_subtraction(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(hl.tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -2032,63 +2036,62 @@ class Tests(unittest.TestCase):
         expected_inv = [1, -1, -5, -13, None]
 
         _test_many_equal_typed([
-            (a_int32 - 3, expected, tarray(tint32)),
-            (a_int64 - 3, expected, tarray(tint64)),
-            (a_float32 - 3, expected, tarray(tfloat32)),
-            (a_float64 - 3, expected, tarray(tfloat64)),
-            (3 - a_int32, expected_inv, tarray(tint32)),
-            (3 - a_int64, expected_inv, tarray(tint64)),
-            (3 - a_float32, expected_inv, tarray(tfloat32)),
-            (3 - a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 - int32_3s, expected, tarray(tint32)),
-            (a_int64 - int32_3s, expected, tarray(tint64)),
-            (a_float32 - int32_3s, expected, tarray(tfloat32)),
-            (a_float64 - int32_3s, expected, tarray(tfloat64)),
-            (a_int32 - int64_3, expected, tarray(tint64)),
-            (a_int64 - int64_3, expected, tarray(tint64)),
-            (a_float32 - int64_3, expected, tarray(tfloat32)),
-            (a_float64 - int64_3, expected, tarray(tfloat64)),
-            (int64_3 - a_int32, expected_inv, tarray(tint64)),
-            (int64_3 - a_int64, expected_inv, tarray(tint64)),
-            (int64_3 - a_float32, expected_inv, tarray(tfloat32)),
-            (int64_3 - a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 - int64_3s, expected, tarray(tint64)),
-            (a_int64 - int64_3s, expected, tarray(tint64)),
-            (a_float32 - int64_3s, expected, tarray(tfloat32)),
-            (a_float64 - int64_3s, expected, tarray(tfloat64)),
-            (a_int32 - float32_3, expected, tarray(tfloat32)),
-            (a_int64 - float32_3, expected, tarray(tfloat32)),
-            (a_float32 - float32_3, expected, tarray(tfloat32)),
-            (a_float64 - float32_3, expected, tarray(tfloat64)),
-            (float32_3 - a_int32, expected_inv, tarray(tfloat32)),
-            (float32_3 - a_int64, expected_inv, tarray(tfloat32)),
-            (float32_3 - a_float32, expected_inv, tarray(tfloat32)),
-            (float32_3 - a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 - float32_3s, expected, tarray(tfloat32)),
-            (a_int64 - float32_3s, expected, tarray(tfloat32)),
-            (a_float32 - float32_3s, expected, tarray(tfloat32)),
-            (a_float64 - float32_3s, expected, tarray(tfloat64)),
-            (a_int32 - float64_3, expected, tarray(tfloat64)),
-            (a_int64 - float64_3, expected, tarray(tfloat64)),
-            (a_float32 - float64_3, expected, tarray(tfloat64)),
-            (a_float64 - float64_3, expected, tarray(tfloat64)),
-            (float64_3 - a_int32, expected_inv, tarray(tfloat64)),
-            (float64_3 - a_int64, expected_inv, tarray(tfloat64)),
-            (float64_3 - a_float32, expected_inv, tarray(tfloat64)),
-            (float64_3 - a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 - float64_3s, expected, tarray(tfloat64)),
-            (a_int64 - float64_3s, expected, tarray(tfloat64)),
-            (a_float32 - float64_3s, expected, tarray(tfloat64)),
-            (a_float64 - float64_3s, expected, tarray(tfloat64)),
+            (a_int32 - 3, expected, hl.tarray(hl.tint32)),
+            (a_int64 - 3, expected, hl.tarray(hl.tint64)),
+            (a_float32 - 3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 - 3, expected, hl.tarray(hl.tfloat64)),
+            (3 - a_int32, expected_inv, hl.tarray(hl.tint32)),
+            (3 - a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (3 - a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (3 - a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 - int32_3s, expected, hl.tarray(hl.tint32)),
+            (a_int64 - int32_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 - int32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 - int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 - int64_3, expected, hl.tarray(hl.tint64)),
+            (a_int64 - int64_3, expected, hl.tarray(hl.tint64)),
+            (a_float32 - int64_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 - int64_3, expected, hl.tarray(hl.tfloat64)),
+            (int64_3 - a_int32, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 - a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 - a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int64_3 - a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 - int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_int64 - int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 - int64_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 - int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 - float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 - float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 - float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 - float32_3, expected, hl.tarray(hl.tfloat64)),
+            (float32_3 - a_int32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 - a_int64, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 - a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 - a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 - float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 - float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 - float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 - float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 - float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 - float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 - float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 - float64_3, expected, hl.tarray(hl.tfloat64)),
+            (float64_3 - a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 - a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 - a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 - a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 - float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 - float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 - float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 - float64_3s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_multiplication(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(hl.tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -2100,63 +2103,62 @@ class Tests(unittest.TestCase):
         expected_inv = expected
 
         _test_many_equal_typed([
-            (a_int32 * 3, expected, tarray(tint32)),
-            (a_int64 * 3, expected, tarray(tint64)),
-            (a_float32 * 3, expected, tarray(tfloat32)),
-            (a_float64 * 3, expected, tarray(tfloat64)),
-            (3 * a_int32, expected_inv, tarray(tint32)),
-            (3 * a_int64, expected_inv, tarray(tint64)),
-            (3 * a_float32, expected_inv, tarray(tfloat32)),
-            (3 * a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 * int32_3s, expected, tarray(tint32)),
-            (a_int64 * int32_3s, expected, tarray(tint64)),
-            (a_float32 * int32_3s, expected, tarray(tfloat32)),
-            (a_float64 * int32_3s, expected, tarray(tfloat64)),
-            (a_int32 * int64_3, expected, tarray(tint64)),
-            (a_int64 * int64_3, expected, tarray(tint64)),
-            (a_float32 * int64_3, expected, tarray(tfloat32)),
-            (a_float64 * int64_3, expected, tarray(tfloat64)),
-            (int64_3 * a_int32, expected_inv, tarray(tint64)),
-            (int64_3 * a_int64, expected_inv, tarray(tint64)),
-            (int64_3 * a_float32, expected_inv, tarray(tfloat32)),
-            (int64_3 * a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 * int64_3s, expected, tarray(tint64)),
-            (a_int64 * int64_3s, expected, tarray(tint64)),
-            (a_float32 * int64_3s, expected, tarray(tfloat32)),
-            (a_float64 * int64_3s, expected, tarray(tfloat64)),
-            (a_int32 * float32_3, expected, tarray(tfloat32)),
-            (a_int64 * float32_3, expected, tarray(tfloat32)),
-            (a_float32 * float32_3, expected, tarray(tfloat32)),
-            (a_float64 * float32_3, expected, tarray(tfloat64)),
-            (float32_3 * a_int32, expected_inv, tarray(tfloat32)),
-            (float32_3 * a_int64, expected_inv, tarray(tfloat32)),
-            (float32_3 * a_float32, expected_inv, tarray(tfloat32)),
-            (float32_3 * a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 * float32_3s, expected, tarray(tfloat32)),
-            (a_int64 * float32_3s, expected, tarray(tfloat32)),
-            (a_float32 * float32_3s, expected, tarray(tfloat32)),
-            (a_float64 * float32_3s, expected, tarray(tfloat64)),
-            (a_int32 * float64_3, expected, tarray(tfloat64)),
-            (a_int64 * float64_3, expected, tarray(tfloat64)),
-            (a_float32 * float64_3, expected, tarray(tfloat64)),
-            (a_float64 * float64_3, expected, tarray(tfloat64)),
-            (float64_3 * a_int32, expected_inv, tarray(tfloat64)),
-            (float64_3 * a_int64, expected_inv, tarray(tfloat64)),
-            (float64_3 * a_float32, expected_inv, tarray(tfloat64)),
-            (float64_3 * a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 * float64_3s, expected, tarray(tfloat64)),
-            (a_int64 * float64_3s, expected, tarray(tfloat64)),
-            (a_float32 * float64_3s, expected, tarray(tfloat64)),
-            (a_float64 * float64_3s, expected, tarray(tfloat64)),
+            (a_int32 * 3, expected, hl.tarray(hl.tint32)),
+            (a_int64 * 3, expected, hl.tarray(hl.tint64)),
+            (a_float32 * 3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 * 3, expected, hl.tarray(hl.tfloat64)),
+            (3 * a_int32, expected_inv, hl.tarray(hl.tint32)),
+            (3 * a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (3 * a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (3 * a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 * int32_3s, expected, hl.tarray(hl.tint32)),
+            (a_int64 * int32_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 * int32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 * int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 * int64_3, expected, hl.tarray(hl.tint64)),
+            (a_int64 * int64_3, expected, hl.tarray(hl.tint64)),
+            (a_float32 * int64_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 * int64_3, expected, hl.tarray(hl.tfloat64)),
+            (int64_3 * a_int32, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 * a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 * a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int64_3 * a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 * int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_int64 * int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 * int64_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 * int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 * float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 * float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 * float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 * float32_3, expected, hl.tarray(hl.tfloat64)),
+            (float32_3 * a_int32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 * a_int64, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 * a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 * a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 * float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 * float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 * float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 * float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 * float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 * float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 * float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 * float64_3, expected, hl.tarray(hl.tfloat64)),
+            (float64_3 * a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 * a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 * a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 * a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 * float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 * float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 * float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 * float64_3s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_exponentiation(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(hl.tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -2168,63 +2170,62 @@ class Tests(unittest.TestCase):
         expected_inv = [9.0, 81.0, 6561.0, 43046721.0, None]
 
         _test_many_equal_typed([
-            (a_int32**3, expected, tarray(tfloat64)),
-            (a_int64**3, expected, tarray(tfloat64)),
-            (a_float32**3, expected, tarray(tfloat64)),
-            (a_float64**3, expected, tarray(tfloat64)),
-            (3**a_int32, expected_inv, tarray(tfloat64)),
-            (3**a_int64, expected_inv, tarray(tfloat64)),
-            (3**a_float32, expected_inv, tarray(tfloat64)),
-            (3**a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32**int32_3s, expected, tarray(tfloat64)),
-            (a_int64**int32_3s, expected, tarray(tfloat64)),
-            (a_float32**int32_3s, expected, tarray(tfloat64)),
-            (a_float64**int32_3s, expected, tarray(tfloat64)),
-            (a_int32**int64_3, expected, tarray(tfloat64)),
-            (a_int64**int64_3, expected, tarray(tfloat64)),
-            (a_float32**int64_3, expected, tarray(tfloat64)),
-            (a_float64**int64_3, expected, tarray(tfloat64)),
-            (int64_3**a_int32, expected_inv, tarray(tfloat64)),
-            (int64_3**a_int64, expected_inv, tarray(tfloat64)),
-            (int64_3**a_float32, expected_inv, tarray(tfloat64)),
-            (int64_3**a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32**int64_3s, expected, tarray(tfloat64)),
-            (a_int64**int64_3s, expected, tarray(tfloat64)),
-            (a_float32**int64_3s, expected, tarray(tfloat64)),
-            (a_float64**int64_3s, expected, tarray(tfloat64)),
-            (a_int32**float32_3, expected, tarray(tfloat64)),
-            (a_int64**float32_3, expected, tarray(tfloat64)),
-            (a_float32**float32_3, expected, tarray(tfloat64)),
-            (a_float64**float32_3, expected, tarray(tfloat64)),
-            (float32_3**a_int32, expected_inv, tarray(tfloat64)),
-            (float32_3**a_int64, expected_inv, tarray(tfloat64)),
-            (float32_3**a_float32, expected_inv, tarray(tfloat64)),
-            (float32_3**a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32**float32_3s, expected, tarray(tfloat64)),
-            (a_int64**float32_3s, expected, tarray(tfloat64)),
-            (a_float32**float32_3s, expected, tarray(tfloat64)),
-            (a_float64**float32_3s, expected, tarray(tfloat64)),
-            (a_int32**float64_3, expected, tarray(tfloat64)),
-            (a_int64**float64_3, expected, tarray(tfloat64)),
-            (a_float32**float64_3, expected, tarray(tfloat64)),
-            (a_float64**float64_3, expected, tarray(tfloat64)),
-            (float64_3**a_int32, expected_inv, tarray(tfloat64)),
-            (float64_3**a_int64, expected_inv, tarray(tfloat64)),
-            (float64_3**a_float32, expected_inv, tarray(tfloat64)),
-            (float64_3**a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32**float64_3s, expected, tarray(tfloat64)),
-            (a_int64**float64_3s, expected, tarray(tfloat64)),
-            (a_float32**float64_3s, expected, tarray(tfloat64)),
-            (a_float64**float64_3s, expected, tarray(tfloat64)),
+            (a_int32**3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**3, expected, hl.tarray(hl.tfloat64)),
+            (3**a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (3**a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (3**a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (3**a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32**int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32**int64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**int64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**int64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**int64_3, expected, hl.tarray(hl.tfloat64)),
+            (int64_3**a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (int64_3**a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (int64_3**a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (int64_3**a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32**int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32**float32_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**float32_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**float32_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**float32_3, expected, hl.tarray(hl.tfloat64)),
+            (float32_3**a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float32_3**a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float32_3**a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float32_3**a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32**float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32**float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**float64_3, expected, hl.tarray(hl.tfloat64)),
+            (float64_3**a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3**a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3**a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3**a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32**float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64**float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32**float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64**float64_3s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_modulus(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(hl.tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(hl.tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -2236,73 +2237,73 @@ class Tests(unittest.TestCase):
         expected_inv = [1, 3, 3, 3, None]
 
         _test_many_equal_typed([
-            (a_int32 % 3, expected, tarray(tint32)),
-            (a_int64 % 3, expected, tarray(tint64)),
-            (a_float32 % 3, expected, tarray(tfloat32)),
-            (a_float64 % 3, expected, tarray(tfloat64)),
-            (3 % a_int32, expected_inv, tarray(tint32)),
-            (3 % a_int64, expected_inv, tarray(tint64)),
-            (3 % a_float32, expected_inv, tarray(tfloat32)),
-            (3 % a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 % int32_3s, expected, tarray(tint32)),
-            (a_int64 % int32_3s, expected, tarray(tint64)),
-            (a_float32 % int32_3s, expected, tarray(tfloat32)),
-            (a_float64 % int32_3s, expected, tarray(tfloat64)),
-            (a_int32 % int64_3, expected, tarray(tint64)),
-            (a_int64 % int64_3, expected, tarray(tint64)),
-            (a_float32 % int64_3, expected, tarray(tfloat32)),
-            (a_float64 % int64_3, expected, tarray(tfloat64)),
-            (int64_3 % a_int32, expected_inv, tarray(tint64)),
-            (int64_3 % a_int64, expected_inv, tarray(tint64)),
-            (int64_3 % a_float32, expected_inv, tarray(tfloat32)),
-            (int64_3 % a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 % int64_3s, expected, tarray(tint64)),
-            (a_int64 % int64_3s, expected, tarray(tint64)),
-            (a_float32 % int64_3s, expected, tarray(tfloat32)),
-            (a_float64 % int64_3s, expected, tarray(tfloat64)),
-            (a_int32 % float32_3, expected, tarray(tfloat32)),
-            (a_int64 % float32_3, expected, tarray(tfloat32)),
-            (a_float32 % float32_3, expected, tarray(tfloat32)),
-            (a_float64 % float32_3, expected, tarray(tfloat64)),
-            (float32_3 % a_int32, expected_inv, tarray(tfloat32)),
-            (float32_3 % a_int64, expected_inv, tarray(tfloat32)),
-            (float32_3 % a_float32, expected_inv, tarray(tfloat32)),
-            (float32_3 % a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 % float32_3s, expected, tarray(tfloat32)),
-            (a_int64 % float32_3s, expected, tarray(tfloat32)),
-            (a_float32 % float32_3s, expected, tarray(tfloat32)),
-            (a_float64 % float32_3s, expected, tarray(tfloat64)),
-            (a_int32 % float64_3, expected, tarray(tfloat64)),
-            (a_int64 % float64_3, expected, tarray(tfloat64)),
-            (a_float32 % float64_3, expected, tarray(tfloat64)),
-            (a_float64 % float64_3, expected, tarray(tfloat64)),
-            (float64_3 % a_int32, expected_inv, tarray(tfloat64)),
-            (float64_3 % a_int64, expected_inv, tarray(tfloat64)),
-            (float64_3 % a_float32, expected_inv, tarray(tfloat64)),
-            (float64_3 % a_float64, expected_inv, tarray(tfloat64)),
-            (a_int32 % float64_3s, expected, tarray(tfloat64)),
-            (a_int64 % float64_3s, expected, tarray(tfloat64)),
-            (a_float32 % float64_3s, expected, tarray(tfloat64)),
-            (a_float64 % float64_3s, expected, tarray(tfloat64)),
+            (a_int32 % 3, expected, hl.tarray(hl.tint32)),
+            (a_int64 % 3, expected, hl.tarray(hl.tint64)),
+            (a_float32 % 3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 % 3, expected, hl.tarray(hl.tfloat64)),
+            (3 % a_int32, expected_inv, hl.tarray(hl.tint32)),
+            (3 % a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (3 % a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (3 % a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 % int32_3s, expected, hl.tarray(hl.tint32)),
+            (a_int64 % int32_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 % int32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 % int32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 % int64_3, expected, hl.tarray(hl.tint64)),
+            (a_int64 % int64_3, expected, hl.tarray(hl.tint64)),
+            (a_float32 % int64_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 % int64_3, expected, hl.tarray(hl.tfloat64)),
+            (int64_3 % a_int32, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 % a_int64, expected_inv, hl.tarray(hl.tint64)),
+            (int64_3 % a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (int64_3 % a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 % int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_int64 % int64_3s, expected, hl.tarray(hl.tint64)),
+            (a_float32 % int64_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 % int64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 % float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 % float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 % float32_3, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 % float32_3, expected, hl.tarray(hl.tfloat64)),
+            (float32_3 % a_int32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 % a_int64, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 % a_float32, expected_inv, hl.tarray(hl.tfloat32)),
+            (float32_3 % a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 % float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_int64 % float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float32 % float32_3s, expected, hl.tarray(hl.tfloat32)),
+            (a_float64 % float32_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int32 % float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 % float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 % float64_3, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 % float64_3, expected, hl.tarray(hl.tfloat64)),
+            (float64_3 % a_int32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 % a_int64, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 % a_float32, expected_inv, hl.tarray(hl.tfloat64)),
+            (float64_3 % a_float64, expected_inv, hl.tarray(hl.tfloat64)),
+            (a_int32 % float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_int64 % float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float32 % float64_3s, expected, hl.tarray(hl.tfloat64)),
+            (a_float64 % float64_3s, expected, hl.tarray(hl.tfloat64)),
         ])
 
     def test_comparisons(self):
         f0 = hl.float(0.0)
-        fnull = hl.missing(tfloat)
+        fnull = hl.missing(hl.tfloat)
         finf = hl.float(float('inf'))
         fnan = hl.float(float('nan'))
 
         _test_many_equal_typed([
-            (f0 == fnull, None, tbool),
-            (f0 < fnull, None, tbool),
-            (f0 != fnull, None, tbool),
-            (fnan == fnan, False, tbool),
-            (f0 == f0, True, tbool),
-            (finf == finf, True, tbool),
-            (f0 < finf, True, tbool),
-            (f0 > finf, False, tbool),
-            (fnan <= finf, False, tbool),
-            (fnan >= finf, False, tbool),
+            (f0 == fnull, None, hl.tbool),
+            (f0 < fnull, None, hl.tbool),
+            (f0 != fnull, None, hl.tbool),
+            (fnan == fnan, False, hl.tbool),  # noqa: PLR0124
+            (f0 == f0, True, hl.tbool),  # noqa: PLR0124
+            (finf == finf, True, hl.tbool),  # noqa: PLR0124
+            (f0 < finf, True, hl.tbool),
+            (f0 > finf, False, hl.tbool),
+            (fnan <= finf, False, hl.tbool),
+            (fnan >= finf, False, hl.tbool),
         ])
 
     def test_bools_can_math(self):
@@ -2456,7 +2457,7 @@ class Tests(unittest.TestCase):
         c2_hetvar = hl.call(2, 1, phased=True)
         c1 = hl.call(1)
         c0 = hl.call()
-        cNull = hl.missing(tcall)
+        cNull = hl.missing(hl.tcall)
         call_expr_1 = hl.call(1, 2, phased=True)
         a0 = hl.literal(1)
         a1 = 2
@@ -2466,51 +2467,51 @@ class Tests(unittest.TestCase):
         call_expr_4 = hl.unphased_diploid_gt_index_call(2)
 
         _test_many_equal_typed([
-            (c2_homref.ploidy, 2, tint32),
-            (c2_homref[0], 0, tint32),
-            (c2_homref[1], 0, tint32),
-            (c2_homref.phased, False, tbool),
-            (c2_homref.is_hom_ref(), True, tbool),
-            (c2_het.ploidy, 2, tint32),
-            (c2_het[0], 1, tint32),
-            (c2_het[1], 0, tint32),
-            (c2_het.phased, True, tbool),
-            (c2_het.is_het(), True, tbool),
-            (c2_homvar.ploidy, 2, tint32),
-            (c2_homvar[0], 1, tint32),
-            (c2_homvar[1], 1, tint32),
-            (c2_homvar.phased, False, tbool),
-            (c2_homvar.is_hom_var(), True, tbool),
-            (c2_homvar.unphased_diploid_gt_index(), 2, tint32),
-            (c2_hetvar.ploidy, 2, tint32),
-            (c2_hetvar[0], 2, tint32),
-            (c2_hetvar[1], 1, tint32),
-            (c2_hetvar.phased, True, tbool),
-            (c2_hetvar.is_hom_var(), False, tbool),
-            (c2_hetvar.is_het_non_ref(), True, tbool),
-            (c1.ploidy, 1, tint32),
-            (c1[0], 1, tint32),
-            (c1.phased, False, tbool),
-            (c1.is_hom_var(), True, tbool),
-            (c0.ploidy, 0, tint32),
-            (c0.phased, False, tbool),
-            (c0.is_hom_var(), False, tbool),
-            (cNull.ploidy, None, tint32),
-            (cNull[0], None, tint32),
-            (cNull.phased, None, tbool),
-            (cNull.is_hom_var(), None, tbool),
-            (call_expr_1[0], 1, tint32),
-            (call_expr_1[1], 2, tint32),
-            (call_expr_1.ploidy, 2, tint32),
-            (call_expr_2[0], 1, tint32),
-            (call_expr_2[1], 2, tint32),
-            (call_expr_2.ploidy, 2, tint32),
-            (call_expr_3[0], 1, tint32),
-            (call_expr_3[1], 2, tint32),
-            (call_expr_3.ploidy, 2, tint32),
-            (call_expr_4[0], 1, tint32),
-            (call_expr_4[1], 1, tint32),
-            (call_expr_4.ploidy, 2, tint32),
+            (c2_homref.ploidy, 2, hl.tint32),
+            (c2_homref[0], 0, hl.tint32),
+            (c2_homref[1], 0, hl.tint32),
+            (c2_homref.phased, False, hl.tbool),
+            (c2_homref.is_hom_ref(), True, hl.tbool),
+            (c2_het.ploidy, 2, hl.tint32),
+            (c2_het[0], 1, hl.tint32),
+            (c2_het[1], 0, hl.tint32),
+            (c2_het.phased, True, hl.tbool),
+            (c2_het.is_het(), True, hl.tbool),
+            (c2_homvar.ploidy, 2, hl.tint32),
+            (c2_homvar[0], 1, hl.tint32),
+            (c2_homvar[1], 1, hl.tint32),
+            (c2_homvar.phased, False, hl.tbool),
+            (c2_homvar.is_hom_var(), True, hl.tbool),
+            (c2_homvar.unphased_diploid_gt_index(), 2, hl.tint32),
+            (c2_hetvar.ploidy, 2, hl.tint32),
+            (c2_hetvar[0], 2, hl.tint32),
+            (c2_hetvar[1], 1, hl.tint32),
+            (c2_hetvar.phased, True, hl.tbool),
+            (c2_hetvar.is_hom_var(), False, hl.tbool),
+            (c2_hetvar.is_het_non_ref(), True, hl.tbool),
+            (c1.ploidy, 1, hl.tint32),
+            (c1[0], 1, hl.tint32),
+            (c1.phased, False, hl.tbool),
+            (c1.is_hom_var(), True, hl.tbool),
+            (c0.ploidy, 0, hl.tint32),
+            (c0.phased, False, hl.tbool),
+            (c0.is_hom_var(), False, hl.tbool),
+            (cNull.ploidy, None, hl.tint32),
+            (cNull[0], None, hl.tint32),
+            (cNull.phased, None, hl.tbool),
+            (cNull.is_hom_var(), None, hl.tbool),
+            (call_expr_1[0], 1, hl.tint32),
+            (call_expr_1[1], 2, hl.tint32),
+            (call_expr_1.ploidy, 2, hl.tint32),
+            (call_expr_2[0], 1, hl.tint32),
+            (call_expr_2[1], 2, hl.tint32),
+            (call_expr_2.ploidy, 2, hl.tint32),
+            (call_expr_3[0], 1, hl.tint32),
+            (call_expr_3[1], 2, hl.tint32),
+            (call_expr_3.ploidy, 2, hl.tint32),
+            (call_expr_4[0], 1, hl.tint32),
+            (call_expr_4[1], 1, hl.tint32),
+            (call_expr_4.ploidy, 2, hl.tint32),
         ])
 
     def test_call_unphase(self):
@@ -2623,8 +2624,8 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval(hl.dict([('1', 2), ('2', 3)])), {'1': 2, '2': 3})
         self.assertEqual(hl.eval(hl.dict({('1', 2), ('2', 3)})), {'1': 2, '2': 3})
-        self.assertEqual(hl.eval(hl.dict([('1', 2), (hl.missing(tstr), 3)])), {'1': 2, None: 3})
-        self.assertEqual(hl.eval(hl.dict({('1', 2), (hl.missing(tstr), 3)})), {'1': 2, None: 3})
+        self.assertEqual(hl.eval(hl.dict([('1', 2), (hl.missing(hl.tstr), 3)])), {'1': 2, None: 3})
+        self.assertEqual(hl.eval(hl.dict({('1', 2), (hl.missing(hl.tstr), 3)})), {'1': 2, None: 3})
 
     def test_zip(self):
         a1 = [1, 2, 3]
@@ -2662,7 +2663,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.all(False, False)), False)
 
     def test_any_form_2(self):
-        self.assertEqual(hl.eval(hl.any(hl.empty_array(hl.tbool))), False)
+        self.assertEqual(hl.eval(hl.any(hl.empty_array(hl.hl.tbool))), False)
 
         self.assertEqual(hl.eval(hl.any([True])), True)
         self.assertEqual(hl.eval(hl.any([False])), False)
@@ -2673,7 +2674,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.any([False, False])), False)
 
     def test_all_form_2(self):
-        self.assertEqual(hl.eval(hl.all(hl.empty_array(hl.tbool))), True)
+        self.assertEqual(hl.eval(hl.all(hl.empty_array(hl.hl.tbool))), True)
 
         self.assertEqual(hl.eval(hl.all([True])), True)
         self.assertEqual(hl.eval(hl.all([False])), False)
@@ -2697,7 +2698,7 @@ class Tests(unittest.TestCase):
                 (hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6]), [True, False, True, True]),
                 (hl.len([0, 1, 4, 6]), 4),
                 (math.isnan(hl.eval(hl.mean(hl.empty_array(hl.tint)))), True),
-                (hl.mean([0, 1, 4, 6, hl.missing(tint32)]), 2.75),
+                (hl.mean([0, 1, 4, 6, hl.missing(hl.tint32)]), 2.75),
                 (hl.median(hl.empty_array(hl.tint)), None),
                 (1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4, True),
             ]
@@ -2745,14 +2746,14 @@ class Tests(unittest.TestCase):
         assert hl.eval(x.grouped(100)) == [[0, 1, 2, 3, 4]]
 
     def test_array_find(self):
-        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.missing(hl.tarray(hl.tint32)))), None)
-        self.assertEqual(hl.eval(hl.find(lambda x: hl.missing(hl.tbool), [1, 0, -4, 6])), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.missing(hl.hl.tarray(hl.hl.tint32)))), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: hl.missing(hl.hl.tbool), [1, 0, -4, 6])), None)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, [1, 0, -4, 6])), -4)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, [1, 0, 4, 6])), None)
 
     def test_set_find(self):
-        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.missing(hl.tset(hl.tint32)))), None)
-        self.assertEqual(hl.eval(hl.find(lambda x: hl.missing(hl.tbool), hl.set([1, 0, -4, 6]))), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.missing(hl.tset(hl.hl.tint32)))), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: hl.missing(hl.hl.tbool), hl.set([1, 0, -4, 6]))), None)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
 
@@ -2760,12 +2761,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2)), [0, 4, 2, 1, 3])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
 
-        self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
+        self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.missing(hl.tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
         self.assertEqual(
-            hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None]
+            hl.sorted([0, 1, 4, hl.missing(hl.tint), 3, 2], lambda x: x, reverse=True).collect()[0],
+            [4, 3, 2, 1, 0, None],
         )
         self.assertEqual(
-            hl.eval(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None]
+            hl.eval(hl.sorted([0, 1, 4, hl.missing(hl.tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None]
         )
 
         self.assertEqual(hl.eval(hl.sorted({0, 1, 4, 3, 2})), [0, 1, 2, 3, 4])
@@ -2774,7 +2776,7 @@ class Tests(unittest.TestCase):
 
     def test_sort_by(self):
         self.assertEqual(
-            hl.eval(hl._sort_by(["c", "aaa", "bb", hl.missing(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))),
+            hl.eval(hl._sort_by(["c", "aaa", "bb", hl.missing(hl.hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))),
             ["c", "bb", "aaa", None],
         )
         self.assertEqual(
@@ -2785,7 +2787,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(
                 hl.eval(
                     hl._sort_by(
-                        [hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.missing(hl.tint32)]],
+                        [hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.missing(hl.hl.tint32)]],
                         lambda l, r: l.x < r.x,
                     )
                 ),
@@ -2845,8 +2847,8 @@ class Tests(unittest.TestCase):
                 10,
             ),
             (hl.max(0, 10, 2, 3, 4, 5, 6), 10),
-            (hl.max([-5, -4, hl.missing(tint32), -3, -2, hl.missing(tint32)]), -2),
-            (hl.max([float('nan'), -4, float('nan'), -3, -2, hl.missing(tint32)]), float('nan')),
+            (hl.max([-5, -4, hl.missing(hl.tint32), -3, -2, hl.missing(hl.tint32)]), -2),
+            (hl.max([float('nan'), -4, float('nan'), -3, -2, hl.missing(hl.tint32)]), float('nan')),
             (hl.max(0.1, hl.missing('float'), 0.0), 0.1),
             (hl.max(0.1, hl.missing('float'), float('nan')), float('nan')),
             (hl.max(hl.missing('float'), float('nan')), float('nan')),
@@ -2890,8 +2892,8 @@ class Tests(unittest.TestCase):
             (hl.min(0, 1, 2), 0),
             (hl.min([10, 10, 2, 3, 4, 5, 6]), 2),
             (hl.min(0, 10, 2, 3, 4, 5, 6), 0),
-            (hl.min([-5, -4, hl.missing(tint32), -3, -2, hl.missing(tint32)]), -5),
-            (hl.min([float('nan'), -4, float('nan'), -3, -2, hl.missing(tint32)]), float('nan')),
+            (hl.min([-5, -4, hl.missing(hl.tint32), -3, -2, hl.missing(hl.tint32)]), -5),
+            (hl.min([float('nan'), -4, float('nan'), -3, -2, hl.missing(hl.tint32)]), float('nan')),
             (hl.min(-0.1, hl.missing('float'), 0.0), -0.1),
             (hl.min(0.1, hl.missing('float'), float('nan')), float('nan')),
             (hl.min(hl.missing('float'), float('nan')), float('nan')),
@@ -2944,10 +2946,10 @@ class Tests(unittest.TestCase):
         a = hl.array([2, 1, 1, 4, 4, 3])
         self.assertEqual(hl.eval(hl.argmax(a)), 3)
         self.assertEqual(hl.eval(hl.argmax(a, unique=True)), None)
-        self.assertEqual(hl.eval(hl.argmax(hl.empty_array(tint32))), None)
+        self.assertEqual(hl.eval(hl.argmax(hl.empty_array(hl.tint32))), None)
         self.assertEqual(hl.eval(hl.argmin(a)), 1)
         self.assertEqual(hl.eval(hl.argmin(a, unique=True)), None)
-        self.assertEqual(hl.eval(hl.argmin(hl.empty_array(tint32))), None)
+        self.assertEqual(hl.eval(hl.argmin(hl.empty_array(hl.tint32))), None)
 
     def test_show_row_key_regression(self):
         ds = hl.utils.range_matrix_table(3, 3)
@@ -2977,7 +2979,10 @@ class Tests(unittest.TestCase):
         with hl.TemporaryFilename() as f:
             mt.GT.export(f)
             actual = hl.import_matrix_table(
-                f, row_fields={'locus': hl.tstr, 'alleles': hl.tstr}, row_key=['locus', 'alleles'], entry_type=hl.tstr
+                f,
+                row_fields={'locus': hl.hl.tstr, 'alleles': hl.hl.tstr},
+                row_key=['locus', 'alleles'],
+                entry_type=hl.hl.tstr,
             )
             actual = actual.rename({'col_id': 's'})
             actual = actual.key_rows_by(
@@ -3028,10 +3033,10 @@ class Tests(unittest.TestCase):
         interval = hl.interval(3, 6)
         self.assertTrue(hl.eval_typed(interval.start) == (3, hl.tint))
         self.assertTrue(hl.eval_typed(interval.end) == (6, hl.tint))
-        self.assertTrue(hl.eval_typed(interval.includes_start) == (True, hl.tbool))
-        self.assertTrue(hl.eval_typed(interval.includes_end) == (False, hl.tbool))
-        self.assertTrue(hl.eval_typed(interval.contains(5)) == (True, hl.tbool))
-        self.assertTrue(hl.eval_typed(interval.overlaps(hl.interval(5, 9))) == (True, hl.tbool))
+        self.assertTrue(hl.eval_typed(interval.includes_start) == (True, hl.hl.tbool))
+        self.assertTrue(hl.eval_typed(interval.includes_end) == (False, hl.hl.tbool))
+        self.assertTrue(hl.eval_typed(interval.contains(5)) == (True, hl.hl.tbool))
+        self.assertTrue(hl.eval_typed(interval.overlaps(hl.interval(5, 9))) == (True, hl.hl.tbool))
 
         li = hl.parse_locus_interval('1:100-110')
         self.assertEqual(hl.eval(li), hl.utils.Interval(hl.genetics.Locus("1", 100), hl.genetics.Locus("1", 110)))
@@ -3363,14 +3368,12 @@ class Tests(unittest.TestCase):
             (locus_auto, True, hv, het, het): None,
             (locus_auto, True, het, hr, het): None,
             (locus_auto, True, hv, hr, het): None,
-            (locus_auto, True, hv, hr, het): None,
             (locus_x_nonpar, True, hv, hr, het): None,
             (locus_x_nonpar, False, hv, hr, hr): None,
             (locus_x_nonpar, None, hv, hr, hr): None,
             (locus_x_nonpar, False, het, hr, hr): None,
             (locus_y_nonpar, True, het, hr, het): None,
             (locus_y_nonpar, True, het, hr, hr): None,
-            (locus_y_nonpar, True, het, hr, het): None,
             (locus_y_nonpar, True, het, het, het): None,
             (locus_y_nonpar, True, hr, hr, hr): None,
             (locus_y_nonpar, None, hr, hr, hr): None,
@@ -3380,13 +3383,14 @@ class Tests(unittest.TestCase):
         }
 
         arg_list = hl.literal(
-            list(expected.keys()), hl.tarray(hl.ttuple(hl.tlocus(), hl.tbool, hl.tcall, hl.tcall, hl.tcall))
+            list(expected.keys()),
+            hl.hl.tarray(hl.ttuple(hl.tlocus(), hl.hl.tbool, hl.hl.tcall, hl.hl.tcall, hl.hl.tcall)),
         )
         values = arg_list.map(lambda args: hl.mendel_error_code(*args))
         expr = hl.dict(hl.zip(arg_list, values))
         results = hl.eval(expr)
         for args, result in results.items():
-            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')
+            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {args!s}')
 
     def test_min_rep(self):
         def assert_min_reps_to(old, new, pos_change=0):
@@ -3439,7 +3443,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(s.union(t), set([1, 3, 7, 8]))
 
     def test_set_numeric_functions(self):
-        s = hl.set([1, 3, 5, hl.missing(tint32)])
+        s = hl.set([1, 3, 5, hl.missing(hl.tint32)])
         self.assert_evals_to(hl.min(s), 1)
         self.assert_evals_to(hl.max(s), 5)
         self.assert_evals_to(hl.mean(s), 3)
@@ -3757,17 +3761,17 @@ class Tests(unittest.TestCase):
 
     def test_format(self):
         self.assertEqual(hl.eval(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114)), '0.2500 hello 1.140e-01')
-        self.assertEqual(hl.eval(hl.format("%.4f %d", hl.missing(hl.tint32), hl.missing(hl.tint32))), 'null null')
+        self.assertEqual(hl.eval(hl.format("%.4f %d", hl.missing(hl.hl.tint32), hl.missing(hl.hl.tint32))), 'null null')
         self.assertEqual(
             hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))),
             '{foo: 5, bar: true, baz: [4,5]}',
         )
         self.assertEqual(
-            hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.missing(hl.tstr)]))),
+            hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.missing(hl.hl.tstr)]))),
             '1:356 (9, true, null)',
         )
         self.assertEqual(
-            hl.eval(hl.format("%b %B %b %b", hl.missing(hl.tint), hl.missing(hl.tstr), True, "hello")),
+            hl.eval(hl.format("%b %B %b %b", hl.missing(hl.tint), hl.missing(hl.hl.tstr), True, "hello")),
             "false FALSE true true",
         )
 
@@ -3812,7 +3816,7 @@ class Tests(unittest.TestCase):
 
     def test_approx_equal(self):
         self.assertTrue(hl.eval(hl.approx_equal(0.25, 0.25000001)))
-        self.assertTrue(hl.eval(hl.approx_equal(hl.missing(hl.tint64), 5)) is None)
+        self.assertTrue(hl.eval(hl.approx_equal(hl.missing(hl.hl.tint64), 5)) is None)
         self.assertFalse(hl.eval(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3)))
 
     def test_issue3729(self):
@@ -3825,19 +3829,21 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(expr), value)
 
     def test_array_fold_and_scan(self):
-        self.assertValueEqual(hl.fold(lambda x, y: x + y, 0, [1, 2, 3]), 6, tint32)
-        self.assertValueEqual(hl.array_scan(lambda x, y: x + y, 0, [1, 2, 3]), [0, 1, 3, 6], tarray(tint32))
+        self.assertValueEqual(hl.fold(lambda x, y: x + y, 0, [1, 2, 3]), 6, hl.tint32)
+        self.assertValueEqual(hl.array_scan(lambda x, y: x + y, 0, [1, 2, 3]), [0, 1, 3, 6], hl.tarray(hl.tint32))
 
-        self.assertValueEqual(hl.fold(lambda x, y: x + y, 0.0, [1, 2, 3]), 6.0, tfloat64)
-        self.assertValueEqual(hl.fold(lambda x, y: x + y, 0, [1.0, 2.0, 3.0]), 6.0, tfloat64)
-        self.assertValueEqual(hl.array_scan(lambda x, y: x + y, 0.0, [1, 2, 3]), [0.0, 1.0, 3.0, 6.0], tarray(tfloat64))
+        self.assertValueEqual(hl.fold(lambda x, y: x + y, 0.0, [1, 2, 3]), 6.0, hl.tfloat64)
+        self.assertValueEqual(hl.fold(lambda x, y: x + y, 0, [1.0, 2.0, 3.0]), 6.0, hl.tfloat64)
         self.assertValueEqual(
-            hl.array_scan(lambda x, y: x + y, 0, [1.0, 2.0, 3.0]), [0.0, 1.0, 3.0, 6.0], tarray(tfloat64)
+            hl.array_scan(lambda x, y: x + y, 0.0, [1, 2, 3]), [0.0, 1.0, 3.0, 6.0], hl.tarray(hl.tfloat64)
+        )
+        self.assertValueEqual(
+            hl.array_scan(lambda x, y: x + y, 0, [1.0, 2.0, 3.0]), [0.0, 1.0, 3.0, 6.0], hl.tarray(hl.tfloat64)
         )
 
     def test_cumulative_sum(self):
-        self.assertValueEqual(hl.cumulative_sum([1, 2, 3, 4]), [1, 3, 6, 10], tarray(tint32))
-        self.assertValueEqual(hl.cumulative_sum([1.0, 2.0, 3.0, 4.0]), [1.0, 3.0, 6.0, 10.0], tarray(tfloat64))
+        self.assertValueEqual(hl.cumulative_sum([1, 2, 3, 4]), [1, 3, 6, 10], hl.tarray(hl.tint32))
+        self.assertValueEqual(hl.cumulative_sum([1.0, 2.0, 3.0, 4.0]), [1.0, 3.0, 6.0, 10.0], hl.tarray(hl.tfloat64))
 
     def test_nan_inf_checks(self):
         finite = 0
@@ -3845,20 +3851,20 @@ class Tests(unittest.TestCase):
         nan = math.nan
         na = hl.missing('float64')
 
-        assert hl.eval(hl.is_finite(finite)) == True
-        assert hl.eval(hl.is_finite(infinite)) == False
-        assert hl.eval(hl.is_finite(nan)) == False
-        assert hl.eval(hl.is_finite(na)) == None
+        assert hl.eval(hl.is_finite(finite)) is True
+        assert hl.eval(hl.is_finite(infinite)) is False
+        assert hl.eval(hl.is_finite(nan)) is False
+        assert hl.eval(hl.is_finite(na)) is None
 
-        assert hl.eval(hl.is_infinite(finite)) == False
-        assert hl.eval(hl.is_infinite(infinite)) == True
-        assert hl.eval(hl.is_infinite(nan)) == False
-        assert hl.eval(hl.is_infinite(na)) == None
+        assert hl.eval(hl.is_infinite(finite)) is False
+        assert hl.eval(hl.is_infinite(infinite)) is True
+        assert hl.eval(hl.is_infinite(nan)) is False
+        assert hl.eval(hl.is_infinite(na)) is None
 
-        assert hl.eval(hl.is_nan(finite)) == False
-        assert hl.eval(hl.is_nan(infinite)) == False
-        assert hl.eval(hl.is_nan(nan)) == True
-        assert hl.eval(hl.is_nan(na)) == None
+        assert hl.eval(hl.is_nan(finite)) is False
+        assert hl.eval(hl.is_nan(infinite)) is False
+        assert hl.eval(hl.is_nan(nan)) is True
+        assert hl.eval(hl.is_nan(na)) is None
 
     def test_array_and_if_requiredness(self):
         mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
@@ -3872,7 +3878,7 @@ class Tests(unittest.TestCase):
     def test_reversed(self):
         a = hl.array(['a', 'b', 'c'])
         ea = hl.empty_array(hl.tint)
-        na = hl.missing(hl.tarray(hl.tbool))
+        na = hl.missing(hl.hl.tarray(hl.hl.tbool))
 
         assert hl.eval(hl.reversed(a)) == ['c', 'b', 'a']
         assert hl.eval(hl.reversed(ea)) == []
@@ -3880,33 +3886,33 @@ class Tests(unittest.TestCase):
 
         s = hl.str('abc')
         es = ''
-        ns = hl.missing(hl.tstr)
+        ns = hl.missing(hl.hl.tstr)
 
         assert hl.eval(hl.reversed(s)) == 'cba'
         assert hl.eval(hl.reversed(es)) == ''
         assert hl.eval(hl.reversed(ns)) is None
 
     def test_bit_ops_types(self):
-        assert hl.bit_and(1, 1).dtype == hl.tint32
-        assert hl.bit_and(hl.int64(1), 1).dtype == hl.tint64
+        assert hl.bit_and(1, 1).dtype == hl.hl.tint32
+        assert hl.bit_and(hl.int64(1), 1).dtype == hl.hl.tint64
 
-        assert hl.bit_or(1, 1).dtype == hl.tint32
-        assert hl.bit_or(hl.int64(1), 1).dtype == hl.tint64
+        assert hl.bit_or(1, 1).dtype == hl.hl.tint32
+        assert hl.bit_or(hl.int64(1), 1).dtype == hl.hl.tint64
 
-        assert hl.bit_xor(1, 1).dtype == hl.tint32
-        assert hl.bit_xor(hl.int64(1), 1).dtype == hl.tint64
+        assert hl.bit_xor(1, 1).dtype == hl.hl.tint32
+        assert hl.bit_xor(hl.int64(1), 1).dtype == hl.hl.tint64
 
-        assert hl.bit_lshift(1, 1).dtype == hl.tint32
-        assert hl.bit_lshift(hl.int64(1), 1).dtype == hl.tint64
+        assert hl.bit_lshift(1, 1).dtype == hl.hl.tint32
+        assert hl.bit_lshift(hl.int64(1), 1).dtype == hl.hl.tint64
 
-        assert hl.bit_rshift(1, 1).dtype == hl.tint32
-        assert hl.bit_rshift(hl.int64(1), 1).dtype == hl.tint64
+        assert hl.bit_rshift(1, 1).dtype == hl.hl.tint32
+        assert hl.bit_rshift(hl.int64(1), 1).dtype == hl.hl.tint64
 
-        assert hl.bit_not(1).dtype == hl.tint32
-        assert hl.bit_not(hl.int64(1)).dtype == hl.tint64
+        assert hl.bit_not(1).dtype == hl.hl.tint32
+        assert hl.bit_not(hl.int64(1)).dtype == hl.hl.tint64
 
-        assert hl.bit_count(1).dtype == hl.tint32
-        assert hl.bit_count(hl.int64(1)).dtype == hl.tint32
+        assert hl.bit_count(1).dtype == hl.hl.tint32
+        assert hl.bit_count(hl.int64(1)).dtype == hl.hl.tint32
 
     def test_bit_shifts(self):
         assert hl.eval(hl.bit_lshift(hl.int(8), 2)) == 32
@@ -4002,8 +4008,8 @@ class Tests(unittest.TestCase):
         for htyp in collection_types:
             a = htyp([hl.struct(x='foo'), hl.struct(x='bar')])
 
-            assert hasattr(a, 'x') == True
-            assert hasattr(a, 'y') == False
+            assert hasattr(a, 'x') is True
+            assert hasattr(a, 'y') is False
 
             with pytest.raises(AttributeError, match="has no field"):
                 getattr(a, 'y')
@@ -4190,7 +4196,7 @@ def test_approx_cdf_accuracy(cdf_test_data):
 
 
 def test_approx_cdf_all_missing():
-    table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
+    table = hl.utils.range_table(10).annotate(foo=hl.missing(hl.tint))
     table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
 
 
@@ -4249,11 +4255,11 @@ def test_export_entry(delimiter, missing, header):
         mt.x.export(f, delimiter=delimiter, header=header, missing=missing)
         if header:
             actual = hl.import_matrix_table(
-                f, row_fields={'row_idx': hl.tint32}, row_key=['row_idx'], sep=delimiter, missing=missing
+                f, row_fields={'row_idx': hl.hl.tint32}, row_key=['row_idx'], sep=delimiter, missing=missing
             )
         else:
             actual = hl.import_matrix_table(
-                f, row_fields={'f0': hl.tint32}, row_key=['f0'], sep=delimiter, no_header=True, missing=missing
+                f, row_fields={'f0': hl.hl.tint32}, row_key=['f0'], sep=delimiter, no_header=True, missing=missing
             )
             actual = actual.rename({'f0': 'row_idx'})
         actual = actual.key_cols_by(col_idx=hl.int(actual.col_id))
@@ -4279,7 +4285,7 @@ def test_stream_randomness():
     a = hl.missing('array<int32>')
     a = a.map(lambda x: x + hl.rand_int32(10))
     assert_contains_node(a, ir.NA)
-    assert hl.eval(a) == None
+    assert hl.eval(a) is None
 
     # test If
     a1 = hl._stream_range(0, 5)
@@ -4327,13 +4333,13 @@ def test_stream_randomness():
 
     # test StreamFold
     a = hl._stream_range(10)
-    a = a.fold(lambda acc, x: acc.append(hl.rand_int64()), hl.empty_array(hl.tint64))
+    a = a.fold(lambda acc, x: acc.append(hl.rand_int64()), hl.empty_array(hl.hl.tint64))
     assert_contains_node(a, ir.StreamFold)
     assert len(set(hl.eval(a))) == 10
 
     # test StreamScan
     a = hl._stream_range(5)
-    a = a.scan(lambda acc, x: acc.append(hl.rand_int64()), hl.empty_array(hl.tint64))
+    a = a.scan(lambda acc, x: acc.append(hl.rand_int64()), hl.empty_array(hl.hl.tint64))
     assert_contains_node(a, ir.StreamScan)
     assert len(set(hl.eval(a.to_array())[-1])) == 5
 
@@ -4432,15 +4438,19 @@ def test_to_relational_row_and_col_refs():
     mt = mt.annotate_cols(y=1)
     mt = mt.annotate_entries(z=1)
 
-    assert mt.row._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(
-        row_idx=hl.tint32, x=hl.tint32
+    assert mt.row._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.hl.hl.tstruct(
+        row_idx=hl.hl.tint32, x=hl.hl.tint32
     )
-    assert mt.row_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(row_idx=hl.tint32)
+    assert mt.row_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.hl.hl.tstruct(
+        row_idx=hl.hl.tint32
+    )
 
-    assert mt.col._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(
-        col_idx=hl.tint32, y=hl.tint32
+    assert mt.col._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.hl.hl.tstruct(
+        col_idx=hl.hl.tint32, y=hl.hl.tint32
     )
-    assert mt.col_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.tstruct(col_idx=hl.tint32)
+    assert mt.col_key._to_relational_preserving_rows_and_cols('x')[1].row.dtype == hl.hl.hl.tstruct(
+        col_idx=hl.hl.tint32
+    )
 
 
 def test_locus_addition():
@@ -4478,7 +4488,6 @@ def test_reservoir_sampling():
         mean = np.mean(sample)
         expected_stdev = math.sqrt(sample_variance / sample_size)
         assert abs(mean - sample_mean) / expected_stdev < 4, (
-            iteration,
             sample_size,
             abs(mean - sample_mean) / expected_stdev,
         )
