@@ -93,9 +93,11 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
     // needed in java8
-//    "-XDenableSunApiLintControl",
-//    "-Xlint:-sunapi",
+//    "-XDignore.symbol.file",
+    "-XDenableSunApiLintControl",
+    "-Xlint:-sunapi",
     "-Werror",
+    if (debugBuild) "-g" else "-O"
   )
 
   def coreCompilerFlags: Seq[String] = {
