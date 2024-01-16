@@ -7,9 +7,9 @@ import pytest
 import hail as hl
 from hail.utils.java import FatalError
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import escape_id, escape_str
+from hail.utils.misc import escape_id, escape_str, with_local_temp_file
 
-from ..helpers import fails_local_backend, fails_service_backend, qobtest, resource, with_local_temp_file
+from ..helpers import fails_local_backend, fails_service_backend, qobtest, resource
 
 
 def normalize_path(path: str) -> str:
