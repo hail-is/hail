@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
 import is.hail.expr.ir
+import is.hail.expr.ir.Emit.letBindingsMustNotBeOfTypeTStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
@@ -64,15 +65,11 @@ class EmitEnv private (bindings: Env[EmitValue], val inputValues: IndexedSeq[Emi
   def this() =
     this(Env.empty, FastSeq())
 
-  def bind(name: String, v: EmitValue): EmitEnv = {
-    bindingsMustNotBeOfTypeTStream(name, v.emitType)
+  def bind(name: String, v: EmitValue): EmitEnv =
     new EmitEnv(bindings.bind(name, v), inputValues)
-  }
 
-  def bind(newBindings: (String, EmitValue)*): EmitEnv = {
-    newBindings.foreach(bind => bindingsMustNotBeOfTypeTStream(bind._1, bind._2.emitType))
+  def bind(newBindings: (String, EmitValue)*): EmitEnv =
     new EmitEnv(bindings.bindIterable(newBindings), inputValues)
-  }
 
   def lookup(name: String): EmitValue =
     bindings.lookup(name)
@@ -103,19 +100,6 @@ class EmitEnv private (bindings: Env[EmitValue], val inputValues: IndexedSeq[Emi
     (paramTypes, params, recreateFromMB)
   }
 
-  private def bindingsMustNotBeOfTypeTStream(name: String, typ: EmitType): Unit =
-    assert(
-      !typ.virtualType.isInstanceOf[TStream],
-      s"""AN INTERNAL COMPILER ERROR OCCURRED. PLEASE SUBMIT A BUG REPORT WITH THE LINK BELOW.
-         |
-         |https://github.com/hail-is/hail/issues/new?labels=needs-triage&projects=&template=bug-report.yml
-         |
-         |Attempt to emit binding $name: ${typ.virtualType.toPrettyString(compact = true)}.
-         |Bindings of type TStream may not be emitted as:
-         | - they must have exactly one use, and
-         | - their definition should have been inlined at that use.
-         |""".stripMargin,
-    )
 }
 
 object Emit {
@@ -159,6 +143,20 @@ object Emit {
     }
     returnTypeOption
   }
+
+  def letBindingsMustNotBeOfTypeTStream(name: String, typ: Type): Unit =
+    assert(
+      !typ.isInstanceOf[TStream],
+      s"""AN INTERNAL COMPILER ERROR OCCURRED. PLEASE SUBMIT A BUG REPORT WITH THE LINK BELOW.
+         |
+         |https://github.com/hail-is/hail/issues/new?labels=needs-triage&projects=&template=bug-report.yml
+         |
+         |Attempt to emit let-binding $name: ${typ.toPrettyString(compact = true)}.
+         |Let-bindings of type TStream may not be emitted as:
+         | - they must have exactly one use, and
+         | - their definition should have been inlined at that use.
+         |""".stripMargin,
+    )
 }
 
 object AggContainer {
@@ -865,6 +863,7 @@ class Emit[C](
         emitVoid(
           body,
           env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+            letBindingsMustNotBeOfTypeTStream(name, ir.typ)
             val value = emitI(ir, env = newEnv)
             newEnv.bind(name, cb.memoize(value, s"let_$name"))
           },
@@ -3578,6 +3577,7 @@ class Emit[C](
             body,
             cb,
             env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+              letBindingsMustNotBeOfTypeTStream(name, ir.typ)
               val value = emitI(ir, cb, env = newEnv)
               newEnv.bind(name, cb.memoize(value, s"let_$name"))
             },
