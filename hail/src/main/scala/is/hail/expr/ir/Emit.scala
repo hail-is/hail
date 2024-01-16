@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
+import is.hail.expr.ir
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
   ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers, SemanticHash,
@@ -56,11 +57,25 @@ class EmitContext(
   val tryingToSplit: Memo[Unit],
 )
 
-case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
-  def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
+class EmitEnv private (bindings: Env[EmitValue], val inputValues: IndexedSeq[EmitValue]) {
+  def this(inputs: IndexedSeq[EmitValue]) =
+    this(Env.empty, inputs)
 
-  def bind(newBindings: (String, EmitValue)*): EmitEnv =
-    copy(bindings = bindings.bindIterable(newBindings))
+  def this() =
+    this(Env.empty, FastSeq())
+
+  def bind(name: String, v: EmitValue): EmitEnv = {
+    bindingsMustNotBeOfTypeTStream(name, v.emitType)
+    new EmitEnv(bindings.bind(name, v), inputValues)
+  }
+
+  def bind(newBindings: (String, EmitValue)*): EmitEnv = {
+    newBindings.foreach(bind => bindingsMustNotBeOfTypeTStream(bind._1, bind._2.emitType))
+    new EmitEnv(bindings.bindIterable(newBindings), inputValues)
+  }
+
+  def lookup(name: String): EmitValue =
+    bindings.lookup(name)
 
   def asParams(freeVariables: Env[Unit])
     : (IndexedSeq[ParamType], IndexedSeq[Value[_]], (EmitCodeBuilder, Int) => EmitEnv) = {
@@ -73,7 +88,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
     val recreateFromMB = {
       (cb: EmitCodeBuilder, startIdx: Int) =>
         val emb = cb.emb
-        EmitEnv(
+        new EmitEnv(
           Env.fromSeq(bindingNames.zipWithIndex.map { case (name, bindingIdx) =>
             (name, cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingIdx), name))
           }),
@@ -87,6 +102,20 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
     }
     (paramTypes, params, recreateFromMB)
   }
+
+  private def bindingsMustNotBeOfTypeTStream(name: String, typ: EmitType): Unit =
+    assert(
+      !typ.virtualType.isInstanceOf[TStream],
+      s"""AN INTERNAL COMPILER ERROR OCCURRED. PLEASE SUBMIT A BUG REPORT WITH THE LINK BELOW.
+         |
+         |https://github.com/hail-is/hail/issues/new?labels=needs-triage&projects=&template=bug-report.yml
+         |
+         |Attempt to emit binding $name: ${typ.virtualType.toPrettyString(compact = true)}.
+         |Bindings of type TStream may not be emitted as:
+         | - they must have exactly one use, and
+         | - their definition should have been inlined at that use.
+         |""".stripMargin,
+    )
 }
 
 object Emit {
@@ -109,24 +138,17 @@ object Emit {
     val region = mb.getCodeParam[Region](1)
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
       fb.apply_method.voidWithBuilder { cb =>
-        val env = EmitEnv(
-          Env.empty,
-          (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)),
-        ) // this, region, ...
+        val env = new EmitEnv(Array.tabulate(nParams)(i => mb.storeEmitParamAsField(cb, i + 2)))
         emitter.emitVoid(cb, ir, region, env, container, None)
       }
       None
     } else {
       var sct: SingleCodeType = null
       fb.emitWithBuilder { cb =>
-        val env = EmitEnv(
-          Env.empty,
-          (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)),
-        ) // this, region, ...
-        val sc = emitter.emitI(ir, cb, region, env, container, None).handle(
-          cb,
-          cb._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
-        )
+        val env = new EmitEnv(Array.tabulate(nParams)(i => mb.storeEmitParamAsField(cb, i + 2)))
+        val sc = emitter
+          .emitI(ir, cb, region, env, container, None)
+          .handle(cb, cb._throw(Code.newInstance[RuntimeException, String]("cannot return empty")))
 
         val scp = SingleCodeSCode.fromSCode(cb, sc, region)
         assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${scp.typ.ti}")
@@ -840,18 +862,13 @@ class Emit[C](
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case Let(bindings, body) =>
-        def go(env: EmitEnv): IndexedSeq[(String, IR)] => Unit = {
-          case (name, value) +: rest =>
-            val xVal =
-              if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
-              else emit(value, env = env)
-
-            cb.withScopedMaybeStreamValue(xVal, s"let_$name")(ev => go(env.bind(name, ev))(rest))
-          case Seq() =>
-            emitVoid(body, env = env)
-        }
-
-        go(env)(bindings)
+        emitVoid(
+          body,
+          env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+            val value = emitI(ir, env = newEnv)
+            newEnv.bind(name, cb.memoize(value, s"let_$name"))
+          },
+        )
 
       case StreamFor(a, valueName, body) =>
         emitStream(a, region).toI(cb).consume(
@@ -3238,12 +3255,9 @@ class Emit[C](
                 .loadField(cb, 0)
                 .memoizeField(cb, "decoded_global")
 
-            val env = EmitEnv(
-              Env[EmitValue](
-                (cname, decodedContext),
-                (gname, decodedGlobal),
-              ),
-              FastSeq(),
+            val env = new EmitEnv().bind(
+              cname -> decodedContext,
+              gname -> decodedGlobal,
             )
 
             if (ctx.executeContext.getFlag("print_ir_on_worker") != null)
@@ -3560,24 +3574,18 @@ class Emit[C](
 
       case Let(bindings, body) =>
         EmitCode.fromI(mb) { cb =>
-          def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
-            case (name, value) +: rest =>
-              val xVal =
-                if (value.typ.isInstanceOf[TStream]) emitStream(value, region, env = env)
-                else emit(value, env = env)
-
-              cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
-                go(env.bind(name, ev))(rest)
-              }
-            case Seq() =>
-              emitI(body, cb, env = env)
-          }
-
-          go(env)(bindings)
+          emitI(
+            body,
+            cb,
+            env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+              val value = emitI(ir, cb, env = newEnv)
+              newEnv.bind(name, cb.memoize(value, s"let_$name"))
+            },
+          )
         }
 
       case Ref(name, t) =>
-        val ev = env.bindings.lookup(name)
+        val ev = env.lookup(name)
         if (ev.st.virtualType != t)
           throw new RuntimeException(
             s"emit value type did not match specified type:\n name: $name\n  ev: ${ev.st.virtualType}\n  ir: ${ir.typ}"

@@ -340,7 +340,7 @@ object EmitStream {
 
       case Ref(name, _typ) =>
         assert(_typ.isInstanceOf[TStream])
-        env.bindings.lookup(name).toI(cb)
+        env.lookup(name).toI(cb)
           .map(cb) { case stream: SStreamValue =>
             val childProducer = stream.getProducer(mb)
             val producer = new StreamProducer {
@@ -366,16 +366,14 @@ object EmitStream {
           }
 
       case Let(bindings, body) =>
-        def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
-          case (name, value) +: rest =>
-            cb.withScopedMaybeStreamValue(
-              EmitCode.fromI(cb.emb)(cb => emit(value, cb, env = env)),
-              s"let_$name",
-            )(ev => go(env.bind(name, ev))(rest))
-          case Seq() =>
-            produce(body, cb, env = env)
-        }
-        go(env)(bindings)
+        produce(
+          body,
+          cb,
+          env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+            val value = emit(ir, cb, env = newEnv)
+            newEnv.bind(name, cb.memoize(value, s"let_$name"))
+          },
+        )
 
       case In(n, _) =>
         // this, Code[Region], ...
