@@ -5070,7 +5070,7 @@ def _ndarray(collection, row_major=None, dtype=None):
                     other_inner_shape = list_shape(e)
                     if inner_shape != other_inner_shape:
                         raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
-                return [dim_len] + inner_shape
+                return [dim_len, *inner_shape]
             else:
                 return [dim_len]
         else:

@@ -458,7 +458,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         backend.execute(ir.BlockMatrixWrite(bmir, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')))
         persist = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', bmir))
 
-        for x in self.blockmatrix_irs() + [persist]:
+        for x in [*self.blockmatrix_irs(), persist]:
             backend._parse_blockmatrix_ir(str(x))
 
 

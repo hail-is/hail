@@ -1582,7 +1582,7 @@ class BlockMatrix(object):
 
         if splits != 1:
             inner_brange_size = int(math.ceil(self._n_block_cols / splits))
-            split_points = list(range(0, self._n_block_cols, inner_brange_size)) + [self._n_block_cols]
+            split_points = [*list(range(0, self._n_block_cols, inner_brange_size)), self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             blocks_to_multiply = [
                 (

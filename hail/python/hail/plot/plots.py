@@ -1385,7 +1385,7 @@ def joint_plot(
                     factor,
                     p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds),
                 ))
-                max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
+                max_densities[factor_col] = np.max([*list(dens), max_densities.get(factor_col, 0)])
 
         p.grid.visible = False
         p.outline_line_color = None

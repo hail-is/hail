@@ -62,7 +62,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        shared_fields = [call_field] + list(f for f in ref.dtype if f in var.dtype)
+        shared_fields = [call_field, *list(f for f in ref.dtype if f in var.dtype)]
         shared_field_set = set(shared_fields)
         var_fields = [f for f in var.dtype if f not in shared_field_set]
 

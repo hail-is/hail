@@ -533,15 +533,15 @@ def unify_exprs(*exprs: 'Expression') -> Tuple:
 
     # all types are the same
     if len(types) == 1:
-        return exprs + (True,)
+        return (*exprs, True)
 
     for t in types:
         c = expressions.coercer_from_dtype(t)
         if all(c.can_coerce(e.dtype) for e in exprs):
-            return tuple([c.coerce(e) for e in exprs]) + (True,)
+            return (*tuple([c.coerce(e) for e in exprs]), True)
 
     # cannot coerce all types to the same type
-    return exprs + (False,)
+    return (*exprs, False)
 
 
 class Expression(object):

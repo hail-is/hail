@@ -213,7 +213,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_call_fields',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
+    __slots__ = tuple([*__serialized_slots__, "_uuid", "_job_id", "__intervals_cache"])
 
     def __init__(
         self,

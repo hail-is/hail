@@ -253,7 +253,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
 
         movies = hl.import_table(movie_cluster_readable, key=['f0'], no_header=True, impute=True, delimiter='|')
         movies = rename_columns(
-            movies, ['id', 'title', 'release date', 'video release date', 'IMDb URL', 'unknown'] + genres
+            movies, ['id', 'title', 'release date', 'video release date', 'IMDb URL', 'unknown', *genres]
         )
         movies = movies.drop('release date', 'video release date', 'unknown', 'IMDb URL')
         movies = movies.transmute(genres=fields_to_array(movies, genres))
