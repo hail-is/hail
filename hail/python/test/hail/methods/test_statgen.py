@@ -94,7 +94,7 @@ class Tests(unittest.TestCase):
 
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
-        covs = hl.import_table(
+        hl.import_table(
             resource('regressionLinear.cov'), types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64}, key='Sample'
         )
 
@@ -561,7 +561,7 @@ class Tests(unittest.TestCase):
             resource('regressionLinear.pheno'), key='Sample', missing='0', types={'Pheno': hl.tfloat}
         )
 
-        weights = hl.import_table(
+        hl.import_table(
             resource('regressionLinear.weights'),
             key='Sample',
             missing='0',

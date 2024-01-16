@@ -331,13 +331,13 @@ class VCFTests(unittest.TestCase):
 
     def test_import_vcf_invalid_float_type(self):
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tstr)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tstr)
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint)
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint32)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint32)
         with self.assertRaises(TypeError):
-            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
+            hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
 
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
@@ -1076,7 +1076,7 @@ class PLINKTests(unittest.TestCase):
     def test_export_plink_quantitative_phenotype(self):
         ds = get_dataset()
         fam_mapping = {'f0': 'fam_id', 'f1': 'ind_id', 'f2': 'pat_id', 'f3': 'mat_id', 'f4': 'is_female', 'f5': 'pheno'}
-        bim_mapping = {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position', 'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
+        {'f0': 'contig', 'f1': 'varid', 'f2': 'cm_position', 'f3': 'position', 'f4': 'a1', 'f5': 'a2'}
         out3 = new_temp_file()
         hl.export_plink(ds, out3, ind_id=ds.s, pheno=hl.float64(hl.len(ds.s)))
         fam3 = hl.import_table(out3 + '.fam', no_header=True, impute=False, missing="").rename(fam_mapping)
@@ -1135,7 +1135,7 @@ class PLINKTests(unittest.TestCase):
             reference_genome='GRCh38',
         )
 
-        rg_random = hl.ReferenceGenome(
+        hl.ReferenceGenome(
             "random", ['1', '23', '24', '25', '26'], {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10}
         )
 
@@ -1270,7 +1270,7 @@ class BGENTests(unittest.TestCase):
         self.assertEqual(mt.count(), (16, 10))
 
     def test_import_bgen_dosage_and_gp_dosage_function_agree(self):
-        recoding = {'0{}'.format(i): str(i) for i in range(1, 10)}
+        {'0{}'.format(i): str(i) for i in range(1, 10)}
 
         sample_file = resource('example.sample')
         bgen_file = resource('example.8bits.bgen')
@@ -2086,7 +2086,7 @@ def test_import_matrix_table_round_trip(missing, delimiter, header, entry_fun):
     actual = actual.rename({'col_id': 'col_idx'})
 
     row_key = mt.row_key
-    col_key = mt.col_key
+    mt.col_key
     mt = mt.key_rows_by()
     mt = mt.annotate_entries(x=hl.if_else(hl.str(mt.x) == missing, hl.missing(entry_type), mt.x))
     mt = mt.annotate_rows(**{f: hl.if_else(hl.str(mt[f]) == missing, hl.missing(mt[f].dtype), mt[f]) for f in mt.row})
