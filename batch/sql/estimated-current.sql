@@ -204,7 +204,7 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   `callback` VARCHAR(255),
   PRIMARY KEY (`batch_id`, `job_group_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
-  FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id)
 ) ENGINE = InnoDB;
 CREATE INDEX `job_groups_user_state` ON `job_groups` (`user`, `state`);  # used to get cancelled job groups by user
 CREATE INDEX `job_groups_state_callback` ON `job_groups` (`batch_id`, `state`, `callback`);  # used in callback on job group completion
