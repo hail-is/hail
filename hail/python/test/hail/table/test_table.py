@@ -1848,6 +1848,36 @@ def test_can_process_wide_tables(width):
     ht.annotate_globals(g=ht.collect(_localize=False))._force_count()
 
 
+def create_width_scale_files():
+    def write_file(n, n_rows=5):
+        assert n % 4 == 0
+        n2 = n // 4
+        header = []
+        for i in range(n2):
+            header.append(f'i{i}')
+            header.append(f'f{i}')
+            header.append(f's{i}')
+            header.append(f'b{i}')
+        with open(resource(f'width_scale_tests/{n}.tsv'), 'w') as out:
+            out.write('\t'.join(header))
+            for i in range(n_rows):
+                out.write('\n')
+                for j in range(n2):
+                    if j > 0:
+                        out.write('\t')
+                    out.write(str(j))
+                    out.write('\t')
+                    out.write(str(i / (i + 1)))
+                    out.write('\t')
+                    out.write(f's_{i}_{j}')
+                    out.write('\t')
+                    out.write(str(i % 2 == 0))
+
+    widths = [1 << k for k in range(8, 14)]
+    for w in widths:
+        write_file(w)
+
+
 @test_timeout(batch=6 * 60)
 def test_join_with_key_prefix():
     t = hl.utils.range_table(20, 2)
