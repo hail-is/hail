@@ -42,7 +42,6 @@ def install_exception_handler():
 
 def uninstall_exception_handler():
     global _installed
-    global _original
     if _installed:
         _installed = False
         py4j.protocol.get_return_value = _original
