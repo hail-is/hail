@@ -2724,7 +2724,7 @@ class Table(ExprContainer):
         right: 'Table',
         how='inner',
         _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}',
-        _join_key: int = None,
+        _join_key: Optional[int] = None,
     ) -> 'Table':
         """Join two tables together.
 

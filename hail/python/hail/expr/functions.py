@@ -6862,7 +6862,7 @@ def _locus_windows_per_contig(coords, radius):
 
 
 @typecheck(a=expr_array(), seed=nullable(builtins.int))
-def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
+def shuffle(a, seed: Optional[builtins.int] = None) -> ArrayExpression:
     """Randomly permute an array
 
     Example

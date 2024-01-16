@@ -23,7 +23,6 @@ ignore = [
     "RUF005",
     "PLW3301",
     "RUF012",
-    "RUF013",
 ]
 extend-exclude = ['sql', 'datasets']
 force-exclude = true
