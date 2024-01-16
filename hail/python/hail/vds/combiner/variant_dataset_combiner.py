@@ -6,7 +6,7 @@ import sys
 import uuid
 from itertools import chain
 from math import floor, log
-from typing import Collection, Dict, List, NamedTuple, Optional, Union
+from typing import ClassVar, Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 from hail.expr import HailType, tmatrix
@@ -192,7 +192,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_exome_interval_size = 60_000_000
     "A reasonable partition size in basepairs given the density of exomes."
 
-    __serialized_slots__ = [
+    __serialized_slots__: ClassVar = [
         '_save_path',
         '_output_path',
         '_temp_path',

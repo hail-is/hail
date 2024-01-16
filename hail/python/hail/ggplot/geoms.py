@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Dict, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 import numpy as np
 import plotly.graph_objects as go
@@ -50,7 +50,7 @@ class Geom(FigureAttribute):
 
 
 class GeomLineBasic(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "color": ("line_color", "black"),
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
@@ -81,7 +81,7 @@ class GeomLineBasic(Geom):
 
 
 class GeomPoint(Geom):
-    aes_to_plotly = {
+    aes_to_plotly: ClassVar = {
         "color": "marker_color",
         "size": "marker_size",
         "tooltip": "hovertext",
@@ -89,12 +89,12 @@ class GeomPoint(Geom):
         "shape": "marker_symbol",
     }
 
-    aes_defaults = {
+    aes_defaults: ClassVar = {
         "color": "black",
         "shape": "circle",
     }
 
-    aes_legend_groups = {
+    aes_legend_groups: ClassVar = {
         "color",
         "shape",
     }
@@ -245,7 +245,7 @@ def geom_line(mapping=aes(), *, color=None, size=None, alpha=None):
 
 
 class GeomText(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "color": ("textfont_color", "black"),
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
@@ -291,7 +291,7 @@ def geom_text(mapping=aes(), *, color=None, size=None, alpha=None):
 
 
 class GeomBar(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
@@ -359,7 +359,7 @@ def geom_col(mapping=aes(), *, fill=None, color=None, alpha=None, position="stac
 
 
 class GeomHistogram(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
@@ -599,7 +599,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
 
 
 class GeomDensity(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
@@ -877,7 +877,7 @@ def geom_func(mapping=aes(), fun=None, color=None):
 
 
 class GeomArea(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("fillcolor", "black"),
         "color": ("line_color", "rgba(0, 0, 0, 0)"),
         "tooltip": ("hovertext", None),
@@ -930,7 +930,7 @@ def geom_area(mapping=aes(), fill=None, color=None):
 
 
 class GeomRibbon(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("fillcolor", "black"),
         "color": ("line_color", "rgba(0, 0, 0, 0)"),
         "tooltip": ("hovertext", None),

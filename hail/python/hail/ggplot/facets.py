@@ -1,6 +1,6 @@
 import abc
 import math
-from typing import Dict, Optional, Tuple
+from typing import ClassVar, Dict, Optional, Tuple
 
 import hail as hl
 from hail import Expression, StructExpression
@@ -56,12 +56,12 @@ class Faceter(FigureAttribute):
 
 
 class FacetWrap(Faceter):
-    _base_scale_mappings = {
+    _base_scale_mappings: ClassVar = {
         "shared_xaxes": "all",
         "shared_yaxes": "all",
     }
 
-    _scale_mappings = {
+    _scale_mappings: ClassVar = {
         "fixed": _base_scale_mappings,
         "free_x": {
             **_base_scale_mappings,

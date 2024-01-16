@@ -4,7 +4,7 @@ import json
 import math
 import pprint
 from collections.abc import Mapping, Sequence
-from typing import Union
+from typing import ClassVar, Union
 
 import numpy as np
 import pandas as pd
@@ -2146,7 +2146,7 @@ class tinterval(HailType):
 
 
 class Box(object):
-    named_boxes = {}
+    named_boxes: ClassVar = {}
 
     @staticmethod
     def from_name(name):
@@ -2348,7 +2348,7 @@ def dtypes_from_pandas(pd_dtype):
 
 
 class tvariable(HailType):
-    _cond_map = {
+    _cond_map: ClassVar = {
         'numeric': is_numeric,
         'int32': lambda x: x == tint32,
         'int64': lambda x: x == tint64,

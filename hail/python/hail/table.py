@@ -2,7 +2,7 @@ import collections
 import itertools
 import pprint
 import shutil
-from typing import Callable, Dict, List, Optional, Sequence, Union, overload
+from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Union, overload
 
 import numpy as np
 import pandas
@@ -119,7 +119,7 @@ def desc(col):
 
 class ExprContainer:
     # this can only grow as big as the object dir, so no need to worry about memory leak
-    _warned_about = set()
+    _warned_about: ClassVar = set()
 
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
