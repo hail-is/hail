@@ -1,20 +1,15 @@
 package is.hail.methods
-
-import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.rvd.RVD
-import is.hail.sparkextras.ContextRDD
+import is.hail.methods.BitPackedVector._
 import is.hail.types._
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
 import java.util
 
-import BitPackedVector._
 import org.apache.spark.rdd.RDD
 
 object BitPackedVector {

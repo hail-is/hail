@@ -2,9 +2,10 @@ package is.hail.utils.richUtils
 
 import is.hail.utils._
 
-import java.io.Serializable
 import scala.collection.{mutable, AbstractIterable}
 import scala.reflect.ClassTag
+
+import java.io.Serializable
 
 object RichIterable {
   def single[A](a: A): Iterable[A] = new AbstractIterable[A] {
@@ -23,7 +24,7 @@ object RichIterable {
 }
 
 class RichIterable[T](val i: Iterable[T]) extends Serializable {
-  def foreachBetween(f: (T) => Unit)(g: => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: => Unit): Unit = {
     i.iterator.foreachBetween(f)(g)
   }
 

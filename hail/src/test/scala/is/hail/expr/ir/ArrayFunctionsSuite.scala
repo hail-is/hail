@@ -25,12 +25,12 @@ class ArrayFunctionsSuite extends HailSuite {
   def basicPairsData(): Array[Array[Any]] = basicData().flatten.combinations(2).toArray
 
   @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[Integer]) {
+  def isEmpty(a: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)), Option(a).map(_.isEmpty).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def append(a: IndexedSeq[Integer]) {
+  def append(a: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
       Option(a).map(_ :+ 1).orNull,
@@ -38,7 +38,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def appendNull(a: IndexedSeq[Integer]) {
+  def appendNull(a: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
       Option(a).map(_ :+ null).orNull,
@@ -46,7 +46,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def sum(a: IndexedSeq[Integer]) {
+  def sum(a: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("sum", TInt32, toIRArray(a)),
       Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) =>
@@ -56,7 +56,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def product(a: IndexedSeq[Integer]) {
+  def product(a: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("product", TInt32, toIRArray(a)),
       Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) =>
@@ -65,7 +65,7 @@ class ArrayFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def mean() {
+  @Test def mean(): Unit = {
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, 7)), 5.0)
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, null, 7)), null)
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, 7, 11)), 7.0)
@@ -74,7 +74,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("mean", TFloat64, naa), null)
   }
 
-  @Test def median() {
+  @Test def median(): Unit = {
     assertEvalsTo(invoke("median", TInt32, IRArray(5)), 5)
     assertEvalsTo(invoke("median", TInt32, IRArray(5, null, null)), 5)
     assertEvalsTo(invoke("median", TInt32, IRArray(3, 7)), 5)
@@ -87,7 +87,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basicPairs")
-  def extend(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
+  def extend(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("extend", TArray(TInt32), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y }.orNull,
@@ -104,14 +104,14 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "sort")
-  def min(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]) {
+  def min(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("min", TInt32, toIRArray(a)),
       Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
     )
   }
 
-  @Test def testMinMaxNans() {
+  @Test def testMinMaxNans(): Unit = {
     assertAllEvalTo(
       (
         invoke(
@@ -161,7 +161,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "sort")
-  def max(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]) {
+  def max(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("max", TInt32, toIRArray(a)),
       Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
@@ -178,12 +178,12 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "argminmax")
-  def argmin(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer) {
+  def argmin(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit = {
     assertEvalsTo(invoke("argmin", TInt32, toIRArray(a)), argmin)
   }
 
   @Test(dataProvider = "argminmax")
-  def argmax(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer) {
+  def argmax(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit = {
     assertEvalsTo(invoke("argmax", TInt32, toIRArray(a)), argmax)
   }
 
@@ -197,12 +197,12 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "uniqueMinMaxIndex")
-  def uniqueMinIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer) {
+  def uniqueMinIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit = {
     assertEvalsTo(invoke("uniqueMinIndex", TInt32, toIRArray(a)), argmin)
   }
 
   @Test(dataProvider = "uniqueMinMaxIndex")
-  def uniqueMaxIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer) {
+  def uniqueMaxIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit = {
     assertEvalsTo(invoke("uniqueMaxIndex", TInt32, toIRArray(a)), argmax)
   }
 
@@ -241,12 +241,12 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "arrayOps")
-  def arrayOps(a: IndexedSeq[Integer], b: IndexedSeq[Integer], s: String, f: (Int, Int) => Int) {
+  def arrayOps(a: IndexedSeq[Integer], b: IndexedSeq[Integer], s: String, f: (Int, Int) => Int): Unit = {
     assertEvalsTo(invoke(s, TArray(TInt32), toIRArray(a), toIRArray(b)), lift(f)(a, b))
   }
 
   @Test(dataProvider = "arrayOpsData")
-  def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
+  def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
@@ -260,7 +260,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "arrayOpsData")
-  def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
+  def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
     assertEvalsTo(
       invoke("pow", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
@@ -274,12 +274,12 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "arrayOpsOperations")
-  def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int) {
+  def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int): Unit = {
     assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2, 3), IRArray(1, 2)), "length mismatch")
     assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2), IRArray(1, 2, 3)), "length mismatch")
   }
 
-  @Test def indexing() {
+  @Test def indexing(): Unit = {
     val a = IRArray(0, null, 2)
     assertEvalsTo(invoke("indexArray", TInt32, a, I32(0)), 0)
     assertEvalsTo(invoke("indexArray", TInt32, a, I32(1)), null)
@@ -292,7 +292,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("indexArray", TInt32, a, NA(TInt32)), null)
   }
 
-  @Test def slicing() {
+  @Test def slicing(): Unit = {
     val a = IRArray(0, null, 2)
     assertEvalsTo(ArraySlice(a, I32(1), None), FastSeq(null, 2))
     assertEvalsTo(ArraySlice(a, I32(-2), None), FastSeq(null, 2))
@@ -330,14 +330,14 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "flatten")
-  def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]) {
+  def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]): Unit = {
     assertEvalsTo(
       invoke("flatten", TArray(TInt32), MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32)))),
       expected,
     )
   }
 
-  @Test def testContains() {
+  @Test def testContains(): Unit = {
     val t = TArray(TString)
 
     assertEvalsTo(

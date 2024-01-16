@@ -5,11 +5,12 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.io.fs.FS
 import is.hail.utils.{using, Logging}
 
+import scala.io.Source
+import scala.util.control.NonFatal
+
 import java.io.{FileNotFoundException, OutputStream}
 import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
-import scala.io.Source
-import scala.util.control.NonFatal
 
 trait ExecutionCache extends Serializable {
   def lookup(s: SemanticHash.Type): IndexedSeq[(Array[Byte], Int)]

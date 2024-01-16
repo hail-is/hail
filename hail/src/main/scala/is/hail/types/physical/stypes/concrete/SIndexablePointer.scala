@@ -100,7 +100,7 @@ class SIndexablePointerValue(
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue =
     pt match {
-      case t: PArray => this
+      case _: PArray => this
       case t: PCanonicalDict =>
         new SIndexablePointerValue(SIndexablePointer(t.arrayRep), a, length, elementsAddress)
       case t: PCanonicalSet =>
@@ -111,7 +111,7 @@ class SIndexablePointerValue(
     cb: EmitCodeBuilder
   )(
     f: (EmitCodeBuilder, Value[Int], SValue) => Unit
-  ) {
+  ): Unit = {
     st.pType match {
       case pca: PCanonicalArray => pca.forEachDefined(cb, a)(f)
       case _ => super.forEachDefined(cb)(f)

@@ -2,25 +2,23 @@ package is.hail
 
 import is.hail.backend.Backend
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.BaseIR
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.fs.FS
 import is.hail.io.vcf._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.json4s.Extraction
-import org.json4s.jackson.JsonMethods
+import scala.reflect.ClassTag
 
 import java.io.InputStream
 import java.util.Properties
-import scala.collection.mutable
-import scala.reflect.ClassTag
 
-import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
+import org.apache.log4j.{LogManager, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
+import org.json4s.Extraction
+import org.json4s.jackson.JsonMethods
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -82,10 +80,10 @@ object HailContext {
       // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
       /* see:
        * https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB */
-      case javaVersion("1", major, minor) =>
+      case javaVersion("1", major, _) =>
         if (major.toInt < 8)
           fatal(s"Hail requires Java 1.8, found $versionString")
-      case javaVersion(major, minor, security) =>
+      case javaVersion(major, _, _) =>
         if (major.toInt != 11)
           fatal(s"Hail requires Java 8 or 11, found $versionString")
       case _ =>
@@ -197,7 +195,7 @@ class HailContext private (
       .groupBy(_.source.file)
   }
 
-  def grepPrint(fs: FS, regex: String, files: Seq[String], maxLines: Int) {
+  def grepPrint(fs: FS, regex: String, files: Seq[String], maxLines: Int): Unit = {
     fileAndLineCounts(fs, regex, files, maxLines).foreach { case (file, lines) =>
       info(s"$file: ${lines.length} ${plural(lines.length, "match", "matches")}:")
       lines.map(_.value).foreach { line =>

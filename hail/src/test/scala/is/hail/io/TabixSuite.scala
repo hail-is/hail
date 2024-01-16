@@ -17,17 +17,17 @@ class TabixSuite extends HailSuite {
 
   lazy val reader = new TabixReader(vcfGzFile, fs)
 
-  @BeforeTest def initialize() {
+  @BeforeTest def initialize(): Unit = {
     hc // reference to initialize
   }
 
-  @Test def testLargeNumberOfSequences() {
+  @Test def testLargeNumberOfSequences(): Unit = {
     val tbx = new TabixReader(null, fs, Some("src/test/resources/large-tabix.tbi"))
     // known length of sequences
     assert(tbx.index.seqs.length == 3366)
   }
 
-  @Test def testSequenceNames() {
+  @Test def testSequenceNames(): Unit = {
     val expectedSeqNames = new Array[String](24);
     for (i <- 1 to 22)
       expectedSeqNames(i - 1) = i.toString
@@ -43,14 +43,14 @@ class TabixSuite extends HailSuite {
     asserts.assertAll()
   }
 
-  @Test def testSequenceSet() {
+  @Test def testSequenceSet(): Unit = {
     val chrs = reader.index.chr2tid.keySet
     assert(!chrs.isEmpty)
     assert(chrs.contains("1"))
     assert(!chrs.contains("MT"))
   }
 
-  @Test def testLineIterator() {
+  @Test def testLineIterator(): Unit = {
     val htsjdkrdr = new HtsjdkTabixReader(vcfGzFile)
     // In range access
     for (chr <- Seq("1", "19", "X")) {
@@ -93,7 +93,7 @@ class TabixSuite extends HailSuite {
     }
   }
 
-  def _testLineIterator2(vcfFile: String) {
+  def _testLineIterator2(vcfFile: String): Unit = {
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
     val hailrdr = new TabixReader(vcfFile, fs)
@@ -132,11 +132,11 @@ class TabixSuite extends HailSuite {
     }
   }
 
-  @Test def testLineIterator2() {
+  @Test def testLineIterator2(): Unit = {
     _testLineIterator2("src/test/resources/sample.vcf.bgz")
   }
 
-  @Test def testWriter() {
+  @Test def testWriter(): Unit = {
     val vcfFile = "src/test/resources/sample.vcf.bgz"
     val path = ctx.createTmpPath("test-tabix-write", "bgz")
     fs.copy(vcfFile, path)

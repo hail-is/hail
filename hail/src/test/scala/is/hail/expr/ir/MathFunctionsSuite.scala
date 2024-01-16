@@ -2,8 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.{stats, ExecStrategy, HailSuite}
 import is.hail.TestUtils._
-import is.hail.expr.ir.functions.MathFunctions
-import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -32,7 +30,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("roundToNextPowerOf2", TInt32, I32(64)), 64)
   }
 
-  @Test def isnan() {
+  @Test def isnan(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("isnan", TBoolean, F32(0)), false)
@@ -42,7 +40,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("isnan", TBoolean, F64(Double.NaN)), true)
   }
 
-  @Test def is_finite() {
+  @Test def is_finite(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("is_finite", TBoolean, F32(0)), expected = true)
@@ -58,7 +56,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("is_finite", TBoolean, F64(Double.NegativeInfinity)), expected = false)
   }
 
-  @Test def is_infinite() {
+  @Test def is_infinite(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("is_infinite", TBoolean, F32(0)), expected = false)
@@ -74,7 +72,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("is_infinite", TBoolean, F64(Double.NegativeInfinity)), expected = true)
   }
 
-  @Test def sign() {
+  @Test def sign(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("sign", TInt32, I32(2)), 1)
@@ -98,7 +96,7 @@ class MathFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("sign", TFloat64, F64(Double.NegativeInfinity)), -1.0)
   }
 
-  @Test def approxEqual() {
+  @Test def approxEqual(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -159,7 +157,7 @@ class MathFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def entropy() {
+  @Test def entropy(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(invoke("entropy", TFloat64, Str("")), 0.0)
@@ -181,7 +179,7 @@ class MathFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "chi_squared_test")
-  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double) {
+  def chiSquaredTest(a: Int, b: Int, c: Int, d: Int, pValue: Double, oddsRatio: Double): Unit = {
     val r = eval(invoke(
       "chi_squared_test",
       stats.chisqStruct.virtualType,
@@ -212,7 +210,7 @@ class MathFunctionsSuite extends HailSuite {
     oddsRatio: Double,
     confLower: Double,
     confUpper: Double,
-  ) {
+  ): Unit = {
     val r = eval(invoke(
       "fisher_exact_test",
       stats.fetStruct.virtualType,
@@ -243,7 +241,7 @@ class MathFunctionsSuite extends HailSuite {
     minCellCount: Int,
     pValue: Double,
     oddsRatio: Double,
-  ) {
+  ): Unit = {
     val r = eval(invoke(
       "contingency_table_test",
       stats.chisqStruct.virtualType,
@@ -267,7 +265,7 @@ class MathFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "hardy_weinberg_test")
-  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double) {
+  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double): Unit = {
     val r = eval(invoke(
       "hardy_weinberg_test",
       stats.hweStruct.virtualType,
@@ -281,7 +279,7 @@ class MathFunctionsSuite extends HailSuite {
     assert(D0_==(hetFreq, r.getDouble(1)))
   }
 
-  @Test def modulusTest() {
+  @Test def modulusTest(): Unit = {
     assertFatal(
       invoke("mod", TInt32, I32(1), I32(0)),
       "(modulo by zero)|(error while calling 'mod')",
@@ -300,7 +298,7 @@ class MathFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testMinMax() {
+  @Test def testMinMax(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
     assertAllEvalTo(
       (invoke("min", TFloat32, F32(1.0f), F32(2.0f)), 1.0f),

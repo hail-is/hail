@@ -77,7 +77,7 @@ class BGzipCodecSuite extends HailSuite {
     }
   }
 
-  @Test def testGenericLinesSimpleUncompressed() {
+  @Test def testGenericLinesSimpleUncompressed(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val uncompStatus = fs.fileStatus(uncompPath)
@@ -92,7 +92,7 @@ class BGzipCodecSuite extends HailSuite {
     }
   }
 
-  @Test def testGenericLinesSimpleBGZ() {
+  @Test def testGenericLinesSimpleBGZ(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compStatus = fs.fileStatus(compPath)
@@ -107,7 +107,7 @@ class BGzipCodecSuite extends HailSuite {
     }
   }
 
-  @Test def testGenericLinesSimpleGZ() {
+  @Test def testGenericLinesSimpleGZ(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     // won't split, just run once
@@ -119,14 +119,14 @@ class BGzipCodecSuite extends HailSuite {
     compareLines(lines2, lines)
   }
 
-  @Test def testGenericLinesRefuseGZ() {
+  @Test def testGenericLinesRefuseGZ(): Unit = {
     interceptFatal("Cowardly refusing") {
       val gzStatus = fs.fileStatus(gzPath)
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
   }
 
-  @Test def testGenericLinesRandom() {
+  @Test def testGenericLinesRandom(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq
 
     val compLength = 195353
@@ -161,7 +161,7 @@ class BGzipCodecSuite extends HailSuite {
     p.check()
   }
 
-  @Test def test() {
+  @Test def test(): Unit = {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 
     val uncompIS = fs.open(uncompPath)
@@ -221,7 +221,7 @@ class BGzipCodecSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testVirtualSeek() {
+  @Test def testVirtualSeek(): Unit = {
     // real offsets of the start of some blocks, paired with the offset to the next block
     val blockStarts = Array[(Long, Long)](
       (0, 14653),

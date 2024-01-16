@@ -435,7 +435,7 @@ case class BlockMatrixType(
 
     val space: String = if (compact) "" else " "
 
-    def newline() {
+    def newline(): Unit = {
       if (!compact) {
         sb += '\n'
         sb.append(" " * indent)

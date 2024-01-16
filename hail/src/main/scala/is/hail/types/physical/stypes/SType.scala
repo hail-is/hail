@@ -2,9 +2,7 @@ package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{
-  EmitCode, EmitCodeBuilder, EmitSettable, EmitValue, SCodeEmitParamType, SCodeParamType,
-}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitSettable, EmitValue, SCodeEmitParamType, SCodeParamType}
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.concrete.SUnreachable

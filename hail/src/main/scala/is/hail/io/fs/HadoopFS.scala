@@ -2,14 +2,12 @@ package is.hail.io.fs
 
 import is.hail.utils._
 
-import java.io._
-import java.security.MessageDigest
-import java.util.Base64
 import scala.util.Try
+
+import java.io._
 
 import org.apache.hadoop
 import org.apache.hadoop.fs.{EtagSource, FSDataInputStream, FSDataOutputStream}
-import org.apache.hadoop.io.MD5Hash
 
 class HadoopFileListEntry(fs: hadoop.fs.FileStatus) extends FileListEntry {
   val normalizedPath = fs.getPath
@@ -148,7 +146,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
   def rmtree(dirname: String): Unit =
     getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
 
-  def delete(url: URL, recursive: Boolean) {
+  def delete(url: URL, recursive: Boolean): Unit = {
     url.hadoopFs.delete(url.hadoopPath, recursive)
   }
 
@@ -205,7 +203,7 @@ class HadoopFS(private[this] var conf: SerializableHadoopConfiguration) extends 
         hadoop.fs.FileSystem.getFileSystemClass(scheme, conf.value)
         true
       } catch {
-        case e: hadoop.fs.UnsupportedFileSystemException => false
+        case _: hadoop.fs.UnsupportedFileSystemException => false
         case e: Exception => throw e
       }
     }

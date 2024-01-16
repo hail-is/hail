@@ -19,9 +19,9 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
-import org.json4s.jackson.Serialization
-
 import java.io.OutputStream
+
+import org.json4s.jackson.Serialization
 
 trait AbstractIndexMetadata {
   def fileVersion: Int
@@ -225,7 +225,7 @@ case class StagedIndexMetadata(
   annotationType: Type,
   attributes: Map[String, Any],
 ) {
-  def serialize(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long) {
+  def serialize(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long): Unit = {
     import AbstractRVDSpec.formats
     val metadata = IndexMetadata(
       IndexWriter.version.rep,
@@ -476,7 +476,7 @@ class StagedIndexWriter(
       }
     }
 
-  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
+  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode): Unit = {
     cb.if_(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode, cb.this_))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)

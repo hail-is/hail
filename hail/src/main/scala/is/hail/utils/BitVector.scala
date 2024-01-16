@@ -14,21 +14,21 @@ final class BitVector(val length: Int) {
     (a(i / 64) & (1L << (i & 63))) != 0
   }
 
-  def set(i: Int) {
+  def set(i: Int): Unit = {
     if (i < 0 || i >= length)
       throw new ArrayIndexOutOfBoundsException
 
     a(i / 64) |= (1L << (i & 63))
   }
 
-  def reset(i: Int) {
+  def reset(i: Int): Unit = {
     if (i < 0 || i >= length)
       throw new ArrayIndexOutOfBoundsException
 
     a(i / 64) &= ~(1L << (i & 63))
   }
 
-  def clear() {
+  def clear(): Unit = {
     util.Arrays.fill(a, 0)
   }
 }

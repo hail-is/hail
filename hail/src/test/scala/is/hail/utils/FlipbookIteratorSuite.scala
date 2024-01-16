@@ -35,7 +35,7 @@ class FlipbookIteratorSuite extends HailSuite {
   def boxOrdView[A](implicit ord: Ordering[A]): OrderingView[Box[A]] = new OrderingView[Box[A]] {
     var value: A = _
 
-    def setFiniteValue(a: Box[A]) {
+    def setFiniteValue(a: Box[A]): Unit = {
       value = a.value
     }
 
@@ -47,7 +47,7 @@ class FlipbookIteratorSuite extends HailSuite {
     new Growable[Box[A]] with Iterable[Box[A]] {
       val buf = ArrayBuffer[A]()
       val box = Box[A]()
-      def clear() { buf.clear() }
+      def clear(): Unit = { buf.clear() }
 
       def +=(x: Box[A]) = {
         buf += x.value
@@ -78,7 +78,7 @@ class FlipbookIteratorSuite extends HailSuite {
     val sm = new StateMachine[Box[A]] {
       val value: Box[A] = Box()
       var isValid = true
-      def advance() {
+      def advance(): Unit = {
         if (it.hasNext)
           value.value = it.next()
         else
@@ -139,26 +139,26 @@ class FlipbookIteratorSuite extends HailSuite {
       )
   }
 
-  @Test def flipbookIteratorStartsWithRightValue() {
+  @Test def flipbookIteratorStartsWithRightValue(): Unit = {
     val it: FlipbookIterator[Box[Int]] =
       makeTestIterator(1, 2, 3, 4, 5)
     assert(it.value.value == 1)
   }
 
-  @Test def makeTestIteratorWorks() {
+  @Test def makeTestIteratorWorks(): Unit = {
     assert(makeTestIterator(1, 2, 3, 4, 5) shouldBe Iterator.range(1, 6))
 
     assert(makeTestIterator[Int]() shouldBe Iterator.empty)
   }
 
-  @Test def toFlipbookIteratorOnFlipbookIteratorIsIdentity() {
+  @Test def toFlipbookIteratorOnFlipbookIteratorIsIdentity(): Unit = {
     val it1 = makeTestIterator(1, 2, 3)
     val it2 = Iterator(1, 2, 3)
     assert(it1.toFlipbookIterator shouldBe it2)
     assert(makeTestIterator[Int]().toFlipbookIterator shouldBe Iterator.empty)
   }
 
-  @Test def toStaircaseWorks() {
+  @Test def toStaircaseWorks(): Unit = {
     val testIt = makeTestIterator(1, 1, 2, 3, 3, 3)
     val it = Iterator(
       Iterator(1, 1),
@@ -168,7 +168,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(testIt.staircased(boxOrdView) shouldBe it)
   }
 
-  @Test def orderedZipJoinWorks() {
+  @Test def orderedZipJoinWorks(): Unit = {
     val left = makeTestIterator(1, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 3, 4, 1000, 1000)
     val zipped = left.orderedZipJoin(
@@ -183,7 +183,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(zipped shouldBe it)
   }
 
-  @Test def innerJoinDistinctWorks() {
+  @Test def innerJoinDistinctWorks(): Unit = {
     val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.innerJoinDistinct(
@@ -199,7 +199,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def leftJoinDistinctWorks() {
+  @Test def leftJoinDistinctWorks(): Unit = {
     val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.leftJoinDistinct(
@@ -213,7 +213,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def innerJoinWorks() {
+  @Test def innerJoinWorks(): Unit = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.innerJoin(
@@ -230,7 +230,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def leftJoinWorks() {
+  @Test def leftJoinWorks(): Unit = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.leftJoin(
@@ -259,7 +259,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def rightJoinWorks() {
+  @Test def rightJoinWorks(): Unit = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.rightJoin(
@@ -288,7 +288,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def outerJoinWorks() {
+  @Test def outerJoinWorks(): Unit = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.outerJoin(
@@ -321,7 +321,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def multiZipJoinWorks() {
+  @Test def multiZipJoinWorks(): Unit = {
     val one = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val two = makeTestIterator(2, 3, 4, 5, 5, 6, 1000, 1000)
     val three = makeTestIterator(2, 3, 4, 4, 5, 6, 1000, 1000)

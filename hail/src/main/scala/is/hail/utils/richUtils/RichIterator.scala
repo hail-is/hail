@@ -4,10 +4,11 @@ import is.hail.annotations.{Region, RegionValue}
 import is.hail.types.physical.PStruct
 import is.hail.utils.{FlipbookIterator, StagingIterator, StateMachine}
 
-import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.io.Source
 import scala.reflect.ClassTag
+
+import java.io.PrintWriter
 
 import org.apache.spark.sql.Row
 
@@ -25,14 +26,14 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       new StateMachine[T] {
         def value: T = bit.head
         def isValid = bit.hasNext
-        def advance() { bit.next() }
+        def advance(): Unit = { bit.next() }
       }
     )
   }
 
   def toFlipbookIterator: FlipbookIterator[T] = toStagingIterator
 
-  def foreachBetween(f: (T) => Unit)(g: => Unit) {
+  def foreachBetween(f: (T) => Unit)(g: => Unit): Unit = {
     if (it.hasNext) {
       f(it.next())
       while (it.hasNext) {
@@ -90,14 +91,14 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     val error = new StringBuilder()
     // Start a thread capture the process stderr
     new Thread("stderr reader for " + command) {
-      override def run() {
+      override def run(): Unit = {
         Source.fromInputStream(proc.getErrorStream).addString(error)
       }
     }.start()
 
     // Start a thread to feed the process input from our parent's iterator
     new Thread("stdin writer for " + command) {
-      override def run() {
+      override def run(): Unit = {
         val out = new PrintWriter(proc.getOutputStream)
 
         printHeader(out.println)

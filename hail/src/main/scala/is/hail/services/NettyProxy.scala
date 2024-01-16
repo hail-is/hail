@@ -1,7 +1,4 @@
 package is.hail.services
-
-import java.io.IOException
-
 import io.netty.channel.epoll.Epoll
 import io.netty.channel.unix.Errors // cannot be in package.scala because is.hail.io shadows top-level io
 
@@ -31,7 +28,7 @@ object NettyProxy {
         /* io.netty.channel.unix.Errors$NativeIoException: readAddress(..) failed: Connection reset
          * by peer */
         e.getMessage.contains("Connection reset by peer"))
-      case e: Throwable => false
+      case _: Throwable => false
     }
-  } else { case e: Throwable => false }
+  } else { case _: Throwable => false }
 }

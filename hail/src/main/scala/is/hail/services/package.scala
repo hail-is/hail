@@ -1,23 +1,20 @@
 package is.hail
 
 import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
-import is.hail.shadedazure.reactor.core.Exceptions.ReactiveException
 import is.hail.utils._
 
-import java.io._
-import java.io.EOFException
-import java.net._
-import java.util.concurrent.TimeoutException
 import scala.util.Random
+
+import java.io._
+import java.net._
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.HttpResponseException
 import com.google.cloud.storage.StorageException
 import javax.net.ssl.SSLException
-import org.apache.http.ConnectionClosedException
-import org.apache.http.NoHttpResponseException
+import org.apache.http.{ConnectionClosedException, NoHttpResponseException}
 import org.apache.http.conn.HttpHostConnectException
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.log4j.{LogManager, Logger}
 
 package object services {
   private lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -103,7 +100,7 @@ package object services {
     // ReactiveException it returns the exception unmodified.
     val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
-      case e: NoHttpResponseException =>
+      case _: NoHttpResponseException =>
         true
       case e: HttpResponseException
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
@@ -136,17 +133,17 @@ package object services {
       case e: GoogleJsonResponseException
           if RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) =>
         true
-      case e: HttpHostConnectException =>
+      case _: HttpHostConnectException =>
         true
-      case e: NoRouteToHostException =>
+      case _: NoRouteToHostException =>
         true
-      case e: SocketTimeoutException =>
+      case _: SocketTimeoutException =>
         true
-      case e: java.util.concurrent.TimeoutException =>
+      case _: java.util.concurrent.TimeoutException =>
         true
-      case e: UnknownHostException =>
+      case _: UnknownHostException =>
         true
-      case e: ConnectionClosedException =>
+      case _: ConnectionClosedException =>
         true
       case e: SocketException
           if e.getMessage != null && (

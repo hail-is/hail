@@ -1,6 +1,4 @@
 package is.hail.expr.ir.analyses
-
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 

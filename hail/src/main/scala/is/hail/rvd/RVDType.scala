@@ -1,10 +1,9 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.HailStateManager
 import is.hail.expr.ir.IRParser
-import is.hail.types.physical.{PInterval, PStruct, PType}
-import is.hail.types.virtual.TStruct
+import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._
 
 import org.json4s.CustomSerializer
@@ -127,7 +126,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
     val wrv = WritableRegionValue(sm, kType, region)
     val kRowOrdering = kRowOrd(sm)
 
-    def setFiniteValue(representative: RegionValue) {
+    def setFiniteValue(representative: RegionValue): Unit = {
       wrv.setSelect(rowType, kFieldIdx, representative)
     }
 

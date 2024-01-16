@@ -1,7 +1,4 @@
 package is.hail.utils.richUtils
-
-import is.hail.utils.BoxedArrayBuilder
-
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

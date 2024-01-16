@@ -7,13 +7,12 @@ import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
 import org.json4s.jackson.JsonMethods
-
 import org.testng.annotations.{DataProvider, Test}
 
 class StringFunctionsSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
-  @Test def testRegexMatch() {
+  @Test def testRegexMatch(): Unit = {
     assertEvalsTo(invoke("regexMatch", TBoolean, Str("a"), NA(TString)), null)
     assertEvalsTo(invoke("regexMatch", TBoolean, NA(TString), Str("b")), null)
 
@@ -24,27 +23,27 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("regexMatch", TBoolean, Str("[a-z][0-9]"), Str("3x")), false)
   }
 
-  @Test def testLength() {
+  @Test def testLength(): Unit = {
     assertEvalsTo(invoke("length", TInt32, Str("ab")), 2)
     assertEvalsTo(invoke("length", TInt32, Str("")), 0)
     assertEvalsTo(invoke("length", TInt32, NA(TString)), null)
   }
 
-  @Test def testSubstring() {
+  @Test def testSubstring(): Unit = {
     assertEvalsTo(invoke("substring", TString, Str("ab"), 0, 1), "a")
     assertEvalsTo(invoke("substring", TString, Str("ab"), NA(TInt32), 1), null)
     assertEvalsTo(invoke("substring", TString, Str("ab"), 0, NA(TInt32)), null)
     assertEvalsTo(invoke("substring", TString, NA(TString), 0, 1), null)
   }
 
-  @Test def testConcat() {
+  @Test def testConcat(): Unit = {
     assertEvalsTo(invoke("concat", TString, Str("a"), NA(TString)), null)
     assertEvalsTo(invoke("concat", TString, NA(TString), Str("b")), null)
 
     assertEvalsTo(invoke("concat", TString, Str("a"), Str("b")), "ab")
   }
 
-  @Test def testSplit() {
+  @Test def testSplit(): Unit = {
     assertEvalsTo(invoke("split", TArray(TString), NA(TString), Str(",")), null)
     assertEvalsTo(invoke("split", TArray(TString), Str("a,b,c"), NA(TString)), null)
 
@@ -61,7 +60,7 @@ class StringFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testReplace() {
+  @Test def testReplace(): Unit = {
     assertEvalsTo(invoke("replace", TString, NA(TString), Str(","), Str(".")), null)
     assertEvalsTo(invoke("replace", TString, Str("a,b,c"), NA(TString), Str(".")), null)
     assertEvalsTo(invoke("replace", TString, Str("a,b,c"), Str(","), NA(TString)), null)
@@ -69,7 +68,7 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("replace", TString, Str("a,b,c"), Str(","), Str(".")), "a.b.c")
   }
 
-  @Test def testArrayMkString() {
+  @Test def testArrayMkString(): Unit = {
     assertEvalsTo(invoke("mkString", TString, IRStringArray("a", "b", "c"), NA(TString)), null)
     assertEvalsTo(invoke("mkString", TString, NA(TArray(TString)), Str(",")), null)
     assertEvalsTo(invoke("mkString", TString, IRStringArray("a", "b", "c"), Str(",")), "a,b,c")
@@ -78,7 +77,7 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("mkString", TString, IRStringArray("a", null, "c"), Str(",")), "a,null,c")
   }
 
-  @Test def testSetMkString() {
+  @Test def testSetMkString(): Unit = {
     assertEvalsTo(invoke("mkString", TString, IRStringSet("a", "b", "c"), NA(TString)), null)
     assertEvalsTo(invoke("mkString", TString, NA(TSet(TString)), Str(",")), null)
     assertEvalsTo(invoke("mkString", TString, IRStringSet("a", "b", "c"), Str(",")), "a,b,c")
@@ -87,7 +86,7 @@ class StringFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("mkString", TString, IRStringSet("a", null, "c"), Str(",")), "a,c,null")
   }
 
-  @Test def testFirstMatchIn() {
+  @Test def testFirstMatchIn(): Unit = {
     assertEvalsTo(invoke("firstMatchIn", TArray(TString), Str("""([a-zA-Z]+)"""), Str("1")), null)
     assertEvalsTo(
       invoke("firstMatchIn", TArray(TString), Str("Hello world!"), Str("""([a-zA-Z]+)""")),
@@ -99,7 +98,7 @@ class StringFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def testHammingDistance() {
+  @Test def testHammingDistance(): Unit = {
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), NA(TString)), null)
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fool")), null)
     assertEvalsTo(invoke("hamming", TInt32, Str("foo"), Str("fol")), 1)
@@ -116,7 +115,7 @@ class StringFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "str")
-  def str(annotation: IR, typ: Type) {
+  def str(annotation: IR, typ: Type): Unit = {
     assertEvalsTo(
       invoke("str", TString, annotation), {
         val a = eval(annotation); if (a == null) null else typ.str(a)
@@ -125,7 +124,7 @@ class StringFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "str")
-  def json(annotation: IR, typ: Type) {
+  def json(annotation: IR, typ: Type): Unit = {
     assertEvalsTo(
       invoke("json", TString, annotation),
       JsonMethods.compact(typ.toJSON(eval(annotation))),
@@ -184,12 +183,12 @@ class StringFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "time")
-  def strftime(fmt: String, s: String, t: Long) {
+  def strftime(fmt: String, s: String, t: Long): Unit = {
     assertEvalsTo(invoke("strftime", TString, Str(fmt), I64(t), Str("America/New_York")), s)
   }
 
   @Test(dataProvider = "time")
-  def strptime(fmt: String, s: String, t: Long) {
+  def strptime(fmt: String, s: String, t: Long): Unit = {
     assertEvalsTo(invoke("strptime", TInt64, Str(s), Str(fmt), Str("America/New_York")), t)
   }
 }

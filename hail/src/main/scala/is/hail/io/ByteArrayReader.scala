@@ -24,7 +24,7 @@ class ByteArrayReader(val arr: Array[Byte]) extends AbstractBinaryReader {
     }
   }
 
-  def seek(pos: Int) {
+  def seek(pos: Int): Unit = {
     position = pos
   }
 

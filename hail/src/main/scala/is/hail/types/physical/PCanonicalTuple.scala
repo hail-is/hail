@@ -1,7 +1,4 @@
 package is.hail.types.physical
-
-import is.hail.annotations.UnsafeUtils
-import is.hail.types.BaseStruct
 import is.hail.types.virtual.{TTuple, Type}
 import is.hail.utils._
 
@@ -23,7 +20,7 @@ final case class PCanonicalTuple(
   def setRequired(required: Boolean) =
     if (required == this.required) this else PCanonicalTuple(_types, required)
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     sb.append("PCTuple[")
     _types.foreachBetween { fd =>
       sb.append(fd.index)

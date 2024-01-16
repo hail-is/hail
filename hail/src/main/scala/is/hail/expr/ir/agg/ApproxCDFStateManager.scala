@@ -226,7 +226,7 @@ class ApproxCDFCombiner(
   def safeLevelSize(level: Int): Int =
     if (level >= maxNumLevels) 0 else levels(level + 1) - levels(level)
 
-  def push(t: Double) {
+  def push(t: Double): Unit = {
     val bot = levels(0)
 
     val newBot = bot - 1
@@ -255,7 +255,7 @@ class ApproxCDFCombiner(
     new ApproxCDFCombiner(newLevels, newItems, newCompactionCounts, numLevels, rand)
   }
 
-  def clear() {
+  def clear(): Unit = {
     numLevels = 1
     var i = 0
     while (i < levels.length) {
@@ -402,7 +402,7 @@ class ApproxCDFCombiner(
     )
   }
 
-  def generalCompact(minCapacity: Int, levelCapacity: (Int, Int) => Int) {
+  def generalCompact(minCapacity: Int, levelCapacity: (Int, Int) => Int): Unit = {
     var currentItemCount = levels(numLevels) - levels(0) // decreases with each compaction
     var targetItemCount = { // increases if we add levels
       var lvl = 0
@@ -447,7 +447,7 @@ class ApproxCDFCombiner(
     }
   }
 
-  def copyFrom(other: ApproxCDFCombiner) {
+  def copyFrom(other: ApproxCDFCombiner): Unit = {
     assert(capacity >= other.size)
     assert(maxNumLevels >= other.numLevels)
 
@@ -612,7 +612,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     combiner.push(x)
   }
 
-  def combOp(other: ApproxCDFStateManager) {
+  def combOp(other: ApproxCDFStateManager): Unit = {
     assert(m == other.m)
     if (other.numLevels == 1) {
       var i = other.levels(0)
@@ -666,7 +666,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     rvb.end()
   }
 
-  def clear() {
+  def clear(): Unit = {
     combiner.clear()
   }
 
@@ -683,7 +683,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
   }
 
   /* Compact the first over-capacity level. If that is the top level, grow the sketch. */
-  private def compact() {
+  private def compact(): Unit = {
     assert(combiner.isFull)
     val level = findFullLevel()
     if (level == numLevels - 1) growSketch()
@@ -694,7 +694,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
   /* If we are following the eager compacting strategy, level 0 must be full when starting a
    * compaction. This strategy sacrifices some accuracy, but avoids having to shift up items below
    * the compacted level. */
-  private def compactEager() {
+  private def compactEager(): Unit = {
     assert(combiner.levelSize(0) >= levelCapacity(0))
 
     var level = 0
@@ -714,7 +714,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     } while (levels(level) < desiredFreeCapacity && !grew)
   }
 
-  private def growSketch() {
+  private def growSketch(): Unit = {
     if (combiner.numLevels == combiner.maxNumLevels)
       combiner = combiner.grow(
         combiner.maxNumLevels + growthRate,
@@ -722,7 +722,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
       )
   }
 
-  private def merge(other: ApproxCDFStateManager) {
+  private def merge(other: ApproxCDFStateManager): Unit = {
     val finalN = n + other.n
     val ub = QuantilesAggregator.ubOnNumLevels(finalN)
 

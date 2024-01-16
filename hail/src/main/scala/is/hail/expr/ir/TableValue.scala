@@ -154,7 +154,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     header: Boolean = true,
     exportType: String = ExportType.CONCATENATED,
     delimiter: String = "\t",
-  ) {
+  ): Unit = {
     val fs = ctx.fs
     fs.delete(path, recursive = true)
 

@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.ir.LongArrayBuilder
-import is.hail.utils.{info, using}
+import is.hail.utils.using
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -10,7 +10,7 @@ import org.testng.annotations.Test
 
 class RegionSuite extends TestNGSuite {
 
-  @Test def testRegionSizes() {
+  @Test def testRegionSizes(): Unit = {
     RegionPool.scoped { pool =>
       pool.scopedSmallRegion(region => Array.range(0, 30).foreach(_ => region.allocate(1, 500)))
 
@@ -18,7 +18,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def testRegionAllocationSimple() {
+  @Test def testRegionAllocationSimple(): Unit = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       assert(pool.numFreeBlocks() == 0)
       assert(pool.numRegions() == 0)
@@ -74,7 +74,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def testRegionAllocation() {
+  @Test def testRegionAllocation(): Unit = {
     RegionPool.scoped { pool =>
       case class Counts(regions: Int, freeRegions: Int) {
         def allocate(n: Int): Counts =
@@ -116,7 +116,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def testRegionReferences() {
+  @Test def testRegionReferences(): Unit = {
     RegionPool.scoped { pool =>
       def offset(region: Region) = region.allocate(0)
 

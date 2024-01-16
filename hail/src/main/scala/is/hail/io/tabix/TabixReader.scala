@@ -5,9 +5,10 @@ import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
 
-import java.io.InputStream
 import scala.collection.mutable
 import scala.language.implicitConversions
+
+import java.io.InputStream
 
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.util.ParsingUtils
@@ -331,7 +332,7 @@ final class TabixLineIterator(
 
   def getCurIdx(): Long = offsetOfPreviousLine
 
-  override def close() {
+  override def close(): Unit = {
     if (lines != null) {
       lines.close()
       lines = null

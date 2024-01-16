@@ -45,7 +45,7 @@ trait PArrayBackedContainer extends PContainer {
   override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
     arrayRep.setElementMissing(cb, aoff, i)
 
-  override def setElementPresent(aoff: Long, i: Int) {
+  override def setElementPresent(aoff: Long, i: Int): Unit = {
     arrayRep.setElementPresent(aoff, i)
   }
 

@@ -4,9 +4,9 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 
-import org.json4s.jackson.JsonMethods
-
 import scala.reflect.{classTag, ClassTag}
+
+import org.json4s.jackson.JsonMethods
 
 final case class TStream(elementType: Type) extends TIterable {
   override def pyString(sb: StringBuilder): Unit = {
@@ -27,7 +27,7 @@ final case class TStream(elementType: Type) extends TIterable {
 
   override def subst() = TStream(elementType.subst())
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("Stream[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

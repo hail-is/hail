@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils.IRCall
 import is.hail.types.virtual.{TArray, TBoolean, TCall, TInt32}
 import is.hail.variant._
@@ -55,7 +54,7 @@ class CallFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def constructors() {
+  @Test def constructors(): Unit = {
     assertEvalsTo(invoke("Call", TCall, False()), Call0())
     assertEvalsTo(invoke("Call", TCall, I32(0), True()), Call1(0, true))
     assertEvalsTo(invoke("Call", TCall, I32(1), False()), Call1(1, false))
@@ -68,32 +67,32 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def isPhased(c: Call) {
+  def isPhased(c: Call): Unit = {
     assertEvalsTo(invoke("isPhased", TBoolean, IRCall(c)), Option(c).map(Call.isPhased).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def isHomRef(c: Call) {
+  def isHomRef(c: Call): Unit = {
     assertEvalsTo(invoke("isHomRef", TBoolean, IRCall(c)), Option(c).map(Call.isHomRef).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def isHet(c: Call) {
+  def isHet(c: Call): Unit = {
     assertEvalsTo(invoke("isHet", TBoolean, IRCall(c)), Option(c).map(Call.isHet).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def isHomVar(c: Call) {
+  def isHomVar(c: Call): Unit = {
     assertEvalsTo(invoke("isHomVar", TBoolean, IRCall(c)), Option(c).map(Call.isHomVar).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def isNonRef(c: Call) {
+  def isNonRef(c: Call): Unit = {
     assertEvalsTo(invoke("isNonRef", TBoolean, IRCall(c)), Option(c).map(Call.isNonRef).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def isHetNonRef(c: Call) {
+  def isHetNonRef(c: Call): Unit = {
     assertEvalsTo(
       invoke("isHetNonRef", TBoolean, IRCall(c)),
       Option(c).map(Call.isHetNonRef).orNull,
@@ -101,12 +100,12 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def isHetRef(c: Call) {
+  def isHetRef(c: Call): Unit = {
     assertEvalsTo(invoke("isHetRef", TBoolean, IRCall(c)), Option(c).map(Call.isHetRef).orNull)
   }
 
   @Test(dataProvider = "basic")
-  def nNonRefAlleles(c: Call) {
+  def nNonRefAlleles(c: Call): Unit = {
     assertEvalsTo(
       invoke("nNonRefAlleles", TInt32, IRCall(c)),
       Option(c).map(Call.nNonRefAlleles).orNull,
@@ -114,7 +113,7 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basicWithIndex")
-  def alleleByIndex(c: Call, idx: Int) {
+  def alleleByIndex(c: Call, idx: Int): Unit = {
     assertEvalsTo(
       invoke("index", TInt32, IRCall(c), I32(idx)),
       Option(c).map(c => Call.alleleByIndex(c, idx)).orNull,
@@ -122,7 +121,7 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basicWithIndex")
-  def downcode(c: Call, idx: Int) {
+  def downcode(c: Call, idx: Int): Unit = {
     assertEvalsTo(
       invoke("downcode", TCall, IRCall(c), I32(idx)),
       Option(c).map(c => Call.downcode(c, idx)).orNull,
@@ -130,7 +129,7 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "diploid")
-  def unphasedDiploidGtIndex(c: Call) {
+  def unphasedDiploidGtIndex(c: Call): Unit = {
     assertEvalsTo(
       invoke("unphasedDiploidGtIndex", TInt32, IRCall(c)),
       Option(c).map(c => Call.unphasedDiploidGtIndex(c)).orNull,
@@ -138,7 +137,7 @@ class CallFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def oneHotAlleles(c: Call) {
+  def oneHotAlleles(c: Call): Unit = {
     assertEvalsTo(
       invoke("oneHotAlleles", TArray(TInt32), IRCall(c), I32(2)),
       Option(c).map(c => Call.oneHotAlleles(c, 2)).orNull,

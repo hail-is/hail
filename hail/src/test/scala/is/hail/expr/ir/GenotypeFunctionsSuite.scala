@@ -27,11 +27,11 @@ class GenotypeFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "gps")
-  def testDosage(gp: IndexedSeq[java.lang.Double], expected: java.lang.Double) {
+  def testDosage(gp: IndexedSeq[java.lang.Double], expected: java.lang.Double): Unit = {
     assertEvalsTo(invoke("dosage", TFloat64, toIRDoubleArray(gp)), expected)
   }
 
-  @Test def testDosageLength() {
+  @Test def testDosageLength(): Unit = {
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5)), "length")
     assertFatal(invoke("dosage", TFloat64, IRDoubleArray(1.0, 1.5, 0.0, 0.0)), "length")
   }

@@ -8,7 +8,7 @@ import org.apache.commons.math3.random.RandomDataGenerator
 abstract class Prop {
   def apply(p: Parameters, name: Option[String] = None): Unit
 
-  def check() {
+  def check(): Unit = {
     val size = System.getProperty("check.size", "1000").toInt
     val count = System.getProperty("check.count", "10").toInt
 
@@ -21,7 +21,7 @@ abstract class Prop {
 }
 
 class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
-  override def apply(p: Parameters, name: Option[String]) {
+  override def apply(p: Parameters, name: Option[String]): Unit = {
     val prefix = name.map(_ + ": ").getOrElse("")
     for (i <- 0 until p.count) {
       val v1 = g1(p)
@@ -43,7 +43,7 @@ class GenProp1[T1](g1: Gen[T1], f: (T1) => Boolean) extends Prop {
 }
 
 class GenProp2[T1, T2](g1: Gen[T1], g2: Gen[T2], f: (T1, T2) => Boolean) extends Prop {
-  override def apply(p: Parameters, name: Option[String]) {
+  override def apply(p: Parameters, name: Option[String]): Unit = {
     val prefix = name.map(_ + ": ").getOrElse("")
     for (i <- 0 until p.count) {
       val v1 = g1(p)
@@ -67,7 +67,7 @@ class GenProp2[T1, T2](g1: Gen[T1], g2: Gen[T2], f: (T1, T2) => Boolean) extends
 
 class GenProp3[T1, T2, T3](g1: Gen[T1], g2: Gen[T2], g3: Gen[T3], f: (T1, T2, T3) => Boolean)
     extends Prop {
-  override def apply(p: Parameters, name: Option[String]) {
+  override def apply(p: Parameters, name: Option[String]): Unit = {
     val prefix = name.map(_ + ": ").getOrElse("")
     for (i <- 0 until p.count) {
       val v1 = g1(p)
@@ -94,14 +94,14 @@ class Properties(val name: String) extends Prop {
   val properties = ArrayBuffer.empty[(String, Prop)]
 
   class PropertySpecifier {
-    def update(propName: String, prop: Prop) {
+    def update(propName: String, prop: Prop): Unit = {
       properties += (name + "." + propName) -> prop
     }
   }
 
   lazy val property = new PropertySpecifier
 
-  override def apply(p: Parameters, prefix: Option[String]) {
+  override def apply(p: Parameters, prefix: Option[String]): Unit = {
     for ((propName, prop) <- properties)
       prop.apply(p, prefix.map(_ + "." + propName).orElse(Some(propName)))
   }
@@ -124,7 +124,7 @@ object Prop {
     _seed
   }
 
-  def check(prop: Prop) {
+  def check(prop: Prop): Unit = {
     prop.check()
   }
 

@@ -24,17 +24,16 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.{FastSeq, _}
 import is.hail.variant.{Call2, Locus}
 
-import org.json4s.jackson.{JsonMethods, Serialization}
-
-import scala.language.{dynamics, implicitConversions}
+import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.testng.annotations.{DataProvider, Test}
 
 class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
 
-  @Test def testRandDifferentLengthUIDStrings() {
+  @Test def testRandDifferentLengthUIDStrings(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
     val staticUID: Long = 112233
     var rng: IR = RNGStateLiteral()
@@ -55,36 +54,36 @@ class IRSuite extends HailSuite {
     assert(expected1 != expected3)
   }
 
-  @Test def testI32() {
+  @Test def testI32(): Unit = {
     assertEvalsTo(I32(5), 5)
   }
 
-  @Test def testI64() {
+  @Test def testI64(): Unit = {
     assertEvalsTo(I64(5), 5L)
   }
 
-  @Test def testF32() {
+  @Test def testF32(): Unit = {
     assertEvalsTo(F32(3.14f), 3.14f)
   }
 
-  @Test def testF64() {
+  @Test def testF64(): Unit = {
     assertEvalsTo(F64(3.14), 3.14)
   }
 
-  @Test def testStr() {
+  @Test def testStr(): Unit = {
     assertEvalsTo(Str("Hail"), "Hail")
   }
 
-  @Test def testTrue() {
+  @Test def testTrue(): Unit = {
     assertEvalsTo(True(), true)
   }
 
-  @Test def testFalse() {
+  @Test def testFalse(): Unit = {
     assertEvalsTo(False(), false)
   }
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
-  @Test def testCast() {
+  @Test def testCast(): Unit = {
     assertAllEvalTo(
       (Cast(I32(5), TInt32), 5),
       (Cast(I32(5), TInt64), 5L),
@@ -108,7 +107,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testCastRename() {
+  @Test def testCastRename(): Unit = {
     assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32)), Row(1))
     assertEvalsTo(
       CastRename(
@@ -119,11 +118,11 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testNA() {
+  @Test def testNA(): Unit = {
     assertEvalsTo(NA(TInt32), null)
   }
 
-  @Test def testCoalesce() {
+  @Test def testCoalesce(): Unit = {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((null, TInt32)), null)
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((1, TInt32)), 1)
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), In(0, TInt32))), FastSeq((null, TInt32)), null)
@@ -136,7 +135,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Coalesce(FastSeq(NA(TInt32), I32(1), Die("foo", TInt32))), 1)
   }
 
-  @Test def testCoalesceWithDifferentRequiredeness() {
+  @Test def testCoalesceWithDifferentRequiredeness(): Unit = {
     val t1 = In(0, TArray(TInt32))
     val t2 = NA(TArray(TInt32))
     val value = FastSeq(1, 2, 3, 4)
@@ -150,7 +149,7 @@ class IRSuite extends HailSuite {
   val f64na = NA(TFloat64)
   val bna = NA(TBoolean)
 
-  @Test def testApplyUnaryPrimOpNegate() {
+  @Test def testApplyUnaryPrimOpNegate(): Unit = {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(Negate, I32(5)), -5),
       (ApplyUnaryPrimOp(Negate, i32na), null),
@@ -163,13 +162,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyUnaryPrimOpBang() {
+  @Test def testApplyUnaryPrimOpBang(): Unit = {
     assertEvalsTo(ApplyUnaryPrimOp(Bang, False()), true)
     assertEvalsTo(ApplyUnaryPrimOp(Bang, True()), false)
     assertEvalsTo(ApplyUnaryPrimOp(Bang, bna), null)
   }
 
-  @Test def testApplyUnaryPrimOpBitFlip() {
+  @Test def testApplyUnaryPrimOpBitFlip(): Unit = {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(BitNot, I32(0xdeadbeef)), ~0xdeadbeef),
       (ApplyUnaryPrimOp(BitNot, I32(-0xdeadbeef)), ~(-0xdeadbeef)),
@@ -180,7 +179,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyUnaryPrimOpBitCount() {
+  @Test def testApplyUnaryPrimOpBitCount(): Unit = {
     assertAllEvalTo(
       (ApplyUnaryPrimOp(BitCount, I32(0xdeadbeef)), Integer.bitCount(0xdeadbeef)),
       (ApplyUnaryPrimOp(BitCount, I32(-0xdeadbeef)), Integer.bitCount(-0xdeadbeef)),
@@ -197,8 +196,8 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testApplyBinaryPrimOpAdd() {
-    def assertSumsTo(t: Type, x: Any, y: Any, sum: Any) {
+  @Test def testApplyBinaryPrimOpAdd(): Unit = {
+    def assertSumsTo(t: Type, x: Any, y: Any, sum: Any): Unit = {
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), sum)
     }
     assertSumsTo(TInt32, 5, 3, 8)
@@ -222,8 +221,8 @@ class IRSuite extends HailSuite {
     assertSumsTo(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpSubtract() {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+  @Test def testApplyBinaryPrimOpSubtract(): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -252,8 +251,8 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpMultiply() {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+  @Test def testApplyBinaryPrimOpMultiply(): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -282,8 +281,8 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpFloatingPointDivide() {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+  @Test def testApplyBinaryPrimOpFloatingPointDivide(): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -312,8 +311,8 @@ class IRSuite extends HailSuite {
     assertExpected(TFloat64, null, null, null)
   }
 
-  @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+  @Test def testApplyBinaryPrimOpRoundToNegInfDivide(): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -343,7 +342,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -369,7 +368,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -395,7 +394,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any) {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(BitXOr(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -421,7 +420,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpLeftShift(): Unit = {
-    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any) {
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(LeftShift(), In(0, t), In(1, TInt32)),
         FastSeq(x -> t, y -> TInt32),
@@ -443,7 +442,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpRightShift(): Unit = {
-    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any) {
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(RightShift(), In(0, t), In(1, TInt32)),
         FastSeq(x -> t, y -> TInt32),
@@ -465,7 +464,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpLogicalRightShift(): Unit = {
-    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any) {
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit = {
       assertEvalsTo(
         ApplyBinaryPrimOp(LogicalRightShift(), In(0, t), In(1, TInt32)),
         FastSeq(x -> t, y -> TInt32),
@@ -486,8 +485,8 @@ class IRSuite extends HailSuite {
     assertShiftsTo(TInt64, null, null, null)
   }
 
-  @Test def testApplyComparisonOpGT() {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+  @Test def testApplyComparisonOpGT(): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
       assertEvalsTo(ApplyComparisonOp(GT(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
     }
 
@@ -509,8 +508,8 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testApplyComparisonOpGTEQ() {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+  @Test def testApplyComparisonOpGTEQ(): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
       assertEvalsTo(
         ApplyComparisonOp(GTEQ(t), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -535,8 +534,8 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, true)
   }
 
-  @Test def testApplyComparisonOpLT() {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+  @Test def testApplyComparisonOpLT(): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
       assertEvalsTo(ApplyComparisonOp(LT(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
     }
 
@@ -558,8 +557,8 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testApplyComparisonOpLTEQ() {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+  @Test def testApplyComparisonOpLTEQ(): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
       assertEvalsTo(
         ApplyComparisonOp(LTEQ(t), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -585,8 +584,8 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testApplyComparisonOpEQ() {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+  @Test def testApplyComparisonOpEQ(): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
       assertEvalsTo(ApplyComparisonOp(EQ(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
     }
 
@@ -607,8 +606,8 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = false)
   }
 
-  @Test def testApplyComparisonOpNE() {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean) {
+  @Test def testApplyComparisonOpNE(): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
       assertEvalsTo(
         ApplyComparisonOp(NEQ(t), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
@@ -633,11 +632,11 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
-  @Test def testDieCodeBUilder() {
+  @Test def testDieCodeBUilder(): Unit = {
     assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
   }
 
-  @Test def testIf() {
+  @Test def testIf(): Unit = {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
     assertEvalsTo(If(NA(TBoolean), I32(5), I32(7)), null)
@@ -660,7 +659,7 @@ class IRSuite extends HailSuite {
   def testSwitch(x: IR, default: IR, cases: IndexedSeq[IR], result: Any): Unit =
     assertEvalsTo(Switch(x, default, cases), result)
 
-  @Test def testLet() {
+  @Test def testLet(): Unit = {
     assertEvalsTo(Let(FastSeq("v" -> I32(5)), Ref("v", TInt32)), 5)
     assertEvalsTo(Let(FastSeq("v" -> NA(TInt32)), Ref("v", TInt32)), null)
     assertEvalsTo(Let(FastSeq("v" -> I32(5)), NA(TInt32)), null)
@@ -707,7 +706,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeArray() {
+  @Test def testMakeArray(): Unit = {
     assertEvalsTo(
       MakeArray(FastSeq(I32(5), NA(TInt32), I32(-3)), TArray(TInt32)),
       FastSeq(5, null, -3),
@@ -715,7 +714,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32)), FastSeq())
   }
 
-  @Test def testGetNestedElementPTypesI32() {
+  @Test def testGetNestedElementPTypesI32(): Unit = {
     var types = IndexedSeq(PInt32(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PInt32(true))
@@ -733,7 +732,7 @@ class IRSuite extends HailSuite {
     assert(res == PInt32(true))
   }
 
-  @Test def testGetNestedElementPTypesI64() {
+  @Test def testGetNestedElementPTypesI64(): Unit = {
     var types = IndexedSeq(PInt64(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PInt64(true))
@@ -751,7 +750,7 @@ class IRSuite extends HailSuite {
     assert(res == PInt64(true))
   }
 
-  @Test def testGetNestedElementPFloat32() {
+  @Test def testGetNestedElementPFloat32(): Unit = {
     var types = IndexedSeq(PFloat32(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PFloat32(true))
@@ -769,7 +768,7 @@ class IRSuite extends HailSuite {
     assert(res == PFloat32(true))
   }
 
-  @Test def testGetNestedElementPFloat64() {
+  @Test def testGetNestedElementPFloat64(): Unit = {
     var types = IndexedSeq(PFloat64(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PFloat64(true))
@@ -787,7 +786,7 @@ class IRSuite extends HailSuite {
     assert(res == PFloat64(true))
   }
 
-  @Test def testGetNestedElementPCanonicalString() {
+  @Test def testGetNestedElementPCanonicalString(): Unit = {
     var types = IndexedSeq(PCanonicalString(true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalString(true))
@@ -805,7 +804,7 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalString(true))
   }
 
-  @Test def testGetNestedPCanonicalArray() {
+  @Test def testGetNestedPCanonicalArray(): Unit = {
     var types = IndexedSeq(PCanonicalArray(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalArray(PInt32(true), true))
@@ -872,7 +871,7 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalArray(PCanonicalArray(PInt32(false), false), false))
   }
 
-  @Test def testGetNestedElementPCanonicalDict() {
+  @Test def testGetNestedElementPCanonicalDict(): Unit = {
     var types = IndexedSeq(PCanonicalDict(PInt32(true), PCanonicalString(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalDict(PInt32(true), PCanonicalString(true), true))
@@ -1016,7 +1015,7 @@ class IRSuite extends HailSuite {
     ))
   }
 
-  @Test def testGetNestedElementPCanonicalStruct() {
+  @Test def testGetNestedElementPCanonicalStruct(): Unit = {
     var types = IndexedSeq(PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32(true)))
@@ -1125,7 +1124,7 @@ class IRSuite extends HailSuite {
     ))
   }
 
-  @Test def testGetNestedElementPCanonicalTuple() {
+  @Test def testGetNestedElementPCanonicalTuple(): Unit = {
     var types = IndexedSeq(PCanonicalTuple(true, PInt32(true)))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalTuple(true, PInt32(true)))
@@ -1178,7 +1177,7 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalTuple(true, PCanonicalTuple(false, PInt32(false))))
   }
 
-  @Test def testGetNestedElementPCanonicalSet() {
+  @Test def testGetNestedElementPCanonicalSet(): Unit = {
     var types = IndexedSeq(PCanonicalSet(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalSet(PInt32(true), true))
@@ -1238,7 +1237,7 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalSet(PCanonicalSet(PInt32(false), false), true))
   }
 
-  @Test def testGetNestedElementPCanonicalInterval() {
+  @Test def testGetNestedElementPCanonicalInterval(): Unit = {
     var types = IndexedSeq(PCanonicalInterval(PInt32(true), true))
     var res = InferPType.getCompatiblePType(types)
     assert(res == PCanonicalInterval(PInt32(true), true))
@@ -1312,7 +1311,7 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), false), true))
   }
 
-  @Test def testMakeStruct() {
+  @Test def testMakeStruct(): Unit = {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
@@ -1338,14 +1337,14 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testMakeTuple() {
+  @Test def testMakeTuple(): Unit = {
     assertEvalsTo(MakeTuple.ordered(FastSeq()), Row())
     assertEvalsTo(MakeTuple.ordered(FastSeq(NA(TInt32), 4, 0.5)), Row(null, 4, 0.5))
     // making sure wide structs get emitted without failure
     assertEvalsTo(GetTupleElement(MakeTuple.ordered((0 until 20000).map(I32)), 1), 1)
   }
 
-  @Test def testGetTupleElement() {
+  @Test def testGetTupleElement(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = MakeTuple.ordered(FastSeq(I32(5), Str("abc"), NA(TInt32)))
@@ -1366,7 +1365,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(letBoundTuple, 5)
   }
 
-  @Test def testArrayRef() {
+  @Test def testArrayRef(): Unit = {
     assertEvalsTo(
       ArrayRef(MakeArray(FastSeq(I32(5), NA(TInt32)), TArray(TInt32)), I32(0), ErrorIDs.NO_ERROR),
       5,
@@ -1390,13 +1389,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayLen() {
+  @Test def testArrayLen(): Unit = {
     assertEvalsTo(ArrayLen(NA(TArray(TInt32))), null)
     assertEvalsTo(ArrayLen(MakeArray(FastSeq(), TArray(TInt32))), 0)
     assertEvalsTo(ArrayLen(MakeArray(FastSeq(I32(5), NA(TInt32)), TArray(TInt32))), 2)
   }
 
-  @Test def testArraySort() {
+  @Test def testArraySort(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ArraySort(ToStream(NA(TArray(TInt32)))), null)
@@ -1406,7 +1405,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ArraySort(ToStream(a), False()), FastSeq(2, 2, -7, null))
   }
 
-  @Test def testStreamZip() {
+  @Test def testStreamZip(): Unit = {
     val range12 = StreamRange(0, 12, 1)
     val range6 = StreamRange(0, 12, 2)
     val range8 = StreamRange(0, 24, 3)
@@ -1458,7 +1457,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testToSet() {
+  @Test def testToSet(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ToSet(ToStream(NA(TArray(TInt32)))), null)
@@ -1468,13 +1467,13 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToSet(ToStream(a)), Set(-7, 2, null))
   }
 
-  @Test def testToArrayFromSet() {
+  @Test def testToArrayFromSet(): Unit = {
     val t = TSet(TInt32)
     assertEvalsTo(CastToArray(NA(t)), null)
     assertEvalsTo(CastToArray(In(0, t)), FastSeq((Set(-7, 2, null), t)), FastSeq(-7, 2, null))
   }
 
-  @Test def testToDict() {
+  @Test def testToDict(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(ToDict(ToStream(NA(TArray(TTuple(FastSeq(TInt32, TString): _*))))), null)
@@ -1493,7 +1492,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToDict(ToStream(a)), Map(5 -> "a", (null, "b"), 3 -> null))
   }
 
-  @Test def testToArrayFromDict() {
+  @Test def testToArrayFromDict(): Unit = {
     val t = TDict(TInt32, TString)
     assertEvalsTo(CastToArray(NA(t)), null)
 
@@ -1506,13 +1505,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testToArrayFromArray() {
+  @Test def testToArrayFromArray(): Unit = {
     val t = TArray(TInt32)
     assertEvalsTo(NA(t), null)
     assertEvalsTo(In(0, t), FastSeq((FastSeq(-7, 2, null, 2), t)), FastSeq(-7, 2, null, 2))
   }
 
-  @Test def testSetContains() {
+  @Test def testSetContains(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TSet(TInt32)
@@ -1536,7 +1535,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(7)), FastSeq((Set(-7, 2), t)), false)
   }
 
-  @Test def testDictContains() {
+  @Test def testDictContains(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val t = TDict(TInt32, TString)
@@ -1553,7 +1552,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testLowerBoundOnOrderedCollectionArray() {
+  @Test def testLowerBoundOnOrderedCollectionArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TArray(TInt32))
@@ -1579,7 +1578,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testLowerBoundOnOrderedCollectionSet() {
+  @Test def testLowerBoundOnOrderedCollectionSet(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TSet(TInt32))
@@ -1601,7 +1600,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(LowerBoundOnOrderedCollection(swna, I32(5), onKey = false), 3)
   }
 
-  @Test def testLowerBoundOnOrderedCollectionDict() {
+  @Test def testLowerBoundOnOrderedCollectionDict(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val na = NA(TDict(TInt32, TString))
@@ -1663,7 +1662,7 @@ class IRSuite extends HailSuite {
       3,
     )
 
-  @Test def testStreamTake() {
+  @Test def testStreamTake(): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1676,7 +1675,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
-  @Test def testStreamDrop() {
+  @Test def testStreamDrop(): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1695,7 +1694,7 @@ class IRSuite extends HailSuite {
     ToArray(StreamMap(stream, "inner", ToArray(Ref("inner", innerType))))
   }
 
-  @Test def testStreamGrouped() {
+  @Test def testStreamGrouped(): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1736,7 +1735,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(takeFromEach(r, I32(0), I32(5))), FastSeq(FastSeq(), FastSeq()))
   }
 
-  @Test def testStreamGroupByKey() {
+  @Test def testStreamGroupByKey(): Unit = {
     val structType = TStruct("a" -> TInt32, "b" -> TInt32)
     val naa = NA(TStream(structType))
     val a = MakeStream(
@@ -1797,7 +1796,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMap() {
+  @Test def testStreamMap(): Unit = {
     val naa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1814,7 +1813,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamFilter() {
+  @Test def testStreamFilter(): Unit = {
     val nsa = NA(TStream(TInt32))
     val a = MakeStream(IndexedSeq(I32(3), NA(TInt32), I32(7)), TStream(TInt32))
 
@@ -1836,7 +1835,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayFlatMap() {
+  @Test def testArrayFlatMap(): Unit = {
     val ta = TArray(TInt32)
     val ts = TStream(TInt32)
     val tsa = TStream(ta)
@@ -1892,7 +1891,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamFold() {
+  @Test def testStreamFold(): Unit = {
     def fold(s: IR, zero: IR, f: (IR, IR) => IR): IR =
       StreamFold(s, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
@@ -1910,7 +1909,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayFold2() {
+  @Test def testArrayFold2(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val af = StreamFold2(
@@ -1927,7 +1926,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(af, FastSeq((FastSeq(1, 2, 3), TArray(TInt32))), Row(6, 1))
   }
 
-  @Test def testArrayScan() {
+  @Test def testArrayScan(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
@@ -1991,7 +1990,7 @@ class IRSuite extends HailSuite {
   val cubeRowMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), True())
   val cubeColMajor = makeNDArray((0 until 27).map(_.toDouble), FastSeq(3, 3, 3), False())
 
-  @Test def testNDArrayShape() {
+  @Test def testNDArrayShape(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     assertEvalsTo(NDArrayShape(scalarRowMajor), Row())
@@ -1999,7 +1998,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(NDArrayShape(cubeRowMajor), Row(3L, 3L, 3L))
   }
 
-  @Test def testNDArrayRef() {
+  @Test def testNDArrayRef(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertEvalsTo(makeNDArrayRef(scalarRowMajor, FastSeq()), 3.0)
@@ -2027,7 +2026,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(centerColMajor, 13.0)
   }
 
-  @Test def testNDArrayReshape() {
+  @Test def testNDArrayReshape(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val v = NDArrayReshape(matrixRowMajor, MakeTuple.ordered(IndexedSeq(I64(4))), ErrorIDs.NO_ERROR)
@@ -2039,7 +2038,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(mat2, FastSeq(0, 0)), 1.0)
   }
 
-  @Test def testNDArrayConcat() {
+  @Test def testNDArrayConcat(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     def nds(ndData: (IndexedSeq[Int], Long, Long)*): IR =
@@ -2118,7 +2117,7 @@ class IRSuite extends HailSuite {
     assertNDEvals(NDArrayConcat(NA(TArray(TNDArray(TInt32, Nat(2)))), 1), null)
   }
 
-  @Test def testNDArrayMap() {
+  @Test def testNDArrayMap(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val data = 0 until 10
@@ -2153,7 +2152,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(zero, 0L)
   }
 
-  @Test def testNDArrayMap2() {
+  @Test def testNDArrayMap2(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
@@ -2184,7 +2183,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(twentyTwo, 22.0)
   }
 
-  @Test def testNDArrayReindex() {
+  @Test def testNDArrayReindex(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val transpose = NDArrayReindex(matrixRowMajor, FastSeq(1, 0))
@@ -2207,7 +2206,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(partialTranspose, partialTranposeIdx), 3.0)
   }
 
-  @Test def testNDArrayBroadcasting() {
+  @Test def testNDArrayBroadcasting(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val scalarWithMatrix = NDArrayMap2(
@@ -2270,7 +2269,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(NDArrayShape(colVectorWithEmpty), Row(2L, 0L))
   }
 
-  @Test def testNDArrayAgg() {
+  @Test def testNDArrayAgg(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val empty = makeNDArrayRef(
@@ -2294,7 +2293,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(twentySeven, 3.0)
   }
 
-  @Test def testNDArrayMatMul() {
+  @Test def testNDArrayMatMul(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val dotProduct = NDArrayMatMul(vectorRowMajor, vectorRowMajor, ErrorIDs.NO_ERROR)
@@ -2322,7 +2321,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(matMulCube, IndexedSeq(0, 0, 0)), 30.0)
   }
 
-  @Test def testNDArrayInv() {
+  @Test def testNDArrayInv(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
     val matrixRowMajor = makeNDArray(FastSeq(1.5, 2.0, 4.0, 5.0), FastSeq(2, 2), True())
     val inv = NDArrayInv(matrixRowMajor, ErrorIDs.NO_ERROR)
@@ -2330,7 +2329,7 @@ class IRSuite extends HailSuite {
     assertNDEvals(inv, expectedInv)
   }
 
-  @Test def testNDArraySlice() {
+  @Test def testNDArraySlice(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val rightCol = NDArraySlice(
@@ -2359,7 +2358,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(scalarSlice, FastSeq()), 3.0)
   }
 
-  @Test def testNDArrayFilter() {
+  @Test def testNDArrayFilter(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     assertNDEvals(
@@ -2464,7 +2463,7 @@ class IRSuite extends HailSuite {
     ))
   }
 
-  @Test def testStreamZipJoin() {
+  @Test def testStreamZipJoin(): Unit = {
     def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: IndexedSeq[Integer]): IR = {
       if (a == null)
@@ -2546,7 +2545,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMultiMerge() {
+  @Test def testStreamMultiMerge(): Unit = {
     def eltType = TStruct("k1" -> TInt32, "k2" -> TString, "idx" -> TInt32)
     def makeStream(a: IndexedSeq[Integer]): IR = {
       if (a == null)
@@ -2624,7 +2623,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testJoinRightDistinct() {
+  @Test def testJoinRightDistinct(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
@@ -2743,7 +2742,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamJoin() {
+  @Test def testStreamJoin(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], joinType: String): IR = {
@@ -2848,7 +2847,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamMerge() {
+  @Test def testStreamMerge(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
@@ -2975,13 +2974,13 @@ class IRSuite extends HailSuite {
     assertEvalsTo(mergeRows(Array[Integer](1, 2, null), null, 1), null)
   }
 
-  @Test def testDie() {
+  @Test def testDie(): Unit = {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
     assertFatal(Die(NA(TString), TFloat64, -1), "message missing")
   }
 
-  @Test def testStreamRange() {
-    def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]) {
+  @Test def testStreamRange(): Unit = {
+    def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]): Unit = {
       assertEvalsTo(
         ToArray(StreamRange(In(0, TInt32), In(1, TInt32), In(2, TInt32))),
         args = FastSeq(start -> TInt32, stop -> TInt32, step -> TInt32),
@@ -3007,7 +3006,7 @@ class IRSuite extends HailSuite {
     assertEquals(Int.MinValue, Int.MaxValue, Int.MaxValue / 5, expected)
   }
 
-  @Test def testArrayAgg() {
+  @Test def testArrayAgg(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val sumSig = AggSignature(Sum(), IndexedSeq(), IndexedSeq(TInt64))
@@ -3021,7 +3020,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayAggContexts() {
+  @Test def testArrayAggContexts(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val ir = Let(
@@ -3067,7 +3066,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamAggScan() {
+  @Test def testStreamAggScan(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
 
     val eltType = TStruct("x" -> TCall, "y" -> TInt32)
@@ -3104,7 +3103,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(StreamLen(ir), args = FastSeq(input), 6)
   }
 
-  @Test def testInsertFields() {
+  @Test def testInsertFields(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val s = TStruct("a" -> TInt64, "b" -> TString)
@@ -3203,7 +3202,7 @@ class IRSuite extends HailSuite {
 
   }
 
-  @Test def testSelectFields() {
+  @Test def testSelectFields(): Unit = {
     assertEvalsTo(
       SelectFields(
         NA(TStruct("foo" -> TInt32, "bar" -> TFloat64)),
@@ -3229,7 +3228,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testGetField() {
+  @Test def testGetField(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val s = MakeStruct(IndexedSeq("a" -> NA(TInt64), "b" -> Str("abc")))
@@ -3240,7 +3239,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(GetField(na, "a"), null)
   }
 
-  @Test def testLiteral() {
+  @Test def testLiteral(): Unit = {
     implicit val execStrats =
       Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.JvmCompile)
     val poopEmoji = new String(Array[Char](0xd83d, 0xdca9))
@@ -3263,7 +3262,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(Str("hello" + poopEmoji), "hello" + poopEmoji)
   }
 
-  @Test def testSameLiteralsWithDifferentTypes() {
+  @Test def testSameLiteralsWithDifferentTypes(): Unit = {
     assertEvalsTo(
       ApplyComparisonOp(
         EQ(TArray(TInt32)),
@@ -3278,13 +3277,13 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableCount() {
+  @Test def testTableCount(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
-  @Test def testTableGetGlobals() {
+  @Test def testTableGetGlobals(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     assertEvalsTo(
       TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32), Row(1)))),
@@ -3292,7 +3291,7 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testTableAggregate() {
+  @Test def testTableAggregate(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
 
     val table = TableRange(3, 2)
@@ -3301,7 +3300,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(TableAggregate(table, MakeStruct(IndexedSeq("foo" -> count))), Row(3L))
   }
 
-  @Test def testMatrixAggregate() {
+  @Test def testMatrixAggregate(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val matrix = MatrixIR.range(5, 5, None)
@@ -3310,7 +3309,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(MatrixAggregate(matrix, MakeStruct(IndexedSeq("foo" -> count))), Row(25L))
   }
 
-  @Test def testGroupByKey() {
+  @Test def testGroupByKey(): Unit = {
     implicit val execStrats = Set(
       ExecStrategy.Interpret,
       ExecStrategy.InterpretUnoptimized,
@@ -3363,7 +3362,7 @@ class IRSuite extends HailSuite {
   )
 
   @Test(dataProvider = "compareDifferentTypes")
-  def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type) {
+  def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     assertEvalsTo(
@@ -4055,7 +4054,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test(dataProvider = "valueIRs")
-  def testValueIRParser(x: IR, refMap: BindingEnv[Type]) {
+  def testValueIRParser(x: IR, refMap: BindingEnv[Type]): Unit = {
     val env = IRParserEnvironment(ctx)
 
     val s = Pretty.sexprStyle(x, elideLiterals = false)
@@ -4066,27 +4065,27 @@ class IRSuite extends HailSuite {
   }
 
   @Test(dataProvider = "tableIRs")
-  def testTableIRParser(x: TableIR) {
+  def testTableIRParser(x: TableIR): Unit = {
     val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_table_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
-  def testMatrixIRParser(x: MatrixIR) {
+  def testMatrixIRParser(x: MatrixIR): Unit = {
     val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_matrix_ir(ctx, s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "blockMatrixIRs")
-  def testBlockMatrixIRParser(x: BlockMatrixIR) {
+  def testBlockMatrixIRParser(x: BlockMatrixIR): Unit = {
     val s = Pretty.sexprStyle(x, elideLiterals = false)
     val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
     assert(x2 == x)
   }
 
-  def testBlockMatrixIRParserPersist() {
+  def testBlockMatrixIRParserPersist(): Unit = {
     val bm = BlockMatrix.fill(1, 1, 0.0, 5)
     backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
     val persist =
@@ -4098,7 +4097,7 @@ class IRSuite extends HailSuite {
     backend.unpersist(ctx.backendContext, "x")
   }
 
-  @Test def testCachedIR() {
+  @Test def testCachedIR(): Unit = {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR 1)"
     val x2 = ExecuteContext.scoped() { ctx =>
@@ -4107,7 +4106,7 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testCachedTableIR() {
+  @Test def testCachedTableIR(): Unit = {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable 1)"
     val x2 = ExecuteContext.scoped() { ctx =>
@@ -4116,7 +4115,7 @@ class IRSuite extends HailSuite {
     assert(x2 eq cached)
   }
 
-  @Test def testArrayContinuationDealsWithIfCorrectly() {
+  @Test def testArrayContinuationDealsWithIfCorrectly(): Unit = {
     val ir = ToArray(StreamMap(
       If(IsNA(In(0, TBoolean)), NA(TStream(TInt32)), ToStream(In(1, TArray(TInt32)))),
       "x",
@@ -4126,7 +4125,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, FastSeq(true -> TBoolean, FastSeq(0) -> TArray(TInt32)), FastSeq(0L))
   }
 
-  @Test def testTableGetGlobalsSimplifyRules() {
+  @Test def testTableGetGlobalsSimplifyRules(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t1 =
@@ -4163,7 +4162,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
   }
 
-  @Test def testAggLet() {
+  @Test def testAggLet(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val ir = TableRange(2, 2)
       .aggregate(
@@ -4179,14 +4178,14 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, 61L)
   }
 
-  @Test def testRelationalLet() {
+  @Test def testRelationalLet(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val ir = RelationalLet("x", NA(TInt32), RelationalRef("x", TInt32))
     assertEvalsTo(ir, null)
   }
 
-  @Test def testRelationalLetTable() {
+  @Test def testRelationalLetTable(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
@@ -4204,7 +4203,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ir, 1L)
   }
 
-  @Test def testRelationalLetMatrixTable() {
+  @Test def testRelationalLetMatrixTable(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
 
     val t = TArray(TStruct("x" -> TInt32))
@@ -4300,7 +4299,7 @@ class IRSuite extends HailSuite {
     }
   }
 
-  @Test def testFoldWithSetup() {
+  @Test def testFoldWithSetup(): Unit = {
     val v = In(0, TInt32)
     val cond1 = If(
       v.ceq(I32(3)),
@@ -4554,7 +4553,7 @@ class IRSuite extends HailSuite {
       assertEvalsTo(ToArray(readArray), FastSeq(v -> pt.virtualType), Array.fill(10)(v).toFastSeq)
   }
 
-  @Test def testUUID4() {
+  @Test def testUUID4(): Unit = {
     val single = UUID4()
     val hex = "[0-9a-f]"
     val format = s"$hex{8}-$hex{4}-$hex{4}-$hex{4}-$hex{12}"
@@ -4656,7 +4655,7 @@ class IRSuite extends HailSuite {
 
     var dataIdx = 0
 
-    result.foreach { case (interval, path, elementCount, numBytes) =>
+    result.foreach { case (interval, path, elementCount, _) =>
       val reader = PartitionNativeReader(spec, "rowUID")
       val read = ToArray(ReadPartition(
         MakeStruct(Array("partitionIndex" -> I64(0), "partitionPath" -> Str(path))),

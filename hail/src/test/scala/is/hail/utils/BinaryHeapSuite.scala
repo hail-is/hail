@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 
 class BinaryHeapSuite {
   @Test
-  def insertOneIsMax() {
+  def insertOneIsMax(): Unit = {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, 10)
     assert(bh.max() === 1)
@@ -27,7 +27,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def twoElements() {
+  def twoElements(): Unit = {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, 5)
     assert(bh.contains(1) == true)
@@ -48,7 +48,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def threeElements() {
+  def threeElements(): Unit = {
     val bh = new BinaryHeap[Int]()
     bh.insert(1, -10)
     assert(bh.contains(1) == true)
@@ -80,7 +80,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseToKey1() {
+  def decreaseToKey1(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -95,7 +95,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseToKey2() {
+  def decreaseToKey2(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -110,7 +110,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseToKeyButNoOrderingChange() {
+  def decreaseToKeyButNoOrderingChange(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -125,7 +125,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseKey1() {
+  def decreaseKey1(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -140,7 +140,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseKey2() {
+  def decreaseKey2(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -155,7 +155,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def decreaseKeyButNoOrderingChange() {
+  def decreaseKeyButNoOrderingChange(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -170,7 +170,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def increaseToKey1() {
+  def increaseToKey1(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -185,7 +185,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def increaseToKeys() {
+  def increaseToKeys(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -203,7 +203,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def increaseKey1() {
+  def increaseKey1(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -218,7 +218,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def increaseKeys() {
+  def increaseKeys(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -236,7 +236,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def samePriority() {
+  def samePriority(): Unit = {
     val bh = new BinaryHeap[Int]()
 
     bh.insert(1, 0)
@@ -250,7 +250,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def successivelyMoreInserts() {
+  def successivelyMoreInserts(): Unit = {
     for (count <- Seq(2, 4, 8, 16, 32)) {
       val bh = new BinaryHeap[Int](8)
       val trace = new BoxedArrayBuilder[String]()
@@ -278,7 +278,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def growPastCapacity4() {
+  def growPastCapacity4(): Unit = {
     val bh = new BinaryHeap[Int](4)
     bh.insert(1, 0)
     bh.insert(2, 0)
@@ -289,7 +289,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def growPastCapacity32() {
+  def growPastCapacity32(): Unit = {
     val bh = new BinaryHeap[Int](32)
     for (i <- 0 to 32)
       bh.insert(i, 0)
@@ -297,7 +297,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def shrinkCapacity() {
+  def shrinkCapacity(): Unit = {
     val bh = new BinaryHeap[Int](8)
     val trace = new BoxedArrayBuilder[String]()
     trace += bh.toString()
@@ -353,13 +353,13 @@ class BinaryHeapSuite {
       max
     }
 
-    def insert(t: Long, rank: Long) {
+    def insert(t: Long, rank: Long): Unit = {
       m += (t -> rank)
     }
   }
 
   @Test
-  def sameAsReferenceImplementation() {
+  def sameAsReferenceImplementation(): Unit = {
     import Gen._
 
     val ops = for {
@@ -410,7 +410,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def tieBreakingDoesntChangeExistingFunctionality() {
+  def tieBreakingDoesntChangeExistingFunctionality(): Unit = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, -10)
     assert(bh.contains(1) == true)
@@ -442,7 +442,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def tieBreakingHappens() {
+  def tieBreakingHappens(): Unit = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, -10)
     assert(bh.contains(1) == true)
@@ -474,7 +474,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def tieBreakingThreeWayDeterministic() {
+  def tieBreakingThreeWayDeterministic(): Unit = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, -5)
     assert(bh.contains(1) == true)
@@ -508,7 +508,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def tieBreakingThreeWayNonDeterministic() {
+  def tieBreakingThreeWayNonDeterministic(): Unit = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(0, -5)
     assert(bh.contains(0) == true)
@@ -542,7 +542,7 @@ class BinaryHeapSuite {
   }
 
   @Test
-  def tieBreakingAfterPriorityChange() {
+  def tieBreakingAfterPriorityChange(): Unit = {
     val bh = new BinaryHeap[Int](maybeTieBreaker = evensFirst)
     bh.insert(1, 15)
     bh.insert(2, 10)

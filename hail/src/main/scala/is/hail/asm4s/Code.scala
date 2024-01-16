@@ -5,9 +5,10 @@ import is.hail.lir
 import is.hail.lir.{Block, ControlX, ValueX}
 import is.hail.utils._
 
+import scala.reflect.ClassTag
+
 import java.io.PrintStream
 import java.lang.reflect
-import scala.reflect.ClassTag
 
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type

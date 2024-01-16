@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.log4j.{LogManager, Logger}
 
 object LogHelper {
   // exposed more directly for generated code
@@ -25,11 +25,11 @@ trait Logging {
     consoleLogger
   }
 
-  def info(msg: String) {
+  def info(msg: String): Unit = {
     consoleLog.info(msg)
   }
 
-  def info(msg: String, t: Truncatable) {
+  def info(msg: String, t: Truncatable): Unit = {
     val (screen, logged) = t.strings
     if (screen == logged)
       consoleLog.info(format(msg, screen))
@@ -40,11 +40,11 @@ trait Logging {
     }
   }
 
-  def warn(msg: String) {
+  def warn(msg: String): Unit = {
     consoleLog.warn(msg)
   }
 
-  def warn(msg: String, t: Truncatable) {
+  def warn(msg: String, t: Truncatable): Unit = {
     val (screen, logged) = t.strings
     if (screen == logged)
       consoleLog.warn(format(msg, screen))
@@ -55,7 +55,7 @@ trait Logging {
     }
   }
 
-  def error(msg: String) {
+  def error(msg: String): Unit = {
     consoleLog.error(msg)
   }
 }

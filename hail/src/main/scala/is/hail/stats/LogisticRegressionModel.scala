@@ -30,11 +30,11 @@ abstract class GLMTest extends Serializable {
 }
 
 abstract class GLMStats {
-  def addToRVB(rvb: RegionValueBuilder)
+  def addToRVB(rvb: RegionValueBuilder): Unit
 }
 
 class GLMTestResult[+T <: GLMStats](val stats: Option[T], private val size: Int) {
-  def addToRVB(rvb: RegionValueBuilder) {
+  def addToRVB(rvb: RegionValueBuilder): Unit = {
     stats match {
       case Some(s) => s.addToRVB(rvb)
       case None => rvb.skipFields(size)
@@ -47,7 +47,7 @@ class GLMTestResultWithFit[T <: GLMStats](
   private val size: Int,
   val fitStats: GLMFit,
 ) extends GLMTestResult[T](stats, size) {
-  override def addToRVB(rvb: RegionValueBuilder) {
+  override def addToRVB(rvb: RegionValueBuilder): Unit = {
     super.addToRVB(rvb)
     fitStats.addToRVB(rvb)
   }
@@ -87,8 +87,8 @@ object WaldTest extends GLMTest {
 
         Some(WaldStats(fit.b, se, z, p))
       } catch {
-        case e: breeze.linalg.MatrixSingularException => None
-        case e: breeze.linalg.NotConvergedException => None
+        case _: breeze.linalg.MatrixSingularException => None
+        case _: breeze.linalg.NotConvergedException => None
       }
     } else
       None
@@ -255,8 +255,8 @@ object LogisticScoreTest extends GLMTest {
 
         Some(ScoreStats(chi2, p))
       } catch {
-        case e: breeze.linalg.MatrixSingularException => None
-        case e: breeze.linalg.NotConvergedException => None
+        case _: breeze.linalg.MatrixSingularException => None
+        case _: breeze.linalg.NotConvergedException => None
       }
     }
 
@@ -346,8 +346,8 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
           fisher := X.t * (X(::, *) *:* (mu *:* (1d - mu)))
         }
       } catch {
-        case e: breeze.linalg.MatrixSingularException => exploded = true
-        case e: breeze.linalg.NotConvergedException => exploded = true
+        case _: breeze.linalg.MatrixSingularException => exploded = true
+        case _: breeze.linalg.NotConvergedException => exploded = true
       }
     }
 
@@ -389,8 +389,8 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
           b += deltaB
         }
       } catch {
-        case e: breeze.linalg.MatrixSingularException => exploded = true
-        case e: breeze.linalg.NotConvergedException => exploded = true
+        case _: breeze.linalg.MatrixSingularException => exploded = true
+        case _: breeze.linalg.NotConvergedException => exploded = true
       }
     }
 

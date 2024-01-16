@@ -16,7 +16,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def _asIdent = s"array_of_${elementType.asIdent}"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("PCArray[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
@@ -125,7 +125,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
 
-  def setElementMissing(aoff: Long, i: Int) {
+  def setElementMissing(aoff: Long, i: Int): Unit = {
     if (!elementRequired)
       Region.setBit(aoff + lengthHeaderBytes, i)
   }
@@ -135,7 +135,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     cb += Region.setBit(aoff + lengthHeaderBytes, i.toL)
   }
 
-  def setElementPresent(aoff: Long, i: Int) {
+  def setElementPresent(aoff: Long, i: Int): Unit = {
     if (!elementRequired)
       Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
@@ -235,21 +235,21 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
-  private def writeMissingness(aoff: Long, length: Int, value: Byte) {
+  private def writeMissingness(aoff: Long, length: Int, value: Byte): Unit = {
     Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
   }
 
-  def setAllMissingBits(aoff: Long, length: Int) {
+  def setAllMissingBits(aoff: Long, length: Int): Unit = {
     if (!elementRequired)
       writeMissingness(aoff, length, -1)
   }
 
-  def clearMissingBits(aoff: Long, length: Int) {
+  def clearMissingBits(aoff: Long, length: Int): Unit = {
     if (!elementRequired)
       writeMissingness(aoff, length, 0)
   }
 
-  def initialize(aoff: Long, length: Int, setMissing: Boolean = false) {
+  def initialize(aoff: Long, length: Int, setMissing: Boolean = false): Unit = {
     Region.storeInt(aoff, length)
     if (setMissing)
       setAllMissingBits(aoff, length)
@@ -374,7 +374,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  def deepPointerCopy(sm: HailStateManager, region: Region, dstAddress: Long) {
+  def deepPointerCopy(sm: HailStateManager, region: Region, dstAddress: Long): Unit = {
     if (!this.elementType.containsPointers) {
       return
     }
@@ -727,7 +727,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     annotation match {
       case uis: UnsafeIndexedSeq =>
         this.unstagedStoreAtAddress(sm, addr, region, uis.t, uis.aoff, region.ne(uis.region))
-      case is: IndexedSeq[Annotation] =>
+      case _: IndexedSeq[Annotation] =>
         Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
     }
 
@@ -744,7 +744,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     aoff: Value[Long],
   )(
     f: (EmitCodeBuilder, Value[Int], SValue) => Unit
-  ) {
+  ): Unit = {
     val length = cb.memoize(loadLength(aoff))
     val elementsAddress = cb.memoize(firstElementOffset(aoff))
     val idx = cb.newLocal[Int]("foreach_pca_idx", 0)

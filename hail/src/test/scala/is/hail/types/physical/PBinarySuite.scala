@@ -1,13 +1,9 @@
 package is.hail.types.physical
-
-import is.hail.HailSuite
-import is.hail.annotations.Annotation
-
 import org.testng.annotations.Test
 
 class PBinarySuite extends PhysicalTestUtils {
-  @Test def testCopy() {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false) {
+  @Test def testCopy(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalString(),
         PCanonicalString(),

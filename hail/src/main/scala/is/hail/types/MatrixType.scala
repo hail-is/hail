@@ -6,10 +6,9 @@ import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString}
-
-import org.apache.spark.sql.Row
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format =>
       (
@@ -149,12 +148,12 @@ case class MatrixType(
     "g" -> entryType,
   )
 
-  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
+  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
     var indent = indent0
 
     val space: String = if (compact) "" else " "
 
-    def newline() {
+    def newline(): Unit = {
       if (!compact) {
         sb += '\n'
         sb.append(" " * indent)
@@ -217,14 +216,14 @@ case class MatrixType(
     .bind("va" -> rowType)
     .bind("g" -> entryType)
 
-  def requireRowKeyVariant() {
+  def requireRowKeyVariant(): Unit = {
     val rowKeyTypes = rowKeyStruct.types
     rowKey.zip(rowKeyTypes) match {
       case Seq(("locus", TLocus(_)), ("alleles", TArray(TString))) =>
     }
   }
 
-  def requireColKeyString() {
+  def requireColKeyString(): Unit = {
     colKeyStruct.types match {
       case Array(TString) =>
     }

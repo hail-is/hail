@@ -1,11 +1,6 @@
 package is.hail.utils
-
-import is.hail.utils._
-
-import java.io.InputStream
-import java.io.OutputStream
-import java.net.HttpURLConnection
-import java.net.URL
+import java.io.{InputStream, OutputStream}
+import java.net.{HttpURLConnection, URL}
 import java.nio.charset.StandardCharsets
 
 import org.apache.commons.io.output.ByteArrayOutputStream

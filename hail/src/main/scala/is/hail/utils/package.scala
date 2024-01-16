@@ -3,12 +3,14 @@ package is.hail
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.io.fs.{FileListEntry, FS}
+import is.hail.io.fs.{FS, FileListEntry}
 
-import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
-import org.json4s.JsonAST.{JArray, JString}
-import org.json4s.jackson.Serialization
-import org.json4s.reflect.TypeInfo
+import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
+import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable.ArrayBuffer
+import scala.language.higherKinds
+import scala.reflect.ClassTag
+import scala.util.{Failure, Success, Try}
 
 import java.io._
 import java.lang.reflect.Method
@@ -17,12 +19,6 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.{Base64, Date}
 import java.util.concurrent.ExecutorService
-import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
-import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.ArrayBuffer
-import scala.language.{higherKinds, implicitConversions}
-import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
 
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
@@ -32,6 +28,10 @@ import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
+import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
+import org.json4s.JsonAST.{JArray, JString}
+import org.json4s.jackson.Serialization
+import org.json4s.reflect.TypeInfo
 
 package utils {
   trait Truncatable {
@@ -129,7 +129,7 @@ package object utils
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
     maxSizeMB: Int = 128,
-  ) {
+  ): Unit = {
     if (!forceGZ && !gzAsBGZ)
       fatal(
         s"""Cannot load file '${fileListEntry.getPath}'
@@ -175,7 +175,7 @@ package object utils
     math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
   }
 
-  def simpleAssert(p: Boolean) {
+  def simpleAssert(p: Boolean): Unit = {
     if (!p) throw new AssertionError
   }
 
@@ -551,11 +551,11 @@ package object utils
 
   def roundWithConstantSum(a: Array[Double]): Array[Int] = {
     val withFloors = a.zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
-    val totalFractional = (withFloors.map { case (i, orig, floor) => orig - floor }.sum + 0.5).toInt
+    val totalFractional = (withFloors.map { case (_, orig, floor) => orig - floor }.sum + 0.5).toInt
     withFloors
       .sortBy { case (_, orig, floor) => floor - orig }
       .zipWithIndex
-      .map { case ((i, orig, floor), iSort) =>
+      .map { case ((i, orig, _), iSort) =>
         if (iSort < totalFractional)
           (i, math.ceil(orig))
         else
@@ -804,7 +804,7 @@ package object utils
   ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
     val grouped = kvs.groupBy(x => keyBy(x._1))
 
-    val dupes = grouped.filter { case (k, m) => m.size != 1 }
+    val dupes = grouped.filter { case (_, m) => m.size != 1 }
 
     if (dupes.nonEmpty) {
       Left(dupes.map { case (k, m) => k -> m.map(_._1) })
@@ -815,7 +815,7 @@ package object utils
     }
   }
 
-  def dumpClassLoader(cl: ClassLoader) {
+  def dumpClassLoader(cl: ClassLoader): Unit = {
     System.err.println(s"ClassLoader ${cl.getClass.getCanonicalName}:")
     cl match {
       case cl: URLClassLoader =>

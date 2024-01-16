@@ -7,7 +7,6 @@ import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
 import org.json4s._
-import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 class TableTypeSerializer extends CustomSerializer[TableType](format =>
@@ -54,12 +53,12 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
   lazy val valueType: TStruct = TableType.valueType(rowType, key)
   def valueFieldIdx: Array[Int] = canonicalRVDType.valueFieldIdx
 
-  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
+  def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
     var indent = indent0
 
     val space: String = if (compact) "" else " "
 
-    def newline() {
+    def newline(): Unit = {
       if (!compact) {
         sb += '\n'
         sb.append(" " * indent)
