@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{BackendContext, ExecuteContext, HailTaskContext}
-import is.hail.expr.ir
 import is.hail.expr.ir.Emit.letBindingsMustNotBeOfTypeTStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{
@@ -865,7 +864,7 @@ class Emit[C](
           env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
             letBindingsMustNotBeOfTypeTStream(name, ir.typ)
             val value = emitI(ir, env = newEnv)
-            newEnv.bind(name, cb.memoize(value, s"let_$name"))
+            newEnv.bind(name, cb.memoizeField(value, s"let_$name"))
           },
         )
 
@@ -3579,7 +3578,7 @@ class Emit[C](
             env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
               letBindingsMustNotBeOfTypeTStream(name, ir.typ)
               val value = emitI(ir, cb, env = newEnv)
-              newEnv.bind(name, cb.memoize(value, s"let_$name"))
+              newEnv.bind(name, cb.memoizeField(value, s"let_$name"))
             },
           )
         }

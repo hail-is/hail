@@ -372,7 +372,7 @@ object EmitStream {
           env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
             Emit.letBindingsMustNotBeOfTypeTStream(name, ir.typ)
             val value = emit(ir, cb, env = newEnv)
-            newEnv.bind(name, cb.memoize(value, s"let_$name"))
+            newEnv.bind(name, cb.memoizeField(value, s"let_$name"))
           },
         )
 
