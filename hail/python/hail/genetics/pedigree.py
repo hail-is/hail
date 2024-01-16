@@ -225,7 +225,7 @@ class Pedigree(object):
                     )
                 (fam, kid, dad, mom, sex, _) = tuple(split_line)
                 # 1 is male, 2 is female, 0 is unknown.
-                is_female = sex == "2" if sex == "1" or sex == "2" else None
+                is_female = sex == "2" if sex in {'1', '2'} else None
 
                 if is_female is None:
                     missing_sex_count += 1

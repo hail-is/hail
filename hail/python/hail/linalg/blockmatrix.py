@@ -1157,11 +1157,11 @@ class BlockMatrix(object):
             Sparse block matrix.
         """
         if isinstance(starts, np.ndarray):
-            if not (starts.dtype == np.int32 or starts.dtype == np.int64):
+            if starts.dtype not in {np.int32, np.int64}:
                 raise ValueError("sparsify_row_intervals: starts ndarray must have dtype 'int32' or 'int64'")
             starts = [int(s) for s in starts]
         if isinstance(stops, np.ndarray):
-            if not (stops.dtype == np.int32 or stops.dtype == np.int64):
+            if stops.dtype not in {np.int32, np.int64}:
                 raise ValueError("sparsify_row_intervals: stops ndarray must have dtype 'int32' or 'int64'")
             stops = [int(s) for s in stops]
 
@@ -1717,7 +1717,7 @@ class BlockMatrix(object):
         if axis is None:
             bmir = BlockMatrixAgg(self._bmir, [0, 1])
             return BlockMatrix(bmir)[0, 0]
-        elif axis == 0 or axis == 1:
+        elif axis in {0, 1}:
             out_index_expr = [axis]
 
             bmir = BlockMatrixAgg(self._bmir, out_index_expr)
@@ -2558,7 +2558,7 @@ def _shape_after_broadcast(left, right):
     """
 
     def join_dim(l_size, r_size):
-        if not (l_size == r_size or l_size == 1 or r_size == 1):
+        if l_size != r_size or 1 not in {l_size, r_size}:
             raise ValueError(f'Incompatible shapes for broadcasting: {left}, {right}')
 
         return max(l_size, r_size)
