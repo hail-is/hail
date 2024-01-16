@@ -1,5 +1,4 @@
 .PHONY: jars clean
-.POSIX: # https://github.com/hail-is/hail/pull/14138#issuecomment-1894411324
 
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -351,10 +350,14 @@ upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
 	# # If hailtop.aiotools.copy gives you trouble:
 	# gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
 	# gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
-	python3 -m hailtop.aiotools.copy -vvv 'null' '[\
-             {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
-             {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
-        ]' --timeout 600
+	python3 -m hailtop.aiotools.copy \
+            -vvv \
+            'null' \
+            "[\
+              {\"from\":\"src/test/resources\",\"to\":\"$(CLOUD_HAIL_TEST_RESOURCES_DIR)\"}, \
+              {\"from\":\"python/hail/docs/data\",\"to\":\"$(CLOUD_HAIL_DOCTEST_DATA_DIR)\"} \
+             ]" \
+            --timeout 600
 	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
