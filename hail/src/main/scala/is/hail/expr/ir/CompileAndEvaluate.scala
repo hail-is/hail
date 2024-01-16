@@ -57,13 +57,7 @@ object CompileAndEvaluate {
 
       ctx.scopedExecution { (hcl, fs, htc, r) =>
         val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
-        try
-          ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
-        catch {
-          case e: Exception =>
-            log.info(s"Error while executing void IR:\n${Pretty(ctx, ir)}")
-            throw e
-        }
+        ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
       }
       return Left(())
     }

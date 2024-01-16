@@ -33,14 +33,14 @@ object ForwardLets {
           val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
             val rewriteValue = rewrite(value, env).asInstanceOf[IR]
             if (
-              rewriteValue.typ != TVoid && shouldForward(
-                rewriteValue,
-                refs.filter(_.t.name == name),
-                l,
-              )
-            )
+              rewriteValue.typ != TVoid
+              && shouldForward(rewriteValue, refs.filter(_.t.name == name), l)
+            ) {
               env.bindEval(name -> rewriteValue)
-            else { keep += (name -> rewriteValue); env }
+            } else {
+              keep += (name -> rewriteValue)
+              env
+            }
           }
 
           val newBody = rewrite(body, newEnv).asInstanceOf[IR]
