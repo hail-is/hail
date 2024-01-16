@@ -26,6 +26,7 @@ from prometheus_async.aio.web import server_stats
 
 from gear import (
     AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
     Database,
     K8sCache,
     Transaction,
@@ -1611,8 +1612,8 @@ SELECT instance_id, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    app['client_session'] = httpx.client_session()
-    exit_stack.push_async_callback(app['client_session'].close)
+    app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
 
     app['driver'] = await get_cloud_driver(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
     exit_stack.push_async_callback(app['driver'].shutdown)
