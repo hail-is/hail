@@ -193,6 +193,7 @@ DROP TABLE IF EXISTS `job_groups`;
 CREATE TABLE IF NOT EXISTS `job_groups` (
   `batch_id` BIGINT NOT NULL,
   `job_group_id` INT NOT NULL,
+  `update_id` INT DEFAULT NULL,
   `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT,
   `cancel_after_n_failures` INT DEFAULT NULL,
@@ -202,13 +203,15 @@ CREATE TABLE IF NOT EXISTS `job_groups` (
   `time_completed` BIGINT,
   `callback` VARCHAR(255),
   PRIMARY KEY (`batch_id`, `job_group_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `job_groups_user_state` ON `job_groups` (`user`, `state`);  # used to get cancelled job groups by user
 CREATE INDEX `job_groups_state_callback` ON `job_groups` (`batch_id`, `state`, `callback`);  # used in callback on job group completion
 CREATE INDEX `job_groups_time_created` ON `job_groups` (`batch_id`, `time_created`);  # used in list job groups and UI
 CREATE INDEX `job_groups_time_completed` ON `job_groups` (`batch_id`, `time_completed`);  # used in list job groups and UI
 CREATE INDEX `job_groups_state_cancel_after_n_failures` ON `job_groups` (`state`, `cancel_after_n_failures`);  # used in cancelling any cancel fast job groups
+CREATE INDEX `job_groups_batch_id_update_id` ON `job_groups` (`batch_id`, `update_id`);
 
 DROP TABLE IF EXISTS `job_group_self_and_ancestors`;
 CREATE TABLE IF NOT EXISTS `job_group_self_and_ancestors` (
