@@ -2298,9 +2298,9 @@ class Tests(unittest.TestCase):
             (f0 == fnull, None, tbool),
             (f0 < fnull, None, tbool),
             (f0 != fnull, None, tbool),
-            (fnan == fnan, False, tbool),
-            (f0 == f0, True, tbool),
-            (finf == finf, True, tbool),
+            (fnan == fnan, False, tbool),  # noqa: PLR0124
+            (f0 == f0, True, tbool),  # noqa: PLR0124
+            (finf == finf, True, tbool),  # noqa: PLR0124
             (f0 < finf, True, tbool),
             (f0 > finf, False, tbool),
             (fnan <= finf, False, tbool),
