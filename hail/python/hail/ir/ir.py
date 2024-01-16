@@ -1,55 +1,56 @@
-from typing import Callable, Optional, TypeVar, cast
-from typing_extensions import ParamSpec
 import base64
 import copy
 import json
 from collections import defaultdict
+from typing import Callable, Optional, TypeVar, cast
 
-from hailtop.hail_decorator import decorator
+from typing_extensions import ParamSpec
 
 import hail
 from hail.expr.types import (
     HailType,
     hail_type,
-    tint32,
-    tint64,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
     tfloat32,
     tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tstream,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
     tndarray,
+    trngstate,
     tset,
-    tdict,
+    tstr,
+    tstream,
     tstruct,
     ttuple,
-    tinterval,
     tvoid,
-    trngstate,
-    tlocus,
-    tcall,
 )
-from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
+from hail.ir.blockmatrix_writer import BlockMatrixMultiWriter, BlockMatrixWriter
 from hail.typecheck import (
-    typecheck,
-    typecheck_method,
-    sequenceof,
-    numeric,
-    sized_tupleof,
-    nullable,
-    tupleof,
     anytype,
     func_spec,
+    nullable,
+    numeric,
+    sequenceof,
+    sized_tupleof,
+    tupleof,
+    typecheck,
+    typecheck_method,
 )
 from hail.utils.java import Env, HailUserError
 from hail.utils.jsonx import dump_json
-from hail.utils.misc import escape_str, parsable_strings, escape_id
-from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
-from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
-from .renderer import Renderer, Renderable, ParensRenderer
+from hail.utils.misc import escape_id, escape_str, parsable_strings
+from hailtop.hail_decorator import decorator
+
+from .base_ir import IR, BaseIR, BlockMatrixIR, MatrixIR, TableIR, _env_bind
+from .matrix_writer import MatrixNativeMultiWriter, MatrixWriter
+from .renderer import ParensRenderer, Renderable, Renderer
 from .table_writer import TableWriter
-from .utils import default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
+from .utils import default_col_uid, default_row_uid, unpack_col_uid, unpack_row_uid
 
 
 class I32(IR):

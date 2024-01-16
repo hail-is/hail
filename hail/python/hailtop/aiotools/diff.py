@@ -1,15 +1,15 @@
-from typing import Optional, Tuple, TypeVar, List
 import argparse
 import asyncio
-import orjson
 import logging
 import sys
-
 from concurrent.futures import ThreadPoolExecutor
+from typing import List, Optional, Tuple, TypeVar
+
+import orjson
 
 from ..utils.rich_progress_bar import SimpleCopyToolProgressBar, SimpleCopyToolProgressBarTask
-from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
+from .router_fs import RouterAsyncFS
 
 try:
     import uvloop

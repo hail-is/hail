@@ -1,13 +1,14 @@
 import subprocess
-
-from typing import Optional, List, Annotated as Ann
+from typing import Annotated as Ann
+from typing import List, Optional
 
 import typer
-from typer import Option as Opt, Argument as Arg
+from typer import Argument as Arg
+from typer import Option as Opt
 
-from .start import start as hdinsight_start, VepVersion
+from .start import VepVersion
+from .start import start as hdinsight_start
 from .submit import submit as hdinsight_submit
-
 
 app = typer.Typer(
     name='hdinsight',

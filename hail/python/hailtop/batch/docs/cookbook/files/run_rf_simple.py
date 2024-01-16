@@ -1,8 +1,10 @@
+from typing import Tuple
+
+import pandas as pd
+from sklearn.ensemble import RandomForestRegressor
+
 import hailtop.batch as hb
 import hailtop.fs as hfs
-import pandas as pd
-from typing import Tuple
-from sklearn.ensemble import RandomForestRegressor
 
 
 def random_forest(df_x_path: str, df_y_path: str, window_name: str, cores: int = 1) -> Tuple[str, float, float]:

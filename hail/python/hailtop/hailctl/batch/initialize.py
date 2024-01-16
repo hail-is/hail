@@ -1,8 +1,8 @@
 from typing import List, Optional, Tuple
-import typer
 
-from typer import Abort, Exit
+import typer
 from rich.prompt import Confirm, IntPrompt, Prompt
+from typer import Abort, Exit
 
 from hailtop.config import ConfigVariable
 
@@ -227,9 +227,11 @@ async def async_basic_initialize(verbose: bool = False):
     from hailtop.auth import async_get_userinfo  # pylint: disable=import-outside-toplevel
     from hailtop.batch_client.aioclient import BatchClient  # pylint: disable=import-outside-toplevel
     from hailtop.config.deploy_config import get_deploy_config  # pylint: disable=import-outside-toplevel
+    from hailtop.hailctl.config.cli import (
+        list as list_config,
+    )
     from hailtop.hailctl.config.cli import (  # pylint: disable=import-outside-toplevel
         set as set_config,
-        list as list_config,
     )
 
     from .utils import already_logged_into_service, login_to_service  # pylint: disable=import-outside-toplevel

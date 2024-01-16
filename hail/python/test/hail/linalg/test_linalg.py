@@ -1,13 +1,14 @@
-import pytest
 import math
-import numpy as np
-import hail as hl
-
 from contextlib import contextmanager
 
+import numpy as np
+import pytest
+
+import hail as hl
 from hail.expr.expressions import ExpressionException
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, HailUserError
+
 from ..helpers import *
 
 

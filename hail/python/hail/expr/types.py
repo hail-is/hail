@@ -1,10 +1,10 @@
-from typing import Union
 import abc
+import builtins
 import json
 import math
-from collections.abc import Mapping, Sequence
 import pprint
-import builtins
+from collections.abc import Mapping, Sequence
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -13,16 +13,15 @@ import hail as hl
 from hailtop.frozendict import frozendict
 from hailtop.hail_frozenlist import frozenlist
 
+from .. import genetics
+from ..genetics.reference_genome import reference_genome_type
+from ..typecheck import nullable, oneof, transformed, typecheck, typecheck_method
+from ..utils.byte_reader import ByteReader, ByteWriter
+from ..utils.java import escape_parsable
+from ..utils.misc import lookup_bit
+from ..utils.struct import Struct
 from .nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_node_visitor
-from .. import genetics
-from ..typecheck import typecheck, typecheck_method, oneof, transformed, nullable
-from ..utils.struct import Struct
-from ..utils.byte_reader import ByteReader, ByteWriter
-from ..utils.misc import lookup_bit
-from ..utils.java import escape_parsable
-from ..genetics.reference_genome import reference_genome_type
-
 
 __all__ = [
     'dtype',
@@ -1017,7 +1016,7 @@ class tstream(HailType):
 
 
 def is_setlike(maybe_setlike):
-    return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
+    return isinstance(maybe_setlike, (frozenset, set))
 
 
 class tset(HailType):
@@ -2282,17 +2281,13 @@ def is_primitive(t) -> bool:
 
 @typecheck(t=HailType)
 def is_container(t) -> bool:
-    return isinstance(t, tarray) or isinstance(t, tset) or isinstance(t, tdict)
+    return isinstance(t, (tarray, tdict, tset))
 
 
 @typecheck(t=HailType)
 def is_compound(t) -> bool:
     return (
-        is_container(t)
-        or isinstance(t, tstruct)
-        or isinstance(t, tunion)
-        or isinstance(t, ttuple)
-        or isinstance(t, tndarray)
+        isinstance(t, (tndarray, tstruct, ttuple, tunion))
     )
 
 

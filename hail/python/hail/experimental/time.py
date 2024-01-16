@@ -1,5 +1,5 @@
 import hail as hl
-from hail.expr.expressions import expr_str, expr_int64
+from hail.expr.expressions import expr_int64, expr_str
 from hail.expr.functions import _func
 from hail.typecheck import typecheck
 

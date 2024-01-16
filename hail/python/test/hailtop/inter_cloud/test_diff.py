@@ -1,15 +1,16 @@
-from typing import Tuple, AsyncIterator, Dict
-import secrets
-import os
 import asyncio
-import pytest
 import functools
+import os
+import secrets
+from typing import AsyncIterator, Dict, Tuple
 
+import pytest
+
+from hailtop.aiotools.diff import DiffException, diff
 from hailtop.aiotools.fs import AsyncFS
-from hailtop.frozendict import frozendict
-from hailtop.aiotools.diff import diff, DiffException
-from hailtop.utils import bounded_gather2
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.frozendict import frozendict
+from hailtop.utils import bounded_gather2
 
 
 @pytest.fixture(scope='module')

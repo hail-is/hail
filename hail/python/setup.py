@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 import os
-import re
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 with open('hail/hail_pip_version') as f:
     hail_pip_version = f.read().strip()

@@ -1,5 +1,5 @@
 import hail as hl
-from hail.typecheck import typecheck, numeric
+from hail.typecheck import numeric, typecheck
 
 
 @typecheck(mt=hl.MatrixTable, n_rounds=int, generation_size_multiplier=numeric, keep_founders=bool)

@@ -1,8 +1,8 @@
-import os
-
 import itertools
 import math
+import os
 import re
+
 import numpy as np
 import scipy.linalg as spla
 
@@ -11,62 +11,62 @@ import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.expressions import (
-    expr_float64,
-    matrix_table_source,
-    expr_ndarray,
-    raise_unless_entry_indexed,
-    expr_tuple,
     expr_array,
+    expr_float64,
     expr_int32,
     expr_int64,
+    expr_ndarray,
+    expr_tuple,
+    matrix_table_source,
+    raise_unless_entry_indexed,
 )
 from hail.ir import (
-    BlockMatrixWrite,
-    BlockMatrixMap2,
-    ApplyBinaryPrimOp,
     F64,
-    BlockMatrixBroadcast,
-    ValueToBlockMatrix,
-    BlockMatrixRead,
-    BlockMatrixMap,
+    ApplyBinaryPrimOp,
     ApplyUnaryPrimOp,
-    BlockMatrixDot,
-    BlockMatrixCollect,
-    tensor_shape_to_matrix_shape,
+    BandSparsifier,
     BlockMatrixAgg,
-    BlockMatrixRandom,
-    BlockMatrixToValueApply,
-    BlockMatrixToTable,
+    BlockMatrixBroadcast,
+    BlockMatrixCollect,
+    BlockMatrixDensify,
+    BlockMatrixDot,
     BlockMatrixFilter,
-    TableFromBlockMatrixNativeReader,
-    TableRead,
+    BlockMatrixMap,
+    BlockMatrixMap2,
+    BlockMatrixRandom,
+    BlockMatrixRead,
     BlockMatrixSlice,
     BlockMatrixSparsify,
-    BlockMatrixDensify,
+    BlockMatrixToTable,
+    BlockMatrixToValueApply,
+    BlockMatrixWrite,
+    ExportType,
+    PerBlockSparsifier,
     RectangleSparsifier,
     RowIntervalSparsifier,
-    BandSparsifier,
-    PerBlockSparsifier,
+    TableFromBlockMatrixNativeReader,
+    TableRead,
+    ValueToBlockMatrix,
+    tensor_shape_to_matrix_shape,
 )
-from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
+from hail.ir.blockmatrix_reader import BlockMatrixBinaryReader, BlockMatrixNativeReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
-from hail.ir import ExportType
 from hail.table import Table
 from hail.typecheck import (
+    enumeration,
+    func_spec,
+    lazy,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
+    sized_tupleof,
+    sliceof,
+    tupleof,
     typecheck,
     typecheck_method,
-    nullable,
-    oneof,
-    sliceof,
-    sequenceof,
-    lazy,
-    enumeration,
-    numeric,
-    tupleof,
-    func_spec,
-    sized_tupleof,
 )
-from hail.utils import new_temp_file, local_path_uri, storage_level, with_local_temp_file, new_local_temp_file
+from hail.utils import local_path_uri, new_local_temp_file, new_temp_file, storage_level, with_local_temp_file
 from hail.utils.java import Env
 
 block_matrix_type = lazy()
@@ -2549,7 +2549,7 @@ block_matrix_type.set(BlockMatrix)
 
 
 def _is_scalar(x):
-    return isinstance(x, float) or isinstance(x, int)
+    return isinstance(x, (float, int))
 
 
 def _shape_after_broadcast(left, right):

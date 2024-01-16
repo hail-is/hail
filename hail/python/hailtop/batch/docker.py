@@ -1,7 +1,7 @@
+import os
 import shutil
 import sys
-import os
-from typing import Optional, List
+from typing import List, Optional
 
 from ..utils import secret_alnum_string, sync_check_exec
 

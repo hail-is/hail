@@ -20,15 +20,16 @@ Features:
 @author: nbaya
 """
 
-import hail as hl
-from hail.typecheck import typecheck, oneof, nullable
-from hail.expr.expressions import expr_float64, expr_int32, expr_array, expr_call
-from hail.matrixtable import MatrixTable
-from hail.table import Table
-from hail.utils.java import Env
 import numpy as np
 import pandas as pd
-import scipy.stats as stats
+from scipy import stats
+
+import hail as hl
+from hail.expr.expressions import expr_array, expr_call, expr_float64, expr_int32
+from hail.matrixtable import MatrixTable
+from hail.table import Table
+from hail.typecheck import nullable, oneof, typecheck
+from hail.utils.java import Env
 
 
 @typecheck(

@@ -2,10 +2,9 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.utils.misc import new_temp_file
-from ..helpers import *
 from hail.methods.qc import VEPConfigGRCh37Version85, VEPConfigGRCh38Version95
 
+from ..helpers import *
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
@@ -361,10 +360,10 @@ class Tests(unittest.TestCase):
         )
         hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch38_95, csq=True)
 
-        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('\|')[:8])).rows()
+        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split(r'\|')[:8])).rows()
 
         actual = (
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('\|')[:8]))
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split(r'\|')[:8]))
             .rows()
             .drop('vep_csq_header')
         )

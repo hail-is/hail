@@ -1,5 +1,5 @@
 import abc
-from typing import Optional, Set, cast, Union
+from typing import Optional, Set, Union, cast
 
 from . import job  # pylint: disable=cyclic-import
 from .exceptions import BatchException

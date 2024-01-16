@@ -2,11 +2,11 @@ from typing import Sequence
 
 import hail as hl
 from hail import ir
-from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str, expr_bool
+from hail.expr import expr_any, expr_array, expr_bool, expr_interval, expr_locus, expr_str
 from hail.matrixtable import MatrixTable
 from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration, func_spec, dictof
+from hail.typecheck import dictof, enumeration, func_spec, nullable, oneof, sequenceof, typecheck
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
@@ -231,7 +231,7 @@ def sample_qc(
     else:
         ref_dp_field_to_use = dp_field
 
-    from hail.expr.functions import _num_allele_type, _allele_types
+    from hail.expr.functions import _allele_types, _num_allele_type
 
     allele_types = _allele_types[:]
     allele_types.extend(['Transition', 'Transversion'])

@@ -1,12 +1,12 @@
 import hail as hl
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.types import tarray
-from .blockmatrix_reader import BlockMatrixReader
-from .base_ir import BlockMatrixIR, IR
-from hail.typecheck import typecheck_method, sequenceof, nullable
+from hail.typecheck import nullable, sequenceof, typecheck_method
+from hail.utils.java import Env
 from hail.utils.misc import escape_id
 
-from hail.utils.java import Env
+from .base_ir import IR, BlockMatrixIR
+from .blockmatrix_reader import BlockMatrixReader
 
 
 class BlockMatrixRead(BlockMatrixIR):

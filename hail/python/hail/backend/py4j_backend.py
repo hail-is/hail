@@ -1,24 +1,23 @@
-from typing import Mapping, Set, Tuple
 import abc
+import http.client
 import socket
 import socketserver
 import sys
 from threading import Thread
+from typing import Mapping, Set, Tuple
 
 import orjson
-import requests
 import py4j
+import requests
 from py4j.java_gateway import JavaObject, JVMView
 
 import hail
 from hail.expr import construct_expr
 from hail.ir import JavaIR
-from hail.utils.java import FatalError, Env, scala_package_object
+from hail.utils.java import Env, FatalError, scala_package_object
 
-from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
 from ..hail_logging import Logger
-
-import http.client
+from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
 
 # This defaults to 65536 and fails if a header is longer than _MAXLINE
 # The timing json that we output can exceed 65536 bytes so we raise the limit

@@ -1,13 +1,12 @@
 import abc
 import math
-
 from typing import Dict, Tuple
-
-from .geoms import FigureAttribute
-from .utils import n_partitions
 
 import hail as hl
 from hail import Expression, StructExpression
+
+from .geoms import FigureAttribute
+from .utils import n_partitions
 
 
 def vars(*args: Expression) -> StructExpression:

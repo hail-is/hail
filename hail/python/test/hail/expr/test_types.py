@@ -1,11 +1,11 @@
-from typing import Optional
 import unittest
+from typing import Optional
 
 from hail.expr import coercer_from_dtype
 from hail.expr.types import *
-from hail.genetics import reference_genome
-from ..helpers import *
 from hail.utils.java import Env
+
+from ..helpers import *
 
 
 class Tests(unittest.TestCase):

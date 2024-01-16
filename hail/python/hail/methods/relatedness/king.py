@@ -1,8 +1,6 @@
 import hail as hl
-
-from hail.expr.expressions import expr_call
-from hail.expr.expressions import matrix_table_source
-from hail.typecheck import typecheck, nullable
+from hail.expr.expressions import expr_call, matrix_table_source
+from hail.typecheck import nullable, typecheck
 from hail.utils import deduplicate
 from hail.utils.java import Env
 

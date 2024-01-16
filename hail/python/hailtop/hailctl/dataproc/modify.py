@@ -1,6 +1,5 @@
 import os.path
 import sys
-
 from typing import List, Optional
 
 from . import gcloud

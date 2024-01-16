@@ -1,6 +1,7 @@
 import unittest
 
 from hail.genetics import *
+
 from ..helpers import *
 
 

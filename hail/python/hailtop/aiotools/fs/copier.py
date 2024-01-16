@@ -1,22 +1,22 @@
-from typing import Any, AsyncIterator, Awaitable, Optional, List, Union, Dict, Callable, Tuple
-import os
-import os.path
 import asyncio
 import functools
+import os
+import os.path
+from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple, Union
+
 import humanize
 
-
 from ...utils import (
+    bounded_gather2,
+    humanize_timedelta_msecs,
     retry_transient_errors,
+    time_msecs,
     url_basename,
     url_join,
-    bounded_gather2,
-    time_msecs,
-    humanize_timedelta_msecs,
 )
 from ..weighted_semaphore import WeightedSemaphore
 from .exceptions import FileAndDirectoryError, UnexpectedEOFError
-from .fs import MultiPartCreate, FileStatus, AsyncFS, FileListEntry
+from .fs import AsyncFS, FileListEntry, FileStatus, MultiPartCreate
 
 
 class Transfer:

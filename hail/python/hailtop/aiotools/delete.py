@@ -1,13 +1,13 @@
-from typing import Iterator
-import sys
+import argparse
 import asyncio
 import logging
-import argparse
+import sys
 from concurrent.futures import ThreadPoolExecutor
+from typing import Iterator
 
-from .router_fs import RouterAsyncFS
-from ..utils.rich_progress_bar import SimpleCopyToolProgressBar
 from ..utils import grouped
+from ..utils.rich_progress_bar import SimpleCopyToolProgressBar
+from .router_fs import RouterAsyncFS
 
 
 async def delete(paths: Iterator[str]) -> None:

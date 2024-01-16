@@ -1,19 +1,20 @@
-from typing import Optional, Callable, Type, Union, List, Any, Iterable, AsyncGenerator
-from types import TracebackType
-from io import BytesIO
-import warnings
 import asyncio
 import concurrent.futures
-import dill
 import functools
+import warnings
+from io import BytesIO
+from types import TracebackType
+from typing import Any, AsyncGenerator, Callable, Iterable, List, Optional, Type, Union
 
-from hailtop.utils import secret_alnum_string, partition, async_to_blocking
+import dill
+
 import hailtop.batch_client.aioclient as low_level_batch_client
-from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.batch_client.parse import parse_cpu_in_mcpu
+from hailtop.utils import async_to_blocking, partition, secret_alnum_string
 
+from .backend import HAIL_GENETICS_HAIL_IMAGE, ServiceBackend
 from .batch import Batch
-from .backend import ServiceBackend, HAIL_GENETICS_HAIL_IMAGE
 
 
 def cpu_spec_to_float(spec: Union[int, str]) -> float:

@@ -1,10 +1,12 @@
-import pytest
 from random import randint
+
+import pytest
 
 import hail as hl
 from hail.genetics import *
-from ..helpers import *
 from hail.utils import FatalError
+
+from ..helpers import *
 
 
 @qobtest

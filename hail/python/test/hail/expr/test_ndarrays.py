@@ -1,10 +1,12 @@
 import math
-import numpy as np
 import re
-from ..helpers import *
+
+import numpy as np
 import pytest
 
 from hail.utils.java import FatalError, HailUserError
+
+from ..helpers import *
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):

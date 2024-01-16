@@ -1,6 +1,6 @@
-from typing import Dict, NamedTuple, Optional, Any
 import json
 import os
+from typing import Any, Dict, NamedTuple, Optional
 
 
 class SQLConfig(NamedTuple):

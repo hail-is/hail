@@ -1,10 +1,11 @@
-from typing import Dict, Any, Optional
 import abc
+from typing import Any, Dict, Optional
+
 import numpy as np
 import plotly.graph_objects as go
 
 from .aes import aes
-from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction, StatCDF
+from .stats import StatBin, StatCDF, StatCount, StatFunction, StatIdentity, StatNone
 from .utils import bar_position_plotly_to_gg, linetype_plotly_to_gg
 
 

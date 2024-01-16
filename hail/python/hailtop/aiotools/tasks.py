@@ -1,7 +1,6 @@
-from typing import Callable, Set
 import asyncio
 import logging
-
+from typing import Callable, Set
 
 log = logging.getLogger('aiotools.tasks')
 

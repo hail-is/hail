@@ -1,39 +1,38 @@
-from typing import Optional, Dict, Any, TypeVar, Generic, List, Union, ClassVar
 import abc
 import asyncio
 import collections
-import orjson
+import copy
+import functools
 import os
 import subprocess as sp
-import uuid
 import time
-import functools
-import copy
-from shlex import quote as shq
-import webbrowser
+import uuid
 import warnings
+import webbrowser
+from shlex import quote as shq
+from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar, Union
+
+import orjson
 from rich.progress import track
 
-from hailtop import pip_version
-from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
-from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
-from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
-from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
-
-from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
-from hailtop.batch_client.client import BatchClient
-from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
-from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop import pip_version
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
+from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
+from hailtop.batch_client.client import BatchClient
+from hailtop.batch_client.parse import parse_cpu_in_mcpu
+from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
+from hailtop.utils import async_to_blocking, bounded_gather, parse_docker_image_reference, url_scheme
+from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
+from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
 
-from . import resource, batch  # pylint: disable=unused-import
-from .job import PythonJob
+from . import batch, resource  # pylint: disable=unused-import
 from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
-from hailtop.aiotools.validators import validate_file
-
+from .job import PythonJob
 
 HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
 HAIL_GENETICS_HAIL_IMAGE = (

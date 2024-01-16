@@ -1,109 +1,108 @@
-import operator
 import builtins
 import functools
-from typing import Union, Optional, Any, Callable, Iterable, TypeVar
-import pandas as pd
+import operator
+from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
+import numpy as np
+import pandas as pd
 from deprecated import deprecated
 
 import hail
 import hail as hl
+from hail import ir
 from hail.expr.expressions import (
-    Expression,
     ArrayExpression,
-    StreamExpression,
-    SetExpression,
-    Int32Expression,
-    Int64Expression,
-    Float32Expression,
-    Float64Expression,
-    DictExpression,
-    StructExpression,
-    LocusExpression,
-    StringExpression,
-    IntervalExpression,
     ArrayNumericExpression,
     BooleanExpression,
     CallExpression,
-    TupleExpression,
+    DictExpression,
+    Expression,
     ExpressionException,
+    Float32Expression,
+    Float64Expression,
+    Int32Expression,
+    Int64Expression,
+    IntervalExpression,
+    LocusExpression,
     NumericExpression,
-    unify_all,
-    construct_expr,
-    to_expr,
-    unify_exprs,
-    impute_type,
-    construct_variable,
+    SetExpression,
+    StreamExpression,
+    StringExpression,
+    StructExpression,
+    TupleExpression,
     apply_expr,
+    cast_expr,
     coercer_from_dtype,
-    unify_types_limited,
-    expr_array,
+    construct_expr,
+    construct_variable,
     expr_any,
-    expr_struct,
-    expr_int32,
-    expr_int64,
+    expr_array,
+    expr_bool,
+    expr_call,
+    expr_dict,
     expr_float32,
     expr_float64,
-    expr_oneof,
-    expr_bool,
-    expr_tuple,
-    expr_dict,
-    expr_str,
-    expr_stream,
-    expr_set,
-    expr_call,
-    expr_locus,
+    expr_int32,
+    expr_int64,
     expr_interval,
+    expr_locus,
     expr_ndarray,
     expr_numeric,
-    cast_expr,
+    expr_oneof,
+    expr_set,
+    expr_str,
+    expr_stream,
+    expr_struct,
+    expr_tuple,
+    impute_type,
+    to_expr,
+    unify_all,
+    unify_exprs,
+    unify_types_limited,
 )
 from hail.expr.types import (
     HailType,
     hail_type,
-    tint32,
-    tint64,
-    tfloat32,
-    tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tstream,
-    tset,
-    tdict,
-    tstruct,
-    tlocus,
-    tinterval,
-    tcall,
-    ttuple,
-    tndarray,
-    trngstate,
-    is_primitive,
-    is_numeric,
-    is_int32,
-    is_int64,
     is_float32,
     is_float64,
+    is_int32,
+    is_int64,
+    is_numeric,
+    is_primitive,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
+    tfloat32,
+    tfloat64,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
+    tndarray,
+    trngstate,
+    tset,
+    tstr,
+    tstream,
+    tstruct,
+    ttuple,
 )
-from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
-import hail.ir as ir
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import (
-    typecheck,
-    nullable,
+    anyfunc,
     anytype,
-    enumeration,
-    tupleof,
-    func_spec,
-    oneof,
     arg_check,
     args_check,
-    anyfunc,
+    enumeration,
+    func_spec,
+    nullable,
+    oneof,
     sequenceof,
+    tupleof,
+    typecheck,
 )
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
-
-import numpy as np
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
@@ -851,7 +850,7 @@ def dict(collection) -> DictExpression:
     -------
     :class:`.DictExpression`
     """
-    if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
+    if isinstance(collection.dtype, (tarray, tset)):
         key_type, value_type = collection.dtype.element_type.types
         return _func('dict', tdict(key_type, value_type), collection)
     else:
@@ -4406,7 +4405,7 @@ def len(x) -> Int32Expression:
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
+    if isinstance(x.dtype, (tstruct, ttuple)):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
         return apply_expr(lambda x: ir.Apply("length", tint32, x), tint32, x)
@@ -4707,7 +4706,7 @@ def abs(x):
     -------
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+    if isinstance(x.dtype, (tarray, tndarray)):
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
@@ -4744,7 +4743,7 @@ def sign(x):
     -------
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+    if isinstance(x.dtype, (tarray, tndarray)):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)
@@ -5062,7 +5061,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     """
 
     def list_shape(x):
-        if isinstance(x, list) or isinstance(x, builtins.tuple):
+        if isinstance(x, (builtins.tuple, list)):
             dim_len = builtins.len(x)
             if dim_len != 0:
                 first, rest = x[0], x[1:]
@@ -5080,7 +5079,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     def deep_flatten(es):
         result = []
         for e in es:
-            if isinstance(e, list) or isinstance(e, builtins.tuple):
+            if isinstance(e, (builtins.tuple, list)):
                 result.extend(deep_flatten(e))
             else:
                 result.append(e)
@@ -5108,7 +5107,7 @@ def _ndarray(collection, row_major=None, dtype=None):
         elif isinstance(collection, ArrayExpression):
             recursive_type = collection.dtype
             ndim = 0
-            while isinstance(recursive_type, tarray) or isinstance(recursive_type, tndarray):
+            while isinstance(recursive_type, (tarray, tndarray)):
                 recursive_type = recursive_type._element_type
                 ndim += 1
 
@@ -5134,7 +5133,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     else:
         if isinstance(collection, np.ndarray):
             return hl.literal(collection)
-        elif isinstance(collection, list) or isinstance(collection, builtins.tuple):
+        elif isinstance(collection, (builtins.tuple, list)):
             shape = list_shape(collection)
             data = deep_flatten(collection)
         else:

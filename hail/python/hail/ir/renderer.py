@@ -1,7 +1,8 @@
-from hail import ir
 import abc
-from typing import Sequence, MutableSequence, List, Set, Dict, Optional
 from collections import namedtuple
+from typing import Dict, List, MutableSequence, Optional, Sequence, Set
+
+from hail import ir
 
 
 class Renderable(object):

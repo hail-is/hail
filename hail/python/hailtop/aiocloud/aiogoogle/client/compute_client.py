@@ -1,6 +1,7 @@
-import uuid
-from typing import Mapping, Any, Optional, MutableMapping, List, Dict
 import logging
+import uuid
+from typing import Any, Dict, List, Mapping, MutableMapping, Optional
+
 import aiohttp
 
 from hailtop.utils import retry_transient_errors, sleep_before_try

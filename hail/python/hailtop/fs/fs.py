@@ -1,6 +1,6 @@
 import abc
-from typing import List
 import io
+from typing import List
 
 from .stat_result import FileListEntry
 

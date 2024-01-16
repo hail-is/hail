@@ -1,5 +1,5 @@
 from hail.expr.nat import NatVariable
-from hail.expr.types import dtype, tvariable, tarray, tint32, tint64, tfloat32, tfloat64, tndarray
+from hail.expr.types import dtype, tarray, tfloat32, tfloat64, tint32, tint64, tndarray, tvariable
 
 from .ir import register_function, register_seeded_function
 

@@ -1,6 +1,7 @@
-from enum import Enum
-import os
 import json
+import os
+from enum import Enum
+
 import typer
 
 app = typer.Typer(

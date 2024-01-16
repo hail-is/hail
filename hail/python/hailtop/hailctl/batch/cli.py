@@ -1,27 +1,27 @@
 import asyncio
-from enum import Enum
-import typer
-from typer import Option as Opt, Argument as Arg
 import json
+from enum import Enum
+from typing import Annotated as Ann
+from typing import Any, Dict, List, Optional, cast
 
-from typing import Optional, List, Annotated as Ann, cast, Dict, Any
+import typer
+from typer import Argument as Arg
+from typer import Option as Opt
 
-from . import list_batches
-from . import billing
-from .initialize import async_basic_initialize
+from . import billing, list_batches
 from . import submit as _submit
 from .batch_cli_utils import (
-    get_batch_if_exists,
-    get_job_if_exists,
-    make_formatter,
+    ExtendedOutputFormat,
+    ExtendedOutputFormatOption,
     StructuredFormat,
     StructuredFormatOption,
     StructuredFormatPlusText,
     StructuredFormatPlusTextOption,
-    ExtendedOutputFormat,
-    ExtendedOutputFormatOption,
+    get_batch_if_exists,
+    get_job_if_exists,
+    make_formatter,
 )
-
+from .initialize import async_basic_initialize
 
 app = typer.Typer(
     name='batch',

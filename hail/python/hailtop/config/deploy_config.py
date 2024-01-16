@@ -1,9 +1,9 @@
-from typing import Dict, Optional, TypeVar, Union
-import os
 import json
 import logging
-from ..utils import first_extant_file
+import os
+from typing import Dict, Optional, TypeVar, Union
 
+from ..utils import first_extant_file
 from .user_config import get_user_config
 
 log = logging.getLogger('deploy_config')

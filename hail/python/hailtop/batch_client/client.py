@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional
 
-from hailtop.utils import async_to_blocking, ait_to_blocking
+from hailtop.utils import ait_to_blocking, async_to_blocking
+
+from .. import httpx
 from ..config import DeployConfig
 from . import aioclient
-from .. import httpx
 
 
 class Job:

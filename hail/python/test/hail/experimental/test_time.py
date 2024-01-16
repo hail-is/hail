@@ -1,7 +1,6 @@
-import pytest
-from ..helpers import *
-
 import hail.experimental.time as htime
+
+from ..helpers import *
 
 
 def test_strftime():

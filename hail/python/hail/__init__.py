@@ -1,6 +1,7 @@
-from typing import Optional
-import pkg_resources
 import sys
+from typing import Optional
+
+import pkg_resources
 
 if sys.version_info < (3, 9):
     raise EnvironmentError(
@@ -31,64 +32,66 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # F403 'from .expr import *' used; unable to detect undefined names
 # F401 '.expr.*' imported but unused
 # E402 module level import not at top of file
-from .expr import *  # noqa: E402, F403
-from .expr import aggregators  # noqa: E402
 from hail.utils import (  # noqa: E402
-    Struct,
-    Interval,
-    hadoop_copy,
-    hadoop_open,
-    hadoop_ls,
-    hadoop_stat,
-    hadoop_exists,
-    hadoop_is_file,
-    hadoop_is_dir,
-    hadoop_scheme_supported,
-    copy_log,
     ANY_REGION,
+    Interval,
+    Struct,
+    copy_log,
+    hadoop_copy,
+    hadoop_exists,
+    hadoop_is_dir,
+    hadoop_is_file,
+    hadoop_ls,
+    hadoop_open,
+    hadoop_scheme_supported,
+    hadoop_stat,
 )
-from .table import Table, GroupedTable, asc, desc  # noqa: E402
-from .matrixtable import MatrixTable, GroupedMatrixTable  # noqa: E402
-from .genetics import *  # noqa: F403, E402
-from .methods import *  # noqa: F403, E402
-from . import expr  # noqa: E402
-from . import genetics  # noqa: E402
-from . import methods  # noqa: E402
-from . import stats  # noqa: E402
-from . import linalg  # noqa: E402
-from . import plot  # noqa: E402
-from . import ggplot  # noqa: E402
-from . import experimental  # noqa: E402
-from . import ir  # noqa: E402
-from . import backend  # noqa: E402
-from . import nd  # noqa: E402
-from . import utils  # noqa: E402
-from . import vds  # noqa: E402
 
+from . import (
+    backend,
+    experimental,
+    expr,
+    genetics,
+    ggplot,
+    ir,
+    linalg,
+    methods,
+    nd,
+    plot,
+    stats,
+    utils,
+    vds,
+)
 from .context import (  # noqa: E402
-    init,
-    init_local,
-    init_batch,
-    stop,
-    spark_context,
-    tmp_dir,
-    default_reference,
-    get_reference,
-    set_global_seed,
-    reset_global_randomness,
-    _set_flags,
-    _get_flags,
-    _with_flags,
+    TemporaryDirectory,
+    TemporaryFilename,
     _async_current_backend,
-    current_backend,
-    debug_info,
+    _get_flags,
+    _set_flags,
+    _with_flags,
     citation,
     cite_hail,
     cite_hail_bibtex,
+    current_backend,
+    debug_info,
+    default_reference,
+    get_reference,
+    init,
+    init_batch,
+    init_local,
+    reset_global_randomness,
+    set_global_seed,
+    spark_context,
+    stop,
+    tmp_dir,
     version,
-    TemporaryFilename,
-    TemporaryDirectory,
 )
+from .expr import *  # noqa: E402, F403
+from .expr import aggregators  # noqa: E402
+from .genetics import *  # noqa: F403, E402
+from .matrixtable import GroupedMatrixTable, MatrixTable  # noqa: E402
+from .methods import *  # noqa: F403, E402
+from .table import GroupedTable, Table, asc, desc  # noqa: E402
 
 agg = aggregators
 scan = aggregators.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})

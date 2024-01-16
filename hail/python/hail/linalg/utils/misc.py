@@ -1,8 +1,8 @@
 import numpy as np
 
 import hail as hl
-from hail.typecheck import typecheck, oneof, nullable
-from hail.expr.expressions import expr_locus, expr_float64, raise_unless_row_indexed
+from hail.expr.expressions import expr_float64, expr_locus, raise_unless_row_indexed
+from hail.typecheck import nullable, oneof, typecheck
 from hail.utils.java import Env
 
 
@@ -48,7 +48,7 @@ def array_windows(a, radius):
         raise ValueError("array_windows: 'a' must be 1-dimensional")
     if not (np.issubdtype(a.dtype, np.signedinteger) or np.issubdtype(a.dtype, np.floating)):
         raise ValueError(
-            f"array_windows: 'a' must be an ndarray of signed integer or float values, " f"found dtype {str(a.dtype)}"
+            f"array_windows: 'a' must be an ndarray of signed integer or float values, " f"found dtype {a.dtype!s}"
         )
 
     size = a.size

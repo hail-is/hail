@@ -1,15 +1,17 @@
 import re
 import unittest
+from test.hail.helpers import *
+
 import numpy as np
 from numpy.testing import assert_array_equal
+
 import hail as hl
-import hail.ir as ir
-from hail.ir.renderer import CSERenderer
+from hail import ir
 from hail.expr import construct_expr
 from hail.expr.types import tint32
-from hail.utils.java import Env
+from hail.ir.renderer import CSERenderer
 from hail.utils import new_temp_file
-from test.hail.helpers import *
+from hail.utils.java import Env
 
 
 class ValueIRTests(unittest.TestCase):

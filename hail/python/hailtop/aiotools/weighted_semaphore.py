@@ -1,7 +1,8 @@
-from typing import Optional, Type
-from sortedcontainers import SortedKeyList
-from types import TracebackType
 import asyncio
+from types import TracebackType
+from typing import Optional, Type
+
+from sortedcontainers import SortedKeyList
 
 
 class _AcquireManager:

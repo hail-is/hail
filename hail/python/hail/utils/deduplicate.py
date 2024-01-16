@@ -1,4 +1,4 @@
-from typing import Tuple, Optional, Iterable, List
+from typing import Iterable, List, Optional, Tuple
 
 
 def deduplicate(

@@ -1,5 +1,6 @@
-import hail as hl
 import numpy as np
+
+import hail as hl
 
 x = np.random.randn(100, 100)
 x_bm = hl.linalg.BlockMatrix.from_numpy(x, 8)

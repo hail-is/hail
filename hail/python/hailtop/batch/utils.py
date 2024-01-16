@@ -1,11 +1,10 @@
 import math
-
 from typing import List, Optional
 
-from ..utils.utils import grouped, digits_needed
+from ..utils.utils import digits_needed, grouped
 from .batch import Batch
 from .exceptions import BatchException
-from .resource import ResourceGroup, ResourceFile
+from .resource import ResourceFile, ResourceGroup
 
 
 def concatenate(

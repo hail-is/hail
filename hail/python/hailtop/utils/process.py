@@ -1,6 +1,6 @@
-from typing import Tuple, List
 import asyncio
 import subprocess
+from typing import List, Tuple
 
 from .utils import async_to_blocking
 

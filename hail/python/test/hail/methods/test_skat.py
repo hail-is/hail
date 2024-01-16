@@ -1,9 +1,9 @@
-import hail as hl
 import pytest
 
+import hail as hl
 from hail.utils import FatalError, HailUserError
 
-from ..helpers import resource, test_timeout, qobtest
+from ..helpers import qobtest, resource, test_timeout
 
 
 @pytest.mark.parametrize("skat_model", [('hl._linear_skat', hl._linear_skat), ('hl._logistic_skat', hl._logistic_skat)])

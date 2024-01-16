@@ -1,12 +1,14 @@
 from typing import Tuple
+
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.expr import expr_call, expr_float64
 from hail.genetics.pedigree import Pedigree
 from hail.matrixtable import MatrixTable
-from hail.expr import expr_call, expr_float64
 from hail.table import Table
-from hail.typecheck import typecheck, numeric
+from hail.typecheck import numeric, typecheck
 from hail.utils.java import Env
+
 from .misc import require_biallelic, require_col_key_str
 
 

@@ -3,7 +3,6 @@ from typer.testing import CliRunner
 
 from hailtop.hailctl.dataproc import cli
 
-
 runner = CliRunner(mix_stderr=False)
 
 
@@ -126,7 +125,7 @@ def test_requester_pays_mode_configuration(gcloud_run, requester_pays_arg, expec
 def test_requester_pays_buckets_configuration(gcloud_run):
     runner.invoke(cli.app, ['start', 'test-cluster', '--requester-pays-allow-buckets=foo,bar'])
     properties = next(arg for arg in gcloud_run.call_args[0][0] if arg.startswith("--properties="))
-    assert f"spark:spark.hadoop.fs.gs.requester.pays.buckets=foo,bar" in properties
+    assert "spark:spark.hadoop.fs.gs.requester.pays.buckets=foo,bar" in properties
 
 
 @pytest.mark.parametrize(

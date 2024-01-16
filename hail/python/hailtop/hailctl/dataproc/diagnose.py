@@ -1,8 +1,7 @@
-import re
 import json
-
+import re
+from subprocess import PIPE, Popen, call
 from typing import List, Optional
-from subprocess import call, Popen, PIPE
 
 
 def diagnose(

@@ -1,6 +1,7 @@
 from collections.abc import Mapping
-from hail.expr import Expression
+
 from hail import literal
+from hail.expr import Expression
 
 
 class Aesthetic(Mapping):

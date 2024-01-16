@@ -9,43 +9,43 @@ from avro.io import DatumReader
 import hail as hl
 from hail import ir
 from hail.expr import (
-    StructExpression,
     LocusExpression,
-    expr_array,
-    expr_float64,
-    expr_str,
-    expr_numeric,
-    expr_call,
-    expr_bool,
-    expr_int32,
-    to_expr,
+    StructExpression,
     analyze,
+    expr_array,
+    expr_bool,
+    expr_call,
+    expr_float64,
+    expr_int32,
+    expr_numeric,
+    expr_str,
+    to_expr,
 )
-from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, tcall, tbool, tint64, tfloat32
+from hail.expr.types import hail_type, tarray, tbool, tcall, tfloat32, tfloat64, tint32, tint64, tstr, tstruct
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir.utils import parse_type
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
+from hail.methods.misc import require_biallelic, require_col_key_str, require_row_key_variant
 from hail.table import Table
 from hail.typecheck import (
-    typecheck,
-    nullable,
-    oneof,
-    dictof,
     anytype,
-    sequenceof,
-    enumeration,
-    sized_tupleof,
-    numeric,
-    table_key_type,
     char,
+    dictof,
+    enumeration,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
+    sized_tupleof,
+    table_key_type,
+    typecheck,
 )
 from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
-from hail.utils.java import info
-from hail.utils.misc import wrap_to_list, plural
-from .import_lines_helpers import split_lines, should_remove_line
+from hail.utils.java import Env, FatalError, info, jindexed_seq_args, warning
+from hail.utils.misc import plural, wrap_to_list
+
+from .import_lines_helpers import should_remove_line, split_lines
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end, reference_genome, skip_invalid_intervals):
@@ -1272,15 +1272,15 @@ def import_bgen(
 
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
-        if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
+        if isinstance(variants, (LocusExpression, StructExpression)):
             if isinstance(variants, LocusExpression):
                 variants = hl.struct(locus=variants)
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
                 raise TypeError(
                     "'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                    + f"\tFound: {repr(variants.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n"
+                    + f"\tFound: {variants.dtype!r}\n"
+                    + f"\tExpected: {expected_vtype!r}\n"
                 )
 
             uid = Env.get_uid()
@@ -1294,8 +1294,8 @@ def import_bgen(
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
                 raise TypeError(
                     "'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                    + f"\tFound: {repr(variants.key.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n"
+                    + f"\tFound: {variants.key.dtype!r}\n"
+                    + f"\tExpected: {expected_vtype!r}\n"
                 )
             variants = variants.select()
         else:
@@ -1317,7 +1317,7 @@ def import_bgen(
                             variants = hl.Table.parallelize(variants, schema=expected_vtype, key=['locus', 'alleles'])
             except Exception:
                 raise TypeError(
-                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}"
+                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {expected_vtype!r}"
                 )
 
         vir = variants._tir
@@ -1813,7 +1813,7 @@ def import_table(
         if renamings:
             hl.utils.warning(
                 f'import_table: renamed the following {plural("field", len(renamings))} to avoid name conflicts:'
-                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renamings)
+                + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renamings)
             )
 
     ht = ht.annotate(
@@ -2210,7 +2210,7 @@ def import_matrix_table(
                 row_fields_string = '\n'.join(
                     list(
                         it.starmap(
-                            lambda row_field, row_type: f"      '{row_field}': {str(row_type)}", row_fields.items()
+                            lambda row_field, row_type: f"      '{row_field}': {row_type!s}", row_fields.items()
                         )
                     )
                 )
@@ -2276,7 +2276,7 @@ def import_matrix_table(
             hl.missing(hail_type),
             hl.case()
             .when(~hl.is_missing(parsed_type), parsed_type)
-            .or_error(error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)),
+            .or_error(error_msg(row, idx, f"error parsing value into {hail_type!s}" + error_clarify_msg)),
         )
 
     num_of_row_fields = len(row_fields.keys())
@@ -2306,7 +2306,7 @@ def import_matrix_table(
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError(
                 f'import_matrix_table expects field types to be one of:'
-                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'"
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {k!r} had type '{v}'"
             )
 
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:

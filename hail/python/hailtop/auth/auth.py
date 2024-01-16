@@ -1,21 +1,22 @@
-from typing import Any, Optional, Dict, Tuple, List
+import json
+import os
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from enum import Enum
-import os
-import json
+from typing import Any, Dict, List, Optional, Tuple
+
 import aiohttp
 
 from hailtop import httpx
-from hailtop.aiocloud.common.credentials import CloudCredentials
-from hailtop.aiocloud.common import Session
-from hailtop.aiocloud.aiogoogle import GoogleCredentials
 from hailtop.aiocloud.aioazure import AzureCredentials
-from hailtop.config import get_deploy_config, DeployConfig, get_user_identity_config_path
+from hailtop.aiocloud.aiogoogle import GoogleCredentials
+from hailtop.aiocloud.common import Session
+from hailtop.aiocloud.common.credentials import CloudCredentials
+from hailtop.config import DeployConfig, get_deploy_config, get_user_identity_config_path
 from hailtop.utils import async_to_blocking, retry_transient_errors
 
-from .tokens import get_tokens, Tokens
-from .flow import GoogleFlow, AzureFlow
+from .flow import AzureFlow, GoogleFlow
+from .tokens import Tokens, get_tokens
 
 
 class IdentityProvider(Enum):

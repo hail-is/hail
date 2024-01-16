@@ -1,6 +1,6 @@
 import hail as hl
 
-from ...helpers import resource, skip_when_service_backend, test_timeout, skip_when_service_backend_in_azure, qobtest
+from ...helpers import qobtest, resource, skip_when_service_backend, skip_when_service_backend_in_azure, test_timeout
 
 
 @test_timeout(local=6 * 60, batch=14 * 60)

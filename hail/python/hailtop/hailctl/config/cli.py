@@ -1,15 +1,15 @@
 import os
 import sys
-
-from typing import Optional, Tuple, Annotated as Ann
-from rich import print
+from typing import Annotated as Ann
+from typing import Optional, Tuple
 
 import typer
+from rich import print
 from typer import Argument as Arg
 
 from hailtop.config.variables import ConfigVariable
-from .config_variables import config_variables
 
+from .config_variables import config_variables
 
 app = typer.Typer(
     name='config',

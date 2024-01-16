@@ -1,7 +1,7 @@
 import hail as hl
-from hail.expr.expressions import expr_float64, expr_numeric, analyze
-from hail.typecheck import typecheck, oneof, sequenceof, nullable
-from hail.utils import wrap_to_list, new_temp_file
+from hail.expr.expressions import analyze, expr_float64, expr_numeric
+from hail.typecheck import nullable, oneof, sequenceof, typecheck
+from hail.utils import new_temp_file, wrap_to_list
 
 
 @typecheck(

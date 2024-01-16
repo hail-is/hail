@@ -1,9 +1,8 @@
 import pprint
 
-from hail.typecheck import typecheck_method, sequenceof
-from hail.utils.java import escape_parsable
 from hail.expr.types import dtype, tstruct
-from hail.utils.java import jiterable_to_list
+from hail.typecheck import sequenceof, typecheck_method
+from hail.utils.java import escape_parsable, jiterable_to_list
 
 
 class tmatrix(object):

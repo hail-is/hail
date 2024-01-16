@@ -1,10 +1,11 @@
-import orjson
 import os
 import re
 from shlex import quote as shq
-from hailtop import pip_version
 from typing import Tuple
 
+import orjson
+
+from hailtop import pip_version
 
 FILE_REGEX = re.compile(r'(?P<src>[^:]+)(:(?P<dest>.+))?')
 
@@ -13,9 +14,9 @@ async def submit(name, image_name, files, output, script, arguments):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
     from hailtop.config import (  # pylint: disable=import-outside-toplevel
+        get_deploy_config,
         get_remote_tmpdir,
         get_user_config_path,
-        get_deploy_config,
     )
     from hailtop.utils import (  # pylint: disable=import-outside-toplevel
         secret_alnum_string,

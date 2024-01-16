@@ -2,14 +2,14 @@ from typing import List, Tuple
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr.expressions import construct_expr
-from hail.expr import expr_float64, expr_call, raise_unless_entry_indexed, matrix_table_source
 from hail import ir
+from hail.experimental import mt_to_table_of_ndarray
+from hail.expr import expr_call, expr_float64, matrix_table_source, raise_unless_entry_indexed
+from hail.expr.expressions import construct_expr
 from hail.table import Table
-from hail.typecheck import typecheck, oneof, nullable
+from hail.typecheck import nullable, oneof, typecheck
 from hail.utils import FatalError
 from hail.utils.java import Env, info
-from hail.experimental import mt_to_table_of_ndarray
 
 
 def hwe_normalize(call_expr):
