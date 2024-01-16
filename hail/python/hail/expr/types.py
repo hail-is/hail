@@ -2286,9 +2286,7 @@ def is_container(t) -> bool:
 
 @typecheck(t=HailType)
 def is_compound(t) -> bool:
-    return (
-        isinstance(t, (tndarray, tstruct, ttuple, tunion))
-    )
+    return isinstance(t, (tndarray, tstruct, ttuple, tunion))
 
 
 def types_match(left, right) -> bool:

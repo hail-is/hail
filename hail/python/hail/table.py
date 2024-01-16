@@ -277,9 +277,7 @@ class GroupedTable(ExprContainer):
             Aggregated table.
         """
         for name, expr in named_exprs.items():
-            analyze(
-                f'GroupedTable.aggregate: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis}
-            )
+            analyze(f'GroupedTable.aggregate: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis})
         if not named_exprs.keys().isdisjoint(set(self._key_expr)):
             intersection = set(named_exprs.keys()) & set(self._key_expr)
             raise ValueError(
@@ -3761,25 +3759,21 @@ class Table(ExprContainer):
 
         is_same = True
         if mismatched_globals is not None:
-            print(
-                f"""Table._same: globals differ:
+            print(f"""Table._same: globals differ:
     Left:
 {pretty(mismatched_globals.left_globals)}
     Right:
-{pretty(mismatched_globals.right_globals)}"""
-            )
+{pretty(mismatched_globals.right_globals)}""")
             is_same = False
 
         if len(mismatched_rows) > 0:
             print('Table._same: rows differ:')
             for r in mismatched_rows:
-                print(
-                    f"""  Row mismatch at key={r.key}:
+                print(f"""  Row mismatch at key={r.key}:
     Left:
 {pretty(r.left_row)}
     Right:
-{pretty(r.right_row)}"""
-                )
+{pretty(r.right_row)}""")
             is_same = False
 
         return is_same

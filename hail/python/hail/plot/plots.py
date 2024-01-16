@@ -971,7 +971,9 @@ def _get_scatter_plot_elements(
             _key = key if len(factor_cols) > 1 else [key]
             cds_view = CDSView(
                 filter=IntersectionFilter(
-                    operands=[GroupFilter(column_name=factor_cols[i], group=_key[i]) for i in range(0, len(factor_cols))]
+                    operands=[
+                        GroupFilter(column_name=factor_cols[i], group=_key[i]) for i in range(0, len(factor_cols))
+                    ]
                 )
             )
             renderer = sp.circle(

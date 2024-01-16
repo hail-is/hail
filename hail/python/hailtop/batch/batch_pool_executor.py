@@ -364,8 +364,7 @@ class BatchPoolExecutor:
         j.env("NUMEXPR_NUM_THREADS", thread_limit)
 
         j.command('set -ex')
-        j.command(
-            f'''python3 -c "
+        j.command(f'''python3 -c "
 import base64
 import dill
 import traceback
@@ -377,8 +376,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
         print(\\"BatchPoolExecutor encountered an exception:\\")
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), out, recurse=True)
-"'''
-        )
+"''')
         output_gcs = self.outputs + f'{name}/output'
         batch.write_output(j.ofile, output_gcs)
         sync_batch = batch.run(wait=False, disable_progress_bar=True)

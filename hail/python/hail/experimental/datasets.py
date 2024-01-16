@@ -99,9 +99,7 @@ def load_dataset(
 
     clouds = set(k for dataset in datasets[name]['versions'] for k in dataset['url'].keys())
     if cloud not in clouds:
-        raise ValueError(
-            f'Cloud platform {cloud!r} not available for dataset {name}.\nAvailable platforms: {clouds}.'
-        )
+        raise ValueError(f'Cloud platform {cloud!r} not available for dataset {name}.\nAvailable platforms: {clouds}.')
 
     regions = set(k for dataset in datasets[name]['versions'] for k in dataset['url'][cloud].keys())
     if region not in regions:

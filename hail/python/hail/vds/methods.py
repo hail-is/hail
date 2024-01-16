@@ -709,7 +709,9 @@ def _parameterized_filter_intervals(vds: 'VariantDataset', intervals, keep: bool
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval',
         )
-        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end', next(iter(par_intervals.key)))
+        ref = segment_reference_blocks(reference_data, par_intervals).drop(
+            'interval_end', next(iter(par_intervals.key))
+        )
         return VariantDataset(ref, hl.filter_intervals(vds.variant_data, intervals, keep))
 
 

@@ -370,7 +370,9 @@ class Tests(unittest.TestCase):
         )
         hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch38_95, csq=True)
 
-        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split(r'\|')[:8])).rows()
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split(r'\|')[:8])
+        ).rows()
 
         actual = (
             hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split(r'\|')[:8]))

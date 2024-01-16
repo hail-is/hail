@@ -1144,9 +1144,7 @@ class PLINKTests(unittest.TestCase):
             reference_genome='GRCh38',
         )
 
-        hl.ReferenceGenome(
-            "random", ['1', '23', '24', '25', '26'], {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10}
-        )
+        hl.ReferenceGenome("random", ['1', '23', '24', '25', '26'], {'1': 10, '23': 10, '24': 10, '25': 10, '26': 10})
 
         hl.import_plink(
             resource('sex_mt_contigs.bed'),

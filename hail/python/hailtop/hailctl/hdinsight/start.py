@@ -205,8 +205,7 @@ def start(
     time.sleep(10)
     put_jupyter(start)
 
-    print(
-        f"""Your cluster is ready.
+    print(f"""Your cluster is ready.
 Web username: admin
 Web password: {http_password}
 Jupyter URL: https://{cluster_name}.azurehdinsight.net/jupyter/tree
@@ -216,5 +215,4 @@ SSH password: {sshuser_password}
 SSH domain name: {cluster_name}-ssh.azurehdinsight.net
 
 Use the "Python3 (ipykernel)" kernel.
-"""
-    )
+""")

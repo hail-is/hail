@@ -38,8 +38,7 @@ async def _async_validate_file(
         if location not in fs.allowed_storage_locations:
             if not await fs.is_hot_storage(location):
                 raise ValueError(
-                    dedent(
-                        f"""\
+                    dedent(f"""\
                         GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
                         '{uri}' would incur egress charges. Either
 
@@ -49,7 +48,6 @@ async def _async_validate_file(
 
                         * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
                           variable (https://hail.is/docs/0.2/configuration_reference.html).
-                        """
-                    )
+                        """)
                 )
             fs.allowed_storage_locations.append(location)

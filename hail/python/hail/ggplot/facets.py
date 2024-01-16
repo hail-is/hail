@@ -26,7 +26,9 @@ def vars(*args: Expression) -> StructExpression:
     return hl.struct(**{f"var_{i}": arg for i, arg in enumerate(args)})
 
 
-def facet_wrap(facets: StructExpression, *, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed") -> "FacetWrap":
+def facet_wrap(
+    facets: StructExpression, *, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed"
+) -> "FacetWrap":
     """Introduce a one dimensional faceting on specified fields.
 
     Parameters
@@ -77,7 +79,9 @@ class FacetWrap(Faceter):
         },
     }
 
-    def __init__(self, facets: StructExpression, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed"):
+    def __init__(
+        self, facets: StructExpression, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed"
+    ):
         if nrow is not None and ncol is not None:
             raise ValueError("Both `nrow` and `ncol` were specified. " "Please specify only one of these values.")
         if scales not in self._scale_mappings:
