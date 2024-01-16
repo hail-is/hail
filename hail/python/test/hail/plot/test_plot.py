@@ -37,11 +37,6 @@ def test_histogram2d():
     hl.plot.histogram2d(ht.idx, ht.col_idx)
 
 
-def test_histogram2d():
-    ht = hl.utils.range_table(100)
-    hl.plot.histogram2d(ht.idx, ht.idx * ht.idx)
-
-
 def test_scatter():
     ht = hl.utils.range_table(100)
     hl.plot.scatter(ht.idx, ht.idx * ht.idx)

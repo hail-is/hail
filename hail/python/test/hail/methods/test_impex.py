@@ -1994,14 +1994,6 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by('Chromosome', 'Position')
         assert 0.001 < abs(0.50965 - mt.aggregate_entries(hl.agg.mean(mt.x)))
 
-    def test_key_by_after_empty_key_import(self):
-        fields = {'Chromosome': hl.tstr, 'Position': hl.tint32, 'Ref': hl.tstr, 'Alt': hl.tstr}
-        mt = hl.import_matrix_table(
-            resource('sample2_va_nomulti.tsv'), row_fields=fields, row_key=[], entry_type=hl.tfloat
-        )
-        mt = mt.key_rows_by('Chromosome', 'Position')
-        mt._force_count_rows()
-
     @test_timeout(local=4 * 60)
     def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr, '': hl.tint32, 'ref': hl.tstr, 'alt': hl.tstr}
