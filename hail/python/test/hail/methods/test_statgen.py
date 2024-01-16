@@ -1611,7 +1611,7 @@ class Tests(unittest.TestCase):
     @skip_when_service_backend(reason='flaky, incorrect alleles in output')
     def test_balding_nichols_model_phased(self):
         bn_ds = hl.balding_nichols_model(1, 5, 5, phased=True)
-        assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) == True
+        assert bn_ds.aggregate_entries(hl.agg.all(bn_ds.GT.phased)) is True
         actual = bn_ds.GT.collect()
         self.assertListEqual(
             [c.alleles for c in actual],

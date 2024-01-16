@@ -1053,7 +1053,7 @@ def test_non_spot_job(backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is False
 
 
 def test_spot_unspecified_job(backend: ServiceBackend):
@@ -1062,7 +1062,7 @@ def test_spot_unspecified_job(backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is True
 
 
 def test_spot_true_job(backend: ServiceBackend):
@@ -1072,7 +1072,7 @@ def test_spot_true_job(backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is True
 
 
 def test_non_spot_batch(backend: ServiceBackend):
@@ -1086,9 +1086,9 @@ def test_non_spot_batch(backend: ServiceBackend):
     j3.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
-    assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
-    assert res.get_job(3).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is False
+    assert res.get_job(2).status()['spec']['resources']['preemptible'] is False
+    assert res.get_job(3).status()['spec']['resources']['preemptible'] is True
 
 
 def test_local_file_paths_error(backend: ServiceBackend):
