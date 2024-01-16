@@ -1450,7 +1450,6 @@ def import_gen(
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
-    contig_recoding = contig_recoding
     if contig_recoding is None:
         contig_recoding = hl.empty_dict(hl.tstr, hl.tstr)
     else:
