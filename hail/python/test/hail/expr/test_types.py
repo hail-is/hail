@@ -1,11 +1,31 @@
 import unittest
 from typing import Optional
 
+import hail as hl
 from hail.expr import coercer_from_dtype
-from hail.expr.types import *
+from hail.expr.types import (
+    HailType,
+    dtype,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
+    tfloat32,
+    tfloat64,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
+    tndarray,
+    tset,
+    tstr,
+    tstruct,
+    ttuple,
+    tunion,
+)
 from hail.utils.java import Env
 
-from ..helpers import *
+from ..helpers import fails_local_backend, resource, skip_unless_spark_backend, skip_when_service_backend
 
 
 class Tests(unittest.TestCase):

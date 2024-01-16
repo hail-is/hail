@@ -86,11 +86,11 @@ from .context import (  # noqa: E402
     tmp_dir,
     version,
 )
-from .expr import *  # noqa: E402
+from .expr import *  # noqa: E402, F403
 from .expr import aggregators  # noqa: E402
-from .genetics import *  # noqa: E402
+from .genetics import *  # noqa: E402, F403
 from .matrixtable import GroupedMatrixTable, MatrixTable  # noqa: E402
-from .methods import *  # noqa: E402
+from .methods import *  # noqa: E402, F403
 from .table import GroupedTable, Table, asc, desc  # noqa: E402
 
 agg = aggregators

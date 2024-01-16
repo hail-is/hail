@@ -3,10 +3,10 @@ from random import randint
 import pytest
 
 import hail as hl
-from hail.genetics import *
+from hail.genetics import ReferenceGenome
 from hail.utils import FatalError
 
-from ..helpers import *
+from ..helpers import qobtest, resource
 
 
 @qobtest
