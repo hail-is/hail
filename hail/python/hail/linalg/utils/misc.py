@@ -48,7 +48,7 @@ def array_windows(a, radius):
         raise ValueError("array_windows: 'a' must be 1-dimensional")
     if not (np.issubdtype(a.dtype, np.signedinteger) or np.issubdtype(a.dtype, np.floating)):
         raise ValueError(
-            f"array_windows: 'a' must be an ndarray of signed integer or float values, " f"found dtype {a.dtype!s}"
+            f"array_windows: 'a' must be an ndarray of signed integer or float values, " f"found dtype {a.dtype}"
         )
 
     size = a.size
