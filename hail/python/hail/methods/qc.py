@@ -1070,7 +1070,7 @@ def _service_vep(
         raise
 
     if status['n_succeeded'] != status['n_jobs']:
-        failing_job = [job for job in b.jobs('!success')][0]
+        failing_job = next(iter(b.jobs('!success')))
         failing_job = b.get_job(failing_job['job_id'])
         message = {'batch_status': status, 'job_status': failing_job.status(), 'log': failing_job.log()}
         raise FatalError(yamlx.dump(message))

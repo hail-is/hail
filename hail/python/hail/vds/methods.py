@@ -709,7 +709,7 @@ def _parameterized_filter_intervals(vds: 'VariantDataset', intervals, keep: bool
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval',
         )
-        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end', list(par_intervals.key)[0])
+        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end', next(iter(par_intervals.key)))
         return VariantDataset(ref, hl.filter_intervals(vds.variant_data, intervals, keep))
 
 
@@ -865,7 +865,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     -------
     :class:`.MatrixTable`
     """
-    interval_field = list(intervals.key)[0]
+    interval_field = next(iter(intervals.key))
     if not intervals[interval_field].dtype == hl.tinterval(ref.locus.dtype):
         raise ValueError(
             f"expect intervals to be keyed by intervals of loci matching the VariantDataset:"

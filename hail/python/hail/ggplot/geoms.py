@@ -174,7 +174,7 @@ class GeomPoint(Geom):
         non_empty_legend_groups = [
             legend_group
             for legend_group in legends.values()
-            if len(legend_group) > 1 or (len(legend_group) == 1 and list(legend_group.keys())[0] is not None)
+            if len(legend_group) > 1 or (len(legend_group) == 1 and next(iter(legend_group.keys())) is not None)
         ]
         dummy_legend = is_faceted or len(non_empty_legend_groups) >= 2
 
@@ -192,7 +192,7 @@ class GeomPoint(Geom):
             for trace in traces:
                 trace_categories = trace[-1]
                 if main_categories is not None:
-                    trace[-1] = [category for category in trace_categories if category in main_categories][0]
+                    trace[-1] = next(category for category in trace_categories if category in main_categories)
                 elif len(trace_categories) == 1:
                     trace[-1] = [trace_categories][0]
                 else:

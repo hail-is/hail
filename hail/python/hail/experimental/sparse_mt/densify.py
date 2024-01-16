@@ -21,7 +21,7 @@ def densify(sparse_mt):
     roughly costing as much as reading a matrix table created by importing a dense
     project VCF.
     """
-    if list(sparse_mt.row_key)[0] != 'locus' or not isinstance(sparse_mt.locus.dtype, hl.tlocus):
+    if next(iter(sparse_mt.row_key)) != 'locus' or not isinstance(sparse_mt.locus.dtype, hl.tlocus):
         raise ValueError("first row key field must be named 'locus' and have type 'locus'")
     if 'END' not in sparse_mt.entry or sparse_mt.END.dtype != hl.tint32:
         raise ValueError("'densify' requires 'END' entry field of type 'int32'")

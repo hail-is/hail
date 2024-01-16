@@ -489,4 +489,4 @@ def segment_intervals(ht, points):
         ),
     )
     ht = ht.annotate(__new_intervals=interval_results, lower=lower, higher=higher).explode('__new_intervals')
-    return ht.key_by(**{list(ht.key)[0]: ht.__new_intervals}).drop('__new_intervals')
+    return ht.key_by(**{next(iter(ht.key)): ht.__new_intervals}).drop('__new_intervals')
