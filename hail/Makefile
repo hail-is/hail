@@ -77,6 +77,9 @@ SHADOW_TEST_JAR := out/main/debug/test/assembly.dest/out.jar
 $(SHADOW_TEST_JAR):
 	$(mill) main[debug].test.assembly
 
+.PHONY: shadowTestJar
+shadowTestJar: $(SHADOW_TEST_JAR)
+
 EXTRA_CLASSPATH := out/main/debug/printRunClasspath.log
 .PHONY: $(EXTRA_CLASSPATH)
 $(EXTRA_CLASSPATH):

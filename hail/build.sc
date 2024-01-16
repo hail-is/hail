@@ -9,7 +9,7 @@ import mill.scalalib.scalafmt.ScalafmtModule
 import mill.util.Jvm
 
 def hailMajorMinorVersion = "0.2"
-def hailPatchVersion = "126"
+def hailPatchVersion = "127"
 
 /** Update the millw script. */
 def millw() = T.command {
@@ -88,16 +88,14 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
   def scalaPatchVersion: Task[String] = T.task {
     scalaVersion().stripPrefix("2.12")
   }
+
   def asmVersion = "7.3.1"
 
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
-    // needed in java8
-//    "-XDignore.symbol.file",
-    "-XDenableSunApiLintControl",
-    "-Xlint:-sunapi",
+    "-XDignore.symbol.file",
     "-Werror",
-    if (debugBuild) "-g" else "-O"
+    if (debugBuild) "-g" else "-O",
   )
 
   def coreCompilerFlags: Seq[String] = {
@@ -113,7 +111,7 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
 //        "-Xfatal-warnings",
         "-Xlint",
         "-Ywarn-unused:_,-explicits,-implicits",
-        "-Wconf:cat=unused-imports:info,any:ws",
+        "-Wconf:cat=unused-locals:w,cat=unused:info,any:ws",
       )
       else Seq(
 //        "-opt:l:inline",
@@ -149,9 +147,11 @@ object main extends Cross[MainModule]("debug", "release")
 trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
   override def millSourcePath = millOuterCtx.millSourcePath / os.up
 
-  override def sources = T.sources {
-    super.sources() :+ PathRef(millSourcePath / "src" / crossValue / "java")
-  }
+  override def moduleDeps = Seq(memory)
+
+//  override def sources = T.sources {
+//    super.sources() :+ PathRef(millSourcePath / "src" / crossValue / "java")
+//  }
 
   override def resources = T {
     super.resources() ++ Seq(
@@ -181,16 +181,16 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
     ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3".excludeOrg("org.apache.spark"),
     ivy"com.google.cloud:google-cloud-storage:2.30.1".excludeOrg("com.fasterxml.jackson.core"),
     ivy"net.java.dev.jna:jna:5.13.0",
+    ivy"org.json4s::json4s-jackson:3.7.0-M11".excludeOrg("com.fasterxml.jackson.core"),
+    ivy"com.github.luben:zstd-jni:1.5.5-11",
   )
 
   override def runIvyDeps = Agg(
     ivy"org.scalanlp::breeze-natives:1.1".excludeOrg("org.apache.commons.math3"),
-    ivy"com.github.luben:zstd-jni:1.5.5-11",
     ivy"commons-io:commons-io:2.11.0",
     ivy"org.apache.commons:commons-lang3:3.12.0",
     //    ivy"org.apache.commons:commons-math3:3.6.1",
     ivy"commons-codec:commons-codec:1.15",
-    ivy"org.json4s::json4s-jackson:3.7.0-M11".excludeOrg("com.fasterxml.jackson.core"),
     ivy"org.lz4:lz4-java:1.8.0",
     ivy"com.github.fommil.netlib:all:1.1.2",
     ivy"org.apache.avro:avro:1.11.2".excludeOrg("com.fasterxml.jackson.core"),
@@ -227,8 +227,23 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
   )
 
   override def scalacOptions: T[Seq[String]] = coreCompilerFlags ++ Seq(
-    "-Xfatal-warnings"
+//    "-Xfatal-warnings"
   )
+
+  object memory extends JavaModule with CrossValue {
+    override def zincIncrementalCompilation = false
+
+    override def javacOptions: T[Seq[String]] = Seq(
+//      "-Xlint:all",
+      "-XDignore.symbol.file"
+//      "-Werror",
+//      if (debugBuild) "-g" else "-O"
+    )
+
+    override def sources = T.sources {
+      Seq(PathRef(this.millSourcePath / os.up / "src" / crossValue / "java"))
+    }
+  }
 
   object test extends HailTests {
     override def assemblyRules = outer.assemblyRules ++ Seq(
