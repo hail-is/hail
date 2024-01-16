@@ -255,6 +255,7 @@ pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
 .PHONY: doctest-query
 doctest-query: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
 doctest-query: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+	[ $$(stty size | cut -f2 -d' ') -eq 80 ]  # doctests will fail unless you use an 80 character width tty
 	cd python && \
           $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -268,6 +269,7 @@ doctest-query: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASS
             --html=../build/reports/pytest-doctest.html \
             --doctest-modules \
             --doctest-glob='*.rst' \
+            --doctest-continue-on-failure \
             --ignore=setup.py \
             --ignore=setup-hailtop.py \
             --ignore=hail/docs/conf.py \
