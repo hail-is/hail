@@ -12,7 +12,7 @@ def filtering_allele_frequency(ac, an, ci) -> Float64Expression:
 
     The filtering allele frequency is the highest true population allele frequency
     for which the upper bound of the `ci` (confidence interval) of allele count
-    under a Poisson distribution is still less than the variant’s observed
+    under a Poisson distribution is still less than the variant's observed
     `ac` (allele count) in the reference sample, given an `an` (allele number).
 
     This function defines a "filtering AF" that represents
