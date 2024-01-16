@@ -1,4 +1,5 @@
 .PHONY: jars clean
+.POSIX: # https://github.com/hail-is/hail/pull/14138#issuecomment-1894411324
 
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
