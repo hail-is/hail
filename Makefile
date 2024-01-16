@@ -39,8 +39,7 @@ check-all: check-hail check-services
 
 .PHONY: check-hail-fast
 check-hail-fast:
-	ruff check hail/python/hail
-	ruff check hail/python/hailtop
+	ruff check hail
 	ruff format hail --check
 	$(PYTHON) -m pyright hail/python/hailtop
 
