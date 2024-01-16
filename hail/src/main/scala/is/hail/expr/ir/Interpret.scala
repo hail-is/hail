@@ -1007,7 +1007,7 @@ object Interpret {
           class WrappedByteArray(_bytes: Array[Byte]) {
             private var ref: Array[Byte] = _bytes
             def bytes: Array[Byte] = ref
-            def clear(): Unit = { ref = null }
+            def clear(): Unit = ref = null
           }
 
           // creates a region, giving ownership to the caller

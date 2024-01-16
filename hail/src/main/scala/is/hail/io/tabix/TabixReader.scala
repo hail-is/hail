@@ -332,10 +332,9 @@ final class TabixLineIterator(
 
   def getCurIdx(): Long = offsetOfPreviousLine
 
-  override def close(): Unit = {
+  override def close(): Unit =
     if (lines != null) {
       lines.close()
       lines = null
     }
-  }
 }

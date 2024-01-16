@@ -56,13 +56,11 @@ final class RegionValue(
     offset = newOffset
   }
 
-  def setRegion(newRegion: Region): Unit = {
+  def setRegion(newRegion: Region): Unit =
     region = newRegion
-  }
 
-  def setOffset(newOffset: Long): Unit = {
+  def setOffset(newOffset: Long): Unit =
     offset = newOffset
-  }
 
   def pretty(t: PType): String = Region.pretty(t, offset)
 

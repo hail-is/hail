@@ -28,7 +28,6 @@ final class BitVector(val length: Int) {
     a(i / 64) &= ~(1L << (i & 63))
   }
 
-  def clear(): Unit = {
+  def clear(): Unit =
     util.Arrays.fill(a, 0)
-  }
 }

@@ -1,4 +1,5 @@
 package is.hail.expr.ir
+
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.orderings.CodeOrdering.F
 import is.hail.types.physical.stypes.SType

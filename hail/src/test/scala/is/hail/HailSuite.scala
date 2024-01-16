@@ -54,7 +54,7 @@ class HailSuite extends TestNGSuite {
 
   def hc: HailContext = HailSuite.hc
 
-  @BeforeClass def ensureHailContextInitialized(): Unit = { hc }
+  @BeforeClass def ensureHailContextInitialized(): Unit = hc
 
   def backend: SparkBackend = hc.sparkBackend("HailSuite.backend")
 
@@ -181,38 +181,34 @@ class HailSuite extends TestNGSuite {
     }
   }
 
-  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit = {
+  def assertNDEvals(nd: IR, expected: Any)(implicit execStrats: Set[ExecStrategy]): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), None, expected)
-  }
 
   def assertNDEvals(
     nd: IR,
     expected: (Any, IndexedSeq[Long]),
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): Unit =
     if (expected == null)
       assertNDEvals(nd, Env.empty, FastSeq(), None, null, null)
     else
       assertNDEvals(nd, Env.empty, FastSeq(), None, expected._2, expected._1)
-  }
 
   def assertNDEvals(
     nd: IR,
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): Unit =
     assertNDEvals(nd, Env.empty, args, None, expected)
-  }
 
   def assertNDEvals(
     nd: IR,
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): Unit =
     assertNDEvals(nd, Env.empty, FastSeq(), Some(agg), expected)
-  }
 
   def assertNDEvals(
     nd: IR,
@@ -301,25 +297,22 @@ class HailSuite extends TestNGSuite {
     x: IR,
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), None, expected)
-  }
 
   def assertEvalsTo(
     x: IR,
     args: IndexedSeq[(Any, Type)],
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): Unit =
     assertEvalsTo(x, Env.empty, args, None, expected)
-  }
 
   def assertEvalsTo(
     x: IR,
     agg: (IndexedSeq[Row], TStruct),
     expected: Any,
   )(implicit execStrats: Set[ExecStrategy]
-  ): Unit = {
+  ): Unit =
     assertEvalsTo(x, Env.empty, FastSeq(), Some(agg), expected)
-  }
 }

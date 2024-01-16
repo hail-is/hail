@@ -1,4 +1,5 @@
 package is.hail.variant
+
 import is.hail.types.physical.{PArray, PInt32, PLocus, PString, PStruct}
 import is.hail.utils._
 

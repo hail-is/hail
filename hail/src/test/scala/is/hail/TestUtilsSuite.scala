@@ -1,4 +1,5 @@
 package is.hail
+
 import breeze.linalg.{DenseMatrix, DenseVector}
 import org.testng.annotations.Test
 

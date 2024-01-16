@@ -495,9 +495,8 @@ class SparkBackend(
 
   def stop(): Unit = SparkBackend.stop()
 
-  def startProgressBar(): Unit = {
+  def startProgressBar(): Unit =
     ProgressBarBuilder.build(sc)
-  }
 
   private[this] def executionResultToAnnotation(
     ctx: ExecuteContext,

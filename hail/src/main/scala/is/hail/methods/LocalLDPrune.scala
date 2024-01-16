@@ -1,4 +1,5 @@
 package is.hail.methods
+
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction

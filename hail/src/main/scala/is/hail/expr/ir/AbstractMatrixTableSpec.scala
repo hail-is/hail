@@ -204,13 +204,12 @@ case class MatrixTableSpecParameters(
   components: Map[String, ComponentSpec],
 ) {
 
-  def write(fs: FS, path: String): Unit = {
+  def write(fs: FS, path: String): Unit =
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
       out.write(
         JsonMethods.compact(decomposeWithName(this, "MatrixTableSpec")(RelationalSpec.formats))
       )
     }
-  }
 
 }
 

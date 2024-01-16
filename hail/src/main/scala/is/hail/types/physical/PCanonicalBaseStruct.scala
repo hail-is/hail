@@ -78,10 +78,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       cb._fatal(s"Required field cannot be missing.")
     }
 
-  override def setFieldPresent(offset: Long, fieldIdx: Int): Unit = {
+  override def setFieldPresent(offset: Long, fieldIdx: Int): Unit =
     if (!fieldRequired(fieldIdx))
       Region.clearBit(offset, missingIdx(fieldIdx))
-  }
 
   override def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit =
     if (!fieldRequired(fieldIdx))

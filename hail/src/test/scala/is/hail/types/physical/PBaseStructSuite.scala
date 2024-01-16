@@ -1,4 +1,5 @@
 package is.hail.types.physical
+
 import is.hail.annotations.Annotation
 
 import org.testng.annotations.Test

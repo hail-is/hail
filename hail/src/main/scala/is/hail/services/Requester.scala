@@ -1,4 +1,5 @@
 package is.hail.services
+
 import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
 import is.hail.shadedazure.com.azure.identity.{
   ClientSecretCredential, ClientSecretCredentialBuilder,

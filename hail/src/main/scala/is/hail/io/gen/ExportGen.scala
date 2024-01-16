@@ -1,4 +1,5 @@
 package is.hail.io.gen
+
 import is.hail.types.physical.{PString, PStruct}
 import is.hail.utils._
 import is.hail.variant.{Locus, VariantMethods, View}

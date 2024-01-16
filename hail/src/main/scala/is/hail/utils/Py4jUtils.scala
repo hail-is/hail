@@ -132,22 +132,18 @@ trait Py4jUtils {
     new HadoopPyWriter(fs.create(path))
   }
 
-  def addSocketAppender(hostname: String, port: Int): Unit = {
+  def addSocketAppender(hostname: String, port: Int): Unit =
     StringSocketAppender.get()
       .connect(hostname, port, HailContext.logFormat)
-  }
 
-  def logWarn(msg: String): Unit = {
+  def logWarn(msg: String): Unit =
     warn(msg)
-  }
 
-  def logInfo(msg: String): Unit = {
+  def logInfo(msg: String): Unit =
     info(msg)
-  }
 
-  def logError(msg: String): Unit = {
+  def logError(msg: String): Unit =
     error(msg)
-  }
 
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
@@ -170,9 +166,8 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
       buff.slice(0, bytesRead)
   }
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 }
 
 class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int)
@@ -198,13 +193,11 @@ class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream,
 }
 
 class HadoopPyWriter(out: OutputStream) {
-  def write(b: Array[Byte]): Unit = {
+  def write(b: Array[Byte]): Unit =
     out.write(b)
-  }
 
-  def flush(): Unit = {
+  def flush(): Unit =
     out.flush()
-  }
 
   def close(): Unit = {
     out.flush()

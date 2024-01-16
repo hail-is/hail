@@ -148,7 +148,7 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
   def valueOrElse(default: A): A =
     if (isValid) value else default
 
-  def exhaust(): Unit = { while (isValid) advance() }
+  def exhaust(): Unit = while (isValid) advance()
 
   def toStagingIterator: StagingIterator[A]
 
@@ -157,9 +157,8 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       def value = self.value
       def isValid = self.isValid
 
-      def advance(): Unit = {
+      def advance(): Unit =
         do self.advance() while (self.isValid && !pred(self.value))
-      }
 
       while (self.isValid && !pred(self.value)) self.advance()
     }
@@ -194,12 +193,11 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
           findNextValid
         }
 
-        def findNextValid(): Unit = {
+        def findNextValid(): Unit =
           while (self.isValid && !it.isValid) {
             self.advance()
             if (self.isValid) it = f(self.value).toIterator.toFlipbookIterator
           }
-        }
       }
     )
 

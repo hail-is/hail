@@ -666,9 +666,8 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     rvb.end()
   }
 
-  def clear(): Unit = {
+  def clear(): Unit =
     combiner.clear()
-  }
 
   private def findFullLevel(): Int = {
     var level: Int = 0
@@ -714,13 +713,12 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     } while (levels(level) < desiredFreeCapacity && !grew)
   }
 
-  private def growSketch(): Unit = {
+  private def growSketch(): Unit =
     if (combiner.numLevels == combiner.maxNumLevels)
       combiner = combiner.grow(
         combiner.maxNumLevels + growthRate,
         combiner.capacity + m * growthRate,
       )
-  }
 
   private def merge(other: ApproxCDFStateManager): Unit = {
     val finalN = n + other.n

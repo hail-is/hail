@@ -25,9 +25,8 @@ trait Logging {
     consoleLogger
   }
 
-  def info(msg: String): Unit = {
+  def info(msg: String): Unit =
     consoleLog.info(msg)
-  }
 
   def info(msg: String, t: Truncatable): Unit = {
     val (screen, logged) = t.strings
@@ -40,9 +39,8 @@ trait Logging {
     }
   }
 
-  def warn(msg: String): Unit = {
+  def warn(msg: String): Unit =
     consoleLog.warn(msg)
-  }
 
   def warn(msg: String, t: Truncatable): Unit = {
     val (screen, logged) = t.strings
@@ -55,7 +53,6 @@ trait Logging {
     }
   }
 
-  def error(msg: String): Unit = {
+  def error(msg: String): Unit =
     consoleLog.error(msg)
-  }
 }

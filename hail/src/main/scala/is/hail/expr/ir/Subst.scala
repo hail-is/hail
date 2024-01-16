@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-
 object Subst {
   def apply(e: IR): IR = apply(e, BindingEnv.empty[IR])
 

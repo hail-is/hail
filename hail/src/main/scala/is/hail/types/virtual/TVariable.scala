@@ -63,9 +63,8 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   override def isBound: Boolean = b.isEmpty
 
-  override def clear(): Unit = {
+  override def clear(): Unit =
     b.clear()
-  }
 
   override def subst(): Type = {
     assert(b.isDefined)

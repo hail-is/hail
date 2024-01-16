@@ -1,4 +1,5 @@
 package is.hail.io.plink
+
 import is.hail.utils._
 import is.hail.variant._
 
@@ -46,13 +47,12 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
 
   def +=(i: Int) = add(i)
 
-  private def write(): Unit = {
+  private def write(): Unit =
     while (nBitsStaged >= 8) {
       os.write(data.toByte)
       data = data >>> 8
       nBitsStaged -= 8
     }
-  }
 
   def flush(): Unit = {
     if (nBitsStaged > 0)

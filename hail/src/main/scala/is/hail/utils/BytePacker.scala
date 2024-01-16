@@ -5,9 +5,8 @@ import scala.collection.mutable
 class BytePacker {
   val slots = new mutable.TreeSet[(Long, Long)]
 
-  def insertSpace(size: Long, start: Long): Unit = {
+  def insertSpace(size: Long, start: Long): Unit =
     slots += size -> start
-  }
 
   def getSpace(size: Long, alignment: Long): Option[Long] = {
 

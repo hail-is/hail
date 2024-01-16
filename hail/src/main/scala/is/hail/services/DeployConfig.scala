@@ -1,4 +1,5 @@
 package is.hail.services
+
 import is.hail.utils._
 
 import java.io.{File, FileInputStream}

@@ -45,9 +45,8 @@ class BufferedLineIterator(bit: BufferedIterator[String])
 
   override def next(): String = bit.next()
 
-  override def remove(): Unit = {
+  override def remove(): Unit =
     throw new UnsupportedOperationException
-  }
 }
 
 object VCFHeaderInfo {
@@ -648,13 +647,12 @@ final class VCFLine(
     v * mul
   }
 
-  def parseAddFormatInt(rvb: RegionValueBuilder): Unit = {
+  def parseAddFormatInt(rvb: RegionValueBuilder): Unit =
     if (formatFieldMissing()) {
       rvb.setMissing()
       pos += 1
     } else
       rvb.addInt(parseFormatInt())
-  }
 
   def parseFormatString(): String = {
     val start = pos
@@ -664,13 +662,12 @@ final class VCFLine(
     line.substring(start, end)
   }
 
-  def parseAddFormatString(rvb: RegionValueBuilder): Unit = {
+  def parseAddFormatString(rvb: RegionValueBuilder): Unit =
     if (formatFieldMissing()) {
       rvb.setMissing()
       pos += 1
     } else
       rvb.addString(parseFormatString())
-  }
 
   def parseFormatFloat(): Float = {
     val s = parseFormatString()
@@ -691,13 +688,12 @@ final class VCFLine(
     VCFUtils.parseVcfDouble(s)
   }
 
-  def parseAddFormatDouble(rvb: RegionValueBuilder): Unit = {
+  def parseAddFormatDouble(rvb: RegionValueBuilder): Unit =
     if (formatFieldMissing()) {
       rvb.setMissing()
       pos += 1
     } else
       rvb.addDouble(parseFormatDouble())
-  }
 
   def parseIntInFormatArray(): Int = {
     if (endFormatArrayElement())
@@ -936,12 +932,11 @@ final class VCFLine(
     v * mul
   }
 
-  def parseAddInfoInt(rvb: RegionValueBuilder): Unit = {
+  def parseAddInfoInt(rvb: RegionValueBuilder): Unit =
     if (!infoFieldMissing()) {
       rvb.setPresent()
       rvb.addInt(parseInfoInt())
     }
-  }
 
   def parseInfoString(): String = {
     val start = pos
@@ -951,19 +946,17 @@ final class VCFLine(
     line.substring(start, end)
   }
 
-  def parseAddInfoString(rvb: RegionValueBuilder): Unit = {
+  def parseAddInfoString(rvb: RegionValueBuilder): Unit =
     if (!infoFieldMissing()) {
       rvb.setPresent()
       rvb.addString(parseInfoString())
     }
-  }
 
-  def parseAddInfoDouble(rvb: RegionValueBuilder): Unit = {
+  def parseAddInfoDouble(rvb: RegionValueBuilder): Unit =
     if (!infoFieldMissing()) {
       rvb.setPresent()
       rvb.addDouble(VCFUtils.parseVcfDouble(parseInfoString()))
     }
-  }
 
   def parseIntInInfoArray(): Int = {
     if (endInfoArrayElement())

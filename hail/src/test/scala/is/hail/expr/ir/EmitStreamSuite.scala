@@ -217,9 +217,8 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  @Test def testEmitNA(): Unit = {
+  @Test def testEmitNA(): Unit =
     assert(evalStream(NA(TStream(TInt32))) == null)
-  }
 
   @Test def testEmitMake(): Unit = {
     val typ = TStream(TInt32)

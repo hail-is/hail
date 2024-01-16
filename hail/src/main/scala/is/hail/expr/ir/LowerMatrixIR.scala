@@ -1068,10 +1068,9 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR): Unit = {
+  private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR): Unit =
     if (lowered.typ != original.typ)
       fatal(
         s"lowering changed type:\n  before: ${original.typ}\n after: ${lowered.typ}\n  ${original.getClass.getName} => ${lowered.getClass.getName}"
       )
-  }
 }

@@ -94,17 +94,15 @@ class Properties(val name: String) extends Prop {
   val properties = ArrayBuffer.empty[(String, Prop)]
 
   class PropertySpecifier {
-    def update(propName: String, prop: Prop): Unit = {
+    def update(propName: String, prop: Prop): Unit =
       properties += (name + "." + propName) -> prop
-    }
   }
 
   lazy val property = new PropertySpecifier
 
-  override def apply(p: Parameters, prefix: Option[String]): Unit = {
+  override def apply(p: Parameters, prefix: Option[String]): Unit =
     for ((propName, prop) <- properties)
       prop.apply(p, prefix.map(_ + "." + propName).orElse(Some(propName)))
-  }
 
 }
 
@@ -124,9 +122,8 @@ object Prop {
     _seed
   }
 
-  def check(prop: Prop): Unit = {
+  def check(prop: Prop): Unit =
     prop.check()
-  }
 
   def forAll[T1](g1: Gen[Boolean]): Prop =
     new GenProp1(g1, identity[Boolean])

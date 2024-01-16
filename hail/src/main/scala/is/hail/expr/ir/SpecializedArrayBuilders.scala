@@ -138,7 +138,7 @@ sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
     size_ = n
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 }
 
 final class IntMissingArrayBuilder(initialCapacity: Int)
@@ -478,7 +478,7 @@ final class ByteArrayArrayBuilder(initialCapacity: Int) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Array[Byte]] = b.slice(0, size_)
 }
@@ -536,7 +536,7 @@ final class LongArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Long] = b.slice(0, size_)
 
@@ -616,7 +616,7 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Int] = b.slice(0, size_)
 
@@ -696,7 +696,7 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Double] = b.slice(0, size_)
 
@@ -730,9 +730,8 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     size_ = n
   }
 
-  def setSizeUnchecked(n: Int): Unit = {
+  def setSizeUnchecked(n: Int): Unit =
     size_ = n
-  }
 
   def apply(i: Int): Byte = {
     require(i >= 0 && i < size)
@@ -775,7 +774,7 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Byte] = b.slice(0, size_)
 
@@ -836,7 +835,7 @@ final class BooleanArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Boolean] = b.slice(0, size_)
 
@@ -896,7 +895,7 @@ final class StringArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[String] = {
     val a = new Array[String](size_)
@@ -961,7 +960,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     b(i) = x
   }
 
-  def clear(): Unit = { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[T] = b.slice(0, size_)
 

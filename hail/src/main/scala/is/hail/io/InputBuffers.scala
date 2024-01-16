@@ -206,9 +206,8 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
 }
 
 final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 
@@ -375,9 +374,8 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     assert(off + n <= end)
   }
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = {
     in.seek(offset)
@@ -526,9 +524,8 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   private[this] val lenBuf = new Array[Byte](4)
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   // this takes a virtual offset and will seek the underlying stream to offset >> 16
   def seek(offset: Long): Unit = in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
@@ -547,9 +544,8 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer)
     extends InputBlockBuffer {
   private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 
@@ -591,9 +587,8 @@ final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in
   private[this] val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
   private[this] var lim = 0
 
-  def close(): Unit = {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 

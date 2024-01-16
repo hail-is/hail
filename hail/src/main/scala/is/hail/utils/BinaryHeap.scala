@@ -202,9 +202,8 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     } while (continue)
   }
 
-  def checkHeapProperty(): Unit = {
+  def checkHeapProperty(): Unit =
     checkHeapProperty(0)
-  }
 
   private def checkHeapProperty(current: Int): Unit = {
     val leftChild = (current << 1) + 1
@@ -224,11 +223,10 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     }
   }
 
-  private def assertHeapProperty(child: Int, parent: Int): Unit = {
+  private def assertHeapProperty(child: Int, parent: Int): Unit =
     assert(
       ranks(child) <= ranks(parent),
       s"heap property violated at parent $parent, child $child: ${ts(parent)}:${ranks(parent)} < ${ts(child)}:${ranks(child)}",
     )
-  }
 
 }

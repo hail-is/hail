@@ -2,7 +2,10 @@ package is.hail.backend
 
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{BaseIR, CodeCacheKey, CompiledFunction, IRParser, IRParserEnvironment, LoweringAnalyses, SortField, TableIR, TableReader}
+import is.hail.expr.ir.{
+  BaseIR, CodeCacheKey, CompiledFunction, IRParser, IRParserEnvironment, LoweringAnalyses,
+  SortField, TableIR, TableReader,
+}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._

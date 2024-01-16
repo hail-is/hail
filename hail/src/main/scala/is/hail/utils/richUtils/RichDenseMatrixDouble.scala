@@ -1,4 +1,5 @@
 package is.hail.utils.richUtils
+
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
@@ -115,9 +116,8 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     out.flush()
   }
 
-  def write(fs: FS, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec): Unit = {
+  def write(fs: FS, path: String, forceRowMajor: Boolean = false, bufferSpec: BufferSpec): Unit =
     using(fs.create(path))(os => write(os, forceRowMajor, bufferSpec: BufferSpec))
-  }
 
   def writeBlockMatrix(
     fs: FS,

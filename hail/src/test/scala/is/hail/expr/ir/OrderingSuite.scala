@@ -86,12 +86,11 @@ class OrderingSuite extends HailSuite {
         val eordME = t.mkOrdering(sm)
         val eordMNE = t.mkOrdering(sm, missingEqual = false)
 
-        def checkCompare(compResult: Int, expected: Int): Unit = {
+        def checkCompare(compResult: Int, expected: Int): Unit =
           assert(
             java.lang.Integer.signum(compResult) == expected,
             s"compare expected: $expected vs $compResult\n  t=${t.parsableString()}\n  v=$a",
           )
-        }
 
         val fcompareME =
           getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Compare(), region)
@@ -115,9 +114,8 @@ class OrderingSuite extends HailSuite {
         checkCompare(eordMNE.compare(null, a), 1)
         checkCompare(eordMNE.compare(a, null), -1)
 
-        def check(result: Boolean, expected: Boolean): Unit = {
+        def check(result: Boolean, expected: Boolean): Unit =
           assert(result == expected, s"t=${t.parsableString()}\n  v=$a")
-        }
 
         val fequivME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Equiv(), region)
 

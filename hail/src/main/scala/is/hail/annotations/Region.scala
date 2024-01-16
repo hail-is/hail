@@ -96,12 +96,11 @@ object Region {
     storeByte(b, (loadByte(b) & ~(1 << (bitOff & 7).toInt)).toByte)
   }
 
-  def storeBit(byteOff: Long, bitOff: Long, b: Boolean): Unit = {
+  def storeBit(byteOff: Long, bitOff: Long, b: Boolean): Unit =
     if (b)
       setBit(byteOff, bitOff)
     else
       clearBit(byteOff, bitOff)
-  }
 
   def loadInt(addr: Code[Long]): Code[Int] =
     Code.invokeScalaObject1[Long, Int](Region.getClass, "loadInt", addr)

@@ -1,4 +1,5 @@
 package is.hail.utils.richUtils
+
 import scala.collection.mutable
 
 import org.apache.spark.sql.Row

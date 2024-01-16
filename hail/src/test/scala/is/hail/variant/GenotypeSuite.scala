@@ -13,27 +13,24 @@ class GenotypeSuite extends TestNGSuite {
 
   val v = Variant("1", 1, "A", "T")
 
-  @Test def gtPairGtIndexIsId(): Unit = {
+  @Test def gtPairGtIndexIsId(): Unit =
     forAll(Gen.choose(0, 32768), Gen.choose(0, 32768)) { (x, y) =>
       val (j, k) = if (x < y) (x, y) else (y, x)
       val gt = AllelePair(j, k)
       Genotype.allelePair(Genotype.diploidGtIndex(gt)) == gt
     }.check()
-  }
 
   def triangleNumberOf(i: Int) = (i * i + i) / 2
 
-  @Test def gtIndexGtPairIsId(): Unit = {
+  @Test def gtIndexGtPairIsId(): Unit =
     forAll(Gen.choose(0, 10000)) { (idx) =>
       Genotype.diploidGtIndex(Genotype.allelePair(idx)) == idx
     }.check()
-  }
 
-  @Test def gtPairAndGtPairSqrtEqual(): Unit = {
+  @Test def gtPairAndGtPairSqrtEqual(): Unit =
     forAll(Gen.choose(0, 10000)) { (idx) =>
       Genotype.allelePair(idx) == Genotype.allelePairSqrt(idx)
     }.check()
-  }
 
   @Test def testGtFromLinear(): Unit = {
     val gen = for {

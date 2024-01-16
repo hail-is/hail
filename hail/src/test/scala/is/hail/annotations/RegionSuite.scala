@@ -10,13 +10,12 @@ import org.testng.annotations.Test
 
 class RegionSuite extends TestNGSuite {
 
-  @Test def testRegionSizes(): Unit = {
+  @Test def testRegionSizes(): Unit =
     RegionPool.scoped { pool =>
       pool.scopedSmallRegion(region => Array.range(0, 30).foreach(_ => region.allocate(1, 500)))
 
       pool.scopedTinyRegion(region => Array.range(0, 30).foreach(_ => region.allocate(1, 60)))
     }
-  }
 
   @Test def testRegionAllocationSimple(): Unit = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>

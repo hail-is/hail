@@ -48,11 +48,10 @@ case class WithContext[T](value: T, source: Context) {
       case e: Throwable => source.wrapException(e)
     }
 
-  def foreach(f: T => Unit): Unit = {
+  def foreach(f: T => Unit): Unit =
     try
       f(value)
     catch {
       case e: Exception => source.wrapException(e)
     }
-  }
 }

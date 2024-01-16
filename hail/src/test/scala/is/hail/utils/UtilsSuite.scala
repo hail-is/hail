@@ -121,13 +121,12 @@ class UtilsSuite extends HailSuite {
     assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
   }
 
-  @Test def testCollectAsSet(): Unit = {
+  @Test def testCollectAsSet(): Unit =
     Prop.forAll(Gen.buildableOf[Array](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
       case (values, parts) =>
         val rdd = sc.parallelize(values, numSlices = parts)
         rdd.collectAsSet() == rdd.collect().toSet
     }.check()
-  }
 
   @Test def testDigitsNeeded(): Unit = {
     assert(digitsNeeded(0) == 1)
@@ -150,23 +149,19 @@ class UtilsSuite extends HailSuite {
     assert(diff2.toSeq == Seq("a" -> "aD", "a" -> "aDD", "c" -> "cD", "a" -> "aDDD"))
   }
 
-  @Test def toMapUniqueEmpty(): Unit = {
+  @Test def toMapUniqueEmpty(): Unit =
     assert(toMapIfUnique(Seq[(Int, Int)]())(x => x % 2) == Right(Map()))
-  }
 
-  @Test def toMapUniqueSingleton(): Unit = {
+  @Test def toMapUniqueSingleton(): Unit =
     assert(toMapIfUnique(Seq(1 -> 2))(x => x % 2) == Right(Map(1 -> 2)))
-  }
 
-  @Test def toMapUniqueSmallNoDupe(): Unit = {
+  @Test def toMapUniqueSmallNoDupe(): Unit =
     assert(toMapIfUnique(Seq(1 -> 2, 3 -> 6, 10 -> 2))(x => x % 5) ==
       Right(Map(1 -> 2, 3 -> 6, 0 -> 2)))
-  }
 
-  @Test def toMapUniqueSmallDupes(): Unit = {
+  @Test def toMapUniqueSmallDupes(): Unit =
     assert(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5) ==
       Left(Map(1 -> Seq(1, 6))))
-  }
 
   @Test def testItemPartition(): Unit = {
     def test(n: Int, k: Int): Unit = {

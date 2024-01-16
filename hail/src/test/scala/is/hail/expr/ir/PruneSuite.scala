@@ -507,13 +507,12 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableUnionMemo(): Unit = {
+  @Test def testTableUnionMemo(): Unit =
     checkMemo(
       TableUnion(FastSeq(tab, tab)),
       subsetTable(tab.typ, "row.1", "global.g1"),
       Array(subsetTable(tab.typ, "row.1", "global.g1"), subsetTable(tab.typ, "row.1")),
     )
-  }
 
   @Test def testTableOrderByMemo(): Unit = {
     val tob = TableOrderBy(tab, Array(SortField("2", Ascending)))
@@ -761,9 +760,8 @@ class PruneSuite extends HailSuite {
   val justARequired = TStruct("a" -> TInt32)
   val justBRequired = TStruct("b" -> TInt32)
 
-  @Test def testIfMemo(): Unit = {
+  @Test def testIfMemo(): Unit =
     checkMemo(If(True(), ref, ref), justA, Array(TBoolean, justA, justA))
-  }
 
   @Test def testSwitchMemo(): Unit =
     checkMemo(
@@ -772,9 +770,8 @@ class PruneSuite extends HailSuite {
       Array(TInt32, justA, justA),
     )
 
-  @Test def testCoalesceMemo(): Unit = {
+  @Test def testCoalesceMemo(): Unit =
     checkMemo(Coalesce(FastSeq(ref, ref)), justA, Array(justA, justA))
-  }
 
   @Test def testLetMemo(): Unit = {
     checkMemo(Let(FastSeq("foo" -> ref), Ref("foo", ref.typ)), justA, Array(justA, null))
@@ -801,45 +798,37 @@ class PruneSuite extends HailSuite {
     checkMemo(AggLet("foo", ref, True(), false), TBoolean, Array(empty, null))
   }
 
-  @Test def testMakeArrayMemo(): Unit = {
+  @Test def testMakeArrayMemo(): Unit =
     checkMemo(arr, TArray(justB), Array(justB, justB))
-  }
 
-  @Test def testArrayRefMemo(): Unit = {
+  @Test def testArrayRefMemo(): Unit =
     checkMemo(ArrayRef(arr, I32(0)), justB, Array(TArray(justB), null, null))
-  }
 
-  @Test def testArrayLenMemo(): Unit = {
+  @Test def testArrayLenMemo(): Unit =
     checkMemo(ArrayLen(arr), TInt32, Array(TArray(empty)))
-  }
 
-  @Test def testStreamTakeMemo(): Unit = {
+  @Test def testStreamTakeMemo(): Unit =
     checkMemo(StreamTake(st, I32(2)), TStream(justA), Array(TStream(justA), null))
-  }
 
-  @Test def testStreamDropMemo(): Unit = {
+  @Test def testStreamDropMemo(): Unit =
     checkMemo(StreamDrop(st, I32(2)), TStream(justA), Array(TStream(justA), null))
-  }
 
-  @Test def testStreamMapMemo(): Unit = {
+  @Test def testStreamMapMemo(): Unit =
     checkMemo(
       StreamMap(st, "foo", Ref("foo", ref.typ)),
       TStream(justB),
       Array(TStream(justB), null),
     )
-  }
 
-  @Test def testStreamGroupedMemo(): Unit = {
+  @Test def testStreamGroupedMemo(): Unit =
     checkMemo(StreamGrouped(st, I32(2)), TStream(TStream(justB)), Array(TStream(justB), null))
-  }
 
-  @Test def testStreamGroupByKeyMemo(): Unit = {
+  @Test def testStreamGroupByKeyMemo(): Unit =
     checkMemo(
       StreamGroupByKey(st, FastSeq("a"), false),
       TStream(TStream(justB)),
       Array(TStream(TStruct("a" -> TInt32, "b" -> TInt32)), null),
     )
-  }
 
   @Test def testStreamMergeMemo(): Unit = {
     val st2 = st.deepCopy()
@@ -909,29 +898,26 @@ class PruneSuite extends HailSuite {
     checkMemo(StreamFilter(st, "foo", False()), TStream(justB), Array(TStream(justB), null))
   }
 
-  @Test def testStreamFlatMapMemo(): Unit = {
+  @Test def testStreamFlatMapMemo(): Unit =
     checkMemo(
       StreamFlatMap(st, "foo", MakeStream(FastSeq(Ref("foo", ref.typ)), TStream(ref.typ))),
       TStream(justA),
       Array(TStream(justA), null),
     )
-  }
 
-  @Test def testStreamFoldMemo(): Unit = {
+  @Test def testStreamFoldMemo(): Unit =
     checkMemo(
       StreamFold(st, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
       TInt32,
       Array(TStream(justA), null, null),
     )
-  }
 
-  @Test def testStreamScanMemo(): Unit = {
+  @Test def testStreamScanMemo(): Unit =
     checkMemo(
       StreamScan(st, I32(0), "comb", "foo", GetField(Ref("foo", ref.typ), "a")),
       TStream(TInt32),
       Array(TStream(justA), null, null),
     )
-  }
 
   @Test def testStreamJoinRightDistinct(): Unit = {
     val l = Ref("l", ref.typ)
@@ -1006,13 +992,12 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testStreamForMemo(): Unit = {
+  @Test def testStreamForMemo(): Unit =
     checkMemo(
       StreamFor(st, "foo", Begin(FastSeq(GetField(Ref("foo", ref.typ), "a")))),
       TVoid,
       Array(TStream(justA), null),
     )
-  }
 
   @Test def testMakeNDArrayMemo(): Unit = {
     checkMemo(
@@ -1070,34 +1055,30 @@ class PruneSuite extends HailSuite {
     checkMemo(MakeStruct(IndexedSeq("a" -> ref, "b" -> I32(10))), TStruct.empty, Array(null, null))
   }
 
-  @Test def testInsertFieldsMemo(): Unit = {
+  @Test def testInsertFieldsMemo(): Unit =
     checkMemo(
       InsertFields(ref, IndexedSeq("d" -> ref)),
       justA ++ TStruct("d" -> justB),
       Array(justA, justB),
     )
-  }
 
   @Test def testSelectFieldsMemo(): Unit = {
     checkMemo(SelectFields(ref, IndexedSeq("a", "b")), justA, Array(justA))
     checkMemo(SelectFields(ref, IndexedSeq("b", "a")), bAndA, Array(aAndB))
   }
 
-  @Test def testGetFieldMemo(): Unit = {
+  @Test def testGetFieldMemo(): Unit =
     checkMemo(GetField(ref, "a"), TInt32, Array(justA))
-  }
 
-  @Test def testMakeTupleMemo(): Unit = {
+  @Test def testMakeTupleMemo(): Unit =
     checkMemo(MakeTuple(IndexedSeq(0 -> ref)), TTuple(justA), Array(justA))
-  }
 
-  @Test def testGetTupleElementMemo(): Unit = {
+  @Test def testGetTupleElementMemo(): Unit =
     checkMemo(
       GetTupleElement(MakeTuple.ordered(IndexedSeq(ref, ref)), 1),
       justB,
       Array(TTuple(FastSeq(TupleField(1, justB)))),
     )
-  }
 
   @Test def testCastRenameMemo(): Unit = {
     checkMemo(
@@ -1193,73 +1174,64 @@ class PruneSuite extends HailSuite {
     )
   }
 
-  @Test def testTableCountMemo(): Unit = {
+  @Test def testTableCountMemo(): Unit =
     checkMemo(TableCount(tab), TInt64, Array(subsetTable(tab.typ, "NO_KEY")))
-  }
 
-  @Test def testTableGetGlobalsMemo(): Unit = {
+  @Test def testTableGetGlobalsMemo(): Unit =
     checkMemo(
       TableGetGlobals(tab),
       TStruct("g1" -> TInt32),
       Array(subsetTable(tab.typ, "global.g1", "NO_KEY")),
     )
-  }
 
-  @Test def testTableCollectMemo(): Unit = {
+  @Test def testTableCollectMemo(): Unit =
     checkMemo(
       TableCollect(tab),
       TStruct("rows" -> TArray(TStruct("3" -> TString)), "global" -> TStruct("g2" -> TInt32)),
       Array(subsetTable(tab.typ, "row.3", "global.g2")),
     )
-  }
 
-  @Test def testTableHeadMemo(): Unit = {
+  @Test def testTableHeadMemo(): Unit =
     checkMemo(
       TableHead(tab, 10L),
       subsetTable(tab.typ.copy(key = FastSeq()), "global.g1"),
       Array(subsetTable(tab.typ, "row.3", "global.g1")),
     )
-  }
 
-  @Test def testTableTailMemo(): Unit = {
+  @Test def testTableTailMemo(): Unit =
     checkMemo(
       TableTail(tab, 10L),
       subsetTable(tab.typ.copy(key = FastSeq()), "global.g1"),
       Array(subsetTable(tab.typ, "row.3", "global.g1")),
     )
-  }
 
-  @Test def testTableToValueApplyMemo(): Unit = {
+  @Test def testTableToValueApplyMemo(): Unit =
     checkMemo(
       TableToValueApply(tab, ForceCountTable()),
       TInt64,
       Array(tab.typ),
     )
-  }
 
-  @Test def testMatrixToValueApplyMemo(): Unit = {
+  @Test def testMatrixToValueApplyMemo(): Unit =
     checkMemo(
       MatrixToValueApply(mat, ForceCountMatrixTable()),
       TInt64,
       Array(mat.typ),
     )
-  }
 
-  @Test def testTableAggregateMemo(): Unit = {
+  @Test def testTableAggregateMemo(): Unit =
     checkMemo(
       TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean,
       Array(subsetTable(tab.typ, "global.g1"), null),
     )
-  }
 
-  @Test def testMatrixAggregateMemo(): Unit = {
+  @Test def testMatrixAggregateMemo(): Unit =
     checkMemo(
       MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
       TBoolean,
       Array(subsetMatrixTable(mat.typ, "global.g1", "NO_COL_KEY"), null),
     )
-  }
 
   @Test def testPipelineLetMemo(): Unit = {
     val t = TStruct("a" -> TInt32)

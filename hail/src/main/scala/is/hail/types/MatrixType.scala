@@ -153,12 +153,11 @@ case class MatrixType(
 
     val space: String = if (compact) "" else " "
 
-    def newline(): Unit = {
+    def newline(): Unit =
       if (!compact) {
         sb += '\n'
         sb.append(" " * indent)
       }
-    }
 
     sb.append(s"Matrix$space{")
     indent += 4
@@ -223,11 +222,10 @@ case class MatrixType(
     }
   }
 
-  def requireColKeyString(): Unit = {
+  def requireColKeyString(): Unit =
     colKeyStruct.types match {
       case Array(TString) =>
     }
-  }
 
   def referenceGenomeName: String = {
     val firstKeyField = rowKeyStruct.types(0)

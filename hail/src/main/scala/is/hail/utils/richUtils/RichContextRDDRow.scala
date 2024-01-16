@@ -1,4 +1,5 @@
 package is.hail.utils.richUtils
+
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.PStruct
 import is.hail.utils._

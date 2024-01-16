@@ -1,4 +1,5 @@
 package is.hail.types.physical
+
 import org.testng.annotations.Test
 
 class PBinarySuite extends PhysicalTestUtils {

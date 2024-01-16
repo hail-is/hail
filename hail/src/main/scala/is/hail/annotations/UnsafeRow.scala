@@ -1,4 +1,5 @@
 package is.hail.annotations
+
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -157,10 +158,9 @@ class UnsafeRow(val t: PBaseStruct, var region: Region, var offset: Long)
 
   def length: Int = t.size
 
-  private def assertDefined(i: Int): Unit = {
+  private def assertDefined(i: Int): Unit =
     if (isNullAt(i))
       throw new NullPointerException(s"null value at index $i")
-  }
 
   def get(i: Int): Any =
     if (isNullAt(i))

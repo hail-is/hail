@@ -45,41 +45,32 @@ final class PrettyVisitor extends ValueVisitor {
 
   def result(): String = sb.result()
 
-  def visitMissing(t: PType): Unit = {
+  def visitMissing(t: PType): Unit =
     sb.append("NA")
-  }
 
-  def visitBoolean(b: Boolean): Unit = {
+  def visitBoolean(b: Boolean): Unit =
     sb.append(b)
-  }
 
-  def visitInt32(i: Int): Unit = {
+  def visitInt32(i: Int): Unit =
     sb.append(i)
-  }
 
-  def visitInt64(l: Long): Unit = {
+  def visitInt64(l: Long): Unit =
     sb.append(l)
-  }
 
-  def visitFloat32(f: Float): Unit = {
+  def visitFloat32(f: Float): Unit =
     sb.append(f)
-  }
 
-  def visitFloat64(d: Double): Unit = {
+  def visitFloat64(d: Double): Unit =
     sb.append(d)
-  }
 
-  def visitBinary(a: Array[Byte]): Unit = {
+  def visitBinary(a: Array[Byte]): Unit =
     sb.append("bytes...")
-  }
 
-  def visitString(s: String): Unit = {
+  def visitString(s: String): Unit =
     sb.append(s)
-  }
 
-  def enterStruct(t: PStruct): Unit = {
+  def enterStruct(t: PStruct): Unit =
     sb.append("{")
-  }
 
   def enterField(f: PField): Unit = {
     if (f.index > 0)
@@ -91,17 +82,14 @@ final class PrettyVisitor extends ValueVisitor {
 
   def leaveField(): Unit = {}
 
-  def leaveStruct(): Unit = {
+  def leaveStruct(): Unit =
     sb.append(" }")
-  }
 
-  def enterTuple(t: PTuple): Unit = {
+  def enterTuple(t: PTuple): Unit =
     sb.append('(')
-  }
 
-  def leaveTuple(): Unit = {
+  def leaveTuple(): Unit =
     sb.append(')')
-  }
 
   def enterArray(t: PContainer, length: Int): Unit = {
     t match {
@@ -116,9 +104,8 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(";")
   }
 
-  def leaveArray(): Unit = {
+  def leaveArray(): Unit =
     sb.append("]")
-  }
 
   def enterElement(i: Int): Unit = {
     if (i > 0)

@@ -126,9 +126,8 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
     val wrv = WritableRegionValue(sm, kType, region)
     val kRowOrdering = kRowOrd(sm)
 
-    def setFiniteValue(representative: RegionValue): Unit = {
+    def setFiniteValue(representative: RegionValue): Unit =
       wrv.setSelect(rowType, kFieldIdx, representative)
-    }
 
     def compareFinite(rv: RegionValue): Int =
       kRowOrdering.compare(wrv.value, rv)

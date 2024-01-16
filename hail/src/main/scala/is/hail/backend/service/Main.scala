@@ -1,6 +1,5 @@
 package is.hail.backend.service
 
-
 object Main {
   val WORKER = "worker"
   val DRIVER = "driver"

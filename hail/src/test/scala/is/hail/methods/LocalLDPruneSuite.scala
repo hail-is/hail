@@ -329,9 +329,8 @@ class LocalLDPruneSuite extends HailSuite {
       }
   }
 
-  @Test def testRandom(): Unit = {
+  @Test def testRandom(): Unit =
     Spec.check()
-  }
 
   @Test def testIsLocallyUncorrelated(): Unit = {
     val locallyPrunedVariantsTable =

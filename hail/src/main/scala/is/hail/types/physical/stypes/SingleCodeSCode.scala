@@ -4,7 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.physical.PType
-import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream, SStreamConcrete, SStreamIteratorLong}
+import is.hail.types.physical.stypes.interfaces.{
+  NoBoxLongIterator, SStream, SStreamConcrete, SStreamIteratorLong,
+}
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
 

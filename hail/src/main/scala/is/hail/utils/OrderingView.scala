@@ -14,7 +14,7 @@ trait OrderingView[A] {
     else compareFinite(a)
 
   def isEquivalent(a: A): Boolean = compare(a) == 0
-  def setBottom(): Unit = { isInfinite = -1 }
-  def setTop(): Unit = { isInfinite = 1 }
+  def setBottom(): Unit = isInfinite = -1
+  def setTop(): Unit = isInfinite = 1
   private var isInfinite: Int = -1
 }

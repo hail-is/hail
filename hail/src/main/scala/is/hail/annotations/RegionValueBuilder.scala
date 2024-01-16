@@ -82,10 +82,9 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     start
   }
 
-  def advance(): Unit = {
+  def advance(): Unit =
     if (indexstk.nonEmpty)
       indexstk(0) = indexstk(0) + 1
-  }
 
   def startBaseStruct(init: Boolean = true, setMissing: Boolean = false): Unit = {
     val t = currentType().asInstanceOf[PBaseStruct]
@@ -131,9 +130,8 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     endBaseStruct()
   }
 
-  def startArray(length: Int, init: Boolean = true): Unit = {
+  def startArray(length: Int, init: Boolean = true): Unit =
     startArrayInternal(length, init, false)
-  }
 
   // using this function, rather than startArray will set all elements of the array to missing by
   // default, you will need to use setPresent to add a value to this array.
@@ -290,16 +288,14 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     advance()
   }
 
-  def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int): Unit = {
+  def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int): Unit =
     addField(t, fromOff, i, region.ne(fromRegion))
-  }
 
-  def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean): Unit = {
+  def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean): Unit =
     if (t.isFieldDefined(fromOff, i))
       addRegionValue(t.types(i), t.loadField(fromOff, i), deepCopy)
     else
       setMissing()
-  }
 
   def skipFields(n: Int): Unit = {
     var i = 0
@@ -317,9 +313,8 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addAllFields(t: PBaseStruct, fromRV: RegionValue): Unit = {
+  def addAllFields(t: PBaseStruct, fromRV: RegionValue): Unit =
     addAllFields(t, fromRV.region, fromRV.offset)
-  }
 
   def addFields(t: PBaseStruct, fromRegion: Region, fromOff: Long, fieldIdx: Array[Int]): Unit = {
     var i = 0
@@ -329,15 +324,14 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     }
   }
 
-  def addFields(t: PBaseStruct, fromRV: RegionValue, fieldIdx: Array[Int]): Unit = {
+  def addFields(t: PBaseStruct, fromRV: RegionValue, fieldIdx: Array[Int]): Unit =
     addFields(t, fromRV.region, fromRV.offset, fieldIdx)
-  }
 
-  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit = {
+  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit =
     selectRegionValue(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
-  }
 
-  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long): Unit = {
+  def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long)
+    : Unit = {
     // too expensive!
     // val t = fromT.typeAfterSelect(fromFieldIdx)
     // assert(currentType().setRequired(true) == t.setRequired(true), s"${currentType()} != ${t}")
@@ -347,13 +341,11 @@ class RegionValueBuilder(sm: HailStateManager, var region: Region) {
     endStruct()
   }
 
-  def addRegionValue(t: PType, rv: RegionValue): Unit = {
+  def addRegionValue(t: PType, rv: RegionValue): Unit =
     addRegionValue(t, rv.region, rv.offset)
-  }
 
-  def addRegionValue(t: PType, fromRegion: Region, fromOff: Long): Unit = {
+  def addRegionValue(t: PType, fromRegion: Region, fromOff: Long): Unit =
     addRegionValue(t, fromOff, region.ne(fromRegion))
-  }
 
   def addRegionValue(t: PType, fromOff: Long, deepCopy: Boolean): Unit = {
     val toT = currentType()

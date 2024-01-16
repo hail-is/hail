@@ -196,12 +196,11 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
-  def checkWriteSuccess(fs: FS, uri: String): Unit = {
+  def checkWriteSuccess(fs: FS, uri: String): Unit =
     if (!fs.isFile(uri + "/_SUCCESS"))
       fatal(
         s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri"
       )
-  }
 
   def readMetadata(fs: FS, uri: String): BlockMatrixMetadata =
     using(fs.open(uri + metadataRelativePath)) { is =>
@@ -230,9 +229,8 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]): Unit = {
+  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]): Unit =
     assert(lm.isCompact)
-  }
 
   private[linalg] def block(
     bm: BlockMatrix,

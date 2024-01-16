@@ -175,9 +175,8 @@ package object utils
     math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
   }
 
-  def simpleAssert(p: Boolean): Unit = {
+  def simpleAssert(p: Boolean): Unit =
     if (!p) throw new AssertionError
-  }
 
   def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A])
     : Unit =

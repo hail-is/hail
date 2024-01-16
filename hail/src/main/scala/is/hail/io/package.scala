@@ -1,4 +1,5 @@
 package is.hail
+
 import is.hail.io.fs.FS
 import is.hail.types.virtual.Type
 import is.hail.utils._

@@ -17,9 +17,8 @@ class TabixSuite extends HailSuite {
 
   lazy val reader = new TabixReader(vcfGzFile, fs)
 
-  @BeforeTest def initialize(): Unit = {
+  @BeforeTest def initialize(): Unit =
     hc // reference to initialize
-  }
 
   @Test def testLargeNumberOfSequences(): Unit = {
     val tbx = new TabixReader(null, fs, Some("src/test/resources/large-tabix.tbi"))
@@ -132,9 +131,8 @@ class TabixSuite extends HailSuite {
     }
   }
 
-  @Test def testLineIterator2(): Unit = {
+  @Test def testLineIterator2(): Unit =
     _testLineIterator2("src/test/resources/sample.vcf.bgz")
-  }
 
   @Test def testWriter(): Unit = {
     val vcfFile = "src/test/resources/sample.vcf.bgz"

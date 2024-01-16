@@ -1,4 +1,5 @@
 package is.hail.types.physical
+
 import is.hail.types.virtual.{TTuple, Type}
 import is.hail.utils._
 

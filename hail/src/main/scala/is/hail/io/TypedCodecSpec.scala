@@ -1,4 +1,5 @@
 package is.hail.io
+
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.types.encoded._

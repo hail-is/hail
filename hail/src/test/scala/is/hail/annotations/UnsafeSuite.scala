@@ -323,9 +323,8 @@ class UnsafeSuite extends HailSuite {
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
-  @Test def testEmptySize(): Unit = {
+  @Test def testEmptySize(): Unit =
     assert(PCanonicalStruct().byteSize == 0)
-  }
 
   @Test def testUnsafeOrdering(): Unit = {
     val region = Region(pool = pool)

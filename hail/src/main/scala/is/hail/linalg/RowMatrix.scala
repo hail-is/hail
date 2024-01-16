@@ -1,4 +1,5 @@
 package is.hail.linalg
+
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.InputBuffer

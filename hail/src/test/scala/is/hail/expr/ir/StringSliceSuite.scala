@@ -25,9 +25,8 @@ class StringSliceSuite extends HailSuite {
     assertEvalsTo(invoke("slice", TString, Str(s), I32(0), I32(5)), s"abc$poopEmoji")
   }
 
-  @Test def zeroToLengthIsIdentity(): Unit = {
+  @Test def zeroToLengthIsIdentity(): Unit =
     assertEvalsTo(invoke("slice", TString, Str("abc"), I32(0), I32(3)), "abc")
-  }
 
   @Test def simpleSlicesMatchIntuition(): Unit = {
     assertEvalsTo(invoke("slice", TString, Str("abc"), I32(3), I32(3)), "")
@@ -68,10 +67,9 @@ class StringSliceSuite extends HailSuite {
     assertEvalsTo(invoke("sliceLeft", TString, Str("abc"), I32(1)), "a")
   }
 
-  @Test def bothSideSliceMatchesIntuition(): Unit = {
+  @Test def bothSideSliceMatchesIntuition(): Unit =
     assertEvalsTo(invoke("slice", TString, Str("abc"), I32(0), I32(2)), "ab")
-    // assertEvalsTo(invoke("slice", TString, Str("abc"), I32(1), I32(3)), "bc")
-  }
+  // assertEvalsTo(invoke("slice", TString, Str("abc"), I32(1), I32(3)), "bc")
 
   @Test def leftSliceIsPythony(): Unit = {
     assertEvalsTo(invoke("sliceRight", TString, Str("abc"), I32(-1)), "c")

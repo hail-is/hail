@@ -172,12 +172,11 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def randomMultiplyByLocalMatrix(): Unit = {
+  def randomMultiplyByLocalMatrix(): Unit =
     forAll(twoMultipliableDenseMatrices[Double]()) { case (ll, lr) =>
       val l = toBM(ll)
       sameDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(lr).toBreezeMatrix())
     }.check()
-  }
 
   @Test
   def multiplySameAsBreeze(): Unit = {

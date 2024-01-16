@@ -34,12 +34,11 @@ abstract class GLMStats {
 }
 
 class GLMTestResult[+T <: GLMStats](val stats: Option[T], private val size: Int) {
-  def addToRVB(rvb: RegionValueBuilder): Unit = {
+  def addToRVB(rvb: RegionValueBuilder): Unit =
     stats match {
       case Some(s) => s.addToRVB(rvb)
       case None => rvb.skipFields(size)
     }
-  }
 }
 
 class GLMTestResultWithFit[T <: GLMStats](

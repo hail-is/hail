@@ -441,9 +441,8 @@ class StagedConstructorSuite extends HailSuite {
     ))
   }
 
-  def printRegion(region: Region, string: String): Unit = {
+  def printRegion(region: Region, string: String): Unit =
     println(region.prettyBits())
-  }
 
   @Test
   def testAddPrimitive(): Unit = {

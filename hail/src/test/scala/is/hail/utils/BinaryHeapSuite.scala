@@ -353,9 +353,8 @@ class BinaryHeapSuite {
       max
     }
 
-    def insert(t: Long, rank: Long): Unit = {
+    def insert(t: Long, rank: Long): Unit =
       m += (t -> rank)
-    }
   }
 
   @Test

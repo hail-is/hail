@@ -1,4 +1,5 @@
 package is.hail.io.bgen
+
 import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.utils._

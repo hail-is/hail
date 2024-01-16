@@ -265,7 +265,8 @@ class MathFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "hardy_weinberg_test")
-  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double): Unit = {
+  def hardyWeinbergTest(nHomRef: Int, nHet: Int, nHomVar: Int, pValue: Double, hetFreq: Double)
+    : Unit = {
     val r = eval(invoke(
       "hardy_weinberg_test",
       stats.hweStruct.virtualType,

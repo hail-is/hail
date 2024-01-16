@@ -709,9 +709,8 @@ object ReferenceGenome {
     rgs
   }
 
-  def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]): Unit = {
+  def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]): Unit =
     rgs.foreach(writeReference(fs, path, _))
-  }
 
   def compare(contigsIndex: java.util.HashMap[String, Integer], c1: String, c2: String): Int = {
     val i1 = contigsIndex.get(c1)

@@ -26,7 +26,7 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
       new StateMachine[T] {
         def value: T = bit.head
         def isValid = bit.hasNext
-        def advance(): Unit = { bit.next() }
+        def advance(): Unit = bit.next()
       }
     )
   }
@@ -91,9 +91,8 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
     val error = new StringBuilder()
     // Start a thread capture the process stderr
     new Thread("stderr reader for " + command) {
-      override def run(): Unit = {
+      override def run(): Unit =
         Source.fromInputStream(proc.getErrorStream).addString(error)
-      }
     }.start()
 
     // Start a thread to feed the process input from our parent's iterator

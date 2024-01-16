@@ -56,37 +56,32 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test
-  def testCodeFunction(): Unit = {
+  def testCodeFunction(): Unit =
     assertEvalsTo(
       lookup("triangle", TInt32, TInt32)(In(0, TInt32)),
       FastSeq(5 -> TInt32),
       (5 * (5 + 1)) / 2,
     )
-  }
 
   @Test
-  def testStaticFunction(): Unit = {
+  def testStaticFunction(): Unit =
     assertEvalsTo(
       lookup("compare", TInt32, TInt32, TInt32)(In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
       true,
     )
-  }
 
   @Test
-  def testScalaFunction(): Unit = {
+  def testScalaFunction(): Unit =
     assertEvalsTo(lookup("foobar1", TInt32)(), 1)
-  }
 
   @Test
-  def testIRConversion(): Unit = {
+  def testIRConversion(): Unit =
     assertEvalsTo(lookup("addone", TInt32, TInt32)(In(0, TInt32)), FastSeq(5 -> TInt32), 6)
-  }
 
   @Test
-  def testScalaFunctionCompanion(): Unit = {
+  def testScalaFunctionCompanion(): Unit =
     assertEvalsTo(lookup("foobar2", TInt32)(), 2)
-  }
 
   @Test
   def testVariableUnification(): Unit = {
@@ -113,13 +108,12 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test
-  def testUnphasedDiploidGtIndexCall(): Unit = {
+  def testUnphasedDiploidGtIndexCall(): Unit =
     assertEvalsTo(
       lookup("UnphasedDiploidGtIndexCall", TCall, TInt32)(In(0, TInt32)),
       FastSeq(0 -> TInt32),
       Call2.fromUnphasedDiploidGtIndex(0),
     )
-  }
 
   @Test
   def testGetOrGenMethod(): Unit = {

@@ -56,9 +56,8 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(Sum(), TFloat64, FastSeq(null, null, null), 0.0)
   }
 
-  @Test def sumInt64(): Unit = {
+  @Test def sumInt64(): Unit =
     runAggregator(Sum(), TInt64, FastSeq(-1L, 2L, 3L), 4L)
-  }
 
   @Test def collectBoolean(): Unit = {
     runAggregator(
@@ -69,25 +68,20 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def collectInt(): Unit = {
+  @Test def collectInt(): Unit =
     runAggregator(Collect(), TInt32, FastSeq(10, null, 5), FastSeq(10, null, 5))
-  }
 
-  @Test def collectLong(): Unit = {
+  @Test def collectLong(): Unit =
     runAggregator(Collect(), TInt64, FastSeq(10L, null, 5L), FastSeq(10L, null, 5L))
-  }
 
-  @Test def collectFloat(): Unit = {
+  @Test def collectFloat(): Unit =
     runAggregator(Collect(), TFloat32, FastSeq(10f, null, 5f), FastSeq(10f, null, 5f))
-  }
 
-  @Test def collectDouble(): Unit = {
+  @Test def collectDouble(): Unit =
     runAggregator(Collect(), TFloat64, FastSeq(10d, null, 5d), FastSeq(10d, null, 5d))
-  }
 
-  @Test def collectString(): Unit = {
+  @Test def collectString(): Unit =
     runAggregator(Collect(), TString, FastSeq("hello", null, "foo"), FastSeq("hello", null, "foo"))
-  }
 
   @Test def collectArray(): Unit = {
     runAggregator(
@@ -176,17 +170,14 @@ class AggregatorsSuite extends HailSuite {
     runAggregator(Max(), TInt32, FastSeq(-2, null, 7), 7)
   }
 
-  @Test def maxInt64(): Unit = {
+  @Test def maxInt64(): Unit =
     runAggregator(Max(), TInt64, FastSeq(-2L, null, 7L), 7L)
-  }
 
-  @Test def maxFloat32(): Unit = {
+  @Test def maxFloat32(): Unit =
     runAggregator(Max(), TFloat32, FastSeq(-2.0f, null, 7.2f), 7.2f)
-  }
 
-  @Test def maxFloat64(): Unit = {
+  @Test def maxFloat64(): Unit =
     runAggregator(Max(), TFloat64, FastSeq(-2.0, null, 7.2), 7.2)
-  }
 
   @Test def takeInt32(): Unit = {
     runAggregator(
@@ -390,9 +381,8 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
-  @Test def takeByNGreater(): Unit = {
+  @Test def takeByNGreater(): Unit =
     assertTakeByEvalsTo(TInt32, TInt32, 5, FastSeq(Row(3, 4)), FastSeq(3))
-  }
 
   @Test def takeByBooleanBoolean(): Unit = {
     assertTakeByEvalsTo(

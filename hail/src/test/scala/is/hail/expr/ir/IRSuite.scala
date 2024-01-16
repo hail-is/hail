@@ -54,33 +54,26 @@ class IRSuite extends HailSuite {
     assert(expected1 != expected3)
   }
 
-  @Test def testI32(): Unit = {
+  @Test def testI32(): Unit =
     assertEvalsTo(I32(5), 5)
-  }
 
-  @Test def testI64(): Unit = {
+  @Test def testI64(): Unit =
     assertEvalsTo(I64(5), 5L)
-  }
 
-  @Test def testF32(): Unit = {
+  @Test def testF32(): Unit =
     assertEvalsTo(F32(3.14f), 3.14f)
-  }
 
-  @Test def testF64(): Unit = {
+  @Test def testF64(): Unit =
     assertEvalsTo(F64(3.14), 3.14)
-  }
 
-  @Test def testStr(): Unit = {
+  @Test def testStr(): Unit =
     assertEvalsTo(Str("Hail"), "Hail")
-  }
 
-  @Test def testTrue(): Unit = {
+  @Test def testTrue(): Unit =
     assertEvalsTo(True(), true)
-  }
 
-  @Test def testFalse(): Unit = {
+  @Test def testFalse(): Unit =
     assertEvalsTo(False(), false)
-  }
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast(): Unit = {
@@ -118,9 +111,8 @@ class IRSuite extends HailSuite {
     )
   }
 
-  @Test def testNA(): Unit = {
+  @Test def testNA(): Unit =
     assertEvalsTo(NA(TInt32), null)
-  }
 
   @Test def testCoalesce(): Unit = {
     assertEvalsTo(Coalesce(FastSeq(In(0, TInt32))), FastSeq((null, TInt32)), null)
@@ -197,9 +189,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpAdd(): Unit = {
-    def assertSumsTo(t: Type, x: Any, y: Any, sum: Any): Unit = {
+    def assertSumsTo(t: Type, x: Any, y: Any, sum: Any): Unit =
       assertEvalsTo(ApplyBinaryPrimOp(Add(), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), sum)
-    }
     assertSumsTo(TInt32, 5, 3, 8)
     assertSumsTo(TInt32, 5, null, null)
     assertSumsTo(TInt32, null, 3, null)
@@ -222,13 +213,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpSubtract(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(Subtract(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 3)
     assertExpected(TInt32, 5, null, null)
@@ -252,13 +242,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpMultiply(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(Multiply(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 10)
     assertExpected(TInt32, 5, null, null)
@@ -282,13 +271,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpFloatingPointDivide(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 2.5)
     assertExpected(TInt32, 5, null, null)
@@ -312,13 +300,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpRoundToNegInfDivide(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(RoundToNegInfDivide(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 2)
     assertExpected(TInt32, 5, null, null)
@@ -342,13 +329,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitAnd(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 5 & 2)
     assertExpected(TInt32, -5, 2, -5 & 2)
@@ -368,13 +354,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitOr(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 5 | 2)
     assertExpected(TInt32, -5, 2, -5 | 2)
@@ -394,13 +379,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
-    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertExpected(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(BitXOr(), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertExpected(TInt32, 5, 2, 5 ^ 2)
     assertExpected(TInt32, -5, 2, -5 ^ 2)
@@ -420,13 +404,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpLeftShift(): Unit = {
-    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(LeftShift(), In(0, t), In(1, TInt32)),
         FastSeq(x -> t, y -> TInt32),
         expected,
       )
-    }
 
     assertShiftsTo(TInt32, 5, 2, 5 << 2)
     assertShiftsTo(TInt32, -5, 2, -5 << 2)
@@ -442,13 +425,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpRightShift(): Unit = {
-    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(RightShift(), In(0, t), In(1, TInt32)),
         FastSeq(x -> t, y -> TInt32),
         expected,
       )
-    }
 
     assertShiftsTo(TInt32, 0xff5, 2, 0xff5 >> 2)
     assertShiftsTo(TInt32, -5, 2, -5 >> 2)
@@ -464,13 +446,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyBinaryPrimOpLogicalRightShift(): Unit = {
-    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit = {
+    def assertShiftsTo(t: Type, x: Any, y: Any, expected: Any): Unit =
       assertEvalsTo(
         ApplyBinaryPrimOp(LogicalRightShift(), In(0, t), In(1, TInt32)),
         FastSeq(x -> t, y -> TInt32),
         expected,
       )
-    }
 
     assertShiftsTo(TInt32, 0xff5, 2, 0xff5 >>> 2)
     assertShiftsTo(TInt32, -5, 2, -5 >>> 2)
@@ -486,9 +467,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyComparisonOpGT(): Unit = {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(GT(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
-    }
 
     assertComparesTo(TInt32, 1, 1, false)
     assertComparesTo(TInt32, 0, 1, false)
@@ -509,13 +489,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyComparisonOpGTEQ(): Unit = {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(GTEQ(t), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertComparesTo(TInt32, 1, 1, true)
     assertComparesTo(TInt32, 0, 1, false)
@@ -535,9 +514,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyComparisonOpLT(): Unit = {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(LT(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
-    }
 
     assertComparesTo(TInt32, 1, 1, false)
     assertComparesTo(TInt32, 0, 1, true)
@@ -558,13 +536,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyComparisonOpLTEQ(): Unit = {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(LTEQ(t), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertComparesTo(TInt32, 1, 1, true)
     assertComparesTo(TInt32, 0, 1, true)
@@ -585,9 +562,8 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyComparisonOpEQ(): Unit = {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(ApplyComparisonOp(EQ(t), In(0, t), In(1, t)), FastSeq(x -> t, y -> t), expected)
-    }
 
     assertComparesTo(TInt32, 1, 1, expected = true)
     assertComparesTo(TInt32, 0, 1, expected = false)
@@ -607,13 +583,12 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testApplyComparisonOpNE(): Unit = {
-    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit = {
+    def assertComparesTo(t: Type, x: Any, y: Any, expected: Boolean): Unit =
       assertEvalsTo(
         ApplyComparisonOp(NEQ(t), In(0, t), In(1, t)),
         FastSeq(x -> t, y -> t),
         expected,
       )
-    }
 
     assertComparesTo(TInt32, 1, 1, expected = false)
     assertComparesTo(TInt32, 0, 1, expected = true)
@@ -632,9 +607,8 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
-  @Test def testDieCodeBUilder(): Unit = {
+  @Test def testDieCodeBUilder(): Unit =
     assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
-  }
 
   @Test def testIf(): Unit = {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
@@ -2980,13 +2954,13 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testStreamRange(): Unit = {
-    def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]): Unit = {
+    def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int])
+      : Unit =
       assertEvalsTo(
         ToArray(StreamRange(In(0, TInt32), In(1, TInt32), In(2, TInt32))),
         args = FastSeq(start -> TInt32, stop -> TInt32, step -> TInt32),
         expected = expected,
       )
-    }
     assertEquals(0, 5, null, null)
     assertEquals(0, null, 1, null)
     assertEquals(null, 5, 1, null)

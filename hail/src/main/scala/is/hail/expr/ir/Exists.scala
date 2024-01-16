@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-
 //
 // Search an IR tree for the first node satisfying some condition
 //

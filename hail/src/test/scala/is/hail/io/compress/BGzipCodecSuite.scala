@@ -119,12 +119,11 @@ class BGzipCodecSuite extends HailSuite {
     compareLines(lines2, lines)
   }
 
-  @Test def testGenericLinesRefuseGZ(): Unit = {
+  @Test def testGenericLinesRefuseGZ(): Unit =
     interceptFatal("Cowardly refusing") {
       val gzStatus = fs.fileStatus(gzPath)
       GenericLines.read(fs, Array(gzStatus), Some(7), None, None, false, false)
     }
-  }
 
   @Test def testGenericLinesRandom(): Unit = {
     val lines = Source.fromFile(uncompPath).getLines().toFastSeq

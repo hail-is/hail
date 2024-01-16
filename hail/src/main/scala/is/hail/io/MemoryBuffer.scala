@@ -19,9 +19,8 @@ final class MemoryBuffer extends Serializable {
     end = 0
   }
 
-  def clearPos(): Unit = {
+  def clearPos(): Unit =
     pos = 0
-  }
 
   def set(bytes: Array[Byte]): Unit = {
     mem = bytes
@@ -35,9 +34,8 @@ final class MemoryBuffer extends Serializable {
     dst
   }
 
-  def grow(n: Int): Unit = {
+  def grow(n: Int): Unit =
     mem = util.Arrays.copyOf(mem, math.max(capacity * 2, end + n))
-  }
 
   def copyFrom(src: MemoryBuffer): Unit = {
     mem = util.Arrays.copyOf(src.mem, src.capacity)

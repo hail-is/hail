@@ -15,9 +15,8 @@ class GridPartitionerSuite extends TestNGSuite {
   }
 
   @Test
-  def squareIsColumnMajor(): Unit = {
+  def squareIsColumnMajor(): Unit =
     assertLayout(GridPartitioner(2, 4, 4), (0, 0) -> 0, (1, 0) -> 1, (0, 1) -> 2, (1, 1) -> 3)
-  }
 
   @Test
   def rectangleMoreRowsIsColumnMajor(): Unit = {

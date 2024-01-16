@@ -1,4 +1,5 @@
 package is.hail.utils.richUtils
+
 import is.hail.annotations.RegionPool
 import is.hail.backend.ExecuteContext
 import is.hail.io.FileWriteMetadata

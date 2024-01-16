@@ -141,13 +141,12 @@ class StagedBlockLinkedListSuite extends HailSuite {
     }
   }
 
-  @Test def testPushIntsRequired(): Unit = {
+  @Test def testPushIntsRequired(): Unit =
     pool.scopedRegion { region =>
       val b = new BlockLinkedList[Int](region, PInt32Required)
       for (i <- 1 to 100) b += i
       assertEquals(b.toIndexedSeq, IndexedSeq.tabulate(100)(_ + 1))
     }
-  }
 
   @Test def testPushStrsMissing(): Unit = {
     pool.scopedRegion { region =>

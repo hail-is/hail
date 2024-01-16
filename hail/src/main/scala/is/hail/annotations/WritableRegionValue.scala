@@ -49,15 +49,15 @@ class WritableRegionValue private (
 
   def offset: Long = value.offset
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit = {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit =
     setSelect(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
-  }
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long): Unit = {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long)
+    : Unit =
     setSelect(fromT, fromFieldIdx, fromOffset, region.ne(fromRegion))
-  }
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromOffset: Long, deepCopy: Boolean): Unit = {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromOffset: Long, deepCopy: Boolean)
+    : Unit = {
     (t: @unchecked) match {
       case t: PStruct =>
         region.clear()
@@ -75,9 +75,8 @@ class WritableRegionValue private (
 
   def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
-  def set(fromRegion: Region, fromOffset: Long): Unit = {
+  def set(fromRegion: Region, fromOffset: Long): Unit =
     set(fromOffset, region.ne(fromRegion))
-  }
 
   def set(fromOffset: Long, deepCopy: Boolean): Unit = {
     region.clear()

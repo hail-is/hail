@@ -4,11 +4,16 @@ import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.retryTransientErrors
 import is.hail.shadedazure.com.azure.core.credential.{AzureSasCredential, TokenCredential}
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
-import is.hail.shadedazure.com.azure.identity.{ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential, DefaultAzureCredentialBuilder}
+import is.hail.shadedazure.com.azure.identity.{
+  ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential,
+  DefaultAzureCredentialBuilder,
+}
 import is.hail.shadedazure.com.azure.storage.blob.{
   BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,
 }
-import is.hail.shadedazure.com.azure.storage.blob.models.{BlobItem, BlobRange, BlobStorageException, ListBlobsOptions}
+import is.hail.shadedazure.com.azure.storage.blob.models.{
+  BlobItem, BlobRange, BlobStorageException, ListBlobsOptions,
+}
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
 import is.hail.utils._
 

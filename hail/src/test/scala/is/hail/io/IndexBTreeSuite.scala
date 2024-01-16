@@ -72,9 +72,8 @@ class IndexBTreeSuite extends HailSuite {
       }
   }
 
-  @Test def test(): Unit = {
+  @Test def test(): Unit =
     Spec.check()
-  }
 
   @Test def oneVariant(): Unit = {
     val index = Array(24.toLong)

@@ -1,4 +1,5 @@
 package is.hail.utils
+
 import java.io.{InputStream, OutputStream}
 import java.net.{HttpURLConnection, URL}
 import java.nio.charset.StandardCharsets

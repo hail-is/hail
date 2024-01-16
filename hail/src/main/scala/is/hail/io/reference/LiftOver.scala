@@ -1,4 +1,5 @@
 package is.hail.io.reference
+
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}

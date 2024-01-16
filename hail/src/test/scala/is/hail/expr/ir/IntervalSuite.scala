@@ -296,18 +296,17 @@ class IntervalSuite extends HailSuite {
         expected,
       )
     }
-    def assertLT(point: IndexedSeq[Int], intervalEndpoint: IndexedSeq[Int], leansRight: Boolean): Unit = {
+    def assertLT(point: IndexedSeq[Int], intervalEndpoint: IndexedSeq[Int], leansRight: Boolean)
+      : Unit =
       assertComp(point, intervalEndpoint, leansRight, "pointLessThanPartitionIntervalRightEndpoint",
         true)
-    }
     def assertNotLT(
       point: IndexedSeq[Int],
       intervalEndpoint: IndexedSeq[Int],
       leansRight: Boolean,
-    ): Unit = {
+    ): Unit =
       assertComp(point, intervalEndpoint, leansRight, "pointLessThanPartitionIntervalRightEndpoint",
         false)
-    }
     assertLT(Array(1, 3, 2), Array(1, 3, 2), true)
     assertNotLT(Array(1, 3, 2), Array(1, 3, 2), false)
     assertLT(Array(1, 3, 2), Array(1, 3, 4), true)

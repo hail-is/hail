@@ -5,9 +5,8 @@ import org.testng.annotations.Test
 
 class UnionFindSuite extends TestNGSuite {
   @Test
-  def emptyUnionFindHasNoSets(): Unit = {
+  def emptyUnionFindHasNoSets(): Unit =
     assert(new UnionFind().size == 0)
-  }
 
   @Test
   def growingPastInitialCapacityOK(): Unit = {

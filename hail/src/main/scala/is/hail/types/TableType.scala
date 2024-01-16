@@ -58,12 +58,11 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
 
     val space: String = if (compact) "" else " "
 
-    def newline(): Unit = {
+    def newline(): Unit =
       if (!compact) {
         sb += '\n'
         sb.append(" " * indent)
       }
-    }
 
     sb.append(s"Table$space{")
     indent += 4

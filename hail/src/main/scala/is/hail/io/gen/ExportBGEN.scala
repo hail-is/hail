@@ -1,4 +1,5 @@
 package is.hail.io.gen
+
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.FS
 
@@ -74,12 +75,11 @@ object BgenWriter {
     bb.result()
   }
 
-  def writeSampleFile(fs: FS, path: String, sampleIds: Array[String]): Unit = {
+  def writeSampleFile(fs: FS, path: String, sampleIds: Array[String]): Unit =
     fs.writeTable(
       path + ".sample",
       "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList,
     )
-  }
 
   def roundWithConstantSum(
     input: Array[Double],

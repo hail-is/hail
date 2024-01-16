@@ -115,21 +115,19 @@ class StringFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "str")
-  def str(annotation: IR, typ: Type): Unit = {
+  def str(annotation: IR, typ: Type): Unit =
     assertEvalsTo(
       invoke("str", TString, annotation), {
         val a = eval(annotation); if (a == null) null else typ.str(a)
       },
     )
-  }
 
   @Test(dataProvider = "str")
-  def json(annotation: IR, typ: Type): Unit = {
+  def json(annotation: IR, typ: Type): Unit =
     assertEvalsTo(
       invoke("json", TString, annotation),
       JsonMethods.compact(typ.toJSON(eval(annotation))),
     )
-  }
 
   @DataProvider(name = "time")
   def timeData(): Array[Array[Any]] = Array(
@@ -183,12 +181,10 @@ class StringFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "time")
-  def strftime(fmt: String, s: String, t: Long): Unit = {
+  def strftime(fmt: String, s: String, t: Long): Unit =
     assertEvalsTo(invoke("strftime", TString, Str(fmt), I64(t), Str("America/New_York")), s)
-  }
 
   @Test(dataProvider = "time")
-  def strptime(fmt: String, s: String, t: Long): Unit = {
+  def strptime(fmt: String, s: String, t: Long): Unit =
     assertEvalsTo(invoke("strptime", TInt64, Str(s), Str(fmt), Str("America/New_York")), t)
-  }
 }

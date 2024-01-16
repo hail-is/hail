@@ -125,20 +125,18 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
 
-  def setElementMissing(aoff: Long, i: Int): Unit = {
+  def setElementMissing(aoff: Long, i: Int): Unit =
     if (!elementRequired)
       Region.setBit(aoff + lengthHeaderBytes, i)
-  }
 
   override def setElementMissing(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit = {
     assert(!elementRequired, s"Array elements of ptype '${elementType.asIdent}' cannot be missing.")
     cb += Region.setBit(aoff + lengthHeaderBytes, i.toL)
   }
 
-  def setElementPresent(aoff: Long, i: Int): Unit = {
+  def setElementPresent(aoff: Long, i: Int): Unit =
     if (!elementRequired)
       Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
-  }
 
   def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
     if (!elementRequired)
@@ -235,19 +233,16 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
-  private def writeMissingness(aoff: Long, length: Int, value: Byte): Unit = {
+  private def writeMissingness(aoff: Long, length: Int, value: Byte): Unit =
     Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
-  }
 
-  def setAllMissingBits(aoff: Long, length: Int): Unit = {
+  def setAllMissingBits(aoff: Long, length: Int): Unit =
     if (!elementRequired)
       writeMissingness(aoff, length, -1)
-  }
 
-  def clearMissingBits(aoff: Long, length: Int): Unit = {
+  def clearMissingBits(aoff: Long, length: Int): Unit =
     if (!elementRequired)
       writeMissingness(aoff, length, 0)
-  }
 
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false): Unit = {
     Region.storeInt(aoff, length)

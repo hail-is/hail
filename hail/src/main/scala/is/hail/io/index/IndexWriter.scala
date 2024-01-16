@@ -476,7 +476,8 @@ class StagedIndexWriter(
       }
     }
 
-  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode): Unit = {
+  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode)
+    : Unit = {
     cb.if_(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode, cb.this_))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)

@@ -45,9 +45,8 @@ trait OutputBuffer extends Closeable {
 
   def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
 
-  def writeBoolean(b: Boolean): Unit = {
+  def writeBoolean(b: Boolean): Unit =
     writeByte(b.toByte)
-  }
 
   def writeUTF(s: String): Unit = {
     val bytes = s.getBytes(utfCharset)
@@ -137,9 +136,8 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
 final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def flush(): Unit = out.flush()
 
-  def close(): Unit = {
+  def close(): Unit =
     out.close()
-  }
 
   def indexOffset(): Long = out.indexOffset()
 
@@ -282,13 +280,11 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
 
-  def flush(): Unit = {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close(): Unit = {
+  def close(): Unit =
     out.close()
-  }
 
   def writeBlock(buf: Array[Byte], len: Int): Unit = {
     Memory.storeInt(lenBuf, 0, len)
@@ -303,13 +299,11 @@ final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffe
     extends OutputBlockBuffer {
   private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
-  def flush(): Unit = {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close(): Unit = {
+  def close(): Unit =
     out.close()
-  }
 
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
     val compLen = lz4.compress(comp, 4, buf, decompLen)
@@ -328,13 +322,11 @@ final class LZ4SizeBasedCompressingOutputBlockBuffer(
 ) extends OutputBlockBuffer {
   private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
 
-  def flush(): Unit = {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close(): Unit = {
+  def close(): Unit =
     out.close()
-  }
 
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
     if (decompLen < minCompressionSize) {
