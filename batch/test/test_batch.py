@@ -11,7 +11,7 @@ from hailtop import httpx
 from hailtop.auth import hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
-from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
+from hailtop.batch_client.aioclient import BatchClient as AioBatchClient, Batch as AioBatch
 from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
@@ -943,6 +943,9 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0', 401),
         (session.delete, '/api/v1alpha/batches/0', 401),
         (session.patch, '/api/v1alpha/batches/0/close', 401),
+        (session.get, '/api/v1alpha/batches/0/job-groups/0/job-groups', 401),
+        (session.post, '/api/v1alpha/batches/0/updates/0/job-groups/create', 401),
+        (session.post, '/api/v1alpha/batches/0/updates/0/jobs/create', 401),
         # redirect to auth/login
         (session.get, '/batches', 302),
         (session.get, '/batches/0', 302),
@@ -1757,3 +1760,84 @@ def test_get_job_group_status(client: BatchClient):
     last_known_status = jg.last_known_status()
     assert status['batch_id'] == b.id, str(status)
     assert last_known_status['batch_id'] == b.id, str(last_known_status)
+
+
+def test_job_group_creation_with_no_jobs(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0].name() == 'foo', str(job_groups)
+
+
+def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
+    b = create_batch(client)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.submit()
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    assert job_groups[0].name() == 'foo', str(job_groups)
+
+    b.cancel()
+
+
+def test_job_group_attributes(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo', 'test': '1'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+    jg = job_groups[0]
+    assert jg.name() == 'foo', str(jg)
+    assert jg.attributes() == {'name': 'foo', 'test': '1'}, str(jg)
+
+
+def test_job_groups_with_slow_create(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    for _ in range(4):
+        b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == 1, str(job_groups)
+
+
+def test_job_groups_with_slow_update(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+
+    for _ in range(4):
+        b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b.submit()
+
+    status = b.status()
+    debug_info = b.debug_info()
+    assert status['n_jobs'] == 4, str(debug_info)
+
+
+def test_more_than_one_bunch_of_job_groups_created(client: BatchClient):
+    max_bunch_size = AioBatch.MAX_BUNCH_SIZE
+    b = create_batch(client)
+    for i in range(max_bunch_size + 1):
+        b.create_job_group(attributes={'name': f'foo{i}'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    assert len(job_groups) == max_bunch_size + 1, str(job_groups)
+
+
+def test_more_than_one_bunch_of_job_groups_updated(client: BatchClient):
+    max_bunch_size = AioBatch.MAX_BUNCH_SIZE
+    b = create_batch(client)
+    b.create_job_group(attributes={'name': 'foo'})
+    b.submit()
+    for i in range(max_bunch_size + 1):
+        b.create_job_group(attributes={'name': f'foo{i}'})
+    b.submit()
+    job_groups = list(b.job_groups())
+    # need to include the initial job group created
+    assert len(job_groups) == max_bunch_size + 2, str(job_groups)

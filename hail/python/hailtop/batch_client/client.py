@@ -183,6 +183,10 @@ class Batch:
     def get_job_group(self, job_group_id: int) -> JobGroup:
         return JobGroup(self._async_batch.get_job_group(job_group_id))
 
+    def job_groups(self):
+        for jg in ait_to_blocking(self._async_batch.job_groups()):
+            yield JobGroup(jg)
+
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
@@ -231,6 +235,12 @@ class Batch:
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
+
+    def create_job_group(self, *, attributes=None, callback=None, cancel_after_n_failures=None) -> JobGroup:
+        async_job_group = self._async_batch.create_job_group(
+            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+        )
+        return JobGroup(async_job_group)
 
     def create_job(
         self,
