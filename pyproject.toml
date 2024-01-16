@@ -14,7 +14,6 @@ ignore = [
     "PLC1901", # `<VAR> != ''` can be simplified to `<VAR>` as an empty string is falsey
     "PLR2004", # Magic value used in comparison
     "E712",
-    "E711",
     "F405",
     "PLR1714",
     "PLW2901",

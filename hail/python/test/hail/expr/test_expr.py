@@ -716,7 +716,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_array_empty(self):
         ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
-        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) is None
 
     def test_agg_array_non_trivial_post_op(self):
         ht = hl.utils.range_table(10)
@@ -3848,17 +3848,17 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.is_finite(finite)) == True
         assert hl.eval(hl.is_finite(infinite)) == False
         assert hl.eval(hl.is_finite(nan)) == False
-        assert hl.eval(hl.is_finite(na)) == None
+        assert hl.eval(hl.is_finite(na)) is None
 
         assert hl.eval(hl.is_infinite(finite)) == False
         assert hl.eval(hl.is_infinite(infinite)) == True
         assert hl.eval(hl.is_infinite(nan)) == False
-        assert hl.eval(hl.is_infinite(na)) == None
+        assert hl.eval(hl.is_infinite(na)) is None
 
         assert hl.eval(hl.is_nan(finite)) == False
         assert hl.eval(hl.is_nan(infinite)) == False
         assert hl.eval(hl.is_nan(nan)) == True
-        assert hl.eval(hl.is_nan(na)) == None
+        assert hl.eval(hl.is_nan(na)) is None
 
     def test_array_and_if_requiredness(self):
         mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
@@ -4279,7 +4279,7 @@ def test_stream_randomness():
     a = hl.missing('array<int32>')
     a = a.map(lambda x: x + hl.rand_int32(10))
     assert_contains_node(a, ir.NA)
-    assert hl.eval(a) == None
+    assert hl.eval(a) is None
 
     # test If
     a1 = hl._stream_range(0, 5)
