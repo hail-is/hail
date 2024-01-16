@@ -968,10 +968,10 @@ def _get_scatter_plot_elements(
         all_renderers = []
         legend_items_by_key_by_factor = {col: collections.defaultdict(list) for col in factor_cols}
         for key in source_pd.groupby(factor_cols).groups.keys():
-            key = key if len(factor_cols) > 1 else [key]
+            _key = key if len(factor_cols) > 1 else [key]
             cds_view = CDSView(
                 filter=IntersectionFilter(
-                    operands=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))]
+                    operands=[GroupFilter(column_name=factor_cols[i], group=_key[i]) for i in range(0, len(factor_cols))]
                 )
             )
             renderer = sp.circle(
@@ -979,10 +979,10 @@ def _get_scatter_plot_elements(
             )
             all_renderers.append(renderer)
             for i in range(0, len(factor_cols)):
-                legend_items_by_key_by_factor[factor_cols[i]][key[i]].append(renderer)
+                legend_items_by_key_by_factor[factor_cols[i]][_key[i]].append(renderer)
 
         legend_items = {
-            factor: [LegendItem(label=key, renderers=renderers) for key, renderers in key_renderers.items()]
+            factor: [LegendItem(label=_key, renderers=renderers) for _key, renderers in key_renderers.items()]
             for factor, key_renderers in legend_items_by_key_by_factor.items()
         }
 
@@ -1377,8 +1377,8 @@ def joint_plot(
                 .apply(lambda df: np.histogram(df['x' if x_axis else 'y'], density=True))
             )
             for factor, (dens, edges) in density_data.iteritems():
-                edges = edges[:-1]
-                xy = (edges, dens) if x_axis else (dens, edges)
+                _edges = edges[:-1]
+                xy = (_edges, dens) if x_axis else (dens, _edges)
                 cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
                 density_renderers.append((
                     factor_col,

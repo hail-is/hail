@@ -1221,29 +1221,30 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
         new_fields = {'END': block2.END}
         if merge_functions:
             for k, f in merge_functions.items():
+                _f = f
                 if isinstance(f, str):
-                    f = f.lower()
-                    if f == 'min':
+                    _f = f.lower()
+                    if _f == 'min':
 
-                        def f(b1, b2):
+                        def __f(b1, b2):
                             return hl.min(block1[k], block2[k])
 
-                    elif f == 'max':
+                    elif _f == 'max':
 
-                        def f(b1, b2):
+                        def __f(b1, b2):
                             return hl.max(block1[k], block2[k])
 
-                    elif f == 'sum':
+                    elif _f == 'sum':
 
-                        def f(b1, b2):
+                        def __f(b1, b2):
                             return block1[k] + block2[k]
 
                     else:
                         raise ValueError(
-                            f"merge_reference_blocks: unknown merge function {f!r},"
+                            f"merge_reference_blocks: unknown merge function {_f!r},"
                             f" support 'min', 'max', and 'sum' in addition to custom lambdas"
                         )
-                new_value = f(block1, block2)
+                new_value = __f(block1, block2)
                 if new_value.dtype != block1[k].dtype:
                     raise ValueError(
                         f'merge_reference_blocks: merge_function for {k!r}: new type {new_value.dtype!r} '

@@ -80,9 +80,10 @@ class Summary(object):
             for name, v in self.summ_fields.items():
                 summary += f'\n{spacing}  {name.rjust(max_n_len)}: {self.format(v)}'
         for name, field in self.nested.items():
+            _name = name
             if prefix is not None:
-                name = f'{prefix}{name}'
-            summary += field._ascii_string(depth + 1, prefix=name)
+                _name = f'{prefix}{name}'
+            summary += field._ascii_string(depth + 1, prefix=_name)
 
         return summary
 
@@ -102,9 +103,10 @@ class Summary(object):
                 summary += f'<tr><td>{html.escape(name)}</td><td>{html.escape(self.format(v))}</td></tr>'
             summary += '</tbody></table>'
         for name, field in self.nested.items():
+            _name = name
             if prefix is not None:
-                name = f'{prefix}{name}'
-            summary += '<li>' + field._html_string(prefix=name) + '</li>'
+                _name = f'{prefix}{name}'
+            summary += '<li>' + field._html_string(prefix=_name) + '</li>'
         summary += '</ul>'
 
         return summary
