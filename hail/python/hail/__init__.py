@@ -47,7 +47,7 @@ from hail.utils import (  # noqa: E402
     hadoop_stat,
 )
 
-from . import (
+from . import (  # noqa: E402
     backend,
     experimental,
     expr,
