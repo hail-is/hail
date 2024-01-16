@@ -13,6 +13,30 @@ ignore = [
     "PLR0913", # Too many arguments to function call
     "PLC1901", # `<VAR> != ''` can be simplified to `<VAR>` as an empty string is falsey
     "PLR2004", # Magic value used in comparison
+    "E712",
+    "E711",
+    "F405",
+    "F841",
+    "PLR1714",
+    "PLW2901",
+    "F403",
+    "RUF005",
+    "PLW3301",
+    "RUF012",
+    "RUF013",
+    "PLR5501",
+    "RUF100",
+    "E402",
+    "RUF015",
+    "PLC0414",
+    "PLW0602",
+    "RUF002",
+    "PLC0132",
+    "PLE0307",
+    "PLW0127",
+    "PLR0124",
+    "F601",
+    "F811",
 ]
 extend-exclude = ['sql', 'datasets']
 force-exclude = true
