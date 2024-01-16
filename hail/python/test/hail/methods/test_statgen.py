@@ -94,9 +94,6 @@ class Tests(unittest.TestCase):
 
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'), types={'Pheno': hl.tfloat64}, key='Sample')
-        hl.import_table(
-            resource('regressionLinear.cov'), types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64}, key='Sample'
-        )
 
         mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo=hl.struct(bar=hl.rand_norm(0, 1)))
 
