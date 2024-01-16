@@ -47,7 +47,7 @@ async def render_html(request: web.Request, context: dict):
     # Make links point back to the local dev server and not use
     # the dev namespace path rewrite shenanigans.
     context['page_context']['base_path'] = ''
-    return await render_template(SERVICE, request, **context, cookie_domain='localhost:8000')
+    return await render_template(SERVICE, request, **context)
 
 
 async def on_startup(app: web.Application):
