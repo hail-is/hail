@@ -206,9 +206,8 @@ class CSEAnalysisPass:
                     elif child_frame.scan_scope:
                         if id(child) in bind_frame.scan_visited:
                             lets = bind_frame.scan_lifted_lets
-                    else:
-                        if id(child) in bind_frame.agg_visited:
-                            lets = bind_frame.agg_lifted_lets
+                    elif id(child) in bind_frame.agg_visited:
+                        lets = bind_frame.agg_lifted_lets
 
                 # 'lets' is either assigned before one of the 'br/has
                 if lets is not None:

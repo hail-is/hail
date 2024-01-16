@@ -816,14 +816,12 @@ class BlockMatrix(object):
                     if mean_impute:
                         expr = hl.or_else(expr, mt['__mean'])
                     expr = expr / mt['__length']
-            else:
-                if center:
-                    expr = expr - mt['__mean']
-                    if mean_impute:
-                        expr = hl.or_else(expr, 0.0)
-                else:
-                    if mean_impute:
-                        expr = hl.or_else(expr, mt['__mean'])
+            elif center:
+                expr = expr - mt['__mean']
+                if mean_impute:
+                    expr = hl.or_else(expr, 0.0)
+            elif mean_impute:
+                expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
             mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)

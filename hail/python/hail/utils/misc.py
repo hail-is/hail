@@ -578,26 +578,24 @@ def escape_str(s, backticked=False):
         elif chNum < 32:
             if ch in rewrite_dict:
                 sb.write(rewrite_dict[ch])
+            elif chNum > 0xF:
+                sb.write("\\u00" + upper_hex(chNum))
             else:
-                if chNum > 0xF:
-                    sb.write("\\u00" + upper_hex(chNum))
-                else:
-                    sb.write("\\u000" + upper_hex(chNum))
+                sb.write("\\u000" + upper_hex(chNum))
+        elif ch == '"':
+            if backticked:
+                sb.write('"')
+            else:
+                sb.write('\\"')
+        elif ch == '`':
+            if backticked:
+                sb.write("\\`")
+            else:
+                sb.write("`")
+        elif ch == '\\':
+            sb.write('\\\\')
         else:
-            if ch == '"':
-                if backticked:
-                    sb.write('"')
-                else:
-                    sb.write('\\"')
-            elif ch == '`':
-                if backticked:
-                    sb.write("\\`")
-                else:
-                    sb.write("`")
-            elif ch == '\\':
-                sb.write('\\\\')
-            else:
-                sb.write(ch)
+            sb.write(ch)
 
     escaped = sb.getvalue()
     sb.close()

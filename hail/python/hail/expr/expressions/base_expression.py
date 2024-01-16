@@ -1240,11 +1240,10 @@ class Expression(object):
         if self in src._fields:
             field_name = src._fields_inverse[self]
             prefix = field_name
+        elif self._ir.is_nested_field:
+            prefix = self._ir.name
         else:
-            if self._ir.is_nested_field:
-                prefix = self._ir.name
-            else:
-                prefix = '<expr>'
+            prefix = '<expr>'
 
         if handler is None:
             handler = hl.utils.default_handler()

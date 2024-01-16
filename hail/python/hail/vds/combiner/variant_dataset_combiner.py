@@ -698,18 +698,17 @@ def new_combiner(
             gvcf_batch_size = VariantDatasetCombiner._default_gvcf_batch_size
         else:
             pass
+    elif gvcf_batch_size is None:
+        warning(
+            'The batch_size parameter is deprecated. '
+            'The batch_size parameter will be removed in a future version of Hail. '
+            'Please use gvcf_batch_size instead.'
+        )
+        gvcf_batch_size = batch_size
     else:
-        if gvcf_batch_size is None:
-            warning(
-                'The batch_size parameter is deprecated. '
-                'The batch_size parameter will be removed in a future version of Hail. '
-                'Please use gvcf_batch_size instead.'
-            )
-            gvcf_batch_size = batch_size
-        else:
-            raise ValueError(
-                'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
-            )
+        raise ValueError(
+            'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
+        )
     del batch_size
 
     def maybe_load_from_saved_path(save_path: str) -> Optional[VariantDatasetCombiner]:

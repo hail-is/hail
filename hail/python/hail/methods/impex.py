@@ -1472,15 +1472,14 @@ def import_gen(
     varid = gen_table.data[last_rowf_idx - 4]
     if rg is None:
         locus = hl.struct(contig=contig_holder, position=position)
+    elif skip_invalid_loci:
+        locus = hl.if_else(
+            hl.is_valid_locus(contig_holder, position, rg),
+            hl.locus(contig_holder, position, rg),
+            hl.missing(hl.tlocus(rg)),
+        )
     else:
-        if skip_invalid_loci:
-            locus = hl.if_else(
-                hl.is_valid_locus(contig_holder, position, rg),
-                hl.locus(contig_holder, position, rg),
-                hl.missing(hl.tlocus(rg)),
-            )
-        else:
-            locus = hl.locus(contig_holder, position, rg)
+        locus = hl.locus(contig_holder, position, rg)
 
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
     gen_table = gen_table.annotate(

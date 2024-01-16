@@ -3554,9 +3554,8 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
             update_entries_expression['GQ'] = hl.or_else(hl.gq_from_pl(pl), split.GQ)
         else:
             update_entries_expression['PL'] = pl
-    else:
-        if 'GQ' in entry_fields:
-            update_entries_expression['GQ'] = split.GQ
+    elif 'GQ' in entry_fields:
+        update_entries_expression['GQ'] = split.GQ
 
     if 'PGT' in entry_fields:
         update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)

@@ -349,9 +349,8 @@ class DB:
                 response = retry_response_returning_functions(session.get, url)
                 config = response.json()
             assert isinstance(config, dict)
-        else:
-            if not isinstance(config, dict):
-                raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
+        elif not isinstance(config, dict):
+            raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
         config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
         self.cloud = cloud
