@@ -340,7 +340,7 @@ object EmitStream {
 
       case Ref(name, _typ) =>
         assert(_typ.isInstanceOf[TStream])
-        env.lookup(name).toI(cb)
+        env.bindings.lookup(name).toI(cb)
           .map(cb) { case stream: SStreamValue =>
             val childProducer = stream.getProducer(mb)
             val producer = new StreamProducer {
@@ -365,15 +365,15 @@ object EmitStream {
             SStreamValue(producer)
           }
 
-      case Let(bindings, body) =>
-        produce(
-          body,
+      case let: Let =>
+        Emit.emitLet(
+          emitter.ctx,
+          emitI = (ir, cb, env) => emit(ir, cb, env = env),
+          emitBody = (ir, cb, env) => produce(ir, cb, env = env),
+        )(
+          let,
           cb,
-          env = bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
-            Emit.letBindingsMustNotBeOfTypeTStream(name, ir.typ)
-            val value = emit(ir, cb, env = newEnv)
-            newEnv.bind(name, cb.memoizeField(value, s"let_$name"))
-          },
+          env,
         )
 
       case In(n, _) =>

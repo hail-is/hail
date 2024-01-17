@@ -89,7 +89,7 @@ class EmitStreamSuite extends HailSuite {
         cb,
         cb.emb,
         region,
-        new EmitEnv(inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))),
+        EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParamAsField(cb, i + 2))),
         None,
       )
         .consumeCode[Long](
@@ -184,7 +184,7 @@ class EmitStreamSuite extends HailSuite {
         cb,
         cb.emb,
         region,
-        new EmitEnv(),
+        EmitEnv(Env.empty, FastSeq()),
         None,
       )
         .consume(

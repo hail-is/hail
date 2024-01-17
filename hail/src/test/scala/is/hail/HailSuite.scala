@@ -11,14 +11,13 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import java.io.{File, PrintWriter}
+
 import breeze.linalg.DenseMatrix
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
-
-import scala.util.control.NonFatal
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -174,7 +173,7 @@ class HailSuite extends TestNGSuite {
             )
           }
         } catch {
-          case NonFatal(e) =>
+          case e: Exception =>
             error(s"error from strategy $strat")
             if (execStrats.contains(strat)) throw e
         }

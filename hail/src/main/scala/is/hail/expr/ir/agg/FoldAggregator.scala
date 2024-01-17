@@ -42,6 +42,9 @@ class FoldAggregator(
     other: TypedRegionBackedAggState,
   ): Unit = {
 
+    val stateEV = state.get(cb).memoizeField(cb, "fold_agg_comb_op_state")
+    val otherEV = other.get(cb).memoizeField(cb, "fold_agg_comb_op_other")
+    val env = EmitEnv(Env.apply((accumName, stateEV), (otherAccumName, otherEV)), IndexedSeq())
     val pEnv = Env.apply(
       (accumName, resultEmitType.storageType),
       (otherAccumName, resultEmitType.storageType),
@@ -49,12 +52,7 @@ class FoldAggregator(
 
     val emitCtx = EmitContext.analyze(ctx, combOpIR, pEnv)
     val emit = new Emit[Any](emitCtx, cb.emb.ecb.asInstanceOf[EmitClassBuilder[Any]])
-
-    val stateEV = state.get(cb).memoizeField(cb, "fold_agg_comb_op_state")
-    val otherEV = other.get(cb).memoizeField(cb, "fold_agg_comb_op_other")
-    val emitEnv = new EmitEnv().bind(accumName -> stateEV, otherAccumName -> otherEV)
-
-    val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], emitEnv, None)
+    val ec = emit.emit(combOpIR, cb.emb.asInstanceOf[EmitMethodBuilder[Any]], env, None)
     ec.toI(cb).consume(cb, state.storeMissing(cb), sv => state.storeNonmissing(cb, sv))
   }
 
