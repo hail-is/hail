@@ -146,11 +146,7 @@ object Emit {
   def letBindingsMustNotBeOfTypeTStream(name: String, typ: Type): Unit =
     assert(
       !typ.isInstanceOf[TStream],
-      s"""AN INTERNAL COMPILER ERROR OCCURRED. PLEASE SUBMIT A BUG REPORT WITH THE LINK BELOW.
-         |
-         |https://github.com/hail-is/hail/issues/new?labels=needs-triage&projects=&template=bug-report.yml
-         |
-         |Attempt to emit let-binding $name: ${typ.toPrettyString(compact = true)}.
+      s"""Attempt to emit let-binding $name: ${typ.toPrettyString(compact = true)}.
          |Let-bindings of type TStream may not be emitted as:
          | - they must have exactly one use, and
          | - their definition should have been inlined at that use.
