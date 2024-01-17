@@ -13,7 +13,14 @@ import prometheus_client as pc  # type: ignore
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthServiceAuthenticator, Database, json_response, setup_aiohttp_session, transaction
+from gear import (
+    AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
+    Database,
+    json_response,
+    setup_aiohttp_session,
+    transaction,
+)
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
@@ -319,11 +326,15 @@ async def monitor_instances(app):
         INSTANCES.labels(**labels._asdict()).set(count)
 
 
+class AppKeys(CommonAiohttpAppKeys):
+    pass
+
+
 async def on_startup(app):
     db = Database()
     await db.async_init()
     app['db'] = db
-    app['client_session'] = httpx.client_session()
+    app[AppKeys.CLIENT_SESSION] = httpx.client_session()
 
     aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/billing-monitoring-gsa-key/key.json')
 
@@ -357,7 +368,7 @@ async def on_startup(app):
 async def on_cleanup(app):
     async with AsyncExitStack() as cleanup:
         cleanup.push_async_callback(app['db'].async_close)
-        cleanup.push_async_callback(app['client_session'].close)
+        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
         cleanup.callback(app['task_manager'].shutdown)
 
 

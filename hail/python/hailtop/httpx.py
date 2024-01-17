@@ -83,7 +83,11 @@ class ClientResponse:
 
 class ClientSession:
     def __init__(
-        self, *args, raise_for_status: bool = True, timeout: Union[aiohttp.ClientTimeout, float, None] = None, **kwargs
+        self,
+        *args,
+        raise_for_status: bool = True,
+        timeout: Union[aiohttp.ClientTimeout, float, int, None] = None,
+        **kwargs,
     ):
         location = get_deploy_config().location()
         if location == 'external':
@@ -99,6 +103,8 @@ class ClientSession:
 
         if timeout is None:
             timeout = aiohttp.ClientTimeout(total=5)
+        if isinstance(timeout, (float, int)):
+            timeout = aiohttp.ClientTimeout(total=timeout)
 
         self.loop = asyncio.get_running_loop()
         self.raise_for_status = raise_for_status
@@ -114,6 +120,10 @@ class ClientSession:
                 f'ClientSession must be created and used in same loop {self.loop} != {asyncio.get_running_loop()}.'
             )
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
+
+        timeout = kwargs.get('timeout')
+        if timeout and isinstance(timeout, (float, int)):
+            kwargs['timeout'] = aiohttp.ClientTimeout(total=timeout)
 
         async def request_and_raise_for_status():
             json_data = kwargs.pop('json', None)
