@@ -818,7 +818,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/main/release/test/assembly.dest/out.jar
+      - from: /io/repo/hail/out/main/debug/test/assembly.dest/out.jar
         to: /hail-test.jar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
