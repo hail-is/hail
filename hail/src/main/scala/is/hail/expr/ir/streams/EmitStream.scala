@@ -366,8 +366,7 @@ object EmitStream {
           }
 
       case let: Let =>
-        Emit.emitLet(
-          emitter.ctx,
+        emitter.emitLet(
           emitI = (ir, cb, env) => emit(ir, cb, env = env),
           emitBody = (ir, cb, env) => produce(ir, cb, env = env),
         )(

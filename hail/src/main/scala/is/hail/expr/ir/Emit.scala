@@ -138,31 +138,6 @@ object Emit {
     }
     returnTypeOption
   }
-
-  def emitLet[A](
-    ctx: EmitContext,
-    emitI: (IR, EmitCodeBuilder, EmitEnv) => IEmitCode,
-    emitBody: (IR, EmitCodeBuilder, EmitEnv) => A,
-  )(
-    let: Let,
-    cb: EmitCodeBuilder,
-    env: EmitEnv,
-  ): A = {
-    val uses = ctx.usesAndDefs.uses(let).map(_.t.name)
-    emitBody(
-      let.body,
-      cb,
-      let.bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
-        if (!uses.contains(name)) newEnv
-        else {
-          val value = emitI(ir, cb, newEnv)
-          val memo = cb.memoizeMaybeStreamValue(value, s"let_$name")
-          newEnv.bind(name, memo)
-        }
-      },
-    )
-  }
-
 }
 
 object AggContainer {
@@ -700,11 +675,7 @@ abstract class EstimableEmitter[C] {
   def estimatedSize: Int
 }
 
-class Emit[C](
-  val ctx: EmitContext,
-  val cb: EmitClassBuilder[C],
-) {
-  emitSelf =>
+class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
   val methods: mutable.Map[(String, Seq[Type], Seq[SType], SType), EmitMethodBuilder[C]] =
     mutable.Map()
@@ -867,8 +838,7 @@ class Emit[C](
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case let: Let =>
-        Emit.emitLet(
-          ctx,
+        emitLet(
           emitI = (ir, cb, env) => emitI(ir, cb = cb, env = env),
           emitBody = (ir, cb, env) => emitVoid(ir, cb, env = env),
         )(
@@ -1471,7 +1441,7 @@ class Emit[C](
           sorter.sort(
             cb,
             region,
-            makeDependentSortingFunction(cb, sct, lessThan, env, emitSelf, Array(left, right)),
+            makeDependentSortingFunction(cb, sct, lessThan, env, this, Array(left, right)),
           )
           sorter.toRegion(cb, x.typ)
         }
@@ -3584,8 +3554,7 @@ class Emit[C](
 
       case let: Let =>
         EmitCode.fromI(mb) { cb =>
-          Emit.emitLet(
-            ctx,
+          emitLet(
             emitI = (ir, cb, env) => emitI(ir, cb = cb, env = env),
             emitBody = (ir, cb, env) => emitI(ir, cb, env = env),
           )(
@@ -3718,6 +3687,29 @@ class Emit[C](
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) =>
       cb.memoize(cb.invokeCode[Boolean](sort, cb.this_, region, l, r))
+  }
+
+  def emitLet[A](
+    emitI: (IR, EmitCodeBuilder, EmitEnv) => IEmitCode,
+    emitBody: (IR, EmitCodeBuilder, EmitEnv) => A,
+  )(
+    let: Let,
+    cb: EmitCodeBuilder,
+    env: EmitEnv,
+  ): A = {
+    val uses = ctx.usesAndDefs.uses(let).map(_.t.name)
+    emitBody(
+      let.body,
+      cb,
+      let.bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+        if (!uses.contains(name)) newEnv
+        else {
+          val value = emitI(ir, cb, newEnv)
+          val memo = cb.memoizeMaybeStreamValue(value, s"let_$name")
+          newEnv.bind(name, memo)
+        }
+      },
+    )
   }
 }
 
