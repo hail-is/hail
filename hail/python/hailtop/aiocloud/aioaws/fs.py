@@ -35,6 +35,7 @@ from hailtop.aiotools.fs import (
     AsyncFSURL,
     MultiPartCreate,
     FileAndDirectoryError,
+    IsABucketError,
 )
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.fs.stream import (
@@ -424,6 +425,8 @@ class S3AsyncFS(AsyncFS):
 
     async def open(self, url: str) -> ReadableStream:
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.get_object, Bucket=bucket, Key=name)
             return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, resp['Body']))
@@ -490,6 +493,8 @@ class S3AsyncFS(AsyncFS):
         # complete before the write can begin (unlike the current
         # code, that copies 128MB parts in 256KB chunks).
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         return S3CreateManager(self, bucket, name)
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
@@ -504,6 +509,8 @@ class S3AsyncFS(AsyncFS):
 
     async def statfile(self, url: str) -> FileStatus:
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.head_object, Bucket=bucket, Key=name)
             return S3HeadObjectFileStatus(resp, url)
@@ -579,8 +586,10 @@ class S3AsyncFS(AsyncFS):
         return await self._staturl_parallel_isfile_isdir(url)
 
     async def isfile(self, url: str) -> bool:
+        bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            return False
         try:
-            bucket, name = self.get_bucket_and_name(url)
             await blocking_to_async(self._thread_pool, self._s3.head_object, Bucket=bucket, Key=name)
             return True
         except botocore.exceptions.ClientError as e:
@@ -589,6 +598,9 @@ class S3AsyncFS(AsyncFS):
             raise e
 
     async def isdir(self, url: str) -> bool:
+        _, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         try:
             async for _ in await self.listfiles(url, recursive=True):
                 return True
@@ -597,8 +609,10 @@ class S3AsyncFS(AsyncFS):
             return False
 
     async def remove(self, url: str) -> None:
+        bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         try:
-            bucket, name = self.get_bucket_and_name(url)
             await blocking_to_async(self._thread_pool, self._s3.delete_object, Bucket=bucket, Key=name)
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
