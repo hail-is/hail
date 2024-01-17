@@ -22,5 +22,9 @@ else
     JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
 fi
 
-python3 -m hailtop.aiotools.copy -vvv 'null' '[{"from":"'${SHADOW_JAR}'", "to":"'${JAR_LOCATION}'"}]'
+python3 -m hailtop.aiotools.copy \
+	-vvv \
+	'null' \
+	'[{"from":"'${SHADOW_JAR}'", "to":"'${JAR_LOCATION}'"}]' \
+	--timeout 600
 echo ${JAR_LOCATION} > ${PATH_FILE}
