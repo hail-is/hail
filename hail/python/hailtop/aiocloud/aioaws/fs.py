@@ -1,23 +1,3 @@
-from typing import (
-    Any,
-    AsyncIterator,
-    BinaryIO,
-    cast,
-    AsyncContextManager,
-    Dict,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    Type,
-    Union,
-)
-from types import TracebackType
-import aiohttp
-import sys
-from concurrent.futures import ThreadPoolExecutor
-import os.path
-import threading
 import asyncio
 import datetime
 import logging
@@ -26,8 +6,22 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from types import TracebackType
-from typing import Any, AsyncContextManager, AsyncIterator, BinaryIO, Dict, List, Optional, Set, Tuple, Type, cast
+from typing import (
+    Any,
+    AsyncContextManager,
+    AsyncIterator,
+    BinaryIO,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
+import aiohttp
 import boto3
 import botocore.config
 import botocore.exceptions

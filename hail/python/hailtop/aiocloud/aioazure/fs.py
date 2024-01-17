@@ -1,7 +1,3 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
-from types import TracebackType
-
-import aiohttp
 import abc
 import asyncio
 import logging
@@ -13,6 +9,7 @@ from functools import wraps
 from types import TracebackType
 from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
 
+import aiohttp
 import azure.core.exceptions
 from azure.mgmt.storage.aio import StorageManagementClient
 from azure.storage.blob import BlobProperties, ResourceTypes, generate_account_sas
