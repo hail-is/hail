@@ -77,7 +77,7 @@ class PRConfig(TypedDict):
     out_of_date: bool
 
 
-async def pr_config(app, pr: PR) -> PRConfig:
+async def pr_config(app: web.Application, pr: PR) -> PRConfig:
     batch_id = pr.batch.id if pr.batch and isinstance(pr.batch, Batch) else None
     build_state = pr.build_state if await pr.authorized(app[AppKeys.DB]) else 'unauthorized'
     if build_state is None and batch_id is not None:
@@ -111,7 +111,7 @@ class WatchedBranchConfig(TypedDict):
     merge_candidate: Optional[str]
 
 
-async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
+async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
     if wb.prs:
         pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
     else:
@@ -221,19 +221,26 @@ def storage_uri_to_url(uri: str) -> str:
     return uri
 
 
-async def retry_pr(wb, pr, request):
+async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
     app = request.app
     session = await aiohttp_session.get_session(request)
 
     if pr.batch is None:
-        log.info('retry cannot be requested for PR #{pr.number} because it has no batch')
+        log.info(f'retry cannot be requested for PR #{pr.number} because it has no batch')
         set_message(session, f'Retry cannot be requested for PR #{pr.number} because it has no batch.', 'error')
+        return
+
+    if isinstance(pr.batch, MergeFailureBatch):
+        log.info(f'retry cannot be requested for PR #{pr.number} because it was a merge failure')
+        set_message(session, f'Retry cannot be requested for PR #{pr.number} because it was a merge failure.', 'error')
         return
 
     batch_id = pr.batch.id
     db = app[AppKeys.DB]
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
-    await wb.notify_batch_changed(app)
+    await wb.notify_batch_changed(
+        db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+    )
 
     log.info(f'retry requested for PR: {pr.number}')
     set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
@@ -250,7 +257,7 @@ async def post_retry_pr(request: web.Request, _) -> NoReturn:
 
 @routes.get('/batches')
 @auth.authenticated_developers_only()
-async def get_batches(request, userdata):
+async def get_batches(request: web.Request, userdata: UserData):
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     batches = [b async for b in batch_client.list_batches()]
     statuses = [await b.last_known_status() for b in batches]
@@ -260,7 +267,7 @@ async def get_batches(request, userdata):
 
 @routes.get('/batches/{batch_id}')
 @auth.authenticated_developers_only()
-async def get_batch(request, userdata):
+async def get_batch(request: web.Request, userdata: UserData):
     batch_id = int(request.match_info['batch_id'])
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     b = await batch_client.get_batch(batch_id)
@@ -403,14 +410,14 @@ async def pull_request_review_callback(event):
             )
 
 
-async def github_callback_handler(request):
+async def github_callback_handler(request: web.Request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
     event.app = request.app  # type: ignore
     await gh_router.dispatch(event)
 
 
 @routes.post('/github_callback')
-async def github_callback(request):
+async def github_callback(request: web.Request):
     await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
 
@@ -553,7 +560,7 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
 
 
 @routes.post('/api/v1alpha/batch_callback')
-async def batch_callback(request):
+async def batch_callback(request: web.Request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
 
@@ -809,7 +816,7 @@ SELECT frozen_merge_deploy FROM globals;
     app[AppKeys.TASK_MANAGER].ensure_future(update_loop(app))
 
 
-async def on_cleanup(app):
+async def on_cleanup(app: web.Application):
     async with AsyncExitStack() as cleanup:
         cleanup.push_async_callback(app[AppKeys.DB].async_close)
         cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
