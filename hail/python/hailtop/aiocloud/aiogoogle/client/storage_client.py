@@ -21,6 +21,7 @@ from hailtop.aiotools.fs import (
     FileAndDirectoryError,
     MultiPartCreate,
     UnexpectedEOFError,
+    IsABucketError,
 )
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
@@ -674,6 +675,8 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def open(self, url: str) -> GetObjectStream:
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         return await self._storage_client.get_object(bucket, name)
 
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> GetObjectStream:
@@ -686,6 +689,8 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         params = {'uploadType': 'resumable' if retry_writes else 'media'}
         return await self._storage_client.insert_object(bucket, name, params=params)
 
@@ -706,6 +711,8 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def statfile(self, url: str) -> GetObjectFileStatus:
         try:
             bucket, name = self.get_bucket_and_name(url)
+            if name == '':
+                raise IsABucketError(url)
             return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name), url)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -798,6 +805,8 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isdir(self, url: str) -> bool:
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         assert not name or name.endswith('/'), name
         params = {'prefix': name, 'delimiter': '/', 'includeTrailingDelimiter': 'true', 'maxResults': 1}
         async for page in await self._storage_client.list_objects(bucket, params=params):
@@ -808,6 +817,8 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         bucket, name = self.get_bucket_and_name(url)
+        if name == '':
+            raise IsABucketError(url)
         try:
             await self._storage_client.delete_object(bucket, name)
         except aiohttp.ClientResponseError as e:

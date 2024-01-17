@@ -219,7 +219,12 @@ class AsyncFSURL(abc.ABC):
         pass
 
     def with_new_path_component(self, new_path_component) -> "AsyncFSURL":
-        prefix = self.path if self.path.endswith("/") else self.path + "/"
+        if new_path_component == '':
+            raise ValueError('new path component must be non-empty')
+
+        prefix = self.path
+        if not prefix.endswith("/") and not prefix == '':
+            prefix += "/"
         suffix = new_path_component[1:] if new_path_component.startswith("/") else new_path_component
         return self.with_path(prefix + suffix)
 

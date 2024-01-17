@@ -9,7 +9,8 @@ import asyncio
 from hailtop.aiotools.fs.fs import AsyncFSURL
 import pytest
 from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, UnexpectedEOFError, AsyncFS
+from hailtop.fs.router_fs import RouterFS
+from hailtop.aiotools import LocalAsyncFS, UnexpectedEOFError, AsyncFS, IsABucketError
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
@@ -630,3 +631,51 @@ async def test_rmtree_on_symlink_to_directory():
         finally:
             await fs.rmtree(sema, str(base))
             assert not await fs.isdir(str(base))
+
+
+async def test_operations_on_a_bucket_url_is_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
+    _, fs, base = filesystem
+
+    if base.scheme in ('', 'file'):
+        return
+
+    bucket_url = str(base.with_path(''))
+
+    with pytest.raises(IsABucketError):
+        await fs.isdir(bucket_url)
+
+    assert await fs.isfile(bucket_url) is False
+
+    with pytest.raises(IsABucketError):
+        await fs.statfile(bucket_url)
+
+    with pytest.raises(IsABucketError):
+        await fs.remove(bucket_url)
+
+    with pytest.raises(IsABucketError):
+        await fs.create(bucket_url)
+
+    with pytest.raises(IsABucketError):
+        await fs.open(bucket_url)
+
+
+async def test_hfs_ls_bucket_url_not_an_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
+    _, _, base = filesystem
+
+    if base.scheme in ('', 'file'):
+        return
+
+    bucket_url = str(base.with_path(''))
+    fs = RouterFS()
+
+    fs.ls(bucket_url)
+
+
+async def test_with_new_path_component(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
+    _, _, base = filesystem
+
+    assert str(base.with_path('').with_new_path_component('abc')) == str(base.with_path('abc'))
+    assert str(base.with_path('abc').with_new_path_component('def')) == str(base.with_path('abc/def'))
+
+    actual = base.with_path('abc').with_new_path_component('def').with_new_path_component('ghi')
+    assert str(actual) == str(base.with_path('abc/def/ghi'))
