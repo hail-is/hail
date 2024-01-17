@@ -162,7 +162,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def withScopedMaybeStreamValue[T](ec: EmitCode, name: String)(f: EmitValue => T): T = {
     val ev = memoizeMaybeStreamValue(ec.toI(this), name)
     val res = f(ev)
-    ec.pv match {
+    if (ec.pv.isInstanceOf[SStreamValue]) {
       case ss: SStreamValue => ss.defineUnusedLabels(emb)
     }
     res
