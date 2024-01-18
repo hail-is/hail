@@ -530,7 +530,7 @@ def impute_sex_chr_ploidy_from_interval_coverage(
 )
 def impute_sex_chromosome_ploidy(
     vds: VariantDataset, calling_intervals, normalization_contig: str, use_variant_dataset: bool = False
-) -> hl.Table:
+) -> Table:
     """Impute sex chromosome ploidy from depth of reference or variant data within calling intervals.
 
     Returns a :class:`.Table` with sample ID keys, with the following fields:
@@ -949,7 +949,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 )
 def interval_coverage(
     vds: VariantDataset,
-    intervals: hl.Table,
+    intervals: Table,
     gq_thresholds=(
         0,
         10,

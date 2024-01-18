@@ -6,7 +6,6 @@ from typing import Any, Dict, List
 
 from hail.fs.hadoop_fs import HadoopFS
 from hail.typecheck import enumeration, typecheck
-from hail.utils import local_path_uri
 from hail.utils.java import Env, info
 
 
@@ -284,6 +283,8 @@ def copy_log(path: str) -> None:
     ----------
     path: :class:`str`
     """
+    from hail.utils import local_path_uri
+
     log = os.path.realpath(Env.hc()._log)
     try:
         if hadoop_is_dir(path):

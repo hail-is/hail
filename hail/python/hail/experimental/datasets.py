@@ -5,9 +5,12 @@ from typing import Optional, Union
 import pkg_resources
 
 import hail as hl
+from hail.linalg.blockmatrix import BlockMatrix
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 
 
-def _read_dataset(path: str) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockMatrix]:
+def _read_dataset(path: str) -> Union[Table, MatrixTable, BlockMatrix]:
     if path.endswith('.ht'):
         return hl.read_table(path)
     elif path.endswith('.mt'):
@@ -19,7 +22,7 @@ def _read_dataset(path: str) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockM
 
 def load_dataset(
     name: str, version: Optional[str], reference_genome: Optional[str], region: str = 'us', cloud: str = 'gcp'
-) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockMatrix]:
+) -> Union[Table, MatrixTable, BlockMatrix]:
     """Load a genetic dataset from Hail's repository.
 
     Example

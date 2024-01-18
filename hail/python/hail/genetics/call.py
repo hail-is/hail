@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 
 from hail.typecheck import typecheck_method
-from hail.utils import FatalError
 
 
 class Call(object):
@@ -263,6 +262,7 @@ class Call(object):
         -------
         :obj:`int`
         """
+        from hail.utils import FatalError
 
         if self.ploidy != 2 or self.phased:
             raise FatalError(

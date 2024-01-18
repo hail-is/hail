@@ -2,6 +2,7 @@ from typing import List
 
 import hail as hl
 from hail.expr.expressions import expr_array, expr_call, expr_locus, expr_str
+from hail.matrixtable import MatrixTable
 from hail.typecheck import sequenceof, typecheck
 
 
@@ -204,10 +205,10 @@ def phase_by_transmission(
     )
 
 
-@typecheck(tm=hl.MatrixTable, call_field=str, phased_call_field=str)
+@typecheck(tm=MatrixTable, call_field=str, phased_call_field=str)
 def phase_trio_matrix_by_transmission(
-    tm: hl.MatrixTable, call_field: str = 'GT', phased_call_field: str = 'PBT_GT'
-) -> hl.MatrixTable:
+    tm: MatrixTable, call_field: str = 'GT', phased_call_field: str = 'PBT_GT'
+) -> MatrixTable:
     """Adds a phased genoype entry to a trio MatrixTable based allele transmission in the trio.
 
     Example
@@ -270,10 +271,10 @@ def phase_trio_matrix_by_transmission(
     )
 
 
-@typecheck(tm=hl.MatrixTable, col_keys=sequenceof(str), keep_trio_cols=bool, keep_trio_entries=bool)
+@typecheck(tm=MatrixTable, col_keys=sequenceof(str), keep_trio_cols=bool, keep_trio_entries=bool)
 def explode_trio_matrix(
-    tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_trio_cols: bool = True, keep_trio_entries: bool = False
-) -> hl.MatrixTable:
+    tm: MatrixTable, col_keys: List[str] = ['s'], keep_trio_cols: bool = True, keep_trio_entries: bool = False
+) -> MatrixTable:
     """Splits a trio MatrixTable back into a sample MatrixTable.
 
     Example

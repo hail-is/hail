@@ -1,12 +1,13 @@
 import hail as hl
+from hail.matrixtable import MatrixTable
 from hail.typecheck import typecheck
 
 
 @typecheck(
-    mt=hl.MatrixTable, path=str, batch_size=int, bgzip=bool, header_json_in_file=bool, use_string_key_as_file_name=bool
+    mt=MatrixTable, path=str, batch_size=int, bgzip=bool, header_json_in_file=bool, use_string_key_as_file_name=bool
 )
 def export_entries_by_col(
-    mt: hl.MatrixTable,
+    mt: MatrixTable,
     path: str,
     batch_size: int = 256,
     bgzip: bool = True,

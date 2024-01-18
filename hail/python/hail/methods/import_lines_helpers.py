@@ -1,12 +1,13 @@
 from typing import List, Optional
 
 import hail as hl
+from hail.expr import ArrayExpression, BooleanExpression, Expression, StringExpression, StructExpression
 from hail.utils.misc import hl_plural, plural
 
 
 def split_lines(
-    row: hl.StructExpression, fields: List[str], *, delimiter: str, missing: str, quote: str
-) -> hl.ArrayExpression:
+    row: StructExpression, fields: List[str], *, delimiter: str, missing: str, quote: str
+) -> ArrayExpression:
     split_array = row.text._split_line(delimiter, missing=missing, quote=quote, regex=len(delimiter) > 1)
     return (
         hl.case()
@@ -25,15 +26,15 @@ Expected {len(fields)} {plural("field", len(fields))}, found %d %s on line:
     )
 
 
-def match_comment(comment: str, line: hl.StringExpression) -> hl.Expression:
+def match_comment(comment: str, line: StringExpression) -> Expression:
     if len(comment) == 1:
         return line.startswith(comment)
     return line.matches(comment, True)
 
 
 def should_remove_line(
-    line: hl.StringExpression, *, filter: str, comment: List[str], skip_blank_lines: bool
-) -> Optional[hl.BooleanExpression]:
+    line: StringExpression, *, filter: str, comment: List[str], skip_blank_lines: bool
+) -> Optional[BooleanExpression]:
     condition = None
     if filter is not None:
         condition = line.matches(filter)

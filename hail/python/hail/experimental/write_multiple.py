@@ -1,6 +1,5 @@
 from typing import List, Optional
 
-from hail import MatrixTable
 from hail.ir import (
     BlockMatrixBinaryMultiWriter,
     BlockMatrixMultiWrite,
@@ -10,6 +9,7 @@ from hail.ir import (
     MatrixNativeMultiWriter,
 )
 from hail.linalg import BlockMatrix
+from hail.matrixtable import MatrixTable
 from hail.typecheck import enumeration, nullable, sequenceof, typecheck
 from hail.utils.java import Env
 

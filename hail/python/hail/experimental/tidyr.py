@@ -1,5 +1,5 @@
 import hail as hl
-from hail import Table
+from hail.table import Table
 from hail.typecheck import nullable, oneof, sequenceof, typecheck
 from hail.utils import new_temp_file, wrap_to_list
 

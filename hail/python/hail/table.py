@@ -11,6 +11,7 @@ import pyspark
 import hail as hl
 from hail import ir
 from hail.expr.expressions import (
+    ArrayExpression,
     BooleanExpression,
     CallExpression,
     CollectionExpression,
@@ -2776,7 +2777,7 @@ class Table(ExprContainer):
     def collect(self) -> List[hl.Struct]: ...
 
     @overload
-    def collect(self, _localize=False) -> hl.ArrayExpression: ...
+    def collect(self, _localize=False) -> ArrayExpression: ...
 
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):

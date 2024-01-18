@@ -4,8 +4,8 @@ from collections.abc import Mapping
 import plotly
 import plotly.express as px
 
-from hail import tstr
 from hail.context import get_reference
+from hail.expr import tstr
 
 from .geoms import FigureAttribute
 from .utils import continuous_nums_to_colors, is_continuous_type, is_discrete_type

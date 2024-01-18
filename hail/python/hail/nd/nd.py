@@ -547,7 +547,7 @@ def concatenate(nds, axis=0):
 
 
 @typecheck(N=expr_numeric, M=nullable(expr_numeric), dtype=HailType)
-def eye(N, M=None, dtype=hl.tfloat64):
+def eye(N, M=None, dtype=tfloat64):
     """
     Construct a 2-D :class:`.NDArrayExpression` with ones on the *main* diagonal
     and zeros elsewhere.
@@ -597,7 +597,7 @@ def eye(N, M=None, dtype=hl.tfloat64):
 
 
 @typecheck(N=expr_numeric, dtype=HailType)
-def identity(N, dtype=hl.tfloat64):
+def identity(N, dtype=tfloat64):
     """
     Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
     The identity array is a square array with ones on the main diagonal.

@@ -41,7 +41,6 @@ from bokeh.plotting import figure
 from bokeh.transform import transform
 
 import hail
-from hail import MatrixTable, Table
 from hail.expr import aggregators
 from hail.expr.expressions import (
     Expression,
@@ -60,6 +59,8 @@ from hail.expr.expressions import (
     raise_unless_row_indexed,
 )
 from hail.expr.functions import _error_from_cdf_python
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.typecheck import dictof, nullable, numeric, oneof, sequenceof, sized_tupleof, typecheck
 from hail.utils.java import warning
 from hail.utils.struct import Struct

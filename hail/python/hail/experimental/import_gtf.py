@@ -3,6 +3,7 @@ import operator
 
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
+from hail.table import Table
 from hail.typecheck import nullable, sequenceof, typecheck
 from hail.utils import new_temp_file
 from hail.utils.java import info
@@ -18,7 +19,7 @@ from hail.utils.java import info
 )
 def import_gtf(
     path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None, force_bgz=False, force=False
-) -> hl.Table:
+) -> Table:
     """Import a GTF file.
 
     The GTF file format is identical to the GFF version 2 file format,

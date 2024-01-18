@@ -1,7 +1,8 @@
 import hail as hl
+from hail.matrixtable import MatrixTable
 
 
-def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.MatrixTable:
+def full_outer_join_mt(left: MatrixTable, right: MatrixTable) -> MatrixTable:
     """Performs a full outer join on `left` and `right`.
 
     Replaces row, column, and entry fields with the following:

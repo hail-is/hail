@@ -19,7 +19,9 @@ from hail.expr import (
     expr_int32,
     expr_numeric,
     expr_str,
+    tmatrix,
     to_expr,
+    ttable,
 )
 from hail.expr.types import hail_type, tarray, tbool, tcall, tfloat32, tfloat64, tint32, tint64, tstr, tstruct
 from hail.genetics.reference_genome import reference_genome_type
@@ -2679,7 +2681,7 @@ def import_plink(
     _create_row_uids=bool,
     _create_col_uids=bool,
     _n_partitions=nullable(int),
-    _assert_type=nullable(hl.tmatrix),
+    _assert_type=nullable(tmatrix),
     _load_refs=bool,
 )
 def read_matrix_table(
@@ -3254,7 +3256,7 @@ def get_vcf_header_info(path, filter=None, find=None, replace=None):
     _intervals=nullable(sequenceof(anytype)),
     _filter_intervals=bool,
     _n_partitions=nullable(int),
-    _assert_type=nullable(hl.ttable),
+    _assert_type=nullable(ttable),
     _load_refs=bool,
     _create_row_uids=bool,
 )

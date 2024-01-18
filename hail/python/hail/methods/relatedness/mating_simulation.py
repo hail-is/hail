@@ -1,8 +1,9 @@
 import hail as hl
+from hail.matrixtable import MatrixTable
 from hail.typecheck import numeric, typecheck
 
 
-@typecheck(mt=hl.MatrixTable, n_rounds=int, generation_size_multiplier=numeric, keep_founders=bool)
+@typecheck(mt=MatrixTable, n_rounds=int, generation_size_multiplier=numeric, keep_founders=bool)
 def simulate_random_mating(mt, n_rounds=1, generation_size_multiplier=1.0, keep_founders=True):
     """Simulate random diploid mating to produce new individuals.
 

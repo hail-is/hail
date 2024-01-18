@@ -10,6 +10,7 @@ from typing import ClassVar, Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 from hail.expr import HailType, tmatrix
+from hail.genetics import ReferenceGenome
 from hail.utils import FatalError, Interval
 from hail.utils.java import info, warning
 
@@ -221,7 +222,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         save_path: str,
         output_path: str,
         temp_path: str,
-        reference_genome: hl.ReferenceGenome,
+        reference_genome: ReferenceGenome,
         dataset_type: CombinerOutType,
         gvcf_type: Optional[tmatrix] = None,
         branch_factor: int = _default_branch_factor,
@@ -669,7 +670,7 @@ def new_combiner(
     target_records: int = VariantDatasetCombiner._default_target_records,
     gvcf_batch_size: Optional[int] = None,
     batch_size: Optional[int] = None,
-    reference_genome: Union[str, hl.ReferenceGenome] = 'default',
+    reference_genome: Union[str, ReferenceGenome] = 'default',
     contig_recoding: Optional[Dict[str, str]] = None,
     force: bool = False,
 ) -> VariantDatasetCombiner:

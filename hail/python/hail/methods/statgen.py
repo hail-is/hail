@@ -3,14 +3,16 @@ import itertools
 import math
 from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import hail
 import hail as hl
 import hail.expr.aggregators as agg
 from hail import ir
 from hail.expr import (
     Expression,
     ExpressionException,
+    NDArrayNumericExpression,
+    StructExpression,
     analyze,
+    expit,
     expr_any,
     expr_call,
     expr_float64,
@@ -22,7 +24,7 @@ from hail.expr import (
     raise_unless_row_indexed,
     table_source,
 )
-from hail.expr.types import tarray, tbool, tfloat64, tint32
+from hail.expr.types import tarray, tbool, tfloat64, tint32, tndarray, tstruct
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
@@ -46,17 +48,17 @@ hwe_normalized_pca = pca.hwe_normalized_pca
 pca = pca.pca
 
 
-tvector64 = hl.tndarray(hl.tfloat64, 1)
-tmatrix64 = hl.tndarray(hl.tfloat64, 2)
-numerical_regression_fit_dtype = hl.tstruct(
+tvector64 = tndarray(tfloat64, 1)
+tmatrix64 = tndarray(tfloat64, 2)
+numerical_regression_fit_dtype = tstruct(
     b=tvector64,
     score=tvector64,
     fisher=tmatrix64,
     mu=tvector64,
-    n_iterations=hl.tint32,
-    log_lkhd=hl.tfloat64,
-    converged=hl.tbool,
-    exploded=hl.tbool,
+    n_iterations=tint32,
+    log_lkhd=tfloat64,
+    converged=tbool,
+    exploded=tbool,
 )
 
 
@@ -230,7 +232,7 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
     pass_through=sequenceof(oneof(str, Expression)),
     weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
 )
-def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, weights=None) -> hail.Table:
+def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, weights=None) -> Table:
     r"""For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -414,7 +416,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=(), *, 
     weights=nullable(oneof(expr_float64, sequenceof(expr_float64))),
     pass_through=sequenceof(oneof(str, Expression)),
 )
-def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> hail.Table:
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pass_through=()) -> Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     raise_unless_entry_indexed('linear_regression_rows_nd/x', x)
 
@@ -728,7 +730,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=None, pa
 )
 def logistic_regression_rows(
     test, y, x, covariates, pass_through=(), *, max_iterations: Optional[int] = None, tolerance: Optional[float] = None
-) -> hail.Table:
+) -> Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1029,7 +1031,7 @@ def mean_impute(hl_array):
     return hl_array.map(lambda entry: hl.coalesce(entry, non_missing_mean))
 
 
-sigmoid = hl.expit
+sigmoid = expit
 
 
 def nd_max(hl_nd):
@@ -1037,12 +1039,12 @@ def nd_max(hl_nd):
 
 
 def logreg_fit(
-    X: hl.NDArrayNumericExpression,  # (K,)
-    y: hl.NDArrayNumericExpression,  # (N, K)
-    null_fit: Optional[hl.StructExpression],
+    X: NDArrayNumericExpression,  # (K,)
+    y: NDArrayNumericExpression,  # (N, K)
+    null_fit: Optional[StructExpression],
     max_iterations: int,
     tolerance: float,
-) -> hl.StructExpression:
+) -> StructExpression:
     """Iteratively reweighted least squares to fit the model y ~ Bernoulli(logit(X \beta))
 
     When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
@@ -1187,12 +1189,12 @@ def logistic_score_test(X, y, null_fit):
 
 
 def _firth_fit(
-    b: hl.NDArrayNumericExpression,  # (K,)
-    X: hl.NDArrayNumericExpression,  # (N, K)
-    y: hl.NDArrayNumericExpression,  # (N,)
+    b: NDArrayNumericExpression,  # (K,)
+    X: NDArrayNumericExpression,  # (N, K)
+    y: NDArrayNumericExpression,  # (N,)
     max_iterations: int,
     tolerance: float,
-) -> hl.StructExpression:
+) -> StructExpression:
     """Iteratively reweighted least squares using Firth's regression to fit the model y ~ Bernoulli(logit(X \beta))
 
     When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
@@ -1252,7 +1254,7 @@ def _firth_fit(
     return hl.experimental.loop(fit, dtype, 1, b)
 
 
-def _firth_test(null_fit, X, y, max_iterations, tolerance) -> hl.StructExpression:
+def _firth_test(null_fit, X, y, max_iterations, tolerance) -> StructExpression:
     firth_improved_null_fit = _firth_fit(null_fit.b, X, y, max_iterations=max_iterations, tolerance=tolerance)
     dof = 1  # 1 variant
 
@@ -1307,7 +1309,7 @@ def _firth_test(null_fit, X, y, max_iterations, tolerance) -> hl.StructExpressio
 )
 def _logistic_regression_rows_nd(
     test, y, x, covariates, pass_through=(), *, max_iterations: Optional[int] = None, tolerance: Optional[float] = None
-) -> hail.Table:
+) -> Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -1848,15 +1850,15 @@ def _lowered_poisson_regression_rows(
 
 
 def _poisson_fit(
-    X: hl.NDArrayNumericExpression,  # (N, K)
-    y: hl.NDArrayNumericExpression,  # (N,)
-    b: hl.NDArrayNumericExpression,  # (K,)
-    mu: hl.NDArrayNumericExpression,  # (N,)
-    score: hl.NDArrayNumericExpression,  # (K,)
-    fisher: hl.NDArrayNumericExpression,  # (K, K)
+    X: NDArrayNumericExpression,  # (N, K)
+    y: NDArrayNumericExpression,  # (N,)
+    b: NDArrayNumericExpression,  # (K,)
+    mu: NDArrayNumericExpression,  # (N,)
+    score: NDArrayNumericExpression,  # (K,)
+    fisher: NDArrayNumericExpression,  # (K, K)
     max_iterations: int,
     tolerance: float,
-) -> hl.StructExpression:
+) -> StructExpression:
     """Iteratively reweighted least squares to fit the model y ~ Poisson(exp(X \beta))
 
     When fitting the null model, K=n_covariates, otherwise K=n_covariates + 1.
@@ -3980,7 +3982,7 @@ def balding_nichols_model(
     n_partitions: Optional[int] = None,
     pop_dist: Optional[List[int]] = None,
     fst: Optional[List[Union[float, int]]] = None,
-    af_dist: Optional[hl.Expression] = None,
+    af_dist: Optional[Expression] = None,
     reference_genome: str = 'default',
     mixture: bool = False,
     *,

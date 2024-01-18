@@ -1,5 +1,6 @@
 import hail as hl
 from hail.expr.expressions import analyze, expr_float64, expr_numeric
+from hail.table import Table
 from hail.typecheck import nullable, oneof, sequenceof, typecheck
 from hail.utils import new_temp_file, wrap_to_list
 
@@ -21,7 +22,7 @@ def ld_score_regression(
     n_blocks=200,
     two_step_threshold=30,
     n_reference_panel_variants=None,
-) -> hl.Table:
+) -> Table:
     r"""Estimate SNP-heritability and level of confounding biases from genome-wide association study
     (GWAS) summary statistics.
 

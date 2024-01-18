@@ -3,7 +3,7 @@ import math
 from typing import ClassVar, Dict, Optional, Tuple
 
 import hail as hl
-from hail import Expression, StructExpression
+from hail.expr import Expression, StructExpression
 
 from .geoms import FigureAttribute
 from .utils import n_partitions
