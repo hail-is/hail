@@ -355,6 +355,10 @@ DELIMITER ;
 
 SET foreign_key_checks = 0;
 
+# we need to remove the unique index on batch_id, start_job_id because the start_job_id can be repeated in n_jobs in update is 0batch_updates
+# `batch_id` was the name of the unique index in my test database
+ALTER TABLE batch_updates DROP INDEX `batch_id`, ALGORITHM=INPLACE, LOCK=NONE;
+
 ALTER TABLE batch_updates ADD COLUMN start_job_group_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
 ALTER TABLE batch_updates ADD COLUMN n_job_groups INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
 CREATE INDEX `batch_updates_start_job_group_id` ON `batch_updates` (`batch_id`, `start_job_group_id`);

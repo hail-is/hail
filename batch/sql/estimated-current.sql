@@ -238,8 +238,7 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
   PRIMARY KEY (`batch_id`, `update_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),
-  UNIQUE KEY (`batch_id`, `start_job_id`)
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
