@@ -196,13 +196,11 @@ class GoogleHailMetadataServer(HailMetadataServer):
         gsa_email = request.match_info['gsa']
         creds = self._container_credentials(request)[gsa_email]
         access_token = await creds._get_access_token()
-        return web.json_response(
-            {
-                'access_token': access_token.token,
-                'expires_in': access_token.expires_in,
-                'token_type': 'Bearer',
-            }
-        )
+        return web.json_response({
+            'access_token': access_token.token,
+            'expires_in': access_token.expires_in,
+            'token_type': 'Bearer',
+        })
 
     @web.middleware
     async def middleware(self, request: web.Request, handler):
@@ -230,15 +228,13 @@ class GoogleHailMetadataServer(HailMetadataServer):
             client_max_size=HTTP_CLIENT_MAX_SIZE,
             middlewares=[self.middleware],
         )
-        metadata_app.add_routes(
-            [
-                web.get('/', self.root),
-                web.get('/computeMetadata/v1/project/project-id', self.project_id),
-                web.get('/computeMetadata/v1/project/numeric-project-id', self.numeric_project_id),
-                web.get('/computeMetadata/v1/instance/service-accounts/', self.service_accounts),
-                web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/', self.user_service_account),
-                web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/email', self.user_email),
-                web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/token', self.user_token),
-            ]
-        )
+        metadata_app.add_routes([
+            web.get('/', self.root),
+            web.get('/computeMetadata/v1/project/project-id', self.project_id),
+            web.get('/computeMetadata/v1/project/numeric-project-id', self.numeric_project_id),
+            web.get('/computeMetadata/v1/instance/service-accounts/', self.service_accounts),
+            web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/', self.user_service_account),
+            web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/email', self.user_email),
+            web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/token', self.user_token),
+        ])
         return metadata_app

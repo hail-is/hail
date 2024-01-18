@@ -1130,7 +1130,7 @@ def test_gcloud_works_with_hail_metadata_server(client: BatchClient):
     token = secrets.token_urlsafe(16)
     tmpdir = os.environ['HAIL_BATCH_REMOTE_TMPDIR']
     random_dir = f'{tmpdir}/{token}'
-    script = f'''
+    script = f"""
 set -ex
 unset GOOGLE_APPLICATION_CREDENTIALS
 gcloud config list account
@@ -1138,14 +1138,11 @@ echo "hello" >hello.txt
 gcloud storage cp hello.txt {random_dir}/hello.txt
 gcloud storage ls {random_dir}
 gcloud storage rm -r {random_dir}/
-'''
+"""
     j = b.create_job(os.environ['CI_UTILS_IMAGE'], ['/bin/bash', '-c', script])
     b.submit()
     status = j.wait()
-    job_log = j.log()
-    assert status['state'] == 'Success', str(
-        (status, job_log, orjson.dumps(b.debug_info(), option=orjson.OPT_INDENT_2))
-    )
+    assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
 def test_hail_metadata_server_available_only_in_gcp(client: BatchClient):
