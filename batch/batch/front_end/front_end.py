@@ -943,7 +943,7 @@ LIMIT 1;
 
         next_job_group_id = start_job_group_id + job_group_specs[0]['job_group_id'] - 1
         if next_job_group_id != last_inserted_job_group_id + 1:
-            raise web.HTTPBadRequest(reason=f'job group specs were not submitted in order')
+            raise web.HTTPBadRequest(reason='job group specs were not submitted in order')
 
         now = time_msecs()
 

@@ -111,7 +111,7 @@ batch_validator = keyed({
 
 batch_update_validator = keyed({
     required('token'): str_type,
-    required('n_job_groups'): numeric(**{"x >= 0": lambda x: isinstance(x, int) and x >= 0}),
+    'n_job_groups': numeric(**{"x >= 0": lambda x: isinstance(x, int) and x >= 0}),
     required('n_jobs'): numeric(**{"x >= 0": lambda x: isinstance(x, int) and x >= 0}),
 })
 
@@ -222,6 +222,8 @@ def validate_batch(batch):
 
 def validate_batch_update(update):
     batch_update_validator.validate('batch_update', update)
+    if update['n_job_groups'] is None:
+        update['n_job_groups'] = 0
 
 
 def validate_job_groups(job_groups):
