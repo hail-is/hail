@@ -27,11 +27,10 @@ def summarize(files):
 
 
 def register_main(subparser) -> 'None':
-    parser = subparser.add_parser('summarize',
+    parser = subparser.add_parser(
+        'summarize',
         help='Summarize a benchmark json results file.',
-        description='Summarize a benchmark json results file'
+        description='Summarize a benchmark json results file',
     )
-    parser.add_argument("files", type=str, nargs='*',
-        help="JSON files to summarize."
-    )
+    parser.add_argument("files", type=str, nargs='*', help="JSON files to summarize.")
     parser.set_defaults(main=lambda args: summarize(args.files))

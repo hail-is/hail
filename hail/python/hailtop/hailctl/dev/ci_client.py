@@ -19,9 +19,7 @@ class CIClient:
     async def __aenter__(self):
         async with hail_credentials() as credentials:
             headers = await credentials.auth_headers()
-        self._session = client_session(
-            raise_for_status=False, timeout=aiohttp.ClientTimeout(total=60), headers=headers
-        )  # type: ignore
+        self._session = client_session(raise_for_status=False, timeout=aiohttp.ClientTimeout(total=60), headers=headers)  # type: ignore
         return self
 
     async def __aexit__(self, exc_type, exc, tb):

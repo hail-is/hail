@@ -40,12 +40,10 @@ class Sync:
     async def sync_and_restart_pod(self, pod, namespace):
         log.info(f'reloading {pod}@{namespace}')
         try:
-            await asyncio.gather(
-                *[
-                    check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
-                    for local, remote in self.paths
-                ]
-            )
+            await asyncio.gather(*[
+                check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+                for local, remote in self.paths
+            ])
             await check_shell(f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
         except CalledProcessError:
             log.warning(f'could not synchronize {namespace}/{pod}, removing from active pods', exc_info=True)
@@ -56,12 +54,10 @@ class Sync:
     async def initialize_pod(self, pod, namespace):
         log.info(f'initializing {pod}@{namespace}')
         try:
-            await asyncio.gather(
-                *[
-                    check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
-                    for local, remote in self.paths
-                ]
-            )
+            await asyncio.gather(*[
+                check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+                for local, remote in self.paths
+            ])
             await check_shell(f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
         except CalledProcessError:
             log.warning(f'could not initialize {namespace}/{pod}', exc_info=True)

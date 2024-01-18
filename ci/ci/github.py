@@ -56,11 +56,11 @@ def select_random_teammate(team):
 
 async def sha_already_alerted(db: Database, sha: str) -> bool:
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT sha
 FROM alerted_failed_shas
 WHERE sha = %s
-''',
+""",
         (sha,),
     )
     return record is not None
@@ -88,9 +88,9 @@ async def send_zulip_deploy_failure_message(message: str, db: Database, sha: Opt
 
     if sha is not None:
         await db.execute_insertone(
-            '''
+            """
 INSERT INTO alerted_failed_shas (sha) VALUES (%s)
-''',
+""",
             (sha,),
         )
 
@@ -521,11 +521,11 @@ class PR(Code):
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
             await check_shell(
-                f'''
+                f"""
 set -ex
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-'''
+"""
             )
 
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
@@ -680,7 +680,7 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         assert self.target_branch.sha
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
 git remote add {shq(self.source_branch.repo.short_str())} {shq(self.source_branch.repo.url)} || true
@@ -688,7 +688,7 @@ git remote add {shq(self.source_branch.repo.short_str())} {shq(self.source_branc
 time retry git fetch -q {shq(self.source_branch.repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
-'''
+"""
 
 
 class WatchedBranch(Code):
@@ -875,12 +875,12 @@ class WatchedBranch(Code):
 
                 if not is_test_deployment and self.deploy_state == 'failure':
                     url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
-                    deploy_failure_message = f'''
+                    deploy_failure_message = f"""
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
 url: {url}
-'''
+"""
                     await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 self.state_changed = True
 
@@ -961,10 +961,10 @@ url: {url}
         try:
             repo_dir = self.repo_dir()
             await check_shell(
-                f'''
+                f"""
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-'''
+"""
             )
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
@@ -990,14 +990,14 @@ mkdir -p {shq(repo_dir)}
             try:
                 config.build(deploy_batch, self, scope='deploy')
             except Exception as e:
-                deploy_failure_message = f'''
+                deploy_failure_message = f"""
 branch: {self.branch.short_str()}
 sha: {self.sha}
 Deploy config failed to build with exception:
 ```python
 {e}
 ```
-'''
+"""
                 await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 raise
             await deploy_batch.submit()
@@ -1017,11 +1017,11 @@ Deploy config failed to build with exception:
 
     def checkout_script(self) -> str:
         assert self.sha
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
-'''
+"""
 
 
 class UnwatchedBranch(Code):
@@ -1072,10 +1072,10 @@ class UnwatchedBranch(Code):
         try:
             repo_dir = self.repo_dir()
             await check_shell(
-                f'''
+                f"""
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-'''
+"""
             )
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
@@ -1111,8 +1111,8 @@ mkdir -p {shq(repo_dir)}
                 await deploy_batch.delete()
 
     def checkout_script(self) -> str:
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
-'''
+"""

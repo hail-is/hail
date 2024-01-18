@@ -2312,9 +2312,7 @@ def import_matrix_table(
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
         raise FatalError(
             """import_matrix_table expects entry types to be one of:
-        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(
-                entry_type
-            )
+        'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type)
         )
 
     if missing in delimiter:
@@ -2872,6 +2870,48 @@ def import_vcf(
 
     >>> ds = hl.import_vcf('data/sample.vcf.gz', force_bgz=True)
 
+    Import a VCF which has missing values (".") inside INFO or FORMAT array fields:
+
+    >>> print(open('data/missing-values-in-array-fields.vcf').read())
+    ##fileformat=VCFv4.1
+    ##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+    ##FORMAT=<ID=X,Number=.,Type=Integer,Description="">
+    ##FORMAT=<ID=Y,Number=.,Type=Integer,Description="">
+    ##FORMAT=<ID=Z,Number=.,Type=Integer,Description="">
+    ##INFO=<ID=A,Number=A,Type=Integer,Description="">
+    ##INFO=<ID=B,Number=R,Type=Float,Description="">
+    ##INFO=<ID=C,Number=3,Type=Float,Description="">
+    ##INFO=<ID=D,Number=.,Type=Float,Description="">
+    #CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	SAMPLE1
+    1	123456	.	A	C	.	.	A=1,.;B=.,2,.;C=.	GT:X:Y:Z	0/0:1,.,1:.
+
+    >>> ds = hl.import_vcf('data/missing-values-in-array-fields.vcf', array_elements_required=False)
+    >>> ds.show(n_rows=1, n_cols=1, include_row_fields=True)
+    +---------------+------------+------+-----------+----------+--------------+
+    | locus         | alleles    | rsid |      qual | filters  | info.A       |
+    +---------------+------------+------+-----------+----------+--------------+
+    | locus<GRCh37> | array<str> | str  |   float64 | set<str> | array<int32> |
+    +---------------+------------+------+-----------+----------+--------------+
+    | 1:123456      | ["A","C"]  | NA   | -1.00e+01 | NA       | [1,NA]       |
+    +---------------+------------+------+-----------+----------+--------------+
+    <BLANKLINE>
+    +------------------+----------------+----------------+--------------+
+    | info.B           | info.C         | info.D         | 'SAMPLE1'.GT |
+    +------------------+----------------+----------------+--------------+
+    | array<float64>   | array<float64> | array<float64> | call         |
+    +------------------+----------------+----------------+--------------+
+    | [NA,2.00e+00,NA] | NA             | NA             | 0/0          |
+    +------------------+----------------+----------------+--------------+
+    <BLANKLINE>
+    +--------------+--------------+--------------+
+    | 'SAMPLE1'.X  | 'SAMPLE1'.Y  | 'SAMPLE1'.Z  |
+    +--------------+--------------+--------------+
+    | array<int32> | array<int32> | array<int32> |
+    +--------------+--------------+--------------+
+    | [1,NA,1]     | NA           | NA           |
+    +--------------+--------------+--------------+
+
+
     Notes
     -----
 
@@ -3304,7 +3344,6 @@ def import_avro(paths, *, key=None, intervals=None):
         raise ValueError('key and intervals must either be both defined or both undefined')
 
     with hl.current_backend().fs.open(paths[0], 'rb') as avro_file:
-
         # monkey patch DataFileReader.determine_file_length to account for bug in Google HadoopFS
 
         def patched_determine_file_length(self) -> int:

@@ -41,8 +41,8 @@ check-all: check-hail check-services
 check-hail-fast:
 	ruff check hail/python/hail
 	ruff check hail/python/hailtop
+	ruff format hail --diff
 	$(PYTHON) -m pyright hail/python/hailtop
-	$(PYTHON) -m black hail --check --diff
 
 .PHONY: pylint-hailtop
 pylint-hailtop:
@@ -51,6 +51,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
+	cd hail && sh ./gradlew spotlessCheck
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
@@ -62,8 +63,8 @@ pylint-%:
 .PHONY: check-%-fast
 check-%-fast:
 	ruff check $*
+	ruff format $* --diff
 	$(PYTHON) -m pyright $*
-	$(PYTHON) -m black $* --check --diff
 	curlylint $*
 	cd $* && bash ../check-sql.sh
 

@@ -94,10 +94,10 @@ class SessionResource:
             return
 
         await self.db.just_execute(
-            '''
+            """
 DELETE FROM sessions
 WHERE session_id = %s;
-''',
+""",
             (self.session_id,),
         )
         self.session_id = None
@@ -430,11 +430,11 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             updates['trial_bp_name'] = billing_project_name
 
     n_rows = await db.execute_update(
-        f'''
+        f"""
 UPDATE users
 SET {', '.join([f'{k} = %({k})s' for k in updates])}
 WHERE id = %(id)s AND state = 'creating';
-''',
+""",
         {'id': user['id'], **updates},
     )
     if n_rows != 1:
@@ -502,10 +502,10 @@ async def delete_user(app, user):
         await bp.delete()
 
     await db.just_execute(
-        '''
+        """
 DELETE FROM sessions WHERE user_id = %s;
 UPDATE users SET state = 'deleted' WHERE id = %s;
-''',
+""",
         (user['id'], user['id']),
     )
 
@@ -523,11 +523,11 @@ async def resolve_identity_uid(app, hail_identity):
         hail_identity_uid = await sp.get_service_principal_object_id()
 
     await db.just_execute(
-        '''
+        """
 UPDATE users
 SET hail_identity_uid = %s
 WHERE hail_identity = %s
-''',
+""",
         (hail_identity_uid, hail_identity),
     )
 

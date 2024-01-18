@@ -134,12 +134,10 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
-    mt = mt.annotate_rows(
-        **{
-            variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
-            variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt)),
-        }
-    )
+    mt = mt.annotate_rows(**{
+        variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
+        variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt)),
+    })
 
     bound_exprs = {}
     gq_dp_exprs = {}
@@ -189,29 +187,26 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     result_struct = hl.rbind(
         hl.struct(**bound_exprs),
         lambda x: hl.rbind(
-            hl.struct(
-                **{
-                    **gq_dp_exprs,
-                    'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
-                    'n_called': x.n_called,
-                    'n_not_called': x.n_not_called,
-                    'n_filtered': x.n_filtered,
-                    'n_hom_ref': x.n_hom_ref,
-                    'n_het': x.n_het,
-                    'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
-                    'n_non_ref': x.n_called - x.n_hom_ref,
-                    'n_singleton': x.n_singleton,
-                    'n_snp': (
-                        x.allele_type_counts[allele_ints["Transition"]]
-                        + x.allele_type_counts[allele_ints["Transversion"]]
-                    ),
-                    'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
-                    'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
-                    'n_transition': x.allele_type_counts[allele_ints["Transition"]],
-                    'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
-                    'n_star': x.allele_type_counts[allele_ints["Star"]],
-                }
-            ),
+            hl.struct(**{
+                **gq_dp_exprs,
+                'call_rate': hl.float64(x.n_called) / (x.n_called + x.n_not_called + x.n_filtered),
+                'n_called': x.n_called,
+                'n_not_called': x.n_not_called,
+                'n_filtered': x.n_filtered,
+                'n_hom_ref': x.n_hom_ref,
+                'n_het': x.n_het,
+                'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
+                'n_non_ref': x.n_called - x.n_hom_ref,
+                'n_singleton': x.n_singleton,
+                'n_snp': (
+                    x.allele_type_counts[allele_ints["Transition"]] + x.allele_type_counts[allele_ints["Transversion"]]
+                ),
+                'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
+                'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
+                'n_transition': x.allele_type_counts[allele_ints["Transition"]],
+                'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
+                'n_star': x.allele_type_counts[allele_ints["Star"]],
+            }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
                 r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
@@ -348,21 +343,19 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
                 ),
             )
             .or_missing(),
-            lambda hwe: hl.struct(
-                **{
-                    **gq_dp_exprs,
-                    **e1.call_stats,
-                    'call_rate': hl.float(e1.n_called) / (e1.n_called + e1.n_not_called + e1.n_filtered),
-                    'n_called': e1.n_called,
-                    'n_not_called': e1.n_not_called,
-                    'n_filtered': e1.n_filtered,
-                    'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
-                    'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
-                    'het_freq_hwe': hwe[0].het_freq_hwe,
-                    'p_value_hwe': hwe[0].p_value,
-                    'p_value_excess_het': hwe[1].p_value,
-                }
-            ),
+            lambda hwe: hl.struct(**{
+                **gq_dp_exprs,
+                **e1.call_stats,
+                'call_rate': hl.float(e1.n_called) / (e1.n_called + e1.n_not_called + e1.n_filtered),
+                'n_called': e1.n_called,
+                'n_not_called': e1.n_not_called,
+                'n_filtered': e1.n_filtered,
+                'n_het': e1.n_called - hl.sum(e1.call_stats.homozygote_count),
+                'n_non_ref': e1.n_called - e1.call_stats.homozygote_count[0],
+                'het_freq_hwe': hwe[0].het_freq_hwe,
+                'p_value_hwe': hwe[0].p_value,
+                'p_value_excess_het': hwe[1].p_value,
+            }),
         ),
     )
 
@@ -826,7 +819,7 @@ class VEPConfigGRCh37Version85(VEPConfig):
     ) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
-        return f'''/vep/vep {input_file} \
+        return f"""/vep/vep {input_file} \
 --format vcf \
 {vcf_or_json} \
 --everything \
@@ -839,7 +832,7 @@ class VEPConfigGRCh37Version85(VEPConfig):
 --dir={self.data_mount} \
 --plugin LoF,human_ancestor_fa:{self.data_mount}/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:{self.data_mount}/loftee_data/phylocsf_gerp.sql,gerp_file:{self.data_mount}/loftee_data/GERP_scores.final.sorted.txt.gz \
 -o STDOUT
-'''
+"""
 
 
 class VEPConfigGRCh38Version95(VEPConfig):
@@ -897,7 +890,7 @@ class VEPConfigGRCh38Version95(VEPConfig):
     ) -> str:
         vcf_or_json = '--vcf' if consequence else '--json'
         input_file = f'--input_file {input_file}' if input_file else ''
-        return f'''/vep/vep {input_file} \
+        return f"""/vep/vep {input_file} \
 --format vcf \
 {vcf_or_json} \
 --everything \
@@ -907,12 +900,12 @@ class VEPConfigGRCh38Version95(VEPConfig):
 --offline \
 --minimal \
 --assembly GRCh38 \
---fasta {self.data_mount}/homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
+--fasta {self.data_mount}homo_sapiens/95_GRCh38/Homo_sapiens.GRCh38.dna.toplevel.fa.gz \
 --plugin "LoF,loftee_path:/vep/ensembl-vep/Plugins/,gerp_bigwig:{self.data_mount}/gerp_conservation_scores.homo_sapiens.GRCh38.bw,human_ancestor_fa:{self.data_mount}/human_ancestor.fa.gz,conservation_file:{self.data_mount}/loftee.sql" \
 --dir_plugins /vep/ensembl-vep/Plugins/ \
 --dir_cache {self.data_mount} \
 -o STDOUT
-'''
+"""
 
 
 supported_vep_configs = {
@@ -960,7 +953,7 @@ def _service_vep(
     temp_output_directory: str,
 ) -> hl.Table:
     reference_genome = ht.locus.dtype.reference_genome.name
-    cloud = backend.bc.cloud()
+    cloud = async_to_blocking(backend._batch_client.cloud())
     regions = backend.regions
 
     if config is not None:
@@ -1801,14 +1794,12 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
             hl.agg.count_where(hl.is_transversion(ref, alt)),
         )
 
-    (allele_types, nti, ntv), contigs, allele_counts, n_variants = ht.aggregate(
-        (
-            hl.agg.explode(explode_result, allele_pairs),
-            hl.agg.counter(ht.locus.contig),
-            hl.agg.counter(hl.len(ht.alleles)),
-            hl.agg.count(),
-        )
-    )
+    (allele_types, nti, ntv), contigs, allele_counts, n_variants = ht.aggregate((
+        hl.agg.explode(explode_result, allele_pairs),
+        hl.agg.counter(ht.locus.contig),
+        hl.agg.counter(hl.len(ht.alleles)),
+        hl.agg.count(),
+    ))
     rg = ht.locus.dtype.reference_genome
     if show:
         summary = _VariantSummary(rg, n_variants, allele_counts, contigs, allele_types, nti, ntv)

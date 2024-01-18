@@ -87,7 +87,7 @@ class PoolConfig(InstanceCollectionConfig):
 
     async def update_database(self, db: Database):
         await db.just_execute(
-            '''
+            """
 UPDATE pools
 INNER JOIN inst_colls ON pools.name = inst_colls.name
 SET worker_cores = %s,
@@ -105,7 +105,7 @@ SET worker_cores = %s,
     standing_worker_max_idle_time_secs = %s,
     job_queue_scheduling_window_secs = %s
 WHERE pools.name = %s;
-''',
+""",
             (
                 self.worker_cores,
                 self.worker_local_ssd_data_disk,
@@ -265,11 +265,11 @@ class InstanceCollectionConfigs:
         db: Database,
     ) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
         records = db.execute_and_fetchall(
-            '''
+            """
 SELECT inst_colls.*, pools.*
 FROM inst_colls
 LEFT JOIN pools ON inst_colls.name = pools.name;
-'''
+"""
         )
 
         name_pool_config: Dict[str, PoolConfig] = {}

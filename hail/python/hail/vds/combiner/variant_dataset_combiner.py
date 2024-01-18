@@ -520,12 +520,10 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         merge_vds = []
         merge_n_samples = []
 
-        intervals_literal = hl.literal(
-            [
-                hl.Struct(contig=i.start.contig, start=i.start.position, end=i.end.position)
-                for i in self._gvcf_import_intervals
-            ]
-        )
+        intervals_literal = hl.literal([
+            hl.Struct(contig=i.start.contig, start=i.start.position, end=i.end.position)
+            for i in self._gvcf_import_intervals
+        ])
 
         partition_interval_point_type = hl.tstruct(locus=hl.tlocus(self._reference_genome))
         partition_intervals = [

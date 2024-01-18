@@ -52,7 +52,6 @@ def export_block_matrices(
     compression: Optional[str] = None,
     custom_filenames=None,
 ):
-
     if custom_filenames:
         assert len(custom_filenames) == len(
             bms

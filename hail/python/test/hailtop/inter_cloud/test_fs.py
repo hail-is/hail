@@ -244,7 +244,7 @@ async def test_read_range_end_exclusive_empty_file(filesystem: Tuple[asyncio.Sem
 
 
 async def test_read_range_end_inclusive_empty_file_should_error(
-    filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]
+    filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL],
 ):
     _, fs, base = filesystem
 
@@ -521,10 +521,17 @@ async def test_file_can_contain_url_query_delimiter(filesystem: Tuple[asyncio.Se
     await fs.write(file, secrets.token_bytes(10))
     assert await fs.exists(file)
     async for f in await fs.listfiles(str(base)):
-        if 'bar?baz' in f.name():
+        if 'bar?baz' in f.basename():
             break
     else:
         assert False, 'File bar?baz not found'
+
+
+async def test_basename_is_not_path(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
+    _, fs, base = filesystem
+
+    await fs.write(str(base.with_new_path_component('abc123')), b'foo')
+    assert (await fs.statfile(str(base.with_new_path_component('abc123')))).basename() == 'abc123'
 
 
 async def test_listfiles(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):

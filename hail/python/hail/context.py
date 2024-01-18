@@ -51,7 +51,7 @@ def _get_log(log):
 
 
 def convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
-    x: Optional[Union[str, Tuple[str, List[str]]]]
+    x: Optional[Union[str, Tuple[str, List[str]]]],
 ) -> Tuple[Optional[str], Optional[str]]:
     if isinstance(x, str):
         return x, None

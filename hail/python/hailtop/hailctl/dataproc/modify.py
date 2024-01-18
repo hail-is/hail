@@ -80,41 +80,37 @@ def modify(
         wheelfile = os.path.basename(wheel)
         cmds = []
         if wheel.startswith("gs://"):
-            cmds.append(
+            cmds.append([
+                'compute',
+                'ssh',
+                '{}-m'.format(name),
+                '--zone={}'.format(zone),
+                '--',
+                f'sudo gsutil cp {wheel} /tmp/ && '
+                'sudo /opt/conda/default/bin/pip uninstall -y hail && '
+                f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
+                f"unzip /tmp/{wheelfile} && "
+                "requirements_file=$(mktemp) && "
+                "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
+                "/opt/conda/default/bin/pip install -r $requirements_file",
+            ])
+        else:
+            cmds.extend([
+                ['compute', 'scp', '--zone={}'.format(zone), wheel, '{}-m:/tmp/'.format(name)],
                 [
                     'compute',
                     'ssh',
-                    '{}-m'.format(name),
-                    '--zone={}'.format(zone),
+                    f'{name}-m',
+                    f'--zone={zone}',
                     '--',
-                    f'sudo gsutil cp {wheel} /tmp/ && '
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
                     f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
                     f"unzip /tmp/{wheelfile} && "
                     "requirements_file=$(mktemp) && "
                     "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
                     "/opt/conda/default/bin/pip install -r $requirements_file",
-                ]
-            )
-        else:
-            cmds.extend(
-                [
-                    ['compute', 'scp', '--zone={}'.format(zone), wheel, '{}-m:/tmp/'.format(name)],
-                    [
-                        'compute',
-                        'ssh',
-                        f'{name}-m',
-                        f'--zone={zone}',
-                        '--',
-                        'sudo /opt/conda/default/bin/pip uninstall -y hail && '
-                        f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
-                        f"unzip /tmp/{wheelfile} && "
-                        "requirements_file=$(mktemp) && "
-                        "grep 'Requires-Dist: ' hail*dist-info/METADATA | sed 's/Requires-Dist: //' | sed 's/ (//' | sed 's/)//' | grep -v 'pyspark' >$requirements_file &&"
-                        "/opt/conda/default/bin/pip install -r $requirements_file",
-                    ],
-                ]
-            )
+                ],
+            ])
 
         for cmd in cmds:
             print('gcloud ' + ' '.join(cmd))

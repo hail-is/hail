@@ -1258,9 +1258,10 @@ class BlockMatrix(object):
         if isinstance(hl.current_backend(), ServiceBackend):
             with hl.TemporaryFilename() as path:
                 self.tofile(path)
-                return np.frombuffer(hl.current_backend().fs.open(path, mode='rb').read()).reshape(
-                    (self.n_rows, self.n_cols)
-                )
+                return np.frombuffer(hl.current_backend().fs.open(path, mode='rb').read()).reshape((
+                    self.n_rows,
+                    self.n_cols,
+                ))
 
         with with_local_temp_file() as path:
             uri = local_path_uri(path)

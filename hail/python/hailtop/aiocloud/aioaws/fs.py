@@ -74,8 +74,15 @@ class PageIterator:
 
 
 class S3HeadObjectFileStatus(FileStatus):
-    def __init__(self, head_object_resp):
+    def __init__(self, head_object_resp, url: str):
         self.head_object_resp = head_object_resp
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.rstrip('/'))
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return self.head_object_resp['ContentLength']
@@ -95,8 +102,15 @@ class S3HeadObjectFileStatus(FileStatus):
 
 
 class S3ListFilesFileStatus(FileStatus):
-    def __init__(self, item: Dict[str, Any]):
+    def __init__(self, item: Dict[str, Any], url: str):
         self._item = item
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.rstrip('/'))
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return self._item['Size']
@@ -166,8 +180,8 @@ class S3FileListEntry(FileListEntry):
         self._item = item
         self._status: Optional[S3ListFilesFileStatus] = None
 
-    def name(self) -> str:
-        return os.path.basename(self._key)
+    def basename(self) -> str:
+        return os.path.basename(self._key.rstrip('/'))
 
     async def url(self) -> str:
         return f's3://{self._bucket}/{self._key}'
@@ -182,7 +196,7 @@ class S3FileListEntry(FileListEntry):
         if self._status is None:
             if self._item is None:
                 raise IsADirectoryError(f's3://{self._bucket}/{self._key}')
-            self._status = S3ListFilesFileStatus(self._item)
+            self._status = S3ListFilesFileStatus(self._item, await self.url())
         return self._status
 
 
@@ -286,9 +300,7 @@ class S3MultiPartCreate(MultiPartCreate):
             UploadId=self._upload_id,
         )
 
-    async def create_part(
-        self, number: int, start: int, size_hint: Optional[int] = None
-    ) -> S3CreatePartManager:  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> S3CreatePartManager:  # pylint: disable=unused-argument
         if size_hint is None:
             size_hint = 256 * 1024
         return S3CreatePartManager(self, number, size_hint)
@@ -402,9 +414,7 @@ class S3AsyncFS(AsyncFS):
                 raise UnexpectedEOFError from e
             raise
 
-    async def create(
-        self, url: str, *, retry_writes: bool = True
-    ) -> S3CreateManager:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
         # that takes advantage of retry_writes=False.  Here's the
         # background information:
@@ -462,7 +472,7 @@ class S3AsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.head_object, Bucket=bucket, Key=name)
-            return S3HeadObjectFileStatus(resp)
+            return S3HeadObjectFileStatus(resp, url)
         except botocore.exceptions.ClientError as e:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
                 raise FileNotFoundError(url) from e

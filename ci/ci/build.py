@@ -369,7 +369,7 @@ class BuildImage2Step(Step):
             unrendered_dockerfile = self.dockerfile
             create_inline_dockerfile_if_present = ''
 
-        script = f'''
+        script = f"""
 set -ex
 
 {create_inline_dockerfile_if_present}
@@ -400,7 +400,7 @@ retry buildctl-daemonless.sh \\
      {build_args_str} \\
      --trace=/home/user/trace
 cat /home/user/trace
-'''
+"""
 
         log.info(f'step {self.name}, script:\n{script}')
 
@@ -440,7 +440,7 @@ cat /home/user/trace
             image = 'mcr.microsoft.com/azure-cli'
             assert self.image.startswith(DOCKER_PREFIX + '/')
             image_name = self.image.removeprefix(DOCKER_PREFIX + '/')
-            script = f'''
+            script = f"""
 set -x
 date
 
@@ -459,11 +459,11 @@ done
 
 date
 true
-'''
+"""
         else:
             assert CLOUD == 'gcp'
             image = CI_UTILS_IMAGE
-            script = f'''
+            script = f"""
 set -x
 date
 
@@ -478,7 +478,7 @@ done
 
 date
 true
-'''
+"""
 
         self.job = batch.create_job(
             image,
@@ -675,7 +675,7 @@ class CreateNamespaceStep(Step):
             # FIXME label
             config = (
                 config
-                + f'''\
+                + f"""\
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -683,11 +683,11 @@ metadata:
   labels:
     for: test
 ---
-'''
+"""
             )
         config = (
             config
-            + f'''\
+            + f"""\
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -729,34 +729,34 @@ roleRef:
   kind: Role
   name: {self.namespace_name}-admin
   apiGroup: ""
-'''
+"""
         )
 
-        script = f'''
+        script = f"""
 set -ex
 date
 
 echo {shq(config)} | kubectl apply -f -
-'''
+"""
 
         if self.secrets and scope != 'deploy':
             if self.namespace_name == 'default':
-                script += f'''
+                script += f"""
 kubectl -n {self.namespace_name} get -o json secret global-config \
   | jq '{{apiVersion:"v1",kind:"Secret","type":"Opaque",metadata:{{name:"global-config",namespace:"{self._name}"}},data:(.data + {{default_namespace:("{self._name}" | @base64)}})}}' \
   | kubectl -n {self._name} apply -f -
-'''
+"""
 
             for s in self.secrets:
                 name = s['name']
                 if s.get('clouds') is None or CLOUD in s['clouds']:
-                    script += f'''
+                    script += f"""
 kubectl -n {self.namespace_name} get -o json secret {name} | jq 'del(.metadata) | .metadata.name = "{name}"' | kubectl -n {self._name} apply -f - { '|| true' if s.get('optional') is True else ''}
-'''
+"""
 
-        script += '''
+        script += """
 date
-'''
+"""
 
         self.job = batch.create_job(
             CI_UTILS_IMAGE,
@@ -773,7 +773,7 @@ date
         if scope in ['deploy', 'dev'] or is_test_deployment:
             return
 
-        script = f'''
+        script = f"""
 set -x
 date
 
@@ -785,7 +785,7 @@ done
 
 date
 true
-'''
+"""
 
         self.job = batch.create_job(
             CI_UTILS_IMAGE,
@@ -838,20 +838,20 @@ class DeployStep(Step):
             template = jinja2.Template(f.read(), undefined=jinja2.StrictUndefined, trim_blocks=True, lstrip_blocks=True)
             rendered_config = template.render(**self.input_config(code, scope))
 
-        script = '''\
+        script = """\
 set -ex
 date
-'''
+"""
 
         if self.wait:
             for w in self.wait:
                 if w['kind'] == 'Pod':
-                    script += f'''\
+                    script += f"""\
 kubectl -n {self.namespace} delete --ignore-not-found pod {w['name']}
-'''
-        script += f'''
+"""
+        script += f"""
 echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
-'''
+"""
 
         if self.wait:
             for w in self.wait:
@@ -859,7 +859,7 @@ echo {shq(rendered_config)} | kubectl -n {self.namespace} apply -f -
                 if w['kind'] == 'Deployment':
                     assert w['for'] == 'available', w['for']
                     # FIXME what if the cluster isn't big enough?
-                    script += f'''
+                    script += f"""
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
@@ -869,7 +869,7 @@ kubectl -n {self.namespace} get pods -l app={name} -o yaml
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
-'''
+"""
                 elif w['kind'] == 'Service':
                     assert w['for'] == 'alive', w['for']
                     resource_type = w.get('resource_type', 'deployment').lower()
@@ -884,7 +884,7 @@ set -e
                         )
                         get_cmd = f'kubectl -n {self.namespace} get deployment -l app={name} -o yaml'
 
-                    script += f'''
+                    script += f"""
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
   {wait_cmd}
@@ -894,12 +894,12 @@ kubectl -n {self.namespace} get pods -l app={name} -o yaml
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
-'''
+"""
                 else:
                     assert w['kind'] == 'Pod', w['kind']
                     assert w['for'] == 'completed', w['for']
                     timeout = w.get('timeout', 300)
-                    script += f'''
+                    script += f"""
 set +e
 kubectl -n {self.namespace} wait --timeout=1h pod --for=condition=podscheduled {name} \
   && python3 wait-for.py {timeout} {self.namespace} Pod {name}
@@ -908,11 +908,11 @@ kubectl -n {self.namespace} get pod {name} -o yaml | {pretty_print_log}
 kubectl -n {self.namespace} logs --tail=999999 {name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
-'''
+"""
 
-        script += '''
+        script += """
 date
-'''
+"""
 
         attrs = {'name': self.name}
         if self.link is not None:
@@ -1051,21 +1051,21 @@ class CreateDatabase2Step(Step):
             'shutdowns': self.shutdowns,
         }
 
-        create_passwords_script = f'''
+        create_passwords_script = f"""
 set -ex
 
 LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.admin_password_file}
 LC_ALL=C tr -dc '[:alnum:]' </dev/urandom | head -c 16 > {self.user_password_file}
-'''
+"""
 
-        create_database_script = f'''
+        create_database_script = f"""
 set -ex
 
 create_database_config={shq(json.dumps(create_database_config, indent=2))}
 python3 create_database.py <<EOF
 $create_database_config
 EOF
-'''
+"""
 
         input_files = []
         if self.inputs:

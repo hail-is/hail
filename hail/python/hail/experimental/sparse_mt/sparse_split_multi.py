@@ -197,15 +197,15 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                     hl.case()
                     .when(
                         hl.len(ds.alleles) == 1,
-                        old_entry.annotate(
-                            **{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}
-                        ).drop(*dropped_fields),
+                        old_entry.annotate(**{
+                            f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields
+                        }).drop(*dropped_fields),
                     )
                     .when(
                         hl.or_else(old_entry.LGT.is_hom_ref(), False),
-                        old_entry.annotate(
-                            **{f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs.items()}
-                        ).drop(*dropped_fields),
+                        old_entry.annotate(**{
+                            f: old_entry[f'L{f}'] if f in ['GT', 'PGT'] else e for f, e in new_exprs.items()
+                        }).drop(*dropped_fields),
                     )
                     .default(old_entry.annotate(**new_exprs).drop(*dropped_fields))
                 )
@@ -238,15 +238,13 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
         )
         return hl.bind(with_local_a_index, lai)
 
-    new_row = ds.row.annotate(
-        **{
-            'locus': ds[new_id].locus,
-            'alleles': ds[new_id].alleles,
-            'a_index': ds[new_id].a_index,
-            'was_split': ds[new_id].was_split,
-            entries: ds[entries].map(transform_entries),
-        }
-    ).drop(new_id)
+    new_row = ds.row.annotate(**{
+        'locus': ds[new_id].locus,
+        'alleles': ds[new_id].alleles,
+        'a_index': ds[new_id].a_index,
+        'was_split': ds[new_id].was_split,
+        entries: ds[entries].map(transform_entries),
+    }).drop(new_id)
 
     ds = hl.Table(
         hl.ir.TableKeyBy(

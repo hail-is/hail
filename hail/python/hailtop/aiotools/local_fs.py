@@ -25,9 +25,16 @@ from .fs import (
 
 
 class LocalStatFileStatus(FileStatus):
-    def __init__(self, stat_result: os.stat_result):
+    def __init__(self, stat_result: os.stat_result, url: str):
         self._stat_result = stat_result
         self._items = None
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url)
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return self._stat_result.st_size
@@ -52,7 +59,7 @@ class LocalFileListEntry(FileListEntry):
         self._entry = entry
         self._status = None
 
-    def name(self) -> str:
+    def basename(self) -> str:
         return self._entry.name
 
     async def url(self) -> str:
@@ -72,7 +79,9 @@ class LocalFileListEntry(FileListEntry):
         if self._status is None:
             if await self.is_dir():
                 raise IsADirectoryError()
-            self._status = LocalStatFileStatus(await blocking_to_async(self._thread_pool, self._entry.stat))
+            self._status = LocalStatFileStatus(
+                await blocking_to_async(self._thread_pool, self._entry.stat), await self.url()
+            )
         return self._status
 
 
@@ -82,9 +91,7 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(
-        self, number: int, start: int, size_hint: Optional[int] = None
-    ):  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -276,7 +283,10 @@ class LocalAsyncFS(AsyncFS):
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
     async def multi_part_create(
-        self, sema: asyncio.Semaphore, url: str, num_parts: int  # pylint: disable=unused-argument
+        self,
+        sema: asyncio.Semaphore,
+        url: str,
+        num_parts: int,  # pylint: disable=unused-argument
     ) -> MultiPartCreate:
         # create an empty file
         # will be opened r+b to write the parts
@@ -289,7 +299,7 @@ class LocalAsyncFS(AsyncFS):
         stat_result = await blocking_to_async(self._thread_pool, os.stat, path)
         if stat.S_ISDIR(stat_result.st_mode):
             raise FileNotFoundError(f'is directory: {url}')
-        return LocalStatFileStatus(stat_result)
+        return LocalStatFileStatus(stat_result, path)
 
     # entries has no type hint because the return type of os.scandir
     # appears to be a private type, posix.ScandirIterator.

@@ -113,7 +113,7 @@ class MatrixVCFReader(MatrixReader):
         *,
         _sample_ids=None,
         _partitions_json=None,
-        _partitions_type=None
+        _partitions_type=None,
     ):
         self.path = wrap_to_list(path)
         self.header_file = header_file

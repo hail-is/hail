@@ -90,39 +90,35 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
 
     mt = mt.annotate_globals(**{trios_sym: hl.literal(trios, trios_type)})
     mt = mt._localize_entries(entries_sym, cols_sym)
-    mt = mt.annotate_globals(
-        **{
-            cols_sym: hl.map(
-                lambda i: hl.bind(
-                    lambda t: hl.struct(
-                        id=mt[cols_sym][t.id][k],
-                        proband=mt[cols_sym][t.id],
-                        father=mt[cols_sym][t.pat_id],
-                        mother=mt[cols_sym][t.mat_id],
-                        is_female=t.is_female,
-                        fam_id=t.fam_id,
-                    ),
-                    mt[trios_sym][i],
+    mt = mt.annotate_globals(**{
+        cols_sym: hl.map(
+            lambda i: hl.bind(
+                lambda t: hl.struct(
+                    id=mt[cols_sym][t.id][k],
+                    proband=mt[cols_sym][t.id],
+                    father=mt[cols_sym][t.pat_id],
+                    mother=mt[cols_sym][t.mat_id],
+                    is_female=t.is_female,
+                    fam_id=t.fam_id,
                 ),
-                hl.range(0, n_trios),
-            )
-        }
-    )
-    mt = mt.annotate(
-        **{
-            entries_sym: hl.map(
-                lambda i: hl.bind(
-                    lambda t: hl.struct(
-                        proband_entry=mt[entries_sym][t.id],
-                        father_entry=mt[entries_sym][t.pat_id],
-                        mother_entry=mt[entries_sym][t.mat_id],
-                    ),
-                    mt[trios_sym][i],
+                mt[trios_sym][i],
+            ),
+            hl.range(0, n_trios),
+        )
+    })
+    mt = mt.annotate(**{
+        entries_sym: hl.map(
+            lambda i: hl.bind(
+                lambda t: hl.struct(
+                    proband_entry=mt[entries_sym][t.id],
+                    father_entry=mt[entries_sym][t.pat_id],
+                    mother_entry=mt[entries_sym][t.mat_id],
                 ),
-                hl.range(0, n_trios),
-            )
-        }
-    )
+                mt[trios_sym][i],
+            ),
+            hl.range(0, n_trios),
+        )
+    })
     mt = mt.drop(trios_sym)
 
     return mt._unlocalize_entries(entries_sym, cols_sym, ['id'])
@@ -342,30 +338,24 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     table3 = table3.select(
         xs=[
-            hl.struct(
-                **{
-                    ck_name: table3.father[ck_name],
-                    'fam_id': table3.fam_id,
-                    'errors': table3.all_errors[0],
-                    'snp_errors': table3.snp_errors[0],
-                }
-            ),
-            hl.struct(
-                **{
-                    ck_name: table3.mother[ck_name],
-                    'fam_id': table3.fam_id,
-                    'errors': table3.all_errors[1],
-                    'snp_errors': table3.snp_errors[1],
-                }
-            ),
-            hl.struct(
-                **{
-                    ck_name: table3.proband[ck_name],
-                    'fam_id': table3.fam_id,
-                    'errors': table3.all_errors[2],
-                    'snp_errors': table3.snp_errors[2],
-                }
-            ),
+            hl.struct(**{
+                ck_name: table3.father[ck_name],
+                'fam_id': table3.fam_id,
+                'errors': table3.all_errors[0],
+                'snp_errors': table3.snp_errors[0],
+            }),
+            hl.struct(**{
+                ck_name: table3.mother[ck_name],
+                'fam_id': table3.fam_id,
+                'errors': table3.all_errors[1],
+                'snp_errors': table3.snp_errors[1],
+            }),
+            hl.struct(**{
+                ck_name: table3.proband[ck_name],
+                'fam_id': table3.fam_id,
+                'errors': table3.all_errors[2],
+                'snp_errors': table3.snp_errors[2],
+            }),
         ]
     )
     table3 = table3.explode('xs')

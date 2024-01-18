@@ -13,7 +13,7 @@ app = typer.Typer(
 
 @app.command()
 def get(billing_project: str, output: StructuredFormatOption = StructuredFormat.YAML):
-    '''Get the billing information for BILLING_PROJECT.'''
+    """Get the billing information for BILLING_PROJECT."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -23,7 +23,7 @@ def get(billing_project: str, output: StructuredFormatOption = StructuredFormat.
 
 @app.command()
 def list(output: StructuredFormatOption = StructuredFormat.YAML):
-    '''List billing projects.'''
+    """List billing projects."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:

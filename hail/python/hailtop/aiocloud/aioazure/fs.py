@@ -3,6 +3,7 @@ from types import TracebackType
 
 import abc
 import re
+import os
 import asyncio
 from functools import wraps
 import secrets
@@ -236,8 +237,8 @@ class AzureFileListEntry(FileListEntry):
         self._blob_props = blob_props
         self._status: Optional[AzureFileStatus] = None
 
-    def name(self) -> str:
-        return self._url.path
+    def basename(self) -> str:
+        return os.path.basename(self._url.base.rstrip('/'))
 
     async def url(self) -> str:
         return self._url.base
@@ -255,13 +256,20 @@ class AzureFileListEntry(FileListEntry):
         if self._status is None:
             if self._blob_props is None:
                 raise IsADirectoryError(await self.url())
-            self._status = AzureFileStatus(self._blob_props)
+            self._status = AzureFileStatus(self._blob_props, self._url)
         return self._status
 
 
 class AzureFileStatus(FileStatus):
-    def __init__(self, blob_props: BlobProperties):
+    def __init__(self, blob_props: BlobProperties, url: 'AzureAsyncFSURL'):
         self.blob_props = blob_props
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.base.rstrip('/'))
+
+    def url(self) -> str:
+        return str(self._url)
 
     async def size(self) -> int:
         size = self.blob_props.size
@@ -501,9 +509,7 @@ class AzureAsyncFS(AsyncFS):
         client = self.get_blob_client(self.parse_url(url))
         return AzureReadableStream(client, url, offset=start, length=length)
 
-    async def create(
-        self, url: str, *, retry_writes: bool = True
-    ) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         return AzureCreateManager(self.get_blob_client(self.parse_url(url)))
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
@@ -538,8 +544,9 @@ class AzureAsyncFS(AsyncFS):
     @handle_public_access_error
     async def statfile(self, url: str) -> FileStatus:
         try:
-            blob_props = await self.get_blob_client(self.parse_url(url)).get_blob_properties()
-            return AzureFileStatus(blob_props)
+            parsed_url = self.parse_url(url)
+            blob_props = await self.get_blob_client(parsed_url).get_blob_properties()
+            return AzureFileStatus(blob_props, parsed_url)
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 

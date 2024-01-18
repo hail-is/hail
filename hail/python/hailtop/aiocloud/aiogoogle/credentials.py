@@ -82,15 +82,13 @@ class GoogleCredentials(CloudCredentials):
     @staticmethod
     def default_credentials(
         scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[False] = ...
-    ) -> 'GoogleCredentials':
-        ...
+    ) -> 'GoogleCredentials': ...
 
     @overload
     @staticmethod
     def default_credentials(
         scopes: Optional[List[str]] = ..., *, anonymous_ok: Literal[True] = ...
-    ) -> Union['GoogleCredentials', AnonymousCloudCredentials]:
-        ...
+    ) -> Union['GoogleCredentials', AnonymousCloudCredentials]: ...
 
     @staticmethod
     def default_credentials(
@@ -161,14 +159,12 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
             self._http_session.post_read_json,
             'https://www.googleapis.com/oauth2/v4/token',
             headers={'content-type': 'application/x-www-form-urlencoded'},
-            data=urlencode(
-                {
-                    'grant_type': 'refresh_token',
-                    'client_id': self.credentials['client_id'],
-                    'client_secret': self.credentials['client_secret'],
-                    'refresh_token': self.credentials['refresh_token'],
-                }
-            ),
+            data=urlencode({
+                'grant_type': 'refresh_token',
+                'client_id': self.credentials['client_id'],
+                'client_secret': self.credentials['client_secret'],
+                'refresh_token': self.credentials['refresh_token'],
+            }),
         )
         return GoogleExpiringAccessToken.from_dict(token_dict)
 
@@ -203,9 +199,10 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
             self._http_session.post_read_json,
             'https://www.googleapis.com/oauth2/v4/token',
             headers={'content-type': 'application/x-www-form-urlencoded'},
-            data=urlencode(
-                {'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer', 'assertion': encoded_assertion}
-            ),
+            data=urlencode({
+                'grant_type': 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion': encoded_assertion,
+            }),
         )
         return GoogleExpiringAccessToken.from_dict(token_dict)
 

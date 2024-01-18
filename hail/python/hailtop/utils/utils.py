@@ -295,7 +295,7 @@ class PoolShutdownError(Exception):
 
 
 class OnlineBoundedGather2:
-    '''`OnlineBoundedGather2` provides the capability to run background
+    """`OnlineBoundedGather2` provides the capability to run background
     tasks with bounded parallelism.  It is a context manager, and
     waits for all background tasks to complete on exit.
 
@@ -314,7 +314,7 @@ class OnlineBoundedGather2:
     a background task or into the context manager exit, is raised by
     the context manager exit, and any further exceptions are logged
     and otherwise discarded.
-    '''
+    """
 
     def __init__(self, sema: asyncio.Semaphore):
         self._counter = 0
@@ -329,11 +329,11 @@ class OnlineBoundedGather2:
         self._exception: Optional[BaseException] = None
 
     async def _shutdown(self) -> None:
-        '''Shut down the pool.
+        """Shut down the pool.
 
         Cancel all pending tasks and wait for them to complete.
         Subsequent calls to call will raise `PoolShutdownError`.
-        '''
+        """
 
         if self._pending is None:
             return
@@ -351,13 +351,13 @@ class OnlineBoundedGather2:
         self._done_event.set()
 
     def call(self, f, *args, **kwargs) -> asyncio.Task:
-        '''Invoke a function as a background task.
+        """Invoke a function as a background task.
 
         Return the task, which can be used to wait on (using
         `OnlineBoundedGather2.wait()`) or cancel the task (using
         `asyncio.Task.cancel()`).  Note, waiting on a task using
         `asyncio.wait()` directly can lead to deadlock.
-        '''
+        """
 
         if self._pending is None:
             raise PoolShutdownError
@@ -393,14 +393,14 @@ class OnlineBoundedGather2:
         return t
 
     async def wait(self, tasks: List[asyncio.Task]) -> None:
-        '''Wait for a list of tasks returned to complete.
+        """Wait for a list of tasks returned to complete.
 
         The tasks should be tasks returned from
         `OnlineBoundedGather2.call()`.  They can be a subset of the
         running tasks, `OnlineBoundedGather2.wait()` can be called
         multiple times, and additional tasks can be submitted to the
         pool after waiting.
-        '''
+        """
 
         async with WithoutSemaphore(self._sema):
             await asyncio.wait(tasks)
@@ -435,7 +435,7 @@ class OnlineBoundedGather2:
 async def bounded_gather2_return_exceptions(
     sema: asyncio.Semaphore, *pfs: Callable[[], Awaitable[T]]
 ) -> List[Union[Tuple[T, None], Tuple[None, Optional[BaseException]]]]:
-    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    """Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
 
@@ -443,7 +443,7 @@ async def bounded_gather2_return_exceptions(
     the pair `(value, None)` if the partial function returned value or
     `(None, exc)` if the partial function raised the exception `exc`.
 
-    '''
+    """
 
     async def run_with_sema_return_exceptions(pf: Callable[[], Awaitable[T]]):
         try:
@@ -461,7 +461,7 @@ async def bounded_gather2_return_exceptions(
 async def bounded_gather2_raise_exceptions(
     sema: asyncio.Semaphore, *pfs: Callable[[], Awaitable[T]], cancel_on_error: bool = False
 ) -> List[T]:
-    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    """Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
 
@@ -474,7 +474,7 @@ async def bounded_gather2_raise_exceptions(
     functions continue to run with bounded parallelism.  If
     cancel_on_error is True, the unfinished tasks are all cancelled.
 
-    '''
+    """
 
     async def run_with_sema(pf: Callable[[], Awaitable[T]]):
         async with sema:
@@ -1078,11 +1078,11 @@ def find_spark_home() -> str:
         find_spark_home = subprocess.run('find_spark_home.py', capture_output=True, check=False)
         if find_spark_home.returncode != 0:
             raise ValueError(
-                f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
+                f"""SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
 {find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr!r}'''
+{find_spark_home.stderr!r}"""
             )
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home

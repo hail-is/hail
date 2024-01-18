@@ -384,13 +384,11 @@ class ServiceBackend(Backend):
             with timings.step("write input"):
                 async with await self._async_fs.create(iodir + '/in') as infile:
                     await infile.write(
-                        orjson.dumps(
-                            {
-                                'config': service_backend_config,
-                                'action': action.value,
-                                'payload': payload,
-                            }
-                        )
+                        orjson.dumps({
+                            'config': service_backend_config,
+                            'action': action.value,
+                            'payload': payload,
+                        })
                     )
 
             with timings.step("submit batch"):
@@ -452,13 +450,11 @@ class ServiceBackend(Backend):
         except FileNotFoundError as exc:
             raise FatalError(
                 'Hail internal error. Please contact the Hail team and provide the following information.\n\n'
-                + yamlx.dump(
-                    {
-                        'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
-                        'input_uri': await self._async_fs.read(input_uri),
-                    }
-                )
+                + yamlx.dump({
+                    'service_backend_debug_info': self.debug_info(),
+                    'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
+                    'input_uri': await self._async_fs.read(input_uri),
+                })
             ) from exc
 
         try:
@@ -475,14 +471,12 @@ class ServiceBackend(Backend):
         except UnexpectedEOFError as exc:
             raise FatalError(
                 'Hail internal error. Please contact the Hail team and provide the following information.\n\n'
-                + yamlx.dump(
-                    {
-                        'service_backend_debug_info': self.debug_info(),
-                        'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
-                        'in': await self._async_fs.read(input_uri),
-                        'out': await self._async_fs.read(output_uri),
-                    }
-                )
+                + yamlx.dump({
+                    'service_backend_debug_info': self.debug_info(),
+                    'batch_debug_info': await self._batch.debug_info(_jobs_query_string='bad', _max_jobs=10),
+                    'in': await self._async_fs.read(input_uri),
+                    'out': await self._async_fs.read(output_uri),
+                })
             ) from exc
 
     def _cancel_on_ctrl_c(self, coro: Awaitable[T]) -> T:

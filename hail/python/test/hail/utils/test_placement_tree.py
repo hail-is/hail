@@ -8,7 +8,7 @@ from hail.utils.placement_tree import PlacementTree
 class Tests(unittest.TestCase):
     def test_realistic(self):
         dtype = hl.dtype(
-            '''struct{
+            """struct{
 locus: locus<GRCh37>,
 alleles: array<str>,
 rsid: str,
@@ -35,7 +35,7 @@ variant_qc: struct{
   AF: array<float64>,
   AN: int32,
   homozygote_count: array<int32>,
-  call_rate: float64}}'''
+  call_rate: float64}}"""
         )
         tree = PlacementTree.from_named_type('row', dtype)
         grid = tree.to_grid()

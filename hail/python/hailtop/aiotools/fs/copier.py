@@ -183,10 +183,10 @@ class CopyReport:
 
 
 class SourceCopier:
-    '''This class implements copy from a single source.  In general, a
+    """This class implements copy from a single source.  In general, a
     transfer will have multiple sources, and a SourceCopier will be
     created for each source.
-    '''
+    """
 
     def __init__(
         self, router_fs: AsyncFS, xfer_sema: WeightedSemaphore, src: str, dest: str, treat_dest_as: str, dest_type_task
@@ -463,11 +463,19 @@ class SourceCopier:
             assert self.pending == 0
 
             for result in results:
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     raise result
 
             assert (self.src_is_file is None) == self.src.endswith('/')
-            assert self.src_is_dir is not None
+            assert self.src_is_dir is not None, repr((
+                results,
+                self.src_is_file,
+                self.src_is_dir,
+                self.src,
+                self.dest,
+                self.barrier,
+                self.pending,
+            ))
             if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
                 raise FileNotFoundError(self.src)
 
@@ -479,9 +487,9 @@ class SourceCopier:
 
 
 class Copier:
-    '''
+    """
     This class implements copy for a list of transfers.
-    '''
+    """
 
     BUFFER_SIZE = 8 * 1024 * 1024
 
@@ -509,12 +517,12 @@ class Copier:
         self.xfer_sema = WeightedSemaphore(100 * Copier.BUFFER_SIZE)
 
     async def _dest_type(self, transfer: Transfer):
-        '''Return the (real or assumed) type of `dest`.
+        """Return the (real or assumed) type of `dest`.
 
         If the transfer assumes the type of `dest`, return that rather
         than the real type.  A return value of `None` mean `dest` does
         not exist.
-        '''
+        """
         assert transfer.treat_dest_as != Transfer.DEST_IS_TARGET
 
         if transfer.treat_dest_as == Transfer.DEST_DIR or isinstance(transfer.src, list) or transfer.dest.endswith('/'):
