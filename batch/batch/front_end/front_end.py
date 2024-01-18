@@ -2823,11 +2823,9 @@ async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
     await inst_coll_configs.refresh(db)
-    row = await db.select_and_fetchone(
-        """
+    row = await db.select_and_fetchone("""
 SELECT frozen FROM globals;
-"""
-    )
+""")
     app['frozen'] = row['frozen']
 
     regions = {
@@ -2905,11 +2903,9 @@ async def on_startup(app):
     app['db'] = db
     exit_stack.push_async_callback(app['db'].async_close)
 
-    row = await db.select_and_fetchone(
-        """
+    row = await db.select_and_fetchone("""
 SELECT instance_id, n_tokens, frozen FROM globals;
-"""
-    )
+""")
 
     app['n_tokens'] = row['n_tokens']
 

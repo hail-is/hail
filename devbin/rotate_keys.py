@@ -212,8 +212,7 @@ class ServiceAccount:
                 kube_key = sorted(
                     [k for k in self.keys if k.id in keys_to_k8s_secret], key=lambda k: -k.created.timestamp()
                 )[0]
-                print(
-                    f"""Found a user ({self.username()}) without a unique active key in Kubernetes.
+                print(f"""Found a user ({self.username()}) without a unique active key in Kubernetes.
 The known IAM keys are:
 {known_iam_keys_str}
 
@@ -221,8 +220,7 @@ These keys are present in Kubernetes:
 {keys_to_k8s_secret_str}
 
 We will assume {kube_key.id} is the active key.
-"""
-                )
+""")
             assert kube_key is not None
             assert kube_key.user_managed
             return kube_key

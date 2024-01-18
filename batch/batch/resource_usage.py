@@ -167,11 +167,9 @@ class ResourceUsageMonitor:
         async with iptables_lock:
             now_time_msecs = time_msecs()
 
-            iptables_output, stderr = await check_shell_output(
-                f"""
+            iptables_output, stderr = await check_shell_output(f"""
 iptables -t mangle -L -v -n -x -w | grep "{self.veth_host}" | awk '{{ if ($6 == "{self.veth_host}" || $7 == "{self.veth_host}") print $2, $6, $7 }}'
-"""
-            )
+""")
         if stderr:
             log.exception(stderr)
             return (None, None)

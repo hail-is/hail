@@ -576,11 +576,9 @@ async def freeze_deploys(request: web.Request, _) -> NoReturn:
         set_message(session, 'CI is already frozen.', 'info')
         raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
-    await db.execute_update(
-        """
+    await db.execute_update("""
 UPDATE globals SET frozen_merge_deploy = 1;
-"""
-    )
+""")
 
     app[AppKeys.FROZEN_MERGE_DEPLOY] = True
 
@@ -600,11 +598,9 @@ async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
         set_message(session, 'CI is already unfrozen.', 'info')
         raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
-    await db.execute_update(
-        """
+    await db.execute_update("""
 UPDATE globals SET frozen_merge_deploy = 0;
-"""
-    )
+""")
 
     app[AppKeys.FROZEN_MERGE_DEPLOY] = False
 
@@ -619,14 +615,12 @@ async def get_active_namespaces(request: web.Request, userdata: UserData) -> web
     db = request.app[AppKeys.DB]
     namespaces = [
         r
-        async for r in db.execute_and_fetchall(
-            """
+        async for r in db.execute_and_fetchall("""
 SELECT active_namespaces.*, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
-GROUP BY active_namespaces.namespace"""
-        )
+GROUP BY active_namespaces.namespace""")
     ]
     for ns in namespaces:
         ns['services'] = [s for s in json.loads(ns['services']) if s is not None]
@@ -786,11 +780,9 @@ async def on_startup(app: web.Application):
     await app[AppKeys.DB].async_init()
     exit_stack.push_async_callback(app[AppKeys.DB].async_close)
 
-    row = await app[AppKeys.DB].select_and_fetchone(
-        """
+    row = await app[AppKeys.DB].select_and_fetchone("""
 SELECT frozen_merge_deploy FROM globals;
-"""
-    )
+""")
 
     app[AppKeys.FROZEN_MERGE_DEPLOY] = row['frozen_merge_deploy']
     app[AppKeys.TASK_MANAGER] = aiotools.BackgroundTaskManager()
