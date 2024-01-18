@@ -932,7 +932,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND `user` = 
 
         last_inserted_job_group_id = await tx.execute_and_fetchone(
             """
-SELECT job_group_id AS last_job_group_id
+SELECT job_group_id
 FROM job_groups
 WHERE batch_id = %s
 ORDER BY job_group_id DESC
@@ -942,7 +942,7 @@ LIMIT 1;
         )
 
         next_job_group_id = start_job_group_id + job_group_specs[0]['job_group_id'] - 1
-        if next_job_group_id != last_inserted_job_group_id + 1:
+        if next_job_group_id != last_inserted_job_group_id['job_group_id'] + 1:
             raise web.HTTPBadRequest(reason='job group specs were not submitted in order')
 
         now = time_msecs()
