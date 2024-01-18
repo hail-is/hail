@@ -766,8 +766,7 @@ async def on_startup(app: web.Application):
     app[AppKeys.DB] = Database()
     await app[AppKeys.DB].async_init()
 
-    row = await app[AppKeys.DB].select_and_fetchone(
-        """
+    row = await app[AppKeys.DB].select_and_fetchone("""
 SELECT frozen_merge_deploy FROM globals;
 """)
 
