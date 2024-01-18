@@ -767,17 +767,24 @@ class AppKeys(CommonAiohttpAppKeys):
     FROZEN_MERGE_DEPLOY = web.AppKey('frozen_merge_deploy', bool)
     TASK_MANAGER = web.AppKey('task_manager', aiotools.BackgroundTaskManager)
     DEVELOPERS = web.AppKey('developers', List[UserData])
+    EXIT_STACK = web.AppKey('exit_stack', AsyncExitStack)
 
 
 async def on_startup(app: web.Application):
+    exit_stack = AsyncExitStack()
+    app[AppKeys.EXIT_STACK] = exit_stack
+
     client_session = httpx.client_session()
+    exit_stack.push_async_callback(client_session.close)
 
     app[AppKeys.CLIENT_SESSION] = client_session
     app[AppKeys.GH_CLIENT] = gh_aiohttp.GitHubAPI(client_session.client_session, 'ci', oauth_token=oauth_token)
     app[AppKeys.BATCH_CLIENT] = await BatchClient.create('ci')
+    exit_stack.push_async_callback(app[AppKeys.BATCH_CLIENT].close)
 
     app[AppKeys.DB] = Database()
     await app[AppKeys.DB].async_init()
+    exit_stack.push_async_callback(app[AppKeys.DB].async_close)
 
     row = await app[AppKeys.DB].select_and_fetchone(
         """
@@ -787,6 +794,7 @@ SELECT frozen_merge_deploy FROM globals;
 
     app[AppKeys.FROZEN_MERGE_DEPLOY] = row['frozen_merge_deploy']
     app[AppKeys.TASK_MANAGER] = aiotools.BackgroundTaskManager()
+    exit_stack.callback(app[AppKeys.TASK_MANAGER].shutdown)
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
@@ -817,11 +825,7 @@ SELECT frozen_merge_deploy FROM globals;
 
 
 async def on_cleanup(app: web.Application):
-    async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app[AppKeys.DB].async_close)
-        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
-        cleanup.push_async_callback(app[AppKeys.BATCH_CLIENT].close)
-        cleanup.callback(app[AppKeys.TASK_MANAGER].shutdown)
+    await app[AppKeys.EXIT_STACK].aclose()
 
 
 def run():
