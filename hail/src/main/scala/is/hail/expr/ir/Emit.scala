@@ -839,7 +839,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
       case let: Let =>
         emitLet(
-          emitI = (ir, cb, env) => emitI(ir, cb = cb, env = env),
+          emitI = (ir, cb, env) =>
+            if (ir.typ.isInstanceOf[TStream]) emitStream(ir, region, env = env).toI(cb)
+            else emitI(ir, cb = cb, env = env),
           emitBody = (ir, cb, env) => emitVoid(ir, cb, env = env),
         )(
           let,
@@ -3555,7 +3557,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case let: Let =>
         EmitCode.fromI(mb) { cb =>
           emitLet(
-            emitI = (ir, cb, env) => emitI(ir, cb = cb, env = env),
+            emitI = (ir, cb, env) =>
+              if (ir.typ.isInstanceOf[TStream]) emitStream(ir, region, env = env).toI(cb)
+              else emitI(ir, cb = cb, env = env),
             emitBody = (ir, cb, env) => emitI(ir, cb, env = env),
           )(
             let,
