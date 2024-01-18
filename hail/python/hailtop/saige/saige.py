@@ -2,7 +2,7 @@ import collections
 import functools
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import hail as hl
 from hail.methods.qc import require_col_key_str, require_row_key_variant
@@ -50,11 +50,11 @@ class SAIGE:
     async def run(
         self,
         *,
-        mt_path: str,
+        mt: Union[hl.MatrixTable, str],
         output: str,
-        phenotypes: List[Phenotype],
+        phenotypes: List[Union[str, hl.BooleanExpression, hl.NumericExpression]],
         covariates: List[str],
-        variant_chunks: List[VariantChunk],
+        variant_chunks: Optional[List[VariantChunk]] = None,
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
@@ -63,7 +63,9 @@ class SAIGE:
             if b is None:
                 b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
 
-            mt = hl.read_matrix_table(mt_path)
+            if isinstance(mt, str):
+                mt = hl.read_matrix_table(mt)
+
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 

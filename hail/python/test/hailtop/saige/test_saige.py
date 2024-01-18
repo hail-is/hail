@@ -19,12 +19,17 @@ def ds():
     dataset = dataset.key_rows_by()
     dataset = dataset.key_rows_by(locus=dataset.new_locus, alleles=dataset.new_alleles)
     dataset = dataset.key_cols_by(s=hl.str(dataset.sample_idx + 1))
-    dataset = hl.vep(dataset)
+    # dataset = hl.vep(dataset)
     dataset = dataset.annotate_cols(phenotype=hl.struct(height=hl.rand_norm(), psych=hl.rand_bool(), cardio=hl.rand_bool()))
+    dataset = dataset.annotate_cols(cov=hl.struct(c1=hl.rand_norm(), c2=hl.rand_norm()))
     cohorts = ['cohort1', 'cohort2', 'cohort3']
     dataset = dataset.annotate_cols(cohort=cohorts[hl.rand_cat([1, 1, 1])])
-    dataset.write()
     return dataset
+
+
+@pytest.fixture
+def output_path():
+    return hl.utils.new_temp_file('saige_output')
 
 
 def test_variant_chunking(ds):
@@ -35,12 +40,13 @@ def test_phenotype_grouping(ds):
     pass
 
 
-def test_saige_categorical(ds):
+def test_saige_categorical(ds, output_path):
     saige = SAIGE()
     saige.run(
-        mt_path,
-        output,
-        phenotypes=[dataset.phenotype.psych],
+        mt=ds,
+        output=output_path,
+        phenotypes=[ds.phenotype.psych],
+        covariates=[ds.cov.c1, ds.cov.c2]
     )
 
 

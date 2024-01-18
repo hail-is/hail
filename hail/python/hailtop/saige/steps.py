@@ -44,7 +44,7 @@ class PrepareInputsStep(CheckpointConfigMixin):
         fs: AsyncFS,
         b: hb.Batch,
         mt: hl.MatrixTable,
-        phenotypes: List[Phenotype],
+        phenotypes: List[Union[str, hl.BooleanExpression, hl.NumericExpression]],
         temp_dir: str,
         checkpoint_dir: Optional[str],
     ) -> Tuple[TextResourceFile, PlinkResourceGroup]:
@@ -53,8 +53,7 @@ class PrepareInputsStep(CheckpointConfigMixin):
         plink_file = f'{working_dir}/inputs/input_data'
 
         def create_phenotype_file():
-            phenotype_names = [p.name for p in phenotypes]
-            mt.cols().select(*phenotype_names).export(phenotype_file, delimiter="\t")
+            mt.cols().select(*phenotypes).export(phenotype_file, delimiter="\t")
 
         def create_plink_file():
             hl.export_plink(mt, plink_file)
