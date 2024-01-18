@@ -3697,7 +3697,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     cb: EmitCodeBuilder,
     env: EmitEnv,
   ): A = {
-    val uses = ctx.usesAndDefs.uses(let).map(_.t.name)
+    val uses: mutable.Set[String] =
+      ctx.usesAndDefs.uses.get(let) match {
+        case Some(refs) => refs.map(_.t.name)
+        case None => mutable.Set.empty
+      }
+
     emitBody(
       let.body,
       cb,
