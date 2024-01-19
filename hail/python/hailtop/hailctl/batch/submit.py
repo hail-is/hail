@@ -3,13 +3,31 @@ import os
 import re
 from shlex import quote as shq
 from hailtop import pip_version
-from typing import Tuple
+from typing import Tuple, Optional, List
+import typer
 
+from .batch_cli_utils import StructuredFormatPlusTextOption
 
 FILE_REGEX = re.compile(r'(?P<src>[^:]+)(:(?P<dest>.+))?')
 
 
-async def submit(name, image_name, files, output, script, arguments):
+def real_absolute_expanded_path(path: str) -> str:
+    return os.path.realpath(os.path.abspath(os.path.expanduser(path)))
+
+
+def real_absolute_cwd() -> str:
+    return real_absolute_expanded_path(os.getcwd())
+
+
+async def submit(
+    name: str,
+    image_name: Optional[str],
+    files: Optional[List[str]],
+    output: StructuredFormatPlusTextOption,
+    script: str,
+    arguments: Optional[List[str]],
+    wait: bool,
+):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
     from hailtop.config import (  # pylint: disable=import-outside-toplevel
@@ -46,14 +64,17 @@ async def submit(name, image_name, files, output, script, arguments):
         src = result.get('src')
         if src is None:
             raise ValueError(f'invalid file specification {file}. Must have a "src" defined.')
-        src = os.path.abspath(os.path.expanduser(src))
+        src = real_absolute_expanded_path(src)
         src = src.rstrip('/')
 
         dest = result.get('dest')
         if dest is not None:
-            dest = os.path.abspath(os.path.expanduser(dest))
+            dest_intended_as_directory = dest[-1] == '/'
+            dest = real_absolute_expanded_path(dest)
+            if dest_intended_as_directory:
+                dest = os.path.join(dest, os.path.basename(src))
         else:
-            dest = os.getcwd()
+            dest = os.path.join(real_absolute_cwd(), os.path.basename(src))
 
         cloud_file = cloud_prefix(src)
 
@@ -70,7 +91,7 @@ async def submit(name, image_name, files, output, script, arguments):
         src, dest, cloud_file = file_input_to_src_dest(file)
         local_files_to_cloud_files.append({'from': src, 'to': cloud_file})
         in_file = b.read_input(cloud_file)
-        j.command(f'mkdir -p {os.path.dirname(dest)}; ln -s {in_file} {dest}')
+        j.command(f'mkdir -p {shq(os.path.dirname(dest))}; ln -s {shq(in_file)} {shq(dest)}')
 
     script_src, _, script_cloud_file = file_input_to_src_dest(script)
     user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config)
@@ -91,9 +112,11 @@ async def submit(name, image_name, files, output, script, arguments):
     command = 'python3' if script.endswith('.py') else 'bash'
     script_arguments = " ".join(shq(x) for x in arguments)
 
-    j.command(f'mkdir -p $HOME/.config/hail && ln -s {config_file} $HOME/.config/hail/config.ini')
-    j.command(f'cd {os.getcwd()}')
-    j.command(f'{command} {script_file} {script_arguments}')
+    j.command('mkdir -p $HOME/.config/hail')
+    j.command(f'ln -s {shq(config_file)} $HOME/.config/hail/config.ini')
+    j.command(f'mkdir -p {shq(real_absolute_cwd())}')
+    j.command(f'cd {shq(real_absolute_cwd())}')
+    j.command(f'{command} {shq(script_file)} {script_arguments}')
     batch_handle = await b._async_run(wait=False, disable_progress_bar=quiet)
     assert batch_handle
 
@@ -104,5 +127,14 @@ async def submit(name, image_name, files, output, script, arguments):
     else:
         assert output == 'json'
         print(orjson.dumps({'id': batch_handle.id}).decode('utf-8'))
+
+    if wait:
+        out = batch_handle.wait(disable_progress_bar=quiet)
+        if output == 'text':
+            print(out)
+        else:
+            print(orjson.dumps(out))
+        if out['state'] != 'success':
+            raise typer.Exit(1)
 
     await backend.async_close()
