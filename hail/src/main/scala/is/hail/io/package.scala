@@ -1,6 +1,5 @@
 package is.hail
 
-import is.hail.asm4s._
 import is.hail.io.fs.FS
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -15,7 +14,7 @@ package object io {
 
   val utfCharset = Charset.forName("UTF-8")
 
-  def exportTypes(filename: String, fs: FS, info: Array[(String, Type)]) {
+  def exportTypes(filename: String, fs: FS, info: Array[(String, Type)]): Unit = {
     val sb = new StringBuilder
     using(new OutputStreamWriter(fs.create(filename))) { out =>
       info.foreachBetween { case (name, t) =>

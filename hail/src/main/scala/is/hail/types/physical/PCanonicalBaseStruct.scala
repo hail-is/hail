@@ -66,7 +66,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     else
       cb.memoize(Region.loadBit(offset, missingIdx(fieldIdx).toLong))
 
-  override def setFieldMissing(offset: Long, fieldIdx: Int) {
+  override def setFieldMissing(offset: Long, fieldIdx: Int): Unit = {
     assert(!fieldRequired(fieldIdx))
     Region.setBit(offset, missingIdx(fieldIdx))
   }
@@ -78,10 +78,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       cb._fatal(s"Required field cannot be missing.")
     }
 
-  override def setFieldPresent(offset: Long, fieldIdx: Int) {
+  override def setFieldPresent(offset: Long, fieldIdx: Int): Unit =
     if (!fieldRequired(fieldIdx))
       Region.clearBit(offset, missingIdx(fieldIdx))
-  }
 
   override def setFieldPresent(cb: EmitCodeBuilder, offset: Code[Long], fieldIdx: Int): Unit =
     if (!fieldRequired(fieldIdx))
@@ -126,7 +125,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def deepPointerCopy(sm: HailStateManager, region: Region, dstStructAddress: Long) {
+  def deepPointerCopy(sm: HailStateManager, region: Region, dstStructAddress: Long): Unit = {
     var i = 0
     while (i < this.size) {
       val dstFieldType = this.fields(i).typ
@@ -283,7 +282,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     row match {
       case ur: UnsafeRow =>
         this.unstagedStoreAtAddress(sm, addr, region, ur.t, ur.offset, region.ne(ur.region))
-      case sr: Row =>
+      case _: Row =>
         this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
           if (row(fieldIdx) == null) {
             setFieldMissing(addr, fieldIdx)

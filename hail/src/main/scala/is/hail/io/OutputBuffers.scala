@@ -6,7 +6,6 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
 import java.io._
-import java.util
 import java.util.function.Supplier
 
 import com.github.luben.zstd.{Zstd, ZstdCompressCtx}
@@ -46,9 +45,8 @@ trait OutputBuffer extends Closeable {
 
   def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
 
-  def writeBoolean(b: Boolean) {
+  def writeBoolean(b: Boolean): Unit =
     writeByte(b.toByte)
-  }
 
   def writeUTF(s: String): Unit = {
     val bytes = s.getBytes(utfCharset)
@@ -76,22 +74,22 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 
   override def writeByte(b: Byte): Unit = out.write(b.toInt)
 
-  override def writeInt(i: Int) {
+  override def writeInt(i: Int): Unit = {
     Memory.storeInt(buf, 0, i)
     out.write(buf, 0, 4)
   }
 
-  def writeLong(l: Long) {
+  def writeLong(l: Long): Unit = {
     Memory.storeLong(buf, 0, l)
     out.write(buf, 0, 8)
   }
 
-  def writeFloat(f: Float) {
+  def writeFloat(f: Float): Unit = {
     Memory.storeFloat(buf, 0, f)
     out.write(buf, 0, 4)
   }
 
-  def writeDouble(d: Double) {
+  def writeDouble(d: Double): Unit = {
     Memory.storeDouble(buf, 0, d)
     out.write(buf, 0, 8)
   }
@@ -102,7 +100,7 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
   def writeBytes(addr: Long, n: Int): Unit =
     out.write(Region.loadBytes(addr, n))
 
-  def writeDoubles(from: Array[Double], fromOff: Int, n: Int) {
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = {
     var i = 0
     while (i < n) {
       writeDouble(from(fromOff + i))
@@ -112,9 +110,9 @@ final class StreamOutputBuffer(out: OutputStream) extends OutputBuffer {
 }
 
 final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
-  def flush() {}
+  def flush(): Unit = {}
 
-  def close() {}
+  def close(): Unit = {}
 
   def indexOffset(): Long = ???
 
@@ -138,9 +136,8 @@ final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
 final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def flush(): Unit = out.flush()
 
-  def close() {
+  def close(): Unit =
     out.close()
-  }
 
   def indexOffset(): Long = out.indexOffset()
 
@@ -190,50 +187,50 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     (out.getPos() << 16) | off
   }
 
-  private def writeBlock() {
+  private def writeBlock(): Unit = {
     out.writeBlock(buf, off)
     off = 0
   }
 
-  def flush() {
+  def flush(): Unit = {
     writeBlock()
     out.flush()
   }
 
-  def close() {
+  def close(): Unit = {
     flush()
     out.close()
   }
 
-  def writeByte(b: Byte) {
+  def writeByte(b: Byte): Unit = {
     if (off + 1 > buf.length)
       writeBlock()
     Memory.storeByte(buf, off, b)
     off += 1
   }
 
-  def writeInt(i: Int) {
+  def writeInt(i: Int): Unit = {
     if (off + 4 > buf.length)
       writeBlock()
     Memory.storeInt(buf, off, i)
     off += 4
   }
 
-  def writeLong(l: Long) {
+  def writeLong(l: Long): Unit = {
     if (off + 8 > buf.length)
       writeBlock()
     Memory.storeLong(buf, off, l)
     off += 8
   }
 
-  def writeFloat(f: Float) {
+  def writeFloat(f: Float): Unit = {
     if (off + 4 > buf.length)
       writeBlock()
     Memory.storeFloat(buf, off, f)
     off += 4
   }
 
-  def writeDouble(d: Double) {
+  def writeDouble(d: Double): Unit = {
     if (off + 8 > buf.length)
       writeBlock()
     Memory.storeDouble(buf, off, d)
@@ -242,7 +239,7 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 
   def writeBytes(fromRegion: Region, fromOff0: Long, n0: Int) = writeBytes(fromOff0, n0)
 
-  def writeBytes(addr0: Long, n0: Int) {
+  def writeBytes(addr0: Long, n0: Int): Unit = {
     assert(n0 >= 0)
     var addr = addr0
     var n = n0
@@ -260,7 +257,7 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     off += n
   }
 
-  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int) {
+  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int): Unit = {
     assert(n0 >= 0)
     assert(fromOff0 >= 0)
     assert(fromOff0 <= from.length - n0)
@@ -283,13 +280,11 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 final class StreamBlockOutputBuffer(out: OutputStream) extends OutputBlockBuffer {
   private val lenBuf = new Array[Byte](4)
 
-  def flush() {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close() {
+  def close(): Unit =
     out.close()
-  }
 
   def writeBlock(buf: Array[Byte], len: Int): Unit = {
     Memory.storeInt(lenBuf, 0, len)
@@ -304,13 +299,11 @@ final class LZ4OutputBlockBuffer(lz4: LZ4, blockSize: Int, out: OutputBlockBuffe
     extends OutputBlockBuffer {
   private val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
-  def flush() {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close() {
+  def close(): Unit =
     out.close()
-  }
 
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
     val compLen = lz4.compress(comp, 4, buf, decompLen)
@@ -329,13 +322,11 @@ final class LZ4SizeBasedCompressingOutputBlockBuffer(
 ) extends OutputBlockBuffer {
   private val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
 
-  def flush() {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close() {
+  def close(): Unit =
     out.close()
-  }
 
   def writeBlock(buf: Array[Byte], decompLen: Int): Unit = {
     if (decompLen < minCompressionSize) {

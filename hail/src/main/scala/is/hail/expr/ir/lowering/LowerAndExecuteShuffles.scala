@@ -13,7 +13,7 @@ object LowerAndExecuteShuffles {
     RewriteBottomUp(
       ir,
       {
-        case t @ TableKeyBy(child, key, isSorted) if !t.definitelyDoesNotShuffle =>
+        case t @ TableKeyBy(child, key, _) if !t.definitelyDoesNotShuffle =>
           val r = Requiredness(child, ctx)
           val reader = ctx.backend.lowerDistributedSort(
             ctx,

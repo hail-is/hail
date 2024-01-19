@@ -143,7 +143,7 @@ class PrettyPrintWriterSuite extends TestNGSuite {
     assert(expected == s"$ruler\n${doc.render(width, ribbonWidth, maxLines)}\n$ruler")
   }
 
-  @Test def testIntersperse() {
+  @Test def testIntersperse(): Unit = {
     val it = Array("A", "B", "C").iterator.intersperse("(", ",", ")")
     assert(it.mkString == "(A,B,C)")
   }

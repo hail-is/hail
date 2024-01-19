@@ -4,7 +4,6 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.types.Box
-import is.hail.types.physical.PType
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -64,9 +63,8 @@ final case class TVariable(name: String, cond: String = null) extends Type {
 
   override def isBound: Boolean = b.isEmpty
 
-  override def clear() {
+  override def clear(): Unit =
     b.clear()
-  }
 
   override def subst(): Type = {
     assert(b.isDefined)

@@ -13,7 +13,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 final case class EField(name: String, typ: EType, index: Int) {
-  def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append(prettyIdentifier(name))
       sb.append(":")
@@ -217,7 +217,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     sb.result()
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append("EBaseStruct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

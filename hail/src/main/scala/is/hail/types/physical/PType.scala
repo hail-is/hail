@@ -12,10 +12,9 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
-
-import org.apache.spark.sql.Row
 
 class PTypeSerializer extends CustomSerializer[PType](format =>
       (
@@ -434,13 +433,13 @@ abstract class PType extends Serializable with Requiredness {
 
   def _asIdent: String
 
-  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (required)
       sb.append("+")
     _pretty(sb, indent, compact)
   }
 
-  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit
 
   def byteSize: Long
 

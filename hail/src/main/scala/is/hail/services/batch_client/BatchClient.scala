@@ -2,22 +2,18 @@ package is.hail.services.batch_client
 
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.services._
-import is.hail.services.DeployConfig
 import is.hail.utils._
 
-import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
-import org.json4s.jackson.JsonMethods
-
-import java.nio.charset.StandardCharsets
 import scala.util.Random
 
-import org.apache.commons.io.IOUtils
-import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
-import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost, HttpUriRequest}
+import java.nio.charset.StandardCharsets
+
+import org.apache.http.HttpEntity
+import org.apache.http.client.methods.{HttpDelete, HttpGet, HttpPatch, HttpPost}
 import org.apache.http.entity.{ByteArrayEntity, ContentType, StringEntity}
-import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
-import org.apache.http.util.EntityUtils
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.log4j.{LogManager, Logger}
+import org.json4s.{DefaultFormats, Formats, JInt, JObject, JString, JValue}
+import org.json4s.jackson.JsonMethods
 
 class NoBodyException(message: String, cause: Throwable) extends Exception(message, cause) {
   def this() = this(null, null)
@@ -234,7 +230,7 @@ class BatchClient(
     bunches
   }
 
-  private def addBunchBytes(b: ByteArrayBuilder, bunch: Array[Array[Byte]]) {
+  private def addBunchBytes(b: ByteArrayBuilder, bunch: Array[Array[Byte]]): Unit = {
     var j = 0
     b += '['
     while (j < bunch.length) {

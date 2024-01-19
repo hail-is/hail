@@ -151,13 +151,11 @@ class CloudBillingManager(abc.ABC):
         @transaction(self.db)
         async def insert_or_update(tx):
             if resource_updates:
-                last_resource_id = await tx.execute_and_fetchone(
-                    """
+                last_resource_id = await tx.execute_and_fetchone("""
 SELECT COALESCE(MAX(resource_id), 0) AS last_resource_id
 FROM resources
 FOR UPDATE
-"""
-                )
+""")
                 last_resource_id = last_resource_id['last_resource_id']
 
                 await tx.execute_many(

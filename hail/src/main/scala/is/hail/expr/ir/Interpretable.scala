@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.types.virtual.{TNDArray, TStream}
+import is.hail.types.virtual.TNDArray
 
 object Interpretable {
   def apply(ir: IR): Boolean = {

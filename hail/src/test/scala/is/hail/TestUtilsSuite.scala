@@ -1,17 +1,11 @@
 package is.hail
 
-import is.hail.utils.BoxedArrayBuilder
-
-import java.io.File
-import java.lang.reflect.Modifier
-import java.net.URI
-
 import breeze.linalg.{DenseMatrix, DenseVector}
-import org.testng.annotations.{DataProvider, Test}
+import org.testng.annotations.Test
 
 class TestUtilsSuite extends HailSuite {
 
-  @Test def matrixEqualityTest() {
+  @Test def matrixEqualityTest(): Unit = {
     val M = DenseMatrix((1d, 0d), (0d, 1d))
     val M1 = DenseMatrix((1d, 0d), (0d, 1.0001d))
     val V = DenseVector(0d, 1d)
@@ -25,7 +19,7 @@ class TestUtilsSuite extends HailSuite {
     intercept[Exception](TestUtils.assertMatrixEqualityDouble(M, M1))
   }
 
-  @Test def constantVectorTest() {
+  @Test def constantVectorTest(): Unit = {
     assert(TestUtils.isConstant(DenseVector()))
     assert(TestUtils.isConstant(DenseVector(0)))
     assert(TestUtils.isConstant(DenseVector(0, 0)))

@@ -45,7 +45,7 @@ class OriginUnionRDD[T: ClassTag, S: ClassTag](
     f(p.originIdx, p.originPart.index, parent[T](p.originIdx).iterator(p.originPart, tc))
   }
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     rdds = null
   }

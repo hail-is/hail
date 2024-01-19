@@ -10,12 +10,11 @@ import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import org.json4s.{CustomSerializer, JValue}
-import org.json4s.JsonAST.JString
-
 import scala.reflect.ClassTag
 
 import org.apache.spark.sql.types.DataType
+import org.json4s.{CustomSerializer, JValue}
+import org.json4s.JsonAST.JString
 
 class TypeSerializer extends CustomSerializer[Type](format =>
       (
@@ -151,15 +150,13 @@ abstract class Type extends BaseType with Serializable {
     else
       (this, identity[Annotation])
 
-  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     _pretty(sb, indent, compact)
-  }
 
   def _toPretty: String
 
-  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb.append(_toPretty)
-  }
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)
 

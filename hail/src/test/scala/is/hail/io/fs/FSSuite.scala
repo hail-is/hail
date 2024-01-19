@@ -1,7 +1,6 @@
 package is.hail.io.fs
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.utils._

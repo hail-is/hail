@@ -3,8 +3,9 @@ package is.hail.lir
 import is.hail.asm4s._
 import is.hail.utils._
 
-import java.io.PrintWriter
 import scala.collection.mutable
+
+import java.io.PrintWriter
 
 import org.objectweb.asm.Opcodes._
 

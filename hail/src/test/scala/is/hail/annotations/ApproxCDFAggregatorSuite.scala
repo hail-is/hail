@@ -7,14 +7,14 @@ import org.testng.annotations.Test
 
 class ApproxCDFAggregatorSuite extends TestNGSuite {
   @Test
-  def testMerge() {
+  def testMerge(): Unit = {
     val array: Array[Double] = Array(1, 3, 5, 0, 0, 0, 2, 4, 6)
     ApproxCDFHelper.merge(array, 0, 3, array, 6, 9, array, 3)
     assert(array.view(3, 9) sameElements Range(1, 7))
   }
 
   @Test
-  def testCompactLevelZero() {
+  def testCompactLevelZero(): Unit = {
     val rand = new java.util.Random(1) // first Boolean is `true`
     val levels: Array[Int] = Array(0, 4, 7, 10)
     val items: Array[Double] = Array(7, 2, 6, 4, 1, 3, 8, 0, 5, 9)
@@ -25,7 +25,7 @@ class ApproxCDFAggregatorSuite extends TestNGSuite {
   }
 
   @Test
-  def testCompactLevel() {
+  def testCompactLevel(): Unit = {
     val rand = new java.util.Random(1) // first Boolean is `true`
     val levels: Array[Int] = Array(0, 3, 6, 9)
     val items: Array[Double] = Array(7, 2, 4, 1, 3, 8, 0, 5, 9)

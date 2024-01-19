@@ -23,7 +23,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   override def _asIdent = s"interval_of_${pointType.asIdent}"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("PCInterval[")
     pointType.pretty(sb, indent, compact)
     sb.append("]")

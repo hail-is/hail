@@ -98,6 +98,6 @@ async def render_template(
     context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template(file, request, context)
-    domain = cookie_domain or os.environ['HAIL_DOMAIN']
+    domain = cookie_domain or deploy_config._domain
     response.set_cookie('_csrf', csrf_token, domain=domain, secure=True, httponly=True)
     return response

@@ -24,7 +24,7 @@ final case class PCanonicalSet(elementType: PType, required: Boolean = false)
 
   def _asIdent = s"set_of_${elementType.asIdent}"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("PCSet[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

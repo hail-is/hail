@@ -5,8 +5,6 @@ import is.hail.check.Gen
 import is.hail.types.virtual.{TArray, TCall, TInt32, TStruct}
 import is.hail.utils._
 
-import scala.language.implicitConversions
-
 import org.apache.spark.sql.Row
 
 object GenotypeType extends Enumeration {

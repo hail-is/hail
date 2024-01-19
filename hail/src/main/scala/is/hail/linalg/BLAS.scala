@@ -2,8 +2,9 @@ package is.hail.linalg
 
 import is.hail.utils._
 
-import java.util.function._
 import scala.util.{Failure, Success, Try}
+
+import java.util.function._
 
 import com.sun.jna.{FunctionMapper, Library, Native}
 import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
@@ -17,7 +18,7 @@ object BLAS {
         case Success(_) =>
           log.info("Imported BLAS with standard names")
           standard
-        case Failure(exc) =>
+        case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
           val underscoreAfter =
@@ -165,8 +166,8 @@ object BLAS {
 }
 
 trait BLASLibrary extends Library {
-  def dcopy(n: IntByReference, X: Long, incX: IntByReference, Y: Long, incY: IntByReference)
-  def dscal(n: IntByReference, alpha: DoubleByReference, X: Long, incX: IntByReference)
+  def dcopy(n: IntByReference, X: Long, incX: IntByReference, Y: Long, incY: IntByReference): Unit
+  def dscal(n: IntByReference, alpha: DoubleByReference, X: Long, incX: IntByReference): Unit
 
   def dgemv(
     TRANS: String,
@@ -180,7 +181,7 @@ trait BLASLibrary extends Library {
     BETA: DoubleByReference,
     Y: Long,
     INCY: IntByReference,
-  )
+  ): Unit
 
   def sgemm(
     TRANSA: String,
@@ -196,7 +197,7 @@ trait BLASLibrary extends Library {
     BETA: FloatByReference,
     C: Long,
     LDC: IntByReference,
-  )
+  ): Unit
 
   def dgemm(
     TRANSA: String,
@@ -212,7 +213,7 @@ trait BLASLibrary extends Library {
     BETA: DoubleByReference,
     C: Long,
     LDC: IntByReference,
-  )
+  ): Unit
 
   def dtrmm(
     side: String,
@@ -226,7 +227,7 @@ trait BLASLibrary extends Library {
     ldA: IntByReference,
     B: Long,
     ldB: IntByReference,
-  )
+  ): Unit
 
   def dnrm2(N: IntByReference, X: Array[Double], INCX: IntByReference): Double
 }

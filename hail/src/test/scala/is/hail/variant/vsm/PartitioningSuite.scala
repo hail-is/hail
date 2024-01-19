@@ -12,7 +12,7 @@ import is.hail.utils.FastSeq
 import org.testng.annotations.Test
 
 class PartitioningSuite extends HailSuite {
-  @Test def testShuffleOnEmptyRDD() {
+  @Test def testShuffleOnEmptyRDD(): Unit = {
     val typ = TableType(TStruct("tidx" -> TInt32), FastSeq("tidx"), TStruct.empty)
     val t = TableLiteral(
       TableValue(
