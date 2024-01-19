@@ -15,7 +15,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
   val virtType = RVDType(realType.rowType, realType.key.take(key))
   val (kType, _) = rvd.rowType.select(virtType.key)
 
-  private def checkJoinCompatability(right: KeyedRVD) {
+  private def checkJoinCompatability(right: KeyedRVD): Unit = {
     if (!(kType isIsomorphicTo right.kType))
       fatal(
         s"""Incompatible join keys. Keys must have same length and types, in order:
@@ -25,7 +25,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       )
   }
 
-  private def checkLeftIntervalJoinCompatability(right: KeyedRVD) {
+  private def checkLeftIntervalJoinCompatability(right: KeyedRVD): Unit = {
     if (
       !(kType.size == 1 && right.kType.size == 1
         && kType.types(0) == right.kType.types(0).asInstanceOf[TInterval].pointType)

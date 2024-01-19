@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 

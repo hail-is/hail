@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.OutputBuffer
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}

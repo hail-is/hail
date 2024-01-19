@@ -54,7 +54,7 @@ object DictFunctions extends RegistryFunctions {
 
   val tdict = TDict(tv("key"), tv("value"))
 
-  def registerAll() {
+  def registerAll(): Unit = {
     registerIR1("isEmpty", tdict, TBoolean)((_, d, _) => ArrayFunctions.isEmpty(CastToArray(d)))
 
     registerIR2("contains", tdict, tv("key"), TBoolean)((_, a, b, _) => contains(a, b))

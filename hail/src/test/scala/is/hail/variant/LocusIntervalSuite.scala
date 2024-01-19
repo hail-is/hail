@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 class LocusIntervalSuite extends HailSuite {
   def rg = ctx.getReference(ReferenceGenome.GRCh37)
 
-  @Test def testParser() {
+  @Test def testParser(): Unit = {
     val xMax = rg.contigLength("X")
     val yMax = rg.contigLength("Y")
     val chr22Max = rg.contigLength("22")

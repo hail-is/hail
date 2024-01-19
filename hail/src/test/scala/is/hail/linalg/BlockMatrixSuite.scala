@@ -10,8 +10,6 @@ import is.hail.linalg.BlockMatrix.ops._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
 
-import scala.language.implicitConversions
-
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -121,7 +119,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def pointwiseSubtractCorrect() {
+  def pointwiseSubtractCorrect(): Unit = {
     val m = toBM(
       4,
       4,
@@ -147,7 +145,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def multiplyByLocalMatrix() {
+  def multiplyByLocalMatrix(): Unit = {
     val ll = toLM(
       4,
       4,
@@ -174,15 +172,14 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def randomMultiplyByLocalMatrix() {
+  def randomMultiplyByLocalMatrix(): Unit =
     forAll(twoMultipliableDenseMatrices[Double]()) { case (ll, lr) =>
       val l = toBM(ll)
       sameDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(lr).toBreezeMatrix())
     }.check()
-  }
 
   @Test
-  def multiplySameAsBreeze() {
+  def multiplySameAsBreeze(): Unit = {
     def randomLm(n: Int, m: Int) = denseMatrix[Double](n, m)
 
     forAll(randomLm(4, 4), randomLm(4, 4)) { (ll, lr) =>
@@ -223,7 +220,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def multiplySameAsBreezeRandomized() {
+  def multiplySameAsBreezeRandomized(): Unit = {
     forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         val actual = l.dot(r).toBreezeMatrix()
@@ -244,7 +241,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def rowwiseMultiplication() {
+  def rowwiseMultiplication(): Unit = {
     val l = toBM(
       4,
       4,
@@ -271,7 +268,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def rowwiseMultiplicationRandom() {
+  def rowwiseMultiplicationRandom(): Unit = {
     val g = for {
       l <- blockMatrixGen()
       v <- buildableOfN[Array](l.nCols.toInt, arbitrary[Double])
@@ -288,7 +285,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def colwiseMultiplication() {
+  def colwiseMultiplication(): Unit = {
     val l = toBM(
       4,
       4,
@@ -315,7 +312,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def colwiseMultiplicationRandom() {
+  def colwiseMultiplicationRandom(): Unit = {
     val g = for {
       l <- blockMatrixGen()
       v <- buildableOfN[Array](l.nRows.toInt, arbitrary[Double])
@@ -337,7 +334,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def colwiseAddition() {
+  def colwiseAddition(): Unit = {
     val l = toBM(
       4,
       4,
@@ -364,7 +361,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def rowwiseAddition() {
+  def rowwiseAddition(): Unit = {
     val l = toBM(
       4,
       4,
@@ -391,7 +388,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def diagonalTestTiny() {
+  def diagonalTestTiny(): Unit = {
     val lm = toLM(
       3,
       4,
@@ -409,7 +406,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def diagonalTestRandomized() {
+  def diagonalTestRandomized(): Unit = {
     forAll(squareBlockMatrixGen()) { (m: BlockMatrix) =>
       val lm = m.toBreezeMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
@@ -426,7 +423,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def fromLocalTest() {
+  def fromLocalTest(): Unit = {
     forAll(denseMatrix[Double]().flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
@@ -436,7 +433,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def readWriteIdentityTrivial() {
+  def readWriteIdentityTrivial(): Unit = {
     val m = toBM(
       4,
       4,
@@ -457,7 +454,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def readWriteIdentityTrivialTransposed() {
+  def readWriteIdentityTrivialTransposed(): Unit = {
     val m = toBM(
       4,
       4,
@@ -478,7 +475,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def readWriteIdentityRandom() {
+  def readWriteIdentityRandom(): Unit = {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val fname = ctx.createTmpPath("test")
       m.write(ctx, fname)
@@ -491,7 +488,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def transpose() {
+  def transpose(): Unit = {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val transposed = m.toBreezeMatrix().t
       assert(transposed.rows == m.nCols)
@@ -502,7 +499,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def doubleTransposeIsIdentity() {
+  def doubleTransposeIsIdentity(): Unit = {
     forAll(blockMatrixGen(element = nonExtremeDouble)) { (m: BlockMatrix) =>
       val mt = m.T.cache()
       val mtt = m.T.T.cache()
@@ -515,7 +512,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def cachedOpsOK() {
+  def cachedOpsOK(): Unit = {
     forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         l.cache()
@@ -541,7 +538,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def toIRMToHBMIdentity() {
+  def toIRMToHBMIdentity(): Unit = {
     forAll(blockMatrixGen()) { (m: BlockMatrix) =>
       val roundtrip = m.toIndexedRowMatrix().toHailBlockMatrix(m.blockSize)
 
@@ -559,7 +556,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def map2RespectsTransposition() {
+  def map2RespectsTransposition(): Unit = {
     val lm = toLM(
       4,
       2,
@@ -588,7 +585,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def map4RespectsTransposition() {
+  def map4RespectsTransposition(): Unit = {
     val lm = toLM(
       4,
       2,
@@ -614,7 +611,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def mapRespectsTransposition() {
+  def mapRespectsTransposition(): Unit = {
     val lm = toLM(
       4,
       2,
@@ -641,7 +638,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def mapWithIndexRespectsTransposition() {
+  def mapWithIndexRespectsTransposition(): Unit = {
     val lm = toLM(
       4,
       2,
@@ -677,7 +674,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def map2WithIndexRespectsTransposition() {
+  def map2WithIndexRespectsTransposition(): Unit = {
     val lm = toLM(
       4,
       2,
@@ -719,7 +716,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def filterCols() {
+  def filterCols(): Unit = {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
@@ -743,7 +740,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def filterColsTranspose() {
+  def filterColsTranspose(): Unit = {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
@@ -765,7 +762,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def filterRows() {
+  def filterRows(): Unit = {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(2, 3) } {
@@ -786,7 +783,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def filterSymmetric() {
+  def filterSymmetric(): Unit = {
     val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
@@ -810,7 +807,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def filter() {
+  def filter(): Unit = {
     val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
@@ -837,7 +834,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def writeLocalAsBlockTest() {
+  def writeLocalAsBlockTest(): Unit = {
     val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
@@ -848,7 +845,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def randomTest() {
+  def randomTest(): Unit = {
     var lm1 =
       BlockMatrix.random(5, 10, 2, staticUID = 1, nonce = 1, gaussian = false).toBreezeMatrix()
     var lm2 =
@@ -978,7 +975,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def testFilterBlocks() {
+  def testFilterBlocks(): Unit = {
     val lm = toLM(
       4,
       4,
@@ -1025,7 +1022,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def testSparseBlockMatrixIO() {
+  def testSparseBlockMatrixIO(): Unit = {
     val lm = toLM(
       4,
       4,
@@ -1078,7 +1075,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def testSparseBlockMatrixMathAndFilter() {
+  def testSparseBlockMatrixMathAndFilter(): Unit = {
     val lm = toLM(
       4,
       4,
@@ -1232,7 +1229,7 @@ class BlockMatrixSuite extends HailSuite {
   }
 
   @Test
-  def testRealizeBlocks() {
+  def testRealizeBlocks(): Unit = {
     val lm = toLM(
       4,
       4,

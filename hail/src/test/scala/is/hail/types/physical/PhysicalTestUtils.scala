@@ -15,7 +15,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     deepCopy: Boolean = false,
     interpret: Boolean = false,
     expectedValue: Any = null,
-  ) {
+  ): Unit = {
 
     val srcRegion = Region(pool = pool)
     val region = Region(pool = pool)

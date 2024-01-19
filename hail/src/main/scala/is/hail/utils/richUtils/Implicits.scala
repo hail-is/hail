@@ -1,17 +1,17 @@
 package is.hail.utils.richUtils
 
-import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
+import is.hail.annotations.{JoinedRegionValue, Region, RegionValue}
 import is.hail.asm4s.{Code, Value}
 import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDLong, RichContextRDDRegionValue}
-import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils.{HailIterator, MultiArray2, Truncatable, WithContext}
 
-import java.io.InputStream
 import scala.collection.{mutable, TraversableOnce}
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
 import scala.util.matching.Regex
+
+import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
 import org.apache.spark.SparkContext

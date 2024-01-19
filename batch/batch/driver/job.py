@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Dict, List
 
 import aiohttp
 
-from gear import Database, K8sCache
+from gear import CommonAiohttpAppKeys, Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
@@ -140,7 +140,7 @@ async def mark_job_complete(
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
@@ -268,7 +268,7 @@ async def unschedule_job(app, record):
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
@@ -471,7 +471,7 @@ async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
     db: Database = app['db']
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     batch_id = record['batch_id']
     job_id = record['job_id']

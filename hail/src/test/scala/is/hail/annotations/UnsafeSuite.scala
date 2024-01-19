@@ -8,12 +8,12 @@ import is.hail.types.physical._
 import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.utils._
 
-import org.json4s.jackson.Serialization
-
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.util.Random
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import org.apache.spark.sql.Row
+import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
 class UnsafeSuite extends HailSuite {
@@ -60,13 +60,13 @@ class UnsafeSuite extends HailSuite {
     )))
       .map(x => Array[Any](x))
 
-  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec) {
+  @Test(dataProvider = "codecs") def testCodecSerialization(codec: Spec): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     assert(Serialization.read[Spec](codec.toString) == codec)
 
   }
 
-  @Test def testCodec() {
+  @Test def testCodec(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val region3 = Region(pool = pool)
@@ -77,7 +77,7 @@ class UnsafeSuite extends HailSuite {
 
     val g = Type.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
-      .filter { case (t, a) => a != null }
+      .filter { case (_, a) => a != null }
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))
       val pt = PType.canonical(t).asInstanceOf[PStruct]
@@ -140,7 +140,7 @@ class UnsafeSuite extends HailSuite {
     p.check()
   }
 
-  @Test def testCodecForNonWrappedTypes() {
+  @Test def testCodecForNonWrappedTypes(): Unit = {
     val valuesAndTypes = FastSeq(
       5 -> PInt32(),
       6L -> PInt64(),
@@ -173,7 +173,7 @@ class UnsafeSuite extends HailSuite {
     }
   }
 
-  @Test def testBufferWriteReadDoubles() {
+  @Test def testBufferWriteReadDoubles(): Unit = {
     val a = Array(1.0, -349.273, 0.0, 9925.467, 0.001)
 
     BufferSpec.specs.foreach { bufferSpec =>
@@ -191,7 +191,7 @@ class UnsafeSuite extends HailSuite {
     }
   }
 
-  @Test def testRegionValue() {
+  @Test def testRegionValue(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val rvb = new RegionValueBuilder(sm, region)
@@ -199,7 +199,7 @@ class UnsafeSuite extends HailSuite {
 
     val g = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm), Gen.choose(0, 100), Gen.choose(0, 100)))
-      .filter { case (t, a, n, n2) => a != null }
+      .filter { case (_, a, _, _) => a != null }
     val p = Prop.forAll(g) { case (t, a, n, n2) =>
       val pt = PType.canonical(t)
       t.typeCheck(a)
@@ -280,7 +280,7 @@ class UnsafeSuite extends HailSuite {
     v <- t.genNonmissingValue(sm).resize(y)
   } yield (t, v)).filter(_._2 != null)
 
-  @Test def testPacking() {
+  @Test def testPacking(): Unit = {
 
     def makeStruct(types: PType*): PCanonicalStruct =
       PCanonicalStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
@@ -323,11 +323,10 @@ class UnsafeSuite extends HailSuite {
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
-  @Test def testEmptySize() {
+  @Test def testEmptySize(): Unit =
     assert(PCanonicalStruct().byteSize == 0)
-  }
 
-  @Test def testUnsafeOrdering() {
+  @Test def testUnsafeOrdering(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
     val rvb = new RegionValueBuilder(sm, region)
@@ -335,7 +334,7 @@ class UnsafeSuite extends HailSuite {
 
     val g = PType.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue(sm), t.genValue(sm))))
-      .filter { case (t, (a1, a2)) => a1 != null && a2 != null }
+      .filter { case (_, (a1, a2)) => a1 != null && a2 != null }
       .resize(10)
     val p = Prop.forAll(g) { case (t, (a1, a2)) =>
       val tv = t.virtualType

@@ -40,7 +40,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
 
   override val byteSize: Long = 8
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     sb.append("PSubsetStruct{")
     ps.pretty(sb, indent, compact)
     sb += '{'

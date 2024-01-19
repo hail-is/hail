@@ -14,10 +14,9 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object NDArrayFunctions extends RegistryFunctions {
-  override def registerAll() {
+  override def registerAll(): Unit = {
     for ((stringOp, argType, retType, irOp) <- ArrayFunctions.arrayOps) {
       val nDimVar = NatVariable()
       registerIR2(stringOp, TNDArray(argType, nDimVar), argType, TNDArray(retType, nDimVar)) {
@@ -323,7 +322,7 @@ object NDArrayFunctions extends RegistryFunctions {
             block: SNDArrayValue,
             lower: SInt64Value,
             upper: SInt64Value,
-            errorID,
+            _,
           ) =>
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[
           SNDArrayPointerValue
@@ -408,7 +407,7 @@ object NDArrayFunctions extends RegistryFunctions {
             block: SNDArrayValue,
             starts: SIndexableValue,
             stops: SIndexableValue,
-            errorID,
+            _,
           ) =>
         val newBlock = rst.coerceOrCopy(cb, er.region, block, deepCopy = false).asInstanceOf[
           SNDArrayPointerValue

@@ -31,6 +31,7 @@ from typing_extensions import ParamSpec
 
 from gear import (
     AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
     Database,
     Transaction,
     UserData,
@@ -405,7 +406,7 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     state = job_record['state']
     if state == 'Running':
         return await _get_job_container_log_from_worker(
-            app['client_session'], batch_id, job_id, container, job_record['ip_address']
+            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
         )
 
     attempt_id = attempt_id_from_spec(job_record)
@@ -430,7 +431,7 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
 async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
 
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
 
@@ -540,7 +541,7 @@ async def _get_full_job_spec(app, record):
 
 
 async def _get_full_job_status(app, record):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
@@ -1639,7 +1640,7 @@ WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT del
 
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     try:
         now = time_msecs()
@@ -2553,7 +2554,7 @@ async def _add_user_to_billing_project(request: web.Request, db: Database, billi
         session_id = await get_session_id(request)
         assert session_id is not None
         url = deploy_config.url('auth', f'/api/v1alpha/users/{user}')
-        await impersonate_user(session_id, request.app['client_session'], url)
+        await impersonate_user(session_id, request.app[CommonAiohttpAppKeys.CLIENT_SESSION], url)
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
             raise NonExistentUserError(user) from e
@@ -2822,11 +2823,9 @@ async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
     await inst_coll_configs.refresh(db)
-    row = await db.select_and_fetchone(
-        """
+    row = await db.select_and_fetchone("""
 SELECT frozen FROM globals;
-"""
-    )
+""")
     app['frozen'] = row['frozen']
 
     regions = {
@@ -2846,7 +2845,7 @@ async def index(request: web.Request, _) -> NoReturn:
 
 
 async def cancel_batch_loop_body(app):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
@@ -2858,7 +2857,7 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
@@ -2896,19 +2895,17 @@ async def on_startup(app):
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
 
-    app['client_session'] = httpx.client_session()
-    exit_stack.push_async_callback(app['client_session'].close)
+    app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
 
     db = Database()
     await db.async_init()
     app['db'] = db
     exit_stack.push_async_callback(app['db'].async_close)
 
-    row = await db.select_and_fetchone(
-        """
+    row = await db.select_and_fetchone("""
 SELECT instance_id, n_tokens, frozen FROM globals;
-"""
-    )
+""")
 
     app['n_tokens'] = row['n_tokens']
 

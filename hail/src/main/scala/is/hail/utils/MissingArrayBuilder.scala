@@ -20,12 +20,12 @@ final class MissingArrayBuilder[@specialized T](initialCapacity: Int)(implicit t
     b(i)
   }
 
-  def update(i: Int, x: T) {
+  def update(i: Int, x: T): Unit = {
     require(i >= 0 && i < size)
     b(i) = x
   }
 
-  def ensureCapacity(n: Int) {
+  def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = (b.length * 2).max(n)
       val newb = new Array[T](newCapacity)
@@ -40,7 +40,7 @@ final class MissingArrayBuilder[@specialized T](initialCapacity: Int)(implicit t
   def clear(): Unit =
     size_ = 0
 
-  def +=(x: T) {
+  def +=(x: T): Unit = {
     ensureCapacity(size_ + 1)
     b(size_) = x
     missing(size_) = false
@@ -51,7 +51,7 @@ final class MissingArrayBuilder[@specialized T](initialCapacity: Int)(implicit t
 
   def ++=(a: Array[T]): Unit = ++=(a, a.length)
 
-  def ++=(a: Array[T], length: Int) {
+  def ++=(a: Array[T], length: Int): Unit = {
     require(length >= 0 && length <= a.length)
     ensureCapacity(size_ + length)
     System.arraycopy(a, 0, b, size_, length)
@@ -75,7 +75,7 @@ final class MissingArrayBuilder[@specialized T](initialCapacity: Int)(implicit t
     missing(i) = m
   }
 
-  def addMissing() {
+  def addMissing(): Unit = {
     ensureCapacity(size_ + 1)
     missing(size_) = true
     size_ += 1

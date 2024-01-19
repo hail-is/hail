@@ -186,7 +186,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
   def toRegion(cb: EmitCodeBuilder, t: Type): SIndexableValue = {
     t match {
-      case pca: TArray =>
+      case _: TArray =>
         val len = cb.newLocal[Int]("arraysorter_to_region_len", array.size)
         // fixme element requiredness should be set here
         val arrayType = PCanonicalArray(

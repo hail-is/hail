@@ -7,8 +7,9 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import java.util.UUID
 import scala.language.implicitConversions
+
+import java.util.UUID
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]

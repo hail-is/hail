@@ -789,12 +789,10 @@ def import_locus_intervals(
         )
 
     else:
-        raise FatalError(
-            """invalid interval format.  Acceptable formats:
+        raise FatalError("""invalid interval format.  Acceptable formats:
               'chr:start-end'
               'chr  start  end' (tab-separated)
-              'chr  start  end  strand  target' (tab-separated, strand is '+' or '-')"""
-        )
+              'chr  start  end  strand  target' (tab-separated, strand is '+' or '-')""")
 
     if skip_invalid_intervals and reference_genome:
         t = t.filter(hl.is_defined(t.interval))

@@ -2,14 +2,13 @@ package is.hail.backend
 
 import is.hail.utils._
 
-import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
-
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
-import com.sun.net.httpserver.{HttpContext, HttpExchange, HttpHandler, HttpServer}
+import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
+import org.json4s._
+import org.json4s.jackson.JsonMethods
 
 case class IRTypePayload(ir: String)
 case class LoadReferencesFromDatasetPayload(path: String)

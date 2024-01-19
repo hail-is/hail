@@ -428,7 +428,7 @@ rpds-py==0.15.2
     # via
     #   jsonschema
     #   referencing
-ruff==0.1.11
+ruff==0.1.13
     # via -r hail/hail/python/dev/requirements.txt
 send2trash==1.8.2
     # via jupyter-server

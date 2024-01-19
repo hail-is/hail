@@ -5,7 +5,6 @@ import is.hail.annotations.{Annotation, Inserter}
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
-import org.testng.Assert.{assertFalse, assertTrue}
 import org.testng.annotations.{DataProvider, Test}
 
 class TStructSuite extends HailSuite {

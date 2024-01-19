@@ -1,10 +1,7 @@
 package is.hail.testUtils
 
 import is.hail.annotations.Annotation
-import is.hail.types.virtual.{TArray, TLocus, TString, TStruct}
 import is.hail.variant._
-
-import org.json4s._
 
 import scala.collection.JavaConverters._
 

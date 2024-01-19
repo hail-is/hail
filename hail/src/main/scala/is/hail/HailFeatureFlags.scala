@@ -3,9 +3,9 @@ package is.hail
 import is.hail.backend.ExecutionCache
 import is.hail.utils._
 
-import org.json4s.JsonAST.{JArray, JObject, JString}
-
 import scala.collection.mutable
+
+import org.json4s.JsonAST.{JArray, JObject, JString}
 
 object HailFeatureFlags {
   val defaults = Map[String, (String, String)](
