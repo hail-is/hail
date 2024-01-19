@@ -3072,7 +3072,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3093,7 +3093,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3110,7 +3110,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3129,7 +3129,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3148,7 +3148,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3158,7 +3158,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3168,7 +3168,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3178,7 +3178,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3188,7 +3188,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
@@ -3198,7 +3198,7 @@ steps:
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" == "success" ]; then
-          exit 0;
+          true;
       else
           echo $STATUS;
           exit 1;
