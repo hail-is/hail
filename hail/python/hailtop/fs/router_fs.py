@@ -299,10 +299,7 @@ class RouterFS(FS):
                 return []
 
         async def list_within_each_prefix(prefixes: List[AsyncFSURL], parts: List[str]) -> List[List[FileListEntry]]:
-            pfs = [
-                functools.partial(ls_no_glob, str(prefix.with_new_path_component('/'.join(parts))))
-                for prefix in prefixes
-            ]
+            pfs = [functools.partial(ls_no_glob, str(prefix.with_new_path_components(*parts))) for prefix in prefixes]
             return await bounded_gather2(sema, *pfs, cancel_on_error=True)
 
         url = self.afs.parse_url(path)
@@ -337,8 +334,8 @@ class RouterFS(FS):
                 if fnmatch.fnmatch(
                     stat.path,
                     str(
-                        cumulative_prefix.with_new_path_component(
-                            '/'.join([*intervening_components, single_component_glob_pattern])
+                        cumulative_prefix.with_new_path_components(
+                            *intervening_components, single_component_glob_pattern
                         )
                     ),
                 )
