@@ -4,8 +4,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.fs.FS
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
 import scala.reflect.{classTag, ClassTag}
+
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import org.apache.spark.rdd.RDD
 

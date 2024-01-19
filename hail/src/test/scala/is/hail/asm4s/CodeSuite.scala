@@ -16,7 +16,7 @@ import org.testng.annotations.Test
 
 class CodeSuite extends HailSuite {
 
-  @Test def testForLoop() {
+  @Test def testForLoop(): Unit = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     fb.emitWithBuilder[Int] { cb =>
       val i = cb.newLocal[Int]("i")
@@ -114,7 +114,7 @@ class CodeSuite extends HailSuite {
     assert(fb.result()(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
   }
 
-  @Test def testHash() {
+  @Test def testHash(): Unit = {
     val fields = IndexedSeq(
       PField("a", PCanonicalString(), 0),
       PField("b", PInt32(), 1),

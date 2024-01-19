@@ -18,10 +18,9 @@ import is.hail.utils.richUtils.{
   ByteTrackingOutputStream, RichArray, RichContextRDD, RichDenseMatrixDouble,
 }
 
-import org.json4s._
+import scala.collection.immutable.NumericRange
 
 import java.io._
-import scala.collection.immutable.NumericRange
 
 import breeze.linalg.{sum => breezeSum, DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
@@ -32,6 +31,7 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+import org.json4s._
 
 case class CollectMatricesRDDPartition(
   index: Int,
@@ -95,7 +95,7 @@ class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix])
     Iterator.single(m)
   }
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     bms = null
   }
@@ -196,12 +196,11 @@ object BlockMatrix {
 
   val metadataRelativePath = "/metadata.json"
 
-  def checkWriteSuccess(fs: FS, uri: String) {
+  def checkWriteSuccess(fs: FS, uri: String): Unit =
     if (!fs.isFile(uri + "/_SUCCESS"))
       fatal(
         s"Error reading block matrix. Earlier write failed: no success indicator found at uri $uri"
       )
-  }
 
   def readMetadata(fs: FS, uri: String): BlockMatrixMetadata =
     using(fs.open(uri + metadataRelativePath)) { is =>
@@ -230,9 +229,8 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
+  private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]): Unit =
     assert(lm.isCompact)
-  }
 
   private[linalg] def block(
     bm: BlockMatrix,
@@ -396,7 +394,7 @@ object BlockMatrix {
     val fs = ctx.fs
     val tmpdir = ctx.localTmpdir
 
-    bms.zipWithIndex.foreach { case (bm, bIdx) =>
+    bms.zipWithIndex.foreach { case (_, bIdx) =>
       val uri = blockMatrixURI(bIdx)
       if (overwrite)
         fs.delete(uri, recursive = true)
@@ -720,7 +718,7 @@ class BlockMatrix(
     rectangles: Array[Array[Long]],
     delimiter: String,
     binary: Boolean,
-  ) {
+  ): Unit = {
 
     val writeRectangleBinary = (uos: OutputStream, dm: BDM[Double]) => {
       val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
@@ -956,7 +954,7 @@ class BlockMatrix(
     overwrite: Boolean = false,
     forceRowMajor: Boolean = false,
     stageLocally: Boolean = false,
-  ) {
+  ): Unit = {
     val fs = ctx.fs
     if (overwrite)
       fs.delete(uri, recursive = true)
@@ -1019,7 +1017,7 @@ class BlockMatrix(
       try
         StorageLevel.fromString(storageLevel)
       catch {
-        case e: IllegalArgumentException =>
+        case _: IllegalArgumentException =>
           fatal(s"unknown StorageLevel '$storageLevel'")
       }
     persist(level)
@@ -1067,7 +1065,7 @@ class BlockMatrix(
     new BDM(nRowsInt, nColsInt, data)
   }
 
-  private def requireZippable(that: M, name: String = "operation") {
+  private def requireZippable(that: M, name: String = "operation"): Unit = {
     require(
       nRows == that.nRows,
       s"$name requires same number of rows, but actually: ${nRows}x$nCols, ${that.nRows}x${that.nCols}",
@@ -1414,7 +1412,7 @@ class BlockMatrix(
 
   def reduce(blockOp: BDM[Double] => Double, scalarOp: (Double, Double) => Double): Double =
     blocks
-      .map { case ((i, j), lm) => blockOp(lm) }
+      .map { case ((_, _), lm) => blockOp(lm) }
       .fold(0.0)(scalarOp)
 
   def rowReduce(
@@ -1423,7 +1421,7 @@ class BlockMatrix(
   ): BlockMatrix =
     new BlockMatrix(
       blocks
-        .map { case ((i, j), lm) => ((0, j), blockOp(lm)) }
+        .map { case ((_, j), lm) => ((0, j), blockOp(lm)) }
         .reduceByKey(GridPartitioner(blockSize, 1, nCols, gp.maybeBlockCols()), vectorOp)
         .mapValues(v => new BDM[Double](1, v.length, v.data)),
       blockSize,
@@ -1437,7 +1435,7 @@ class BlockMatrix(
   ): BlockMatrix =
     new BlockMatrix(
       blocks
-        .map { case ((i, j), lm) => ((i, 0), blockOp(lm)) }
+        .map { case ((i, _), lm) => ((i, 0), blockOp(lm)) }
         .reduceByKey(GridPartitioner(blockSize, nRows, 1, gp.maybeBlockRows()), vectorOp)
         .mapValues(v => new BDM[Double](v.length, 1, v.data)),
       blockSize,
@@ -2071,7 +2069,7 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
       },
     )
 
-  def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]) {
+  def fma(c: BDM[Double], _a: BDM[Double], _b: BDM[Double]): Unit = {
     assert(_a.cols == _b.rows)
 
     val a =

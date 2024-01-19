@@ -2,7 +2,6 @@ package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.backend.HailStateManager
-import is.hail.utils._
 
 import scala.collection.mutable
 

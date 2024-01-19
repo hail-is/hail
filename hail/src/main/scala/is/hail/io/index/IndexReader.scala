@@ -3,24 +3,20 @@ package is.hail.io.index
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.expr.ir.IRParser
 import is.hail.io._
-import is.hail.io.bgen.BgenSettings
 import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec, PartitionBoundOrdering}
-import is.hail.types.physical.{PStruct, PType}
+import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
+import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
 import is.hail.utils._
-
-import org.json4s.{Formats, NoTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
 
 import java.io.InputStream
 import java.util
 import java.util.Map.Entry
 
-import org.apache.hadoop.fs.FSDataInputStream
 import org.apache.spark.sql.Row
+import org.json4s.Formats
+import org.json4s.jackson.JsonMethods
 
 object IndexReaderBuilder {
   def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec)
@@ -274,7 +270,7 @@ class IndexReader(
 
     def hasNext: Boolean = pos < end
 
-    def seek(key: Annotation) {
+    def seek(key: Annotation): Unit = {
       val newPos = lowerBound(key)
       assert(newPos >= pos)
       localPos += (newPos - pos).toInt
@@ -288,7 +284,7 @@ class IndexReader(
   def iterateUntil(key: Annotation): Iterator[LeafChild] =
     iterator(0, lowerBound(key))
 
-  def close() {
+  def close(): Unit = {
     leafDecoder.close()
     internalDecoder.close()
     log.info(s"Index reader cache queries: ${cacheHits + cacheMisses}")

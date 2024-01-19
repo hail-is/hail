@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SIndexablePointer}
+import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.{TInt32, TVoid, Type}
 import is.hail.utils._
 

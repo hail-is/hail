@@ -8,7 +8,6 @@ import is.hail.utils._
 import scala.annotation.tailrec
 
 import org.apache.spark._
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 
 object OrderedDependency {

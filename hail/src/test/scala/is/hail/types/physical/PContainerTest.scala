@@ -61,7 +61,7 @@ class PContainerTest extends PhysicalTestUtils {
     res
   }
 
-  @Test def checkFirstNonZeroByte() {
+  @Test def checkFirstNonZeroByte(): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBits(sourceType, nullInByte(0, 0)) == false)
@@ -103,14 +103,14 @@ class PContainerTest extends PhysicalTestUtils {
     assert(testContainsNonZeroBits(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkFirstNonZeroByteStaged() {
+  @Test def checkFirstNonZeroByteStaged(): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkHasMissingValues() {
+  @Test def checkHasMissingValues(): Unit = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
@@ -123,10 +123,10 @@ class PContainerTest extends PhysicalTestUtils {
     } assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
   }
 
-  @Test def arrayCopyTest() {
+  @Test def arrayCopyTest(): Unit = {
     /* Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue:
      * assert(size_ > 0)) */
-    def runTests(deepCopy: Boolean, interpret: Boolean) {
+    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalArray(PInt32()),
         PCanonicalArray(PInt64()),
@@ -304,8 +304,8 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def dictCopyTests() {
-    def runTests(deepCopy: Boolean, interpret: Boolean) {
+  @Test def dictCopyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalDict(PCanonicalString(), PInt32()),
         PCanonicalDict(PCanonicalString(), PInt32()),
@@ -337,8 +337,8 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def setCopyTests() {
-    def runTests(deepCopy: Boolean, interpret: Boolean) {
+  @Test def setCopyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
       copyTestExecutor(
         PCanonicalSet(PCanonicalString(true)),
         PCanonicalSet(PCanonicalString()),

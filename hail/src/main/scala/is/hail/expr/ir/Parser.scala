@@ -15,16 +15,16 @@ import is.hail.utils._
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
 
-import org.json4s.{Formats, JObject}
-import org.json4s.jackson.{JsonMethods, Serialization}
-
-import java.util.Base64
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
 
+import java.util.Base64
+
 import org.apache.spark.sql.Row
+import org.json4s.{Formats, JObject}
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 abstract class Token extends Positional {
   def value: Any

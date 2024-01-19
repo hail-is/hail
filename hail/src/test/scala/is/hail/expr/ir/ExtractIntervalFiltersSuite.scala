@@ -131,14 +131,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testKeyComparison() {
+  @Test def testKeyComparison(): Unit = {
     def check(
       op: ComparisonOp[Boolean],
       point: IR,
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, -1, true),
         Row(0, 0, true),
@@ -240,13 +240,13 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLiteralContains() {
+  @Test def testLiteralContains(): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 1, true),
         Row(0, 5, true),
@@ -302,7 +302,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLiteralContainsStruct() {
+  @Test def testLiteralContainsStruct(): Unit = {
     hc // force initialization
 
     def check(
@@ -310,7 +310,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 1, 2),
         Row(0, 3, 4),
@@ -386,7 +386,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testIntervalContains() {
+  @Test def testIntervalContains(): Unit = {
     val interval = Interval(1, 5, false, true)
     val testRows = FastSeq(
       Row(0, 0, true),
@@ -411,7 +411,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIntervalContainsStruct() {
+  @Test def testIntervalContainsStruct(): Unit = {
     val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
     val prefixInterval = Interval(Row(1), Row(2), false, true)
 
@@ -420,7 +420,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, null, 0),
         Row(0, 0, 0),
@@ -470,7 +470,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLocusContigComparison() {
+  @Test def testLocusContigComparison(): Unit = {
     hc // force initialization
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
@@ -499,7 +499,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     checkAll(ir2, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
   }
 
-  @Test def testLocusPositionComparison() {
+  @Test def testLocusPositionComparison(): Unit = {
     hc // force initialization
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
@@ -511,7 +511,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       truePosIntervals: IndexedSeq[Interval],
       falsePosIntervals: IndexedSeq[Interval],
       naPosIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val trueIntervals =
         ExtractIntervalFilters.liftPosIntervalsToLocus(truePosIntervals, grch38, ctx)
       val falseIntervals =
@@ -642,7 +642,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLocusContigContains() {
+  @Test def testLocusContigContains(): Unit = {
     hc // force initialization
     val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
@@ -653,7 +653,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(Locus("chr1", 5)),
         Row(Locus("chr2", 1)),
@@ -762,7 +762,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testIntervalListFold() {
+  @Test def testIntervalListFold(): Unit = {
     val inIntervals = FastSeq(
       Interval(0, 10, true, false),
       Interval(20, 25, true, false),
@@ -780,7 +780,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, -15, true),
         Row(0, -10, true),
@@ -842,7 +842,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testDisjunction() {
+  @Test def testDisjunction(): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -851,7 +851,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 0, false),
@@ -914,7 +914,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testConjunction() {
+  @Test def testConjunction(): Unit = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -923,7 +923,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 0, false),
@@ -980,7 +980,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 5, true),
@@ -1016,7 +1016,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 5, true),
@@ -1049,7 +1049,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ) {
+    ): Unit = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 5, true),
@@ -1108,7 +1108,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
   }
 
-  @Test def testIntegration() {
+  @Test def testIntegration(): Unit = {
     hc // force initialization
     val tab1 = TableRange(10, 5)
 

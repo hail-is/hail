@@ -83,7 +83,7 @@ object StackSafe {
     }
   }
 
-  implicit class RichIndexedSeq[A](val s: IndexedSeq[A]) extends AnyVal {
+  implicit class RichIndexedSeq[A](private val s: IndexedSeq[A]) extends AnyVal {
     def mapRecur[B, That](f: A => StackFrame[B])(implicit bf: CanBuildFrom[IndexedSeq[A], B, That])
       : StackFrame[That] = {
       val builder = bf(s)
@@ -105,7 +105,7 @@ object StackSafe {
     }
   }
 
-  implicit class RichArray[A](val a: Array[A]) extends AnyVal {
+  implicit class RichArray[A](private val a: Array[A]) extends AnyVal {
     def mapRecur[B](f: A => StackFrame[B])(implicit bf: CanBuildFrom[Array[A], B, Array[B]])
       : StackFrame[Array[B]] = {
       val builder = bf(a)
@@ -127,7 +127,7 @@ object StackSafe {
     }
   }
 
-  implicit class RichOption[A](val o: Option[A]) extends AnyVal {
+  implicit class RichOption[A](private val o: Option[A]) extends AnyVal {
     def mapRecur[B](f: A => StackFrame[B]): StackFrame[Option[B]] =
       o match {
         case None => done(None)
@@ -135,7 +135,7 @@ object StackSafe {
       }
   }
 
-  implicit class RichIterator[A](val i: Iterable[A]) extends AnyVal {
+  implicit class RichIterator[A](private val i: Iterable[A]) extends AnyVal {
     def foreachRecur(f: A => StackFrame[Unit]): StackFrame[Unit] = {
       val it = i.iterator
       def loop(): StackFrame[Unit] =
@@ -148,7 +148,7 @@ object StackSafe {
     }
   }
 
-  implicit class RichIteratorStackFrame[A](val i: Iterator[StackFrame[A]]) extends AnyVal {
+  implicit class RichIteratorStackFrame[A](private val i: Iterator[StackFrame[A]]) extends AnyVal {
     def collectRecur(implicit bf: CanBuild[A, Array[A]]): StackFrame[IndexedSeq[A]] = {
       val builder = bf()
       var cont: A => StackFrame[IndexedSeq[A]] = null

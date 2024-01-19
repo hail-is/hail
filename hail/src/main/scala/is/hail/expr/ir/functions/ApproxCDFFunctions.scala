@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{valueToCodeObject, Code, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.agg.{ApproxCDFStateManager, QuantilesAggregator}
-import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SBaseStructPointer
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.physical.stypes.primitives.SInt32Value
@@ -61,7 +60,7 @@ object ApproxCDFFunctions extends RegistryFunctions {
       stateType,
       (_, _, _, _) => SBaseStructPointer(statePType),
     ) {
-      case (r, cb, rt, k: SInt32Value, left: SBaseStructValue, right: SBaseStructValue, errorID) =>
+      case (r, cb, _, k: SInt32Value, left: SBaseStructValue, right: SBaseStructValue, _) =>
         val leftState = makeStateManager(cb, r.region, k.value, left)
         val rightState = makeStateManager(cb, r.region, k.value, right)
 

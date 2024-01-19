@@ -1,9 +1,9 @@
 package is.hail.io.vcf
 
-import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{CloseableIterator, GenericLine}
-import is.hail.io.fs.{FS, Positioned}
+import is.hail.io.fs.FS
 import is.hail.io.tabix.{TabixLineIterator, TabixReader}
 import is.hail.types.physical.PStruct
 import is.hail.utils.{fatal, makeJavaSet, MissingArrayBuilder, TextInputFilterAndReplace}

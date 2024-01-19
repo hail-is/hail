@@ -2,16 +2,14 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.expr.ir.{Env, IntArrayBuilder, IRParser}
+import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.utils._
 
-import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JString
-
 import scala.collection.JavaConverters._
-import scala.reflect.ClassTag
 
 import org.apache.spark.sql.Row
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
 
 class TStructSerializer extends CustomSerializer[TStruct](format =>
       (
@@ -377,7 +375,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     sb.append('}')
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append("Struct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

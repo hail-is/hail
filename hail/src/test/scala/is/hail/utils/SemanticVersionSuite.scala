@@ -4,7 +4,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class SemanticVersionSuite extends TestNGSuite {
-  @Test def testOrdering() {
+  @Test def testOrdering(): Unit = {
     val versions = Array(
       SemanticVersion(1, 1, 0),
       SemanticVersion(1, 1, 1),

@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.types.virtual.TInt64
 import is.hail.utils.FastSeq
 
@@ -11,7 +10,7 @@ import org.testng.annotations.Test
 class LiftLiteralsSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
 
-  @Test def testNestedGlobalsRewrite() {
+  @Test def testNestedGlobalsRewrite(): Unit = {
     val tab =
       TableLiteral(TableRange(10, 1).analyzeAndExecute(ctx).asTableValue(ctx), theHailClassLoader)
     val ir = TableGetGlobals(

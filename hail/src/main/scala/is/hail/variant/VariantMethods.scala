@@ -83,7 +83,7 @@ object VariantSubgen {
     val r = random(rg)
     val compatible = (1 until 22).map(_.toString).toSet
     r.copy(
-      contigGen = r.contigGen.filter { case (contig, len) =>
+      contigGen = r.contigGen.filter { case (contig, _) =>
         compatible.contains(contig)
       }
     )

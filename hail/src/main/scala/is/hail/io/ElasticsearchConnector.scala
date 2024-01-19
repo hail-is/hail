@@ -17,7 +17,7 @@ object ElasticsearchConnector {
     blockSize: Int,
     config: java.util.HashMap[String, String],
     verbose: Boolean,
-  ) {
+  ): Unit = {
     export(
       df,
       host,
@@ -39,7 +39,7 @@ object ElasticsearchConnector {
     blockSize: Int = 1000,
     config: Map[String, String],
     verbose: Boolean = true,
-  ) {
+  ): Unit = {
 
     // config docs: https://www.elastic.co/guide/en/elasticsearch/hadoop/master/configuration.html
 

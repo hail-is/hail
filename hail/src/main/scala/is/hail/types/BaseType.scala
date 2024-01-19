@@ -13,7 +13,7 @@ abstract class BaseType {
     sb.result()
   }
 
-  def pretty(sb: StringBuilder, indent: Int, compact: Boolean)
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit
 
   def parsableString(): String = toPrettyString(compact = true)
 

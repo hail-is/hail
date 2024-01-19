@@ -509,7 +509,7 @@ object EmitNDArray {
             deforestRecur(child, cb).flatMap(cb) { childProducer =>
               emitI(slicesIR, cb).flatMap(cb) { case slicesValue: SBaseStructValue =>
                 val (indexingIndices, slicingIndices) =
-                  slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, idx) =>
+                  slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, _) =>
                     pFieldType.isPrimitive
                   } match {
                     case (a, b) => (a.map(_._2), b.map(_._2))

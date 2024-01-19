@@ -23,23 +23,19 @@ final class CompiledEncoder(
   theHailClassLoader: HailClassLoader,
   f: (HailClassLoader) => EncoderAsmFunction,
 ) extends Encoder {
-  def flush() {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close() {
+  def close(): Unit =
     out.close()
-  }
 
   private[this] val compiled = f(theHailClassLoader)
 
-  def writeRegionValue(offset: Long) {
+  def writeRegionValue(offset: Long): Unit =
     compiled(offset, out)
-  }
 
-  def writeByte(b: Byte) {
+  def writeByte(b: Byte): Unit =
     out.writeByte(b)
-  }
 
   def indexOffset(): Long = out.indexOffset()
 }

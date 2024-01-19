@@ -1077,7 +1077,7 @@ object LowerBlockMatrixIR {
             ib,
             TypeWithRequiredness(child.typ.elementType),
           ) // FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
-        case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(ctx, node)
+        case BlockMatrixMultiWrite(_, _) => unimplemented(ctx, node)
         case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
           throw new LowererUnsupportedOperation(
             s"IR nodes with BlockMatrixIR children need explicit rules: \n${Pretty(ctx, node)}"
@@ -1143,7 +1143,7 @@ object LowerBlockMatrixIR {
     bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx, ib)
 
-      case x @ BlockMatrixRandom(staticUID, gaussian, shape, blockSize) =>
+      case x @ BlockMatrixRandom(staticUID, gaussian, _, _) =>
         val contexts = BMSContexts.tabulate(x.typ, ib) { (rowIdx, colIdx) =>
           val (m, n) = x.typ.blockShapeIR(rowIdx, colIdx)
           MakeTuple.ordered(FastSeq(m, n, rowIdx * x.typ.nColBlocks + colIdx))
@@ -1236,7 +1236,7 @@ object LowerBlockMatrixIR {
         )
         BlockMatrixStage2.broadcastVector(diagVector, ib, x.typ, asRowVector = axis == 0)
 
-      case x @ BlockMatrixBroadcast(child, IndexedSeq(1, 0), _, _) => // transpose
+      case BlockMatrixBroadcast(child, IndexedSeq(1, 0), _, _) => // transpose
         lower(child).transposed(ib)
 
       case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
@@ -1290,7 +1290,7 @@ object LowerBlockMatrixIR {
 
     bmir match {
 
-      case a @ BlockMatrixAgg(child, axesToSumOut) =>
+      case BlockMatrixAgg(child, axesToSumOut) =>
         val loweredChild = lower(child)
         axesToSumOut match {
           case IndexedSeq(0, 1) =>
@@ -1443,9 +1443,9 @@ object LowerBlockMatrixIR {
               MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody((ctx, body) => NDArraySlice(body, GetField(ctx, "new")))
 
-      case RelationalLetBlockMatrix(name, value, body) => unimplemented(ctx, bmir)
+      case RelationalLetBlockMatrix(_, _, _) => unimplemented(ctx, bmir)
 
-      case ValueToBlockMatrix(child, shape, blockSize)
+      case ValueToBlockMatrix(child, _, _)
           if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] =>
         val element = lowerIR(child)
         new BlockMatrixStage(FastSeq(), TStruct()) {
@@ -1490,7 +1490,7 @@ object LowerBlockMatrixIR {
 
           def blockBody(ctxRef: Ref): IR = ctxRef
         }
-      case x @ BlockMatrixDot(leftIR, rightIR) =>
+      case BlockMatrixDot(leftIR, rightIR) =>
         val left = lower(leftIR)
         val right = lower(rightIR)
         val newCtxType = TArray(TTuple(left.ctxType, right.ctxType))

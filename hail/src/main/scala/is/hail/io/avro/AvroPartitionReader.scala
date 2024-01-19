@@ -13,15 +13,15 @@ import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SStreamValue}
 import is.hail.types.virtual._
 
-import org.json4s.{Extraction, JValue}
+import scala.collection.JavaConverters._
 
 import java.io.InputStream
-import scala.collection.JavaConverters._
 
 import org.apache.avro.Schema
 import org.apache.avro.file.DataFileStream
 import org.apache.avro.generic.{GenericData, GenericDatumReader, GenericRecord}
 import org.apache.avro.io.DatumReader
+import org.json4s.{Extraction, JValue}
 
 case class AvroPartitionReader(schema: Schema, uidFieldName: String) extends PartitionReader {
   def contextType: Type = TStruct("partitionPath" -> TString, "partitionIndex" -> TInt64)

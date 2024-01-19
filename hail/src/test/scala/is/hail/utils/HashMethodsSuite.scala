@@ -5,7 +5,7 @@ import is.hail.HailSuite
 import org.testng.annotations.Test
 
 class HashMethodsSuite extends HailSuite {
-  @Test def testMultGF() {
+  @Test def testMultGF(): Unit = {
     import PolyHash._
 
     // multGF should agree with the Mathematica function

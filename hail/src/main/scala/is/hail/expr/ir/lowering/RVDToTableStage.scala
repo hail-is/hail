@@ -15,13 +15,12 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.TStruct
 import is.hail.utils.FastSeq
 
-import org.json4s.JsonAST.JString
-import org.json4s.JValue
-
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
+import org.json4s.JValue
+import org.json4s.JsonAST.JString
 
 case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader {
   lazy val fullType: TableType =
@@ -64,7 +63,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
       ctx,
       requestedType,
       globRow,
-      rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (i, ctx, it) =>
+      rvd.mapPartitionsWithIndex(RVDType(newRowType, requestedType.key)) { case (_, ctx, it) =>
         val partF = rowF(
           theHailClassLoaderForSparkWorkers,
           fsBc.value,
@@ -203,7 +202,7 @@ object TableStageToRVD {
     val rdd = new TableStageToRDD(fsBc, sparkContext, encodedContexts, sparkDeps)
 
     val crdd = ContextRDD.weaken(rdd)
-      .cflatMap { case (rvdContext, (encodedContext, idx)) =>
+      .cflatMap { case (rvdContext, (encodedContext, _)) =>
         val decodedContext = makeContextDec(
           new ByteArrayInputStream(encodedContext),
           theHailClassLoaderForSparkWorkers,

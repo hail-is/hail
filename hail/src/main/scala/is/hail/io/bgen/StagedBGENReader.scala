@@ -716,7 +716,7 @@ object BGENFunctions extends RegistryFunctions {
           sorter.sort(
             cb,
             er.region,
-            { case (cb, region, l, r) =>
+            { case (cb, _, l, r) =>
               val lv = bufferSct.loadToSValue(cb, l).asBaseStruct.subset("locus", "alleles")
               val rv = bufferSct.loadToSValue(cb, r).asBaseStruct.subset("locus", "alleles")
               cb.emb.ecb.getOrdering(lv.st, rv.st).ltNonnull(cb, lv, rv)

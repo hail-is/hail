@@ -13,15 +13,13 @@ abstract class KeySerializedValueRecord[K] extends Serializable {
   var input: Array[Byte] = _
   var key: K = _
 
-  def setSerializedValue(arr: Array[Byte]) {
+  def setSerializedValue(arr: Array[Byte]): Unit =
     this.input = arr
-  }
 
   def getValue(rvb: RegionValueBuilder, includeGT: Boolean): Unit
 
-  def setKey(k: K) {
+  def setKey(k: K): Unit =
     this.key = k
-  }
 
   def getKey: K = key
 }

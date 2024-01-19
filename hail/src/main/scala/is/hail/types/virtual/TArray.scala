@@ -4,9 +4,9 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 
-import org.json4s.jackson.JsonMethods
-
 import scala.reflect.{classTag, ClassTag}
+
+import org.json4s.jackson.JsonMethods
 
 final case class TArray(elementType: Type) extends TContainer {
   override def pyString(sb: StringBuilder): Unit = {
@@ -29,7 +29,7 @@ final case class TArray(elementType: Type) extends TContainer {
 
   override def subst() = TArray(elementType.subst())
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("Array[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

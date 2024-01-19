@@ -26,8 +26,8 @@ object CFG {
         case x: SwitchX =>
           edgeTo(x.Ldefault)
           x.Lcases.foreach(edgeTo)
-        case x: ReturnX =>
-        case x: ThrowX =>
+        case _: ReturnX =>
+        case _: ThrowX =>
       }
     }
 

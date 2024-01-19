@@ -1,11 +1,5 @@
 package is.hail.backend.service
 
-import is.hail.HailContext
-
-import java.util.Properties
-
-import org.apache.log4j.{LogManager, PropertyConfigurator}
-
 object Main {
   val WORKER = "worker"
   val DRIVER = "driver"

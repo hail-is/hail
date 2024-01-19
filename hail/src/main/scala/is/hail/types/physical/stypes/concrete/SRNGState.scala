@@ -72,7 +72,7 @@ final case class SRNGState(staticInfo: Option[SRNGStateStaticInfo]) extends STyp
         coerce[Boolean](values(9)),
         coerce[Int](values(10)),
       )
-    case Some(info) =>
+    case Some(_) =>
       new SRNGStateStaticSizeValue(
         this,
         values.slice(0, 4).asInstanceOf[IndexedSeq[Settable[Long]]],

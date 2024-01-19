@@ -10,8 +10,8 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 class PIntervalSuite extends PhysicalTestUtils {
-  @Test def copyTests() {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false) {
+  @Test def copyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalInterval(PInt64()),
         PCanonicalInterval(PInt64()),

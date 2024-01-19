@@ -20,7 +20,7 @@ object ControlFlowPreventsSplit {
             m.bind(parent, ())
           parent = parentPointers.lookup(parent)
         }
-      case r @ Ref(name, t) if t.isInstanceOf[TStream] =>
+      case r @ Ref(_, t) if t.isInstanceOf[TStream] =>
         val declaration = usesAndDefs.defs.lookup(r)
         var parent: BaseIR = r
         while (!(parent.eq(declaration))) {

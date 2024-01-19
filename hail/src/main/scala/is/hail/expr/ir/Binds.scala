@@ -59,7 +59,7 @@ object Bindings {
     case StreamFold(a, zero, accumName, valueName, _) => if (i == 2)
         Array(accumName -> zero.typ, valueName -> tcoerce[TStream](a.typ).elementType)
       else empty
-    case StreamFold2(a, accum, valueName, seq, result) =>
+    case StreamFold2(a, accum, valueName, _, _) =>
       if (i <= accum.length)
         empty
       else if (i < 2 * accum.length + 1)
@@ -93,9 +93,9 @@ object Bindings {
       } else {
         empty
       }
-    case AggArrayPerElement(a, _, indexName, _, _, _) =>
+    case AggArrayPerElement(_, _, indexName, _, _, _) =>
       if (i == 1) FastSeq(indexName -> TInt32) else empty
-    case AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
+    case AggFold(zero, _, _, accumName, otherAccumName, _) =>
       if (i == 1) FastSeq(accumName -> zero.typ)
       else if (i == 2) FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ)
       else empty
@@ -274,7 +274,7 @@ object ChildEnvWithoutBindings {
       case ApplyAggOp(init, _, _) => if (i < init.length) env.copy(agg = None) else env.promoteAgg
       case ApplyScanOp(init, _, _) =>
         if (i < init.length) env.copy(scan = None) else env.promoteScan
-      case AggFold(zero, seqOp, combOp, elementName, accumName, isScan) => (isScan, i) match {
+      case AggFold(_, _, _, _, _, isScan) => (isScan, i) match {
           case (true, 0) => env.noScan
           case (false, 0) => env.noAgg
           case (true, 1) => env.promoteScan

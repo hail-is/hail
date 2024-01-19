@@ -4,12 +4,9 @@ import is.hail.annotations._
 import is.hail.check._
 import is.hail.types.virtual.TBoolean
 
-import org.json4s.JsonAST.JObject
-import org.json4s.JValue
-
-import scala.language.implicitConversions
-
 import org.apache.spark.sql.Row
+import org.json4s.JValue
+import org.json4s.JsonAST.JObject
 
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   require(sign == -1 || sign == 1)

@@ -1,16 +1,13 @@
 package is.hail.expr.ir.functions
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.MatrixValue
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
-import is.hail.types.{MatrixType, RPrimitive, RTable, TypeWithRequiredness}
-import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
 
-import org.json4s.jackson
-
 import java.io.DataOutputStream
+
+import org.json4s.jackson
 
 object MatrixWriteBlockMatrix {
   def apply(

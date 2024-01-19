@@ -21,7 +21,7 @@ object Copy {
         assert(newChildren.length == 1)
         CastRename(newChildren(0).asInstanceOf[IR], typ)
       case NA(t) => NA(t)
-      case IsNA(value) =>
+      case IsNA(_) =>
         assert(newChildren.length == 1)
         IsNA(newChildren(0).asInstanceOf[IR])
       case Coalesce(_) =>
@@ -141,7 +141,7 @@ object Copy {
           op,
           spec,
         )
-      case StreamWhiten(stream, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize,
+      case StreamWhiten(_, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize,
             normalizeAfterWhiten) =>
         StreamWhiten(
           newChildren(0).asInstanceOf[IR],
@@ -466,7 +466,7 @@ object Copy {
         DeserializeAggs(startIdx, serIdx, spec, aggSigs)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case x @ ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+      case x @ ApplyAggOp(_, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         assert(args.length == x.nInitArgs + x.nSeqOpArgs)
         ApplyAggOp(
@@ -474,7 +474,7 @@ object Copy {
           args.drop(x.nInitArgs),
           aggSig,
         )
-      case x @ ApplyScanOp(initOpArgs, _, aggSig) =>
+      case x @ ApplyScanOp(_, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         assert(args.length == x.nInitArgs + x.nSeqOpArgs)
         ApplyScanOp(
@@ -503,20 +503,20 @@ object Copy {
       case Die(_, typ, errorId) =>
         assert(newChildren.length == 1)
         Die(newChildren(0).asInstanceOf[IR], typ, errorId)
-      case Trap(child) =>
+      case Trap(_) =>
         assert(newChildren.length == 1)
         Trap(newChildren(0).asInstanceOf[IR])
-      case ConsoleLog(message, result) =>
+      case ConsoleLog(_, _) =>
         assert(newChildren.length == 2)
         ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case x @ ApplyIR(fn, typeArgs, args, rt, errorID) =>
+      case x @ ApplyIR(fn, typeArgs, _, rt, errorID) =>
         val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), rt, errorID)
         r.conversion = x.conversion
         r.inline = x.inline
         r
-      case Apply(fn, typeArgs, args, t, errorID) =>
+      case Apply(fn, typeArgs, _, t, errorID) =>
         Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
-      case ApplySeeded(fn, args, rngState, staticUID, t) =>
+      case ApplySeeded(fn, _, _, staticUID, t) =>
         ApplySeeded(
           fn,
           newChildren.init.map(_.asInstanceOf[IR]),
@@ -524,7 +524,7 @@ object Copy {
           staticUID,
           t,
         )
-      case ApplySpecial(fn, typeArgs, args, t, errorID) =>
+      case ApplySpecial(fn, typeArgs, _, t, errorID) =>
         ApplySpecial(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       // from MatrixIR
       case MatrixWrite(_, writer) =>
@@ -585,16 +585,16 @@ object Copy {
           id,
           tsd,
         )
-      case ReadPartition(context, rowType, reader) =>
+      case ReadPartition(_, rowType, reader) =>
         assert(newChildren.length == 1)
         ReadPartition(newChildren(0).asInstanceOf[IR], rowType, reader)
-      case WritePartition(stream, ctx, writer) =>
+      case WritePartition(_, _, writer) =>
         assert(newChildren.length == 2)
         WritePartition(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], writer)
-      case WriteMetadata(ctx, writer) =>
+      case WriteMetadata(_, writer) =>
         assert(newChildren.length == 1)
         WriteMetadata(newChildren(0).asInstanceOf[IR], writer)
-      case ReadValue(path, writer, requestedType) =>
+      case ReadValue(_, writer, requestedType) =>
         assert(newChildren.length == 1)
         ReadValue(newChildren(0).asInstanceOf[IR], writer, requestedType)
       case WriteValue(_, _, writer, _) =>

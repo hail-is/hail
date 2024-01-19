@@ -15,14 +15,13 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 
-import org.json4s.{Formats, JValue}
-import org.json4s.jackson.JsonMethods
-
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 import com.fasterxml.jackson.core.JsonParseException
 import org.apache.spark.sql.Row
+import org.json4s.{Formats, JValue}
+import org.json4s.jackson.JsonMethods
 
 case class VEPConfiguration(
   command: Array[String],
@@ -37,12 +36,12 @@ object VEP {
     jv.extract[VEPConfiguration]
   }
 
-  def printContext(w: (String) => Unit) {
+  def printContext(w: (String) => Unit): Unit = {
     w("##fileformat=VCFv4.1")
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(w: (String) => Unit, v: (Locus, IndexedSeq[String])) {
+  def printElement(w: (String) => Unit, v: (Locus, IndexedSeq[String])): Unit = {
     val (locus, alleles) = v
 
     val sb = new StringBuilder()
@@ -194,7 +193,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                 if (csq) {
                   val vepv @ (vepLocus, vepAlleles) = variantFromInput(s)
                   nonStarToOriginalVariant.get(vepv) match {
-                    case Some(v @ (locus, alleles)) =>
+                    case Some((locus, alleles)) =>
                       val x = csqRegex.findFirstIn(s)
                       val a = x match {
                         case Some(value) =>
@@ -227,7 +226,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                     val vepv @ (vepLocus, vepAlleles) = variantFromInput(variantString)
 
                     nonStarToOriginalVariant.get(vepv) match {
-                      case Some(v @ (locus, alleles)) =>
+                      case Some((locus, alleles)) =>
                         Some((Annotation(locus, alleles), a))
                       case None =>
                         fatal(

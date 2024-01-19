@@ -3,18 +3,14 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{
-  EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitEnv, EmitMethodBuilder, Env, IEmitCode, IR,
-  NDArrayMap, NDArrayMap2, Param, ParamType, Ref, RunAggScan, StagedArrayBuilder, StreamFilter,
-  StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan,
-  StreamZip, StreamZipJoin,
+  EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref,
+  RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor,
+  StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin,
 }
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.types.VirtualTypeWithReq
-import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}
 import is.hail.types.physical.stypes.SingleCodeType
-import is.hail.types.physical.stypes.interfaces.{
-  NoBoxLongIterator, SIndexableValue, SStream, SStreamIteratorLong, SStreamValue,
-}
+import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SIndexableValue}
 import is.hail.utils._
 
 object StreamUtils {
@@ -146,7 +142,7 @@ object StreamUtils {
       case StreamMap(a, _, b) => traverse(a, mult); traverse(b, 2)
       case StreamFilter(a, _, b) => traverse(a, mult); traverse(b, 2)
       case StreamFlatMap(a, _, b) => traverse(a, mult); traverse(b, 2)
-      case StreamJoinRightDistinct(l, r, _, _, _, c, j, _) =>
+      case StreamJoinRightDistinct(l, r, _, _, _, _, j, _) =>
         traverse(l, mult); traverse(r, mult); traverse(j, 2)
       case StreamScan(a, z, _, _, b) =>
         traverse(a, mult); traverse(z, 2); traverse(b, 2)
@@ -296,12 +292,12 @@ object StreamUtils {
       case Left(arr) =>
         val fd = mb.genFieldThisRef[Array[Boolean]]("memManagement")
         fd -> ((cb: EmitCodeBuilder) => (cb.assign(fd, mb.getObject[Array[Boolean]](arr))))
-      case Right(b) => (null, ((cb: EmitCodeBuilder) => ()))
+      case Right(_) => (null, ((cb: EmitCodeBuilder) => ()))
     }
 
     def lookupMemoryManagementByIndex(cb: EmitCodeBuilder, idx: Code[Int]): Value[Boolean] =
       reqMemManagementArray match {
-        case Left(arr) => cb.memoize(memManagementArrayField(idx))
+        case Left(_) => cb.memoize(memManagementArrayField(idx))
         case Right(b) => b
       }
 

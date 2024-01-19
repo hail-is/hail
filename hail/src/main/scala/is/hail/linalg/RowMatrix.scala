@@ -1,6 +1,5 @@
 package is.hail.linalg
 
-import is.hail.HailContext
 import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.InputBuffer
@@ -10,7 +9,7 @@ import is.hail.types.virtual.{TInt64, TStruct}
 import is.hail.utils._
 
 import breeze.linalg.DenseMatrix
-import org.apache.spark.{Partition, Partitioner, SparkContext, TaskContext}
+import org.apache.spark.{Partition, Partitioner, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 
@@ -122,7 +121,7 @@ class RowMatrix(
     header: Option[String],
     addIndex: Boolean,
     exportType: String,
-  ) {
+  ): Unit = {
     val localNCols = nCols
     exportDelimitedRowSlices(
       ctx,
@@ -144,7 +143,7 @@ class RowMatrix(
     header: Option[String],
     addIndex: Boolean,
     exportType: String,
-  ) {
+  ): Unit = {
     val localNCols = nCols
     exportDelimitedRowSlices(
       ctx,
@@ -165,7 +164,7 @@ class RowMatrix(
     header: Option[String],
     addIndex: Boolean,
     exportType: String,
-  ) {
+  ): Unit = {
     val localNCols = nCols
     exportDelimitedRowSlices(
       ctx,
@@ -187,7 +186,7 @@ class RowMatrix(
     header: Option[String],
     addIndex: Boolean,
     exportType: String,
-  ) {
+  ): Unit = {
     val localNCols = nCols
     exportDelimitedRowSlices(
       ctx,
@@ -208,7 +207,7 @@ class RowMatrix(
     header: Option[String],
     addIndex: Boolean,
     exportType: String,
-  ) {
+  ): Unit = {
     val localNCols = nCols
     exportDelimitedRowSlices(
       ctx,
@@ -233,7 +232,7 @@ class RowMatrix(
     exportType: String,
     start: (Long) => Int,
     end: (Long) => Int,
-  ) {
+  ): Unit = {
 
     genericExport(
       ctx,
@@ -265,7 +264,7 @@ class RowMatrix(
     header: Option[String],
     exportType: String,
     writeRow: (StringBuilder, Long, Array[Double]) => Unit,
-  ) {
+  ): Unit = {
 
     rows.mapPartitions { it =>
       val sb = new StringBuilder()

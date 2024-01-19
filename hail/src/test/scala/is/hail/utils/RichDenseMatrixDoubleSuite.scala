@@ -9,7 +9,7 @@ import org.testng.annotations.Test
 
 class RichDenseMatrixDoubleSuite extends HailSuite {
   @Test
-  def readWriteBDM() {
+  def readWriteBDM(): Unit = {
     val m = BDM.rand[Double](256, 129) // 33024 doubles
     val fname = ctx.createTmpPath("test")
 

@@ -223,7 +223,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   def _asIdent = s"array_of_${elementType.asIdent}"
   def _toPretty = s"EArray[$elementType]"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("EArray[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

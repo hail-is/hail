@@ -41,47 +41,47 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: TableFromBlockMatrixNativeReader) =>
           fail(s"no lowering for TableFromBlockMatrixNativeReader")
 
-        case t: TableLiteral =>
+        case _: TableLiteral =>
         case TableRepartition(_, _, RepartitionStrategy.NAIVE_COALESCE) =>
-        case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
-        case t: TableParallelize =>
-        case t: TableRange =>
-        case TableKeyBy(child, keys, isSorted) =>
-        case t: TableOrderBy =>
-        case t: TableFilter =>
-        case t: TableHead =>
-        case t: TableTail =>
-        case t: TableJoin =>
+        case _: TableRepartition => fail(s"TableRepartition has no lowered implementation")
+        case _: TableParallelize =>
+        case _: TableRange =>
+        case TableKeyBy(_, _, _) =>
+        case _: TableOrderBy =>
+        case _: TableFilter =>
+        case _: TableHead =>
+        case _: TableTail =>
+        case _: TableJoin =>
         case _: TableIntervalJoin =>
-        case t: TableLeftJoinRightDistinct =>
-        case t: TableMapPartitions =>
-        case t: TableMapRows =>
-        case t: TableMapGlobals =>
-        case t: TableExplode =>
+        case _: TableLeftJoinRightDistinct =>
+        case _: TableMapPartitions =>
+        case _: TableMapRows =>
+        case _: TableMapGlobals =>
+        case _: TableExplode =>
         case t: TableUnion if t.childrenSeq.length > 16 =>
           fail(s"TableUnion lowering generates deeply nested IR if it has many children")
-        case t: TableUnion =>
-        case t: TableMultiWayZipJoin => fail(
+        case _: TableUnion =>
+        case _: TableMultiWayZipJoin => fail(
             s"TableMultiWayZipJoin is not passing tests due to problems in ptype inference in StreamZipJoin"
           )
-        case t: TableDistinct =>
-        case t: TableKeyByAndAggregate =>
-        case t: TableAggregateByKey =>
-        case t: TableRename =>
-        case t: TableFilterIntervals =>
-        case t: TableGen =>
+        case _: TableDistinct =>
+        case _: TableKeyByAndAggregate =>
+        case _: TableAggregateByKey =>
+        case _: TableRename =>
+        case _: TableFilterIntervals =>
+        case _: TableGen =>
         case TableToTableApply(_, TableFilterPartitions(_, _)) =>
         case TableToTableApply(_, WrappedMatrixToTableFunction(_: LocalLDPrune, _, _, _)) =>
-        case t: TableToTableApply => fail(s"TableToTableApply")
-        case t: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
-        case t: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")
+        case _: TableToTableApply => fail(s"TableToTableApply")
+        case _: BlockMatrixToTableApply => fail(s"BlockMatrixToTableApply")
+        case _: BlockMatrixToTable => fail(s"BlockMatrixToTable has no lowered implementation")
 
-        case x: BlockMatrixAgg => fail(s"BlockMatrixAgg needs to do tree aggregation")
-        case x: BlockMatrixIR => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
-        case x: BlockMatrixWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
-        case x: BlockMatrixMultiWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
-        case x: BlockMatrixCollect => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
-        case x: BlockMatrixToValueApply =>
+        case _: BlockMatrixAgg => fail(s"BlockMatrixAgg needs to do tree aggregation")
+        case _: BlockMatrixIR => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case _: BlockMatrixWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case _: BlockMatrixMultiWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case _: BlockMatrixCollect => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case _: BlockMatrixToValueApply =>
           fail(s"BlockMatrixIR lowering not yet efficient/scalable")
 
         case _: MatrixMultiWrite =>

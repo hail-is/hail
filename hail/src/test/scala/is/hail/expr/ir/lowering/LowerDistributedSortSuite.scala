@@ -16,7 +16,7 @@ import org.testng.annotations.Test
 class LowerDistributedSortSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.compileOnly
 
-  @Test def testSamplePartition() {
+  @Test def testSamplePartition(): Unit = {
     val dataKeys = IndexedSeq(
       (0, 0),
       (0, -1),

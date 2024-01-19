@@ -12,8 +12,6 @@ import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import scala.language.existentials
-
 object ImputeTypeState {
   val resultVirtualType = TStruct(
     "anyNonMissing" -> TBoolean,
@@ -43,7 +41,7 @@ object ImputeTypeState {
       x.toBoolean
       true
     } catch {
-      case e: IllegalArgumentException => false
+      case _: IllegalArgumentException => false
     }
 
   def matchInt32(x: String): Boolean =
@@ -51,7 +49,7 @@ object ImputeTypeState {
       Integer.parseInt(x)
       true
     } catch {
-      case e: IllegalArgumentException => false
+      case _: IllegalArgumentException => false
     }
 
   def matchInt64(x: String): Boolean =
@@ -59,7 +57,7 @@ object ImputeTypeState {
       java.lang.Long.parseLong(x)
       true
     } catch {
-      case e: IllegalArgumentException => false
+      case _: IllegalArgumentException => false
     }
 
   def matchFloat64(x: String): Boolean =
@@ -67,7 +65,7 @@ object ImputeTypeState {
       java.lang.Double.parseDouble(x)
       true
     } catch {
-      case e: IllegalArgumentException => false
+      case _: IllegalArgumentException => false
     }
 
 }

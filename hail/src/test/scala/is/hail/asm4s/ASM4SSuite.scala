@@ -5,8 +5,9 @@ import is.hail.asm4s.Code._
 import is.hail.check.{Gen, Prop}
 import is.hail.utils.FastSeq
 
-import java.io.PrintWriter
 import scala.language.postfixOps
+
+import java.io.PrintWriter
 
 import org.testng.annotations.Test
 

@@ -256,9 +256,9 @@ object Simplify {
 
     case IsNA(x) if isDefinitelyDefined(x) => False()
 
-    case x @ If(True(), cnsq, _) => cnsq
+    case If(True(), cnsq, _) => cnsq
 
-    case x @ If(False(), _, altr) => altr
+    case If(False(), _, altr) => altr
 
     case If(c, cnsq, altr) if cnsq == altr && cnsq.typ != TVoid =>
       if (isDefinitelyDefined(c))
@@ -393,7 +393,7 @@ object Simplify {
         case None => GetField(old, name)
       }
 
-    case GetField(SelectFields(old, fields), name) => GetField(old, name)
+    case GetField(SelectFields(old, _), name) => GetField(old, name)
 
     case outer @ InsertFields(InsertFields(base, fields1, fieldOrder1), fields2, fieldOrder2) =>
       val fields2Set = fields2.map(_._1).toSet
@@ -634,7 +634,7 @@ object Simplify {
         )
       }
 
-    case TableGetGlobals(x @ TableMultiWayZipJoin(children, _, globalName)) =>
+    case TableGetGlobals(TableMultiWayZipJoin(children, _, globalName)) =>
       MakeStruct(FastSeq(globalName -> MakeArray(
         children.map(TableGetGlobals),
         TArray(children.head.typ.globalType),
@@ -785,7 +785,7 @@ object Simplify {
         } => query
 
     case BlockMatrixToValueApply(
-          ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _),
+          ValueToBlockMatrix(child, IndexedSeq(_, ncols), _),
           functions.GetElement(Seq(i, j)),
         ) => child.typ match {
         case TArray(_) => ArrayRef(child, I32((i * ncols + j).toInt))
@@ -854,7 +854,7 @@ object Simplify {
       }
       TableParallelize(newRowsAndGlobal, nPartitions)
 
-    case TableKeyBy(TableOrderBy(child, sortFields), keys, false) =>
+    case TableKeyBy(TableOrderBy(child, _), keys, false) =>
       TableKeyBy(child, keys, false)
 
     case TableKeyBy(TableKeyBy(child, _, _), keys, false) =>
@@ -922,7 +922,7 @@ object Simplify {
     case MatrixRowsTable(MatrixKeyRowsBy(child, keys, isSorted)) =>
       TableKeyBy(MatrixRowsTable(child), keys, isSorted)
 
-    case MatrixColsTable(x @ MatrixMapCols(child, newRow, newKey))
+    case MatrixColsTable(MatrixMapCols(child, newRow, newKey))
         if newKey.isEmpty
           && !ContainsAgg(newRow)
           && !ContainsScan(newRow) =>
@@ -1003,7 +1003,7 @@ object Simplify {
     case TableDistinct(TableRepartition(child, n, strategy)) =>
       TableRepartition(TableDistinct(child), n, strategy)
 
-    case TableKeyByAndAggregate(child, MakeStruct(Seq()), k @ MakeStruct(keyFields), _, _) =>
+    case TableKeyByAndAggregate(child, MakeStruct(Seq()), k @ MakeStruct(_), _, _) =>
       TableDistinct(TableKeyBy(
         TableMapRows(TableKeyBy(child, FastSeq()), k),
         k.typ.asInstanceOf[TStruct].fieldNames,

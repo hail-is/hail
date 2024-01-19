@@ -1,8 +1,7 @@
 package is.hail.rvd
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 

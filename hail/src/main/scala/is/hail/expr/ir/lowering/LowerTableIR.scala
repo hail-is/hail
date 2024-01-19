@@ -2020,7 +2020,7 @@ object LowerTableIR {
           )
         }
 
-      case t @ TableKeyBy(child, newKey, isSorted: Boolean) =>
+      case t @ TableKeyBy(child, newKey, _: Boolean) =>
         require(t.definitelyDoesNotShuffle)
         val loweredChild = lower(child)
 
@@ -2107,7 +2107,7 @@ object LowerTableIR {
           },
         )
 
-      case tj @ TableJoin(left, right, joinType, joinKey) =>
+      case tj @ TableJoin(left, right, _, _) =>
         val loweredLeft = lower(left)
         val loweredRight = lower(right)
         LowerTableIRHelpers.lowerTableJoin(ctx, analyses, tj, loweredLeft, loweredRight)
@@ -2186,7 +2186,7 @@ object LowerTableIR {
             ),
         )
 
-      case t @ TableOrderBy(child, sortFields) =>
+      case t @ TableOrderBy(child, _) =>
         require(t.definitelyDoesNotShuffle)
         val loweredChild = lower(child)
         loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(
@@ -2266,7 +2266,7 @@ object LowerTableIR {
           Let(FastSeq(globalName -> loweredChild.globals, partitionStreamName -> part), body)
         }
 
-      case TableLiteral(typ, rvd, enc, encodedGlobals) =>
+      case TableLiteral(_, rvd, enc, encodedGlobals) =>
         RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
       case TableToTableApply(child, TableFilterPartitions(seq, keep)) =>
@@ -2325,7 +2325,7 @@ object LowerTableIR {
           )
         }.mapGlobals(_ => makestruct())
 
-      case bmtt @ BlockMatrixToTable(bmir) =>
+      case BlockMatrixToTable(bmir) =>
         val ts = LowerBlockMatrixIR.lowerToTableStage(bmir, typesToLower, ctx, analyses)
         // I now have an unkeyed table of (blockRow, blockCol, block).
         ts.mapPartitionWithContext { (partition, ctxRef) =>

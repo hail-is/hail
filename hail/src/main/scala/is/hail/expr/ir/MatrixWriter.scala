@@ -29,15 +29,15 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
-import org.json4s.jackson.JsonMethods
+import scala.language.existentials
 
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
-import scala.language.existentials
 
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+import org.json4s.jackson.JsonMethods
 
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {

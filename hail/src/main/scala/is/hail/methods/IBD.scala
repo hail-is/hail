@@ -11,8 +11,6 @@ import is.hail.types.virtual.{TFloat64, TStruct}
 import is.hail.utils._
 import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
 
-import scala.language.higherKinds
-
 import org.apache.spark.sql.Row
 
 object IBDInfo {
@@ -44,7 +42,7 @@ case class IBDInfo(Z0: Double, Z1: Double, Z2: Double, PI_HAT: Double) {
 
   def toAnnotation: Annotation = Annotation(Z0, Z1, Z2, PI_HAT)
 
-  def toRegionValue(rvb: RegionValueBuilder) {
+  def toRegionValue(rvb: RegionValueBuilder): Unit = {
     rvb.addDouble(Z0)
     rvb.addDouble(Z1)
     rvb.addDouble(Z2)
@@ -83,7 +81,7 @@ case class ExtendedIBDInfo(ibd: IBDInfo, ibs0: Long, ibs1: Long, ibs2: Long) {
 
   def makeRow(i: Any, j: Any): Row = Row(i, j, ibd.toAnnotation, ibs0, ibs1, ibs2)
 
-  def toRegionValue(rvb: RegionValueBuilder) {
+  def toRegionValue(rvb: RegionValueBuilder): Unit = {
     rvb.startStruct()
     ibd.toRegionValue(rvb)
     rvb.endStruct()

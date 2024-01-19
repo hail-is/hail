@@ -16,7 +16,7 @@ object IBSFFI {
     nPacks: Long,
     genotypes1: Array[Long],
     genotypes2: Array[Long],
-  )
+  ): Unit
 
   // NativeCode needs to control the initial loading of the libhail DLL, and
   // the call to getHailName() guarantees that.

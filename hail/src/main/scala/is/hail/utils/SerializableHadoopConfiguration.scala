@@ -6,12 +6,12 @@ import org.apache.hadoop
 
 class SerializableHadoopConfiguration(@transient var value: hadoop.conf.Configuration)
     extends Serializable {
-  private def writeObject(out: ObjectOutputStream) {
+  private def writeObject(out: ObjectOutputStream): Unit = {
     out.defaultWriteObject()
     value.write(out)
   }
 
-  private def readObject(in: ObjectInputStream) {
+  private def readObject(in: ObjectInputStream): Unit = {
     value = new hadoop.conf.Configuration(false)
     value.readFields(in)
   }

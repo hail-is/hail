@@ -8,7 +8,7 @@ import org.apache.log4j.{Level, Logger}
 class LoggerOutputStream(logger: Logger, level: Level) extends OutputStream {
   private val buffer = new ByteArrayOutputStream()
 
-  override def write(b: Int) {
+  override def write(b: Int): Unit = {
     buffer.write(b)
     if (b == '\n') {
       val line = buffer.toString(StandardCharsets.UTF_8.name())

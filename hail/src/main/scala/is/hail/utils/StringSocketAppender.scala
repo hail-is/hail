@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{InterruptedIOException, IOException, ObjectOutputStream, OutputStream}
+import java.io.{IOException, InterruptedIOException, ObjectOutputStream, OutputStream}
 import java.net.{ConnectException, InetAddress, Socket}
 
 import org.apache.log4j.{AppenderSkeleton, PatternLayout}
@@ -40,13 +40,13 @@ class StringSocketAppender() extends AppenderSkeleton {
     initialized = true
   }
 
-  override def close() {
+  override def close(): Unit = {
     if (closed) return
     this.closed = true
     cleanUp()
   }
 
-  def cleanUp() {
+  def cleanUp(): Unit = {
     if (os != null) {
       try
         os.close()
@@ -63,7 +63,7 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  private def connect(address: InetAddress, port: Int) {
+  private def connect(address: InetAddress, port: Int): Unit = {
     if (this.address == null) return
     try { // First, close the previous connection if any.
       cleanUp()
@@ -84,7 +84,7 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  override def append(event: LoggingEvent) {
+  override def append(event: LoggingEvent): Unit = {
     if (!initialized) return
     if (event == null) return
     if (address == null) {
@@ -111,7 +111,7 @@ class StringSocketAppender() extends AppenderSkeleton {
       }
   }
 
-  private def fireConnector() {
+  private def fireConnector(): Unit = {
     if (connector == null) {
       LogLog.debug("Starting a new connector thread.")
       connector = new SocketConnector
@@ -127,7 +127,7 @@ class StringSocketAppender() extends AppenderSkeleton {
   class SocketConnector extends Thread {
     var interrupted = false
 
-    override def run() {
+    override def run(): Unit = {
       var socket: Socket = null
       var c = true
       while (c && !interrupted)
@@ -142,10 +142,10 @@ class StringSocketAppender() extends AppenderSkeleton {
             c = false
           }
         } catch {
-          case e: InterruptedException =>
+          case _: InterruptedException =>
             LogLog.debug("Connector interrupted. Leaving loop.")
             return
-          case e: ConnectException =>
+          case _: ConnectException =>
             LogLog.debug("Remote host " + address.getHostName + " refused connection.")
           case e: IOException =>
             if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()

@@ -1,17 +1,13 @@
 package is.hail.sparkextras
 
 import is.hail.HailContext
-import is.hail.annotations.RegionPool
-import is.hail.backend.HailTaskContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.rvd.RVDContext
 import is.hail.utils._
-import is.hail.utils.PartitionCounts._
 
 import scala.reflect.ClassTag
 
 import org.apache.spark._
-import org.apache.spark.ExposedUtils
 import org.apache.spark.rdd._
 
 object Combiner {
@@ -26,7 +22,7 @@ object Combiner {
 }
 
 abstract class Combiner[U] {
-  def combine(i: Int, value0: U)
+  def combine(i: Int, value0: U): Unit
 
   def result(): U
 }
@@ -47,7 +43,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
   // U it holds.
   private val t = new java.util.TreeMap[Int, TreeValue]()
 
-  def combine(i: Int, value0: U) {
+  def combine(i: Int, value0: U): Unit = {
     log.info(s"at result $i, AssociativeCombiner contains ${t.size()} queued results")
     var value = value0
     var end = i

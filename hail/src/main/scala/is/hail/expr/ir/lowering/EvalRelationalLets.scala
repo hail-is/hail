@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
   BaseIR, CompileAndEvaluate, IR, RelationalLet, RelationalLetMatrixTable, RelationalLetTable,
-  RelationalRef, RewriteBottomUp,
+  RelationalRef,
 }
 
 object EvalRelationalLets {

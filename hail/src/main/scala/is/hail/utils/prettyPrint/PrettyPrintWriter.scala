@@ -2,9 +2,10 @@ package is.hail.utils.prettyPrint
 
 import is.hail.utils.BoxedArrayBuilder
 
+import scala.annotation.tailrec
+
 import java.io.{StringWriter, Writer}
 import java.util.ArrayDeque
-import scala.annotation.tailrec
 
 object Doc {
   def render(doc: Doc, width: Int, ribbonWidth: Int, _maxLines: Int, out: Writer): Unit = {

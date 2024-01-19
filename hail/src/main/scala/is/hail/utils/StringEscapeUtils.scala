@@ -157,7 +157,7 @@ object StringEscapeUtils {
             inUnicode = false
             hadSlash = false
           } catch {
-            case nfe: NumberFormatException =>
+            case _: NumberFormatException =>
               fatal("Unable to parse unicode value: " + unicode)
           }
         }

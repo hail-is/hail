@@ -6,14 +6,13 @@ import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
-import is.hail.rvd.{AbstractIndexSpec, IndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractIndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
 import is.hail.types.physical._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
 import java.io._
-import scala.reflect.ClassTag
 
 import org.apache.spark.{ExposedMetrics, TaskContext}
 import org.apache.spark.rdd.RDD
@@ -183,7 +182,7 @@ object RichContextRDDRegionValue {
     entriesRVType: PStruct,
     partFiles: Array[String],
     partitioner: RVDPartitioner,
-  ) {
+  ): Unit = {
     val rowsSpec = MakeRVDSpec(rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)
     rowsSpec.write(fs, path + "/rows/rows")
 

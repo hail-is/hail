@@ -2,9 +2,10 @@ package is.hail.linalg
 
 import is.hail.utils._
 
+import scala.util.{Failure, Success, Try}
+
 import java.lang.reflect.Method
 import java.util.function._
-import scala.util.{Failure, Success, Try}
 
 import com.sun.jna.{FunctionMapper, Library, Native, NativeLibrary}
 import com.sun.jna.ptr.{DoubleByReference, IntByReference}
@@ -40,7 +41,7 @@ object LAPACK {
         case Success(version) =>
           log.info(s"Imported LAPACK library $libraryName, version $version, with standard names")
           standard
-        case Failure(exception) =>
+        case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
           val underscoreAfter = Native.load(libraryName, classOf[LAPACKLibrary], underscoreAfterMap)
@@ -376,7 +377,7 @@ trait LAPACKLibrary extends Library {
     B: Long,
     LDB: IntByReference,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dgeqrf(
     M: IntByReference,
@@ -387,7 +388,7 @@ trait LAPACKLibrary extends Library {
     WORK: Long,
     LWORK: IntByReference,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dorgqr(
     M: IntByReference,
@@ -399,7 +400,7 @@ trait LAPACKLibrary extends Library {
     WORK: Long,
     LWORK: IntByReference,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dgeqrt(
     m: IntByReference,
@@ -411,7 +412,7 @@ trait LAPACKLibrary extends Library {
     ldT: IntByReference,
     work: Long,
     info: IntByReference,
-  )
+  ): Unit
 
   def dgemqrt(
     side: String,
@@ -428,7 +429,7 @@ trait LAPACKLibrary extends Library {
     ldC: IntByReference,
     work: Long,
     info: IntByReference,
-  )
+  ): Unit
 
   def dgeqr(
     m: IntByReference,
@@ -440,7 +441,7 @@ trait LAPACKLibrary extends Library {
     work: Long,
     lWork: IntByReference,
     info: IntByReference,
-  )
+  ): Unit
 
   def dgemqr(
     side: String,
@@ -457,7 +458,7 @@ trait LAPACKLibrary extends Library {
     work: Long,
     Lwork: IntByReference,
     info: IntByReference,
-  )
+  ): Unit
 
   def dtpqrt(
     M: IntByReference,
@@ -472,7 +473,7 @@ trait LAPACKLibrary extends Library {
     LDT: IntByReference,
     WORK: Long,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dtpmqrt(
     side: String,
@@ -492,7 +493,7 @@ trait LAPACKLibrary extends Library {
     LDB: IntByReference,
     WORK: Long,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dgetrf(
     M: IntByReference,
@@ -501,7 +502,7 @@ trait LAPACKLibrary extends Library {
     LDA: IntByReference,
     IPIV: Long,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dgetri(
     N: IntByReference,
@@ -511,7 +512,7 @@ trait LAPACKLibrary extends Library {
     WORK: Long,
     LWORK: IntByReference,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dgesdd(
     JOBZ: String,
@@ -528,7 +529,7 @@ trait LAPACKLibrary extends Library {
     LWORK: IntByReference,
     IWORK: Long,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dsyevr(
     jobz: String,
@@ -552,9 +553,9 @@ trait LAPACKLibrary extends Library {
     IWork: Long,
     lIWork: IntByReference,
     info: IntByReference,
-  )
+  ): Unit
 
-  def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference)
+  def ilaver(MAJOR: IntByReference, MINOR: IntByReference, PATCH: IntByReference): Unit
 
   def ilaenv(
     ispec: IntByReference,
@@ -577,7 +578,7 @@ trait LAPACKLibrary extends Library {
     B: Long,
     LDB: IntByReference,
     INFO: IntByReference,
-  )
+  ): Unit
 
   def dlacpy(
     uplo: String,
@@ -587,5 +588,5 @@ trait LAPACKLibrary extends Library {
     ldA: IntByReference,
     B: Long,
     ldB: IntByReference,
-  )
+  ): Unit
 }

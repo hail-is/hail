@@ -28,7 +28,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def containsPointers: Boolean = true
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("PCNDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(s",$nDims]")
@@ -534,7 +534,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         cb += Region.storeAddress(this.representation.fieldOffset(targetAddr, "data"), newDataAddr)
         val outputSNDValue = loadCheapSCode(cb, targetAddr)
         outputSNDValue.coiterateMutate(cb, region, true, (inputSNDValue, "input")) {
-          case Seq(dest, elt) =>
+          case Seq(_, elt) =>
             elt
         }
     }

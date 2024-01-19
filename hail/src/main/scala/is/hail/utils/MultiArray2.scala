@@ -1,8 +1,9 @@
 package is.hail.utils
 
-import java.io.Serializable
 import scala.collection.immutable.IndexedSeq
 import scala.reflect.ClassTag
+
+import java.io.Serializable
 
 class MultiArray2[@specialized(Int, Long, Float, Double, Boolean) T](
   val n1: Int,

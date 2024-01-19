@@ -1,6 +1,5 @@
 package is.hail.utils.richUtils
 
-import is.hail.HailContext
 import is.hail.io.{DoubleInputBuffer, DoubleOutputBuffer}
 import is.hail.io.fs.FS
 import is.hail.utils._

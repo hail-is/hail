@@ -6,14 +6,12 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.types.physical.stypes.concrete.SStackStruct
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
-import is.hail.utils._
+
+import java.io.InputStream
 
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 
 object ValueReader {
   implicit val formats: Formats =

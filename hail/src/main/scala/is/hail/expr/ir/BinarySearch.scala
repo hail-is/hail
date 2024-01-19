@@ -6,8 +6,6 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.FastSeq
 
-import scala.language.existentials
-
 object BinarySearch {
   object Comparator {
     def fromLtGt(

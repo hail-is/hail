@@ -25,7 +25,7 @@ object Validate {
           if (state.writeFilePaths.contains(path))
             fileReadWriteError(path)
         }
-      case bmr: BlockMatrixRead =>
+      case _: BlockMatrixRead =>
       case tw: TableWrite =>
         val newState = state.copy(writeFilePaths = state.writeFilePaths + tw.writer.path)
         validate(tw.child, newState)

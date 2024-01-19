@@ -1,9 +1,9 @@
 package is.hail.expr.ir.orderings
 
-import is.hail.asm4s.{Code, CodeLabel, Value}
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SValue}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
+import is.hail.asm4s.{CodeLabel, Value}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCodeBuilder, SortOrder}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 
 object StructOrdering {
   def make(

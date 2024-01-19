@@ -3,14 +3,13 @@ package is.hail.utils.richUtils
 import is.hail.backend.ExecuteContext
 import is.hail.io.FileWriteMetadata
 import is.hail.io.compress.{BGzipCodec, ComposableBGzipCodec, ComposableBGzipOutputStream}
-import is.hail.io.fs.FS
-import is.hail.rvd.RVDContext
 import is.hail.sparkextras._
 import is.hail.utils._
 
-import java.io.{OutputStream, OutputStreamWriter}
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+import java.io.{OutputStream, OutputStreamWriter}
 
 import org.apache.hadoop
 import org.apache.hadoop.io.compress.CompressionCodecFactory
@@ -37,7 +36,7 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     filename: String,
     header: Option[String] = None,
     exportType: String = ExportType.CONCATENATED,
-  ) {
+  ): Unit = {
     val hConf = r.sparkContext.hadoopConfiguration
     val codecFactory = new CompressionCodecFactory(hConf)
     val codec = {

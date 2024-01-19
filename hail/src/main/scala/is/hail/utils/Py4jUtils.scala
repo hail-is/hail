@@ -2,14 +2,15 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.io.fs.{FileListEntry, FileStatus, FS, SeekableDataInputStream}
+import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
 import is.hail.types.virtual.Type
+
+import scala.collection.JavaConverters._
+
+import java.io.{InputStream, OutputStream}
 
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
-
-import java.io.{InputStream, OutputStream}
-import scala.collection.JavaConverters._
 
 trait Py4jUtils {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
@@ -131,22 +132,18 @@ trait Py4jUtils {
     new HadoopPyWriter(fs.create(path))
   }
 
-  def addSocketAppender(hostname: String, port: Int) {
+  def addSocketAppender(hostname: String, port: Int): Unit =
     StringSocketAppender.get()
       .connect(hostname, port, HailContext.logFormat)
-  }
 
-  def logWarn(msg: String) {
+  def logWarn(msg: String): Unit =
     warn(msg)
-  }
 
-  def logInfo(msg: String) {
+  def logInfo(msg: String): Unit =
     info(msg)
-  }
 
-  def logError(msg: String) {
+  def logError(msg: String): Unit =
     error(msg)
-  }
 
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
@@ -169,9 +166,8 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
       buff.slice(0, bytesRead)
   }
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 }
 
 class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int)
@@ -197,15 +193,13 @@ class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream,
 }
 
 class HadoopPyWriter(out: OutputStream) {
-  def write(b: Array[Byte]) {
+  def write(b: Array[Byte]): Unit =
     out.write(b)
-  }
 
-  def flush() {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close() {
+  def close(): Unit = {
     out.flush()
     out.close()
   }

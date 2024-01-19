@@ -5,13 +5,11 @@ import is.hail.check.Gen
 import is.hail.expr.Parser
 import is.hail.utils._
 
-import org.json4s._
-
 import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
+import org.json4s._
 
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")

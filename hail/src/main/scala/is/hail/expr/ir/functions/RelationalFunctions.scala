@@ -1,17 +1,15 @@
 package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{LowerMatrixIR, MatrixValue, RelationalSpec, TableReader, TableValue}
-import is.hail.expr.ir.lowering.TableStage
+import is.hail.expr.ir.{MatrixValue, RelationalSpec, TableValue}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.rvd.RVDType
 import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
 import org.json4s.{Extraction, JValue, ShortTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 
 abstract class MatrixToMatrixFunction {
   def typ(childType: MatrixType): MatrixType

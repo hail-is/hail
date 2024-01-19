@@ -1,7 +1,6 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s._
-import is.hail.asm4s.Value
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.{RInterval, TypeWithRequiredness}

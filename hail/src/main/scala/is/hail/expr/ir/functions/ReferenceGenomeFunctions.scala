@@ -1,11 +1,9 @@
 package is.hail.expr.ir.functions
 
-import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.types.physical.{PBoolean, PCanonicalString, PInt32, PLocus, PString, PType}
 import is.hail.types.physical.stypes.SType
-import is.hail.types.physical.stypes.concrete.{SJavaString, SStringPointer}
+import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32}
 import is.hail.types.virtual._
@@ -15,7 +13,7 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
   def rgCode(mb: EmitMethodBuilder[_], rg: String): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
-  def registerAll() {
+  def registerAll(): Unit = {
     registerSCode1t(
       "isValidContig",
       Array(LocusFunctions.tlocus("R")),

@@ -14,8 +14,9 @@ import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.utils._
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.collection.mutable
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.testng.annotations.Test
 

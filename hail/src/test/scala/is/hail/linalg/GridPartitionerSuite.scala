@@ -5,7 +5,7 @@ import org.testng.annotations.Test
 
 class GridPartitionerSuite extends TestNGSuite {
 
-  private def assertLayout(hg: GridPartitioner, layout: ((Int, Int), Int)*) {
+  private def assertLayout(hg: GridPartitioner, layout: ((Int, Int), Int)*): Unit = {
     layout.foreach { case ((i, j), p) =>
       assert(hg.coordinatesBlock(i, j) === p, s"at coordinates ${(i, j)}")
     }
@@ -15,12 +15,11 @@ class GridPartitionerSuite extends TestNGSuite {
   }
 
   @Test
-  def squareIsColumnMajor() {
+  def squareIsColumnMajor(): Unit =
     assertLayout(GridPartitioner(2, 4, 4), (0, 0) -> 0, (1, 0) -> 1, (0, 1) -> 2, (1, 1) -> 3)
-  }
 
   @Test
-  def rectangleMoreRowsIsColumnMajor() {
+  def rectangleMoreRowsIsColumnMajor(): Unit = {
     assertLayout(
       GridPartitioner(2, 6, 4),
       (0, 0) -> 0,
@@ -33,7 +32,7 @@ class GridPartitionerSuite extends TestNGSuite {
   }
 
   @Test
-  def rectangleMoreColsIsColumnMajor() {
+  def rectangleMoreColsIsColumnMajor(): Unit = {
     assertLayout(
       GridPartitioner(2, 4, 6),
       (0, 0) -> 0,
@@ -46,7 +45,7 @@ class GridPartitionerSuite extends TestNGSuite {
   }
 
   @Test
-  def bandedBlocksTest() {
+  def bandedBlocksTest(): Unit = {
     // 0  3  6  9
     // 1  4  7 10
     // 2  5  8 11
@@ -76,7 +75,7 @@ class GridPartitionerSuite extends TestNGSuite {
   }
 
   @Test
-  def rectangularBlocksTest() {
+  def rectangularBlocksTest(): Unit = {
     // 0  3  6  9
     // 1  4  7 10
     // 2  5  8 11

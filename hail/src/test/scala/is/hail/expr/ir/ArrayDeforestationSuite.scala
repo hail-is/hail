@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -73,7 +72,7 @@ class ArrayDeforestationSuite extends HailSuite {
     )
   }
 
-  @Test def testArrayFold() {
+  @Test def testArrayFold(): Unit = {
     assertEvalsTo(arrayFoldWithStructWithPrimitiveValues(5, -5, -6), Row(5, 4))
     assertEvalsTo(arrayFoldWithStruct(5, -5, -6), Row(Row(4, 0), Row(5, 0)))
   }

@@ -13,29 +13,26 @@ class GenotypeSuite extends TestNGSuite {
 
   val v = Variant("1", 1, "A", "T")
 
-  @Test def gtPairGtIndexIsId() {
+  @Test def gtPairGtIndexIsId(): Unit =
     forAll(Gen.choose(0, 32768), Gen.choose(0, 32768)) { (x, y) =>
       val (j, k) = if (x < y) (x, y) else (y, x)
       val gt = AllelePair(j, k)
       Genotype.allelePair(Genotype.diploidGtIndex(gt)) == gt
     }.check()
-  }
 
   def triangleNumberOf(i: Int) = (i * i + i) / 2
 
-  @Test def gtIndexGtPairIsId() {
+  @Test def gtIndexGtPairIsId(): Unit =
     forAll(Gen.choose(0, 10000)) { (idx) =>
       Genotype.diploidGtIndex(Genotype.allelePair(idx)) == idx
     }.check()
-  }
 
-  @Test def gtPairAndGtPairSqrtEqual() {
+  @Test def gtPairAndGtPairSqrtEqual(): Unit =
     forAll(Gen.choose(0, 10000)) { (idx) =>
       Genotype.allelePair(idx) == Genotype.allelePairSqrt(idx)
     }.check()
-  }
 
-  @Test def testGtFromLinear() {
+  @Test def testGtFromLinear(): Unit = {
     val gen = for {
       nGenotype <- Gen.choose(2, 5).map(triangleNumberOf)
       dosageGen = Gen.partition(nGenotype, 32768)
@@ -59,7 +56,7 @@ class GenotypeSuite extends TestNGSuite {
     p.check()
   }
 
-  @Test def testPlToDosage() {
+  @Test def testPlToDosage(): Unit = {
     val gt0 = Genotype.plToDosage(0, 20, 100)
     val gt1 = Genotype.plToDosage(20, 0, 100)
     val gt2 = Genotype.plToDosage(20, 100, 0)
@@ -69,7 +66,7 @@ class GenotypeSuite extends TestNGSuite {
     assert(D_==(gt2, 1.980198019704931))
   }
 
-  @Test def testCall() {
+  @Test def testCall(): Unit = {
     assert((0 until 9).forall { gt =>
       val c = Call2.fromUnphasedDiploidGtIndex(gt)
       !Call.isPhased(c) &&

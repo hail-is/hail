@@ -39,7 +39,7 @@ class MultiWayZipPartitionsRDD[T: ClassTag, V: ClassTag](
     f(arr)
   }
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies
     rdds = null
     f = null

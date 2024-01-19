@@ -1,12 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.types._
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
-
-import scala.language.existentials
 
 object Casts {
   private val casts: Map[(Type, Type), (EmitCodeBuilder, SValue) => SValue] = Map(

@@ -13,7 +13,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.{existentials, postfixOps}
 
 import org.apache.spark.TaskContext
 
@@ -90,7 +89,7 @@ object AggStateSig {
     case NDArraySumStateSig(nda) => new TypedRegionBackedAggState(nda, cb)
     case NDArrayMultiplyAddStateSig(nda) =>
       new TypedRegionBackedAggState(nda, cb)
-    case FoldStateSig(resultEmitType, accumName, otherAccumName, combOpIR) =>
+    case FoldStateSig(resultEmitType, _, _, _) =>
       val vWithReq = resultEmitType.typeWithRequiredness
       new TypedRegionBackedAggState(vWithReq, cb)
     case LinearRegressionStateSig() => new LinearRegressionAggregatorState(cb)
@@ -426,7 +425,7 @@ object Extract {
     case AggSignature(Take(), _, Seq(t)) => TArray(t)
     case AggSignature(ReservoirSample(), _, Seq(t)) => TArray(t)
     case AggSignature(CallStats(), _, _) => CallStatsState.resultPType.virtualType
-    case AggSignature(TakeBy(_), _, Seq(value, key)) => TArray(value)
+    case AggSignature(TakeBy(_), _, Seq(value, _)) => TArray(value)
     case AggSignature(PrevNonnull(), _, Seq(t)) => t
     case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
     case AggSignature(Collect(), _, Seq(t)) => TArray(t)
@@ -435,7 +434,7 @@ object Extract {
     case AggSignature(LinearRegression(), _, _) =>
       LinearRegressionAggregator.resultPType.virtualType
     case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultPType.virtualType
-    case AggSignature(Downsample(), _, Seq(_, _, label)) => DownsampleAggregator.resultType
+    case AggSignature(Downsample(), _, Seq(_, _, _)) => DownsampleAggregator.resultType
     case AggSignature(NDArraySum(), _, Seq(t)) => t
     case AggSignature(NDArrayMultiplyAdd(), _, Seq(a: TNDArray, _)) => a
     case _ => throw new UnsupportedExtraction(aggSig.toString)
@@ -527,7 +526,7 @@ object Extract {
     }
 
     val newNode = ir match {
-      case x @ AggLet(name, value, body, _) =>
+      case x @ AggLet(_, _, body, _) =>
         letBuilder += x
         this.extract(body, env, bindingNodesReferenced, rewriteMap, ab, seqBuilder, letBuilder,
           memo, result, r, isScan)
@@ -557,7 +556,7 @@ object Extract {
           },
         )
         GetTupleElement(result, idx)
-      case x @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+      case x @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, _) =>
         val idx = memo.getOrElseUpdate(
           x, {
             val i = ab.length

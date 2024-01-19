@@ -54,7 +54,7 @@ project.ext {
     assert(scalaMajorVersion == "2.12")
 }
 
-compileScala {
+tasks.withType(ScalaCompile) {
     options.compilerArgs <<
         "-Xlint:all" <<
         "-Werror" <<
@@ -66,20 +66,13 @@ compileScala {
         "-target:jvm-1.8",
         "-feature",
         "-Xno-patmat-analysis",
-        "-Xfatal-warnings",
-        "-Xlint:_",
+        "-Xlint",
         "-deprecation",
         "-unchecked",
-        "-Xlint:-infer-any",
-        "-Xlint:-unsound-match"
+        "-Ywarn-unused:_,-explicits,-implicits",
+        "-Wconf:cat=unused-locals:w,cat=unused:info,any:w",
+        "-Ypartial-unification",
     ]
-
-    if (scalaMajorVersion == "2.12") {
-        scalaCompileOptions.additionalParameters +=
-            [ "-Xlint:-unused"
-            , "-Ypartial-unification"
-            ]
-    }
 
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",

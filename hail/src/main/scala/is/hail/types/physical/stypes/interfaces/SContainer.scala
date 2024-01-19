@@ -75,10 +75,10 @@ trait SIndexableValue extends SValue {
     val hash_result = cb.newLocal[Int]("array_hash", 1)
     forEachDefinedOrMissing(cb)(
       {
-        case (cb, idx) => cb.assign(hash_result, hash_result * 31)
+        case (cb, _) => cb.assign(hash_result, hash_result * 31)
       },
       {
-        case (cb, idx, element) =>
+        case (cb, _, element) =>
           cb.assign(hash_result, hash_result * 31 + element.hash(cb).value)
       },
     )

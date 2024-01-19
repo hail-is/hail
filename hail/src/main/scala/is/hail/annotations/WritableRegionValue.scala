@@ -4,9 +4,10 @@ import is.hail.backend.HailStateManager
 import is.hail.rvd.RVDContext
 import is.hail.types.physical.{PStruct, PType}
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
 import scala.collection.generic.Growable
 import scala.collection.mutable.{ArrayBuffer, PriorityQueue}
+
+import java.io.{ObjectInputStream, ObjectOutputStream}
 
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
@@ -48,15 +49,15 @@ class WritableRegionValue private (
 
   def offset: Long = value.offset
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue): Unit =
     setSelect(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
-  }
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long) {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRegion: Region, fromOffset: Long)
+    : Unit =
     setSelect(fromT, fromFieldIdx, fromOffset, region.ne(fromRegion))
-  }
 
-  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromOffset: Long, deepCopy: Boolean) {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromOffset: Long, deepCopy: Boolean)
+    : Unit = {
     (t: @unchecked) match {
       case t: PStruct =>
         region.clear()
@@ -74,11 +75,10 @@ class WritableRegionValue private (
 
   def set(rv: RegionValue): Unit = set(rv.region, rv.offset)
 
-  def set(fromRegion: Region, fromOffset: Long) {
+  def set(fromRegion: Region, fromOffset: Long): Unit =
     set(fromOffset, region.ne(fromRegion))
-  }
 
-  def set(fromOffset: Long, deepCopy: Boolean) {
+  def set(fromOffset: Long, deepCopy: Boolean): Unit = {
     region.clear()
     rvb.start(t)
     rvb.addRegionValue(t, fromOffset, deepCopy)
@@ -109,7 +109,7 @@ class RegionValuePriorityQueue(
 
   override def head: RegionValue = queue.head
 
-  def enqueue(rv: RegionValue) {
+  def enqueue(rv: RegionValue): Unit = {
     val region = ctx.freshRegion()
     rvb.set(region)
     rvb.start(t)
@@ -122,7 +122,7 @@ class RegionValuePriorityQueue(
     this
   }
 
-  def dequeue() {
+  def dequeue(): Unit = {
     val popped = queue.dequeue()
     popped.region.close()
   }
@@ -165,7 +165,7 @@ class RegionValueArrayBuffer(val t: PType, region: Region, sm: HailStateManager)
     this
   }
 
-  def clear() {
+  def clear(): Unit = {
     region.clear()
     idx.clear()
     rvb.clear() // remove

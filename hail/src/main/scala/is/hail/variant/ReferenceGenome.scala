@@ -2,31 +2,28 @@ package is.hail.variant
 
 import is.hail.HailContext
 import is.hail.annotations.ExtendedOrdering
-import is.hail.asm4s.Code
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.check.Gen
 import is.hail.expr.{
   JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser,
 }
-import is.hail.expr.ir.{EmitClassBuilder, RelationalSpec}
+import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
-import is.hail.io.reference.LiftOver
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.types._
-import is.hail.types.virtual.{TInt64, TLocus, Type}
+import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
 
-import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import scala.collection.JavaConverters._
+import scala.collection.mutable
 
 import java.io.{FileNotFoundException, InputStream}
 import java.lang.ThreadLocal
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-import scala.language.implicitConversions
 
 import htsjdk.samtools.reference.FastaSequenceIndex
 import org.apache.spark.TaskContext
+import org.json4s._
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
   @transient private[this] val rg: ReferenceGenome = rgParam
@@ -351,7 +348,7 @@ case class ReferenceGenome(
   def compare(contig1: String, contig2: String): Int =
     ReferenceGenome.compare(contigsIndex, contig1, contig2)
 
-  def validateContigRemap(contigMapping: Map[String, String]) {
+  def validateContigRemap(contigMapping: Map[String, String]): Unit = {
     val badContigs = mutable.Set[(String, String)]()
 
     contigMapping.foreach { case (oldName, newName) =>
@@ -370,7 +367,7 @@ case class ReferenceGenome(
 
   def hasSequence: Boolean = fastaFilePath != null
 
-  def addSequence(ctx: ExecuteContext, fastaFile: String, indexFile: String) {
+  def addSequence(ctx: ExecuteContext, fastaFile: String, indexFile: String): Unit = {
     if (hasSequence)
       fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
@@ -681,7 +678,7 @@ object ReferenceGenome {
       try
         fs.listDirectory(path)
       catch {
-        case exc: FileNotFoundException =>
+        case _: FileNotFoundException =>
           return Array()
       }
 
@@ -696,7 +693,7 @@ object ReferenceGenome {
     rgs.toArray
   }
 
-  def writeReference(fs: FS, path: String, rg: ReferenceGenome) {
+  def writeReference(fs: FS, path: String, rg: ReferenceGenome): Unit = {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.isFile(rgPath))
       rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
@@ -712,9 +709,8 @@ object ReferenceGenome {
     rgs
   }
 
-  def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]) {
+  def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]): Unit =
     rgs.foreach(writeReference(fs, path, _))
-  }
 
   def compare(contigsIndex: java.util.HashMap[String, Integer], c1: String, c2: String): Int = {
     val i1 = contigsIndex.get(c1)

@@ -16,11 +16,10 @@ import is.hail.utils._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.variant._
 
-import org.json4s.{DefaultFormats, Formats, JValue}
-import org.json4s.jackson.JsonMethods
-
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, JValue}
+import org.json4s.jackson.JsonMethods
 
 case class FamFileConfig(
   isQuantPheno: Boolean = false,

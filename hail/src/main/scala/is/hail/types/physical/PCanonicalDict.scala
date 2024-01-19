@@ -28,7 +28,7 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("PCDict[")
     keyType.pretty(sb, indent, compact)
     if (compact)

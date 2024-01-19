@@ -10,7 +10,7 @@ import org.apache.spark.serializer.KryoRegistrator
 import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 class HailKryoRegistrator extends KryoRegistrator {
-  override def registerClasses(kryo: Kryo) {
+  override def registerClasses(kryo: Kryo): Unit = {
     kryo.register(classOf[SerializableHadoopConfiguration], new JavaSerializer())
     kryo.register(classOf[UnsafeRow])
     kryo.register(classOf[GenericRow])

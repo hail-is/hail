@@ -6,10 +6,10 @@ import is.hail.check.Gen
 import is.hail.expr.ir.IRParser
 import is.hail.utils._
 
+import scala.reflect.ClassTag
+
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
-
-import scala.reflect.ClassTag
 
 final case class Case(name: String, typ: Type, index: Int) {
 
@@ -18,7 +18,7 @@ final case class Case(name: String, typ: Type, index: Int) {
       typ.unify(cf.typ) &&
       index == cf.index
 
-  def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append(prettyIdentifier(name))
       sb.append(":")
@@ -106,7 +106,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
     sb.append('}')
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append("Union{")
       cases.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

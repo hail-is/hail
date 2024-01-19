@@ -3,7 +3,6 @@ package is.hail.annotations
 import is.hail.asm4s.HailClassLoader
 import is.hail.io._
 import is.hail.types.physical.PType
-import is.hail.utils.{using, RestartableByteArrayInputStream}
 
 import java.io._
 
@@ -52,18 +51,16 @@ final class RegionValue(
 ) extends UnKryoSerializable {
   def getOffset: Long = offset
 
-  def set(newRegion: Region, newOffset: Long) {
+  def set(newRegion: Region, newOffset: Long): Unit = {
     region = newRegion
     offset = newOffset
   }
 
-  def setRegion(newRegion: Region) {
+  def setRegion(newRegion: Region): Unit =
     region = newRegion
-  }
 
-  def setOffset(newOffset: Long) {
+  def setOffset(newOffset: Long): Unit =
     offset = newOffset
-  }
 
   def pretty(t: PType): String = Region.pretty(t, offset)
 

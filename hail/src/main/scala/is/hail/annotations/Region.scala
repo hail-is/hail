@@ -1,12 +1,9 @@
 package is.hail.annotations
 
 import is.hail.asm4s
-import is.hail.asm4s.{coerce, Code}
-import is.hail.backend.HailTaskContext
+import is.hail.asm4s.Code
 import is.hail.types.physical._
 import is.hail.utils._
-
-import org.apache.spark.TaskContext
 
 object Region {
   type Size = Int
@@ -89,22 +86,21 @@ object Region {
     (loadByte(b) & (1 << (bitOff & 7).toInt)) != 0
   }
 
-  def setBit(byteOff: Long, bitOff: Long) {
+  def setBit(byteOff: Long, bitOff: Long): Unit = {
     val b = byteOff + (bitOff >> 3)
     storeByte(b, (loadByte(b) | (1 << (bitOff & 7).toInt)).toByte)
   }
 
-  def clearBit(byteOff: Long, bitOff: Long) {
+  def clearBit(byteOff: Long, bitOff: Long): Unit = {
     val b = byteOff + (bitOff >> 3)
     storeByte(b, (loadByte(b) & ~(1 << (bitOff & 7).toInt)).toByte)
   }
 
-  def storeBit(byteOff: Long, bitOff: Long, b: Boolean) {
+  def storeBit(byteOff: Long, bitOff: Long, b: Boolean): Unit =
     if (b)
       setBit(byteOff, bitOff)
     else
       clearBit(byteOff, bitOff)
-  }
 
   def loadInt(addr: Code[Long]): Code[Int] =
     Code.invokeScalaObject1[Long, Int](Region.getClass, "loadInt", addr)
@@ -313,7 +309,7 @@ object Region {
     v.result()
   }
 
-  def visit(t: PType, off: Long, v: ValueVisitor) {
+  def visit(t: PType, off: Long, v: ValueVisitor): Unit = {
     t match {
       case _: PBoolean => v.visitBoolean(Region.loadBoolean(off))
       case _: PInt32 => v.visitInt32(Region.loadInt(off))

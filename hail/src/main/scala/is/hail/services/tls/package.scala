@@ -2,15 +2,14 @@ package is.hail.services
 
 import is.hail.utils._
 
-import org.json4s.{DefaultFormats, Formats}
-import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
-
 import java.io.{File, FileInputStream}
 import java.security.KeyStore
 
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-import org.apache.log4j.{Logger, LogManager}
+import org.apache.log4j.{LogManager, Logger}
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.JsonAST.JString
+import org.json4s.jackson.JsonMethods
 
 class NoSSLConfigFound(
   message: String,

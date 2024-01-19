@@ -1,15 +1,10 @@
 package is.hail.io.reference
 
-import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import java.io.File
-import java.net.URI
 import scala.collection.JavaConverters._
-import scala.collection.concurrent
-import scala.language.implicitConversions
 
 object LiftOver {
   def apply(fs: FS, chainFile: String): LiftOver = new LiftOver(fs, chainFile)
@@ -64,7 +59,7 @@ class LiftOver(fs: FS, val chainFile: String) {
       null
   }
 
-  def checkChainFile(srcRG: ReferenceGenome, destRG: ReferenceGenome) {
+  def checkChainFile(srcRG: ReferenceGenome, destRG: ReferenceGenome): Unit = {
     val cMap = lo.getContigMap.asScala
     cMap.foreach { case (srcContig, destContigs) =>
       srcRG.checkContig(srcContig)

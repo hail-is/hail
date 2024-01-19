@@ -26,12 +26,13 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
 
-import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
+import scala.language.existentials
 
 import java.io.{BufferedOutputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
-import scala.language.existentials
+
+import org.json4s.{DefaultFormats, Formats, JBool, JObject, ShortTypeHints}
 
 object TableWriter {
   implicit val formats: Formats = new DefaultFormats() {

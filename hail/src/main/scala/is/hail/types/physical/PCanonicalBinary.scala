@@ -90,7 +90,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
-  def store(addr: Long, bytes: Array[Byte]) {
+  def store(addr: Long, bytes: Array[Byte]): Unit = {
     Region.storeInt(addr, bytes.length)
     Region.storeBytes(bytesAddress(addr), bytes)
   }

@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.types.virtual.TLocus
-import is.hail.variant._
 
 abstract class PLocus extends PType {
   lazy val virtualType: TLocus = TLocus(rg)

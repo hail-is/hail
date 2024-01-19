@@ -26,7 +26,7 @@ object IRFunctionRegistry {
   private val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type], Seq[Type]))] =
     mutable.HashSet.empty
 
-  def clearUserFunctions() {
+  def clearUserFunctions(): Unit = {
     userAddedFunctions.foreach { case (name, (rt, typeParameters, valueParameterTypes)) =>
       removeIRFunction(name, rt, typeParameters, valueParameterTypes)
     }
@@ -267,7 +267,7 @@ object IRFunctionRegistry {
     def dtype(t: Type): String = s"""dtype("${StringEscapeUtils.escapeString(t.toString)}\")"""
 
     irRegistry.foreach { case (name, fns) =>
-      fns.foreach { case ((typeParameters, valueParameterTypes, returnType, _), f) =>
+      fns.foreach { case ((typeParameters, valueParameterTypes, returnType, _), _) =>
         println(s"""register_function("${StringEscapeUtils.escapeString(name)}", (${typeParameters.map(
             dtype
           ).mkString(",")}), (${valueParameterTypes.map(dtype).mkString(",")}), ${dtype(returnType)})""")
@@ -417,7 +417,7 @@ abstract class RegistryFunctions {
       case TArray(TString) =>
         val ast = st.asInstanceOf[SJavaArrayString]
         ast.construct(cb, coerce[Array[String]](value))
-      case t: TBaseStruct =>
+      case _: TBaseStruct =>
         val sst = st.asInstanceOf[SBaseStructPointer]
         val pt = sst.pType.asInstanceOf[PCanonicalBaseStruct]
         val addr = cb.memoize(Code.invokeScalaObject4[Map[
@@ -435,7 +435,7 @@ abstract class RegistryFunctions {
           SBaseStructPointer(pt.setRequired(false).asInstanceOf[PBaseStruct]),
           addr,
         )
-      case TArray(t: TBaseStruct) =>
+      case TArray(_: TBaseStruct) =>
         val ast = st.asInstanceOf[SIndexablePointer]
         val pca = ast.pType.asInstanceOf[PCanonicalArray]
         val array = cb.memoize(Code.invokeScalaObject4[Map[
@@ -465,7 +465,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, Array[SValue], Value[Int]) => SValue
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes,
         returnType, calculateReturnType) {
@@ -490,7 +490,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitRegion, EmitCodeBuilder, SType, Array[Type], Array[SValue]) => Value[_]
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes,
         returnType, calculateReturnType) {
@@ -518,7 +518,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitRegion, SType, Value[Int], Array[EmitCode]) => EmitCode
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType,
         calculateReturnType) {
@@ -544,7 +544,7 @@ abstract class RegistryFunctions {
     typeParameters: Array[Type] = Array.empty,
   )(
     impl: (EmitCodeBuilder, Value[Region], SType, Value[Int], Array[EmitCode]) => IEmitCode
-  ) {
+  ): Unit = {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType,
         calculateReturnType) {
@@ -584,9 +584,9 @@ abstract class RegistryFunctions {
   )(
     cls: Class[_],
     method: String,
-  ) {
+  ): Unit = {
     registerSCode(name, valueParameterTypes, returnType, calculateReturnType) {
-      case (r, cb, _, rt, args, _) =>
+      case (_, cb, _, rt, args, _) =>
         val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
 
         val returnValue = cb.memoizeAny(
@@ -610,7 +610,7 @@ abstract class RegistryFunctions {
   )(
     cls: Class[_],
     method: String,
-  ) {
+  ): Unit = {
     def ct(typ: Type): ClassTag[_] = typ match {
       case TString => classTag[String]
       case TArray(TInt32) => classTag[IndexedSeq[Int]]
@@ -725,8 +725,8 @@ abstract class RegistryFunctions {
   )(
     cls: Class[_],
     method: String,
-  ) {
-    registerCode(name, valueParameterTypes, returnType, pt) { case (r, cb, rt, _, args) =>
+  ): Unit = {
+    registerCode(name, valueParameterTypes, returnType, pt) { case (_, cb, _, _, args) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
       val ct = PrimitiveTypeToIRIntermediateClassTag(returnType)
       cb.memoizeAny(

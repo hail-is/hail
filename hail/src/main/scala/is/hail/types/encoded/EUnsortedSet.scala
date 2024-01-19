@@ -2,15 +2,11 @@ package is.hail.types.encoded
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{
-  ArraySorter, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, StagedArrayBuilder,
-}
+import is.hail.expr.ir.{ArraySorter, EmitCodeBuilder, EmitRegion, StagedArrayBuilder}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SType, SValue}
-import is.hail.types.physical.stypes.SingleCodeType
+import is.hail.types.physical.stypes.{SType, SValue, SingleCodeType}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
-import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual._
 import is.hail.utils._
 

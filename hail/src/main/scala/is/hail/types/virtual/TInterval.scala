@@ -3,8 +3,6 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
-import is.hail.types.physical.PInterval
-import is.hail.types.virtual.TCall.representation
 import is.hail.utils.{FastSeq, Interval}
 
 import scala.reflect.{classTag, ClassTag}
@@ -21,7 +19,7 @@ case class TInterval(pointType: Type) extends Type {
     sb.append('>')
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("Interval[")
     pointType.pretty(sb, indent, compact)
     sb.append("]")

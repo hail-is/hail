@@ -13,16 +13,16 @@ import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.json4s.JValue
-import org.json4s.jackson.JsonMethods
+import scala.collection.mutable
 
 import java.time.{Instant, ZoneId}
 import java.time.temporal.ChronoField
 import java.util.Locale
 import java.util.regex.{Matcher, Pattern}
-import scala.collection.mutable
 
 import org.apache.spark.sql.Row
+import org.json4s.JValue
+import org.json4s.jackson.JsonMethods
 
 object StringFunctions extends RegistryFunctions {
   def reverse(s: String): String = {
@@ -121,7 +121,7 @@ object StringFunctions extends RegistryFunctions {
      * this, */
     // but this is a non-local stype decision that is hard in the current system
     val missing: Value[Array[String]] = missingSV.st match {
-      case SJavaArrayString(elementRequired) =>
+      case SJavaArrayString(_) =>
         missingSV.asInstanceOf[SJavaArrayStringSettable].array
       case _ =>
         val mb = cb.emb.ecb.newEmitMethod(
@@ -287,7 +287,7 @@ object StringFunctions extends RegistryFunctions {
     val thisClass = getClass
 
     registerSCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) {
-      case (r: EmitRegion, cb, _, s: SStringValue, _) =>
+      case (_: EmitRegion, cb, _, s: SStringValue, _) =>
         primitive(cb.memoize(s.loadString(cb).invoke[Int]("length")))
     }
 
@@ -299,7 +299,7 @@ object StringFunctions extends RegistryFunctions {
       TString,
       (_: Type, _: SType, _: SType, _: SType) => SJavaString,
     ) {
-      case (r: EmitRegion, cb, st: SJavaString.type, s, start, end, _) =>
+      case (_: EmitRegion, cb, st: SJavaString.type, s, start, end, _) =>
         val str = s.asString.loadString(cb).invoke[Int, Int, String](
           "substring",
           start.asInt.value,
@@ -564,7 +564,7 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
       },
-    ) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
+    ) { case (_, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
       val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
       val quoteChar = cb.newLocal[Char]("quoteChar")
       cb.if_(
@@ -593,7 +593,7 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: SType, _: SType, _: SType, _: SType) => SJavaArrayString(false)
       },
-    ) { case (r, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
+    ) { case (_, cb, st: SJavaArrayString, s, separator, missing, quote, errorID) =>
       val quoteStr = cb.newLocal[String]("quoteStr", quote.asString.loadString(cb))
       val quoteChar = cb.newLocal[Char]("quoteChar")
       cb.if_(
@@ -627,7 +627,7 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
       },
-    ) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
+    ) { case (_, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val mv = missing.asIndexable
@@ -646,7 +646,7 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: SType, _: SType, _: SType) => SJavaArrayString(false)
       },
-    ) { case (r, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
+    ) { case (_, cb, st: SJavaArrayString, s, separator, missing, errorID) =>
       val string = cb.newLocal[String]("string", s.asString.loadString(cb))
       val sep = cb.newLocal[String]("sep", separator.asString.loadString(cb))
       val sepChar = cb.newLocal[Char]("sepChar")
@@ -684,7 +684,7 @@ object StringFunctions extends RegistryFunctions {
     ) {
       case (
             cb: EmitCodeBuilder,
-            region: Value[Region],
+            _: Value[Region],
             st: SJavaArrayString,
             _,
             s: EmitCode,
@@ -714,7 +714,7 @@ object StringFunctions extends RegistryFunctions {
       {
         case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
       },
-    ) { case (r: EmitRegion, rt, _, e1: EmitCode, e2: EmitCode) =>
+    ) { case (r: EmitRegion, _, _, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>
         e1.toI(cb).flatMap(cb) { case sc1: SStringValue =>
           e2.toI(cb).flatMap(cb) { case sc2: SStringValue =>

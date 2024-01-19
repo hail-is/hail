@@ -31,7 +31,7 @@ class MapPartitionsWithValueRDD[T: ClassTag, U: ClassTag, V](
     f(split.index, p.value, firstParent[T].iterator(p.parentPartition, context))
   }
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     prev = null
   }

@@ -67,7 +67,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     PCanonicalStruct(required, newFieldsBuilder.result(): _*)
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append("PCStruct{")
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')

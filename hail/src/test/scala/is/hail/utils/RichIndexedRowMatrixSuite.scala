@@ -3,16 +3,16 @@ package is.hail.utils
 import is.hail.HailSuite
 import is.hail.linalg.BlockMatrix.ops._
 
-import breeze.linalg.{DenseMatrix => BDM, _}
+import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.mllib.linalg.Vectors
-import org.apache.spark.mllib.linalg.distributed.{DistributedMatrix, IndexedRow, IndexedRowMatrix}
+import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
 /** Testing RichIndexedRowMatrix. */
 class RichIndexedRowMatrixSuite extends HailSuite {
 
-  @Test def testToBlockMatrixDense() {
+  @Test def testToBlockMatrixDense(): Unit = {
     val nRows = 9L
     val nCols = 6L
     val data = Seq(
@@ -50,7 +50,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     }
   }
 
-  @Test def emptyBlocks() {
+  @Test def emptyBlocks(): Unit = {
     val nRows = 9
     val nCols = 2
     val data = Seq(

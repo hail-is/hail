@@ -18,11 +18,10 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
-
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 object AbstractRVDSpec {
   implicit val formats: Formats =
@@ -273,12 +272,11 @@ abstract class AbstractRVDSpec {
         )
   }
 
-  def write(fs: FS, path: String) {
+  def write(fs: FS, path: String): Unit =
     using(fs.create(path + "/metadata.json.gz")) { out =>
       import AbstractRVDSpec.formats
       Serialization.write(this, out)
     }
-  }
 }
 
 trait AbstractIndexSpec {

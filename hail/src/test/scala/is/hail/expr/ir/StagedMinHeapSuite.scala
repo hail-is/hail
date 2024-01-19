@@ -14,8 +14,6 @@ import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.{using, FastSeq}
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import scala.language.{higherKinds, implicitConversions}
-
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 

@@ -1,6 +1,6 @@
 package is.hail.stats
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.Region
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual.TFloat64

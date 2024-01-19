@@ -1,10 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr._
-import is.hail.utils.{BoxedArrayBuilder, _}
-
-import scala.collection.mutable._
-
 //
 // Search an IR tree for the first node satisfying some condition
 //

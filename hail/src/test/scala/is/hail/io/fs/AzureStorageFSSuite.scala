@@ -3,7 +3,6 @@ package is.hail.io.fs
 import java.io.FileInputStream
 
 import org.apache.commons.io.IOUtils
-import org.scalatest.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
 
