@@ -3102,7 +3102,7 @@ steps:
       cat >file.sh <<EOF
       set -ex
 
-      cat foo
+      ls foo/
       echo "Hello World!"
       EOF
 
@@ -3121,7 +3121,7 @@ steps:
 
       [[ $# -eq 2 ]]
 
-      cat foo
+      ls foo/
       echo "Hello World! $1 $2"
       EOF
 
