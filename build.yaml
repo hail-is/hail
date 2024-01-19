@@ -615,6 +615,17 @@ steps:
       - create_test_gsa_keys
       - create_test_database_server_config
   - kind: buildImage2
+    name: hailgenetics_saige_image
+    dockerFile: /io/repo/docker/hailgenetics/saige/Dockerfile
+    contextPath: /io/repo/docker/hailgenetics/saige
+    publishAs: hailgenetics/saige
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: hailgenetics_vep_grch37_85_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch37/85/Dockerfile
     contextPath: /io/repo/docker/vep/
