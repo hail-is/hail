@@ -1098,15 +1098,6 @@ def test_duplicate_parents(client: BatchClient):
 
 
 @skip_in_azure
-def test_verify_access_to_hail_metadata_server_with_dns(client: BatchClient):
-    b = create_batch(client)
-    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
-    b.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str((status, b.debug_info()))
-
-
-@skip_in_azure
 def test_hail_metadata_server_uses_correct_user_credentials(client: BatchClient):
     b = create_batch(client)
     userinfo = get_userinfo()

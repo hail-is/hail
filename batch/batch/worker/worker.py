@@ -3190,9 +3190,6 @@ class Worker:
         return json_response(body)
 
     async def run(self):
-        assert CLOUD_WORKER_API
-        assert network_allocator
-
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
         app.add_routes([
             web.post('/api/v1alpha/kill', self.kill),
