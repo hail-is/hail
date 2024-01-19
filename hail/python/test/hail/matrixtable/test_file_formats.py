@@ -11,7 +11,6 @@ from ..helpers import (
     create_all_values_matrix_table,
     create_all_values_table,
     resource,
-    resource_dir,
 )
 
 
@@ -78,14 +77,14 @@ async def collect_paths() -> Tuple[List[str], List[str]]:
         mt_paths = [
             await x.url() for version in versions async for x in await contents_if_present(version + 'matrix_table/')
         ]
-        return ht_paths, mt_paths
+        return ht_paths, mt_paths, resource_dir
     finally:
         await fs.close()
 
 
 # pytest sometimes uses background threads, named "Dummy-1", to collect tests. Asyncio dislikes
 # automatically creating event loops in these threads, so we just explicitly create one.
-ht_paths, mt_paths = asyncio.new_event_loop().run_until_complete(collect_paths())
+ht_paths, mt_paths, resource_dir = asyncio.new_event_loop().run_until_complete(collect_paths())
 
 
 @pytest.mark.parametrize("path", mt_paths)
