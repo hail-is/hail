@@ -18,6 +18,7 @@ deploy_config = get_deploy_config()
 
 SERVICE = os.environ['SERVICE']
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
+BC = web.AppKey('backend_client', Session)
 
 
 @routes.get('/api/{route:.*}')
@@ -50,15 +51,12 @@ async def render_html(request: web.Request, context: dict):
     return await render_template(SERVICE, request, **context, cookie_domain='localhost:8000')
 
 
-BC = web.AppKey('backend_client', Session)
-
-
 async def on_startup(app: web.Application):
     app[BC] = Session(credentials=hail_credentials())
 
 
 async def on_cleanup(app: web.Application):
-    await app[AppKeys.BC].close()
+    await app[BC].close()
 
 
 app = web.Application()
