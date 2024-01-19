@@ -55,7 +55,7 @@ critically depend on experimental functionality.**
 
 ## Version 0.2.127
 
-Released 2023-12-08
+Released 2024-01-12
 
 If you have an Apple M1 laptop, verify that
 
@@ -162,7 +162,7 @@ Released 2023-09-21
 
 ## Version 0.2.123
 
-Released 2023-09-18
+Released 2023-09-19
 
 ### New Features
 
@@ -189,7 +189,7 @@ Released 2023-09-07
 
 ## Version 0.2.121
 
-Released 2023-08-31
+Released 2023-09-06
 
 ### New Features
 
@@ -250,7 +250,7 @@ Released 2023-08-31
 
 ## Version 0.2.120
 
-Released 2023-07-20
+Released 2023-07-27
 
 ### New Features
 - (hail#13206) The VDS Combiner now works in Query-on-Batch.
@@ -300,7 +300,7 @@ Released 2023-06-28
 
 ## Version 0.2.118
 
-Released 2023-05-30
+Released 2023-06-13
 
 ### New Features
 
@@ -318,7 +318,7 @@ Released 2023-05-30
 
 ## Version 0.2.117
 
-Released 2023-05-19
+Released 2023-05-22
 
 ### New Features
 
