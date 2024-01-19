@@ -84,7 +84,7 @@ from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
-from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials, HailMetadataServer
+from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
 # import uvloop
@@ -207,7 +207,6 @@ docker: Optional[aiodocker.Docker] = None
 
 port_allocator: Optional['PortAllocator'] = None
 network_allocator: Optional['NetworkAllocator'] = None
-metadata_server: Optional[HailMetadataServer] = None
 
 worker: Optional['Worker'] = None
 
@@ -280,8 +279,7 @@ class NetworkNamespace:
                 resolv.write('nameserver 8.8.8.8\n')
 
     async def create_netns(self):
-        await check_shell(
-            f"""
+        await check_shell(f"""
 ip netns add {self.network_ns_name} && \
 ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
 ip link set dev {self.veth_host} up && \
@@ -290,23 +288,18 @@ ip address add {self.host_ip}/24 dev {self.veth_host}
 ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
 ip -n {self.network_ns_name} link set dev lo up && \
 ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
-ip -n {self.network_ns_name} route add default via {self.host_ip}"""
-        )
+ip -n {self.network_ns_name} route add default via {self.host_ip}""")
 
     async def enable_iptables_forwarding(self):
-        await check_shell(
-            f"""
+        await check_shell(f"""
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.internet_interface} --jump ACCEPT && \
-iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT"""
-        )
+iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} --append FORWARD --out-interface {self.veth_host} --in-interface {self.veth_host} --jump ACCEPT""")
 
     async def mark_packets(self):
-        await check_shell(
-            f"""
+        await check_shell(f"""
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A PREROUTING --in-interface {self.veth_host} -j MARK --set-mark 10 && \
 iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interface {self.veth_host} -j MARK --set-mark 11
-"""
-        )
+""")
 
     async def expose_port(self, port, host_port):
         self.port = port
@@ -330,11 +323,9 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interfac
             await self.expose_port_rule(action='delete')
         self.host_port = None
         self.port = None
-        await check_shell(
-            f"""
+        await check_shell(f"""
 ip link delete {self.veth_host} && \
-ip netns delete {self.network_ns_name}"""
-        )
+ip netns delete {self.network_ns_name}""")
         await self.create_netns()
 
 
@@ -833,6 +824,8 @@ class Container:
 
         self.monitor: Optional[ResourceUsageMonitor] = None
 
+        self.metadata_app_runner: Optional[web.AppRunner] = None
+
     async def create(self):
         self.state = 'creating'
         try:
@@ -972,9 +965,8 @@ class Container:
         if self._cleaned_up:
             return
 
-        if self.netns:
-            if self.user_credentials and metadata_server:
-                await metadata_server.clear_container_credentials(self.netns.job_ip)
+        if self.metadata_app_runner:
+            await self.metadata_app_runner.cleanup()
 
         assert self._run_fut is None
         try:
@@ -1042,8 +1034,14 @@ class Container:
                 else:
                     assert self.network is None or self.network == 'public'
                     self.netns = await network_allocator.allocate_public()
-            if self.user_credentials and metadata_server:
-                metadata_server.set_container_credentials(self.netns.job_ip, self.user_credentials)
+            if self.user_credentials and CLOUD == 'gcp':
+                assert CLOUD_WORKER_API
+                self.metadata_app_runner = web.AppRunner(
+                    CLOUD_WORKER_API.create_metadata_server_app(self.user_credentials)
+                )
+                await self.metadata_app_runner.setup()
+                site = web.TCPSite(self.metadata_app_runner, self.netns.host_ip, 5555)
+                await site.start()
         except asyncio.TimeoutError:
             log.exception(network_allocator.task_manager.tasks)
             raise
@@ -3192,15 +3190,8 @@ class Worker:
         return json_response(body)
 
     async def run(self):
-        global metadata_server
         assert CLOUD_WORKER_API
         assert network_allocator
-        if CLOUD == 'gcp':
-            metadata_server = CLOUD_WORKER_API.metadata_server()
-            metadata_app_runner = web.AppRunner(metadata_server.create_app(), access_log_class=BatchWorkerAccessLogger)
-            await metadata_app_runner.setup()
-            metadata_site = web.TCPSite(metadata_app_runner, '0.0.0.0', 5555)
-            await metadata_site.start()
 
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
         app.add_routes([

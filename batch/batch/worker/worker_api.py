@@ -15,20 +15,6 @@ class ContainerRegistryCredentials(TypedDict):
     password: str
 
 
-class HailMetadataServer(abc.ABC):
-    @abc.abstractmethod
-    def set_container_credentials(self, ip: str, credentials: Dict[str, str]):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    async def clear_container_credentials(self, ip: str):
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def create_app(self) -> web.Application:
-        raise NotImplementedError
-
-
 class CloudWorkerAPI(abc.ABC):
     nameserver_ip: str
 
@@ -50,7 +36,7 @@ class CloudWorkerAPI(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def metadata_server(self) -> HailMetadataServer:
+    def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         raise NotImplementedError
 
     @abc.abstractmethod
