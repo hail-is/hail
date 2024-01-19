@@ -3,9 +3,10 @@ package is.hail.io
 import is.hail.io.fs.FS
 import is.hail.utils._
 
+import scala.collection.mutable
+
 import java.io.{Closeable, DataOutputStream}
 import java.util.Arrays
-import scala.collection.mutable
 
 object IndexBTree {
   private[io] def calcDepth(internalAndExternalNodeCount: Long, branchingFactor: Int): Int = {

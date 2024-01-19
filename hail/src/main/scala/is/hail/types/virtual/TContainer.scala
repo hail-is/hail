@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.Annotation
-import is.hail.types.physical.PContainer
 
 abstract class TContainer extends TIterable {
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)

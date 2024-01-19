@@ -1,8 +1,6 @@
 package is.hail.annotations
 
 import is.hail.types.physical._
-import is.hail.utils.Interval
-import is.hail.variant.{Call, Locus}
 
 trait ValueVisitor {
   def visitMissing(t: PType): Unit
@@ -47,43 +45,34 @@ final class PrettyVisitor extends ValueVisitor {
 
   def result(): String = sb.result()
 
-  def visitMissing(t: PType) {
+  def visitMissing(t: PType): Unit =
     sb.append("NA")
-  }
 
-  def visitBoolean(b: Boolean) {
+  def visitBoolean(b: Boolean): Unit =
     sb.append(b)
-  }
 
-  def visitInt32(i: Int) {
+  def visitInt32(i: Int): Unit =
     sb.append(i)
-  }
 
-  def visitInt64(l: Long) {
+  def visitInt64(l: Long): Unit =
     sb.append(l)
-  }
 
-  def visitFloat32(f: Float) {
+  def visitFloat32(f: Float): Unit =
     sb.append(f)
-  }
 
-  def visitFloat64(d: Double) {
+  def visitFloat64(d: Double): Unit =
     sb.append(d)
-  }
 
-  def visitBinary(a: Array[Byte]) {
+  def visitBinary(a: Array[Byte]): Unit =
     sb.append("bytes...")
-  }
 
-  def visitString(s: String) {
+  def visitString(s: String): Unit =
     sb.append(s)
-  }
 
-  def enterStruct(t: PStruct) {
+  def enterStruct(t: PStruct): Unit =
     sb.append("{")
-  }
 
-  def enterField(f: PField) {
+  def enterField(f: PField): Unit = {
     if (f.index > 0)
       sb.append(",")
     sb.append(" ")
@@ -91,25 +80,22 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(": ")
   }
 
-  def leaveField() {}
+  def leaveField(): Unit = {}
 
-  def leaveStruct() {
+  def leaveStruct(): Unit =
     sb.append(" }")
-  }
 
-  def enterTuple(t: PTuple) {
+  def enterTuple(t: PTuple): Unit =
     sb.append('(')
-  }
 
-  def leaveTuple() {
+  def leaveTuple(): Unit =
     sb.append(')')
-  }
 
-  def enterArray(t: PContainer, length: Int) {
+  def enterArray(t: PContainer, length: Int): Unit = {
     t match {
-      case t: PSet =>
+      case _: PSet =>
         sb.append("Set")
-      case t: PDict =>
+      case _: PDict =>
         sb.append("Dict")
       case _ =>
     }
@@ -118,15 +104,14 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(";")
   }
 
-  def leaveArray() {
+  def leaveArray(): Unit =
     sb.append("]")
-  }
 
-  def enterElement(i: Int) {
+  def enterElement(i: Int): Unit = {
     if (i > 0)
       sb.append(",")
     sb.append(" ")
   }
 
-  def leaveElement() {}
+  def leaveElement(): Unit = {}
 }

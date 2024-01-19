@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.types._
 import is.hail.types.virtual._
 
 import scala.reflect.{classTag, ClassTag}

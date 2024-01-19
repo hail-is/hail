@@ -16,10 +16,11 @@ import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 import is.hail.variant.ReferenceGenome
 
-import java.io._
-import java.lang.reflect.InvocationTargetException
 import scala.collection.mutable
 import scala.language.existentials
+
+import java.io._
+import java.lang.reflect.InvocationTargetException
 
 import org.apache.spark.TaskContext
 
@@ -450,7 +451,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
         .apply(cb, partitionRegion, ib)
         .asBaseStruct
-      literals.zipWithIndex.foreach { case ((t, _, pt, arrIdx), i) =>
+      literals.zipWithIndex.foreach { case ((_, _, pt, arrIdx), i) =>
         lits.loadField(cb, i)
           .consume(
             cb,

@@ -122,7 +122,7 @@ final case class EBlockMatrixNDArray(
 
   def _toPretty = s"ENDArray[$elementType]"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("ENDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")

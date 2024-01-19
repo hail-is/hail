@@ -3,10 +3,6 @@ package is.hail.annotations
 import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
-import java.util.TreeMap
-import java.util.function.BiConsumer
-import scala.collection.mutable
-
 object RegionPool {
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {

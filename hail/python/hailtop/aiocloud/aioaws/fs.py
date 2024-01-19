@@ -1,5 +1,19 @@
-from typing import Any, AsyncIterator, BinaryIO, cast, AsyncContextManager, Dict, List, Optional, Set, Tuple, Type
+from typing import (
+    Any,
+    AsyncIterator,
+    BinaryIO,
+    cast,
+    AsyncContextManager,
+    Dict,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    Union,
+)
 from types import TracebackType
+import aiohttp
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import os.path
@@ -341,12 +355,32 @@ class S3AsyncFS(AsyncFS):
         max_workers: Optional[int] = None,
         *,
         max_pool_connections: int = 10,
+        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]] = None,
     ):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
+
+        kwargs = {}
+        if isinstance(timeout, aiohttp.ClientTimeout):
+            if timeout.sock_read:
+                kwargs['read_timeout'] = timeout.sock_read
+            elif timeout.total:
+                kwargs['read_timeout'] = timeout.total
+
+            if timeout.sock_connect:
+                kwargs['connect_timeout'] = timeout.sock_connect
+            elif timeout.connect:
+                kwargs['connect_timeout'] = timeout.connect
+            elif timeout.total:
+                kwargs['connect_timeout'] = timeout.total
+        elif isinstance(timeout, (int, float)):
+            kwargs['read_timeout'] = timeout
+            kwargs['connect_timeout'] = timeout
+
         config = botocore.config.Config(
             max_pool_connections=max_pool_connections,
+            **kwargs,
         )
         self._s3 = boto3.client('s3', config=config)
 

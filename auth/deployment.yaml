@@ -45,11 +45,6 @@ spec:
             value: "{{ default_ns.name }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
-          - name: HAIL_DOMAIN
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: domain
           - name: CLOUD
             valueFrom:
               secretKeyRef:
@@ -179,11 +174,6 @@ spec:
             value: "{{ default_ns.name }}"
           - name: HAIL_DEPLOY_CONFIG_FILE
             value: /deploy-config/deploy-config.json
-          - name: HAIL_DOMAIN
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: domain
           - name: HAIL_ORGANIZATION_DOMAIN
             valueFrom:
               secretKeyRef:

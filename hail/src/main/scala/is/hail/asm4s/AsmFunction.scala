@@ -1,6 +1,6 @@
 package is.hail.asm4s
 
-import is.hail.annotations.{Region, RegionValue}
+import is.hail.annotations.Region
 
 trait AsmFunction0[R] { def apply(): R }
 trait AsmFunction1[A, R] { def apply(a: A): R }

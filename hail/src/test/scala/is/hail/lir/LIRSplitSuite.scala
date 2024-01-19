@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 
 class LIRSplitSuite extends HailSuite {
 
-  @Test def testSplitPreservesParameterMutation() {
+  @Test def testSplitPreservesParameterMutation(): Unit = {
     val f = EmitFunctionBuilder[Unit](ctx, "F")
     f.emitWithBuilder { cb =>
       val mb = f.newEmitMethod("m", IndexedSeq[ParamType](typeInfo[Long]), typeInfo[Unit])

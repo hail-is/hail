@@ -26,12 +26,12 @@ final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: C
     b(i)
   }
 
-  def update(i: Int, x: T) {
+  def update(i: Int, x: T): Unit = {
     require(i >= 0 && i < size)
     b(i) = x
   }
 
-  def ensureCapacity(n: Int) {
+  def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
       val newCapacity = (b.length * 2).max(n)
       val newb = new Array[T](newCapacity)
@@ -51,7 +51,7 @@ final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: C
 
   def +=(x: T): Unit = push(x)
 
-  def push(x: T) {
+  def push(x: T): Unit = {
     ensureCapacity(size_ + 1)
     b(size_) = x
     size_ += 1
@@ -61,7 +61,7 @@ final class BoxedArrayBuilder[T <: AnyRef](initialCapacity: Int)(implicit tct: C
 
   def ++=(a: Array[T]): Unit = ++=(a, a.length)
 
-  def ++=(a: Array[T], length: Int) {
+  def ++=(a: Array[T], length: Int): Unit = {
     require(length >= 0 && length <= a.length)
     ensureCapacity(size_ + length)
     System.arraycopy(a, 0, b, size_, length)

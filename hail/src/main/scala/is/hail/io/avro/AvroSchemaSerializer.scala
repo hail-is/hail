@@ -1,9 +1,8 @@
 package is.hail.io.avro
 
+import org.apache.avro.Schema
 import org.json4s.CustomSerializer
 import org.json4s.jackson.JsonMethods
-
-import org.apache.avro.Schema
 
 class AvroSchemaSerializer extends CustomSerializer[Schema](_ =>
       (

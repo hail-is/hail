@@ -16,9 +16,9 @@ import is.hail.types.virtual.{TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
-import java.util
-import scala.language.existentials
 import scala.reflect.ClassTag
+
+import java.util
 
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark.{Partitioner, SparkContext, TaskContext}
@@ -385,7 +385,7 @@ class RVD(
         j
       }.toArray
 
-      newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) =>
+      newPartEnd = newPartEnd.zipWithIndex.filter { case (_, i) =>
         i == 0 || newPartEnd(i) != newPartEnd(i - 1)
       }
         .map(_._1)
@@ -747,7 +747,7 @@ class RVD(
             val hcl = theHailClassLoaderForSparkWorkers
             val htc = SparkTaskContext.get()
             var acc = mkZero(hcl, htc)
-            it.foreach { case (newPart, (oldPart, v)) =>
+            it.foreach { case (_, (_, v)) =>
               acc = combOp(hcl, htc, acc, deserialize(hcl, htc)(v))
             }
             Iterator.single(serialize(hcl, htc, acc))

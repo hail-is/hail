@@ -1,18 +1,12 @@
 package is.hail.annotations
 
-import is.hail.{HailSuite, TestUtils}
-import is.hail.backend.ExecuteContext
-import is.hail.testUtils._
-import is.hail.types.virtual._
-import is.hail.utils._
-
-import scala.language.implicitConversions
+import is.hail.HailSuite
 
 import org.testng.annotations.Test
 
 /** This testing suite evaluates the functionality of the [[is.hail.annotations]] package */
 class AnnotationsSuite extends HailSuite {
-  @Test def testExtendedOrdering() {
+  @Test def testExtendedOrdering(): Unit = {
     val ord = ExtendedOrdering.extendToNull(implicitly[Ordering[Int]])
     val rord = ord.reverse
 

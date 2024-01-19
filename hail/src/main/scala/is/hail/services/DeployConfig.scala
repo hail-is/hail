@@ -1,17 +1,12 @@
 package is.hail.services
 
-import is.hail.services.tls._
 import is.hail.utils._
 
+import java.io.{File, FileInputStream}
+
+import org.apache.log4j.Logger
 import org.json4s._
 import org.json4s.jackson.JsonMethods
-
-import java.io.{File, FileInputStream}
-import java.net._
-import scala.util.Random
-
-import org.apache.http.client.methods._
-import org.apache.log4j.Logger
 
 object DeployConfig {
   private[this] val log = Logger.getLogger("DeployConfig")
@@ -78,7 +73,6 @@ class DeployConfig(
   val defaultNamespace: String,
   val domain: String,
 ) {
-  import DeployConfig._
 
   def scheme(baseScheme: String = "http"): String =
     if (location == "external" || location == "k8s")

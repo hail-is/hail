@@ -11,7 +11,7 @@ case class SkatAggForR(xs: BoxedArrayBuilder[DenseVector[Double]], weights: Doub
 
 class SkatSuite extends HailSuite {
 
-  @Test def smallNLargeNEqualityTest() {
+  @Test def smallNLargeNEqualityTest(): Unit = {
     val rand = scala.util.Random
     rand.setSeed(0)
 

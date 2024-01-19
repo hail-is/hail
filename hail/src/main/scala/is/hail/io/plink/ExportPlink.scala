@@ -1,17 +1,9 @@
 package is.hail.io.plink
 
-import is.hail.HailContext
-import is.hail.annotations.Region
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.MatrixValue
-import is.hail.types._
-import is.hail.types.physical.{PString, PStruct}
 import is.hail.utils._
 import is.hail.variant._
 
-import java.io.{OutputStream, OutputStreamWriter}
-
-import org.apache.spark.TaskContext
+import java.io.OutputStream
 
 object ExportPlink {
   val bedHeader = Array[Byte](108, 27, 1)
@@ -55,15 +47,14 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
 
   def +=(i: Int) = add(i)
 
-  private def write() {
+  private def write(): Unit =
     while (nBitsStaged >= 8) {
       os.write(data.toByte)
       data = data >>> 8
       nBitsStaged -= 8
     }
-  }
 
-  def flush() {
+  def flush(): Unit = {
     if (nBitsStaged > 0)
       os.write(data.toByte)
     data = 0L

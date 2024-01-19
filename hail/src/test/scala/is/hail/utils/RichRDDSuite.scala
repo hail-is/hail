@@ -1,11 +1,11 @@
 package is.hail.utils
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 
 import org.testng.annotations.Test
 
 class RichRDDSuite extends HailSuite {
-  @Test def parallelWrite() {
+  @Test def parallelWrite(): Unit = {
     def read(file: String): Array[String] = fs.readLines(file)(_.map(_.value).toArray)
 
     val header = "my header is awesome!"

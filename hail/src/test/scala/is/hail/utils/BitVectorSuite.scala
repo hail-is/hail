@@ -8,7 +8,7 @@ import org.testng.annotations.Test
 
 class BitVectorSuite extends TestNGSuite {
 
-  @Test def test() {
+  @Test def test(): Unit = {
     val bv0 = new BitVector(0)
     assert(bv0.length == 0)
 

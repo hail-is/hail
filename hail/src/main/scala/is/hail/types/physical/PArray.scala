@@ -3,8 +3,6 @@ package is.hail.types.physical
 import is.hail.annotations.Annotation
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.virtual.TArray
 
 trait PArrayIterator {

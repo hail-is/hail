@@ -5,7 +5,7 @@ import is.hail.utils.Interval
 
 import scala.reflect.ClassTag
 
-import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
+import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 
 case class IndexedFilePartition(index: Int, file: String, bounds: Option[Interval])

@@ -9,9 +9,8 @@ import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.utils._
 
-import org.json4s.jackson.Serialization
-
 import org.apache.spark.sql.Row
+import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
 class ETypeSuite extends HailSuite {
@@ -92,7 +91,7 @@ class ETypeSuite extends HailSuite {
     assert(encodeDecodeResult == data)
   }
 
-  @Test def testDifferentRequirednessEncodeDecode() {
+  @Test def testDifferentRequirednessEncodeDecode(): Unit = {
 
     val inPType = PCanonicalArray(
       PCanonicalStruct(

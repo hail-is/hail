@@ -109,7 +109,7 @@ object LowerMatrixIR {
       case RelationalLetMatrixTable(name, value, body) =>
         RelationalLetTable(name, lower(ctx, value, ab), lower(ctx, body, ab))
 
-      case CastTableToMatrix(child, entries, cols, colKey) =>
+      case CastTableToMatrix(child, entries, cols, _) =>
         val lc = lower(ctx, child, ab)
         val row = Ref("row", lc.typ.rowType)
         val glob = Ref("global", lc.typ.globalType)
@@ -249,7 +249,7 @@ object LowerMatrixIR {
               builder += ((s, a))
               Ref(s, a.typ)
 
-            case a @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, true) =>
+            case a @ AggFold(_, _, _, _, _, true) =>
               val s = genUID()
               builder += ((s, a))
               Ref(s, a.typ)
@@ -369,7 +369,7 @@ object LowerMatrixIR {
             aggBindings += ((s, a))
             Ref(s, a.typ)
 
-          case a @ AggFold(zero, seqOp, combOp, accumName, otherAccumName, isScan) =>
+          case a @ AggFold(_, _, _, _, _, isScan) =>
             val s = genUID()
             if (isScan) {
               scanBindings += ((s, a))
@@ -1068,10 +1068,9 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR) {
+  private[this] def assertTypeUnchanged(original: BaseIR, lowered: BaseIR): Unit =
     if (lowered.typ != original.typ)
       fatal(
         s"lowering changed type:\n  before: ${original.typ}\n after: ${lowered.typ}\n  ${original.getClass.getName} => ${lowered.getClass.getName}"
       )
-  }
 }

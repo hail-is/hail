@@ -26,6 +26,7 @@ from prometheus_async.aio.web import server_stats
 
 from gear import (
     AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
     Database,
     K8sCache,
     Transaction,
@@ -434,12 +435,10 @@ async def get_index(request, userdata):
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
-    ready_cores = await db.select_and_fetchone(
-        """
+    ready_cores = await db.select_and_fetchone("""
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM user_inst_coll_resources;
-"""
-    )
+""")
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
@@ -935,11 +934,9 @@ async def freeze_batch(request: web.Request, _) -> NoReturn:
         set_message(session, 'Batch is already frozen.', 'info')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
-    await db.execute_update(
-        """
+    await db.execute_update("""
 UPDATE globals SET frozen = 1;
-"""
-    )
+""")
 
     app['frozen'] = True
 
@@ -959,11 +956,9 @@ async def unfreeze_batch(request: web.Request, _) -> NoReturn:
         set_message(session, 'Batch is already unfrozen.', 'info')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
-    await db.execute_update(
-        """
+    await db.execute_update("""
 UPDATE globals SET frozen = 0;
-"""
-    )
+""")
 
     app['frozen'] = False
 
@@ -978,8 +973,7 @@ async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
 
-    records = db.execute_and_fetchall(
-        """
+    records = db.execute_and_fetchall("""
 SELECT user,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
@@ -988,8 +982,7 @@ SELECT user,
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
-"""
-    )
+""")
 
     user_resources = sorted(
         [record async for record in records],
@@ -1004,8 +997,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 async def check_incremental(db):
     @transaction(db, read_only=True)
     async def check(tx):
-        user_inst_coll_with_broken_resources = tx.execute_and_fetchall(
-            """
+        user_inst_coll_with_broken_resources = tx.execute_and_fetchall("""
 SELECT
   t.*,
   u.*
@@ -1064,8 +1056,7 @@ WHERE actual_n_ready_jobs != expected_n_ready_jobs
    OR expected_n_cancelled_running_jobs != 0
    OR expected_n_cancelled_creating_jobs != 0
 LOCK IN SHARE MODE;
-"""
-        )
+""")
 
         failures = [record async for record in user_inst_coll_with_broken_resources]
         if len(failures) > 0:
@@ -1111,8 +1102,7 @@ async def check_resource_aggregation(db):
 
     @transaction(db, read_only=True)
     async def check(tx):
-        attempt_resources = tx.execute_and_fetchall(
-            """
+        attempt_resources = tx.execute_and_fetchall("""
 SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
   JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
@@ -1124,21 +1114,17 @@ LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
 GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
-"""
-        )
+""")
 
-        agg_job_resources = tx.execute_and_fetchall(
-            """
+        agg_job_resources = tx.execute_and_fetchall("""
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM aggregated_job_resources_v3
 LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
-"""
-        )
+""")
 
-        agg_batch_resources = tx.execute_and_fetchall(
-            """
+        agg_batch_resources = tx.execute_and_fetchall("""
 SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1148,11 +1134,9 @@ LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, billing_project
 LOCK IN SHARE MODE;
-"""
-        )
+""")
 
-        agg_billing_project_resources = tx.execute_and_fetchall(
-            """
+        agg_billing_project_resources = tx.execute_and_fetchall("""
 SELECT billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1161,8 +1145,7 @@ FROM (
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY t.billing_project
 LOCK IN SHARE MODE;
-"""
-        )
+""")
 
         attempt_resources = {
             (record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
@@ -1247,15 +1230,13 @@ WHERE billing_project = %s AND state = 'running';
 async def cancel_fast_failing_batches(app):
     db: Database = app['db']
 
-    records = db.select_and_fetchall(
-        """
+    records = db.select_and_fetchall("""
 SELECT batches.id, job_groups_n_jobs_in_complete_states.n_failed
 FROM batches
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON batches.id = job_groups_n_jobs_in_complete_states.id
 WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
-"""
-    )
+""")
     async for batch in records:
         await _cancel_batch(app, batch['id'])
 
@@ -1290,8 +1271,7 @@ async def monitor_user_resources(app):
     global ACTIVE_USER_INST_COLL_PAIRS
     db: Database = app['db']
 
-    records = db.select_and_fetchall(
-        """
+    records = db.select_and_fetchall("""
 SELECT user, inst_coll,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
@@ -1300,8 +1280,7 @@ SELECT user, inst_coll,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
 FROM user_inst_coll_resources
 GROUP BY user, inst_coll;
-"""
-    )
+""")
 
     current_user_inst_coll_pairs: Set[Tuple[str, str]] = set()
 
@@ -1524,11 +1503,9 @@ Resource = namedtuple('Resource', ['resource_id', 'deduped_resource_id'])
 async def refresh_globals_from_db(app, db):
     resource_ids = {
         record['resource']: Resource(record['resource_id'], record['deduped_resource_id'])
-        async for record in db.select_and_fetchall(
-            """
+        async for record in db.select_and_fetchall("""
 SELECT resource, resource_id, deduped_resource_id FROM resources;
-"""
-        )
+""")
     }
 
     app['resource_name_to_id'] = resource_ids
@@ -1582,11 +1559,9 @@ async def on_startup(app):
     app['db'] = db
     exit_stack.push_async_callback(app['db'].async_close)
 
-    row = await db.select_and_fetchone(
-        """
+    row = await db.select_and_fetchone("""
 SELECT instance_id, frozen FROM globals;
-"""
-    )
+""")
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
@@ -1611,8 +1586,8 @@ SELECT instance_id, frozen FROM globals;
 
     inst_coll_configs = await InstanceCollectionConfigs.create(db)
 
-    app['client_session'] = httpx.client_session()
-    exit_stack.push_async_callback(app['client_session'].close)
+    app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
 
     app['driver'] = await get_cloud_driver(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
     exit_stack.push_async_callback(app['driver'].shutdown)
