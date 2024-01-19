@@ -3055,7 +3055,8 @@ steps:
       hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/hailctl-test/{{ token }}
 
       mkdir -p foo
-      echo "bar" > foo/baz.txt
+      echo "bar" > foo/bar.txt
+      echo "baz" > foo/baz.txt
 
       cat >simple_hail.py <<EOF
       import hail as hl
@@ -3133,6 +3134,76 @@ steps:
           echo $STATUS;
           exit 1;
       fi
+
+      cat >read_files.py <<EOF
+      import sys
+
+      files = sys.argv[1:]
+      for file in files:
+          with open(file) as f:
+              print(f.read())
+      EOF
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo/bar.txt:/ -o json read_files.py /bar.txt | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      STATE=$(echo $STATUS | jq -jr '.state')
+      if [ "$STATE" == "success" ]; then
+          exit 0;
+      else
+          echo $STATUS;
+          exit 1;
+      fi
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo/bar.txt:/foo/ -o json read_files.py /foo/bar.txt | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      STATE=$(echo $STATUS | jq -jr '.state')
+      if [ "$STATE" == "success" ]; then
+          exit 0;
+      else
+          echo $STATUS;
+          exit 1;
+      fi
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo/bar.txt:/ --files=foo/baz.txt:/ -o json read_files.py /bar.txt /baz.txt | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      STATE=$(echo $STATUS | jq -jr '.state')
+      if [ "$STATE" == "success" ]; then
+          exit 0;
+      else
+          echo $STATUS;
+          exit 1;
+      fi
+
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo/:/foo/ -o json read_files.py /foo/bar.txt /foo/baz.txt | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      STATE=$(echo $STATUS | jq -jr '.state')
+      if [ "$STATE" == "success" ]; then
+          exit 0;
+      else
+          echo $STATUS;
+          exit 1;
+      fi
+
+      BATCH_ID=$(echo "hello" > hello.txt && cd foo/ && hailctl batch submit --name=test-hailctl-batch-submit --files=../hello.txt:/ -o json ../read_files.py /bar.txt /baz.txt | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      STATE=$(echo $STATUS | jq -jr '.state')
+      if [ "$STATE" == "success" ]; then
+          exit 0;
+      else
+          echo $STATUS;
+          exit 1;
+      fi
+
+      BATCH_ID=$(echo "hello" > hello.txt && cd foo/ && hailctl batch submit --name=test-hailctl-batch-submit --files=../:/ -o json ../read_files.py /foo/bar.txt /foo/baz.txt /hello.txt | jq '.id')
+      STATUS=$(hailctl batch wait -o json $BATCH_ID)
+      STATE=$(echo $STATUS | jq -jr '.state')
+      if [ "$STATE" == "success" ]; then
+          exit 0;
+      else
+          echo $STATUS;
+          exit 1;
+      fi
+
     secrets:
       - name: test-gsa-key
         namespace:
