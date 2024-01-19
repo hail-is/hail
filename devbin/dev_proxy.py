@@ -18,6 +18,7 @@ deploy_config = get_deploy_config()
 
 SERVICE = os.environ['SERVICE']
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
+BC = web.AppKey('backend_client', Session)
 
 
 @routes.get('/api/{route:.*}')
@@ -31,7 +32,7 @@ async def default_proxied_web_route(request: web.Request):
 
 
 async def proxy(request: web.Request):
-    backend_client: Session = request.app['backend_client']
+    backend_client = request.app[BC]
     backend_route = deploy_config.external_url(SERVICE, request.raw_path)
     headers = {'x-hail-return-jinja-context': '1'}
     try:
@@ -51,11 +52,11 @@ async def render_html(request: web.Request, context: dict):
 
 
 async def on_startup(app: web.Application):
-    app['backend_client'] = Session(credentials=hail_credentials())
+    app[BC] = Session(credentials=hail_credentials())
 
 
 async def on_cleanup(app: web.Application):
-    await app['backend_client'].close()
+    await app[BC].close()
 
 
 app = web.Application()
