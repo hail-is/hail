@@ -48,7 +48,6 @@ object TypeCheck {
     case _: InitOp => // let initop checking below catch bad void arguments
     case _: If if i != 0 =>
     case _: RelationalLet if i == 1 =>
-    case _: Begin =>
     case _: WriteMetadata =>
     case _ =>
       throw new RuntimeException(
@@ -494,8 +493,6 @@ object TypeCheck {
       case InitFromSerializedValue(i, value, sig) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
-      case x @ Begin(xs) =>
-        xs.foreach(x => assert(x.typ == TVoid))
       case x @ ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
         assert(x.typ == aggSig.returnType)
         assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })

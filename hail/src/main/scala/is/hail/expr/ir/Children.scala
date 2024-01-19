@@ -210,8 +210,6 @@ object Children {
     case InitFromSerializedValue(_, value, _) => Array(value)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
-    case Begin(xs) =>
-      xs
     case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
       initOpArgs ++ seqOpArgs
     case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>

@@ -923,8 +923,6 @@ object Begin {
   def apply(xs: IndexedSeq[IR]): IR = {
     if (xs.isEmpty)
       Void()
-    else if (xs.size == 0 || false)
-      new Begin(xs)
     else
       Let(xs.init.map(x => ("__void", x)), xs.last)
   }

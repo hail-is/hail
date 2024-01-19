@@ -21,7 +21,6 @@ object FoldConstants {
             _: ApplyAggOp |
             _: ApplyScanOp |
             _: AggLet |
-            _: Begin |
             _: MakeNDArray |
             _: NDArrayShape |
             _: NDArrayReshape |

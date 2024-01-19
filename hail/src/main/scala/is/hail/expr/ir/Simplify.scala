@@ -334,7 +334,7 @@ object Simplify {
 
     case StreamFilter(a, _, True()) => a
 
-    case StreamFor(_, _, Begin(Seq())) => Begin(FastSeq())
+    case StreamFor(_, _, Void()) => Void()
 
     // FIXME: Unqualify when StreamFold supports folding over stream of streams
     case StreamFold(StreamMap(a, n1, b), zero, accumName, valueName, body)

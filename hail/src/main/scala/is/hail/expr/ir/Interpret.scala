@@ -763,8 +763,6 @@ object Interpret {
           }
         }
         ()
-      case Begin(xs) =>
-        xs.foreach(x => interpret(x))
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>
