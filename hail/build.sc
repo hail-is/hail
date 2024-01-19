@@ -1,4 +1,6 @@
+import $ivy.`com.goyeau::mill-scalafix::0.3.2`
 import $ivy.`de.tototec::de.tobiasroeser.mill.vcs.version::0.4.0`
+import com.goyeau.mill.scalafix.ScalafixModule
 import de.tobiasroeser.mill.vcs.version.VcsVersion
 import mill._
 import mill.api.Result
@@ -27,6 +29,10 @@ def scalaVersion = T.input {
     Result.Failure("Hail currently supports only Scala 2.12")
   else
     v
+}
+
+def javaVersion = T.input {
+  System.getProperty("java.version")
 }
 
 def sparkVersion = T.input {
@@ -79,26 +85,21 @@ object shadedazure extends JavaModule {
   )
 }
 
-trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { outer =>
+trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule { outer =>
   def crossValue: String
   def debugBuild: Boolean = crossValue == "debug"
 
   override def scalaVersion: T[String] = build.scalaVersion()
 
-  def scalaPatchVersion: Task[String] = T.task {
-    scalaVersion().stripPrefix("2.12")
-  }
-
   def asmVersion = "7.3.1"
 
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
-    "-XDignore.symbol.file",
     "-Werror",
     if (debugBuild) "-g" else "-O",
-  )
+  ) ++ (if (!javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
 
-  def coreCompilerFlags: Seq[String] = {
+  override def scalacOptions: T[Seq[String]] = T {
     Seq(
       "-Xsource:2.13",
       "-Xno-patmat-analysis",
@@ -108,15 +109,12 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
       if (debugBuild) Seq(
         "-explaintypes",
         "-unchecked",
-//        "-Xfatal-warnings",
         "-Xlint",
         "-Ywarn-unused:_,-explicits,-implicits",
         "-Wconf:cat=unused-locals:w,cat=unused:info,any:ws",
-      )
-      else Seq(
-//        "-opt:l:inline",
-//        "-opt-inline-from:**,!org.apache.spark.**",
-//        "-opt:l:method"
+      ) else Seq(
+        "-opt:l:method",
+        "-opt:-closure-invocations",
       )
     )
   }
@@ -126,7 +124,8 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
   }
 
   trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule {
-    override def scalacOptions = outer.coreCompilerFlags ++ Seq(
+    // FIXME: remove when warnings are fixed in tests
+    override def scalacOptions = outer.scalacOptions() ++ Seq(
       "-Ywarn-unused:-patvars,-locals,-privates",
       "-Xlint:-infer-any,-nullary-unit,-nullary-override",
     )
@@ -136,8 +135,8 @@ trait HailScalaModule extends ScalaModule with ScalafmtModule with SbtModule { o
     override def ivyDeps =
       super.ivyDeps() ++ outer.compileIvyDeps() ++ Agg(
         ivy"org.scalatest::scalatest:3.0.5",
-//        ivy"org.testng:testng:7.6.0",
-        ivy"org.testng:testng:6.8.21",
+        // testng 7.6 and later does not support java8
+        ivy"org.testng:testng:7.5.1",
       )
   }
 }
@@ -226,19 +225,16 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
     ivy"com.olegpy::better-monadic-for:0.3.1"
   )
 
-  override def scalacOptions: T[Seq[String]] = coreCompilerFlags ++ Seq(
-//    "-Xfatal-warnings"
-  )
-
   object memory extends JavaModule with CrossValue {
     override def zincIncrementalCompilation = false
 
-    override def javacOptions: T[Seq[String]] = Seq(
-//      "-Xlint:all",
-      "-XDignore.symbol.file"
-//      "-Werror",
-//      if (debugBuild) "-g" else "-O"
-    )
+    override def javacOptions: T[Seq[String]] =
+      outer.javacOptions() ++ (
+        if (javaVersion().startsWith("1.8")) Seq(
+          "-XDenableSunApiLintControl",
+          "-Xlint:-sunapi",
+        ) else Seq()
+      )
 
     override def sources = T.sources {
       Seq(PathRef(this.millSourcePath / os.up / "src" / crossValue / "java"))
@@ -246,6 +242,8 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
   }
 
   object test extends HailTests {
+    override def resources = outer.resources() ++ super.resources()
+
     override def assemblyRules = outer.assemblyRules ++ Seq(
       Rule.Relocate("org.codehaus.jackson.**", "is.hail.relocated.@0")
 //      Rule.Relocate("org.codehaus.stax2.**", "is.hail.relocated.@0"),
