@@ -83,7 +83,7 @@ def store_ref_block_max_length(vds_path):
     ----------
     vds_path : :obj:`str`
     """
-    vds = hl.vds.read_vds(vds_path)
+    vds = read_vds(vds_path, _warn_no_ref_block_max_length=False)
 
     if VariantDataset.ref_block_max_length_field in vds.reference_data.globals:
         warning(f"VDS at {vds_path} already contains a global annotation with the max reference block length")
