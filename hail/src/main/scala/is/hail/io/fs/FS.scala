@@ -1,33 +1,23 @@
 package is.hail.io.fs
 
-import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services._
 import is.hail.utils._
-
-import scala.collection.mutable
-import scala.io.Source
+import is.hail.{HailContext, HailFeatureFlags}
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
+import org.apache.commons.io.IOUtils
+import org.apache.hadoop
+import org.apache.log4j.Logger
 
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.charset._
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
-
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
-import org.apache.commons.io.IOUtils
-import org.apache.hadoop
-import org.apache.log4j.Logger
-
-trait Positioned {
-  def getPosition: Long
-}
-
-trait Seekable extends Positioned {
-  def seek(pos: Long): Unit
-}
+import scala.collection.mutable
+import scala.io.Source
 
 class WrappedSeekableDataInputStream(is: SeekableInputStream)
     extends DataInputStream(is) with Seekable {
