@@ -1,5 +1,6 @@
-from enum import Enum
 import os
+from enum import Enum
+
 import orjson
 import typer
 
