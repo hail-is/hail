@@ -30,7 +30,7 @@ class LZ4 private (
     comp: Array[Byte],
     compOff: Int,
     compLen: Int,
-  ) {
+  ): Unit = {
     val compLen2 = decompressor.decompress(comp, compOff, decomp, decompOff, decompLen)
     assert(compLen2 == compLen)
   }

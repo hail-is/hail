@@ -7,9 +7,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import org.json4s.jackson.Serialization
-
 import org.apache.spark.sql.Row
+import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
 class PTypeSuite extends HailSuite {

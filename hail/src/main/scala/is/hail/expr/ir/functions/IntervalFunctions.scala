@@ -337,7 +337,7 @@ object IntervalFunctions extends RegistryFunctions {
           x.required && x.st.asInstanceOf[SInterval].pointEmitType.required,
         ),
     ) {
-      case (cb, r, rt, _, interval) =>
+      case (cb, _, _, _, interval) =>
         interval.toI(cb).flatMap(cb) { case pv: SIntervalValue =>
           pv.loadStart(cb)
         }
@@ -353,7 +353,7 @@ object IntervalFunctions extends RegistryFunctions {
           x.required && x.st.asInstanceOf[SInterval].pointEmitType.required,
         ),
     ) {
-      case (cb, r, rt, _, interval) =>
+      case (cb, _, _, _, interval) =>
         interval.toI(cb).flatMap(cb) { case pv: SIntervalValue =>
           pv.loadEnd(cb)
         }
@@ -366,7 +366,7 @@ object IntervalFunctions extends RegistryFunctions {
       (_: Type, x: SType) =>
         SBoolean,
     ) {
-      case (r, cb, rt, interval: SIntervalValue, _) => primitive(interval.includesStart)
+      case (_, _, _, interval: SIntervalValue, _) => primitive(interval.includesStart)
     }
 
     registerSCode1(
@@ -376,7 +376,7 @@ object IntervalFunctions extends RegistryFunctions {
       (_: Type, x: SType) =>
         SBoolean,
     ) {
-      case (r, cb, rt, interval: SIntervalValue, _) => primitive(interval.includesEnd)
+      case (_, _, _, interval: SIntervalValue, _) => primitive(interval.includesEnd)
     }
 
     registerIEmitCode2(
@@ -390,7 +390,7 @@ object IntervalFunctions extends RegistryFunctions {
           val required = intervalT.required && intervalST.pointEmitType.required && pointT.required
           EmitType(SBoolean, required)
       },
-    ) { case (cb, r, rt, _, int, point) =>
+    ) { case (cb, _, _, _, int, point) =>
       IEmitCode.multiFlatMap(cb, FastSeq(int.toI, point.toI)) {
         case Seq(interval: SIntervalValue, point) =>
           intervalContains(cb, interval, point)
@@ -398,7 +398,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerSCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
-      case (r, cb, rt, interval: SIntervalValue, _) =>
+      case (_, cb, _, interval: SIntervalValue, _) =>
         primitive(interval.isEmpty(cb))
     }
 
@@ -415,7 +415,7 @@ object IntervalFunctions extends RegistryFunctions {
             i1t.required && i2t.required && i1ST.pointEmitType.required && i2ST.pointEmitType.required
           EmitType(SBoolean, required)
       },
-    ) { case (cb, r, rt, _, interval1: EmitCode, interval2: EmitCode) =>
+    ) { case (cb, _, _, _, interval1: EmitCode, interval2: EmitCode) =>
       IEmitCode.multiFlatMap(cb, FastSeq(interval1.toI, interval2.toI)) {
         case Seq(interval1: SIntervalValue, interval2: SIntervalValue) =>
           intervalsOverlap(cb, interval1, interval2)
@@ -428,7 +428,7 @@ object IntervalFunctions extends RegistryFunctions {
       tv("T"),
       TBoolean,
       (_, _, _) => SBoolean,
-    ) { case (_, cb, rt, intervals, point, errorID) =>
+    ) { case (_, cb, _, intervals, point, errorID) =>
       val compare = BinarySearch.Comparator.fromCompare { intervalEC =>
         val interval = intervalEC
           .get(cb, "sortedNonOverlappingIntervalsContain assumes non-missing intervals", errorID)
@@ -453,7 +453,7 @@ object IntervalFunctions extends RegistryFunctions {
       tv("T"),
       TBoolean,
       (_, _, _) => SBoolean,
-    ) { case (_, cb, rt, intervals: SIndexableValue, point: SBaseStructValue, errorID) =>
+    ) { case (_, cb, _, intervals: SIndexableValue, point: SBaseStructValue, errorID) =>
       def ltNeedle(interval: IEmitCode): Code[Boolean] = {
         val intervalVal = interval
           .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
@@ -498,7 +498,7 @@ object IntervalFunctions extends RegistryFunctions {
       partitionIntervalType,
       equalRangeResultType,
       (_, _, _) => equalRangeResultSType,
-    ) { case (_, cb, rt, intervals: SIndexableValue, query: SIntervalValue, errorID) =>
+    ) { case (_, cb, _, intervals: SIndexableValue, query: SIntervalValue, errorID) =>
       val (start, end) = partitionerFindIntervalRange(cb, intervals, query, errorID)
       new SStackStructValue(
         equalRangeResultSType,

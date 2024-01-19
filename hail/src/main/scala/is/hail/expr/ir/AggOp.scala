@@ -1,8 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.agg._
-import is.hail.types.TypeWithRequiredness
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 

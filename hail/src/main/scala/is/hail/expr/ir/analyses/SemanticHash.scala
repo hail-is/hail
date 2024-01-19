@@ -9,11 +9,11 @@ import is.hail.methods._
 import is.hail.types.virtual._
 import is.hail.utils.{toRichBoolean, Logging, TreeTraversal}
 
+import scala.collection.mutable
+import scala.util.control.NonFatal
+
 import java.io.FileNotFoundException
 import java.nio.ByteBuffer
-import scala.collection.mutable
-import scala.language.implicitConversions
-import scala.util.control.NonFatal
 
 import org.apache.commons.codec.digest.MurmurHash3
 

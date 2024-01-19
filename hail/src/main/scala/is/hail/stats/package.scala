@@ -1,6 +1,6 @@
 package is.hail
 
-import is.hail.types.physical.{PCanonicalStruct, PFloat64, PStruct}
+import is.hail.types.physical.{PCanonicalStruct, PFloat64}
 import is.hail.utils._
 
 import net.sourceforge.jdistlib.{Beta, ChiSquare, NonCentralChiSquare, Normal, Poisson}
@@ -239,8 +239,8 @@ package object stats {
       } else {
         dnhyper(ncp)
           .zipWithIndex
-          .filter { case (dbl, i) => if (upper_tail) support(i) >= q else support(i) <= q }
-          .map { case (dbl, i) => dbl }
+          .filter { case (_, i) => if (upper_tail) support(i) >= q else support(i) <= q }
+          .map { case (dbl, _) => dbl }
           .sum
       }
     }

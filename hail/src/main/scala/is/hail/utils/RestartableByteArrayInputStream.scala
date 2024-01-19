@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import java.io.{InputStream, IOException}
+import java.io.{IOException, InputStream}
 
 // not thread safe
 class RestartableByteArrayInputStream extends InputStream {
@@ -8,7 +8,7 @@ class RestartableByteArrayInputStream extends InputStream {
   private[this] var end: Int = 0
   private[this] var buf: Array[Byte] = null
 
-  def this(buf: Array[Byte]) {
+  def this(buf: Array[Byte]) = {
     this()
     restart(buf)
   }

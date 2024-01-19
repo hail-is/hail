@@ -9,7 +9,7 @@ import is.hail.types.virtual.{TBaseStruct, TStruct}
 import is.hail.utils.{formatSpace, log, ArrayOfByteArrayOutputStream}
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream}
+import java.io.InputStream
 
 import org.apache.spark.sql.Row
 

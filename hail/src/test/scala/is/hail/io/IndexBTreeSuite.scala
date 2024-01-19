@@ -5,8 +5,6 @@ import is.hail.check.Gen._
 import is.hail.check.Prop._
 import is.hail.check.Properties
 
-import scala.language.implicitConversions
-
 import org.testng.annotations.Test
 
 class IndexBTreeSuite extends HailSuite {
@@ -74,11 +72,10 @@ class IndexBTreeSuite extends HailSuite {
       }
   }
 
-  @Test def test() {
+  @Test def test(): Unit =
     Spec.check()
-  }
 
-  @Test def oneVariant() {
+  @Test def oneVariant(): Unit = {
     val index = Array(24.toLong)
     val fileSize = 30 // made-up value greater than index
     val idxFile = ctx.createTmpPath("testBtree_1variant", "idx")
@@ -99,7 +96,7 @@ class IndexBTreeSuite extends HailSuite {
     assert(btree.queryIndex(fileSize - 1).isEmpty)
   }
 
-  @Test def zeroVariants() {
+  @Test def zeroVariants(): Unit = {
     intercept[IllegalArgumentException] {
       val index = Array[Long]()
       val idxFile = ctx.createTmpPath("testBtree_0variant", "idx")
@@ -108,7 +105,7 @@ class IndexBTreeSuite extends HailSuite {
     }
   }
 
-  @Test def testMultipleOfBranchingFactorDoesNotAddUnnecessaryElements() {
+  @Test def testMultipleOfBranchingFactorDoesNotAddUnnecessaryElements(): Unit = {
     val in = Array[Long](10, 9, 8, 7, 6, 5, 4, 3)
     val bigEndianBytes = Array[Byte](
       0, 0, 0, 0, 0, 0, 0, 10,
@@ -123,7 +120,7 @@ class IndexBTreeSuite extends HailSuite {
       sameElements bigEndianBytes)
   }
 
-  @Test def writeReadMultipleOfBranchingFactorDoesNotError() {
+  @Test def writeReadMultipleOfBranchingFactorDoesNotError(): Unit = {
     val idxFile = ctx.createTmpPath("btree")
     IndexBTree.write(
       Array.tabulate(1024)(i => i),
@@ -134,7 +131,7 @@ class IndexBTreeSuite extends HailSuite {
     assert(index.queryIndex(33).contains(33L))
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray() {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray(): Unit = {
     val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
@@ -152,7 +149,7 @@ class IndexBTreeSuite extends HailSuite {
     assert(bt.queryArrayPositionAndFileOffset(71).isEmpty)
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray() {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray(): Unit = {
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1025)(x => sqr(x))
@@ -179,7 +176,7 @@ class IndexBTreeSuite extends HailSuite {
     assert(bt.queryArrayPositionAndFileOffset(5).contains((3, sqr(3))))
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray() {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray(): Unit = {
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x))
@@ -226,7 +223,7 @@ class IndexBTreeSuite extends HailSuite {
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024) + 1).isEmpty)
   }
 
-  @Test def onDiskBTreeIndexToValueSmallCorrect() {
+  @Test def onDiskBTreeIndexToValueSmallCorrect(): Unit = {
     val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 4, 5, 6, 7)
     val branchingFactor = 3
@@ -252,7 +249,7 @@ class IndexBTreeSuite extends HailSuite {
     }
   }
 
-  @Test def onDiskBTreeIndexToValueRandomized() {
+  @Test def onDiskBTreeIndexToValueRandomized(): Unit = {
     val g = for {
       longs <- buildableOf[Array](choose(0L, Long.MaxValue))
       indices <- buildableOf[Array](choose(0, longs.length - 1))
@@ -280,7 +277,7 @@ class IndexBTreeSuite extends HailSuite {
     }.check()
   }
 
-  @Test def onDiskBTreeIndexToValueFourLayers() {
+  @Test def onDiskBTreeIndexToValueFourLayers(): Unit = {
     val longs = Array.tabulate(3 * 3 * 3 * 3)(x => x.toLong)
     val indices = Array(0, 3, 10, 20, 26, 27, 34, 55, 79, 80)
     val f = ctx.createTmpPath("btree")
@@ -303,7 +300,7 @@ class IndexBTreeSuite extends HailSuite {
     }
   }
 
-  @Test def calcDepthIsCorrect() {
+  @Test def calcDepthIsCorrect(): Unit = {
     def sqr(x: Long) = x * x
     def cube(x: Long) = x * x * x
 

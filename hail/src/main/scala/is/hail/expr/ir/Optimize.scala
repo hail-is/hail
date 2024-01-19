@@ -2,7 +2,6 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.utils._
 
 object Optimize {
   def apply[T <: BaseIR](ir0: T, context: String, ctx: ExecuteContext): T = {

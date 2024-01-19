@@ -4,7 +4,6 @@ import is.hail.utils._
 
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
-
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
