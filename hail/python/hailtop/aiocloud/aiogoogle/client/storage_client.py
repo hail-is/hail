@@ -579,6 +579,9 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
         self._bucket = bucket
         self._path = path
 
+    def __repr__(self):
+        return f'GoogleStorageAsyncFSURL({self._bucket}, {self._path})'
+
     @property
     def bucket_parts(self) -> List[str]:
         return [self._bucket]

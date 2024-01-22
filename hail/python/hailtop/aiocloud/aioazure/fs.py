@@ -299,6 +299,9 @@ class AzureAsyncFSURL(AsyncFSURL):
         self._path = path
         self._query = query
 
+    def __repr__(self):
+        return f'AzureAsyncFSURL({self._account}, {self._container}, {self._path}, {self._query})'
+
     @property
     def bucket_parts(self) -> List[str]:
         return [self._account, self._container]
