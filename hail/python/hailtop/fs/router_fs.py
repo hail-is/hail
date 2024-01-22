@@ -307,8 +307,10 @@ class RouterFS(FS):
             raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
 
         blobpath = url.path
-        components = blobpath.split('/')
-        assert len(components) > 0
+        if blobpath == '':
+            components = []
+        else:
+            components = blobpath.split('/')
 
         glob_components = []
         running_prefix = []
