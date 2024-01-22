@@ -808,10 +808,6 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
   DECLARE cur_billing_date DATE;
-  DECLARE bp_user_resources_migrated BOOLEAN DEFAULT FALSE;
-  DECLARE bp_user_resources_by_date_migrated BOOLEAN DEFAULT FALSE;
-  DECLARE batch_resources_migrated BOOLEAN DEFAULT FALSE;
-  DECLARE job_resources_migrated BOOLEAN DEFAULT FALSE;
 
   SELECT billing_project, user INTO cur_billing_project, cur_user
   FROM batches WHERE id = NEW.batch_id;
