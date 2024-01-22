@@ -325,7 +325,7 @@ class RouterFS(FS):
 
         suffix_components: List[str] = running_prefix
         cached_stats_for_each_cumulative_prefix: Optional[List[FileListEntry]] = None
-        cumulative_prefixes: List[AsyncFSURL] = [url.with_path('')]
+        cumulative_prefixes: List[AsyncFSURL] = [url.with_root_path()]
 
         for intervening_components, single_component_glob_pattern in glob_components:
             stats_grouped_by_prefix = await list_within_each_prefix(cumulative_prefixes, intervening_components)
