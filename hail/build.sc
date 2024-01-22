@@ -101,18 +101,18 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
 
   override def scalacOptions: T[Seq[String]] = T {
     Seq(
+      "-explaintypes",
+      "-unchecked",
       "-Xsource:2.13",
       "-Xno-patmat-analysis",
       "-Ypartial-unification",
       "-Yno-adapted-args", // will be removed in 2.13
+      "-Xlint",
+      "-Ywarn-unused:_,-explicits,-implicits",
     ) ++ (
-      if (debugBuild) Seq(
-        "-explaintypes",
-        "-unchecked",
-        "-Xlint",
-        "-Ywarn-unused:_,-explicits,-implicits",
-        "-Wconf:cat=unused-locals:w,cat=unused:info,any:ws",
-      ) else Seq(
+      if (debugBuild) Seq()
+      else Seq(
+        "-Xfatal-warnings",
         "-opt:l:method",
         "-opt:-closure-invocations",
       )
