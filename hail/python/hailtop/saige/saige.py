@@ -50,11 +50,13 @@ class SAIGE:
     async def run(
         self,
         *,
-        mt: Union[hl.MatrixTable, str],
+        mt_path: str,
+        null_model_plink_path: str,
+        phenotypes_path: str,
         output: str,
-        phenotypes: List[Union[str, hl.BooleanExpression, hl.NumericExpression]],
+        phenotypes: List[str],
         covariates: List[str],
-        variant_chunks: Optional[List[VariantChunk]] = None,
+        variant_intervals: List[hl.Interval],
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
@@ -63,9 +65,7 @@ class SAIGE:
             if b is None:
                 b = hb.Batch(name=self.config.name, attributes=self.config.attributes)
 
-            if isinstance(mt, str):
-                mt = hl.read_matrix_table(mt)
-
+            mt = hl.read_matrix_table(mt_path)
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 
