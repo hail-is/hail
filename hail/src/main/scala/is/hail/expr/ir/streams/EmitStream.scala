@@ -364,17 +364,15 @@ object EmitStream {
             SStreamValue(producer)
           }
 
-      case Let(bindings, body) =>
-        def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
-          case (name, value) +: rest =>
-            cb.withScopedMaybeStreamValue(
-              EmitCode.fromI(cb.emb)(cb => emit(value, cb, env = env)),
-              s"let_$name",
-            )(ev => go(env.bind(name, ev))(rest))
-          case Seq() =>
-            produce(body, cb, env = env)
-        }
-        go(env)(bindings)
+      case let: Let =>
+        emitter.emitLet(
+          emitI = (ir, cb, env) => emit(ir, cb, env = env),
+          emitBody = (ir, cb, env) => produce(ir, cb, env = env),
+        )(
+          let,
+          cb,
+          env,
+        )
 
       case In(n, _) =>
         // this, Code[Region], ...
