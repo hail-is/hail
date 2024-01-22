@@ -22,10 +22,10 @@ def real_absolute_cwd() -> str:
 async def submit(
     name: str,
     image_name: Optional[str],
-    files: Optional[List[str]],
+    files: List[str],
     output: StructuredFormatPlusTextOption,
     script: str,
-    arguments: Optional[List[str]],
+    arguments: List[str],
     wait: bool,
 ):
     import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
