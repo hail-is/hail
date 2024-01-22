@@ -114,6 +114,9 @@ class LocalAsyncFSURL(AsyncFSURL):
     def __init__(self, path: str):
         self._path = path
 
+    def __repr__(self) -> str:
+        return f'LocalAsyncFSURL({self.path})'
+
     @property
     def bucket_parts(self) -> List[str]:
         return []
