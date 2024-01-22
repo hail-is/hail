@@ -3107,7 +3107,7 @@ steps:
       echo "Hello World!"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json --image ubuntu:22.04 file.sh | jq '.id')
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json --image-name ubuntu:22.04 file.sh | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
@@ -3124,7 +3124,7 @@ steps:
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json --image ubuntu:22.04 file-with-args.sh abc 123 | jq '.id')
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json --image-name ubuntu:22.04 file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
       if [ "$STATE" != "success" ]; then
