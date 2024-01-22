@@ -28,7 +28,7 @@ packaging==23.2
     #   -c hail/benchmark/python/../../hail/python/dev/pinned-requirements.txt
     #   -c hail/benchmark/python/../../hail/python/pinned-requirements.txt
     #   matplotlib
-pillow==10.1.0
+pillow==10.2.0
     # via
     #   -c hail/benchmark/python/../../hail/python/dev/pinned-requirements.txt
     #   -c hail/benchmark/python/../../hail/python/pinned-requirements.txt
