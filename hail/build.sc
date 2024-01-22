@@ -93,12 +93,6 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
 
   def asmVersion = "7.3.1"
 
-  override def javacOptions: T[Seq[String]] = Seq(
-    "-Xlint:all",
-    "-Werror",
-    if (debugBuild) "-g" else "-O",
-  ) ++ (if (!javaVersion().startsWith("1.8")) Seq("-Xlint:-processing") else Seq())
-
   override def scalacOptions: T[Seq[String]] = T {
     Seq(
       "-Xsource:2.13",
@@ -146,11 +140,13 @@ object main extends Cross[MainModule]("debug", "release")
 trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
   override def millSourcePath = millOuterCtx.millSourcePath / os.up
 
-  override def moduleDeps = Seq(memory)
+  override def moduleDeps = Seq(java)
 
-//  override def sources = T.sources {
-//    super.sources() :+ PathRef(millSourcePath / "src" / crossValue / "java")
-//  }
+  override def sources = T.sources {
+    Seq(
+      PathRef(millSourcePath / "src" / "main" / "scala")
+    )
+  }
 
   override def resources = T {
     super.resources() ++ Seq(
@@ -225,20 +221,36 @@ trait MainModule extends Cross.Module[String] with HailScalaModule { outer =>
     ivy"com.olegpy::better-monadic-for:0.3.1"
   )
 
-  object memory extends JavaModule with CrossValue {
+  object java extends JavaModule with CrossValue {
     override def zincIncrementalCompilation = false
 
-    override def javacOptions: T[Seq[String]] =
-      outer.javacOptions() ++ (
-        if (javaVersion().startsWith("1.8")) Seq(
-          "-XDenableSunApiLintControl",
-          "-Xlint:-sunapi",
-        ) else Seq()
-      )
+    override def javacOptions: T[Seq[String]] = T {
+      val opts = IndexedSeq.newBuilder[String]
+      opts += "-Werror"
+      opts += (if (debugBuild) "-g" else "-O")
+
+      if (javaVersion().startsWith("1.8")) {
+        opts += "-XDenableSunApiLintControl"
+        opts += "-Xlint:all,-sunapi"
+      }
+      else {
+        opts += "-Xlint:all,-processing"
+      }
+
+      opts.result()
+    }
 
     override def sources = T.sources {
-      Seq(PathRef(this.millSourcePath / os.up / "src" / crossValue / "java"))
+      Seq(
+        PathRef(this.millSourcePath / os.up / "src" / crossValue / "java"),
+        PathRef(this.millSourcePath / os.up / "src" / "main" / "java" )
+      )
     }
+
+    override def compileIvyDeps = Agg(
+      ivy"org.apache.hadoop:hadoop-client:3.3.4",
+      ivy"com.github.samtools:htsjdk:3.0.5".excludeOrg("*"),
+    )
   }
 
   object test extends HailTests {
