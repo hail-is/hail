@@ -230,6 +230,8 @@ logging:
       - /batch/jvm-container-logs/jvm-*.log
       record_log_file_path: true
   processors:
+    parse_message:
+      type: parse_json
     labels:
       type: modify_fields
       fields:
@@ -237,11 +239,13 @@ logging:
           static_value: $NAMESPACE
         labels.instance_id:
           static_value: $INSTANCE_ID
+        severity:
+          move_from: jsonPayload.severity
   service:
     log_level: error
     pipelines:
       default_pipeline:
-        processors: [labels]
+        processors: [parse_message, labels]
         receivers: [runlog, workerlog, jvmlog]
 
 metrics:
