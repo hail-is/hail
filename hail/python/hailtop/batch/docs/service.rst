@@ -105,7 +105,7 @@ Billing
 -------
 
 The cost for executing a job depends on the underlying machine type, the region in which the VM is running in,
-and how much CPU and memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1
+and how much CPU and memory is being requested. Currently, Batch runs most jobs on 16 core, spot, n1
 machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The costs are as follows:
 
 - Compute cost
@@ -116,11 +116,11 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
         based on the current spot prices for a given worker type and the region in which the worker is running in.
         You can use :meth:`.Job.regions` to specify which regions to run a job in.
 
-   = $0.01 per core per hour for **preemptible standard** worker types
+   = $0.01 per core per hour for **spot standard** worker types
 
-   = $0.012453 per core per hour for **preemptible highmem** worker types
+   = $0.012453 per core per hour for **spot highmem** worker types
 
-   = $0.0074578 per core per hour for **preemptible highcpu** worker types
+   = $0.0074578 per core per hour for **spot highcpu** worker types
 
    = $0.04749975 per core per hour for **nonpreemptible standard** worker types
 
@@ -163,22 +163,27 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 
 
 - IP network cost
-   = $0.00025 per core per hour
+   = $0.0003125 per core per hour for **nonpreemptible** worker types
+
+   = $0.00015625 per core per hour for **spot** worker types
 
 - Service cost
    = $0.01 per core per hour
 
+- Logs, Specs, and Firewall Fee
+   = $0.005 per core per hour
 
-The sum of these costs is **$0.021935** per core/hour for standard workers, **$0.024388** per core/hour
-for highmem workers, and **$0.019393** per core/hour for highcpu workers. There is also an additional
+
+The sum of these costs is **$0.02684125** per core/hour for standard spot workers, **$0.02929425** per core/hour
+for highmem spot workers, and **$0.02429905** per core/hour for highcpu spot workers. There is also an additional
 cost of **$0.00023** per GB per hour of extra storage requested.
 
 At any given moment as many as four cores of the cluster may come from a 4 core machine if the worker type
 is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774** plus
 **$0.00023** per GB per hour storage of extra storage requested.
 
-For jobs that run on non-preemptible machines, the costs are **$0.060462** per core/hour for standard workers, **$0.072114** per core/hour
-for highmem workers, and **$0.048365** per core/hour for highcpu workers.
+For jobs that run on non-preemptible machines, the costs are **$0.06449725** per core/hour for standard workers, **$0.076149** per core/hour
+for highmem workers, and **$0.0524218** per core/hour for highcpu workers.
 
 .. note::
 
