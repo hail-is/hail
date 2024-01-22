@@ -75,7 +75,6 @@ object RelationalSpec {
 
   def read(fs: FS, path: String): RelationalSpec = {
     val jv = readMetadata(fs, path)
-    val references = readReferences(fs, path, jv)
 
     (jv \ "name").extract[String] match {
       case "TableSpec" => TableSpec.fromJValue(fs, path, jv)

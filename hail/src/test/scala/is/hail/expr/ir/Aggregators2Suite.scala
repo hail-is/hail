@@ -708,7 +708,6 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testNestedArrayElementsAgg(): Unit = {
     val alstate1 = ArrayLenAggSig(knownLength = false, FastSeq(sumAggSig))
-    val aestate1 = AggElementsAggSig(FastSeq(sumAggSig))
     val alstate2 = ArrayLenAggSig(knownLength = false, FastSeq[PhysicalAggSig](alstate1))
 
     val init = InitOp(
@@ -899,7 +898,7 @@ class Aggregators2Suite extends HailSuite {
     val eltsPrimitive = Array.tabulate(rows.length)(i => FastSeq(GetField(ArrayRef(rref, i), "b")))
 
     val expected = Set("abcd", "foo", null)
-    val expectedPrimitive = Set(5L, -2L, 7L, null)
+    val expectedPrimitive: Set[Any] = Set(5L, -2L, 7L, null)
 
     val aggsig =
       PhysicalAggSig(CollectAsSet(), CollectAsSetStateSig(VirtualTypeWithReq(PCanonicalString())))

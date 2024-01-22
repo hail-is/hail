@@ -203,7 +203,7 @@ package object stats {
     val hgd = new HypergeometricDistribution(null, popSize, numSuccessPopulation, sampleSize)
     val epsilon = 2.220446e-16
 
-    def dhyper(k: Int, logProb: Boolean = false): Double =
+    def dhyper(k: Int, logProb: Boolean): Double =
       if (logProb) hgd.logProbability(k) else hgd.probability(k)
 
     val logdc = support.map(dhyper(_, logProb = true))
@@ -214,7 +214,7 @@ package object stats {
       d.map(_ / d.sum)
     }
 
-    def phyper(k: Int, lower_tail: Boolean = true): Double =
+    def phyper(k: Int, lower_tail: Boolean): Double =
       if (lower_tail)
         hgd.cumulativeProbability(k)
       else

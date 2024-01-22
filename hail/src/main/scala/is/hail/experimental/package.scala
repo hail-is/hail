@@ -30,7 +30,7 @@ package object experimental {
     if (ac <= 1 || an == 0) // FAF should not be calculated on singletons
       0.0
     else {
-      var f = (af: Double) => ac.toDouble - 1 - qpois(ci, an.toDouble * af)
+      val f = (af: Double) => ac.toDouble - 1 - qpois(ci, an.toDouble * af)
       val root = uniroot(f, lower, upper, tol)
       val rounder = 1d / (precision / 100d)
       var max_af = math.round(root.getOrElse(0.0) * rounder) / rounder

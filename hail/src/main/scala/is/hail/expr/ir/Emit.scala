@@ -2792,7 +2792,7 @@ class Emit[C](
         }
 
       case ResultOp(idx, sig) =>
-        val AggContainer(aggs, sc, _) = container.get
+        val AggContainer(_, sc, _) = container.get
 
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
@@ -3534,16 +3534,6 @@ class Emit[C](
     ): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitVoid(
-      ir: IR,
-      env: EmitEnv = env,
-      container: Option[AggContainer] = container,
-      loopEnv: Option[Env[LoopRef]] = loopEnv,
-    ): Code[Unit] =
-      EmitCodeBuilder.scopedVoid(mb) { cb =>
-        this.emitVoid(cb, ir, region, env, container, loopEnv)
-      }
-
     def emitStream(ir: IR, outerRegion: Value[Region], env: EmitEnv = env): EmitCode =
       EmitCode.fromI(mb)(cb =>
         EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container)
@@ -3677,7 +3667,6 @@ class Emit[C](
     )
 
     sort.emitWithBuilder[Boolean] { cb =>
-      val region = sort.getCodeParam[Region](1)
       val leftEC = cb.memoize(
         EmitCode.present(sort, elemSCT.loadToSValue(cb, sort.getCodeParam(2)(elemSCT.ti))),
         "sort_leftEC",
@@ -3774,8 +3763,6 @@ object NDArrayEmitter {
     rightShape: IndexedSeq[Value[Long]],
     errorID: Int,
   ): IndexedSeq[Value[Long]] = {
-    val mb = cb.emb
-
     assert(leftShape.nonEmpty)
     assert(rightShape.nonEmpty)
 
