@@ -30,7 +30,7 @@ trait FSSuite extends TestNGSuite {
 
   def pathsRelRoot(root: String, statuses: Array[FileListEntry]): Set[String] =
     statuses.map { status =>
-      var p = status.getPath
+      val p = status.getPath
       assert(p.startsWith(root), s"$p $root")
       p.drop(root.length)
     }.toSet
@@ -73,8 +73,8 @@ trait FSSuite extends TestNGSuite {
 
   @Test def testFileStatusOnDirIsFailure(): Unit = {
     val f = r("/dir")
-    TestUtils.interceptException[FileNotFoundException](r("/dir"))(
-      fs.fileStatus(r("/dir"))
+    TestUtils.interceptException[FileNotFoundException](f)(
+      fs.fileStatus(f)
     )
   }
 
@@ -213,7 +213,7 @@ trait FSSuite extends TestNGSuite {
     assert(pathsRelRoot(root, statuses) == Set(""))
   }
 
-  @Test def testFileEndingWithPeriod: Unit = {
+  @Test def testFileEndingWithPeriod(): Unit = {
     val f = fs.makeQualified(t())
     fs.touch(f + "/foo.")
     val statuses = fs.listDirectory(f)

@@ -122,9 +122,4 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
-
-  private lazy val representation = TStruct(
-    ("shape", shapeType),
-    ("data", TArray(elementType)),
-  )
 }

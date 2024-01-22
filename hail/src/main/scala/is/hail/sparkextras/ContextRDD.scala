@@ -402,9 +402,6 @@ class ContextRDD[T: ClassTag](
   def preferredLocations(partition: Partition): Seq[String] =
     rdd.preferredLocations(partition)
 
-  private[this] def clean[U <: AnyRef](value: U): U =
-    ExposedUtils.clean(value)
-
   def partitions: Array[Partition] = rdd.partitions
 
   def partitioner: Option[Partitioner] = rdd.partitioner

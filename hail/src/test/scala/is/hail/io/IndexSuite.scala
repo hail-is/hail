@@ -40,8 +40,6 @@ class IndexSuite extends HailSuite {
     branchingFactor: Int,
     attributes: Map[String, Any],
   ): Unit = {
-    val bufferSpec = BufferSpec.default
-
     val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(
       file,
       theHailClassLoader,
@@ -100,7 +98,7 @@ class IndexSuite extends HailSuite {
   @Test(dataProvider = "elements")
   def writeReadGivesSameAsInput(data: Array[String]): Unit = {
     val file = ctx.createTmpPath("test", "idx")
-    val attributes = Map("foo" -> true, "bar" -> 5)
+    val attributes: Map[String, Any] = Map("foo" -> true, "bar" -> 5)
 
     val a: (Int) => Annotation = (i: Int) => Row(i % 2 == 0)
 
@@ -155,9 +153,6 @@ class IndexSuite extends HailSuite {
       )
       val index = indexReader(file, TStruct.empty)
 
-      val n = stringsWithDups.length
-      val f = { i: Int => stringsWithDups(i) }
-
       val expectedResult = Array(
         "aardvark" -> 0,
         "bear" -> 0,
@@ -190,9 +185,6 @@ class IndexSuite extends HailSuite {
         branchingFactor = 2,
       )
       val index = indexReader(file, TStruct.empty)
-
-      val n = stringsWithDups.length
-      val f = { i: Int => stringsWithDups(i) }
 
       val expectedResult = Array(
         "aardvark" -> 0,

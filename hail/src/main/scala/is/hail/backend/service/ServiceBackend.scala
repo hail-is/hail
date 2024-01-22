@@ -154,7 +154,6 @@ class ServiceBackend(
     fs: FS,
     collection: Array[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
   ): (String, String, Int) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
@@ -291,7 +290,7 @@ class ServiceBackend(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): Array[Array[Byte]] = {
     val (token, root, n) =
-      submitAndWaitForBatch(_backendContext, fs, collection, stageIdentifier, dependency, f)
+      submitAndWaitForBatch(_backendContext, fs, collection, stageIdentifier, f)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
@@ -321,14 +320,8 @@ class ServiceBackend(
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
-    val (token, root, n) = submitAndWaitForBatch(
-      _backendContext,
-      fs,
-      collection.map(_._1).toArray,
-      stageIdentifier,
-      dependency,
-      f,
-    )
+    val (token, root, _) =
+      submitAndWaitForBatch(_backendContext, fs, collection.map(_._1).toArray, stageIdentifier, f)
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
     val r @ (_, results) = runAllKeepFirstError(executor) {
@@ -372,7 +365,6 @@ class ServiceBackend(
         MakeTuple.ordered(FastSeq(x)),
         optimize = true,
       )
-      val retPType = pt.asInstanceOf[PBaseStruct]
       val elementType = pt.fields(0).typ
       val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
       val codec = TypedCodecSpec(
@@ -455,7 +447,6 @@ object ServiceBackendAPI {
     assert(argv.length == 7, argv.toFastSeq)
 
     val scratchDir = argv(0)
-    val logFile = argv(1)
     val jarLocation = argv(2)
     val kind = argv(3)
     assert(kind == Main.DRIVER)
@@ -473,7 +464,7 @@ object ServiceBackendAPI {
     val batchClient = new BatchClient(s"$scratchDir/secrets/gsa-key/key.json")
     log.info("BatchClient allocated.")
 
-    var batchId =
+    val batchId =
       BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
     log.info("BatchConfig parsed.")
 

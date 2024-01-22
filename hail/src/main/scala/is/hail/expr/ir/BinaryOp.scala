@@ -118,8 +118,6 @@ object BinaryOp {
           case _ => incompatible(lt, rt, op)
         }
       case (TBoolean, TBoolean) =>
-        val ll = coerce[Boolean](l)
-        val rr = coerce[Boolean](r)
         op match {
           case _ => incompatible(lt, rt, op)
         }
