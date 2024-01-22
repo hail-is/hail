@@ -42,9 +42,9 @@ def du(
     ] = False,
     summarize: Ann[bool, Opt('-s', '--summarize', help='display only a total for each argument')] = False,
 ):
-    '''
+    """
     Display storage resourse usage
-    '''
+    """
     from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
     from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
 
@@ -67,9 +67,9 @@ def ls(
     long: Ann[bool, Opt('-l', '--long', help='use long listing format')] = False,
     human_readable: Ann[bool, Opt('-h', '--human-readable', help='print human readable file sizes (base 10)')] = False,
 ):
-    '''
+    """
     List objects
-    '''
+    """
     import tabulate  # pylint: disable=import-outside-toplevel
     from hailtop.fs.router_fs import RouterFS  # pylint: disable=import-outside-toplevel
     from hailtop.utils import async_to_blocking  # pylint: disable=import-outside-toplevel
