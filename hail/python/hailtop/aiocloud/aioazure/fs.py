@@ -330,6 +330,9 @@ class AzureAsyncFSURL(AsyncFSURL):
     def with_path(self, path) -> 'AzureAsyncFSURL':
         return self.__class__(self._account, self._container, path, self._query)
 
+    def with_root_path(self) -> 'AzureAsyncFSURL':
+        return self.with_path('')
+
     def __str__(self) -> str:
         return self.base if not self._query else f'{self.base}?{self._query}'
 

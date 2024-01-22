@@ -601,6 +601,9 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
     def with_path(self, path) -> 'GoogleStorageAsyncFSURL':
         return GoogleStorageAsyncFSURL(self._bucket, path)
 
+    def with_root_path(self) -> 'GoogleStorageAsyncFSURL':
+        return self.with_path('')
+
     def __str__(self) -> str:
         return f'gs://{self._bucket}/{self._path}'
 

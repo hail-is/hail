@@ -218,6 +218,10 @@ class AsyncFSURL(abc.ABC):
     def with_path(self, path) -> "AsyncFSURL":
         pass
 
+    @abc.abstractmethod
+    def with_root_path(self) -> "AsyncFSURL":
+        pass
+
     def with_new_path_component(self, new_path_component: str) -> "AsyncFSURL":
         if new_path_component == '':
             raise ValueError('new path component must be non-empty')

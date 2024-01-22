@@ -133,6 +133,9 @@ class LocalAsyncFSURL(AsyncFSURL):
     def with_path(self, path) -> 'LocalAsyncFSURL':
         return LocalAsyncFSURL(path)
 
+    def with_root_path(self) -> 'LocalAsyncFSURL':
+        return self.with_path('/')
+
     def __str__(self) -> str:
         return self._path
 
