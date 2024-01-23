@@ -7,7 +7,7 @@ from typing import Tuple, Optional, List
 import typer
 from contextlib import AsyncExitStack
 import hailtop.batch as hb
-from hailtop.batch.job import Job
+from hailtop.batch.job import BashJob
 from hailtop.aiotools.router_fs import RouterAsyncFS, AsyncFSURL
 from hailtop.aiotools.copy import copy_from_dict
 from hailtop.config import (
@@ -136,7 +136,7 @@ def parse_files_option_to_src_dest_and_cloud_intermediate(remote_tmpdir: AsyncFS
 
 
 async def transfer_files_options_files_into_job(
-    remote_tmpdir: AsyncFSURL, files_options: List[str], j: Job, b: hb.Batch
+    remote_tmpdir: AsyncFSURL, files_options: List[str], j: BashJob, b: hb.Batch
 ):
     src_dst_cloud_intermediate_triplets = [
         parse_files_option_to_src_dest_and_cloud_intermediate(remote_tmpdir, files_option)
