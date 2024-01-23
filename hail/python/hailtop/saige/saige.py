@@ -12,7 +12,7 @@ from hailtop.utils import async_to_blocking, bounded_gather
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
 from .io import load_plink_file, load_text_file
-from .phenotype import Phenotype
+from .phenotype import Phenotype, Phenotypes, SaigePhenotype
 from .steps import PrepareInputsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
 from .variant_chunk import VariantChunk
 
@@ -55,7 +55,7 @@ class SAIGE:
         null_model_plink_path: str,
         phenotypes_path: str,
         output: str,
-        phenotypes: List[str],
+        phenotypes: List[Dict[str, SaigePhenotype]],
         covariates: List[str],
         variant_intervals: List[hl.Interval],
         b: Optional[hb.Batch] = None,
@@ -70,13 +70,10 @@ class SAIGE:
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 
-            input_phenotypes = load_text_file(phenotypes_path)
-            input_plink_data = cast(PlinkResourceGroup, b.)
-            load_text_file(self.fs, b, )
+            phenotypes = Phenotypes.from_grouped_str_phenotype_type_mapping(phenotypes)
 
-            input_phenotypes, input_plink_data = await self.config.prepare_inputs.call(
-                self.fs, b, mt, phenotypes, temp_dir.name, checkpoint_dir
-            )
+            input_phenotypes = load_text_file(self.fs, b, None, phenotypes_path)
+            input_null_model_plink_data = load_plink_file(self.fs, b, None, null_model_plink_path)
 
             user_id_col = list(mt.col_key)[0]
 
@@ -92,7 +89,7 @@ class SAIGE:
                         self.config.step1_null_glmm.call,
                         self.fs,
                         b,
-                        input_bfile=input_plink_data,
+                        input_bfile=input_null_model_plink_data,
                         input_phenotypes=input_phenotypes,
                         phenotype=phenotype,
                         analysis_type=SaigeAnalysisType.VARIANT,
@@ -118,22 +115,18 @@ class SAIGE:
                         analysis_type=SaigeAnalysisType.VARIANT,
                         null_model=null_glmm,
                         input_data_type=input_data_type,
-                        chunk=variant_chunk,
+                        interval=interval,
                         phenotype=phenotype,
                     )
                     for phenotype, null_glmm in zip(phenotypes, null_glmms)
-                    for variant_chunk in variant_chunks
+                    for interval in variant_intervals
                 ],
                 parallelism=self.parallelism,
             )
 
-            run_kwargs = run_kwargs or {}
-            run_kwargs.pop('wait')
-            b.run(**run_kwargs, wait=True)
-
             results_tables = []
             for phenotype in phenotypes:
-                results_path = self.config.step2_spa.output_dir(temp_dir, checkpoint_dir, phenotype)
+                results_path = self.config.step2_spa.output_dir(temp_dir, checkpoint_dir, phenotype.name)
                 ht = hl.import_table(results_path, impute=True)
                 ht = ht.annotate(phenotype=phenotype.name)
                 results_tables.append(ht)
@@ -144,6 +137,10 @@ class SAIGE:
                 results = results_tables[0].union(*results_tables[1:])
 
             results.write(output, overwrite=True)
+
+            run_kwargs = run_kwargs or {}
+            run_kwargs.pop('wait')
+            b.run(**run_kwargs, wait=True)
 
         return results
 

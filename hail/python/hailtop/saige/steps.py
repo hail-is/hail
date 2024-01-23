@@ -20,10 +20,12 @@ from .io import (
     load_saige_glmm_file,
     load_saige_result_file,
     load_saige_sparse_grm_file,
+    load_text_file,
     load_text_file_or_create,
     new_saige_glmm_file,
     new_saige_result_file,
     new_saige_sparse_grm_file,
+    new_text_file,
 )
 from .phenotype import Phenotype
 from .variant_chunk import VariantChunk
@@ -277,14 +279,14 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
         }
 
     def output_file_prefix(
-        self, temp_dir: str, checkpoint_dir: Optional[str], phenotype: Phenotype, chunk: VariantChunk
+        self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk
     ) -> str:
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
-        return f'{working_dir}/results/{phenotype.name}/{chunk.idx}'
+        return f'{working_dir}/results/{phenotype_name}/{chunk.idx}'
 
-    def output_dir(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype: Phenotype) -> str:
+    def output_dir(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
-        return f'{working_dir}/results/{phenotype.name}/*'
+        return f'{working_dir}/results/{phenotype_name}/*'
 
     def command(
         self,
@@ -456,12 +458,13 @@ step2_SPAtests.R \
         analysis_type: SaigeAnalysisType,
         null_model: Union[SaigeGeneGLMMResourceGroup, SaigeGLMMResourceGroup],
         input_data_type: SaigeInputDataType,
-        chunk: VariantChunk,
+        interval: hl.Interval,
         phenotype: Phenotype,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None,
         group_col: Optional[str] = None,
     ) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
-        output_root = self.output_file_prefix(temp_dir, checkpoint_dir, phenotype, chunk)
+        chunk = VariantChunk(interval)
+        output_root = self.output_file_prefix(temp_dir, checkpoint_dir, phenotype.name, chunk)
 
         results = await load_saige_result_file(fs, b, self, output_root, analysis_type)
         if results is not None:
@@ -506,3 +509,58 @@ step2_SPAtests.R \
             b.write_output(j.stdout, f'{output_root}.log')
 
         return j
+
+
+@dataclass
+class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
+    def name(self, phenotype: Phenotype) -> str:
+        return f'compile-results-{phenotype.name}'
+
+    def attributes(self, *, phenotype: Phenotype) -> Optional[Dict]:
+        return {'phenotype': phenotype.name}
+
+    def output_file(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        return f'{working_dir}/compiled-results/{phenotype_name}.txt.gz'
+
+    def command(self, results_path: str, phenotype_name: str, output_file: str) -> str:
+        return f'''
+cat > compile_results.py <<EOF
+import hail as hl
+ht = hl.import_table("{results_path}", impute=True)
+ht = ht.annotate(phenotype="{phenotype_name}")
+ht.export("{output_file}", overwrite=True)
+EOF
+python3 read_from_mt.py
+'''
+
+    async def call(
+        self,
+        fs: AsyncFS,
+        b: hb.Batch,
+        phenotype: Phenotype,
+        results_path: str,
+        temp_dir: str,
+        checkpoint_dir: Optional[str],
+    ) -> TextResourceFile:
+        output_file = self.output_file(temp_dir, checkpoint_dir, phenotype.name)
+        results = await load_text_file(fs, b, self, output_file)
+        if results is not None:
+            return results
+
+        j = (b
+             .new_job(name=self.name(phenotype), attributes=self.attributes(phenotype=phenotype))
+             .image(self.image)
+             .cpu(self.cpu)
+             .memory(self.memory)
+        )
+
+        compiled_results = new_text_file(j)
+
+        cmd = self.command(results_path, phenotype.name, compiled_results)
+
+        j.command(cmd)
+
+        checkpoint_if_requested(compiled_results, b, self, output_file)
+
+        return compiled_results

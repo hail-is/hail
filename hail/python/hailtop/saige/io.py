@@ -28,12 +28,25 @@ async def use_checkpoints_if_exist_and_requested(
     return None
 
 
+async def load_files(typ: Type[RG], fs: AsyncFS, b: hb.Batch, **inputs: str) -> Optional[RG]:
+    all_files_exist = all(await asyncio.gather(fs.exists(input) for input in inputs.values()))
+    if all_files_exist:
+        return cast(typ, b.read_input_group(**inputs))
+    return None
+
+
 async def use_checkpoint_if_exists_and_requested(
     typ: Type[RF], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, input: str
 ) -> Optional[RF]:
     if config.use_checkpoints and not config.overwrite:
         if await fs.exists(input):
             return cast(typ, b.read_input(input))
+    return None
+
+
+async def load_file(typ: Type[RF], fs: AsyncFS, b: hb.Batch, input: str) -> Optional[RF]:
+    if await fs.exists(input):
+        return cast(typ, b.read_input(input))
     return None
 
 
@@ -54,8 +67,10 @@ def new_plink_file(j: hb.Job) -> PlinkResourceGroup:
 
 
 async def load_plink_file(
-    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, root: str
+    fs: AsyncFS, b: hb.Batch, config: Optional[CheckpointConfigMixin], root: str
 ) -> Optional[PlinkResourceGroup]:
+    if config is None:
+        return await load_files(PlinkResourceGroup, fs, b, bed=f'{root}.bed', bim=f'{root}.bim', fam=f'{root}.fam')
     return await use_checkpoints_if_exist_and_requested(
         PlinkResourceGroup, fs, b, config, bed=f'{root}.bed', bim=f'{root}.bim', fam=f'{root}.fam'
     )
@@ -105,8 +120,10 @@ def new_text_file(j: hb.Job) -> TextResourceFile:
 
 
 async def load_text_file(
-    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, file: str
+    fs: AsyncFS, b: hb.Batch, config: Optional[CheckpointConfigMixin], file: str
 ) -> Optional[TextResourceFile]:
+    if config is None:
+        return await load_file(TextResourceFile, fs, b, file)
     return await use_checkpoint_if_exists_and_requested(TextResourceFile, fs, b, config, file)
 
 

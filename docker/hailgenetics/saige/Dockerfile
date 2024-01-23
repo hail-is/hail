@@ -1,4 +1,8 @@
-FROM {{ hail_ubuntu_image.image }}
+# syntax=docker/dockerfile:1.3.0-labs
+# ^ necessary to use an ARG in a --mount value with our current version of buildkit
+
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
 
 RUN hail-apt-get-install \
     build-essential \

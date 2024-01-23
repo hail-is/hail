@@ -12,7 +12,7 @@ class CheckpointConfigMixin(abc.ABC):
 
 @dataclass
 class JobConfigMixin(abc.ABC):
-    image: Optional[str] = 'wzhou88/saige:1.3.0'  # FIXME: this image needs to support both SAIGE and hail
+    image: Optional[str] = 'us-docker.pkg.dev/hail-vdc/hail/hailgenetics/saige:cache-jigold'  # 'wzhou88/saige:1.3.0'  # FIXME: this image needs to support both SAIGE and hail
     cpu: Optional[Union[str, int]] = None
     memory: Optional[str] = None
     storage: Optional[str] = None
