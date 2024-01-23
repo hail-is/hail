@@ -14,7 +14,7 @@ def runner():
 
 
 def expose_envvar_to_hailctl(name: str) -> bool:
-    return name in ('GOOGLE_APPLICATION_CREDENTIALS', 'AZURE_APPLICATION_CREDENTIALS')
+    return name in ('GOOGLE_APPLICATION_CREDENTIALS', 'AZURE_APPLICATION_CREDENTIALS', 'HAIL_IDENTITY_PROVIDER_JSON')
 
 
 def write_script(dir: str, filename: str):
