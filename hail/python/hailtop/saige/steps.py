@@ -519,9 +519,22 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def attributes(self, *, phenotype: Phenotype) -> Optional[Dict]:
         return {'phenotype': phenotype.name}
 
+    def results_path(self, temp_dir: str, checkpoint_dir: Optional[str]):
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        return f'{working_dir}/compiled-results/*.txt.gz'
+
     def output_file(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/compiled-results/{phenotype_name}.txt.gz'
+
+    def check_if_output_exists(self,
+                               fs: AsyncFS,
+                               b: hb.Batch,
+                               phenotype: Phenotype,
+                               temp_dir: str,
+                               checkpoint_dir: Optional[str]) -> Optional[TextResourceFile]:
+        output_file = self.output_file(temp_dir, checkpoint_dir, phenotype.name)
+        return await load_text_file(fs, b, self, output_file)
 
     def command(self, results_path: str, phenotype_name: str, output_file: str) -> str:
         return f'''
@@ -531,7 +544,7 @@ ht = hl.import_table("{results_path}", impute=True)
 ht = ht.annotate(phenotype="{phenotype_name}")
 ht.export("{output_file}", overwrite=True)
 EOF
-python3 read_from_mt.py
+python3 compile_results.py
 '''
 
     async def call(
@@ -540,6 +553,7 @@ python3 read_from_mt.py
         b: hb.Batch,
         phenotype: Phenotype,
         results_path: str,
+        dependencies: List[hb.Job],
         temp_dir: str,
         checkpoint_dir: Optional[str],
     ) -> TextResourceFile:
@@ -553,6 +567,7 @@ python3 read_from_mt.py
              .image(self.image)
              .cpu(self.cpu)
              .memory(self.memory)
+             .depends_on(*dependencies)
         )
 
         compiled_results = new_text_file(j)
@@ -564,3 +579,42 @@ python3 read_from_mt.py
         checkpoint_if_requested(compiled_results, b, self, output_file)
 
         return compiled_results
+
+
+@dataclass
+class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
+    def name(self) -> str:
+        return 'compile-all-results'
+
+    def command(self, results_path: str, output_file: str) -> str:
+        return f'''
+cat > compile_results.py <<EOF
+import hail as hl
+ht = hl.import_table("{results_path}", impute=True)
+ht.write("{output_file}", overwrite=True)
+EOF
+python3 compile_results.py
+'''
+
+    async def call(
+        self,
+        fs: AsyncFS,
+        b: hb.Batch,
+        results_path: str,
+        output_ht_path: str,
+        dependencies: List[hb.Job],
+    ):
+        if fs.isdir(output_ht_path) and not self.overwrite:
+            return
+
+        j = (b
+             .new_job(name=self.name())
+             .image(self.image)
+             .cpu(self.cpu)
+             .memory(self.memory)
+             .depends_on(*dependencies)
+        )
+
+        cmd = self.command(results_path, output_ht_path)
+
+        j.command(cmd)
