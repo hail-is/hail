@@ -119,20 +119,3 @@ class DeployConfig(
   def baseUrl(service: String, baseScheme: String = "http"): String =
     s"${scheme(baseScheme)}://${domain(service)}${basePath(service)}"
 }
-
-class TerraDeployConfig(
-  location: String,
-  defaultNamespace: String,
-  domain: String,
-  base_path: String
-) extends DeployConfig(location, defaultNamespace, domain, base_path) {
-  import DeployConfig._
-
-  override def domain(service: String): String = {
-    this.domain
-  }
-
-  override def scheme(baseScheme: String = "http"): String = {
-    "https"
-  }
-}

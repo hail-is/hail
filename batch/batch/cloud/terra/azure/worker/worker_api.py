@@ -56,6 +56,7 @@ class TerraAzureWorkerAPI(CloudWorkerAPI[AzureManagedIdentityCredentials]):
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
         return [
             'HAIL_TERRA=1',
+            'HAIL_LOCATION=external',  # There is no internal gateway, jobs must communicate over the internet
             f'WORKSPACE_STORAGE_CONTAINER_ID={self.workspace_storage_container_id}',
             f'WORKSPACE_STORAGE_CONTAINER_URL={self.workspace_storage_container_url}',
             f'WORKSPACE_ID={self.workspace_id}',
