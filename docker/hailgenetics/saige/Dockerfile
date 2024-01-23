@@ -1,10 +1,11 @@
-FROM "us-docker.pkg.dev/hail-vdc/hail/hail-ubuntu:cache-jigold"
-# {{ hail_ubuntu_image.image }}
+FROM {{ hail_run_image.image }}
 
 RUN apt-get update && apt-get -y install \
     build-essential \
-    cmake \    
+    cmake \
     git \
+    libfribidi-dev \
+    libharfbuzz-dev \
     libopenblas-base \
     python3-pip \
     r-cran-devtools
@@ -19,7 +20,7 @@ RUN Rscript extdata/install_packages.R
 
 RUN pip3 install cget
 
-RUN apt-get update && apt-get -y install libharfbuzz-dev libfribidi-dev && R CMD INSTALL .
+RUN R CMD INSTALL .
 
 RUN mv extdata/step1_fitNULLGLMM.R extdata/step2_SPAtests.R extdata/step3_LDmat.R extdata/createSparseGRM.R /usr/local/bin/
 
