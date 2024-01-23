@@ -65,7 +65,8 @@ object DeployConfig {
     basePathFromConfig: Option[String],
   ): DeployConfig = {
     val location = sys.env.getOrElse(toEnvVarName("location"), locationFromConfig)
-    val defaultNamespace = sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespaceFromConfig)
+    val defaultNamespace =
+      sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespaceFromConfig)
     val domain = sys.env.getOrElse(toEnvVarName("domain"), domainFromConfig)
     val basePath = sys.env.get(toEnvVarName("basePath")).orElse(basePathFromConfig)
 
