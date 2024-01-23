@@ -1382,6 +1382,9 @@ steps:
     dockerFile: /io/repo/docker/hailgenetics/saige/Dockerfile
     contextPath: /io/repo/docker/hailgenetics/saige
     publishAs: hailgenetics/saige
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
     inputs:
       - from: /repo
         to: /io/repo
