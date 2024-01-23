@@ -965,17 +965,6 @@ steps:
       - hailgenetics_hailtop_image
       - create_test_gsa_keys
       - merge_code
-  - kind: buildImage2
-    name: hailgenetics_saige_image
-    dockerFile: /io/repo/docker/hailgenetics/saige/Dockerfile
-    contextPath: /io/repo/docker/hailgenetics/saige
-    publishAs: hailgenetics/saige
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - merge_code
-      - hail_run_image
   - kind: runImage
     name: test_hail_java
     numSplits: 5
@@ -1388,6 +1377,17 @@ steps:
       - merge_code
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
+  - kind: buildImage2
+    name: hailgenetics_saige_image
+    dockerFile: /io/repo/docker/hailgenetics/saige/Dockerfile
+    contextPath: /io/repo/docker/hailgenetics/saige
+    publishAs: hailgenetics/saige
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - merge_code
+      - hailgenetics_hail_image
   - kind: buildImage2
     name: hail-benchmark-image
     dockerFile: /io/repo/benchmark/Dockerfile

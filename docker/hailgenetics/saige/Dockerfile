@@ -1,4 +1,4 @@
-FROM {{ hail_run_image.image }}
+FROM {{ hailgenetics_hail_image.image }}
 
 RUN apt-get update && apt-get -y install \
     build-essential \
