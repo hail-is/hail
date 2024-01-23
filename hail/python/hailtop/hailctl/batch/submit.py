@@ -29,7 +29,7 @@ class HailctlBatchSubmitError(Exception):
 async def submit(
     name: str,
     image_name: Optional[str],
-    files: List[str],
+    files_options: List[str],
     output: StructuredFormatPlusTextOption,
     script: str,
     arguments: List[str],
@@ -47,7 +47,7 @@ async def submit(
         unpack_comma_delimited_inputs,
     )
 
-    files = unpack_comma_delimited_inputs(files)
+    files_options = unpack_comma_delimited_inputs(files_options)
     user_config_path = str(get_user_config_path())
 
     quiet = output != 'text'
@@ -61,7 +61,7 @@ async def submit(
         path = path.lstrip('/')
         return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
 
-    def file_input_to_src_dest(file: str) -> Tuple[str, str, str]:
+    def parse_files_option_to_src_dest_and_cloud_intermediate(file: str) -> Tuple[str, str, str]:
         match = FILE_REGEX.match(file)
         if match is None:
             raise ValueError(f'invalid file specification {file}. Must have the form "src" or "src:dest"')
@@ -95,25 +95,33 @@ async def submit(
         j = b.new_bash_job()
         j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}'))
 
-        local_files_to_cloud_files = []
+        src_dst_cloud_intermediate_triplets = [
+            parse_files_option_to_src_dest_and_cloud_intermediate(files_option) for files_option in files_options
+        ]
 
-        if non_existing_files := [x for x in files if not os.path.exists(x)]:
+        if non_existing_files := [src for src, _, _ in src_dst_cloud_intermediate_triplets if not os.path.exists(src)]:
+            for x in non_existing_files:
+                print(f'did not exist {x} {os.path.exists(x)} {list(os.listdir(os.path.dirname(x)))}')
             non_existing_files_str = '- ' + '\n- '.join(non_existing_files)
             raise HailctlBatchSubmitError(f'Some --files did not exist:\n{non_existing_files_str}', 1)
 
-        for file in files:
-            src, dest, cloud_file = file_input_to_src_dest(file)
-            local_files_to_cloud_files.append({'from': src, 'to': cloud_file})
-            in_file = b.read_input(cloud_file)
-            j.command(f'mkdir -p {shq(os.path.dirname(dest))}; ln -s {shq(in_file)} {shq(dest)}', 1)
+        for _, dest, cloud_intermediate in src_dst_cloud_intermediate_triplets:
+            in_file = b.read_input(cloud_intermediate)
+            j.command(f'mkdir -p {shq(os.path.dirname(dest))}; ln -s {shq(in_file)} {shq(dest)}')
 
         if not os.path.exists(script):
             raise HailctlBatchSubmitError(f'Script file does not exist: {script}', 1)
-        script_src, _, script_cloud_file = file_input_to_src_dest(script)
+        script_src, _, script_cloud_file = parse_files_option_to_src_dest_and_cloud_intermediate(script)
 
         if os.path.exists(user_config_path):
-            user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config_path)
+            user_config_src, _, user_config_cloud_file = parse_files_option_to_src_dest_and_cloud_intermediate(
+                user_config_path
+            )
 
+        local_files_to_cloud_files = [
+            {'from': src, 'to': cloud_intermediate}
+            for src, _, cloud_intermediate in src_dst_cloud_intermediate_triplets
+        ]
         await copy_from_dict(files=local_files_to_cloud_files)
         await copy_from_dict(
             files=[
