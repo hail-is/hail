@@ -2,52 +2,33 @@ FROM "us-docker.pkg.dev/hail-vdc/hail/hail-ubuntu:cache-jigold"
 # {{ hail_ubuntu_image.image }}
 
 RUN apt-get update && apt-get -y install \
+    build-essential \
+    cmake \    
     git \
-    wget
-#    build-essential \
-#    cmake \
-#    libcurl4-openssl-dev \
-#    libfontconfig1-dev \
-#    libfreetype6-dev \
-#    libfribidi-dev \
-#    libharfbuzz-dev \
-#    libjpeg-dev \
-#    libmariadbclient-dev \
-#    libmariadb-client-lgpl-dev \
-#    libpng-dev \
-#    libssl-dev \
-#    libtiff5-dev \
-#    libxml2-dev \
-#    r-base-dev
-
-RUN mkdir -p /miniconda3 && \
-    wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /miniconda3/miniconda.sh && \
-    bash /miniconda3/miniconda.sh -b -u -p /miniconda3 && \
-    rm -rf /miniconda3/miniconda.sh
-
-ENV PATH=/miniconda3/bin:$PATH
+    libopenblas-base \
+    python3-pip \
+    r-cran-devtools
 
 RUN git clone --depth 1 -b main https://github.com/saigegit/SAIGE
 
-WORKDIR /SAIGE/conda_env/
+WORKDIR /SAIGE/
 
-RUN conda env create -f environment-RSAIGE.yml
+ENV OMP_NUM_THREADS=1
 
-#RUN conda init &&echo "conda activate RSAIGE" > ~/.bashrc
+RUN Rscript extdata/install_packages.R
 
-RUN conda init
+RUN pip3 install cget
 
-SHELL ["bash", "-lc"]
+RUN apt-get update && apt-get -y install libharfbuzz-dev libfribidi-dev && R CMD INSTALL .
 
-RUN echo "conda activate RSAIGE" >> ~/.bashrc
-    
-RUN FLAGPATH=`which python | sed 's|/bin/python$||'` && \
-    echo 'export LDFLAGS="-L${FLAGPATH}/lib"' >> ~/.bash_profile && \
-    echo 'export CPPFLAGS="-I${FLAGPATH}/include"' >> ~/.bash_profile
+RUN mv extdata/step1_fitNULLGLMM.R extdata/step2_SPAtests.R extdata/step3_LDmat.R extdata/createSparseGRM.R /usr/local/bin/
 
+RUN chmod a+x /usr/local/bin/step1_fitNULLGLMM.R && \
+    chmod a+x /usr/local/bin/step2_SPAtests.R && \
+    chmod a+x /usr/local/bin/step3_LDmat.R && \
+    chmod a+x /usr/local/bin/createSparseGRM.R
 
-#RUN git clone --depth 1 -b main https://github.com/saigegit/SAIGE
-
-# RUN Rscript ./SAIGE/extdata/install_packages.R
-
-# RUN R CMD INSTALL SAIGE
+RUN createSparseGRM.R  --help && \
+    step1_fitNULLGLMM.R --help && \
+    step2_SPAtests.R --help && \
+    step3_LDmat.R --help

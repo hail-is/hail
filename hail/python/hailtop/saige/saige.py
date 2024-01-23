@@ -2,7 +2,7 @@ import collections
 import functools
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, cast
 
 import hail as hl
 from hail.methods.qc import require_col_key_str, require_row_key_variant
@@ -11,6 +11,7 @@ import hailtop.batch as hb
 from hailtop.utils import async_to_blocking, bounded_gather
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
+from .io import load_plink_file, load_text_file
 from .phenotype import Phenotype
 from .steps import PrepareInputsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
 from .variant_chunk import VariantChunk
@@ -68,6 +69,10 @@ class SAIGE:
             mt = hl.read_matrix_table(mt_path)
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
+
+            input_phenotypes = load_text_file(phenotypes_path)
+            input_plink_data = cast(PlinkResourceGroup, b.)
+            load_text_file(self.fs, b, )
 
             input_phenotypes, input_plink_data = await self.config.prepare_inputs.call(
                 self.fs, b, mt, phenotypes, temp_dir.name, checkpoint_dir
