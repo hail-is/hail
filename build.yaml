@@ -1388,6 +1388,8 @@ steps:
     inputs:
       - from: /repo/docker/hailgenetics/hail
         to: /io/repo/docker/hailgenetics/hail
+      - from: /repo/docker/hailgenetics/saige
+        to: /io/repo/docker/hailgenetics/saige
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
       - from: /wheel
