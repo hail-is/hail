@@ -1031,6 +1031,9 @@ steps:
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
 
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
