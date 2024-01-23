@@ -9,7 +9,6 @@ from typing import Optional, List, Annotated as Ann, cast, Dict, Any
 from . import list_batches
 from . import billing
 from .initialize import async_basic_initialize
-from .submit import submit as _submit, HailctlBatchSubmitError
 from .batch_cli_utils import (
     get_batch_if_exists,
     get_job_if_exists,
@@ -218,6 +217,8 @@ def submit(
 
     $ hailctl batch submit --image-name docker.io/image my_script.py --files a-file:/foo/bar -- some-argument --animal dog
     """
+    from .submit import submit as _submit, HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
+
     try:
         asyncio.run(_submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args], wait))
     except HailctlBatchSubmitError as err:
