@@ -4,12 +4,14 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.lir.{Block, ControlX, ValueX}
 import is.hail.utils._
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm.Type
+
+import scala.reflect.ClassTag
 
 import java.io.PrintStream
 import java.lang.reflect
-import scala.reflect.ClassTag
+
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.Type
 
 abstract class Thrower[T] {
   def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U]
@@ -38,7 +40,12 @@ object Code {
     newC
   }
 
-  def void[T](c1: Code[_], c2: Code[_], c3: Code[_], f: (lir.ValueX, lir.ValueX, lir.ValueX) => lir.StmtX): Code[T] = {
+  def void[T](
+    c1: Code[_],
+    c2: Code[_],
+    c3: Code[_],
+    f: (lir.ValueX, lir.ValueX, lir.ValueX) => lir.StmtX,
+  ): Code[T] = {
     c3.end.append(f(c1.v, c2.v, c3.v))
     c2.end.append(lir.goto(c3.start))
     c1.end.append(lir.goto(c2.start))
@@ -68,7 +75,12 @@ object Code {
     newC
   }
 
-  def apply[T](c1: Code[_], c2: Code[_], c3: Code[_], f: (lir.ValueX, lir.ValueX, lir.ValueX) => lir.ValueX): Code[T] = {
+  def apply[T](
+    c1: Code[_],
+    c2: Code[_],
+    c3: Code[_],
+    f: (lir.ValueX, lir.ValueX, lir.ValueX) => lir.ValueX,
+  ): Code[T] = {
     c1.end.append(lir.goto(c2.start))
     c2.end.append(lir.goto(c3.start))
     val newC = new VCode(c1.start, c3.end, f(c1.v, c2.v, c3.v))
@@ -111,19 +123,54 @@ object Code {
   def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[T]): Code[T] =
     sequence1(FastSeq(c1, c2, c3), c4)
 
-  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[T]): Code[T] =
+  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[T])
+    : Code[T] =
     sequence1(FastSeq(c1, c2, c3, c4), c5)
 
-  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[T]): Code[T] =
+  def apply[T](
+    c1: Code[Unit],
+    c2: Code[Unit],
+    c3: Code[Unit],
+    c4: Code[Unit],
+    c5: Code[Unit],
+    c6: Code[T],
+  ): Code[T] =
     sequence1(FastSeq(c1, c2, c3, c4, c5), c6)
 
-  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[T]): Code[T] =
+  def apply[T](
+    c1: Code[Unit],
+    c2: Code[Unit],
+    c3: Code[Unit],
+    c4: Code[Unit],
+    c5: Code[Unit],
+    c6: Code[Unit],
+    c7: Code[T],
+  ): Code[T] =
     sequence1(FastSeq(c1, c2, c3, c4, c5, c6), c7)
 
-  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[Unit], c8: Code[T]): Code[T] =
+  def apply[T](
+    c1: Code[Unit],
+    c2: Code[Unit],
+    c3: Code[Unit],
+    c4: Code[Unit],
+    c5: Code[Unit],
+    c6: Code[Unit],
+    c7: Code[Unit],
+    c8: Code[T],
+  ): Code[T] =
     sequence1(FastSeq(c1, c2, c3, c4, c5, c6, c7), c8)
 
-  def apply[T](c1: Code[Unit], c2: Code[Unit], c3: Code[Unit], c4: Code[Unit], c5: Code[Unit], c6: Code[Unit], c7: Code[Unit], c8: Code[Unit], c9: Code[T]): Code[T] =
+  def apply[T](
+    c1: Code[Unit],
+    c2: Code[Unit],
+    c3: Code[Unit],
+    c4: Code[Unit],
+    c5: Code[Unit],
+    c6: Code[Unit],
+    c7: Code[Unit],
+    c8: Code[Unit],
+    c9: Code[T],
+  ): Code[T] =
     sequence1(FastSeq(c1, c2, c3, c4, c5, c6, c7, c8), c9)
 
   def apply(cs: Seq[Code[Unit]]): Code[Unit] = {
@@ -138,31 +185,47 @@ object Code {
 
   def foreach[A](it: Seq[A])(f: A => Code[Unit]): Code[Unit] = Code(it.map(f))
 
-  def newInstance[T <: AnyRef](parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit tct: ClassTag[T]): Code[T] =
+  def newInstance[T <: AnyRef](
+    parameterTypes: Array[Class[_]],
+    args: Array[Code[_]],
+  )(implicit tct: ClassTag[T]
+  ): Code[T] =
     newInstance(parameterTypes, args, 0)
 
-  def newInstance[T <: AnyRef](parameterTypes: Array[Class[_]], args: Array[Code[_]], lineNumber: Int)(implicit tct: ClassTag[T]): Code[T] = {
+  def newInstance[T <: AnyRef](
+    parameterTypes: Array[Class[_]],
+    args: Array[Code[_]],
+    lineNumber: Int,
+  )(implicit tct: ClassTag[T]
+  ): Code[T] = {
     val tti = classInfo[T]
 
     val tcls = tct.runtimeClass
 
     val c = tcls.getDeclaredConstructor(parameterTypes: _*)
-    assert(c != null,
-      s"no such method ${ tcls.getName }(${
-        parameterTypes.map(_.getName).mkString(", ")
-      })")
+    assert(
+      c != null,
+      s"no such method ${tcls.getName}(${parameterTypes.map(_.getName).mkString(", ")})",
+    )
 
     val (start, end, argvs) = Code.sequenceValues(args)
     val linst = new lir.Local(null, "new_inst", tti)
     val newInstX = lir.newInstance(
-      tti, Type.getInternalName(tcls), "<init>",
-      Type.getConstructorDescriptor(c), tti, argvs, lineNumber)
+      tti,
+      Type.getInternalName(tcls),
+      "<init>",
+      Type.getConstructorDescriptor(c),
+      tti,
+      argvs,
+      lineNumber,
+    )
     end.append(lir.store(linst, newInstX, lineNumber))
 
     new VCode(start, end, lir.load(linst))
   }
 
-  def newInstance[C](cb: ClassBuilder[C], ctor: MethodBuilder[C], args: IndexedSeq[Code[_]]): Code[C] = {
+  def newInstance[C](cb: ClassBuilder[C], ctor: MethodBuilder[C], args: IndexedSeq[Code[_]])
+    : Code[C] = {
     val (start, end, argvs) = sequenceValues(args)
 
     val linst = new lir.Local(null, "new_inst", cb.ti)
@@ -175,49 +238,222 @@ object Code {
   def newInstance[T <: AnyRef]()(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
     newInstance[T](Array[Class[_]](), Array[Code[_]]())
 
-  def newInstance[T <: AnyRef, A1](a1: Code[A1])(implicit a1ct: ClassTag[A1],
-    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+  def newInstance[T <: AnyRef, A1](
+    a1: Code[A1]
+  )(implicit
+    a1ct: ClassTag[A1],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
-  def newInstance[T <: AnyRef, A1, A2](a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+  def newInstance[T <: AnyRef, A1, A2](
+    a1: Code[A1],
+    a2: Code[A2],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
     newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
-  def newInstance[T <: AnyRef, A1, A2, A3](a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
+  def newInstance[T <: AnyRef, A1, A2, A3](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
     newInstance(a1, a2, a3, 0)
 
-  def newInstance[T <: AnyRef, A1, A2, A3](a1: Code[A1], a2: Code[A2], a3: Code[A3], lineNumber: Int)(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    a3ct: ClassTag[A3], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3), lineNumber)
+  def newInstance[T <: AnyRef, A1, A2, A3](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    lineNumber: Int,
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
+    newInstance[T](
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      Array[Code[_]](a1, a2, a3),
+      lineNumber,
+    )
 
-  def newInstance[T <: AnyRef, A1, A2, A3, A4](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))
+  def newInstance[T <: AnyRef, A1, A2, A3, A4](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
+    newInstance[T](
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      Array[Code[_]](a1, a2, a3, a4),
+    )
 
-  def newInstance[T <: AnyRef, A1, A2, A3, A4, A5](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))
+  def newInstance[T <: AnyRef, A1, A2, A3, A4, A5](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
+    newInstance[T](
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5),
+    )
 
-  def newInstance7[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7))
+  def newInstance7[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
+    newInstance[T](
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7),
+    )
 
-  def newInstance8[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8))
+  def newInstance8[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
+    newInstance[T](
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8),
+    )
 
-  def newInstance11[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11](a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4],
-    a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9], a10: Code[A10], a11: Code[A11]
-  )(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
-    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], tct: ClassTag[T], tti: TypeInfo[T]): Code[T] =
-    newInstance[T](Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass,
-      a8ct.runtimeClass, a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11))
+  def newInstance11[T <: AnyRef, A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11](
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+    a10: Code[A10],
+    a11: Code[A11],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    a10ct: ClassTag[A10],
+    a11ct: ClassTag[A11],
+    tct: ClassTag[T],
+    tti: TypeInfo[T],
+  ): Code[T] =
+    newInstance[T](
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+        a10ct.runtimeClass,
+        a11ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11),
+    )
 
   def newArray[T](size: Code[Int])(implicit tti: TypeInfo[T]): Code[Array[T]] =
     Code(size, lir.newArray(tti))
 
-  def invokeScalaObject[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
+  def invokeScalaObject[S](
+    cls: Class[_],
+    method: String,
+    parameterTypes: Array[Class[_]],
+    args: Array[Code[_]],
+  )(implicit sct: ClassTag[S]
+  ): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     val staticObj = FieldRef("MODULE$")(ClassTag(cls), ClassTag(cls), classInfo(ClassTag(cls)))
     m.invoke(staticObj.getField(), args)
@@ -226,116 +462,509 @@ object Code {
   def invokeScalaObject0[S](cls: Class[_], method: String)(implicit sct: ClassTag[S]): Code[S] =
     invokeScalaObject[S](cls, method, Array[Class[_]](), Array[Code[_]]())
 
-  def invokeScalaObject1[A1, S](cls: Class[_], method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S]): Code[S] =
+  def invokeScalaObject1[A1, S](
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+  )(implicit
+    a1ct: ClassTag[A1],
+    sct: ClassTag[S],
+  ): Code[S] =
     invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
-  def invokeScalaObject2[A1, A2, S](cls: Class[_], method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], sct: ClassTag[S]): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array(a1, a2))
+  def invokeScalaObject2[A1, A2, S](
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls,
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass),
+      Array(a1, a2),
+    )
 
-  def invokeScalaObject3[A1, A2, A3, S](cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], sct: ClassTag[S]): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array(a1, a2, a3))
+  def invokeScalaObject3[A1, A2, A3, S](
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls,
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      Array(a1, a2, a3),
+    )
 
   def invokeScalaObject4[A1, A2, A3, A4, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], sct: ClassTag[S]): Code[S] =
-    invokeScalaObject[S](cls, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array(a1, a2, a3, a4))
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls,
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      Array(a1, a2, a3, a4),
+    )
 
   def invokeScalaObject5[A1, A2, A3, A4, A5, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], sct: ClassTag[S]
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    sct: ClassTag[S],
   ): Code[S] =
     invokeScalaObject[S](
-      cls, method, Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array(a1, a2, a3, a4, a5))
+      cls,
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5),
+    )
 
   def invokeScalaObject6[A1, A2, A3, A4, A5, A6, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], sct: ClassTag[S]
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    sct: ClassTag[S],
   ): Code[S] =
     invokeScalaObject[S](
-      cls, method, Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6))
+      cls,
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6),
+    )
 
   def invokeScalaObject7[A1, A2, A3, A4, A5, A6, A7, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], sct: ClassTag[S]
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    sct: ClassTag[S],
   ): Code[S] =
     invokeScalaObject[S](
-      cls, method, Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7))
+      cls,
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7),
+    )
 
   def invokeScalaObject8[A1, A2, A3, A4, A5, A6, A7, A8, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], sct: ClassTag[S]
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    sct: ClassTag[S],
   ): Code[S] =
     invokeScalaObject[S](
-      cls, method, Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7, a8))
+      cls,
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8),
+    )
 
   def invokeScalaObject9[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](
-     cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9])(
-     implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], a9ct: ClassTag[A9], sct: ClassTag[S]
-   ): Code[S] =
-    invokeScalaObject[S](
-      cls, method, Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass, a9ct.runtimeClass), Array(a1, a2, a3, a4, a5, a6, a7, a8, a9))
-
-  def invokeScalaObject11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
-    a9: Code[A9], a10: Code[A10], a11: Code[A11])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
-    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], sct: ClassTag[S]
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    sct: ClassTag[S],
   ): Code[S] =
     invokeScalaObject[S](
-      cls, method,
+      cls,
+      method,
       Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
-        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11)
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9),
+    )
+
+  def invokeScalaObject11[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, S](
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+    a10: Code[A10],
+    a11: Code[A11],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    a10ct: ClassTag[A10],
+    a11ct: ClassTag[A11],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invokeScalaObject[S](
+      cls,
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+        a10ct.runtimeClass,
+        a11ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11),
     )
 
   def invokeScalaObject13[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
-    a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
-    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], a12ct: ClassTag[A12], a13ct: ClassTag[A13], sct: ClassTag[S]): Code[S] =
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+    a10: Code[A10],
+    a11: Code[A11],
+    a12: Code[A12],
+    a13: Code[A13],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    a10ct: ClassTag[A10],
+    a11ct: ClassTag[A11],
+    a12ct: ClassTag[A12],
+    a13ct: ClassTag[A13],
+    sct: ClassTag[S],
+  ): Code[S] =
     invokeScalaObject[S](
-      cls, method,
+      cls,
+      method,
       Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
-        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13)
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+        a10ct.runtimeClass,
+        a11ct.runtimeClass,
+        a12ct.runtimeClass,
+        a13ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13),
     )
 
   def invokeScalaObject16[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
-    a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13], a14: Code[A14], a15: Code[A15], a16: Code[A16])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
-    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], a12ct: ClassTag[A12], a13ct: ClassTag[A13], a14ct: ClassTag[A14],
-    a15ct: ClassTag[A15], a16ct: ClassTag[A16], sct: ClassTag[S]): Code[S] =
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+    a10: Code[A10],
+    a11: Code[A11],
+    a12: Code[A12],
+    a13: Code[A13],
+    a14: Code[A14],
+    a15: Code[A15],
+    a16: Code[A16],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    a10ct: ClassTag[A10],
+    a11ct: ClassTag[A11],
+    a12ct: ClassTag[A12],
+    a13ct: ClassTag[A13],
+    a14ct: ClassTag[A14],
+    a15ct: ClassTag[A15],
+    a16ct: ClassTag[A16],
+    sct: ClassTag[S],
+  ): Code[S] =
     invokeScalaObject[S](
-      cls, method,
+      cls,
+      method,
       Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
-        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass, a14ct.runtimeClass, a15ct.runtimeClass, a16ct.runtimeClass),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16))
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+        a10ct.runtimeClass,
+        a11ct.runtimeClass,
+        a12ct.runtimeClass,
+        a13ct.runtimeClass,
+        a14ct.runtimeClass,
+        a15ct.runtimeClass,
+        a16ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16),
+    )
 
-  def invokeScalaObject19[A1, A2, A3, A4, A5, A6, A7, A8, A9, A10, A11, A12, A13, A14, A15, A16, A17, A18, A19, S](
-    cls: Class[_], method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8],
-    a9: Code[A9], a10: Code[A10], a11: Code[A11], a12: Code[A12], a13: Code[A13], a14: Code[A14], a15: Code[A15], a16: Code[A16],
-    a17: Code[A17], a18: Code[A18], a19: Code[A19])(
-    implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7],
-    a8ct: ClassTag[A8], a9ct: ClassTag[A9], a10ct: ClassTag[A10], a11ct: ClassTag[A11], a12ct: ClassTag[A12], a13ct: ClassTag[A13], a14ct: ClassTag[A14],
-    a15ct: ClassTag[A15], a16ct: ClassTag[A16], a17ct: ClassTag[A17], a18ct: ClassTag[A18], a19ct: ClassTag[A19], sct: ClassTag[S]): Code[S] =
+  def invokeScalaObject19[
+    A1,
+    A2,
+    A3,
+    A4,
+    A5,
+    A6,
+    A7,
+    A8,
+    A9,
+    A10,
+    A11,
+    A12,
+    A13,
+    A14,
+    A15,
+    A16,
+    A17,
+    A18,
+    A19,
+    S,
+  ](
+    cls: Class[_],
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+    a10: Code[A10],
+    a11: Code[A11],
+    a12: Code[A12],
+    a13: Code[A13],
+    a14: Code[A14],
+    a15: Code[A15],
+    a16: Code[A16],
+    a17: Code[A17],
+    a18: Code[A18],
+    a19: Code[A19],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    a10ct: ClassTag[A10],
+    a11ct: ClassTag[A11],
+    a12ct: ClassTag[A12],
+    a13ct: ClassTag[A13],
+    a14ct: ClassTag[A14],
+    a15ct: ClassTag[A15],
+    a16ct: ClassTag[A16],
+    a17ct: ClassTag[A17],
+    a18ct: ClassTag[A18],
+    a19ct: ClassTag[A19],
+    sct: ClassTag[S],
+  ): Code[S] =
     invokeScalaObject[S](
-      cls, method,
+      cls,
+      method,
       Array[Class[_]](
-        a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass,
-        a9ct.runtimeClass, a10ct.runtimeClass, a11ct.runtimeClass, a12ct.runtimeClass, a13ct.runtimeClass, a14ct.runtimeClass, a15ct.runtimeClass, a16ct.runtimeClass,
-        a17ct.runtimeClass, a18ct.runtimeClass, a19ct.runtimeClass),
-      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19))
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+        a10ct.runtimeClass,
+        a11ct.runtimeClass,
+        a12ct.runtimeClass,
+        a13ct.runtimeClass,
+        a14ct.runtimeClass,
+        a15ct.runtimeClass,
+        a16ct.runtimeClass,
+        a17ct.runtimeClass,
+        a18ct.runtimeClass,
+        a19ct.runtimeClass,
+      ),
+      Array(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19),
+    )
 
-  def invokeStatic[S](cls: Class[_], method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])(implicit sct: ClassTag[S]): Code[S] = {
+  def invokeStatic[S](
+    cls: Class[_],
+    method: String,
+    parameterTypes: Array[Class[_]],
+    args: Array[Code[_]],
+  )(implicit sct: ClassTag[S]
+  ): Code[S] = {
     val m = Invokeable.lookupMethod(cls, method, parameterTypes)(sct)
     assert(m.isStatic)
     m.invoke(null, args)
@@ -344,22 +973,110 @@ object Code {
   def invokeStatic0[T, S](method: String)(implicit tct: ClassTag[T], sct: ClassTag[S]): Code[S] =
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](), Array[Code[_]]())
 
-  def invokeStatic1[T, A1, S](method: String, a1: Code[A1])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1]): Code[S] =
-    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))(sct)
+  def invokeStatic1[T, A1, S](
+    method: String,
+    a1: Code[A1],
+  )(implicit
+    tct: ClassTag[T],
+    sct: ClassTag[S],
+    a1ct: ClassTag[A1],
+  ): Code[S] =
+    invokeStatic[S](
+      tct.runtimeClass,
+      method,
+      Array[Class[_]](a1ct.runtimeClass),
+      Array[Code[_]](a1),
+    )(sct)
 
-  def invokeStatic2[T, A1, A2, S](method: String, a1: Code[A1], a2: Code[A2])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2]): Code[S] =
-    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))(sct)
+  def invokeStatic2[T, A1, A2, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+  )(implicit
+    tct: ClassTag[T],
+    sct: ClassTag[S],
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+  ): Code[S] =
+    invokeStatic[S](
+      tct.runtimeClass,
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass),
+      Array[Code[_]](a1, a2),
+    )(sct)
 
-  def invokeStatic3[T, A1, A2, A3, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3]): Code[S] =
-    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))(sct)
+  def invokeStatic3[T, A1, A2, A3, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+  )(implicit
+    tct: ClassTag[T],
+    sct: ClassTag[S],
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+  ): Code[S] =
+    invokeStatic[S](
+      tct.runtimeClass,
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      Array[Code[_]](a1, a2, a3),
+    )(sct)
 
-  def invokeStatic4[T, A1, A2, A3, A4, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4]): Code[S] =
-    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))(sct)
+  def invokeStatic4[T, A1, A2, A3, A4, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+  )(implicit
+    tct: ClassTag[T],
+    sct: ClassTag[S],
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+  ): Code[S] =
+    invokeStatic[S](
+      tct.runtimeClass,
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      Array[Code[_]](a1, a2, a3, a4),
+    )(sct)
 
-  def invokeStatic5[T, A1, A2, A3, A4, A5, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])(implicit tct: ClassTag[T], sct: ClassTag[S], a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5]): Code[S] =
-    invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
+  def invokeStatic5[T, A1, A2, A3, A4, A5, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+  )(implicit
+    tct: ClassTag[T],
+    sct: ClassTag[S],
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+  ): Code[S] =
+    invokeStatic[S](
+      tct.runtimeClass,
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5),
+    )(sct)
 
-  def _null[T >: Null](implicit tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
+  def _null[T >: Null](implicit tti: TypeInfo[T]): Value[T] =
+    Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
+
   def _uncheckednull[T](tti: TypeInfo[T]): Value[T] = Value.fromLIR[T](lir.insn0(ACONST_NULL, tti))
 
   def _empty: Value[Unit] = Value.fromLIR[Unit](null: lir.ValueX)
@@ -376,17 +1093,17 @@ object Code {
     }
   }
 
-  private def getEmitLineNum: Int = {
+  private def getEmitLineNum: Int =
 //    val st = Thread.currentThread().getStackTrace
 //    val i = st.indexWhere(ste => ste.getFileName == "Emit.scala")
 //    if (i == -1) 0 else st(i).getLineNumber
     0
-  }
 
   def _throw[T <: java.lang.Throwable, U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U] =
     _throw[T, U](cerr, getEmitLineNum)
 
-  def _throw[T <: java.lang.Throwable, U](cerr: Code[T], lineNumber: Int)(implicit uti: TypeInfo[U]): Code[U] = {
+  def _throw[T <: java.lang.Throwable, U](cerr: Code[T], lineNumber: Int)(implicit uti: TypeInfo[U])
+    : Code[U] = {
     if (uti eq UnitInfo) {
       cerr.end.append(lir.throwx(cerr.v, lineNumber))
       val newC = new VCode(cerr.start, cerr.end, null)
@@ -404,14 +1121,20 @@ object Code {
       msg,
       Code.invokeStatic0[scala.Option[String], scala.Option[String]]("empty"),
       Code._null[Throwable],
-      lineNumber)
+      lineNumber,
+    )
     Code._throw[is.hail.utils.HailException, U](cerr, lineNumber)
   }
 
   def _fatalWithID[U](msg: Code[String], errorId: Code[Int])(implicit uti: TypeInfo[U]): Code[U] =
-    Code._throw[is.hail.utils.HailException, U](Code.newInstance[is.hail.utils.HailException, String, Int](
+    Code._throw[is.hail.utils.HailException, U](Code.newInstance[
+      is.hail.utils.HailException,
+      String,
+      Int,
+    ](
       msg,
-      errorId))
+      errorId,
+    ))
 
   def _return[T](c: Code[T]): Code[Unit] = {
     c.end.append(if (c.v != null)
@@ -423,47 +1146,51 @@ object Code {
     newC
   }
 
-  def _printlns(cs: Code[String]*): Code[Unit] = {
+  def _printlns(cs: Code[String]*): Code[Unit] =
     _println(cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
-  }
 
-  def _println(c: Code[AnyRef]): Code[Unit] = {
+  def _println(c: Code[AnyRef]): Code[Unit] =
     Code(
       Code.invokeScalaObject1[AnyRef, Unit](scala.Console.getClass, "println", c),
-      Code.invokeScalaObject0[Unit](scala.Console.getClass, "flush")
+      Code.invokeScalaObject0[Unit](scala.Console.getClass, "flush"),
     )
-  }
 
   def checkcast[T](v: Code[_])(implicit tti: TypeInfo[T]): Code[T] =
     Code(v, lir.checkcast(tti))
 
-  def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] = Code.newInstance[java.lang.Boolean, Boolean](cb)
+  def boxBoolean(cb: Code[Boolean]): Code[java.lang.Boolean] =
+    Code.newInstance[java.lang.Boolean, Boolean](cb)
 
   def boxInt(ci: Code[Int]): Code[java.lang.Integer] = Code.newInstance[java.lang.Integer, Int](ci)
 
   def boxLong(cl: Code[Long]): Code[java.lang.Long] = Code.newInstance[java.lang.Long, Long](cl)
 
-  def boxFloat(cf: Code[Float]): Code[java.lang.Float] = Code.newInstance[java.lang.Float, Float](cf)
+  def boxFloat(cf: Code[Float]): Code[java.lang.Float] =
+    Code.newInstance[java.lang.Float, Float](cf)
 
-  def boxDouble(cd: Code[Double]): Code[java.lang.Double] = Code.newInstance[java.lang.Double, Double](cd)
+  def boxDouble(cd: Code[Double]): Code[java.lang.Double] =
+    Code.newInstance[java.lang.Double, Double](cd)
 
-  def booleanValue(x: Code[java.lang.Boolean]): Code[Boolean] = toCodeObject(x).invoke[Boolean]("booleanValue")
+  def booleanValue(x: Code[java.lang.Boolean]): Code[Boolean] =
+    toCodeObject(x).invoke[Boolean]("booleanValue")
 
   def intValue(x: Code[java.lang.Number]): Code[Int] = toCodeObject(x).invoke[Int]("intValue")
 
   def longValue(x: Code[java.lang.Number]): Code[Long] = toCodeObject(x).invoke[Long]("longValue")
 
-  def floatValue(x: Code[java.lang.Number]): Code[Float] = toCodeObject(x).invoke[Float]("floatValue")
+  def floatValue(x: Code[java.lang.Number]): Code[Float] =
+    toCodeObject(x).invoke[Float]("floatValue")
 
-  def doubleValue(x: Code[java.lang.Number]): Code[Double] = toCodeObject(x).invoke[Double]("doubleValue")
+  def doubleValue(x: Code[java.lang.Number]): Code[Double] =
+    toCodeObject(x).invoke[Double]("doubleValue")
 
-  def getStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String): Code[S] = {
+  def getStatic[T: ClassTag, S: ClassTag: TypeInfo](field: String): Code[S] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
     f.getField(null)
   }
 
-  def putStatic[T: ClassTag, S: ClassTag : TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
+  def putStatic[T: ClassTag, S: ClassTag: TypeInfo](field: String, rhs: Code[S]): Code[Unit] = {
     val f = FieldRef[T, S](field)
     assert(f.isStatic)
     f.put(null, rhs)
@@ -475,11 +1202,15 @@ object Code {
       case _ => None
     }
 
-  def currentTimeMillis(): Code[Long] = Code.invokeStatic0[java.lang.System, Long]("currentTimeMillis")
+  def currentTimeMillis(): Code[Long] =
+    Code.invokeStatic0[java.lang.System, Long]("currentTimeMillis")
 
-  def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
-    if (c.start.first == null &&
-      c.v != null) {
+  def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T])
+    : Code[U] = {
+    if (
+      c.start.first == null &&
+      c.v != null
+    ) {
       c.v match {
         case v: lir.LdcX =>
           val t = new Value[T] {
@@ -496,14 +1227,27 @@ object Code {
     Code(lr := c, f(lr))
   }
 
-  def memoizeAny[T, U](c: Code[_], name: String)(f: (Value[_]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] =
+  def memoizeAny[T, U](
+    c: Code[_],
+    name: String,
+  )(
+    f: (Value[_]) => Code[U]
+  )(implicit tti: TypeInfo[T]
+  ): Code[U] =
     memoize[T, U](coerce[T](c), name)(f)(tti)
 
-  def memoize[T1, T2, U](c1: Code[T1], name1: String,
-    c2: Code[T2], name2: String
-  )(f: (Value[T1], Value[T2]) => Code[U])(implicit t1ti: TypeInfo[T1], t2ti: TypeInfo[T2]): Code[U] = {
+  def memoize[T1, T2, U](
+    c1: Code[T1],
+    name1: String,
+    c2: Code[T2],
+    name2: String,
+  )(
+    f: (Value[T1], Value[T2]) => Code[U]
+  )(implicit
+    t1ti: TypeInfo[T1],
+    t2ti: TypeInfo[T2],
+  ): Code[U] =
     memoize(c1, name1)(v1 => memoize(c2, name2)(v2 => f(v1, v2)))
-  }
 
   def toUnit(c: Code[_]): Code[Unit] = {
     val newC = new VCode(c.start, c.end, null)
@@ -519,7 +1263,8 @@ object Code {
     t.newTuple(elems)
   }
 
-  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_]): IndexedSeq[Value[_]] = {
+  def loadTuple(modb: ModuleBuilder, elemTypes: IndexedSeq[TypeInfo[_]], v: Value[_])
+    : IndexedSeq[Value[_]] = {
     val t = modb.tupleClass(elemTypes)
     t.loadElementsAny(v)
   }
@@ -541,18 +1286,18 @@ trait Code[+T] {
 
   def clear(): Unit
 
-  def ti: TypeInfo[_] = {
+  def ti: TypeInfo[_] =
     if (v == null)
       UnitInfo
     else
       v.ti
-  }
 }
 
 class VCode[+T](
   var _start: lir.Block,
   var _end: lir.Block,
-  var _v: lir.ValueX) extends Code[T] {
+  var _v: lir.ValueX,
+) extends Code[T] {
   // for debugging
   // val stack = Thread.currentThread().getStackTrace
   // var clearStack: Array[StackTraceElement] = _
@@ -572,25 +1317,14 @@ class VCode[+T](
     _v
   }
 
-  def check(): Unit = {
-    /*
-    if (_start == null) {
-      println(clearStack.mkString("\n"))
-      println("-----")
-      println(stack.mkString("\n"))
-    }
-     */
+  def check(): Unit =
+    /* if (_start == null) { println(clearStack.mkString("\n")) println("-----")
+     * println(stack.mkString("\n")) } */
     assert(_start != null)
-  }
 
   def clear(): Unit = {
-    /*
-    if (clearStack != null) {
-      println(clearStack.mkString("\n"))
-    }
-    assert(clearStack == null)
-    clearStack = Thread.currentThread().getStackTrace
-     */
+    /* if (clearStack != null) { println(clearStack.mkString("\n")) } assert(clearStack == null)
+     * clearStack = Thread.currentThread().getStackTrace */
 
     _start = null
     _end = null
@@ -606,7 +1340,8 @@ object CodeKind extends Enumeration {
 class CCode(
   private var _entry: lir.Block,
   private var _Ltrue: lir.Block,
-  private var _Lfalse: lir.Block) extends Code[Boolean] {
+  private var _Lfalse: lir.Block,
+) extends Code[Boolean] {
 
   private var _kind: CodeKind.Kind = _
 
@@ -719,6 +1454,7 @@ class CCode(
 class ConstCodeBoolean(val b: Boolean) extends Code[Boolean] {
 
   private[this] lazy val ldc = new lir.LdcX(if (b) 1 else 0, BooleanInfo, 0)
+
   private[this] lazy val vc = {
     val L = new lir.Block()
     new VCode(L, L, ldc)
@@ -750,7 +1486,8 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
             if (v.a.asInstanceOf[Int] != 0)
               Ltrue
             else
-              Lfalse))
+              Lfalse
+          ))
         case _ =>
           assert(lhs.v.ti == BooleanInfo, lhs.v.ti)
           lhs.end.append(lir.ifx(IFNE, lhs.v, Ltrue, Lfalse))
@@ -947,9 +1684,11 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
 
   def hexString: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", lhs)
 
-  def numberOfLeadingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeros", lhs)
+  def numberOfLeadingZeros: Code[Int] =
+    Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfLeadingZeros", lhs)
 
-  def numberOfTrailingZeros: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfTrailingZeros", lhs)
+  def numberOfTrailingZeros: Code[Int] =
+    Code.invokeStatic1[java.lang.Long, Long, Int]("numberOfTrailingZeros", lhs)
 
   def bitCount: Code[Int] = Code.invokeStatic1[java.lang.Long, Long, Int]("bitCount", lhs)
 }
@@ -1050,7 +1789,8 @@ class CodeString(val lhs: Code[String]) extends AnyVal {
 
   def concat(other: Code[String]): Code[String] = lhs.invoke[String, String]("concat", other)
 
-  def println(): Code[Unit] = Code.getStatic[System, PrintStream]("out").invoke[String, Unit]("println", lhs)
+  def println(): Code[Unit] =
+    Code.getStatic[System, PrintStream]("out").invoke[String, Unit]("println", lhs)
 
   def length(): Code[Int] = lhs.invoke[Int]("length")
 
@@ -1059,8 +1799,10 @@ class CodeString(val lhs: Code[String]) extends AnyVal {
 
 class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
   assert(lhs.ti.asInstanceOf[ArrayInfo[_]].tti == tti)
+
   def apply(i: Code[Int]): Code[T] = {
-    val f: (ValueX, ValueX) => ValueX = (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastSeq(v1, v2))
+    val f: (ValueX, ValueX) => ValueX =
+      (v1: ValueX, v2: ValueX) => lir.insn(tti.aloadOp, tti, FastSeq(v1, v2))
     Code(lhs, i, f)
   }
 
@@ -1083,9 +1825,8 @@ class UntypedCodeArray(val lhs: Value[_], tti: TypeInfo[_]) {
   def apply(i: Code[Int]): Code[_] =
     Code(lhs, i, lir.insn2(tti.aloadOp))
 
-  def index(cb: EmitCodeBuilder, i: Code[Int]): Value[_] = {
+  def index(cb: EmitCodeBuilder, i: Code[Int]): Value[_] =
     cb.memoizeAny(apply(i), tti)
-  }
 
   def update(i: Code[Int], x: Code[_]): Code[Unit] =
     Code.void(lhs.get, i, x, (lhs, i, x) => lir.stmtOp(tti.astoreOp, lhs, i, x))
@@ -1125,27 +1866,15 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
     null
   }
 
-  def check(): Unit = {
-    /*
-    if (_start == null) {
-      println(clearStack.mkString("\n"))
-      println("-----")
-      println(stack.mkString("\n"))
-    }
-    */
+  def check(): Unit =
+    /* if (_start == null) { println(clearStack.mkString("\n")) println("-----")
+     * println(stack.mkString("\n")) } */
     assert(_start != null)
-  }
 
-  def clear(): Unit = {
-    /*
-    if (clearStack != null) {
-      println(clearStack.mkString("\n"))
-    }
-    assert(clearStack == null)
-    clearStack = Thread.currentThread().getStackTrace
-    */
+  def clear(): Unit =
+    /* if (clearStack != null) { println(clearStack.mkString("\n")) } assert(clearStack == null)
+     * clearStack = Thread.currentThread().getStackTrace */
     _start = null
-  }
 
   def goto: Code[Unit] = {
     val M = new lir.Block()
@@ -1155,20 +1884,23 @@ class CodeLabel(val L: lir.Block) extends Code[Unit] {
 }
 
 object Invokeable {
-  def apply[T](cls: Class[T], c: reflect.Constructor[_]): Invokeable[T, Unit] = new Invokeable[T, Unit](
-    cls,
-    "<init>",
-    isStatic = false,
-    isInterface = false,
-    INVOKESPECIAL,
-    Type.getConstructorDescriptor(c),
-    implicitly[ClassTag[Unit]].runtimeClass)
+  def apply[T](cls: Class[T], c: reflect.Constructor[_]): Invokeable[T, Unit] =
+    new Invokeable[T, Unit](
+      cls,
+      "<init>",
+      isStatic = false,
+      isInterface = false,
+      INVOKESPECIAL,
+      Type.getConstructorDescriptor(c),
+      implicitly[ClassTag[Unit]].runtimeClass,
+    )
 
   def apply[T, S](cls: Class[T], m: reflect.Method)(implicit sct: ClassTag[S]): Invokeable[T, S] = {
     val isInterface = m.getDeclaringClass.isInterface
     val isStatic = reflect.Modifier.isStatic(m.getModifiers)
     assert(!(isInterface && isStatic))
-    new Invokeable[T, S](cls,
+    new Invokeable[T, S](
+      cls,
       m.getName,
       isStatic,
       isInterface,
@@ -1179,47 +1911,76 @@ object Invokeable {
       else
         INVOKEVIRTUAL,
       Type.getMethodDescriptor(m),
-      m.getReturnType)
+      m.getReturnType,
+    )
   }
 
-  def lookupMethod[T, S](cls: Class[T], method: String, parameterTypes: Array[Class[_]])(implicit sct: ClassTag[S]): Invokeable[T, S] = {
+  def lookupMethod[T, S](
+    cls: Class[T],
+    method: String,
+    parameterTypes: Array[Class[_]],
+  )(implicit sct: ClassTag[S]
+  ): Invokeable[T, S] = {
     val m = cls.getMethod(method, parameterTypes: _*)
-    assert(m != null,
-      s"no such method ${ cls.getName }.$method(${
-        parameterTypes.map(_.getName).mkString(", ")
-      })")
+    assert(
+      m != null,
+      s"no such method ${cls.getName}.$method(${parameterTypes.map(_.getName).mkString(", ")})",
+    )
 
     // generic type parameters return java.lang.Object instead of the correct class
-    assert(m.getReturnType.isAssignableFrom(sct.runtimeClass),
-      s"when invoking ${ cls.getName }.$method(): ${ m.getReturnType.getName }: wrong return type ${ sct.runtimeClass.getName }")
+    assert(
+      m.getReturnType.isAssignableFrom(sct.runtimeClass),
+      s"when invoking ${cls.getName}.$method(): ${m.getReturnType.getName}: wrong return type ${sct.runtimeClass.getName}",
+    )
 
     Invokeable(cls, m)
   }
 }
 
-class Invokeable[T, S](tcls: Class[T],
+class Invokeable[T, S](
+  tcls: Class[T],
   val name: String,
   val isStatic: Boolean,
   val isInterface: Boolean,
   val invokeOp: Int,
   val descriptor: String,
-  val concreteReturnType: Class[_])(implicit sct: ClassTag[S]) {
+  val concreteReturnType: Class[_],
+)(implicit sct: ClassTag[S]
+) {
   def invoke(lhs: Code[T], args: Array[Code[_]]): Code[S] = {
     val (start, end, argvs) = Code.sequenceValues(
       if (isStatic)
         args
       else
-        lhs +: args)
+        lhs +: args
+    )
 
     val sti = typeInfoFromClassTag(sct)
 
     if (sct.runtimeClass == java.lang.Void.TYPE) {
       end.append(
-        lir.methodStmt(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs))
+        lir.methodStmt(
+          invokeOp,
+          Type.getInternalName(tcls),
+          name,
+          descriptor,
+          isInterface,
+          sti,
+          argvs,
+        )
+      )
       new VCode(start, end, null)
     } else {
       val t = new lir.Local(null, s"invoke_$name", sti)
-      var r = lir.methodInsn(invokeOp, Type.getInternalName(tcls), name, descriptor, isInterface, sti, argvs)
+      var r = lir.methodInsn(
+        invokeOp,
+        Type.getInternalName(tcls),
+        name,
+        descriptor,
+        isInterface,
+        sti,
+        argvs,
+      )
       if (concreteReturnType != sct.runtimeClass)
         r = lir.checkcast(sti, r)
       end.append(lir.store(t, r))
@@ -1229,10 +1990,13 @@ class Invokeable[T, S](tcls: Class[T],
 }
 
 object FieldRef {
-  def apply[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S]): FieldRef[T, S] = {
+  def apply[T, S](field: String)(implicit tct: ClassTag[T], sct: ClassTag[S], sti: TypeInfo[S])
+    : FieldRef[T, S] = {
     val f = tct.runtimeClass.getDeclaredField(field)
-    assert(f.getType == sct.runtimeClass,
-      s"when getting field ${ tct.runtimeClass.getName }.$field: ${ f.getType.getName }: wrong type ${ sct.runtimeClass.getName } ")
+    assert(
+      f.getType == sct.runtimeClass,
+      s"when getting field ${tct.runtimeClass.getName}.$field: ${f.getType.getName}: wrong type ${sct.runtimeClass.getName} ",
+    )
 
     new FieldRef(f)
   }
@@ -1258,7 +2022,8 @@ trait Settable[T] extends Value[T] {
   def load(): Code[T] = get
 }
 
-class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Code[T]) extends Value[T] {
+class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Code[T])
+    extends Value[T] {
   private[this] val value: Settable[T] = cb.genFieldThisRef[T](name)
   private[this] val present: Settable[Boolean] = cb.genFieldThisRef[Boolean](s"${name}_present")
 
@@ -1341,66 +2106,246 @@ class FieldRef[T, S](f: reflect.Field)(implicit tct: ClassTag[T], sti: TypeInfo[
       Code.void(lhs, rhs, lir.putField(tiname, f.getName, sti))
 }
 
-class CodeObject[T <: AnyRef : ClassTag](val lhs: Code[T]) {
+class CodeObject[T <: AnyRef: ClassTag](val lhs: Code[T]) {
   def getField[S](field: String)(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[S] =
     FieldRef[T, S](field).getField(lhs)
 
   def put[S](field: String, rhs: Code[S])(implicit sct: ClassTag[S], sti: TypeInfo[S]): Code[Unit] =
     FieldRef[T, S](field).put(lhs, rhs)
 
-  def invoke[S](method: String, parameterTypes: Array[Class[_]], args: Array[Code[_]])
-    (implicit sct: ClassTag[S]): Code[S] =
-    Invokeable.lookupMethod[T, S](implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]], method, parameterTypes).invoke(lhs, args)
+  def invoke[S](
+    method: String,
+    parameterTypes: Array[Class[_]],
+    args: Array[Code[_]],
+  )(implicit sct: ClassTag[S]
+  ): Code[S] =
+    Invokeable.lookupMethod[T, S](
+      implicitly[ClassTag[T]].runtimeClass.asInstanceOf[Class[T]],
+      method,
+      parameterTypes,
+    ).invoke(lhs, args)
 
   def invoke[S](method: String)(implicit sct: ClassTag[S]): Code[S] =
     invoke[S](method, Array[Class[_]](), Array[Code[_]]())
 
-  def invoke[A1, S](method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1],
-    sct: ClassTag[S]): Code[S] =
+  def invoke[A1, S](method: String, a1: Code[A1])(implicit a1ct: ClassTag[A1], sct: ClassTag[S])
+    : Code[S] =
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass), Array[Code[_]](a1))
 
-  def invoke[A1, A2, S](method: String, a1: Code[A1], a2: Code[A2])(implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2],
-    sct: ClassTag[S]): Code[S] =
+  def invoke[A1, A2, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    sct: ClassTag[S],
+  ): Code[S] =
     invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass), Array[Code[_]](a1, a2))
 
-  def invoke[A1, A2, A3, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], sct: ClassTag[S]): Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass), Array[Code[_]](a1, a2, a3))
+  def invoke[A1, A2, A3, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass),
+      Array[Code[_]](a1, a2, a3),
+    )
 
-  def invoke[A1, A2, A3, A4, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], sct: ClassTag[S]): Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4))
+  def invoke[A1, A2, A3, A4, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass),
+      Array[Code[_]](a1, a2, a3, a4),
+    )
 
-  def invoke[A1, A2, A3, A4, A5, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], sct: ClassTag[S]): Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))
+  def invoke[A1, A2, A3, A4, A5, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5),
+    )
 
-  def invoke[A1, A2, A3, A4, A5, A6, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], sct: ClassTag[S]): Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6))
+  def invoke[A1, A2, A3, A4, A5, A6, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6),
+    )
 
-  def invoke[A1, A2, A3, A4, A5, A6, A7, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4], a5: Code[A5], a6: Code[A6], a7: Code[A7])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5], a6ct: ClassTag[A6], a7ct: ClassTag[A7], sct: ClassTag[S]): Code[S] =
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass, a6ct.runtimeClass, a7ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7))
+  def invoke[A1, A2, A3, A4, A5, A6, A7, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7),
+    )
 
-  def invoke[A1, A2, A3, A4, A5, A6, A7, A8, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4],
-    a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5],
-    a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], sct: ClassTag[S]): Code[S] = {
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass,
-      a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8))
-  }
+  def invoke[A1, A2, A3, A4, A5, A6, A7, A8, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8),
+    )
 
-  def invoke[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](method: String, a1: Code[A1], a2: Code[A2], a3: Code[A3], a4: Code[A4],
-    a5: Code[A5], a6: Code[A6], a7: Code[A7], a8: Code[A8], a9: Code[A9])
-    (implicit a1ct: ClassTag[A1], a2ct: ClassTag[A2], a3ct: ClassTag[A3], a4ct: ClassTag[A4], a5ct: ClassTag[A5],
-      a6ct: ClassTag[A6], a7ct: ClassTag[A7], a8ct: ClassTag[A8], a9ct: ClassTag[A9], sct: ClassTag[S]): Code[S] = {
-    invoke[S](method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass,
-      a6ct.runtimeClass, a7ct.runtimeClass, a8ct.runtimeClass, a9ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9))
-  }
+  def invoke[A1, A2, A3, A4, A5, A6, A7, A8, A9, S](
+    method: String,
+    a1: Code[A1],
+    a2: Code[A2],
+    a3: Code[A3],
+    a4: Code[A4],
+    a5: Code[A5],
+    a6: Code[A6],
+    a7: Code[A7],
+    a8: Code[A8],
+    a9: Code[A9],
+  )(implicit
+    a1ct: ClassTag[A1],
+    a2ct: ClassTag[A2],
+    a3ct: ClassTag[A3],
+    a4ct: ClassTag[A4],
+    a5ct: ClassTag[A5],
+    a6ct: ClassTag[A6],
+    a7ct: ClassTag[A7],
+    a8ct: ClassTag[A8],
+    a9ct: ClassTag[A9],
+    sct: ClassTag[S],
+  ): Code[S] =
+    invoke[S](
+      method,
+      Array[Class[_]](
+        a1ct.runtimeClass,
+        a2ct.runtimeClass,
+        a3ct.runtimeClass,
+        a4ct.runtimeClass,
+        a5ct.runtimeClass,
+        a6ct.runtimeClass,
+        a7ct.runtimeClass,
+        a8ct.runtimeClass,
+        a9ct.runtimeClass,
+      ),
+      Array[Code[_]](a1, a2, a3, a4, a5, a6, a7, a8, a9),
+    )
 }
 
-class CodeNullable[T >: Null : TypeInfo](val lhs: Code[T]) {
+class CodeNullable[T >: Null: TypeInfo](val lhs: Code[T]) {
   def isNull: Code[Boolean] = {
     val Ltrue = new lir.Block()
     val Lfalse = new lir.Block()

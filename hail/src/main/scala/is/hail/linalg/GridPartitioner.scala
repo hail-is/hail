@@ -1,22 +1,30 @@
 package is.hail.linalg
 
-import breeze.linalg.{DenseVector => BDV}
 import is.hail.utils._
-import org.apache.spark.Partitioner
 
 import scala.collection.mutable
 
-/**
-  * BLOCKS ARE NUMBERED COLUMN MAJOR
+import breeze.linalg.{DenseVector => BDV}
+import org.apache.spark.Partitioner
+
+/** BLOCKS ARE NUMBERED COLUMN MAJOR
   *
   * @param blockSize
   * @param nRows
   * @param nCols
-  * @param partitionIndexToBlockIndex If exists, matrix is sparse and this contains a list of indices of blocks that are not all zero
+  * @param partitionIndexToBlockIndex
+  *   If exists, matrix is sparse and this contains a list of indices of blocks that are not all
+  *   zero
   */
-case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIndexToBlockIndex: Option[IndexedSeq[Int]] = None) extends Partitioner {
+case class GridPartitioner(
+  blockSize: Int,
+  nRows: Long,
+  nCols: Long,
+  partitionIndexToBlockIndex: Option[IndexedSeq[Int]] = None,
+) extends Partitioner {
   if (nRows == 0)
     fatal("block matrix must have at least one row")
+
   if (nCols == 0)
     fatal("block matrix must have at least one column")
 
@@ -32,12 +40,19 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
 
   val maxNBlocks: Long = nBlockRows.toLong * nBlockCols
 
-  if (!partitionIndexToBlockIndex.forall(bis => bis.isEmpty ||
-    (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
-      bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
-    throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${partitionIndexToBlockIndex.toIndexedSeq}, max was ${maxNBlocks}")
+  if (
+    !partitionIndexToBlockIndex.forall(bis =>
+      bis.isEmpty ||
+        (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
+          bis.length < maxNBlocks)
+    )
+  ) // a block-sparse matrix cannot have all blocks present
+    throw new IllegalArgumentException(
+      s"requirement failed: Sparse blocks sequence was ${partitionIndexToBlockIndex.toIndexedSeq}, max was $maxNBlocks"
+    )
 
-  val blockToPartitionMap = partitionIndexToBlockIndex.map(_.zipWithIndex.toMap.withDefaultValue(-1))
+  val blockToPartitionMap =
+    partitionIndexToBlockIndex.map(_.zipWithIndex.toMap.withDefaultValue(-1))
 
   val lastBlockRowNRows: Int = indexBlockOffset(nRows - 1) + 1
   val lastBlockColNCols: Int = indexBlockOffset(nCols - 1) + 1
@@ -48,7 +63,8 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   def blockBlockRow(bi: Int): Int = bi % nBlockRows
   def blockBlockCol(bi: Int): Int = bi / nBlockRows
 
-  def blockDims(bi: Int): (Int, Int) = (blockRowNRows(blockBlockRow(bi)), blockColNCols(blockBlockCol(bi)))
+  def blockDims(bi: Int): (Int, Int) =
+    (blockRowNRows(blockBlockRow(bi)), blockColNCols(blockBlockCol(bi)))
 
   def nBlocks: Int = partitionIndexToBlockIndex.map(_.length).getOrElse(nBlockRows * nBlockCols)
 
@@ -61,24 +77,28 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   }
 
   def intersect(that: GridPartitioner): GridPartitioner = {
-    copy(partitionIndexToBlockIndex = (partitionIndexToBlockIndex, that.partitionIndexToBlockIndex) match {
-      case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
-      case (Some(bis), None) => Some(bis)
-      case (None, Some(bis2)) => Some(bis2)
-      case (None, None) => None
-    })
+    copy(partitionIndexToBlockIndex =
+      (partitionIndexToBlockIndex, that.partitionIndexToBlockIndex) match {
+        case (Some(bis), Some(bis2)) => Some(bis.filter(bis2.toSet))
+        case (Some(bis), None) => Some(bis)
+        case (None, Some(bis2)) => Some(bis2)
+        case (None, None) => None
+      }
+    )
   }
 
   def union(that: GridPartitioner): GridPartitioner = {
-    copy(partitionIndexToBlockIndex = (partitionIndexToBlockIndex, that.partitionIndexToBlockIndex) match {
-      case (Some(bis), Some(bis2)) =>
-        val union = (bis ++ bis2).distinct
-        if (union.length == maxNBlocks)
-          None
-        else
-          Some(union.sorted)
-      case _ => None
-    })
+    copy(partitionIndexToBlockIndex =
+      (partitionIndexToBlockIndex, that.partitionIndexToBlockIndex) match {
+        case (Some(bis), Some(bis2)) =>
+          val union = (bis ++ bis2).distinct
+          if (union.length == maxNBlocks)
+            None
+          else
+            Some(union.sorted)
+        case _ => None
+      }
+    )
   }
 
   override val numPartitions: Int = partitionIndexToBlockIndex match {
@@ -99,7 +119,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
 
   def blockToPartition(blockId: Int): Int = blockToPartitionMap match {
     case Some(bpMap) => bpMap(blockId)
-    case None =>  blockId
+    case None => blockId
   }
 
   def partCoordinates(pi: Int): (Int, Int) = blockCoordinates(partitionToBlock(pi))
@@ -110,25 +130,29 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
     case (i: Int, j: Int) => coordinatesPart(i, j)
   }
 
-  /**
-    *
-    * @return A transposed GridPartitioner and a function that maps partitions in the new transposed partitioner to
-    *         the parent partitions in the old partitioner.
+  /** @return
+    *   A transposed GridPartitioner and a function that maps partitions in the new transposed
+    *   partitioner to the parent partitions in the old partitioner.
     */
   def transpose: (GridPartitioner, Int => Int) = {
     val gpT = GridPartitioner(blockSize, nCols, nRows)
     partitionIndexToBlockIndex match {
       case Some(bis) =>
-        def transposeBI(bi: Int): Int = gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
+        def transposeBI(bi: Int): Int =
+          gpT.coordinatesBlock(this.blockBlockCol(bi), this.blockBlockRow(bi))
 
-        val (partIdxTToBlockIdxT, partIdxTToPartIdx) = bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
+        val (partIdxTToBlockIdxT, partIdxTToPartIdx) =
+          bis.map(transposeBI).zipWithIndex.sortBy(_._1).unzip
         val transposedPartitionIndicesToParentPartitions = partIdxTToPartIdx.apply(_)
 
-        (GridPartitioner(blockSize, nCols, nRows, Some(partIdxTToBlockIdxT)), transposedPartitionIndicesToParentPartitions)
-      case None => {
-        def transposedBlockIndicesToParentBlocks(bi: Int) = this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
+        (
+          GridPartitioner(blockSize, nCols, nRows, Some(partIdxTToBlockIdxT)),
+          transposedPartitionIndicesToParentPartitions,
+        )
+      case None =>
+        def transposedBlockIndicesToParentBlocks(bi: Int) =
+          this.coordinatesBlock(gpT.blockBlockCol(bi), gpT.blockBlockRow(bi))
         (gpT, transposedBlockIndicesToParentBlocks)
-      }
     }
   }
 
@@ -162,13 +186,14 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   //   all elements with lower <= jj - ii <= upper
   def bandBlocks(lower: Long, upper: Long): Array[Int] = {
     require(lower <= upper)
-    
+
     val lowerBlock = java.lang.Math.floorDiv(lower, blockSize).toInt
     val upperBlock = java.lang.Math.floorDiv(upper + blockSize - 1, blockSize).toInt
 
-    (for { j <- 0 until nBlockCols
-           i <- ((j - upperBlock) max 0) to
-                ((j - lowerBlock) min (nBlockRows - 1))
+    (for {
+      j <- 0 until nBlockCols
+      i <- ((j - upperBlock) max 0) to
+        ((j - lowerBlock) min (nBlockRows - 1))
     } yield (j * nBlockRows) + i).toArray
   }
 
@@ -180,20 +205,21 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
     val stopBlockRow = java.lang.Math.floorDiv(r(1) - 1, blockSize).toInt + 1
     val startBlockCol = indexBlockIndex(r(2))
     val stopBlockCol = java.lang.Math.floorDiv(r(3) - 1, blockSize).toInt + 1
-    
-    (for { j <- startBlockCol until stopBlockCol
-           i <- startBlockRow until stopBlockRow
+
+    (for {
+      j <- startBlockCol until stopBlockCol
+      i <- startBlockRow until stopBlockRow
     } yield (j * nBlockRows) + i).toArray
   }
 
   // returns increasing array of all blocks intersecting the union of rectangles
   // rectangles checked in Python
   def rectanglesBlocks(rectangles: Array[Array[Long]]): Array[Int] = {
-    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray    
+    val blocks = rectangles.foldLeft(mutable.Set[Int]())((s, r) => s ++= rectangleBlocks(r)).toArray
     scala.util.Sorting.quickSort(blocks)
     blocks
   }
-  
+
   // starts, stops checked in Python
   def rowIntervalsBlocks(starts: Array[Long], stops: Array[Long]): Array[Int] = {
     val rectangles = starts.grouped(blockSize).zip(stops.grouped(blockSize))
@@ -218,7 +244,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
         } else
           None
       }.toArray
-    
+
     rectanglesBlocks(rectangles)
   }
 }

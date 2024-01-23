@@ -495,9 +495,9 @@ def _pca_and_moments(
     fact2 = _krylov_factorization(A, Q1, p, compute_U=False)
     moments_and_stdevs = fact2.spectral_moments(num_moments, R1)
     # Add back exact moments
-    moments = moments_and_stdevs.moments + hl.nd.array(
-        [fact.S.map(lambda x: x ** (2 * i)).sum() for i in range(1, num_moments + 1)]
-    )
+    moments = moments_and_stdevs.moments + hl.nd.array([
+        fact.S.map(lambda x: x ** (2 * i)).sum() for i in range(1, num_moments + 1)
+    ])
     moments_and_stdevs = hl.eval(hl.struct(moments=moments, stdevs=moments_and_stdevs.stdevs))
     moments = moments_and_stdevs.moments
     stdevs = moments_and_stdevs.stdevs

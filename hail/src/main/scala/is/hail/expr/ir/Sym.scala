@@ -15,12 +15,11 @@ object Sym {
 abstract class Sym
 
 case class Identifier(name: String) extends Sym {
-  override def toString: String = {
+  override def toString: String =
     if (name.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
       name
     else
-      s"`${ StringEscapeUtils.escapeString(name, backticked = true) }`"
-  }
+      s"`${StringEscapeUtils.escapeString(name, backticked = true)}`"
 }
 
 // lang is one of "py" or "j"

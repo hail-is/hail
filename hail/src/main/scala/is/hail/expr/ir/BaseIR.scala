@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.types.BaseType
 import is.hail.types.virtual.Type
-import is.hail.utils.StackSafe._
 import is.hail.utils._
+import is.hail.utils.StackSafe._
 
 abstract class BaseIR {
   def typ: BaseType
@@ -15,11 +15,11 @@ abstract class BaseIR {
 
   protected def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
 
-  def deepCopy(): this.type = copy(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
+  def deepCopy(): this.type =
+    copy(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
 
   def noSharing(ctx: ExecuteContext): this.type =
     if (HasIRSharing(ctx)(this)) this.deepCopy() else this
-
 
   // For use as a boolean flag by IR passes. Each pass uses a different sentinel value to encode
   // "true" (and anything else is false). As long as we maintain the global invariant that no
@@ -62,12 +62,11 @@ abstract class BaseIR {
     }
   }
 
-  def forEachChildWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => Unit): Unit = {
+  def forEachChildWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => Unit): Unit =
     childrenSeq.view.zipWithIndex.foreach { case (child, i) =>
       val childEnv = ChildBindings(this, i, env)
       f(child, childEnv)
     }
-  }
 
   def mapChildrenWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.toArray
@@ -84,10 +83,13 @@ abstract class BaseIR {
     res
   }
 
-  def forEachChildWithEnvStackSafe(env: BindingEnv[Type])(f: (BaseIR, Int, BindingEnv[Type]) => StackFrame[Unit]): StackFrame[Unit] = {
+  def forEachChildWithEnvStackSafe(
+    env: BindingEnv[Type]
+  )(
+    f: (BaseIR, Int, BindingEnv[Type]) => StackFrame[Unit]
+  ): StackFrame[Unit] =
     childrenSeq.view.zipWithIndex.foreachRecur { case (child, i) =>
       val childEnv = ChildBindings(this, i, env)
       f(child, i, childEnv)
     }
-  }
 }

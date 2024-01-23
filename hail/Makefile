@@ -27,7 +27,9 @@ JAVAC ?= javac
 JAR ?= jar
 endif
 
-PYTEST_TARGET ?= test/hail
+PYTEST_TARGET ?= test/hail test/hailtop
+DOCTEST_TARGET ?= hail
+PYTEST_INTER_CLOUD_TARGET ?= test/hailtop/inter_cloud
 
 # not perfect, not robust to simdpp changes, but probably fine
 BUILD_DEBUG_PREFIX := build/classes/scala/debug
@@ -57,6 +59,7 @@ WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+HAIL_TEST_GCS_BUCKET = $(shell kubectl get secret global-config --template={{.data.hail_test_gcs_bucket}} | base64 --decode)
 GCP_PROJECT = $(shell kubectl get secret global-config --template={{.data.gcp_project}} | base64 --decode)
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
@@ -118,7 +121,7 @@ services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-qob-test-resources
+fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-remote-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
@@ -178,9 +181,9 @@ $(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
 python-jar: $(PYTHON_JAR)
 
 .PHONY: pytest
-pytest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-	cd python && $(HAIL_PYTHON3) -m pytest \
+pytest: install-editable
+	cd python && \
+          $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
@@ -191,20 +194,47 @@ pytest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
             --self-contained-html \
             --html=../build/reports/pytest.html \
             --timeout=120 \
+            --ignore $(PYTEST_INTER_CLOUD_TARGET) \
             $(PYTEST_TARGET) \
             $(PYTEST_ARGS)
 
-# NOTE: Look at upload-qob-test-resources target if test resources are missing
+
+# NOTE: Look at upload-remote-test-resources target if test resources are missing
+.PHONY: pytest-inter-cloud
+pytest-inter-cloud: upload-remote-test-resources install-editable
+	cd python && \
+          HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
+          HAIL_TEST_GCS_BUCKET=$(HAIL_TEST_GCS_BUCKET) \
+          HAIL_TEST_S3_BUCKET=hail-test-dy5rg \
+          HAIL_TEST_AZURE_ACCOUNT=hailtest \
+          HAIL_TEST_AZURE_CONTAINER=hail-test-4nxei \
+          $(HAIL_PYTHON3) -m pytest \
+            -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+            --log-cli-level=INFO \
+            -s \
+            -vv \
+            -r A \
+            --instafail \
+            --durations=50 \
+            --self-contained-html \
+            --html=../build/reports/pytest.html \
+            --timeout=120 \
+            $(PYTEST_INTER_CLOUD_TARGET) \
+            $(PYTEST_ARGS)
+
+
+# NOTE: Look at upload-remote-test-resources target if test resources are missing
 .PHONY: pytest-qob
-pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
+pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make pytest-qob NAMESPACE=default
 	cd python && \
-  HAIL_QUERY_BACKEND=batch \
-	HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
-	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
-	HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
-	HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
-	$(HAIL_PYTHON3) -m pytest \
+          HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
+          HAIL_QUERY_BACKEND=batch \
+          HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
+          HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
+          HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
+          HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
+          $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
@@ -219,10 +249,12 @@ pytest-qob: upload-qob-jar upload-qob-test-resources install-editable
             $(PYTEST_ARGS)
 
 
-.PHONY: doctest
-doctest: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
-doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-	cd python && $(HAIL_PYTHON3) -m pytest \
+.PHONY: doctest-query
+doctest-query: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+doctest-query: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
+	[ $$(stty size | cut -f2 -d' ') -eq 80 ]  # doctests will fail unless you use an 80 character width tty
+	cd python && \
+          $(HAIL_PYTHON3) -m pytest \
             -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
             --log-cli-level=INFO \
             -s \
@@ -234,6 +266,7 @@ doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
             --html=../build/reports/pytest-doctest.html \
             --doctest-modules \
             --doctest-glob='*.rst' \
+            --doctest-continue-on-failure \
             --ignore=setup.py \
             --ignore=setup-hailtop.py \
             --ignore=hail/docs/conf.py \
@@ -243,7 +276,7 @@ doctest: python/README.md $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
             --ignore=hail/docs/doctest_write_data.py \
             --ignore=hail/docs/getting_started_developing.rst \
             --ignore=hail/docs/getting_started.rst \
-            $(PYTEST_TARGET) \
+            $(DOCTEST_TARGET) \
             $(PYTEST_ARGS)
 
 
@@ -312,18 +345,22 @@ upload-artifacts: $(WHEEL)
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day. To trigger this target to re-run,
-# > rm upload-qob-test-resources
-upload-qob-test-resources: $(shell git ls-files src/test/resources)
-upload-qob-test-resources: $(shell git ls-files python/hail/docs/data)
-	! [ -z $(NAMESPACE) ]  # call this like: make upload-qob-test-resources NAMESPACE=default
-	gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
-	gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
-	# # In Azure, use the following instead of gcloud storage cp
-	# python3 -m hailtop.aiotools.copy -vvv 'null' '[\
-        #      {"from":"src/test/resources","to":"$(CLOUD_HAIL_TEST_RESOURCES_DIR)"},\
-        #      {"from":"python/hail/docs/data","to":"$(CLOUD_HAIL_DOCTEST_DATA_DIR)"}\
-        # ]'
-	# touch $@
+# > rm upload-remote-test-resources
+upload-remote-test-resources: install-editable
+upload-remote-test-resources: $(shell git ls-files src/test/resources)
+upload-remote-test-resources: $(shell git ls-files python/hail/docs/data)
+	# # If hailtop.aiotools.copy gives you trouble:
+	# gcloud storage cp -r src/test/resources/\* $(CLOUD_HAIL_TEST_RESOURCES_DIR)
+	# gcloud storage cp -r python/hail/docs/data/\* $(CLOUD_HAIL_DOCTEST_DATA_DIR)
+	python3 -m hailtop.aiotools.copy \
+            -vvv \
+            'null' \
+            "[\
+              {\"from\":\"src/test/resources\",\"to\":\"$(CLOUD_HAIL_TEST_RESOURCES_DIR)\"}, \
+              {\"from\":\"python/hail/docs/data\",\"to\":\"$(CLOUD_HAIL_DOCTEST_DATA_DIR)\"} \
+             ]" \
+            --timeout 600
+	touch $@
 
 # NOTE: 1-day expiration of the test bucket means that this
 # target must be run at least once a day if using a dev NAMESPACE.
@@ -458,9 +495,9 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
-.PHONY: hail-docs-no-test
-hail-docs-no-test: install-editable
-hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
+.PHONY: hail-docs-do-not-render-notebooks
+hail-docs-do-not-render-notebooks: install-editable
+hail-docs-do-not-render-notebooks: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
 	        BUILDDIR=$(HAIL_HAIL_DIR)/build/docs/hail \
 	        html
@@ -472,13 +509,6 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	     -type f \
 	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: file://$(HAIL_HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
-
-.PHONY: upload-docs
-upload-docs: hail-docs batch-docs
-	cd build && tar czf www.tar.gz www
-	gcloud storage cp build/www.tar.gz $(docs_location)
-	gcloud storage objects update -r $(docs_location) --temporary-hold
-	gcloud storage objects update -r $(docs_location) --add-acl-grant=entity=AllUsers,role=READER
 
 .PHONY: test
 test: pytest jvm-test doctest

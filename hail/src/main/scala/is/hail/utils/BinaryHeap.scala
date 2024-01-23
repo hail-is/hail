@@ -1,8 +1,9 @@
 package is.hail.utils
 
-import Math.signum
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+import java.lang.Math.signum
 
 class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Double = null) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
@@ -32,11 +33,13 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
   def nonEmpty: Boolean = next != 0
 
   override def toString(): String =
-    s"values: ${ ts.slice(0, next): IndexedSeq[T] }; ranks: ${ ranks.slice(0, next): IndexedSeq[Long] }"
+    s"values: ${ts.slice(0, next): IndexedSeq[T]}; ranks: ${ranks.slice(0, next): IndexedSeq[Long]}"
 
-  def insert(t: T, r: Long) {
+  def insert(t: T, r: Long): Unit = {
     if (m.contains(t))
-      throw new RuntimeException(s"key $t already exists with priority ${ ranks(m(t)) }, cannot add it again with priority $r")
+      throw new RuntimeException(
+        s"key $t already exists with priority ${ranks(m(t))}, cannot add it again with priority $r"
+      )
     maybeGrow()
     put(next, t, r)
     bubbleUp(next)
@@ -76,14 +79,14 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
   def getPriority(t: T): Long =
     ranks(m(t))
 
-  def decreasePriorityTo(t: T, r: Long) {
+  def decreasePriorityTo(t: T, r: Long): Unit = {
     val i = m(t)
     assert(ranks(i) > r)
     ranks(i) = r
     bubbleDown(i)
   }
 
-  def decreasePriority(t: T, f: (Long) => Long) {
+  def decreasePriority(t: T, f: (Long) => Long): Unit = {
     val i = m(t)
     val r = f(ranks(i))
     assert(ranks(i) > r)
@@ -91,14 +94,14 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     bubbleDown(i)
   }
 
-  def increasePriorityTo(t: T, r: Long) {
+  def increasePriorityTo(t: T, r: Long): Unit = {
     val i = m(t)
     assert(ranks(i) < r)
     ranks(i) = r
     bubbleUp(i)
   }
 
-  def increasePriority(t: T, f: (Long) => Long) {
+  def increasePriority(t: T, f: (Long) => Long): Unit = {
     val i = m(t)
     val r = f(ranks(i))
     assert(ranks(i) < r)
@@ -118,13 +121,13 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
   private def parent(i: Int) =
     if (i == 0) 0 else (i - 1) >>> 1
 
-  private def put(to: Int, t: T, rank: Long) {
+  private def put(to: Int, t: T, rank: Long): Unit = {
     ts(to) = t
     ranks(to) = rank
     m(t) = to
   }
 
-  private def swap(i: Int, j: Int) {
+  private def swap(i: Int, j: Int): Unit = {
     val tempt = ts(i)
     ts(i) = ts(j)
     ts(j) = tempt
@@ -135,7 +138,7 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     m(ts(i)) = i
   }
 
-  private def maybeGrow() {
+  private def maybeGrow(): Unit = {
     if (next >= ts.length) {
       val ts2 = new Array[T](ts.length << 1)
       val ranks2 = new Array[Long](ts.length << 1)
@@ -146,7 +149,7 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     }
   }
 
-  private def maybeShrink() {
+  private def maybeShrink(): Unit = {
     if (next >= minimumCapacity && next < (ts.length >>> 2)) {
       val ts2 = new Array[T](ts.length >>> 2)
       val ranks2 = new Array[Long](ts.length >>> 2)
@@ -157,7 +160,7 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     }
   }
 
-  private def bubbleUp(i: Int) {
+  private def bubbleUp(i: Int): Unit = {
     var current = i
     var p = parent(current)
     while (ranks(current) > ranks(p) || isLeftFavoredTie(current, p)) {
@@ -167,7 +170,7 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     }
   }
 
-  private def bubbleDown(i: Int) {
+  private def bubbleDown(i: Int): Unit = {
     var current = i
     var largest = current
     var continue = false
@@ -175,9 +178,19 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
       val leftChild = (current << 1) + 1
       val rightChild = (current << 1) + 2
 
-      if (leftChild < next && (ranks(leftChild) > ranks(largest) || isLeftFavoredTie(leftChild, largest)))
+      if (
+        leftChild < next && (ranks(leftChild) > ranks(largest) || isLeftFavoredTie(
+          leftChild,
+          largest,
+        ))
+      )
         largest = leftChild
-      if (rightChild < next && (ranks(rightChild) > ranks(largest) || isLeftFavoredTie(rightChild, largest)))
+      if (
+        rightChild < next && (ranks(rightChild) > ranks(largest) || isLeftFavoredTie(
+          rightChild,
+          largest,
+        ))
+      )
         largest = rightChild
 
       if (largest != current) {
@@ -189,11 +202,10 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     } while (continue)
   }
 
-  def checkHeapProperty() {
+  def checkHeapProperty(): Unit =
     checkHeapProperty(0)
-  }
 
-  private def checkHeapProperty(current: Int) {
+  private def checkHeapProperty(current: Int): Unit = {
     val leftChild = (current << 1) + 1
     val rightChild = (current << 1) + 2
     if (leftChild < next) {
@@ -211,9 +223,10 @@ class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T)
     }
   }
 
-  private def assertHeapProperty(child: Int, parent: Int) {
-    assert(ranks(child) <= ranks(parent),
-      s"heap property violated at parent $parent, child $child: ${ ts(parent) }:${ ranks(parent) } < ${ ts(child) }:${ ranks(child) }")
-  }
+  private def assertHeapProperty(child: Int, parent: Int): Unit =
+    assert(
+      ranks(child) <= ranks(parent),
+      s"heap property violated at parent $parent, child $child: ${ts(parent)}:${ranks(parent)} < ${ts(child)}:${ranks(child)}",
+    )
 
 }

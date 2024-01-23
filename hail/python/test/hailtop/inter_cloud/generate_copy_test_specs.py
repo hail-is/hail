@@ -20,7 +20,7 @@ async def create_test_file(fs, name, base, path):
 
 
 async def create_test_dir(fs, name, base, path):
-    '''Create a directory of test data.
+    """Create a directory of test data.
 
     The directory test data depends on the name (src or dest) so, when
     testing overwriting for example, there is a file in src which does
@@ -34,7 +34,7 @@ async def create_test_dir(fs, name, base, path):
     The dest configuration looks like:
      - {base}/dest/a/subdir/file2
      - {base}/dest/a/file3
-    '''
+    """
     assert name in ('src', 'dest')
     assert path.endswith('/')
 
@@ -121,7 +121,7 @@ async def copy_test_specs():
     test_specs = []
 
     with ThreadPoolExecutor() as thread_pool:
-        async with RouterAsyncFS(filesystems=[LocalAsyncFS(thread_pool)]) as fs:
+        async with RouterAsyncFS(local_kwargs={'thread_pool': thread_pool}) as fs:
             for config in copy_test_configurations():
                 token = secrets.token_hex(16)
 

@@ -1,4 +1,5 @@
 from typing import Any, Dict, Mapping, Optional
+
 from .base_client import GoogleBaseClient
 
 
@@ -104,8 +105,12 @@ class PagedQueriesIterator:
 
 
 class GoogleBigQueryClient(GoogleBaseClient):
-    def __init__(self, project, **kwargs):
-        super().__init__(f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}', **kwargs)
+    def __init__(
+        self,
+        project: str,
+        **kwargs,
+    ):
+        super().__init__(base_url=f'https://bigquery.googleapis.com/bigquery/v2/projects/{project}', **kwargs)
 
     # docs:
     # https://cloud.google.com/bigquery/docs/reference

@@ -1,16 +1,15 @@
 package is.hail.rvd
 
-import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering, SafeRow}
+import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.types.physical.{PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
+
 import org.apache.spark.sql.Row
 
 object PartitionBoundOrdering {
-  def apply(ctx: ExecuteContext, _kType: Type): ExtendedOrdering = {
+  def apply(ctx: ExecuteContext, _kType: Type): ExtendedOrdering =
     apply(ctx.stateManager, _kType)
-  }
 
   def apply(sm: HailStateManager, _kType: Type): ExtendedOrdering = {
     val kType = _kType.asInstanceOf[TBaseStruct]
@@ -18,7 +17,6 @@ object PartitionBoundOrdering {
 
     new ExtendedOrdering {
       outer =>
-
       val missingEqual = true
 
       override def compareNonnull(x: T, y: T): Int = {
@@ -128,7 +126,8 @@ object PartitionBoundOrdering {
         // Returns true if for any rows r1 and r2 with r1 < x and r2 > y,
         // the length of the largest common prefix of r1 and r2 is less than
         // or equal to 'allowedOverlap'
-        override def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean = {
+        override def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint)
+          : Boolean = {
           require(allowedOverlap <= fieldOrd.length)
           val xp = x
           val yp = y
@@ -147,14 +146,15 @@ object PartitionBoundOrdering {
           val cl = xpp.length compare ypp.length
           if (allowedOverlap == l)
             prefix == l ||
-              (cl < 0 && xp.sign < 0) ||
-              (cl > 0 && yp.sign > 0) ||
-              (cl == 0 && xp.sign <= yp.sign)
+            (cl < 0 && xp.sign < 0) ||
+            (cl > 0 && yp.sign > 0) ||
+            (cl == 0 && xp.sign <= yp.sign)
           else
             (xpp.length <= allowedOverlap + 1 || ypp.length <= allowedOverlap + 1) && (
               (cl < 0 && xp.sign < 0) ||
                 (cl > 0 && yp.sign > 0) ||
-                (cl == 0 && xp.sign <= yp.sign))
+                (cl == 0 && xp.sign <= yp.sign)
+            )
         }
       }
     }

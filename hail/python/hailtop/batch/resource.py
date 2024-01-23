@@ -11,7 +11,10 @@ class Resource:
     """
 
     _uid: str
-    _source: Optional[job.Job]
+
+    @abc.abstractmethod
+    def source(self) -> Optional[job.Job]:
+        pass
 
     @abc.abstractmethod
     def _get_path(self, directory: str) -> str:
@@ -48,7 +51,6 @@ class ResourceFile(Resource, str):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
-        self._source: Optional[job.Job] = None
         self._output_paths: Set[str] = set()
         self._resource_group: Optional[ResourceGroup] = None
 
@@ -57,8 +59,9 @@ class ResourceFile(Resource, str):
 
     def _add_output_path(self, path: str) -> None:
         self._output_paths.add(path)
-        if self._source is not None:
-            self._source._external_outputs.add(self)
+        source = self.source()
+        if source is not None:
+            source._external_outputs.add(self)
 
     def _add_resource_group(self, rg: 'ResourceGroup') -> None:
         self._resource_group = rg
@@ -104,6 +107,9 @@ class InputResourceFile(ResourceFile):
         assert self._value is not None
         return directory + '/inputs/' + self._value
 
+    def source(self) -> None:
+        return None
+
 
 class JobResourceFile(ResourceFile):
     """
@@ -128,10 +134,12 @@ class JobResourceFile(ResourceFile):
     def __init__(self, value, source: job.Job):
         super().__init__(value)
         self._has_extension = False
-        self._source: job.Job = source
+        self._source = source
+
+    def source(self) -> job.Job:
+        return self._source
 
     def _get_path(self, directory: str) -> str:
-        assert self._source is not None
         assert self._value is not None
         return f'{directory}/{self._source._dirname}/{self._value}'
 
@@ -237,6 +245,9 @@ class ResourceGroup(Resource):
             self._resources[name] = resource_file
             resource_file._add_resource_group(self)
 
+    def source(self):
+        return self._source
+
     def _get_path(self, directory: str) -> str:
         subdir = str(self._source._dirname) if self._source else 'inputs'
         return directory + '/' + subdir + '/' + self._root
@@ -324,14 +335,13 @@ class PythonResult(Resource, str):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
-        self._source: job.PythonJob = source
+        self._source = source
         self._output_paths: Set[str] = set()
         self._json = None
         self._str = None
         self._repr = None
 
     def _get_path(self, directory: str) -> str:
-        assert self._source is not None
         assert self._value is not None
         return f'{directory}/{self._source._dirname}/{self._value}'
 
@@ -352,7 +362,7 @@ class PythonResult(Resource, str):
         """
         Get the job that created the Python result.
         """
-        return cast(job.PythonJob, self._source)
+        return self._source
 
     def as_json(self) -> JobResourceFile:
         """

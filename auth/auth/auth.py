@@ -163,10 +163,10 @@ async def insert_new_user(
             return False
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
-''',
+""",
             (
                 'creating',
                 username,
@@ -481,9 +481,11 @@ async def rest_login(request: web.Request) -> web.Response:
     flow_data['callback_uri'] = callback_uri
 
     # keeping authorization_url and state for backwards compatibility
-    return json_response(
-        {'flow': flow_data, 'authorization_url': flow_data['authorization_url'], 'state': flow_data['state']}
-    )
+    return json_response({
+        'flow': flow_data,
+        'authorization_url': flow_data['authorization_url'],
+        'state': flow_data['state'],
+    })
 
 
 @routes.get('/api/v1alpha/oauth2-client')
@@ -510,10 +512,10 @@ async def post_create_role(request: web.Request, _) -> NoReturn:
     name = str(post['name'])
 
     role_id = await db.execute_insertone(
-        '''
+        """
 INSERT INTO `roles` (`name`)
 VALUES (%s);
-''',
+""",
         (name),
     )
 
@@ -563,10 +565,10 @@ async def rest_get_users(request: web.Request, userdata: UserData) -> web.Respon
         raise web.HTTPUnauthorized()
 
     db = request.app[AppKeys.DB]
-    _query = '''
+    _query = """
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity
 FROM users;
-'''
+"""
     users = [x async for x in db.select_and_fetchall(_query)]
     return json_response(users)
 
@@ -578,10 +580,10 @@ async def rest_get_user(request: web.Request, _) -> web.Response:
     username = request.match_info['user']
 
     user = await db.select_and_fetchone(
-        '''
+        """
 SELECT id, username, login_id, state, is_developer, is_service_account, hail_identity FROM users
 WHERE username = %s;
-''',
+""",
         (username,),
     )
     if user is None:
@@ -598,11 +600,11 @@ async def _delete_user(db: Database, username: str, id: Optional[str]):
         where_args.append(id)
 
     n_rows = await db.execute_update(
-        f'''
+        f"""
 UPDATE users
 SET state = 'deleting'
 WHERE {' AND '.join(where_conditions)};
-''',
+""",
         where_args,
     )
 
@@ -742,11 +744,11 @@ async def get_userinfo_from_login_id_or_hail_identity_id(
     users = [
         x
         async for x in db.select_and_fetchall(
-            '''
+            """
 SELECT users.*
 FROM users
 WHERE (users.login_id = %s OR users.hail_identity_uid = %s) AND users.state = 'active'
-''',
+""",
             (login_id_or_hail_idenity_uid, login_id_or_hail_idenity_uid),
         )
     ]
@@ -766,12 +768,12 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
     users = [
         x
         async for x in db.select_and_fetchall(
-            '''
+            """
 SELECT users.*
 FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
-''',
+""",
             session_id,
             'get_userinfo',
         )

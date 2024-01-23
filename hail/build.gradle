@@ -11,6 +11,8 @@ plugins {
   id 'com.github.johnrengelman.shadow' version '8.1.1'
   id "de.undercouch.download" version "5.4.0"
   id 'eclipse'
+  id  "com.diffplug.spotless" version "6.13.0"
+  id 'io.github.cosmicsilence.scalafix' version '0.2.0'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
@@ -42,17 +44,17 @@ tasks.withType(JavaCompile) {
 project.ext {
     breezeVersion = "1.1"
 
-    sparkVersion = System.getProperty("spark.version", "3.3.0")
+    sparkVersion = System.getProperty("spark.version", "3.3.2")
 
-    if (sparkVersion != "3.3.0") {
-        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.0, use other versions at your own risk.")
+    if (sparkVersion != "3.3.2") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.3.2, use other versions at your own risk.")
     }
-    scalaVersion = System.getProperty("scala.version", "2.12.15")
+    scalaVersion = System.getProperty("scala.version", "2.12.18")
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
     assert(scalaMajorVersion == "2.12")
 }
 
-compileScala {
+tasks.withType(ScalaCompile) {
     options.compilerArgs <<
         "-Xlint:all" <<
         "-Werror" <<
@@ -64,20 +66,13 @@ compileScala {
         "-target:jvm-1.8",
         "-feature",
         "-Xno-patmat-analysis",
-        "-Xfatal-warnings",
-        "-Xlint:_",
+        "-Xlint",
         "-deprecation",
         "-unchecked",
-        "-Xlint:-infer-any",
-        "-Xlint:-unsound-match"
+        "-Ywarn-unused:_,-explicits,-implicits",
+        "-Wconf:cat=unused-locals:w,cat=unused:info,any:w",
+        "-Ypartial-unification",
     ]
-
-    if (scalaMajorVersion == "2.12") {
-        scalaCompileOptions.additionalParameters +=
-            [ "-Xlint:-unused"
-            , "-Ypartial-unification"
-            ]
-    }
 
     scalaCompileOptions.forkOptions.with {
         jvmArgs = ["-Xms512M",
@@ -108,6 +103,14 @@ configurations {
     }
 
     testImplementation.extendsFrom shadow
+}
+
+
+spotless {
+    scala {
+        // run scalafmt on all scala source files
+        scalafmt('3.7.17').configFile('.scalafmt.conf').scalaMajorVersion(scalaMajorVersion)
+    }
 }
 
 dependencies {

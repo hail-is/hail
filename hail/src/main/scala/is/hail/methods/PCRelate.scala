@@ -1,20 +1,18 @@
 package is.hail.methods
 
-import breeze.linalg.{DenseMatrix => BDM}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.functions.BlockMatrixToTableFunction
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.utils._
-import is.hail.HailContext
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.functions.BlockMatrixToTableFunction
-import is.hail.expr.ir.TableValue
 import is.hail.types.{BlockMatrixType, TableType}
 import is.hail.types.virtual._
-import org.apache.spark.storage.StorageLevel
+import is.hail.utils._
+
+import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-
-import scala.language.{higherKinds, implicitConversions}
+import org.apache.spark.storage.StorageLevel
 
 object PCRelate {
   type M = BlockMatrix
@@ -34,12 +32,13 @@ object PCRelate {
   val defaultStorageLevel: StorageLevel = StorageLevel.MEMORY_AND_DISK
 
   private val sig = TStruct(
-      ("i", TInt32),
-      ("j", TInt32),
-      ("kin", TFloat64),
-      ("ibd0", TFloat64),
-      ("ibd1", TFloat64),
-      ("ibd2", TFloat64))
+    ("i", TInt32),
+    ("j", TInt32),
+    ("kin", TFloat64),
+    ("ibd0", TFloat64),
+    ("ibd1", TFloat64),
+    ("ibd2", TFloat64),
+  )
 
   private val keys: IndexedSeq[String] = Array("i", "j")
 
@@ -53,7 +52,9 @@ object PCRelate {
     while (i < nRows) {
       val row = x(i)
       if (row.length != nCols)
-        fatal(s"pc_relate: column index 0 has $nCols scores but column index $i has ${row.length} scores.")
+        fatal(
+          s"pc_relate: column index 0 has $nCols scores but column index $i has ${row.length} scores."
+        )
       var j = 0
       while (j < nCols) {
         val e = row(j)
@@ -71,14 +72,18 @@ object PCRelate {
     r: Result[M],
     blockSize: Int,
     minKinshipOptional: Option[Double],
-    statistics: StatisticSubset): RDD[Row] = {
+    statistics: StatisticSubset,
+  ): RDD[Row] = {
     val minKinship = minKinshipOptional.getOrElse(defaultMinKinship)
 
-    def fuseBlocks(i: Int, j: Int,
+    def fuseBlocks(
+      i: Int,
+      j: Int,
       lmPhi: BDM[Double],
       lmK0: BDM[Double],
       lmK1: BDM[Double],
-      lmK2: BDM[Double]) = {
+      lmK2: BDM[Double],
+    ) = {
 
       if (i <= j) {
         val iOffset = i * blockSize
@@ -88,7 +93,8 @@ object PCRelate {
         var jj = 0
         while (jj < lmPhi.cols) {
           var ii = 0
-          val nRowsAboveDiagonal = if (i < j) lmPhi.rows else (jj + 1) // assumes square blocks on diagonal
+          val nRowsAboveDiagonal =
+            if (i < j) lmPhi.rows else (jj + 1) // assumes square blocks on diagonal
           while (ii < nRowsAboveDiagonal) {
             val kin = lmPhi(ii, jj)
             if (kin >= minKinship) {
@@ -108,16 +114,25 @@ object PCRelate {
 
     val Result(phi, k0, k1, k2) = r
 
-    // FIXME replace join with zipPartitions, throw away lower triangular blocks first, avoid the nulls
+    /* FIXME replace join with zipPartitions, throw away lower triangular blocks first, avoid the
+     * nulls */
     statistics match {
       case PhiOnly => phi.blocks
-        .flatMap { case ((blocki, blockj), phi) => fuseBlocks(blocki, blockj, phi, null, null, null) }
+          .flatMap { case ((blocki, blockj), phi) =>
+            fuseBlocks(blocki, blockj, phi, null, null, null)
+          }
       case PhiK2 => (phi.blocks join k2.blocks)
-        .flatMap { case ((blocki, blockj), (phi, k2)) => fuseBlocks(blocki, blockj, phi, null, null, k2) }
+          .flatMap { case ((blocki, blockj), (phi, k2)) =>
+            fuseBlocks(blocki, blockj, phi, null, null, k2)
+          }
       case PhiK2K0 => (phi.blocks join k0.blocks join k2.blocks)
-        .flatMap { case ((blocki, blockj), ((phi, k0), k2)) => fuseBlocks(blocki, blockj, phi, k0, null, k2) }
+          .flatMap { case ((blocki, blockj), ((phi, k0), k2)) =>
+            fuseBlocks(blocki, blockj, phi, k0, null, k2)
+          }
       case PhiK2K0K1 => (phi.blocks join k0.blocks join k1.blocks join k2.blocks)
-        .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) => fuseBlocks(blocki, blockj, phi, k0, k1, k2) }
+          .flatMap { case ((blocki, blockj), (((phi, k0), k1), k2)) =>
+            fuseBlocks(blocki, blockj, phi, k0, k1, k2)
+          }
     }
   }
 
@@ -128,8 +143,8 @@ case class PCRelate(
   maf: Double,
   blockSize: Int,
   minKinship: Option[Double] = None,
-  statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset)
-  extends BlockMatrixToTableFunction with Serializable {
+  statistics: PCRelate.StatisticSubset = PCRelate.defaultStatisticSubset,
+) extends BlockMatrixToTableFunction with Serializable {
 
   import PCRelate._
 
@@ -177,19 +192,25 @@ case class PCRelate(
         Double.NaN
       else
         mu
-    } (blockedG, preMu)
+    }(blockedG, preMu)
     val variance = cacheWhen(PhiK2)(
-      ctx, mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)))
+      ctx,
+      mu.map(mu => if (java.lang.Double.isNaN(mu)) 0.0 else mu * (1.0 - mu)),
+    )
 
     // write phi to cache and increase parallelism of multiplies before phi.diagonal()
     val phi = writeRead(ctx, this.phi(ctx, mu, variance, blockedG))
 
     if (statistics >= PhiK2) {
       val k2 = cacheWhen(PhiK2K0)(
-        ctx, this.k2(ctx, phi, mu, variance, blockedG))
+        ctx,
+        this.k2(ctx, phi, mu, variance, blockedG),
+      )
       if (statistics >= PhiK2K0) {
         val k0 = cacheWhen(PhiK2K0K1)(
-          ctx, this.k0(ctx, phi, mu, k2, blockedG, ibs0(ctx, blockedG, mu)))
+          ctx,
+          this.k0(ctx, phi, mu, k2, blockedG, ibs0(ctx, blockedG, mu)),
+        )
         if (statistics >= PhiK2K0K1) {
           val k1 = 1.0 - (k2 + k0)
           Result(phi, k0, k1, k2)
@@ -201,11 +222,7 @@ case class PCRelate(
       Result(phi, null, null, null)
   }
 
-  /**
-    * {@code g} is variant by sample
-    * {@code pcs} is sample by numPCs
-    *
-    **/
+  /** {@code g} is variant by sample {@code pcs} is sample by numPCs */
   private[methods] def mu(ctx: ExecuteContext, blockedG: M, pcs: BDM[Double]): M = {
     import breeze.linalg._
 
@@ -221,7 +238,7 @@ case class PCRelate(
   private[methods] def phi(ctx: ExecuteContext, mu: M, variance: M, g: M): M = {
     val centeredAF = BlockMatrix.map2 { (g, mu) =>
       if (java.lang.Double.isNaN(mu)) 0.0 else g / 2 - mu
-    } (g, mu)
+    }(g, mu)
 
     val stddev = variance.sqrt()
 
@@ -230,14 +247,16 @@ case class PCRelate(
 
   private[methods] def ibs0(ctx: ExecuteContext, g: M, mu: M): M = {
     val homalt =
-      BlockMatrix.map2 { (g, mu) =>
-        if (java.lang.Double.isNaN(mu) || g != 2.0) 0.0 else 1.0
-      } (g, mu)
+      BlockMatrix.map2((g, mu) => if (java.lang.Double.isNaN(mu) || g != 2.0) 0.0 else 1.0)(
+        g,
+        mu,
+      )
 
     val homref =
-      BlockMatrix.map2 { (g, mu) =>
-        if (java.lang.Double.isNaN(mu) || g != 0.0) 0.0 else 1.0
-      } (g, mu)
+      BlockMatrix.map2((g, mu) => if (java.lang.Double.isNaN(mu) || g != 0.0) 0.0 else 1.0)(
+        g,
+        mu,
+      )
 
     val temp = writeRead(ctx, homalt.T.dot(homref))
 
@@ -246,17 +265,20 @@ case class PCRelate(
 
   private[methods] def k2(ctx: ExecuteContext, phi: M, mu: M, variance: M, g: M): M = {
     val twoPhi_ii = phi.diagonal().map(2.0 * _)
-    val normalizedGD = g.map2WithIndex(mu, { case (_, i, g, mu) =>
-      if (java.lang.Double.isNaN(mu))
-        0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
-      else {
-        val gd = if (g == 0.0) mu
-        else if (g == 1.0) 0.0
-        else 1.0 - mu
+    val normalizedGD = g.map2WithIndex(
+      mu,
+      { case (_, i, g, mu) =>
+        if (java.lang.Double.isNaN(mu))
+          0.0 // https://github.com/Bioconductor-mirror/GENESIS/blob/release-3.5/R/pcrelate.R#L391
+        else {
+          val gd = if (g == 0.0) mu
+          else if (g == 1.0) 0.0
+          else 1.0 - mu
 
-        gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
-      }
-    })
+          gd - mu * (1.0 - mu) * twoPhi_ii(i.toInt)
+        }
+      },
+    )
 
     gram(ctx, normalizedGD) / gram(ctx, variance)
   }
@@ -276,6 +298,6 @@ case class PCRelate(
         1.0 - 4.0 * phi + k2
       else
         ibs0 / denom
-    } (phi, denom, k2, ibs0)
+    }(phi, denom, k2, ibs0)
   }
 }

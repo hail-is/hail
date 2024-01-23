@@ -1,16 +1,12 @@
 package is.hail.services
 
-import java.io.{File, FileInputStream}
-import java.net._
-
 import is.hail.utils._
-import is.hail.services.tls._
+
+import java.io.{File, FileInputStream}
+
+import org.apache.log4j.Logger
 import org.json4s._
 import org.json4s.jackson.JsonMethods
-import org.apache.http.client.methods._
-import org.apache.log4j.Logger
-
-import scala.util.Random
 
 object DeployConfig {
   private[this] val log = Logger.getLogger("DeployConfig")
@@ -18,9 +14,8 @@ object DeployConfig {
   private[this] lazy val default: DeployConfig = fromConfigFile()
   private[this] var _get: DeployConfig = null
 
-  def set(x: DeployConfig) = {
+  def set(x: DeployConfig) =
     _get = x
-  }
 
   def get(): DeployConfig = {
     if (_get == null) {
@@ -36,7 +31,7 @@ object DeployConfig {
       file = System.getenv("HAIL_DEPLOY_CONFIG_FILE")
 
     if (file == null) {
-      val fromHome = s"${ System.getenv("HOME") }/.hail/deploy-config.json"
+      val fromHome = s"${System.getenv("HOME")}/.hail/deploy-config.json"
       if (new File(fromHome).exists())
         file = fromHome
     }
@@ -48,9 +43,7 @@ object DeployConfig {
     }
 
     if (file != null) {
-      using(new FileInputStream(file)) { in =>
-        fromConfig(JsonMethods.parse(in))
-      }
+      using(new FileInputStream(file))(in => fromConfig(JsonMethods.parse(in)))
     } else
       fromConfig("external", "default", "hail.is")
   }
@@ -61,41 +54,41 @@ object DeployConfig {
     val location = (config \ "location").extract[String]
     val defaultNamespace = (config \ "default_namespace").extract[String]
     val domain = (config \ "domain").extract[Option[String]].getOrElse("hail.is")
+    val basePath = (config \ "base_path").extract[Option[String]]
 
     sys.env.get("HAIL_TERRA") match {
-      case Some(_) => new TerraDeployConfig(location, defaultNamespace, domain, (config \ "subpath").extract[String])
-      case None => fromConfig(location, defaultNamespace, domain)
+      case Some(_) => new TerraDeployConfig(location, defaultNamespace, domain, basePath)
+      case None => fromConfig(location, defaultNamespace, domain, basePath)
     }
   }
 
-  def fromConfig(location: String, defaultNamespace: String, domain: String): DeployConfig = {
+  def fromConfig(location: String, defaultNamespace: String, domain: String, basePath: Option[String]): DeployConfig =
     new DeployConfig(
       sys.env.getOrElse(toEnvVarName("location"), location),
       sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespace),
-      sys.env.getOrElse(toEnvVarName("domain"), domain))
-  }
+      sys.env.getOrElse(toEnvVarName("domain"), domain),
+      sys.env.getOrElse(toEnvVarName("base_path"), basePath),
+    )
 
-  private[this] def toEnvVarName(s: String): String = {
+  private[this] def toEnvVarName(s: String): String =
     "HAIL_" + s.toUpperCase
-  }
 }
 
 class DeployConfig(
   val location: String,
   val defaultNamespace: String,
-  val domain: String) {
-  import DeployConfig._
+  val domain: String,
+  val basePath: Option[String]
+) {
 
-  def scheme(baseScheme: String = "http"): String = {
+  def scheme(baseScheme: String = "http"): String =
     if (location == "external" || location == "k8s")
       baseScheme + "s"
     else
       baseScheme
-  }
 
-  def getServiceNamespace(service: String): String = {
+  def getServiceNamespace(service: String): String =
     defaultNamespace
-  }
 
   def domain(service: String): String = {
     val ns = getServiceNamespace(service)
@@ -123,24 +116,20 @@ class DeployConfig(
       s"/$ns/$service"
   }
 
-  def baseUrl(service: String, baseScheme: String = "http"): String = {
-    s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
-  }
+  def baseUrl(service: String, baseScheme: String = "http"): String =
+    s"${scheme(baseScheme)}://${domain(service)}${basePath(service)}"
 }
 
 class TerraDeployConfig(
   location: String,
   defaultNamespace: String,
   domain: String,
-  subpath: String) extends DeployConfig(location, defaultNamespace, domain) {
+  base_path: String
+) extends DeployConfig(location, defaultNamespace, domain, base_path) {
   import DeployConfig._
 
   override def domain(service: String): String = {
     this.domain
-  }
-
-  override def basePath(service: String): String = {
-    s"$subpath/$service"
   }
 
   override def scheme(baseScheme: String = "http"): String = {

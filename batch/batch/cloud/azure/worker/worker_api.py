@@ -1,21 +1,23 @@
 import abc
+import base64
 import os
 import tempfile
 from typing import Dict, List, Optional, Tuple
 
 import aiohttp
+import orjson
 
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
+from hailtop.auth.auth import IdentityProvider
 from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import AzureSlimInstanceConfig
-from .credentials import AzureUserCredentials
 from .disk import AzureDisk
 
 
-class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
+class AzureWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '168.63.129.16'
 
     @staticmethod
@@ -37,16 +39,15 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
-        return [f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}']
+        idp_json = orjson.dumps({'idp': IdentityProvider.MICROSOFT.value}).decode('utf-8')
+        return [
+            f'HAIL_AZURE_OAUTH_SCOPE={self.hail_oauth_scope}',
+            'AZURE_APPLICATION_CREDENTIALS=/azure-credentials/key.json',
+            f'HAIL_IDENTITY_PROVIDER_JSON={idp_json}',
+        ]
 
     def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> AzureDisk:
         return AzureDisk(disk_name, instance_name, size_in_gb, mount_path)
-
-    def get_cloud_async_fs(self) -> aioazure.AzureAsyncFS:
-        return aioazure.AzureAsyncFS(credentials=self.azure_credentials)
-
-    def user_credentials(self, credentials: Dict[str, str]) -> AzureUserCredentials:
-        return AzureUserCredentials(credentials)
 
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         # https://docs.microsoft.com/en-us/azure/container-registry/container-registry-authentication?tabs=azure-cli#az-acr-login-with---expose-token
@@ -55,33 +56,41 @@ class AzureWorkerAPI(CloudWorkerAPI[AzureUserCredentials]):
             'password': await self.acr_refresh_token.token(session),
         }
 
-    async def user_container_registry_credentials(
-        self, user_credentials: AzureUserCredentials
-    ) -> ContainerRegistryCredentials:
-        return {
-            'username': user_credentials.username,
-            'password': user_credentials.password,
-        }
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
+        credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        return {'username': credentials['appId'], 'password': credentials['password']}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
 
+    def _blobfuse_credentials(self, credentials: Dict[str, str], account: str, container: str) -> str:
+        credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        # https://github.com/Azure/azure-storage-fuse
+        return f"""
+accountName {account}
+authType SPN
+servicePrincipalClientId {credentials["appId"]}
+servicePrincipalClientSecret {credentials["password"]}
+servicePrincipalTenantId {credentials["tenant"]}
+containerName {container}
+"""
+
     def _write_blobfuse_credentials(
         self,
-        credentials: AzureUserCredentials,
+        credentials: Dict[str, str],
         account: str,
         container: str,
         mount_base_path_data: str,
     ) -> str:
         if mount_base_path_data not in self._blobfuse_credential_files:
             with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', delete=False) as credsfile:
-                credsfile.write(credentials.blobfuse_credentials(account, container))
+                credsfile.write(self._blobfuse_credentials(credentials, account, container))
                 self._blobfuse_credential_files[mount_base_path_data] = credsfile.name
         return self._blobfuse_credential_files[mount_base_path_data]
 
     async def _mount_cloudfuse(
         self,
-        credentials: AzureUserCredentials,
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,

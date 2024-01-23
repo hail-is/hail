@@ -1,11 +1,9 @@
 package is.hail.expr.ir.agg
 
-import freemarker.template.utility.Execute
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitContext, IEmitCode}
-import is.hail.types.physical._
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
@@ -32,11 +30,19 @@ object CountAggregator extends StagedAggregator {
     cb.assign(ev, EmitCode.present(cb.emb, primitive(cb.memoize(ev.pv.asInt64.value + 1L))))
   }
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: PrimitiveRVAState, other: PrimitiveRVAState): Unit = {
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    state: PrimitiveRVAState,
+    other: PrimitiveRVAState,
+  ): Unit = {
     assert(state.vtypes.head.r.required)
     val v1 = state.fields(0)
     val v2 = other.fields(0)
-    cb.assign(v1, EmitCode.present(cb.emb, primitive(cb.memoize(v1.pv.asInt64.value + v2.pv.asInt64.value))))
+    cb.assign(
+      v1,
+      EmitCode.present(cb.emb, primitive(cb.memoize(v1.pv.asInt64.value + v2.pv.asInt64.value))),
+    )
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {

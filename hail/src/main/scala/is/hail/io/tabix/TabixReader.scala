@@ -1,9 +1,5 @@
 package is.hail.io.tabix
 
-import java.io.InputStream
-
-import htsjdk.samtools.util.FileExtensions
-import htsjdk.tribble.util.ParsingUtils
 import is.hail.expr.ir.IntArrayBuilder
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
@@ -11,6 +7,11 @@ import is.hail.utils._
 
 import scala.collection.mutable
 import scala.language.implicitConversions
+
+import java.io.InputStream
+
+import htsjdk.samtools.util.FileExtensions
+import htsjdk.tribble.util.ParsingUtils
 
 // Helper data classes
 
@@ -21,7 +22,7 @@ class Tabix(
   val meta: Int,
   val seqs: Array[String],
   val chr2tid: mutable.HashMap[String, Int],
-  val indices: Array[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])]
+  val indices: Array[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])],
 )
 
 case class TbiPair(var _1: Long, var _2: Long) extends java.lang.Comparable[TbiPair] {
@@ -56,19 +57,19 @@ object TabixReader {
 
   def readInt(is: InputStream): Int =
     (is.read() & 0xff) |
-    ((is.read() & 0xff) << 8) |
-    ((is.read() & 0xff) << 16) |
-    ((is.read() & 0xff) << 24)
+      ((is.read() & 0xff) << 8) |
+      ((is.read() & 0xff) << 16) |
+      ((is.read() & 0xff) << 24)
 
   def readLong(is: InputStream): Long =
     (is.read() & 0xff).asInstanceOf[Long] |
-    ((is.read() & 0xff).asInstanceOf[Long] << 8) |
-    ((is.read() & 0xff).asInstanceOf[Long] << 16) |
-    ((is.read() & 0xff).asInstanceOf[Long] << 24) |
-    ((is.read() & 0xff).asInstanceOf[Long] << 32) |
-    ((is.read() & 0xff).asInstanceOf[Long] << 40) |
-    ((is.read() & 0xff).asInstanceOf[Long] << 48) |
-    ((is.read() & 0xff).asInstanceOf[Long] << 56)
+      ((is.read() & 0xff).asInstanceOf[Long] << 8) |
+      ((is.read() & 0xff).asInstanceOf[Long] << 16) |
+      ((is.read() & 0xff).asInstanceOf[Long] << 24) |
+      ((is.read() & 0xff).asInstanceOf[Long] << 32) |
+      ((is.read() & 0xff).asInstanceOf[Long] << 40) |
+      ((is.read() & 0xff).asInstanceOf[Long] << 48) |
+      ((is.read() & 0xff).asInstanceOf[Long] << 56)
 }
 
 class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = None) {
@@ -88,20 +89,20 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
     is.read(buf, 0, 4) // read magic bytes "TBI\1"
     if (!(Magic sameElements buf))
       fatal(s"""magic number failed validation
-        |magic: ${ Magic.mkString("[", ",", "]") }
-        |data : ${ buf.mkString("[", ",", "]") }""".stripMargin)
+               |magic: ${Magic.mkString("[", ",", "]")}
+               |data : ${buf.mkString("[", ",", "]")}""".stripMargin)
     val seqs = new Array[String](readInt(is))
     val format = readInt(is)
     // Require VCF for now
     if (format != 2)
-      fatal(s"Hail only supports tabix indexing for VCF, found format code ${ format }")
+      fatal(s"Hail only supports tabix indexing for VCF, found format code $format")
     val colSeq = readInt(is)
     val colBeg = readInt(is)
     val colEnd = readInt(is)
     val meta = readInt(is)
     // meta char for VCF is '#'
     if (meta != '#')
-      fatal(s"Meta character was ${ meta }, should be '#' for VCF")
+      fatal(s"Meta character was $meta, should be '#' for VCF")
     val chr2tid = new mutable.HashMap[String, Int]()
     readInt(is) // unused, need to consume
 
@@ -121,7 +122,8 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
     }
 
     // read the index
-    val indices = new BoxedArrayBuilder[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])](seqs.length)
+    val indices =
+      new BoxedArrayBuilder[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])](seqs.length)
     i = 0
     while (i < seqs.length) {
       // binning index
@@ -154,9 +156,9 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
   }
 
   def chr2tid(chr: String): Int = index.chr2tid.get(chr) match {
-      case Some(i) => i
-      case _ => -1
-    }
+    case Some(i) => i
+    case _ => -1
+  }
 
   // This method returns an array of tuples suitable to be passed to the constructor of
   // TabixLineIterator. The arguments beg and end are endpoints to an interval of loci within tid.
@@ -169,11 +171,11 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       val idx = index.indices(tid)
       val bins = reg2bins(beg, end)
       val minOff = if (idx._2.length > 0 && (beg >> TadLidxShift) >= idx._2.length)
-          idx._2(idx._2.length - 1)
-        else if (idx._2.length > 0)
-          idx._2(beg >> TadLidxShift)
-        else
-          0L
+        idx._2(idx._2.length - 1)
+      else if (idx._2.length > 0)
+        idx._2(beg >> TadLidxShift)
+      else
+        0L
 
       var i = 0
       var nOff = 0
@@ -189,7 +191,8 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
         i = 0
         while (i < bins.length) {
           val c = idx._1.getOrElse(bins(i), null)
-          val len = if (c == null) { 0 } else { c.length }
+          val len = if (c == null) { 0 }
+          else { c.length }
           var j = 0
           while (j < len) {
             if (TbiOrd.less64(minOff, c(j)._2)) {
@@ -295,10 +298,8 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
 final class TabixLineIterator(
   private val fs: FS,
   private val filePath: String,
-  private val offsets: Array[TbiPair]
-)
-  extends java.lang.AutoCloseable
-{
+  private val offsets: Array[TbiPair],
+) extends java.lang.AutoCloseable {
   private var i: Int = -1
   private var isEof = false
   private var lines = new BGzipLineReader(fs, filePath)
@@ -331,10 +332,9 @@ final class TabixLineIterator(
 
   def getCurIdx(): Long = offsetOfPreviousLine
 
-  override def close() {
+  override def close(): Unit =
     if (lines != null) {
       lines.close()
       lines = null
     }
-  }
 }

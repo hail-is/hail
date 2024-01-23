@@ -92,7 +92,7 @@ def create_vm_config(
 
     jvm_touch_command = '\n'.join(touch_commands)
 
-    startup_script = r'''#cloud-config
+    startup_script = r"""#cloud-config
 
 mounts:
   - [ ephemeral0, null ]
@@ -123,10 +123,10 @@ write_files:
 
 runcmd:
   - sh /startup.sh
-'''
+"""
     startup_script = base64.b64encode(startup_script.encode('utf-8')).decode('utf-8')
 
-    run_script = f'''
+    run_script = f"""
 #!/bin/bash
 set -x
 
@@ -302,7 +302,7 @@ while true; do
 az vm delete -g $RESOURCE_GROUP -n $NAME --yes
 sleep 1
 done
-'''
+"""
 
     user_data = {
         'run_script': run_script,

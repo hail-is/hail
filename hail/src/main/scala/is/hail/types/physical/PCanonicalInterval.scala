@@ -5,21 +5,25 @@ import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerValue, SStackStruct}
+import is.hail.types.physical.stypes.concrete.{
+  SIntervalPointer, SIntervalPointerValue, SStackStruct,
+}
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SBooleanValue
 import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.{FastSeq, Interval}
+
 import org.apache.spark.sql.Row
 
-final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
+final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false)
+    extends PInterval {
 
   override def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
-  override def _asIdent = s"interval_of_${ pointType.asIdent }"
+  override def _asIdent = s"interval_of_${pointType.asIdent}"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("PCInterval[")
     pointType.pretty(sb, indent, compact)
     sb.append("]")
@@ -30,7 +34,8 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     "start" -> pointType,
     "end" -> pointType,
     "includesStart" -> PBooleanRequired,
-    "includesEnd" -> PBooleanRequired)
+    "includesEnd" -> PBooleanRequired,
+  )
 
   override def setRequired(required: Boolean): PCanonicalInterval =
     if (required == this.required) this else PCanonicalInterval(this.pointType, required)
@@ -51,9 +56,11 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   override def endDefined(off: Long): Boolean = representation.isFieldDefined(off, 1)
 
-  override def includesStart(off: Long): Boolean = Region.loadBoolean(representation.loadField(off, 2))
+  override def includesStart(off: Long): Boolean =
+    Region.loadBoolean(representation.loadField(off, 2))
 
-  override def includesEnd(off: Long): Boolean = Region.loadBoolean(representation.loadField(off, 3))
+  override def includesEnd(off: Long): Boolean =
+    Region.loadBoolean(representation.loadField(off, 3))
 
   override def startDefined(cb: EmitCodeBuilder, off: Code[Long]): Value[Boolean] =
     representation.isFieldDefined(cb, off, 0)
@@ -83,79 +90,154 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     new SIntervalPointerValue(sType, a, incStart, incEnd)
   }
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long] = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
-        representation.store(cb, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerValue].a), deepCopy)
+        representation.store(
+          cb,
+          region,
+          t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerValue].a),
+          deepCopy,
+        )
       case _ =>
         val interval = value.asInterval
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
         val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart))
         val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd))
-        representation.store(cb, region,
-          SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            start, stop, includesStart, includesStop), deepCopy)
+        representation.store(
+          cb,
+          region,
+          SStackStruct.constructFromArgs(
+            cb,
+            region,
+            representation.virtualType,
+            start,
+            stop,
+            includesStart,
+            includesStop,
+          ),
+          deepCopy,
+        )
     }
   }
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
-        representation.storeAtAddress(cb, addr, region, t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerValue].a), deepCopy)
+        representation.storeAtAddress(
+          cb,
+          addr,
+          region,
+          t.representation.loadCheapSCode(cb, value.asInstanceOf[SIntervalPointerValue].a),
+          deepCopy,
+        )
       case _ =>
         val interval = value.asInterval
         val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb))
         val stop = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb))
         val includesStart = EmitCode.present(cb.emb, new SBooleanValue(interval.includesStart))
         val includesStop = EmitCode.present(cb.emb, new SBooleanValue(interval.includesEnd))
-        representation.storeAtAddress(cb, addr, region,
-          SStackStruct.constructFromArgs(cb, region, representation.virtualType,
-            start, stop, includesStart, includesStop),
-          deepCopy)
+        representation.storeAtAddress(
+          cb,
+          addr,
+          region,
+          SStackStruct.constructFromArgs(
+            cb,
+            region,
+            representation.virtualType,
+            start,
+            stop,
+            includesStart,
+            includesStop,
+          ),
+          deepCopy,
+        )
     }
   }
 
-  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  override def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit =
     srcPType match {
       case t: PCanonicalInterval =>
-        representation.unstagedStoreAtAddress(sm, addr, region, t.representation, srcAddress, deepCopy)
+        representation.unstagedStoreAtAddress(
+          sm,
+          addr,
+          region,
+          t.representation,
+          srcAddress,
+          deepCopy,
+        )
     }
-  }
 
-  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  override def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long =
     srcPType match {
       case t: PCanonicalInterval =>
         representation._copyFromAddress(sm, region, t.representation, srcAddress, deepCopy)
     }
-  }
 
   override def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)
 
-  override def unstagedLoadFromNested(addr: Long): Long = representation.unstagedLoadFromNested(addr)
+  override def unstagedLoadFromNested(addr: Long): Long =
+    representation.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit = {
     val jInterval = annotation.asInstanceOf[Interval]
     representation.unstagedStoreJavaObjectAtAddress(
       sm,
       addr,
       Row(jInterval.start, jInterval.end, jInterval.includesStart, jInterval.includesEnd),
-      region
+      region,
     )
   }
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+    : Long = {
     val addr = representation.allocate(region)
     unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
     addr
   }
 
-  def constructFromCodes(cb: EmitCodeBuilder, region: Value[Region],
-    start: EmitCode, end: EmitCode, includesStart: Value[Boolean], includesEnd: Value[Boolean]
+  def constructFromCodes(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    start: EmitCode,
+    end: EmitCode,
+    includesStart: Value[Boolean],
+    includesEnd: Value[Boolean],
   ): SIntervalPointerValue = {
     val startEC = EmitCode.present(cb.emb, primitive(includesStart))
     val endEC = EmitCode.present(cb.emb, primitive(includesEnd))
-    val sc = representation.constructFromFields(cb, region, FastSeq(start, end, startEC, endEC), deepCopy = false)
+    val sc = representation.constructFromFields(
+      cb,
+      region,
+      FastSeq(start, end, startEC, endEC),
+      deepCopy = false,
+    )
     new SIntervalPointerValue(sType, sc.a, includesStart, includesEnd)
   }
 

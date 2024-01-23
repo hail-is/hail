@@ -15,13 +15,20 @@ case object SVoid extends SType {
 
   override def castRename(t: Type): SType = this
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = value
+  override def _coerceOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): SValue = value
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
-  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
+  override def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable =
+    throw new UnsupportedOperationException
 
-  override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new UnsupportedOperationException
+  override def fromValues(values: IndexedSeq[Value[_]]): SValue =
+    throw new UnsupportedOperationException
 
   override def storageType(): PType = throw new UnsupportedOperationException
 

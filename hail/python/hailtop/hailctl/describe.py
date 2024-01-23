@@ -78,15 +78,13 @@ def get_partitions_info_str(j):
         'Empty partitions': len([p for p in partitions if p == 0]),
     }
     if partitions_info['Partitions'] > 1:
-        partitions_info.update(
-            {
-                'Min(rows/partition)': min(partitions),
-                'Max(rows/partition)': max(partitions),
-                'Median(rows/partition)': median(partitions),
-                'Mean(rows/partition)': int(mean(partitions)),
-                'StdDev(rows/partition)': int(stdev(partitions)),
-            }
-        )
+        partitions_info.update({
+            'Min(rows/partition)': min(partitions),
+            'Max(rows/partition)': max(partitions),
+            'Median(rows/partition)': median(partitions),
+            'Mean(rows/partition)': int(mean(partitions)),
+            'StdDev(rows/partition)': int(stdev(partitions)),
+        })
 
     return "\n{}".format(IDENT).join(['{}: {}'.format(k, v) for k, v in partitions_info.items()])
 
@@ -98,9 +96,9 @@ def describe(
         Opt('--requester-pays-project-id', '-u', help='Project to be billed for GCS requests.'),
     ] = None,
 ):
-    '''
+    """
     Describe the MatrixTable or Table at path FILE.
-    '''
+    """
     asyncio.run(async_describe(file, requester_pays_project_id))
 
 

@@ -82,14 +82,21 @@ class ClientResponse:
 
 class ClientSession:
     def __init__(
-        self, *args, raise_for_status: bool = True, timeout: Union[aiohttp.ClientTimeout, float, None] = None, **kwargs
+        self,
+        *args,
+        raise_for_status: bool = True,
+        timeout: Union[aiohttp.ClientTimeout, float, int, None] = None,
+        **kwargs,
     ):
         tls = get_deploy_config().client_ssl_context()
         assert 'connector' not in kwargs
 
         if timeout is None:
             timeout = aiohttp.ClientTimeout(total=5)
+        if isinstance(timeout, (float, int)):
+            timeout = aiohttp.ClientTimeout(total=timeout)
 
+        self.loop = asyncio.get_running_loop()
         self.raise_for_status = raise_for_status
         self.client_session = aiohttp.ClientSession(
             *args, timeout=timeout, raise_for_status=False, connector=aiohttp.TCPConnector(ssl=tls), **kwargs
@@ -98,7 +105,15 @@ class ClientSession:
     def request(
         self, method: str, url: aiohttp.typedefs.StrOrURL, **kwargs: Any
     ) -> aiohttp.client._RequestContextManager:
+        if self.loop != asyncio.get_running_loop():
+            raise ValueError(
+                f'ClientSession must be created and used in same loop {self.loop} != {asyncio.get_running_loop()}.'
+            )
         raise_for_status = kwargs.pop('raise_for_status', self.raise_for_status)
+
+        timeout = kwargs.get('timeout')
+        if timeout and isinstance(timeout, (float, int)):
+            kwargs['timeout'] = aiohttp.ClientTimeout(total=timeout)
 
         async def request_and_raise_for_status():
             json_data = kwargs.pop('json', None)

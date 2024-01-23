@@ -3,8 +3,8 @@ package is.hail.types.virtual
 import is.hail.HailSuite
 import is.hail.annotations.{Annotation, Inserter}
 import is.hail.utils.FastSeq
+
 import org.apache.spark.sql.Row
-import org.testng.Assert.{assertFalse, assertTrue}
 import org.testng.annotations.{DataProvider, Test}
 
 class TStructSuite extends HailSuite {
@@ -21,7 +21,7 @@ class TStructSuite extends HailSuite {
       // Consider joins for example - we only care that the key fields have the same types
       // so we compare the key types (which are structs) for equality ignoring field names.
       // isPrefixOf is used in similar cases involving key types where we don't care about names.
-      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true)
+      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true),
     )
 
   @Test(dataProvider = "isPrefixOf")
@@ -37,13 +37,12 @@ class TStructSuite extends HailSuite {
       Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid), true),
       Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true),
       Array(TStruct("a" -> TVoid, "b" -> TVoid), TStruct("a" -> TVoid), false),
-      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true)
+      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), true),
     )
 
   @Test(dataProvider = "isSubsetOf")
   def testIsSubsetOf(a: TStruct, b: TStruct, isSubset: Boolean): Unit =
     assert(a.isSubsetOf(b) == isSubset, s"expected $a `isSubsetOf` $b == $isSubset")
-
 
   @DataProvider(name = "structInsert")
   def structInsertData: Array[Array[Any]] =
@@ -51,13 +50,19 @@ class TStructSuite extends HailSuite {
       Array(TStruct("a" -> TInt32), FastSeq("a"), TInt32, TStruct("a" -> TInt32)),
       Array(TStruct("a" -> TInt32), FastSeq("b"), TInt32, TStruct("a" -> TInt32, "b" -> TInt32)),
       Array(TStruct("a" -> TInt32), FastSeq("a"), TVoid, TStruct("a" -> TVoid)),
-      Array(TStruct("a" -> TInt32), FastSeq("a", "b"), TInt32, TStruct("a" -> TStruct("b" -> TInt32))),
+      Array(
+        TStruct("a" -> TInt32),
+        FastSeq("a", "b"),
+        TInt32,
+        TStruct("a" -> TStruct("b" -> TInt32)),
+      ),
       Array(TStruct.empty, FastSeq("a"), TInt32, TStruct("a" -> TInt32)),
       Array(TStruct.empty, FastSeq("a", "b"), TInt32, TStruct("a" -> TStruct("b" -> TInt32))),
     )
 
   @Test(dataProvider = "structInsert")
-  def testStructInsert(base: TStruct, path: IndexedSeq[String], signature: Type, expected: TStruct): Unit =
+  def testStructInsert(base: TStruct, path: IndexedSeq[String], signature: Type, expected: TStruct)
+    : Unit =
     assert(base.structInsert(signature, path) == expected)
 
   @Test def testInsertEmptyPath(): Unit =
@@ -65,16 +70,13 @@ class TStructSuite extends HailSuite {
       TStruct.empty.insert(TInt32, FastSeq())
     }
 
-
   @DataProvider(name = "inserter")
   def inserterData: Array[Array[Any]] =
     Array(
       Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, null, 0, Row(0)),
       Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("a"))._2, Row(0), 1, Row(1)),
-
       Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, null, 0, Row(null, 0)),
       Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("b"))._2, Row(0), 1, Row(0, 1)),
-
       Array(TStruct.empty.insert(TInt32, FastSeq("a", "b"))._2, null, 0, Row(Row(0))),
       Array(TStruct("a" -> TInt32).insert(TInt32, FastSeq("a", "b"))._2, Row(0), 1, Row(Row(1))),
     )

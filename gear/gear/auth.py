@@ -25,6 +25,10 @@ BEARER = 'Bearer '
 TEN_SECONDS_IN_NANOSECONDS = int(1e10)
 
 
+class CommonAiohttpAppKeys:
+    CLIENT_SESSION = web.AppKey('client_session', httpx.ClientSession)
+
+
 class UserData(TypedDict):
     id: int
     state: str
@@ -103,7 +107,7 @@ class AuthServiceAuthenticator(Authenticator):
         if session_id is None:
             return None
 
-        return await self._userdata_cache.lookup((session_id, request.app['client_session']))
+        return await self._userdata_cache.lookup((session_id, request.app[CommonAiohttpAppKeys.CLIENT_SESSION]))
 
     @staticmethod
     async def _fetch_userdata_from_auth_service(session_id_and_session: Tuple[str, httpx.ClientSession]):

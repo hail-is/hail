@@ -70,4 +70,13 @@ RUN export KENT_SRC=$PWD/kent-335_base/src && \
     export PERL5LIB=\$PERL5LIB:$HOME/cpanm/lib/perl5 && \
     cpanm Bio::DB::BigFile
 
+RUN apt-get update && apt-get -y install zlib1g-dev && \
+    wget https://github.com/samtools/samtools/releases/download/1.18/samtools-1.18.tar.bz2 && \
+    bzip2 -d samtools-1.18.tar.bz2 && \
+    tar -xf samtools-1.18.tar && \
+    cd samtools-1.18 && \
+    ./configure && \
+    make && \
+    make install
+
 COPY vep.py /hail-vep/

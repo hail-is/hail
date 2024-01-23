@@ -70,7 +70,7 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
         raise NotImplementedError
 
-    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
+    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> Optional[RunningBatchType]:
         """
         See :meth:`._async_run`.
 
@@ -81,7 +81,9 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         return async_to_blocking(self._async_run(batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs))
 
     @abc.abstractmethod
-    async def _async_run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
+    async def _async_run(
+        self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs
+    ) -> Optional[RunningBatchType]:
         """
         Execute a batch.
 
@@ -129,7 +131,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
 class LocalBackend(Backend[None]):
     """
     Backend that executes batches on a local computer.
-
     Examples
     --------
 
@@ -264,7 +265,7 @@ class LocalBackend(Backend[None]):
             return symlinks
 
         def transfer_dicts_for_resource_file(
-            res_file: Union[resource.ResourceFile, resource.PythonResult]
+            res_file: Union[resource.ResourceFile, resource.PythonResult],
         ) -> List[dict]:
             if isinstance(res_file, resource.InputResourceFile):
                 source = res_file._input_path
@@ -736,17 +737,17 @@ class ServiceBackend(Backend[bc.Batch]):
 
             job_command = [cmd.strip() for cmd in job._wrapper_code]
             prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)
-            cmd = f'''
+            cmd = f"""
 {bash_flags}
 {make_local_tmpdir}
 {"; ".join(symlinks)}
 {" && ".join(prepared_job_command)}
-'''
+"""
 
             user_code = '\n\n'.join(job._user_code) if job._user_code else None
 
             if dry_run:
-                formatted_command = f'''
+                formatted_command = f"""
 ================================================================================
 # Job {job._job_id} {f": {job.name}" if job.name else ''}
 
@@ -760,7 +761,7 @@ class ServiceBackend(Backend[bc.Batch]):
 --------------------------------------------------------------------------------
 {cmd}
 ================================================================================
-'''
+"""
                 commands.append(formatted_command)
                 continue
 

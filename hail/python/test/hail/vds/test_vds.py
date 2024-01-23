@@ -216,12 +216,10 @@ def test_interval_coverage():
         checkpoint_path
     )
     assert r.aggregate_rows(
-        hl.agg.collect(
-            (
-                hl.format('%s:%d-%d', r.interval.start.contig, r.interval.start.position, r.interval.end.position),
-                r.interval_size,
-            )
-        )
+        hl.agg.collect((
+            hl.format('%s:%d-%d', r.interval.start.contig, r.interval.start.position, r.interval.end.position),
+            r.interval_size,
+        ))
     ) == [(interval1, 10), (interval2, 9)]
 
     observed = r.aggregate_entries(hl.agg.collect(r.entry))
@@ -755,9 +753,10 @@ def test_combiner_max_len():
     combined1 = combine_references([vds1_trunc.reference_data, vds2_trunc.reference_data])
     assert hl.eval(combined1.index_globals()[hl.vds.VariantDataset.ref_block_max_length_field]) == 75
 
-    combined2 = combine_references(
-        [vds1_trunc.reference_data, vds2.reference_data.drop(hl.vds.VariantDataset.ref_block_max_length_field)]
-    )
+    combined2 = combine_references([
+        vds1_trunc.reference_data,
+        vds2.reference_data.drop(hl.vds.VariantDataset.ref_block_max_length_field),
+    ])
     assert hl.vds.VariantDataset.ref_block_max_length_field not in combined2.globals
 
 

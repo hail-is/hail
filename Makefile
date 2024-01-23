@@ -41,8 +41,8 @@ check-all: check-hail check-services
 check-hail-fast:
 	ruff check hail/python/hail
 	ruff check hail/python/hailtop
+	ruff format hail --diff
 	$(PYTHON) -m pyright hail/python/hailtop
-	$(PYTHON) -m black hail --check --diff
 
 .PHONY: pylint-hailtop
 pylint-hailtop:
@@ -51,6 +51,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
+	cd hail && sh ./gradlew spotlessCheck
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
@@ -62,8 +63,8 @@ pylint-%:
 .PHONY: check-%-fast
 check-%-fast:
 	ruff check $*
+	ruff format $* --diff
 	$(PYTHON) -m pyright $*
-	$(PYTHON) -m black $* --check --diff
 	curlylint $*
 	cd $* && bash ../check-sql.sh
 
@@ -174,7 +175,8 @@ hail-0.1-docs-5a6778710097.tar.gz:
 	gcloud storage cp gs://hail-common/builds/0.1/docs/$@ .
 
 hail/build/www: hail-0.1-docs-5a6778710097.tar.gz $(shell git ls-files hail)
-	$(MAKE) -C hail hail-docs-no-test batch-docs
+	@echo !!! This target does not render the notebooks because it takes a long time !!!
+	$(MAKE) -C hail hail-docs-do-not-render-notebooks batch-docs
 	mkdir -p hail/build/www/docs/0.1
 	tar -xvf hail-0.1-docs-5a6778710097.tar.gz -C hail/build/www/docs/0.1 --strip-components 2
 	touch $@  # Copying into the dir does not necessarily touch it

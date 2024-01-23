@@ -1,6 +1,5 @@
 package is.hail.variant
 
-import is.hail.annotations._
 import is.hail.types.physical.{PArray, PInt32, PLocus, PString, PStruct}
 import is.hail.utils._
 
@@ -18,7 +17,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private var cachedAlleles: Array[String] = null
   private var cachedLocus: Locus = null
 
-  def set(address: Long) {
+  def set(address: Long): Unit = {
     if (!rowType.isFieldDefined(address, locusIdx))
       fatal(s"The row field 'locus' cannot have missing values.")
     if (!rowType.isFieldDefined(address, allelesIdx))
@@ -56,7 +55,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
       var i = 0
       while (i < nAlleles) {
         if (taa.isElementDefined(allelesOffset, i))
-         cachedAlleles(i) = allelePType.loadString(taa.loadElement(allelesOffset, i))
+          cachedAlleles(i) = allelePType.loadString(taa.loadElement(allelesOffset, i))
         i += 1
       }
     }

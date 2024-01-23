@@ -1,24 +1,22 @@
 package is.hail.services
 
+import is.hail.utils._
+
 import java.io.{File, FileInputStream}
 
-import is.hail.utils._
+import org.apache.log4j.Logger
 import org.json4s._
 import org.json4s.jackson.JsonMethods
-import org.apache.log4j.Logger
 
 object BatchConfig {
   private[this] val log = Logger.getLogger("BatchConfig")
 
-  def fromConfigFile(file: String): Option[BatchConfig] = {
+  def fromConfigFile(file: String): Option[BatchConfig] =
     if (new File(file).exists()) {
-      using(new FileInputStream(file)) { in =>
-        Some(fromConfig(JsonMethods.parse(in)))
-      }
+      using(new FileInputStream(file))(in => Some(fromConfig(JsonMethods.parse(in))))
     } else {
       None
     }
-  }
 
   def fromConfig(config: JValue): BatchConfig = {
     implicit val formats: Formats = DefaultFormats

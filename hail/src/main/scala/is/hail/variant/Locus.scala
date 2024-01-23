@@ -4,12 +4,12 @@ import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.expr.Parser
 import is.hail.utils._
+
+import scala.collection.JavaConverters._
+
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{IntegerType, StringType, StructField, StructType}
 import org.json4s._
-
-import scala.collection.JavaConverters._
-import scala.language.implicitConversions
 
 object Locus {
   val simpleContigs: Seq[String] = (1 to 22).map(_.toString) ++ Seq("X", "Y", "MT")
@@ -19,21 +19,20 @@ object Locus {
     Locus(contig, position)
   }
 
-  def annotation(contig: String, position: Int, rg: Option[ReferenceGenome]): Annotation = {
+  def annotation(contig: String, position: Int, rg: Option[ReferenceGenome]): Annotation =
     rg match {
       case Some(ref) => Locus(contig, position, ref)
       case None => Annotation(contig, position)
     }
-  }
 
   def sparkSchema: StructType =
     StructType(Array(
       StructField("contig", StringType, nullable = false),
-      StructField("position", IntegerType, nullable = false)))
+      StructField("position", IntegerType, nullable = false),
+    ))
 
-  def fromRow(r: Row): Locus = {
+  def fromRow(r: Row): Locus =
     Locus(r.getAs[String](0), r.getInt(1))
-  }
 
   def gen(rg: ReferenceGenome): Gen[Locus] = for {
     (contig, length) <- Contig.gen(rg)
@@ -53,14 +52,29 @@ object Locus {
   def parseInterval(str: String, rg: ReferenceGenome, invalidMissing: Boolean = false): Interval =
     Parser.parseLocusInterval(str, rg, invalidMissing)
 
-  def parseIntervals(arr: Array[String], rg: ReferenceGenome, invalidMissing: Boolean): Array[Interval] = arr.map(parseInterval(_, rg, invalidMissing))
+  def parseIntervals(arr: Array[String], rg: ReferenceGenome, invalidMissing: Boolean)
+    : Array[Interval] = arr.map(parseInterval(_, rg, invalidMissing))
 
-  def parseIntervals(arr: java.util.List[String], rg: ReferenceGenome, invalidMissing: Boolean = false): Array[Interval] = parseIntervals(arr.asScala.toArray, rg, invalidMissing)
+  def parseIntervals(
+    arr: java.util.List[String],
+    rg: ReferenceGenome,
+    invalidMissing: Boolean = false,
+  ): Array[Interval] = parseIntervals(arr.asScala.toArray, rg, invalidMissing)
 
-  def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean,
-    rgBase: ReferenceGenome, invalidMissing: Boolean = false): Interval = {
+  def makeInterval(
+    contig: String,
+    start: Int,
+    end: Int,
+    includesStart: Boolean,
+    includesEnd: Boolean,
+    rgBase: ReferenceGenome,
+    invalidMissing: Boolean = false,
+  ): Interval = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
-    rg.toLocusInterval(Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd), invalidMissing)
+    rg.toLocusInterval(
+      Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd),
+      invalidMissing,
+    )
   }
 }
 
@@ -69,14 +83,16 @@ case class Locus(contig: String, position: Int) {
 
   def toJSON: JValue = JObject(
     ("contig", JString(contig)),
-    ("position", JInt(position)))
+    ("position", JInt(position)),
+  )
 
   def copyChecked(rg: ReferenceGenome, contig: String = contig, position: Int = position): Locus = {
     rg.checkLocus(contig, position)
     Locus(contig, position)
   }
 
-  def isAutosomalOrPseudoAutosomal(rg: ReferenceGenome): Boolean = isAutosomal(rg) || inXPar(rg) || inYPar(rg)
+  def isAutosomalOrPseudoAutosomal(rg: ReferenceGenome): Boolean =
+    isAutosomal(rg) || inXPar(rg) || inYPar(rg)
 
   def isAutosomal(rg: ReferenceGenome): Boolean = !(inX(rg) || inY(rg) || isMitochondrial(rg))
 

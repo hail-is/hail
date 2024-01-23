@@ -1,8 +1,3 @@
-[tool.black]
-line-length = 120
-skip-string-normalization = true
-force-exclude = 'makeTestInfoScore.py|datasets|sql|\.mypy'
-
 [tool.ruff]
 line-length = 120
 select = ["F", "E", "W", "I", "PL", "RUF"]
@@ -19,7 +14,7 @@ ignore = [
     "PLC1901", # `<VAR> != ''` can be simplified to `<VAR>` as an empty string is falsey
     "PLR2004", # Magic value used in comparison
 ]
-extend-exclude = ['sql']
+extend-exclude = ['sql', 'datasets']
 force-exclude = true
 
 [tool.ruff.isort]
@@ -39,6 +34,10 @@ known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "we
 "devbin/**/*" = ["ALL"]
 "docker/**/*" = ["ALL"]
 "query/**/*" = ["ALL"]
+
+[tool.ruff.format]
+preview = true
+quote-style = "preserve"
 
 [pytest]
 timeout = 120

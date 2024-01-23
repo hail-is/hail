@@ -8,18 +8,20 @@ import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.virtual.{TInt32, TStruct}
 import is.hail.utils.FastSeq
+
 import org.testng.annotations.Test
 
 class PartitioningSuite extends HailSuite {
-  @Test def testShuffleOnEmptyRDD() {
+  @Test def testShuffleOnEmptyRDD(): Unit = {
     val typ = TableType(TStruct("tidx" -> TInt32), FastSeq("tidx"), TStruct.empty)
     val t = TableLiteral(
       TableValue(
         ctx,
         typ,
         BroadcastRow.empty(ctx),
-        RVD.empty(ctx, typ.canonicalRVDType)),
-      theHailClassLoader
+        RVD.empty(ctx, typ.canonicalRVDType),
+      ),
+      theHailClassLoader,
     )
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
     Interpret(
@@ -27,8 +29,11 @@ class PartitioningSuite extends HailSuite {
         ir.MatrixRead(rangeReader.fullMatrixType, false, false, rangeReader),
         t,
         "foo",
-        product = false),
-      ctx, optimize = false)
+        product = false,
+      ),
+      ctx,
+      optimize = false,
+    )
       .rvd.count()
   }
 }

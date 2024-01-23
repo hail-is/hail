@@ -1,29 +1,19 @@
 package is.hail.io.gen
 
-import is.hail.HailContext
-import is.hail.annotations.{RegionValue, UnsafeRow}
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{ByteArrayBuilder, MatrixValue}
-import is.hail.types.physical.PStruct
+import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.FS
-import is.hail.utils.BoxedArrayBuilder
-import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, View}
-import is.hail.utils._
-import org.apache.hadoop.io.IOUtils
-import org.apache.spark.TaskContext
-import org.apache.spark.sql.Row
 
 object BgenWriter {
   val ploidy: Byte = 2
   val phased: Byte = 0
   val totalProb: Int = 255
 
-  def shortToBytesLE(bb: ByteArrayBuilder, i: Int) {
+  def shortToBytesLE(bb: ByteArrayBuilder, i: Int): Unit = {
     bb += (i & 0xff).toByte
     bb += ((i >>> 8) & 0xff).toByte
   }
 
-  def intToBytesLE(bb: ByteArrayBuilder, i: Int) {
+  def intToBytesLE(bb: ByteArrayBuilder, i: Int): Unit = {
     bb += (i & 0xff).toByte
     bb += ((i >>> 8) & 0xff).toByte
     bb += ((i >>> 16) & 0xff).toByte
@@ -46,7 +36,7 @@ object BgenWriter {
     4 + l
   }
 
-  def updateIntToBytesLE(bb: ByteArrayBuilder, i: Int, pos: Int) {
+  def updateIntToBytesLE(bb: ByteArrayBuilder, i: Int, pos: Int): Unit = {
     bb(pos) = (i & 0xff).toByte
     bb(pos + 1) = ((i >>> 8) & 0xff).toByte
     bb(pos + 2) = ((i >>> 16) & 0xff).toByte
@@ -85,13 +75,20 @@ object BgenWriter {
     bb.result()
   }
 
-  def writeSampleFile(fs: FS, path: String, sampleIds: Array[String]) {
-    fs.writeTable(path + ".sample",
-      "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList)
-  }
+  def writeSampleFile(fs: FS, path: String, sampleIds: Array[String]): Unit =
+    fs.writeTable(
+      path + ".sample",
+      "ID_1 ID_2 missing" :: "0 0 0" :: sampleIds.map(s => s"$s $s 0").toList,
+    )
 
-  def roundWithConstantSum(input: Array[Double], fractional: Array[Double], index: Array[Int],
-    indexInverse: Array[Int], output: ByteArrayBuilder, expectedSize: Long) {
+  def roundWithConstantSum(
+    input: Array[Double],
+    fractional: Array[Double],
+    index: Array[Int],
+    indexInverse: Array[Int],
+    output: ByteArrayBuilder,
+    expectedSize: Long,
+  ): Unit = {
     val n = input.length
     assert(fractional.length == n && index.length == n && indexInverse.length == n)
 
@@ -130,7 +127,7 @@ object BgenWriter {
     assert(newSize == expectedSize)
   }
 
-  private def resetIndex(index: Array[Int]) {
+  private def resetIndex(index: Array[Int]): Unit = {
     var i = 0
     while (i < index.length) {
       index(i) = i
@@ -138,8 +135,8 @@ object BgenWriter {
     }
   }
 
-  private def quickSortWithIndex(a: Array[Double], idx: Array[Int], start: Int, n: Int) {
-    def swap(i: Int, j: Int) {
+  private def quickSortWithIndex(a: Array[Double], idx: Array[Int], start: Int, n: Int): Unit = {
+    def swap(i: Int, j: Int): Unit = {
       val tmp = idx(i)
       idx(i) = idx(j)
       idx(j) = tmp

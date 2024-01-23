@@ -136,9 +136,11 @@ class Tests(unittest.TestCase):
         assert actual == expected
 
     def test_maximal_independent_set_string_node_names(self):
-        ht = hl.Table.parallelize(
-            [hl.Struct(i='A', j='B', kin=0.25), hl.Struct(i='A', j='C', kin=0.25), hl.Struct(i='D', j='E', kin=0.5)]
-        )
+        ht = hl.Table.parallelize([
+            hl.Struct(i='A', j='B', kin=0.25),
+            hl.Struct(i='A', j='C', kin=0.25),
+            hl.Struct(i='D', j='E', kin=0.5),
+        ])
         ret = hl.maximal_independent_set(ht.i, ht.j, False).collect()
         exp = [hl.Struct(node='A'), hl.Struct(node='D')]
         assert exp == ret
@@ -151,14 +153,16 @@ class Tests(unittest.TestCase):
         intervals = [hl.parse_locus_interval('20:10639222-10644700'), hl.parse_locus_interval('20:10644700-10644705')]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
-        intervals = hl.array(
-            [hl.parse_locus_interval('20:10639222-10644700'), hl.parse_locus_interval('20:10644700-10644705')]
-        )
+        intervals = hl.array([
+            hl.parse_locus_interval('20:10639222-10644700'),
+            hl.parse_locus_interval('20:10644700-10644705'),
+        ])
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
-        intervals = hl.array(
-            [hl.eval(hl.parse_locus_interval('20:10639222-10644700')), hl.parse_locus_interval('20:10644700-10644705')]
-        )
+        intervals = hl.array([
+            hl.eval(hl.parse_locus_interval('20:10639222-10644700')),
+            hl.parse_locus_interval('20:10644700-10644705'),
+        ])
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
         intervals = [
@@ -175,14 +179,16 @@ class Tests(unittest.TestCase):
         intervals = [hl.parse_locus_interval('20:10639222-10644700'), hl.parse_locus_interval('20:10644700-10644705')]
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 3)
 
-        intervals = hl.array(
-            [hl.parse_locus_interval('20:10639222-10644700'), hl.parse_locus_interval('20:10644700-10644705')]
-        )
+        intervals = hl.array([
+            hl.parse_locus_interval('20:10639222-10644700'),
+            hl.parse_locus_interval('20:10644700-10644705'),
+        ])
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 3)
 
-        intervals = hl.array(
-            [hl.eval(hl.parse_locus_interval('20:10639222-10644700')), hl.parse_locus_interval('20:10644700-10644705')]
-        )
+        intervals = hl.array([
+            hl.eval(hl.parse_locus_interval('20:10639222-10644700')),
+            hl.parse_locus_interval('20:10644700-10644705'),
+        ])
         self.assertEqual(hl.filter_intervals(ds, intervals).count(), 3)
 
         intervals = [
@@ -205,13 +211,11 @@ class Tests(unittest.TestCase):
 
     def test_summarize_variants(self):
         mt = hl.utils.range_matrix_table(3, 3)
-        variants = hl.literal(
-            {
-                0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
-                1: hl.Struct(locus=hl.Locus('2', 1), alleles=['A', 'AT', '@']),
-                2: hl.Struct(locus=hl.Locus('2', 1), alleles=['AC', 'GT']),
-            }
-        )
+        variants = hl.literal({
+            0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
+            1: hl.Struct(locus=hl.Locus('2', 1), alleles=['A', 'AT', '@']),
+            2: hl.Struct(locus=hl.Locus('2', 1), alleles=['AC', 'GT']),
+        })
         mt = mt.annotate_rows(**variants[mt.row_idx]).key_rows_by('locus', 'alleles')
         r = hl.summarize_variants(mt, show=False)
         self.assertEqual(r.n_variants, 3)

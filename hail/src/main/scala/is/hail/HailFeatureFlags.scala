@@ -2,9 +2,10 @@ package is.hail
 
 import is.hail.backend.ExecutionCache
 import is.hail.utils._
-import org.json4s.JsonAST.{JArray, JObject, JString}
 
 import scala.collection.mutable
+
+import org.json4s.JsonAST.{JArray, JObject, JString}
 
 object HailFeatureFlags {
   val defaults = Map[String, (String, String)](
@@ -75,9 +76,10 @@ class HailFeatureFlags private (
   def toJSONEnv: JArray =
     JArray(flags.filter { case (_, v) =>
       v != null
-    }.map{ case (name, v) =>
+    }.map { case (name, v) =>
       JObject(
         "name" -> JString(HailFeatureFlags.defaults(name)._1),
-        "value" -> JString(v))
+        "value" -> JString(v),
+      )
     }.toList)
 }

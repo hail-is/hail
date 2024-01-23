@@ -58,8 +58,7 @@ class ExprCoercer(TypeChecker):
 
     @property
     @abc.abstractmethod
-    def str_t(self) -> str:
-        ...
+    def str_t(self) -> str: ...
 
     def requires_conversion(self, t: HailType) -> bool:
         assert self.can_coerce(t), t
@@ -71,8 +70,7 @@ class ExprCoercer(TypeChecker):
         ...
 
     @abc.abstractmethod
-    def can_coerce(self, t: HailType) -> bool:
-        ...
+    def can_coerce(self, t: HailType) -> bool: ...
 
     def coerce(self, x) -> Expression:
         x = to_expr(x)

@@ -15,6 +15,7 @@ import aiohttp.client_exceptions
 import gidgethub
 import prometheus_client as pc  # type: ignore
 import zulip
+from gidgethub import aiohttp as gh_aiohttp
 
 from gear import Database, UserData
 from hailtop.batch_client.aioclient import Batch, BatchClient
@@ -56,11 +57,11 @@ def select_random_teammate(team):
 
 async def sha_already_alerted(db: Database, sha: str) -> bool:
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT sha
 FROM alerted_failed_shas
 WHERE sha = %s
-''',
+""",
         (sha,),
     )
     return record is not None
@@ -88,9 +89,9 @@ async def send_zulip_deploy_failure_message(message: str, db: Database, sha: Opt
 
     if sha is not None:
         await db.execute_insertone(
-            '''
+            """
 INSERT INTO alerted_failed_shas (sha) VALUES (%s)
-''',
+""",
             (sha,),
         )
 
@@ -520,13 +521,11 @@ class PR(Code):
         try:
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
-            await check_shell(
-                f'''
+            await check_shell(f"""
 set -ex
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-'''
-            )
+""")
 
             sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
@@ -680,7 +679,7 @@ mkdir -p {shq(repo_dir)}
 
     def checkout_script(self):
         assert self.target_branch.sha
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
 git remote add {shq(self.source_branch.repo.short_str())} {shq(self.source_branch.repo.url)} || true
@@ -688,16 +687,23 @@ git remote add {shq(self.source_branch.repo.short_str())} {shq(self.source_branc
 time retry git fetch -q {shq(self.source_branch.repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
-'''
+"""
 
 
 class WatchedBranch(Code):
-    def __init__(self, index, branch, deployable, mergeable, developers):
-        self.index: int = index
-        self.branch: FQBranch = branch
-        self.deployable: bool = deployable
-        self.mergeable: bool = mergeable
-        self.developers: List[dict] = developers
+    def __init__(
+        self,
+        index: int,
+        branch: FQBranch,
+        deployable: bool,
+        mergeable: bool,
+        developers: List[UserData],
+    ):
+        self.index = index
+        self.branch = branch
+        self.deployable = deployable
+        self.mergeable = mergeable
+        self.developers = developers
 
         self.prs: Dict[int, PR] = {}
         self.sha: Optional[str] = None
@@ -743,22 +749,26 @@ class WatchedBranch(Code):
             'developers': self.developers,
         }
 
-    async def notify_github_changed(self, app):
+    async def notify_github_changed(
+        self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool
+    ):
         self.github_changed = True
-        await self._update(app)
+        await self._update(db, batch_client, gh, frozen)
 
-    async def notify_batch_changed(self, app):
+    async def notify_batch_changed(
+        self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool
+    ):
         self.batch_changed = True
-        await self._update(app)
+        await self._update(db, batch_client, gh, frozen)
 
-    async def update(self, app):
+    async def update(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         # update everything
         self.github_changed = True
         self.batch_changed = True
         self.state_changed = True
-        await self._update(app)
+        await self._update(db, batch_client, gh, frozen)
 
-    async def _update(self, app):
+    async def _update(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         if self.updating:
             log.info(f'already updating {self.short_str()}')
             return
@@ -766,9 +776,6 @@ class WatchedBranch(Code):
         try:
             log.info(f'start update {self.short_str()}')
             self.updating = True
-            gh = app['github_client']
-            batch_client = app['batch_client']
-            db: Database = app['db']
 
             while self.github_changed or self.batch_changed or self.state_changed:
                 if self.github_changed:
@@ -781,12 +788,8 @@ class WatchedBranch(Code):
 
                 if self.state_changed:
                     self.state_changed = False
-                    await self._heal(app, batch_client, gh)
-                    if (
-                        (self.deploy_batch is None or self.deploy_state is not None)
-                        and not app['frozen_merge_deploy']
-                        and self.mergeable
-                    ):
+                    await self._heal(db, batch_client, gh, frozen)
+                    if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
                         await self.try_to_merge(gh)
         finally:
             log.info(f'update done {self.short_str()}')
@@ -875,26 +878,26 @@ class WatchedBranch(Code):
 
                 if not is_test_deployment and self.deploy_state == 'failure':
                     url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
-                    deploy_failure_message = f'''
+                    deploy_failure_message = f"""
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
 url: {url}
-'''
+"""
                     await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 self.state_changed = True
 
-    async def _heal_deploy(self, app, batch_client):
+    async def _heal_deploy(self, db: Database, batch_client: BatchClient, frozen: bool):
         assert self.deployable
 
         if not self.sha:
             return
 
-        if not app['frozen_merge_deploy'] and (
+        if not frozen and (
             self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)
         ):
             async with repos_lock:
-                await self._start_deploy(app['db'], batch_client)
+                await self._start_deploy(db, batch_client)
 
     async def _update_batch(self, batch_client: BatchClient, db: Database):
         log.info(f'update batch {self.short_str()}')
@@ -905,12 +908,11 @@ url: {url}
         for pr in self.prs.values():
             await pr._update_batch(batch_client, db)
 
-    async def _heal(self, app, batch_client, gh):
+    async def _heal(self, db: Database, batch_client: BatchClient, gh: gh_aiohttp.GitHubAPI, frozen: bool):
         log.info(f'heal {self.short_str()}')
-        db: Database = app['db']
 
         if self.deployable:
-            await self._heal_deploy(app, batch_client)
+            await self._heal_deploy(db, batch_client, frozen)
 
         merge_candidate = None
         merge_candidate_pri = None
@@ -960,12 +962,10 @@ url: {url}
         assert self.sha is not None
         try:
             repo_dir = self.repo_dir()
-            await check_shell(
-                f'''
+            await check_shell(f"""
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-'''
-            )
+""")
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(self, f.read(), requested_step_names=DEPLOY_STEPS, scope='deploy')
                 namespace = config.namespace()
@@ -990,14 +990,14 @@ mkdir -p {shq(repo_dir)}
             try:
                 config.build(deploy_batch, self, scope='deploy')
             except Exception as e:
-                deploy_failure_message = f'''
+                deploy_failure_message = f"""
 branch: {self.branch.short_str()}
 sha: {self.sha}
 Deploy config failed to build with exception:
 ```python
 {e}
 ```
-'''
+"""
                 await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 raise
             await deploy_batch.submit()
@@ -1017,11 +1017,11 @@ Deploy config failed to build with exception:
 
     def checkout_script(self) -> str:
         assert self.sha
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
-'''
+"""
 
 
 class UnwatchedBranch(Code):
@@ -1071,12 +1071,10 @@ class UnwatchedBranch(Code):
         deploy_batch = None
         try:
             repo_dir = self.repo_dir()
-            await check_shell(
-                f'''
+            await check_shell(f"""
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-'''
-            )
+""")
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r', encoding='utf-8') as f:
                 config = BuildConfiguration(
@@ -1111,8 +1109,8 @@ mkdir -p {shq(repo_dir)}
                 await deploy_batch.delete()
 
     def checkout_script(self) -> str:
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.branch.repo.url)}
 
 git checkout {shq(self.sha)}
-'''
+"""

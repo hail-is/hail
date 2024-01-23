@@ -9,14 +9,13 @@ abstract class NatBase {
 case class Nat(n: Int) extends NatBase {
   override def toString: String = n.toString
 
-  override def clear() {}
+  override def clear(): Unit = {}
 
-  override def unify(concrete: NatBase): Boolean = {
+  override def unify(concrete: NatBase): Boolean =
     concrete match {
       case Nat(cN) => cN == n
       case _ => false
     }
-  }
 
   override def subst(): NatBase = this
 }
@@ -24,13 +23,12 @@ case class Nat(n: Int) extends NatBase {
 case class NatVariable(var nat: NatBase = null) extends NatBase {
   override def toString: String = "?nat"
 
-  override def clear() { nat = null }
+  override def clear(): Unit = nat = null
 
   override def unify(concrete: NatBase): Boolean = {
     if (nat != null) {
       nat.unify(concrete)
-    }
-    else {
+    } else {
       nat = concrete
       true
     }

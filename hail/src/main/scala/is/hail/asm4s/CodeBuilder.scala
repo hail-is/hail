@@ -2,6 +2,7 @@ package is.hail.asm4s
 
 import is.hail.lir
 import is.hail.utils.toRichIterable
+
 import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
 
 abstract class SettableBuilder {
@@ -55,16 +56,18 @@ trait CodeBuilderLike {
   def updateArray[T: TypeInfo](array: Code[Array[T]], index: Code[Int], value: Code[T]): Unit =
     append(array.update(index, value))
 
-  def memoize[T: TypeInfo](v: Code[T], optionalName: String = "")
-                          (implicit ev: T =!= Unit)
-  : Value[T] =
+  def memoize[T: TypeInfo](v: Code[T], optionalName: String = "")(implicit ev: T =!= Unit)
+    : Value[T] =
     v match {
       case b: ConstCodeBoolean => coerce[T](b.b)
       case _ => newLocal[T]("memoize" + optionalName, v)
     }
 
   def memoizeAny(v: Code[_], ti: TypeInfo[_]): Value[_] =
-    memoize(v.asInstanceOf[Code[AnyVal]])(ti.asInstanceOf[TypeInfo[AnyVal]], implicitly[AnyVal =!= Unit])
+    memoize(v.asInstanceOf[Code[AnyVal]])(
+      ti.asInstanceOf[TypeInfo[AnyVal]],
+      implicitly[AnyVal =!= Unit],
+    )
 
   def assign[T](s: Settable[T], v: Code[T]): Unit =
     append(s := v)
@@ -72,45 +75,49 @@ trait CodeBuilderLike {
   def assignAny[T](s: Settable[T], v: Code[_]): Unit =
     append(s := coerce[T](v))
 
-  /*
-  Note [Evidence Is Unit]
-  -----------------------
-  Here's an example of a common `CodeBuilderLike` foot-gun:
+  /* Note [Evidence Is Unit]
+   * ----------------------- Here's an example of a common `CodeBuilderLike` foot-gun:
+   *
+   * // previously:
+   * // def ifx(cond: Code[Bool], csq: => Unit): Unit
+   *
+   * cb.ifx(cond, a := expr)
+   *
+   * What's wrong?
+   * -> It doesn't generate the right code despite passing the type-checker!
+   * -> `a := expr` is never emitted because `ifx` evaluates its parameters for effects only;
+   * -> their values are discarded by a conversion to `Unit`. [1]
+   *
+   * How do we fix this? We could write a test and catch this at runtime, but some errors will slip
+   * through. Better to use the type system to prevent these kind of foot-guns.
+   *
+   * The key observation is that the compiler inserts conversions to Unit. We can prevent it from
+   * doing this if we parameterise the type of `csq`:
+   *
+   * // def ifx[A](code: Code[Bool], csq: => A)(implicit ev: A =:= Unit): Unit
+   *
+   * The compiler now infers the type `A` from `csq`; no conversions to `Unit` are made.
+   * We can use an implicit constraint on `A` to fail compilation if `A` is inferred to anything
+   * other than `Unit`, thus catching and preventing this foot-gun!
+   *
+   * It's worth bearing in mind that while this handles simple cases, it won't prevent the dedicated
+   * hacker from working around it.
+   *
+   * [1]: https://github.com/scala/scala/blob/2.13.x/spec/06-expressions.md#value-discarding */
 
-    // previously:
-    //   def ifx(cond: Code[Bool], csq: => Unit): Unit
-
-    cb.ifx(cond, a := expr)
-
-  What's wrong?
-   -> It doesn't generate the right code despite passing the type-checker!
-   -> `a := expr` is never emitted because `ifx` evaluates its parameters for effects only;
-   -> their values are discarded by a conversion to `Unit`. [1]
-
-  How do we fix this? We could write a test and catch this at runtime, but some errors will
-  slip through. Better to use the type system to prevent these kind of foot-guns.
-
-  The key observation is that the compiler inserts conversions to Unit. We can prevent it
-  from doing this if we parameterise the type of `csq`:
-
-  // def ifx[A](code: Code[Bool], csq: => A)(implicit ev: A =:= Unit): Unit
-
-  The compiler now infers the type `A` from `csq`; no conversions to `Unit` are made.
-  We can use an implicit constraint on `A` to fail compilation if `A` is inferred to
-  anything other than `Unit`, thus catching and preventing this foot-gun!
-
-  It's worth bearing in mind that while this handles simple cases, it won't prevent the
-  dedicated hacker from working around it.
-
-  [1]: https://github.com/scala/scala/blob/2.13.x/spec/06-expressions.md#value-discarding
-  */
-
-  def if_[A](c: => Code[Boolean], emitThen: => A)
-            (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
+  def if_[A](
+    c: => Code[Boolean],
+    emitThen: => A,
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit =
     if_(c, emitThen, ().asInstanceOf[A])
 
-  def if_[A](cond: => Code[Boolean], emitThen: => A, emitElse: => A)
-            (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
+  def if_[A](
+    cond: => Code[Boolean],
+    emitThen: => A,
+    emitElse: => A,
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit = {
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
     val Lexit = CodeLabel()
@@ -124,8 +131,12 @@ trait CodeBuilderLike {
     define(Lexit)
   }
 
-  def switch[A](discriminant: => Code[Int], emitDefault: => A, cases: IndexedSeq[() => A])
-               (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
+  def switch[A](
+    discriminant: => Code[Int],
+    emitDefault: => A,
+    cases: IndexedSeq[() => A],
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit = {
     val Lexit = CodeLabel()
     val Lcases = IndexedSeq.fill(cases.length)(CodeLabel())
     val Ldefault = CodeLabel()
@@ -141,47 +152,65 @@ trait CodeBuilderLike {
     define(Lexit)
   }
 
-  def loop[A](emitBody: CodeLabel => A)
-             (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
+  def loop[A](emitBody: CodeLabel => A)(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */ )
+    : Unit = {
     val Lstart = CodeLabel()
     define(Lstart)
     emitBody(Lstart)
   }
 
-  def while_[A](cond: => Code[Boolean], emitBody: CodeLabel => A)
-               (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
+  def while_[A](
+    cond: => Code[Boolean],
+    emitBody: CodeLabel => A,
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit =
     loop { Lstart =>
-      if_(cond, {
-        emitBody(Lstart)
-        goto(Lstart)
-      })
+      if_(
+        cond, {
+          emitBody(Lstart)
+          goto(Lstart)
+        },
+      )
     }
 
-  def while_[A](c: => Code[Boolean], emitBody: => A)
-               (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
+  def while_[A](
+    c: => Code[Boolean],
+    emitBody: => A,
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit =
     while_(c, (_: CodeLabel) => emitBody)
 
-  def for_[A](setup: => A, cond: => Code[Boolean], incr: => A, emitBody: CodeLabel => A)
-             (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit = {
+  def for_[A](
+    setup: => A,
+    cond: => Code[Boolean],
+    incr: => A,
+    emitBody: CodeLabel => A,
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit = {
     setup
-    while_(cond, {
-      val Lincr = CodeLabel()
-      emitBody(Lincr)
-      define(Lincr)
-      incr
-    })
+    while_(
+      cond, {
+        val Lincr = CodeLabel()
+        emitBody(Lincr)
+        define(Lincr)
+        incr
+      },
+    )
   }
 
-  def for_[A](setup: => A, cond: => Code[Boolean], incr: => A, body: => A)
-             (implicit ev: A =:= Unit /* Note [Evidence Is Unit] */): Unit =
+  def for_[A](
+    setup: => A,
+    cond: => Code[Boolean],
+    incr: => A,
+    body: => A,
+  )(implicit ev: A =:= Unit /* Note [Evidence Is Unit] */
+  ): Unit =
     for_(setup, cond, incr, (_: CodeLabel) => body)
 
-  def newLocal[T: TypeInfo](name: String)(implicit ev: T =!= Unit)
-  : LocalRef[T] =
+  def newLocal[T: TypeInfo](name: String)(implicit ev: T =!= Unit): LocalRef[T] =
     mb.newLocal[T](name)
 
-  def newLocal[T: TypeInfo](name: String, c: Code[T])(implicit ev: T =!= Unit)
-  : LocalRef[T] = {
+  def newLocal[T: TypeInfo](name: String, c: Code[T])(implicit ev: T =!= Unit): LocalRef[T] = {
     val l = newLocal[T](name)
     append(l := c)
     l
@@ -196,12 +225,10 @@ trait CodeBuilderLike {
     ref
   }
 
-  def newField[T: TypeInfo](name: String)(implicit ev: T =!= Unit)
-  : ThisFieldRef[T] =
+  def newField[T: TypeInfo](name: String)(implicit ev: T =!= Unit): ThisFieldRef[T] =
     mb.genFieldThisRef[T](name)
 
-  def newField[T: TypeInfo](name: String, c: Code[T])(implicit ev: T =!= Unit)
-  : ThisFieldRef[T] = {
+  def newField[T: TypeInfo](name: String, c: Code[T])(implicit ev: T =!= Unit): ThisFieldRef[T] = {
     val f = newField[T](name)
     append(f := c)
     f
@@ -257,16 +284,16 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
   }
 
   override def define(L: CodeLabel): Unit =
-    if (isOpenEnded) append(L) else {
+    if (isOpenEnded) append(L)
+    else {
       val tmp = code
       code = new VCode(code.start, L.end, null)
       tmp.clear()
       L.clear()
     }
 
-  def uncheckedAppend(c: Code[Unit]): Unit = {
+  def uncheckedAppend(c: Code[Unit]): Unit =
     code = Code(code, c)
-  }
 
   def result(): Code[Unit] = {
     val tmp = code

@@ -11,9 +11,14 @@ object ApproxCDFHelper {
   def sort(a: Array[Double], begin: Int, end: Int): Unit = java.util.Arrays.sort(a, begin, end)
 
   def merge(
-    left: Array[Double], lStart: Int, lEnd: Int,
-    right: Array[Double], rStart: Int, rEnd: Int,
-    out: Array[Double], outStart: Int
+    left: Array[Double],
+    lStart: Int,
+    lEnd: Int,
+    right: Array[Double],
+    rStart: Int,
+    rEnd: Int,
+    out: Array[Double],
+    outStart: Int,
   ): Unit = {
     assert((left ne out) || (outStart <= lStart - (rEnd - rStart)) || (outStart >= lEnd))
     assert((right ne out) || (outStart <= rStart - (lEnd - lStart)) || (outStart >= rEnd))
@@ -73,9 +78,12 @@ object ApproxCDFHelper {
   }
 
   def compactBuffer(
-    buf: Array[Double], inStart: Int, inEnd: Int,
-    out: Array[Double], outStart: Int,
-    skipFirst: Boolean
+    buf: Array[Double],
+    inStart: Int,
+    inEnd: Int,
+    out: Array[Double],
+    outStart: Int,
+    skipFirst: Boolean,
   ): Unit = {
     assert((buf ne out) || (outStart <= inStart) || (outStart >= inEnd))
     var i = inStart
@@ -91,9 +99,12 @@ object ApproxCDFHelper {
   }
 
   def compactBufferBackwards(
-    buf: Array[Double], inStart: Int, inEnd: Int,
-    out: Array[Double], outEnd: Int,
-    skipFirst: Boolean
+    buf: Array[Double],
+    inStart: Int,
+    inEnd: Int,
+    out: Array[Double],
+    outEnd: Int,
+    skipFirst: Boolean,
   ): Unit = {
     assert((buf ne out) || (outEnd <= inStart) || (outEnd >= inEnd))
     var i = inEnd - 1
@@ -110,12 +121,14 @@ object ApproxCDFHelper {
 }
 
 object ApproxCDFCombiner {
-  def apply(numLevels: Int, capacity: Int, rand: java.util.Random): ApproxCDFCombiner = new ApproxCDFCombiner(
-    { val a = Array.ofDim[Int](numLevels + 1); java.util.Arrays.fill(a, capacity); a },
-    Array.ofDim[Double](capacity),
-    Array.ofDim[Int](numLevels),
-    1,
-    rand)
+  def apply(numLevels: Int, capacity: Int, rand: java.util.Random): ApproxCDFCombiner =
+    new ApproxCDFCombiner(
+      { val a = Array.ofDim[Int](numLevels + 1); java.util.Arrays.fill(a, capacity); a },
+      Array.ofDim[Double](capacity),
+      Array.ofDim[Int](numLevels),
+      1,
+      rand,
+    )
 
   def apply(numLevels: Int, capacity: Int): ApproxCDFCombiner =
     apply(numLevels, capacity, new java.util.Random())
@@ -147,21 +160,19 @@ object ApproxCDFCombiner {
 /* Keep a collection of values, grouped into levels.
  *
  * Invariants:
- * - `items` stores all levels contiguously. Each level above 0 is
- *   always sorted in non-decreasing order.
- * - `levels` tracks the boundaries of the levels stored in `items`. It is
- *   always non-decreasing, and `levels(numLevels)` always equals `items.length`.
- *   The values in level i occupy indices from `levels(i)` (inclusive) to
- *   `levels(i+1)` (exclusive).
- * - `numLevels` is the number of levels currently held. The top level is
- *   never empty, so this is also the greatest nonempty level.
- */
+ * - `items` stores all levels contiguously. Each level above 0 is always sorted in non-decreasing
+ * order.
+ * - `levels` tracks the boundaries of the levels stored in `items`. It is always non-decreasing,
+ * and `levels(numLevels)` always equals `items.length`.
+ * The values in level i occupy indices from `levels(i)` (inclusive) to `levels(i+1)` (exclusive).
+ * - `numLevels` is the number of levels currently held. The top level is never empty, so this is
+ * also the greatest nonempty level. */
 class ApproxCDFCombiner(
   val levels: Array[Int],
   val items: Array[Double],
   val compactionCounts: Array[Int],
   var numLevels: Int,
-  val rand: java.util.Random
+  val rand: java.util.Random,
 ) extends Serializable {
 
   def serializeTo(ob: OutputBuffer): Unit = {
@@ -215,7 +226,7 @@ class ApproxCDFCombiner(
   def safeLevelSize(level: Int): Int =
     if (level >= maxNumLevels) 0 else levels(level + 1) - levels(level)
 
-  def push(t: Double) {
+  def push(t: Double): Unit = {
     val bot = levels(0)
 
     val newBot = bot - 1
@@ -244,7 +255,7 @@ class ApproxCDFCombiner(
     new ApproxCDFCombiner(newLevels, newItems, newCompactionCounts, numLevels, rand)
   }
 
-  def clear() {
+  def clear(): Unit = {
     numLevels = 1
     var i = 0
     while (i < levels.length) {
@@ -253,13 +264,12 @@ class ApproxCDFCombiner(
     }
   }
 
-  /* Compact level `level`, merging the compacted results into level `level+1`,
-   * keeping the 'keep' smallest and 'keep' largest values at 'level'. If
-   * 'shiftLowerLevels' is true, shift lower levels up to keep items contiguous.
+  /* Compact level `level`, merging the compacted results into level `level+1`, keeping the 'keep'
+   * smallest and 'keep' largest values at 'level'. If 'shiftLowerLevels' is true, shift lower
+   * levels up to keep items contiguous.
    *
-   * Returns the new end of 'level'. If 'shiftLowerLevels', this is always
-   * equal to 'levels(level + 1)`.
-   */
+   * Returns the new end of 'level'. If 'shiftLowerLevels', this is always equal to 'levels(level +
+   * 1)`. */
   def compactLevel(level: Int, shiftLowerLevels: Boolean = true): Int = {
     val keep = if (level == 0) 1 else 0
 
@@ -354,9 +364,15 @@ class ApproxCDFCombiner(
 
       if (selfPop > 0 && otherPop > 0)
         ApproxCDFHelper.merge(
-          items, levels(lvl), levels(lvl + 1),
-          other.items, other.levels(lvl), other.levels(lvl + 1),
-          mergedItems, mergedLevels(lvl))
+          items,
+          levels(lvl),
+          levels(lvl + 1),
+          other.items,
+          other.levels(lvl),
+          other.levels(lvl + 1),
+          mergedItems,
+          mergedLevels(lvl),
+        )
       else if (selfPop > 0)
         System.arraycopy(items, levels(lvl), mergedItems, mergedLevels(lvl), selfPop)
       else if (otherPop > 0)
@@ -382,10 +398,11 @@ class ApproxCDFCombiner(
       mergedItems,
       mergedCompactionCounts,
       math.max(numLevels, other.numLevels),
-      rand)
+      rand,
+    )
   }
 
-  def generalCompact(minCapacity: Int, levelCapacity: (Int, Int) => Int) {
+  def generalCompact(minCapacity: Int, levelCapacity: (Int, Int) => Int): Unit = {
     var currentItemCount = levels(numLevels) - levels(0) // decreases with each compaction
     var targetItemCount = { // increases if we add levels
       var lvl = 0
@@ -430,7 +447,7 @@ class ApproxCDFCombiner(
     }
   }
 
-  def copyFrom(other: ApproxCDFCombiner) {
+  def copyFrom(other: ApproxCDFCombiner): Unit = {
     assert(capacity >= other.size)
     assert(maxNumLevels >= other.numLevels)
 
@@ -495,7 +512,8 @@ object ApproxCDFStateManager {
     val initLevelsCapacity: Int = QuantilesAggregator.findInitialLevelsCapacity(k, m)
     val combiner: ApproxCDFCombiner = ApproxCDFCombiner(
       initLevelsCapacity,
-      QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m))
+      QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m),
+    )
     new ApproxCDFStateManager(k, combiner)
   }
 
@@ -505,29 +523,32 @@ object ApproxCDFStateManager {
     a
   }
 
-  def fromData(k: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int]): ApproxCDFStateManager = {
+  def fromData(k: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int])
+    : ApproxCDFStateManager = {
     val combiner: ApproxCDFCombiner = new ApproxCDFCombiner(
-      levels, items, compactionCounts, levels.length - 1, new java.util.Random)
+      levels,
+      items,
+      compactionCounts,
+      levels.length - 1,
+      new java.util.Random,
+    )
     new ApproxCDFStateManager(k, combiner)
   }
 }
 
 /* Compute an approximation to the sorted sequence of values seen.
  *
- * Let `n` be the number of non-missing values seen, and let `m` and `M` be
- * respectively the minimum and maximum values seen. The result of the
- * aggregator is an array "values" of samples, in increasing order, and an array
- * "ranks" of integers less than `n`, in increasing order, such that:
+ * Let `n` be the number of non-missing values seen, and let `m` and `M` be respectively the minimum
+ * and maximum values seen. The result of the aggregator is an array "values" of samples, in
+ * increasing order, and an array "ranks" of integers less than `n`, in increasing order, such that:
  * - ranks.length = values.length + 1
  * - ranks(0) = 0
  * - ranks(values.length) = n
  * - values(0) = m
- * - values(values.length - 1) = M
- * These represent a summary of the sorted list of values seen by the
- * aggregator. For example, values=[0,2,5,6,9] and ranks=[0,3,4,5,8,10]
- * represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
- * `values(i)` occupying indices `ranks(i)` to `ranks(i+1)` (again half-open).
- */
+ * - values(values.length - 1) = M These represent a summary of the sorted list of values seen by
+ * the aggregator. For example, values=[0,2,5,6,9] and ranks=[0,3,4,5,8,10] represents the
+ * approximation [0,0,0,2,5,6,6,6,9,9], with the value `values(i)` occupying indices `ranks(i)` to
+ * `ranks(i+1)` (again half-open). */
 class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
   val m: Int = ApproxCDFStateManager.defaultM
   private val growthRate: Int = 4
@@ -536,41 +557,35 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
 
   /* The sketch maintains a sample of items seen, organized into levels.
    *
-   * Samples in level i represent 2^i items from the original stream. Whenever
-   * `items` fills up, we make room by "compacting" a full level. Compacting
-   * means sorting (if the level wasn't already sorted), throwing away every
-   * other sample (taking the evens or the odds with equal probability), and
-   * adding the remaining samples to the level above (where now each kept sample
+   * Samples in level i represent 2^i items from the original stream. Whenever `items` fills up, we
+   * make room by "compacting" a full level. Compacting means sorting (if the level wasn't already
+   * sorted), throwing away every other sample (taking the evens or the odds with equal
+   * probability), and adding the remaining samples to the level above (where now each kept sample
    * represents twice as many items).
    *
-   * Let `levelCapacity(i)`=k*(2/3)^(numLevels-i). A compaction operation at
-   * level i is correct if the level contains at least `levelCapacity(i)`
-   * samples at the time of compaction. As long as this holds, the analysis from
-   * the paper [KLL] applies. This leaves room for several compaction
-   * strategies, of which we implement two, with the `eager` flag choosing
-   * between them.
+   * Let `levelCapacity(i)`=k*(2/3)^(numLevels-i). A compaction operation at level i is correct if
+   * the level contains at least `levelCapacity(i)` samples at the time of compaction. As long as
+   * this holds, the analysis from the paper [KLL] applies. This leaves room for several compaction
+   * strategies, of which we implement two, with the `eager` flag choosing between them.
    *
-   * To keep things simple, we require that any level contains a minimum of m
-   * samples at the time of compaction, where `m` is a class parameter, m>=2,
-   * controlling the minimum size of a compaction. Because of this minimum size,
-   * we must (very slowly) grow the `items` buffer over time.
+   * To keep things simple, we require that any level contains a minimum of m samples at the time of
+   * compaction, where `m` is a class parameter, m>=2, controlling the minimum size of a compaction.
+   * Because of this minimum size, we must (very slowly) grow the `items` buffer over time.
    *
-   * To maintain the correct total weight, we only compact even numbers of
-   * samples. If a level contains an odd number of samples when compacting,
-   * we leave one sample at the lower level.
+   * To maintain the correct total weight, we only compact even numbers of samples. If a level
+   * contains an odd number of samples when compacting, we leave one sample at the lower level.
    *
    * Invariants:
    * - `n` is the number of items seen.
-   * - `levelsCapacity` is the number of levels `items` and `levels` have room
-   *   for before we need to reallocate.
-   * - `numLevels` is the number of levels currently held. The top level is
-   *   never empty, so this is also the greatest nonempty level.
-   * - `items.length` is always at least the sum of all level capacities up to
-   *   `numLevels`. Thus if `items` is full, at least one level must be full.
+   * - `levelsCapacity` is the number of levels `items` and `levels` have room for before we need to
+   * reallocate.
+   * - `numLevels` is the number of levels currently held. The top level is never empty, so this is
+   * also the greatest nonempty level.
+   * - `items.length` is always at least the sum of all level capacities up to `numLevels`. Thus if
+   * `items` is full, at least one level must be full.
    *
    * [KLL] "Optimal Quantile Approximation in Streams", Karnin, Lang, and Liberty
-   * https://github.com/DataSketches/sketches-core/tree/master/src/main/java/com/yahoo/sketches/kll
-   */
+   * https://github.com/DataSketches/sketches-core/tree/master/src/main/java/com/yahoo/sketches/kll */
 
   def levels: Array[Int] = combiner.levels
 
@@ -597,7 +612,7 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     combiner.push(x)
   }
 
-  def combOp(other: ApproxCDFStateManager) {
+  def combOp(other: ApproxCDFStateManager): Unit = {
     assert(m == other.m)
     if (other.numLevels == 1) {
       var i = other.levels(0)
@@ -651,15 +666,13 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     rvb.end()
   }
 
-  def clear() {
+  def clear(): Unit =
     combiner.clear()
-  }
 
   private def findFullLevel(): Int = {
     var level: Int = 0
-    while (levels(level + 1) - levels(level) < levelCapacity(level)) {
+    while (levels(level + 1) - levels(level) < levelCapacity(level))
       level += 1
-    }
     level
   }
 
@@ -668,10 +681,8 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     if (depth < capacities.length) capacities(depth) else m
   }
 
-  /* Compact the first over-capacity level. If that is the top level, grow the
-   * sketch.
-   */
-  private def compact() {
+  /* Compact the first over-capacity level. If that is the top level, grow the sketch. */
+  private def compact(): Unit = {
     assert(combiner.isFull)
     val level = findFullLevel()
     if (level == numLevels - 1) growSketch()
@@ -679,11 +690,10 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     combiner.compactLevel(level)
   }
 
-  /* If we are following the eager compacting strategy, level 0 must be full
-   * when starting a compaction. This strategy sacrifices some accuracy, but
-   * avoids having to shift up items below the compacted level.
-   */
-  private def compactEager() {
+  /* If we are following the eager compacting strategy, level 0 must be full when starting a
+   * compaction. This strategy sacrifices some accuracy, but avoids having to shift up items below
+   * the compacted level. */
+  private def compactEager(): Unit = {
     assert(combiner.levelSize(0) >= levelCapacity(0))
 
     var level = 0
@@ -703,14 +713,14 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
     } while (levels(level) < desiredFreeCapacity && !grew)
   }
 
-  private def growSketch() {
+  private def growSketch(): Unit =
     if (combiner.numLevels == combiner.maxNumLevels)
       combiner = combiner.grow(
         combiner.maxNumLevels + growthRate,
-        combiner.capacity + m * growthRate)
-  }
+        combiner.capacity + m * growthRate,
+      )
 
-  private def merge(other: ApproxCDFStateManager) {
+  private def merge(other: ApproxCDFStateManager): Unit = {
     val finalN = n + other.n
     val ub = QuantilesAggregator.ubOnNumLevels(finalN)
 
@@ -727,17 +737,18 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
   private def computeTotalCapacity(numLevels: Int): Int =
     QuantilesAggregator.computeTotalCapacity(numLevels, k, m)
 
-  def serializeTo(ob: OutputBuffer): Unit = {
+  def serializeTo(ob: OutputBuffer): Unit =
     combiner.serializeTo(ob)
-  }
 }
 
 object QuantilesAggregator {
   val resultPType: PCanonicalStruct =
-    PCanonicalStruct(required = false,
+    PCanonicalStruct(
+      required = false,
       "levels" -> PCanonicalArray(PInt32(true), required = true),
       "items" -> PCanonicalArray(PFloat64(true), required = true),
-      "_compaction_counts" -> PCanonicalArray(PInt32(true), required = true))
+      "_compaction_counts" -> PCanonicalArray(PInt32(true), required = true),
+    )
 
   def floorOfLog2OfFraction(numer: Long, denom: Long): Int = {
     var count = 0

@@ -1,8 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.expr.ir.agg._
-import is.hail.types.TypeWithRequiredness
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
@@ -13,9 +11,17 @@ object AggSignature {
     case AggSignature(Take(), Seq(n), Seq(_)) =>
       AggSignature(Take(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType))
     case AggSignature(ReservoirSample(), Seq(n), Seq(_)) =>
-      AggSignature(ReservoirSample(), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType))
+      AggSignature(
+        ReservoirSample(),
+        FastSeq(n),
+        FastSeq(requestedType.asInstanceOf[TArray].elementType),
+      )
     case AggSignature(TakeBy(reverse), Seq(n), Seq(_, k)) =>
-      AggSignature(TakeBy(reverse), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType, k))
+      AggSignature(
+        TakeBy(reverse),
+        FastSeq(n),
+        FastSeq(requestedType.asInstanceOf[TArray].elementType, k),
+      )
     case AggSignature(PrevNonnull(), Seq(), Seq(_)) =>
       AggSignature(PrevNonnull(), FastSeq(), FastSeq(requestedType))
     case AggSignature(Densify(), Seq(), Seq(_)) =>
@@ -27,7 +33,7 @@ object AggSignature {
 case class AggSignature(
   op: AggOp,
   var initOpArgs: Seq[Type],
-  var seqOpArgs: Seq[Type]
+  var seqOpArgs: Seq[Type],
 ) {
   // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
   lazy val returnType: Type = Extract.getResultType(this)

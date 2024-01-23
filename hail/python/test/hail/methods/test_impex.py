@@ -1,4 +1,5 @@
 import json
+import re
 import os
 import pytest
 import shutil
@@ -212,17 +213,34 @@ class VCFTests(unittest.TestCase):
             )
         )
 
-    def test_import_vcf_missing_info_field_elements(self):
+    def test_import_vcf_has_good_error_message_when_info_fields_have_missing_elements(self):
+        mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37')
+        with pytest.raises(
+            FatalError,
+            match=".*Missing value in INFO array. Use 'hl.import_vcf[(][.][.][.], array_elements_required=False[)]'[.].*",
+        ):
+            mt._force_count_rows()
+
+    def test_import_vcf_array_elements_required_is_false_parses_info_fields_with_missing_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
-        mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
+        mt = mt.select_rows(**mt.info)
         expected = hl.Table.parallelize(
             [
-                {'locus': hl.Locus('X', 16050036), 'alleles': ['A', 'C'], 'FOO': [1, None], 'BAR': [2, None, None]},
+                {
+                    'locus': hl.Locus('X', 16050036),
+                    'alleles': ['A', 'C'],
+                    'FOO': [1, None],
+                    'BAR': [2, None, None],
+                    'JUST_A_DOT': None,
+                    'NOT_EVEN_PRESENT': None,
+                },
                 {
                     'locus': hl.Locus('X', 16061250),
                     'alleles': ['T', 'A', 'C'],
                     'FOO': [None, 2, None],
                     'BAR': [None, 1.0, None],
+                    'JUST_A_DOT': None,
+                    'NOT_EVEN_PRESENT': None,
                 },
             ],
             hl.tstruct(
@@ -230,10 +248,12 @@ class VCFTests(unittest.TestCase):
                 alleles=hl.tarray(hl.tstr),
                 FOO=hl.tarray(hl.tint),
                 BAR=hl.tarray(hl.tfloat64),
+                JUST_A_DOT=hl.tarray(hl.tfloat64),
+                NOT_EVEN_PRESENT=hl.tarray(hl.tfloat64),
             ),
             key=['locus', 'alleles'],
         )
-        self.assertTrue(mt.rows()._same(expected))
+        assert mt.rows()._same(expected)
 
     def test_import_vcf_missing_format_field_elements(self):
         mt = hl.import_vcf(resource('missingFormatArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
@@ -395,10 +415,10 @@ class VCFTests(unittest.TestCase):
         )
         with pytest.raises(FatalError) as exp, TemporaryFilename(suffix='.vcf') as export_path:
             hl.export_vcf(ds, export_path)
-        msg = '''VCF does not support the type(s) for the following INFO field(s):
+        msg = """VCF does not support the type(s) for the following INFO field(s):
 \t'arr_bool': 'array<bool>'.
 \t'arr_arr_i32': 'array<array<int32>>'.
-'''
+"""
         assert msg in str(exp.value)
 
     def test_export_vcf_invalid_format_types(self):
@@ -406,10 +426,10 @@ class VCFTests(unittest.TestCase):
         ds = ds.annotate_entries(boolean=hl.missing(hl.tbool), arr_arr_i32=hl.missing(hl.tarray(hl.tarray(hl.tint32))))
         with pytest.raises(FatalError) as exp, TemporaryFilename(suffix='.vcf') as export_path:
             hl.export_vcf(ds, export_path)
-        msg = '''VCF does not support the type(s) for the following FORMAT field(s):
+        msg = """VCF does not support the type(s) for the following FORMAT field(s):
 \t'boolean': 'bool'.
 \t'arr_arr_i32': 'array<array<int32>>'.
-'''
+"""
         assert msg in str(exp.value)
 
     def import_gvcfs_sample_vcf(self, path):
@@ -561,26 +581,24 @@ class VCFTests(unittest.TestCase):
     def test_combiner_parse_allele_specific_annotations(self):
         from hail.vds.combiner.combine import parse_allele_specific_fields
 
-        infos = hl.array(
-            [
-                hl.struct(
-                    AS_QUALapprox="|1171|",
-                    AS_SB_TABLE="0,0|30,27|0,0",
-                    AS_VarDP="0|57|0",
-                    AS_RAW_MQ="0.00|15100.00|0.00",
-                    AS_RAW_MQRankSum="|0.0,1|NaN",
-                    AS_RAW_ReadPosRankSum="|0.7,1|NaN",
-                ),
-                hl.struct(
-                    AS_QUALapprox="|1171|",
-                    AS_SB_TABLE="0,0|30,27|0,0",
-                    AS_VarDP="0|57|0",
-                    AS_RAW_MQ="0.00|15100.00|0.00",
-                    AS_RAW_MQRankSum="|NaN|NaN",
-                    AS_RAW_ReadPosRankSum="|NaN|NaN",
-                ),
-            ]
-        )
+        infos = hl.array([
+            hl.struct(
+                AS_QUALapprox="|1171|",
+                AS_SB_TABLE="0,0|30,27|0,0",
+                AS_VarDP="0|57|0",
+                AS_RAW_MQ="0.00|15100.00|0.00",
+                AS_RAW_MQRankSum="|0.0,1|NaN",
+                AS_RAW_ReadPosRankSum="|0.7,1|NaN",
+            ),
+            hl.struct(
+                AS_QUALapprox="|1171|",
+                AS_SB_TABLE="0,0|30,27|0,0",
+                AS_VarDP="0|57|0",
+                AS_RAW_MQ="0.00|15100.00|0.00",
+                AS_RAW_MQRankSum="|NaN|NaN",
+                AS_RAW_ReadPosRankSum="|NaN|NaN",
+            ),
+        ])
 
         output = hl.eval(infos.map(lambda info: parse_allele_specific_fields(info, False)))
         expected = [
@@ -850,9 +868,10 @@ class PLINKTests(unittest.TestCase):
         a2 = get_data(a2_reference=True)
         a1 = get_data(a2_reference=False)
 
-        j = a2.annotate(a1_alleles=a1[a2.rsid].alleles, a1_vqc=a1[a2.rsid].variant_qc).rename(
-            {'variant_qc': 'a2_vqc', 'alleles': 'a2_alleles'}
-        )
+        j = a2.annotate(a1_alleles=a1[a2.rsid].alleles, a1_vqc=a1[a2.rsid].variant_qc).rename({
+            'variant_qc': 'a2_vqc',
+            'alleles': 'a2_alleles',
+        })
 
         self.assertTrue(
             j.all(
@@ -968,18 +987,16 @@ class PLINKTests(unittest.TestCase):
             hl.hadoop_copy(hl_output + '.bim', local_hl_output + '.bim')
             hl.hadoop_copy(hl_output + '.fam', local_hl_output + '.fam')
 
-        run_command(
-            [
-                "plink",
-                "--vcf",
-                local_split_vcf_file,
-                "--make-bed",
-                "--out",
-                plink_output,
-                "--const-fid",
-                "--keep-allele-order",
-            ]
-        )
+        run_command([
+            "plink",
+            "--vcf",
+            local_split_vcf_file,
+            "--make-bed",
+            "--out",
+            plink_output,
+            "--const-fid",
+            "--keep-allele-order",
+        ])
 
         data = []
         with open(uri_path(plink_output + ".bim")) as file:
@@ -991,9 +1008,17 @@ class PLINKTests(unittest.TestCase):
         with open(plink_output + ".bim", 'w') as f:
             f.writelines(data)
 
-        run_command(
-            ["plink", "--bfile", plink_output, "--bmerge", local_hl_output, "--merge-mode", "6", "--out", merge_output]
-        )
+        run_command([
+            "plink",
+            "--bfile",
+            plink_output,
+            "--bmerge",
+            local_hl_output,
+            "--merge-mode",
+            "6",
+            "--out",
+            merge_output,
+        ])
 
         same = True
         with open(merge_output + ".diff") as f:
@@ -1302,7 +1327,10 @@ class BGENTests(unittest.TestCase):
         ]
 
         part_1 = hl.import_bgen(
-            bgen_file, ['GT'], n_partitions=1, variants=desired_variants  # forcing seek to be called
+            bgen_file,
+            ['GT'],
+            n_partitions=1,
+            variants=desired_variants,  # forcing seek to be called
         )
         self.assertEqual(part_1.rows().key_by('locus', 'alleles').select().collect(), expected_result)
 
@@ -1511,14 +1539,17 @@ class BGENTests(unittest.TestCase):
 
         with hl.TemporaryFilename() as f:
             hl.current_backend().fs.copy(bgen_file, f)
-            with pytest.raises(FatalError, match='have no .idx2 index file'):
+
+            expected_missing_idx2_error_message = re.compile(f'have no .idx2 index file.*{f}.*', re.DOTALL)
+
+            with pytest.raises(FatalError, match=expected_missing_idx2_error_message):
                 hl.import_bgen(f, ['GT', 'GP'], sample_file, n_partitions=3)
 
             try:
                 with hl.current_backend().fs.open(f + '.idx', 'wb') as fobj:
                     fobj.write(b'')
 
-                with pytest.raises(FatalError, match='have no .idx2 index file'):
+                with pytest.raises(FatalError, match=expected_missing_idx2_error_message):
                     hl.import_bgen(f, ['GT', 'GP'], sample_file)
             finally:
                 hl.current_backend().fs.remove(f + '.idx')
@@ -2227,8 +2258,7 @@ class GrepTests(unittest.TestCase):
         expected = {
             prefix + 'sampleAnnotations.tsv': ['HG00120\tCASE\t19599', 'HG00121\tCASE\t4832'],
             prefix + 'sample2_rename.tsv': ['HG00120\tB_HG00120', 'HG00121\tB_HG00121'],
-            prefix
-            + 'sampleAnnotations2.tsv': [
+            prefix + 'sampleAnnotations2.tsv': [
                 'HG00120\t3919.8\t19589',
                 'HG00121\t966.4\t4822',
                 'HG00120_B\t3919.8\t19589',
@@ -2243,7 +2273,7 @@ class GrepTests(unittest.TestCase):
 
 class AvroTests(unittest.TestCase):
     @fails_service_backend(
-        reason='''
+        reason="""
 E                   java.io.NotSerializableException: org.apache.avro.Schema$RecordSchema
 E                   	at java.io.ObjectOutputStream.writeObject0(ObjectOutputStream.java:1184)
 E                   	at java.io.ObjectOutputStream.writeArray(ObjectOutputStream.java:1378)
@@ -2277,7 +2307,7 @@ E                   	at scala.concurrent.impl.CallbackRunnable.run(Promise.scala
 E                   	at java.util.concurrent.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1149)
 E                   	at java.util.concurrent.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:624)
 E                   	at java.lang.Thread.run(Thread.java:748)
-'''
+"""
     )
     def test_simple_avro(self):
         avro_file = resource('avro/weather.avro')

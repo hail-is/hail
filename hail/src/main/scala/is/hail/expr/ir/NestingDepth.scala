@@ -25,10 +25,10 @@ object NestingDepth {
       ir.children
         .zipWithIndex
         .foreach {
-          case (child: IR, i) => computeIR(child, ScopedDepth(0, 0, 0))
-          case (tir: TableIR, i) => computeTable(tir)
-          case (mir: MatrixIR, i) => computeMatrix(mir)
-          case (bmir: BlockMatrixIR, i) => computeBlockMatrix(bmir)
+          case (child: IR, _) => computeIR(child, ScopedDepth(0, 0, 0))
+          case (tir: TableIR, _) => computeTable(tir)
+          case (mir: MatrixIR, _) => computeMatrix(mir)
+          case (bmir: BlockMatrixIR, _) => computeBlockMatrix(bmir)
         }
     }
 
@@ -40,21 +40,21 @@ object NestingDepth {
 
     def computeIR(ir: IR, depth: ScopedDepth): Unit = {
       ir match {
-        case x@AggLet(_, _, _, false) =>
+        case x @ AggLet(_, _, _, false) =>
           memo.bind(x, depth.agg)
-        case x@AggLet(_, _, _, true) =>
+        case x @ AggLet(_, _, _, true) =>
           memo.bind(x, depth.scan)
         case _ =>
           memo.bind(ir, depth.eval)
       }
       ir match {
-        case StreamMap(a, name, body) =>
+        case StreamMap(a, _, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case StreamAgg(a, name, body) =>
+        case StreamAgg(a, _, body) =>
           computeIR(a, depth)
           computeIR(body, ScopedDepth(depth.eval, depth.eval + 1, depth.scan))
-        case StreamAggScan(a, name, body) =>
+        case StreamAggScan(a, _, body) =>
           computeIR(a, depth)
           computeIR(body, ScopedDepth(depth.eval, depth.agg, depth.eval + 1))
         case StreamZip(as, _, body, _, _) =>
@@ -67,22 +67,22 @@ object NestingDepth {
           computeIR(contexts, depth)
           computeIR(makeProducer, depth.incrementEval)
           computeIR(joinF, depth.incrementEval)
-        case StreamFor(a, valueName, body) =>
+        case StreamFor(a, _, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case StreamFlatMap(a, name, body) =>
+        case StreamFlatMap(a, _, body) =>
           computeIR(a, depth)
           computeIR(body, depth.incrementEval)
-        case StreamFilter(a, name, cond) =>
+        case StreamFilter(a, _, cond) =>
           computeIR(a, depth)
           computeIR(cond, depth.incrementEval)
-        case StreamTakeWhile(a, name, cond) =>
+        case StreamTakeWhile(a, _, cond) =>
           computeIR(a, depth)
           computeIR(cond, depth.incrementEval)
-        case StreamDropWhile(a, name, cond) =>
+        case StreamDropWhile(a, _, cond) =>
           computeIR(a, depth)
           computeIR(cond, depth.incrementEval)
-        case StreamFold(a, zero, accumName, valueName, body) =>
+        case StreamFold(a, zero, _, _, body) =>
           computeIR(a, depth)
           computeIR(zero, depth)
           computeIR(body, depth.incrementEval)
@@ -91,11 +91,11 @@ object NestingDepth {
           accum.foreach { case (_, value) => computeIR(value, depth) }
           seq.foreach(computeIR(_, depth.incrementEval))
           computeIR(result, depth)
-        case StreamScan(a, zero, accumName, valueName, body) =>
+        case StreamScan(a, zero, _, _, body) =>
           computeIR(a, depth)
           computeIR(zero, depth)
           computeIR(body, depth.incrementEval)
-        case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinF, joinType) =>
+        case StreamJoinRightDistinct(left, right, _, _, _, _, joinF, _) =>
           computeIR(left, depth)
           computeIR(right, depth)
           computeIR(joinF, depth.incrementEval)
@@ -131,11 +131,11 @@ object NestingDepth {
             .zipWithIndex
             .foreach {
               case (child: IR, i) => if (UsesAggEnv(ir, i))
-                computeIR(child, depth.promoteAgg)
-              else if (UsesScanEnv(ir, i))
-                computeIR(child, depth.promoteScan)
-              else
-                computeIR(child, depth)
+                  computeIR(child, depth.promoteAgg)
+                else if (UsesScanEnv(ir, i))
+                  computeIR(child, depth.promoteScan)
+                else
+                  computeIR(child, depth)
               case (child: TableIR, _) => computeTable(child)
               case (child: MatrixIR, _) => computeMatrix(child)
               case (child: BlockMatrixIR, _) => computeBlockMatrix(child)

@@ -61,7 +61,7 @@ class Flow(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]) -> None:
         """Revokes the OAuth2 credentials on the user's machine."""
         raise NotImplementedError
 
@@ -112,7 +112,8 @@ class GoogleFlow(Flow):
         flow.redirect_uri = flow_dict['callback_uri']
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request()  # type: ignore
+            flow.credentials.id_token,  # type: ignore
+            google.auth.transport.requests.Request(),  # type: ignore
         )
         email = token['email']
         return FlowResult(email, email, token.get('hd'), token)
@@ -129,7 +130,7 @@ class GoogleFlow(Flow):
         }
 
     @staticmethod
-    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]) -> None:
         async with httpx.client_session() as session:
             await session.post(
                 'https://oauth2.googleapis.com/revoke',
@@ -227,7 +228,7 @@ class AzureFlow(Flow):
         return {**oauth2_client, 'refreshToken': credentials['refresh_token']}
 
     @staticmethod
-    async def logout_installed_app(_: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
         # AAD does not support revocation of a single refresh token,
         # only all refresh tokens issued to all applications for a particular
         # user, which we neither wish nor should have the permissions

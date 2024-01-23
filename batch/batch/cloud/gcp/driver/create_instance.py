@@ -85,12 +85,10 @@ def create_vm_config(
         }
 
         if preemptible:
-            result.update(
-                {
-                    'provisioningModel': 'SPOT',
-                    'instanceTerminationAction': 'DELETE',
-                }
-            )
+            result.update({
+                'provisioningModel': 'SPOT',
+                'instanceTerminationAction': 'DELETE',
+            })
 
         return result
 
@@ -129,7 +127,7 @@ def create_vm_config(
             'items': [
                 {
                     'key': 'startup-script',
-                    'value': '''
+                    'value': """
 #!/bin/bash
 set -x
 
@@ -150,11 +148,11 @@ fi
 curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_script"  >./run.sh
 
 nohup /bin/bash run.sh >run.log 2>&1 &
-    ''',
+    """,
                 },
                 {
                     'key': 'run_script',
-                    'value': rf'''
+                    'value': rf"""
 #!/bin/bash
 set -x
 
@@ -232,6 +230,8 @@ logging:
       - /batch/jvm-container-logs/jvm-*.log
       record_log_file_path: true
   processors:
+    parse_message:
+      type: parse_json
     labels:
       type: modify_fields
       fields:
@@ -239,11 +239,13 @@ logging:
           static_value: $NAMESPACE
         labels.instance_id:
           static_value: $INSTANCE_ID
+        severity:
+          move_from: jsonPayload.severity
   service:
     log_level: error
     pipelines:
       default_pipeline:
-        processors: [labels]
+        processors: [parse_message, labels]
         receivers: [runlog, workerlog, jvmlog]
 
 metrics:
@@ -346,18 +348,18 @@ while true; do
 gcloud -q compute instances delete $NAME --zone=$ZONE
 sleep 1
 done
-''',
+""",
                 },
                 {
                     'key': 'shutdown-script',
-                    'value': '''
+                    'value': """
 set -x
 
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
 journalctl -u docker.service > dockerd.log
-''',
+""",
                 },
                 {'key': 'activation_token', 'value': activation_token},
                 {'key': 'batch_worker_image', 'value': BATCH_WORKER_IMAGE},

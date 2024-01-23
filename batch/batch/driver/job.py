@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Dict, List
 
 import aiohttp
 
-from gear import Database, K8sCache
+from gear import CommonAiohttpAppKeys, Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
@@ -31,7 +31,7 @@ log = logging.getLogger('job')
 
 async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT batches.*,
   cost_t.cost,
   cost_t.cost_breakdown,
@@ -58,7 +58,7 @@ LEFT JOIN job_groups_cancelled
   ON batches.id = job_groups_cancelled.id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete';
-''',
+""",
         (batch_id,),
         'notify_batch_job_complete',
     )
@@ -110,11 +110,11 @@ async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources
             ]
 
             await db.execute_many(
-                '''
+                """
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource_id, deduped_resource_id, quantity)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
-''',
+""",
                 resource_args,
                 'add_attempt_resources',
             )
@@ -141,7 +141,7 @@ async def mark_job_complete(
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     inst_coll_manager: 'InstanceCollectionManager' = app['driver'].inst_coll_manager
     task_manager: BackgroundTaskManager = app['task_manager']
@@ -215,9 +215,9 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
 
     try:
         rv = await db.execute_and_fetchone(
-            '''
+            """
 CALL mark_job_started(%s, %s, %s, %s, %s);
-''',
+""",
             (batch_id, job_id, attempt_id, instance.name, start_time),
             'mark_job_started',
         )
@@ -248,9 +248,9 @@ async def mark_job_creating(
 
     try:
         rv = await db.execute_and_fetchone(
-            '''
+            """
 CALL mark_job_creating(%s, %s, %s, %s, %s);
-''',
+""",
             (batch_id, job_id, attempt_id, instance.name, start_time),
             'mark_job_creating',
         )
@@ -269,7 +269,7 @@ async def unschedule_job(app, record):
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     db: Database = app['db']
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     inst_coll_manager = app['driver'].inst_coll_manager
 
     batch_id = record['batch_id']
@@ -358,9 +358,9 @@ async def job_config(app, record, attempt_id):
 
     gsa_key = None
     secrets = job_spec.get('secrets', [])
-    k8s_secrets = await asyncio.gather(
-        *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
-    )
+    k8s_secrets = await asyncio.gather(*[
+        k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets
+    ])
 
     # backwards compatibility
     gsa_key_secret_name = userdata.get('hail_credentials_secret_name') or userdata['gsa_key_secret_name']
@@ -394,7 +394,7 @@ async def job_config(app, record, attempt_id):
         user_token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
 
-        kube_config = f'''
+        kube_config = f"""
 apiVersion: v1
 clusters:
 - cluster:
@@ -414,15 +414,13 @@ users:
 - name: {namespace}-{name}
   user:
     token: {user_token}
-'''
+"""
 
-        job_spec['secrets'].append(
-            {
-                'name': 'kube-config',
-                'mount_path': '/.kube',
-                'data': {'config': base64.b64encode(kube_config.encode()).decode(), 'ca.crt': cert},
-            }
-        )
+        job_spec['secrets'].append({
+            'name': 'kube-config',
+            'mount_path': '/.kube',
+            'data': {'config': base64.b64encode(kube_config.encode()).decode(), 'ca.crt': cert},
+        })
 
         env = job_spec.get('env')
         if not env:
@@ -476,7 +474,7 @@ async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
     db: Database = app['db']
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -515,9 +513,9 @@ async def schedule_job(app, record, instance):
 
     try:
         rv = await db.execute_and_fetchone(
-            '''
+            """
 CALL schedule_job(%s, %s, %s, %s);
-''',
+""",
             (batch_id, job_id, attempt_id, instance.name),
             'schedule_job',
         )

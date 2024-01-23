@@ -19,7 +19,13 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  override def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long = {
     val srcBinary = srcPType.asInstanceOf[PCanonicalBinary]
     if (srcBinary == this) {
       if (deepCopy) {
@@ -38,10 +44,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-
   override def containsPointers: Boolean = true
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCBinary")
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+    sb.append("PCBinary")
 
   def contentAlignment: Long = 4
 
@@ -77,13 +83,14 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
-  def storeLength(cb: EmitCodeBuilder, boff: Code[Long], len: Code[Int]): Unit = cb += Region.storeInt(boff, len)
+  def storeLength(cb: EmitCodeBuilder, boff: Code[Long], len: Code[Int]): Unit =
+    cb += Region.storeInt(boff, len)
 
   def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
 
   def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
 
-  def store(addr: Long, bytes: Array[Byte]) {
+  def store(addr: Long, bytes: Array[Byte]): Unit = {
     Region.storeInt(addr, bytes.length)
     Region.storeBytes(bytesAddress(addr), bytes)
   }
@@ -95,7 +102,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     cb += Region.storeBytes(bytesAddress(addr), bytes)
   }
 
-  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]]): SBinaryPointerValue = {
+  def constructFromByteArray(cb: EmitCodeBuilder, region: Value[Region], bytes: Code[Array[Byte]])
+    : SBinaryPointerValue = {
     val ba = cb.newLocal[Array[Byte]]("pcbin_ba", bytes)
     val len = cb.newLocal[Int]("pcbin_len", ba.length())
     val addr = cb.newLocal[Long]("pcbin_addr", allocate(region, len))
@@ -103,12 +111,25 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     loadCheapSCode(cb, addr)
   }
 
-  def constructAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Unit = {
+  def constructAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    srcPType: PType,
+    srcAddress: Code[Long],
+    deepCopy: Boolean,
+  ): Unit = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
     cb += Region.storeAddress(addr, constructOrCopy(cb, region, srcBinary, srcAddress, deepCopy))
   }
 
-  private def constructOrCopy(cb: EmitCodeBuilder, region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  private def constructOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    srcBinary: PBinary,
+    srcAddress: Code[Long],
+    deepCopy: Boolean,
+  ): Code[Long] = {
     if (srcBinary == this) {
       if (deepCopy) {
         val srcAddrVar = cb.newLocal[Long]("pcanonical_binary_construct_or_copy_src_addr")
@@ -129,7 +150,11 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       cb.assign(len, srcBinary.loadLength(srcAddrVar))
       cb.assign(newAddr, allocate(region, len))
       storeLength(cb, newAddr, len)
-      cb += Region.copyFrom(srcAddrVar + srcBinary.lengthHeaderBytes, newAddr + lengthHeaderBytes, len.toL)
+      cb += Region.copyFrom(
+        srcAddrVar + srcBinary.lengthHeaderBytes,
+        newAddr + lengthHeaderBytes,
+        len.toL,
+      )
       newAddr
     }
   }
@@ -139,7 +164,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerValue =
     new SBinaryPointerValue(sType, cb.memoize(addr))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long] = {
     value.st match {
       case SBinaryPointer(PCanonicalBinary(_)) =>
         if (deepCopy) {
@@ -161,11 +187,23 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+  def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit =
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
-  }
 
-  def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit = {
     val srcArray = srcPType.asInstanceOf[PBinary]
     Region.storeAddress(addr, copyFromAddress(sm, region, srcArray, srcAddress, deepCopy))
   }
@@ -177,11 +215,16 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 
-  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit =
     Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
-  }
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+    : Long = {
     val bytes = annotation.asInstanceOf[Array[Byte]]
     val valueAddress = allocate(region, bytes.length)
     store(valueAddress, bytes)
@@ -190,7 +233,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 }
 
 object PCanonicalBinary {
-  def apply(required: Boolean = false): PCanonicalBinary = if (required) PCanonicalBinaryRequired else PCanonicalBinaryOptional
+  def apply(required: Boolean = false): PCanonicalBinary =
+    if (required) PCanonicalBinaryRequired else PCanonicalBinaryOptional
 
   def unapply(t: PBinary): Option[Boolean] = Option(t.required)
 }

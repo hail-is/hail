@@ -33,12 +33,12 @@ def fatal_error_from_java_error_triplet(short_message, expanded_message, error_i
     if error_id != -1:
         return FatalError(f'Error summary: {short_message}', error_id)
     return FatalError(
-        f'''{short_message}
+        f"""{short_message}
 
 Java stack trace:
 {expanded_message}
 Hail version: {__version__}
-Error summary: {short_message}''',
+Error summary: {short_message}""",
         error_id,
     )
 

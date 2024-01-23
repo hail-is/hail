@@ -7,8 +7,9 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import java.util.UUID
 import scala.language.implicitConversions
+
+import java.util.UUID
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]
@@ -39,22 +40,25 @@ package object ir {
   def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
     IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
       case Some(f) => f(typeArgs, args, errorID)
-      case None => fatal(s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt")
+      case None => fatal(
+          s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt"
+        )
     }
 
   def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR =
-    invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args:_*)
+    invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], ErrorIDs.NO_ERROR, args:_*)
+    invoke(name, rt, Array.empty[Type], ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, errorID: Int, args: IR*): IR =
-    invoke(name, rt, Array.empty[Type], errorID, args:_*)
+    invoke(name, rt, Array.empty[Type], errorID, args: _*)
 
   def invokeSeeded(name: String, staticUID: Long, rt: Type, rngState: IR, args: IR*): IR =
     IRFunctionRegistry.lookupSeeded(name, staticUID, rt, args.map(_.typ)) match {
       case Some(f) => f(args, rngState)
-      case None => fatal(s"no seeded function found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
+      case None =>
+        fatal(s"no seeded function found for $name(${args.map(_.typ).mkString(", ")}) => $rt")
     }
 
   implicit def irToPrimitiveIR(ir: IR): PrimitiveIR = new PrimitiveIR(ir)
@@ -96,13 +100,11 @@ package object ir {
     StreamTakeWhile(v, ref.name, f(ref))
   }
 
-  def maxIR(a: IR, b: IR): IR = {
+  def maxIR(a: IR, b: IR): IR =
     If(a > b, a, b)
-  }
 
-  def minIR(a: IR, b: IR): IR = {
+  def minIR(a: IR, b: IR): IR =
     If(a < b, a, b)
-  }
 
   def streamAggIR(stream: IR)(f: Ref => IR): IR = {
     val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
@@ -132,9 +134,10 @@ package object ir {
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
-  def flatten(stream: IR): IR = flatMapIR(if (stream.typ.isInstanceOf[TStream]) stream else ToStream(stream)) { elt =>
-    if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
-  }
+  def flatten(stream: IR): IR =
+    flatMapIR(if (stream.typ.isInstanceOf[TStream]) stream else ToStream(stream)) { elt =>
+      if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
+    }
 
   def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
     val elt = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
@@ -149,25 +152,50 @@ package object ir {
     ArraySort(stream, l.name, r.name, f(l, r))
   }
 
-  def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
+  def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR =
     ArraySlice(arrayIR, startIR, Some(stopIR))
-  }
 
-  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String, requiresMemoryManagement: Boolean)(f: (Ref, Ref) => IR): IR = {
+  def joinIR(
+    left: IR,
+    right: IR,
+    lkey: IndexedSeq[String],
+    rkey: IndexedSeq[String],
+    joinType: String,
+    requiresMemoryManagement: Boolean,
+  )(
+    f: (Ref, Ref) => IR
+  ): IR = {
     val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
     val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
-    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType, requiresMemoryManagement)
+    StreamJoin(
+      left,
+      right,
+      lkey,
+      rkey,
+      lRef.name,
+      rRef.name,
+      f(lRef, rRef),
+      joinType,
+      requiresMemoryManagement,
+    )
   }
 
-  def joinRightDistinctIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
+  def joinRightDistinctIR(
+    left: IR,
+    right: IR,
+    lkey: IndexedSeq[String],
+    rkey: IndexedSeq[String],
+    joinType: String,
+  )(
+    f: (Ref, Ref) => IR
+  ): IR = {
     val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
     val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
     StreamJoinRightDistinct(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
   }
 
-  def streamSumIR(stream: IR): IR = {
-    foldIR(stream, 0){ case (accum, elt) => accum + elt}
-  }
+  def streamSumIR(stream: IR): IR =
+    foldIR(stream, 0) { case (accum, elt) => accum + elt }
 
   def streamForceCount(stream: IR): IR =
     streamSumIR(mapIR(stream)(_ => I32(1)))
@@ -176,7 +204,9 @@ package object ir {
 
   def rangeIR(start: IR, stop: IR): IR = StreamRange(start, stop, 1)
 
-  def insertIR(old: IR, fields: (String, IR)*): InsertFields = InsertFields(old, fields.toArray[(String, IR)])
+  def insertIR(old: IR, fields: (String, IR)*): InsertFields =
+    InsertFields(old, fields.toArray[(String, IR)])
+
   def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields.toArray[String])
 
   def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
@@ -192,17 +222,25 @@ package object ir {
       FastSeq(s, StreamIota(I32(0), I32(1))),
       FastSeq(r1.name, r2.name),
       MakeStruct(FastSeq(("elt", r1), ("idx", r2))),
-      ArrayZipBehavior.TakeMinLength
+      ArrayZipBehavior.TakeMinLength,
     )
   }
 
-  def zipIR(ss: IndexedSeq[IR], behavior: ArrayZipBehavior.ArrayZipBehavior, errorId: Int = ErrorIDs.NO_ERROR)(f: IndexedSeq[Ref] => IR): IR = {
+  def zipIR(
+    ss: IndexedSeq[IR],
+    behavior: ArrayZipBehavior.ArrayZipBehavior,
+    errorId: Int = ErrorIDs.NO_ERROR,
+  )(
+    f: IndexedSeq[Ref] => IR
+  ): IR = {
     val refs = ss.map(s => Ref(genUID(), tcoerce[TStream](s.typ).elementType))
     StreamZip(ss, refs.map(_.name), f(refs), behavior, errorId)
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields.toArray[(String, IR)])
-  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.toArray.zipWithIndex.map { case (field, idx) => (idx, field) })
+
+  def maketuple(fields: IR*): MakeTuple =
+    MakeTuple(fields.toArray.zipWithIndex.map { case (field, idx) => (idx, field) })
 
   def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
     val ref = Ref(genUID(), v.typ)
@@ -214,17 +252,34 @@ package object ir {
     AggExplode(v, r.name, body(r), isScan)
   }
 
-  def aggFoldIR(zero: IR, element: IR)(seqOp: (Ref, IR) => IR)(combOp: (Ref, Ref) => IR) : AggFold = {
+  def aggFoldIR(zero: IR, element: IR)(seqOp: (Ref, IR) => IR)(combOp: (Ref, Ref) => IR)
+    : AggFold = {
     val accum1 = Ref(genUID(), zero.typ)
     val accum2 = Ref(genUID(), zero.typ)
     AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
   }
 
-  def cdaIR(contexts: IR, globals: IR, staticID: String, dynamicID: IR = NA(TString))(body: (Ref, Ref) => IR): CollectDistributedArray = {
+  def cdaIR(
+    contexts: IR,
+    globals: IR,
+    staticID: String,
+    dynamicID: IR = NA(TString),
+  )(
+    body: (Ref, Ref) => IR
+  ): CollectDistributedArray = {
     val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
     val globalRef = Ref(genUID(), globals.typ)
 
-    CollectDistributedArray(contexts, globals, contextRef.name, globalRef.name, body(contextRef, globalRef), dynamicID, staticID, None)
+    CollectDistributedArray(
+      contexts,
+      globals,
+      contextRef.name,
+      globalRef.name,
+      body(contextRef, globalRef),
+      dynamicID,
+      staticID,
+      None,
+    )
   }
 
   def strConcat(irs: AnyRef*): IR = {
@@ -251,7 +306,8 @@ package object ir {
 
   def logIR(result: IR, messages: AnyRef*): IR = ConsoleLog(strConcat(messages: _*), result)
 
-  implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
+  implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable])
+    : RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
   implicit def emitValueToCode(ev: EmitValue): EmitCode = ev.load
 

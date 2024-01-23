@@ -1,9 +1,8 @@
 package is.hail.utils.richUtils
 
-import is.hail.utils.BoxedArrayBuilder
-import org.apache.spark.sql.Row
-
 import scala.collection.mutable
+
+import org.apache.spark.sql.Row
 
 class RichRow(r: Row) {
 
@@ -37,7 +36,7 @@ class RichRow(r: Row) {
 
   def truncate(newSize: Int): Row = {
     require(newSize <= r.size)
-    Row.fromSeq(Array.tabulate(newSize){ i => r.get(i) })
+    Row.fromSeq(Array.tabulate(newSize)(i => r.get(i)))
   }
 }
 

@@ -1,16 +1,13 @@
 package is.hail.utils
 
-import org.apache.log4j.helpers.LogLog
-import org.apache.log4j.spi.{ErrorCode, LoggingEvent}
-import org.apache.log4j.{AppenderSkeleton, PatternLayout}
-
 import java.io.{IOException, InterruptedIOException, ObjectOutputStream, OutputStream}
 import java.net.{ConnectException, InetAddress, Socket}
 
-/**
-  * This class was translated and streamlined from
-  * org.apache.log4j.net.SocketAppender
-  */
+import org.apache.log4j.{AppenderSkeleton, PatternLayout}
+import org.apache.log4j.helpers.LogLog
+import org.apache.log4j.spi.{ErrorCode, LoggingEvent}
+
+/** This class was translated and streamlined from org.apache.log4j.net.SocketAppender */
 
 object StringSocketAppender {
   // low reconnection delay because everything is local
@@ -43,13 +40,13 @@ class StringSocketAppender() extends AppenderSkeleton {
     initialized = true
   }
 
-  override def close() {
+  override def close(): Unit = {
     if (closed) return
     this.closed = true
     cleanUp()
   }
 
-  def cleanUp() {
+  def cleanUp(): Unit = {
     if (os != null) {
       try
         os.close()
@@ -66,7 +63,7 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  private def connect(address: InetAddress, port: Int) {
+  private def connect(address: InetAddress, port: Int): Unit = {
     if (this.address == null) return
     try { // First, close the previous connection if any.
       cleanUp()
@@ -87,29 +84,34 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  override def append(event: LoggingEvent) {
+  override def append(event: LoggingEvent): Unit = {
     if (!initialized) return
     if (event == null) return
     if (address == null) {
       errorHandler.error("No remote host is set for SocketAppender named \"" + this.name + "\".")
       return
     }
-    if (os != null) try {
-      event.getLevel
-      val str = patternLayout.format(event)
-      os.write(str.getBytes("ISO-8859-1"))
-      os.flush()
-    } catch {
-      case e: IOException =>
-        if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()
-        os = null
-        LogLog.warn("Detected problem with connection: " + e)
-        if (reconnectionDelay > 0) fireConnector()
-        else errorHandler.error("Detected problem with connection, not reconnecting.", e, ErrorCode.GENERIC_FAILURE)
-    }
+    if (os != null)
+      try {
+        event.getLevel
+        val str = patternLayout.format(event)
+        os.write(str.getBytes("ISO-8859-1"))
+        os.flush()
+      } catch {
+        case e: IOException =>
+          if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()
+          os = null
+          LogLog.warn("Detected problem with connection: " + e)
+          if (reconnectionDelay > 0) fireConnector()
+          else errorHandler.error(
+            "Detected problem with connection, not reconnecting.",
+            e,
+            ErrorCode.GENERIC_FAILURE,
+          )
+      }
   }
 
-  private def fireConnector() {
+  private def fireConnector(): Unit = {
     if (connector == null) {
       LogLog.debug("Starting a new connector thread.")
       connector = new SocketConnector
@@ -119,16 +121,13 @@ class StringSocketAppender() extends AppenderSkeleton {
     }
   }
 
-  /**
-    * The SocketAppender does not use a layout. Hence, this method
-    * returns <code>false</code>.
-    **/
+  /** The SocketAppender does not use a layout. Hence, this method returns <code>false</code>. */
   override def requiresLayout = false
 
   class SocketConnector extends Thread {
     var interrupted = false
 
-    override def run() {
+    override def run(): Unit = {
       var socket: Socket = null
       var c = true
       while (c && !interrupted)
@@ -143,10 +142,10 @@ class StringSocketAppender() extends AppenderSkeleton {
             c = false
           }
         } catch {
-          case e: InterruptedException =>
+          case _: InterruptedException =>
             LogLog.debug("Connector interrupted. Leaving loop.")
             return
-          case e: ConnectException =>
+          case _: ConnectException =>
             LogLog.debug("Remote host " + address.getHostName + " refused connection.")
           case e: IOException =>
             if (e.isInstanceOf[InterruptedIOException]) Thread.currentThread.interrupt()

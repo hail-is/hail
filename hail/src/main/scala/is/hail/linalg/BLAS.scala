@@ -1,13 +1,13 @@
 package is.hail.linalg
 
-import java.util.function._
-
-import com.sun.jna.{FunctionMapper, Library, Native}
-import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
 import is.hail.utils._
 
 import scala.util.{Failure, Success, Try}
 
+import java.util.function._
+
+import com.sun.jna.{FunctionMapper, Library, Native}
+import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
 
 object BLAS {
   private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[BLASLibrary]() {
@@ -18,10 +18,11 @@ object BLAS {
         case Success(_) =>
           log.info("Imported BLAS with standard names")
           standard
-        case Failure(exc) =>
+        case Failure(_) =>
           val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
           underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-          val underscoreAfter = Native.load("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
+          val underscoreAfter =
+            Native.load("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
           verificationTest(underscoreAfter) match {
             case Success(_) =>
               log.info("Imported BLAS with underscore names")
@@ -59,7 +60,19 @@ object BLAS {
     libraryInstance.get.dscal(nInt, alphaDouble, X, incXInt)
   }
 
-  def dgemv(TRANS: String, M: Int, N: Int, ALPHA: Double, A: Long, LDA: Int, X: Long, INCX: Int, BETA: Double, Y: Long, INCY: Int): Unit = {
+  def dgemv(
+    TRANS: String,
+    M: Int,
+    N: Int,
+    ALPHA: Double,
+    A: Long,
+    LDA: Int,
+    X: Long,
+    INCX: Int,
+    BETA: Double,
+    Y: Long,
+    INCY: Int,
+  ): Unit = {
     val mInt = new IntByReference(M)
     val nInt = new IntByReference(N)
     val alphaDouble = new DoubleByReference(ALPHA)
@@ -68,10 +81,25 @@ object BLAS {
     val incxInt = new IntByReference(INCX)
     val incyInt = new IntByReference(INCY)
 
-    libraryInstance.get.dgemv(TRANS, mInt, nInt, alphaDouble, A, LDAInt, X, incxInt, betaDouble, Y, incyInt)
+    libraryInstance.get.dgemv(TRANS, mInt, nInt, alphaDouble, A, LDAInt, X, incxInt, betaDouble, Y,
+      incyInt)
   }
 
-  def sgemm(TRANSA: String, TRANSB: String, M: Int, N: Int, K: Int, ALPHA: Float, A: Long, LDA: Int, B: Long, LDB: Int, BETA: Float, C: Long, LDC: Int) = {
+  def sgemm(
+    TRANSA: String,
+    TRANSB: String,
+    M: Int,
+    N: Int,
+    K: Int,
+    ALPHA: Float,
+    A: Long,
+    LDA: Int,
+    B: Long,
+    LDB: Int,
+    BETA: Float,
+    C: Long,
+    LDC: Int,
+  ) = {
     val mInt = new IntByReference(M)
     val nInt = new IntByReference(N)
     val kInt = new IntByReference(K)
@@ -81,10 +109,25 @@ object BLAS {
     val betaDouble = new FloatByReference(BETA)
     val LDCInt = new IntByReference(LDC)
 
-    libraryInstance.get.sgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
+    libraryInstance.get.sgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt,
+      betaDouble, C, LDCInt)
   }
 
-  def dgemm(TRANSA: String, TRANSB: String, M: Int, N: Int, K: Int, ALPHA: Double, A: Long, LDA: Int, B: Long, LDB: Int, BETA: Double, C: Long, LDC: Int) = {
+  def dgemm(
+    TRANSA: String,
+    TRANSB: String,
+    M: Int,
+    N: Int,
+    K: Int,
+    ALPHA: Double,
+    A: Long,
+    LDA: Int,
+    B: Long,
+    LDB: Int,
+    BETA: Double,
+    C: Long,
+    LDC: Int,
+  ) = {
     val mInt = new IntByReference(M)
     val nInt = new IntByReference(N)
     val kInt = new IntByReference(K)
@@ -94,31 +137,97 @@ object BLAS {
     val betaDouble = new DoubleByReference(BETA)
     val LDCInt = new IntByReference(LDC)
 
-    libraryInstance.get.dgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
+    libraryInstance.get.dgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt,
+      betaDouble, C, LDCInt)
   }
 
-  def dtrmm(side: String, uplo: String, transA: String, diag: String, m: Int, n: Int, alpha: Double, A: Long, ldA: Int, B: Long, ldB: Int) = {
+  def dtrmm(
+    side: String,
+    uplo: String,
+    transA: String,
+    diag: String,
+    m: Int,
+    n: Int,
+    alpha: Double,
+    A: Long,
+    ldA: Int,
+    B: Long,
+    ldB: Int,
+  ) = {
     val mInt = new IntByReference(m)
     val nInt = new IntByReference(n)
     val alphaDouble = new DoubleByReference(alpha)
     val ldAInt = new IntByReference(ldA)
     val ldBInt = new IntByReference(ldB)
 
-    libraryInstance.get.dtrmm(side, uplo, transA, diag, mInt, nInt, alphaDouble, A, ldAInt, B, ldBInt)
+    libraryInstance.get.dtrmm(side, uplo, transA, diag, mInt, nInt, alphaDouble, A, ldAInt, B,
+      ldBInt)
   }
 }
 
 trait BLASLibrary extends Library {
-  def dcopy(n: IntByReference, X: Long, incX: IntByReference, Y: Long, incY: IntByReference)
-  def dscal(n: IntByReference, alpha: DoubleByReference, X: Long, incX: IntByReference)
-  def dgemv(TRANS: String, M: IntByReference, N: IntByReference, ALPHA: DoubleByReference, A: Long, LDA: IntByReference, X: Long, INCX: IntByReference, BETA: DoubleByReference, Y: Long, INCY: IntByReference)
-  def sgemm(TRANSA: String, TRANSB: String, M: IntByReference, N: IntByReference, K: IntByReference,
-    ALPHA: FloatByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference,
-    BETA: FloatByReference, C: Long, LDC: IntByReference)
-  def dgemm(TRANSA: String, TRANSB: String, M: IntByReference, N: IntByReference, K: IntByReference,
-    ALPHA: DoubleByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference,
-    BETA: DoubleByReference, C: Long, LDC: IntByReference)
-  def dtrmm(side: String, uplo: String, transA: String, diag: String, m: IntByReference, n: IntByReference,
-    alpha: DoubleByReference, A: Long, ldA: IntByReference, B: Long, ldB: IntByReference)
+  def dcopy(n: IntByReference, X: Long, incX: IntByReference, Y: Long, incY: IntByReference): Unit
+  def dscal(n: IntByReference, alpha: DoubleByReference, X: Long, incX: IntByReference): Unit
+
+  def dgemv(
+    TRANS: String,
+    M: IntByReference,
+    N: IntByReference,
+    ALPHA: DoubleByReference,
+    A: Long,
+    LDA: IntByReference,
+    X: Long,
+    INCX: IntByReference,
+    BETA: DoubleByReference,
+    Y: Long,
+    INCY: IntByReference,
+  ): Unit
+
+  def sgemm(
+    TRANSA: String,
+    TRANSB: String,
+    M: IntByReference,
+    N: IntByReference,
+    K: IntByReference,
+    ALPHA: FloatByReference,
+    A: Long,
+    LDA: IntByReference,
+    B: Long,
+    LDB: IntByReference,
+    BETA: FloatByReference,
+    C: Long,
+    LDC: IntByReference,
+  ): Unit
+
+  def dgemm(
+    TRANSA: String,
+    TRANSB: String,
+    M: IntByReference,
+    N: IntByReference,
+    K: IntByReference,
+    ALPHA: DoubleByReference,
+    A: Long,
+    LDA: IntByReference,
+    B: Long,
+    LDB: IntByReference,
+    BETA: DoubleByReference,
+    C: Long,
+    LDC: IntByReference,
+  ): Unit
+
+  def dtrmm(
+    side: String,
+    uplo: String,
+    transA: String,
+    diag: String,
+    m: IntByReference,
+    n: IntByReference,
+    alpha: DoubleByReference,
+    A: Long,
+    ldA: IntByReference,
+    B: Long,
+    ldB: IntByReference,
+  ): Unit
+
   def dnrm2(N: IntByReference, X: Array[Double], INCX: IntByReference): Double
 }

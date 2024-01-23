@@ -30,6 +30,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
 
 from gear import (
+    CommonAiohttpAppKeys,
     Database,
     Transaction,
     UserData,
@@ -161,12 +162,12 @@ def catch_ui_error_in_dev(fun):
 
 async def _user_can_access(db: Database, batch_id: int, user: str):
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT id
 FROM batches
 LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 WHERE id = %s AND billing_project_users.`user_cs` = %s;
-''',
+""",
         (batch_id, user),
     )
 
@@ -273,10 +274,10 @@ async def _get_jobs(
     db = request.app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT * FROM batches
 WHERE id = %s AND NOT deleted;
-''',
+""",
         (batch_id,),
     )
     if not record:
@@ -315,7 +316,7 @@ async def _get_job_record(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
 INNER JOIN batches
@@ -333,7 +334,7 @@ LEFT JOIN (
 ) AS t
   ON jobs.batch_id = t.batch_id AND jobs.job_id = t.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
-''',
+""",
         (batch_id, job_id, batch_id, job_id),
     )
     if not record:
@@ -404,7 +405,7 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     state = job_record['state']
     if state == 'Running':
         return await _get_job_container_log_from_worker(
-            app['client_session'], batch_id, job_id, container, job_record['ip_address']
+            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
         )
 
     attempt_id = attempt_id_from_spec(job_record)
@@ -429,7 +430,7 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
 async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
 
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
 
@@ -505,11 +506,11 @@ async def _get_attributes(app, record):
         return spec.get('attributes')
 
     records = db.select_and_fetchall(
-        '''
+        """
 SELECT `key`, `value`
 FROM job_attributes
 WHERE batch_id = %s AND job_id = %s;
-''',
+""",
         (batch_id, job_id),
         query_name='get_attributes',
     )
@@ -539,7 +540,7 @@ async def _get_full_job_spec(app, record):
 
 
 async def _get_full_job_status(app, record):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
 
     batch_id = record['batch_id']
@@ -733,12 +734,12 @@ async def _create_jobs(
     }
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT `state`, format_version, `committed`, start_job_id
 FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
 WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
-''',
+""",
         (batch_id, update_id, user),
     )
 
@@ -941,14 +942,12 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         assert isinstance(spec['env'], list)
 
         if not os.environ.get('HAIL_TERRA'):
-            secrets.append(
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': userdata['hail_credentials_secret_name'],
-                    'mount_path': '/gsa-key',
-                    'mount_in_copy': True,
-                }
-            )
+            secrets.append({
+                'namespace': DEFAULT_NAMESPACE,
+                'name': userdata['hail_credentials_secret_name'],
+                'mount_path': '/gsa-key',
+                'mount_in_copy': True,
+            })
             if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
                 spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
@@ -968,22 +967,18 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         if spec.get('mount_tokens', False):
             # Clients stopped using `mount_tokens` prior to the introduction of terra deployments
             assert not os.environ.get('HAIL_TERRA', False)
-            secrets.append(
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': userdata['tokens_secret_name'],
-                    'mount_path': '/user-tokens',
-                    'mount_in_copy': False,
-                }
-            )
-            secrets.append(
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'ssl-config-batch-user-code',
-                    'mount_path': '/ssl-config',
-                    'mount_in_copy': False,
-                }
-            )
+            secrets.append({
+                'namespace': DEFAULT_NAMESPACE,
+                'name': userdata['tokens_secret_name'],
+                'mount_path': '/user-tokens',
+                'mount_in_copy': False,
+            })
+            secrets.append({
+                'namespace': DEFAULT_NAMESPACE,
+                'name': 'ssl-config-batch-user-code',
+                'mount_path': '/ssl-config',
+                'mount_in_copy': False,
+            })
 
         sa = spec.get('service_account')
         check_service_account_permissions(user, sa)
@@ -1018,22 +1013,20 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         spec_writer.add(json.dumps(spec))
         db_spec = batch_format_version.db_spec(spec)
 
-        jobs_args.append(
-            (
-                batch_id,
-                job_id,
-                update_id,
-                ROOT_JOB_GROUP_ID,
-                state,
-                json.dumps(db_spec),
-                always_run,
-                cores_mcpu,
-                len(parent_ids),
-                inst_coll_name,
-                n_regions,
-                regions_bits_rep,
-            )
-        )
+        jobs_args.append((
+            batch_id,
+            job_id,
+            update_id,
+            ROOT_JOB_GROUP_ID,
+            state,
+            json.dumps(db_spec),
+            always_run,
+            cores_mcpu,
+            len(parent_ids),
+            inst_coll_name,
+            n_regions,
+            regions_bits_rep,
+        ))
 
         jobs_telemetry_args.append((batch_id, job_id, time_ready))
 
@@ -1054,10 +1047,10 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         try:
             try:
                 await tx.execute_many(
-                    '''
+                    """
 INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-''',
+""",
                     jobs_args,
                     query_name='insert_jobs',
                 )
@@ -1069,10 +1062,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 raise
             try:
                 await tx.execute_many(
-                    '''
+                    """
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
-''',
+""",
                     job_parents_args,
                     query_name='insert_job_parents',
                 )
@@ -1083,19 +1076,19 @@ VALUES (%s, %s, %s);
                 raise
 
             await tx.execute_many(
-                '''
+                """
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
-''',
+""",
                 job_attributes_args,
                 query_name='insert_job_attributes',
             )
 
             await tx.execute_many(
-                '''
+                """
 INSERT INTO jobs_telemetry (batch_id, job_id, time_ready)
 VALUES (%s, %s, %s);
-''',
+""",
                 jobs_telemetry_args,
                 query_name='insert_jobs_telemetry',
             )
@@ -1114,14 +1107,14 @@ VALUES (%s, %s, %s);
                 for inst_coll, resources in inst_coll_resources.items()
             ]
             await tx.execute_many(
-                '''
+                """
 INSERT INTO job_groups_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + VALUES(n_jobs),
   n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
   ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
-''',
+""",
                 job_groups_inst_coll_staging_args,
                 query_name='insert_job_groups_inst_coll_staging',
             )
@@ -1139,23 +1132,23 @@ ON DUPLICATE KEY UPDATE
                 for inst_coll, resources in inst_coll_resources.items()
             ]
             await tx.execute_many(
-                '''
+                """
 INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
-''',
+""",
                 job_group_inst_coll_cancellable_resources_args,
                 query_name='insert_inst_coll_cancellable_resources',
             )
 
             if batch_format_version.has_full_spec_in_cloud():
                 await tx.execute_update(
-                    '''
+                    """
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
-''',
+""",
                     (batch_id, spec_writer.token, bunch_start_job_id),
                     query_name='insert_batch_bunches',
                 )
@@ -1249,13 +1242,13 @@ async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
     @transaction(db)
     async def insert(tx):
         bp = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT billing_projects.status, billing_projects.limit
 FROM billing_project_users
 INNER JOIN billing_projects
   ON billing_projects.name = billing_project_users.billing_project
 WHERE billing_projects.name_cs = %s AND user_cs = %s
-LOCK IN SHARE MODE''',
+LOCK IN SHARE MODE""",
             (billing_project, user),
         )
 
@@ -1265,7 +1258,7 @@ LOCK IN SHARE MODE''',
             raise web.HTTPForbidden(reason=f'Billing project {billing_project} is closed or deleted.')
 
         bp_cost_record = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT COALESCE(SUM(t.`usage` * rate), 0) AS cost
 FROM (
   SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
@@ -1274,7 +1267,7 @@ FROM (
   GROUP BY resource_id
 ) AS t
 LEFT JOIN resources on resources.resource_id = t.resource_id;
-''',
+""",
             (billing_project,),
         )
         limit = bp['limit']
@@ -1285,10 +1278,10 @@ LEFT JOIN resources on resources.resource_id = t.resource_id;
             )
 
         maybe_batch = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT * FROM batches
 WHERE token = %s AND user = %s FOR UPDATE;
-''',
+""",
             (token, user),
         )
 
@@ -1297,10 +1290,10 @@ WHERE token = %s AND user = %s FOR UPDATE;
 
         now = time_msecs()
         id = await tx.execute_insertone(
-            '''
+            """
 INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, time_completed, token, state, format_version, cancel_after_n_failures, migrated_batch)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-''',
+""",
             (
                 json.dumps(userdata),
                 user,
@@ -1320,10 +1313,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         )
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO job_groups (batch_id, job_group_id, `user`, attributes, cancel_after_n_failures, state, n_jobs, time_created, time_completed, callback)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-''',
+""",
             (
                 id,
                 ROOT_JOB_GROUP_ID,
@@ -1340,10 +1333,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         )
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
 VALUES (%s, %s, %s, %s);
-''',
+""",
             (
                 id,
                 ROOT_JOB_GROUP_ID,
@@ -1354,19 +1347,19 @@ VALUES (%s, %s, %s, %s);
         )
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id) VALUES (%s, %s);
-''',
+""",
             (id, ROOT_JOB_GROUP_ID),
             query_name='insert_job_groups_n_jobs_in_complete_states',
         )
 
         if attributes:
             await tx.execute_many(
-                '''
+                """
 INSERT INTO `job_group_attributes` (batch_id, job_group_id, `key`, `value`)
 VALUES (%s, %s, %s, %s)
-''',
+""",
                 [(id, ROOT_JOB_GROUP_ID, k, v) for k, v in attributes.items()],
                 query_name='insert_job_group_attributes',
             )
@@ -1439,10 +1432,10 @@ async def _create_batch_update(
     async def update(tx: Transaction):
         assert n_jobs > 0
         record = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT update_id, start_job_id FROM batch_updates
 WHERE batch_id = %s AND token = %s;
-''',
+""",
             (batch_id, update_token),
         )
 
@@ -1454,13 +1447,13 @@ WHERE batch_id = %s AND token = %s;
         # We don't allow updates to batches that have been cancelled
         # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
 WHERE batches.id = %s AND user = %s AND NOT deleted
 FOR UPDATE;
-''',
+""",
             (batch_id, user),
         )
         if not record:
@@ -1471,12 +1464,12 @@ FOR UPDATE;
         now = time_msecs()
 
         record = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT update_id, start_job_id, n_jobs FROM batch_updates
 WHERE batch_id = %s
 ORDER BY update_id DESC
 LIMIT 1;
-''',
+""",
             (batch_id,),
         )
         if record:
@@ -1487,11 +1480,11 @@ LIMIT 1;
             update_start_job_id = 1
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO batch_updates
 (batch_id, update_id, token, start_job_id, n_jobs, committed, time_created)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
-''',
+""",
             (batch_id, update_id, update_token, update_start_job_id, n_jobs, False, now),
             query_name='insert_batch_update',
         )
@@ -1505,7 +1498,7 @@ async def _get_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT batches.*,
   job_groups_cancelled.id IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
@@ -1530,7 +1523,7 @@ LEFT JOIN LATERAL (
   GROUP BY batch_id
 ) AS cost_t ON TRUE
 WHERE batches.id = %s AND NOT deleted;
-''',
+""",
         (batch_id,),
     )
     if not record:
@@ -1549,10 +1542,10 @@ async def _delete_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT `state` FROM batches
 WHERE id = %s AND NOT deleted;
-''',
+""",
         (batch_id,),
     )
     if not record:
@@ -1592,12 +1585,12 @@ async def close_batch(request, userdata):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND batches.id = %s AND NOT deleted;
-''',
+""",
         (user, batch_id),
     )
     if not record:
@@ -1606,10 +1599,10 @@ WHERE user = %s AND batches.id = %s AND NOT deleted;
         raise web.HTTPBadRequest(reason='Cannot close a previously cancelled batch.')
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT 1 FROM batch_updates
 WHERE batch_id = %s AND update_id = 1;
-''',
+""",
         (batch_id,),
     )
     if record:
@@ -1629,13 +1622,13 @@ async def commit_update(request: web.Request, userdata):
     update_id = int(request.match_info['update_id'])
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT start_job_id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
 LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
-''',
+""",
         (user, batch_id, update_id),
     )
     if not record:
@@ -1648,7 +1641,7 @@ WHERE user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT del
 
 
 async def _commit_update(app: web.Application, batch_id: int, update_id: int, user: str, db: Database):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
 
     try:
         now = time_msecs()
@@ -1780,7 +1773,7 @@ async def _get_job(app, batch_id, job_id) -> GetJobResponseV1Alpha:
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 WITH base_t AS (
 SELECT jobs.*, user, billing_project, ip_address, format_version, t.attempt_id AS last_cancelled_attempt_id
 FROM jobs
@@ -1813,7 +1806,7 @@ FROM (SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.j
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 GROUP BY usage_t.batch_id, usage_t.job_id
 ) AS cost_t ON TRUE;
-''',
+""",
         (batch_id, job_id, batch_id, job_id),
     )
     if not record:
@@ -1837,13 +1830,13 @@ async def _get_attempts(app, batch_id, job_id):
     db: Database = app['db']
 
     attempts = db.select_and_fetchall(
-        '''
+        """
 SELECT attempts.*
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
-''',
+""",
         (batch_id, job_id),
         query_name='get_attempts',
     )
@@ -2123,20 +2116,18 @@ async def ui_get_job(request, userdata, batch_id):
         job['cost_breakdown'].sort(key=lambda record: record['resource'])
 
     job_status = job['status']
-    container_status_spec = dictfix.NoneOr(
-        {
-            'name': str,
-            'timing': {
-                'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
-                'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
-                'uploading_resource_usage': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
-            },
-            'short_error': dictfix.NoneOr(str),
-            'error': dictfix.NoneOr(str),
-            'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
-            'state': str,
-        }
-    )
+    container_status_spec = dictfix.NoneOr({
+        'name': str,
+        'timing': {
+            'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+            'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+            'uploading_resource_usage': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+        },
+        'short_error': dictfix.NoneOr(str),
+        'error': dictfix.NoneOr(str),
+        'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
+        'state': str,
+    })
     job_status_spec = {
         'container_statuses': {
             'input': container_status_spec,
@@ -2272,13 +2263,13 @@ async def _edit_billing_limit(db, billing_project, limit):
     @transaction(db)
     async def insert(tx):
         row = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`
 FROM billing_projects
 WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
-        ''',
+        """,
             (billing_project,),
         )
         if row is None:
@@ -2288,9 +2279,9 @@ FOR UPDATE;
             raise ClosedBillingProjectError(billing_project)
 
         await tx.execute_update(
-            '''
+            """
 UPDATE billing_projects SET `limit` = %s WHERE name_cs = %s;
-''',
+""",
             (limit, billing_project),
         )
 
@@ -2371,7 +2362,7 @@ async def _query_billing(request: web.Request, user: Optional[str] = None) -> Tu
         where_conditions.append("`user` = %s")
         where_args.append(user)
 
-    sql = f'''
+    sql = f"""
 SELECT
   billing_project,
   `user`,
@@ -2385,7 +2376,7 @@ FROM (
 ) AS t
 LEFT JOIN resources ON resources.resource_id = t.resource_id
 GROUP BY billing_project, `user`;
-'''
+"""
 
     sql_args = where_args
 
@@ -2492,7 +2483,7 @@ async def _remove_user_from_billing_project(db, billing_project, user):
     @transaction(db)
     async def delete(tx):
         row = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT billing_projects.name_cs as billing_project,
   billing_projects.`status` as `status`,
   `user`
@@ -2504,7 +2495,7 @@ LEFT JOIN (
   FOR UPDATE
 ) AS t ON billing_projects.name = t.billing_project
 WHERE billing_projects.name_cs = %s;
-''',
+""",
             (billing_project, user, billing_project),
         )
         if not row:
@@ -2522,11 +2513,11 @@ WHERE billing_projects.name_cs = %s;
             )
 
         await tx.just_execute(
-            '''
+            """
 DELETE billing_project_users FROM billing_project_users
 LEFT JOIN billing_projects ON billing_projects.name = billing_project_users.billing_project
 WHERE billing_projects.name_cs = %s AND user_cs = %s;
-''',
+""",
             (billing_project, user),
         )
 
@@ -2564,7 +2555,7 @@ async def _add_user_to_billing_project(request: web.Request, db: Database, billi
         session_id = await get_session_id(request)
         assert session_id is not None
         url = deploy_config.url('auth', f'/api/v1alpha/users/{user}')
-        await impersonate_user(session_id, request.app['client_session'], url)
+        await impersonate_user(session_id, request.app[CommonAiohttpAppKeys.CLIENT_SESSION], url)
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
             raise NonExistentUserError(user) from e
@@ -2574,7 +2565,7 @@ async def _add_user_to_billing_project(request: web.Request, db: Database, billi
     async def insert(tx):
         # we want to be case-insensitive here to avoid duplicates with existing records
         row = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT billing_projects.name as billing_project,
     billing_projects.`status` as `status`,
     user
@@ -2588,7 +2579,7 @@ LEFT JOIN (
 ) AS t
 ON billing_projects.name = t.billing_project
 WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
-        ''',
+        """,
             (billing_project, user, billing_project),
         )
         if row is None:
@@ -2603,10 +2594,10 @@ WHERE billing_projects.name_cs = %s AND billing_projects.`status` != 'deleted' L
             )
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO billing_project_users(billing_project, user, user_cs)
 VALUES (%s, %s, %s);
-        ''',
+        """,
             (billing_project, user, user),
         )
 
@@ -2647,12 +2638,12 @@ async def _create_billing_project(db, billing_project):
     async def insert(tx):
         # we want to avoid having billing projects with different cases but the same name
         row = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT name_cs, `status`
 FROM billing_projects
 WHERE name = %s
 FOR UPDATE;
-''',
+""",
             (billing_project),
         )
         if row is not None:
@@ -2660,10 +2651,10 @@ FOR UPDATE;
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project_cs} already exists.', 'info')
 
         await tx.execute_insertone(
-            '''
+            """
 INSERT INTO billing_projects(name, name_cs)
 VALUES (%s, %s);
-''',
+""",
             (billing_project, billing_project),
         )
 
@@ -2699,7 +2690,7 @@ async def _close_billing_project(db, billing_project):
     @transaction(db)
     async def close_project(tx):
         row = await tx.execute_and_fetchone(
-            '''
+            """
 SELECT name_cs, `status`, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
@@ -2710,7 +2701,7 @@ AND NOT batches.deleted
 WHERE name_cs = %s
 LIMIT 1
 FOR UPDATE;
-    ''',
+    """,
             (billing_project,),
         )
         if not row:
@@ -2833,11 +2824,9 @@ async def _refresh(app):
     db: Database = app['db']
     inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
     await inst_coll_configs.refresh(db)
-    row = await db.select_and_fetchone(
-        '''
+    row = await db.select_and_fetchone("""
 SELECT frozen FROM globals;
-'''
-    )
+""")
     app['frozen'] = row['frozen']
 
     regions = {
@@ -2857,7 +2846,7 @@ async def index(request: web.Request, _) -> NoReturn:
 
 
 async def cancel_batch_loop_body(app):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
@@ -2869,7 +2858,7 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    client_session: httpx.ClientSession = app['client_session']
+    client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
         client_session.post,
         deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
@@ -2907,19 +2896,17 @@ async def on_startup(app):
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
 
-    app['client_session'] = httpx.client_session()
-    exit_stack.push_async_callback(app['client_session'].close)
+    app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
 
     db = Database()
     await db.async_init()
     app['db'] = db
     exit_stack.push_async_callback(app['db'].async_close)
 
-    row = await db.select_and_fetchone(
-        '''
+    row = await db.select_and_fetchone("""
 SELECT instance_id, n_tokens, frozen FROM globals;
-'''
-    )
+""")
 
     app['n_tokens'] = row['n_tokens']
 

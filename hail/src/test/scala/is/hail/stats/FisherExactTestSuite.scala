@@ -1,13 +1,12 @@
 package is.hail.stats
 
 import is.hail.HailSuite
-import org.testng.annotations.Test
 
-import scala.language.postfixOps
+import org.testng.annotations.Test
 
 class FisherExactTestSuite extends HailSuite {
 
-  @Test def testPvalue() {
+  @Test def testPvalue(): Unit = {
     val N = 200
     val K = 100
     val k = 10

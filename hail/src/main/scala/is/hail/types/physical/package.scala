@@ -2,8 +2,6 @@ package is.hail.types
 
 import is.hail.asm4s._
 
-import scala.language.implicitConversions
-
 package object physical {
   def typeToTypeInfo(t: PType): TypeInfo[_] = t match {
     case _: PInt32 => typeInfo[Int]

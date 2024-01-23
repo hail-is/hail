@@ -1,4 +1,11 @@
-from .auth import Authenticator, AuthServiceAuthenticator, UserData, get_authenticator, maybe_parse_bearer_header
+from .auth import (
+    Authenticator,
+    AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
+    UserData,
+    get_authenticator,
+    maybe_parse_bearer_header,
+)
 from .auth_utils import create_session, insert_user
 from .csrf import check_csrf_token, new_csrf_token
 from .database import Database, Transaction, create_database_pool, resolve_test_db_endpoint, transaction
@@ -20,6 +27,7 @@ __all__ = [
     'maybe_parse_bearer_header',
     'Authenticator',
     'AuthServiceAuthenticator',
+    'CommonAiohttpAppKeys',
     'UserData',
     'get_authenticator',
     'monitor_endpoints_middleware',

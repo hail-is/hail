@@ -609,11 +609,12 @@ class Job:
                     f"Hint: resources must be from the same batch as the current job."
                 )
 
-            if r._source != self:
+            source = r.source()
+            if source != self:
                 self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
+                if source is not None:
+                    if r not in source._valid:
+                        name = source._resources_inverse[r]
                         raise BatchException(
                             f"undefined resource '{name}'\n"
                             f"Hint: resources must be defined within "
@@ -626,8 +627,8 @@ class Job:
                             f'the always run job with the following command may not succeed:\n{command}'
                         )
 
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
+                    self._dependencies.add(source)
+                    source._add_internal_outputs(r)
             else:
                 _add_resource_to_set(self._valid, r)
 
@@ -878,10 +879,10 @@ class BashJob(Job):
         code_path = f'{job_path}/code.sh'
         code = self._batch.read_input(code_path)
 
-        wrapper_command = f'''
+        wrapper_command = f"""
 chmod u+x {code}
 source {code}
-'''
+"""
         wrapper_command = self._interpolate_command(wrapper_command)
         self._wrapper_code.append(wrapper_command)
 
@@ -1219,10 +1220,10 @@ class PythonJob(Job):
             json_write, str_write, repr_write = [
                 ''
                 if not output
-                else f'''
+                else f"""
         with open('{output}', 'w') as out:
             out.write({formatter}(result) + '\\n')
-'''
+"""
                 for output, formatter in [(result._json, "json.dumps"), (result._str, "str"), (result._repr, "repr")]
             ]
 

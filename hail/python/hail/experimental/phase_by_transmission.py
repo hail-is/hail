@@ -79,12 +79,10 @@ def phase_by_transmission(
         """
         return hl.if_else(
             call.is_het(),
-            hl.array(
-                [
-                    hl.call(call[0]).one_hot_alleles(alleles),
-                    hl.call(call[1]).one_hot_alleles(alleles),
-                ]
-            ),
+            hl.array([
+                hl.call(call[0]).one_hot_alleles(alleles),
+                hl.call(call[1]).one_hot_alleles(alleles),
+            ]),
             hl.array([hl.call(call[0]).one_hot_alleles(alleles)]),
         )
 
@@ -136,17 +134,15 @@ def phase_by_transmission(
 
         return hl.or_missing(
             hl.is_defined(combinations) & (hl.len(combinations) == 1),
-            hl.array(
-                [
-                    hl.call(father_call[combinations[0].f], mother_call[combinations[0].m], phased=True),
-                    hl.if_else(
-                        father_call.is_haploid(),
-                        hl.call(father_call[0], phased=True),
-                        phase_parent_call(father_call, combinations[0].f),
-                    ),
-                    phase_parent_call(mother_call, combinations[0].m),
-                ]
-            ),
+            hl.array([
+                hl.call(father_call[combinations[0].f], mother_call[combinations[0].m], phased=True),
+                hl.if_else(
+                    father_call.is_haploid(),
+                    hl.call(father_call[0], phased=True),
+                    phase_parent_call(father_call, combinations[0].f),
+                ),
+                phase_parent_call(mother_call, combinations[0].m),
+            ]),
         )
 
     def phase_haploid_proband_x_nonpar(
@@ -167,13 +163,11 @@ def phase_by_transmission(
         )
         return hl.or_missing(
             hl.is_defined(transmitted_allele),
-            hl.array(
-                [
-                    hl.call(proband_call[0], phased=True),
-                    hl.or_missing(father_call.is_haploid(), hl.call(father_call[0], phased=True)),
-                    phase_parent_call(mother_call, transmitted_allele[0]),
-                ]
-            ),
+            hl.array([
+                hl.call(proband_call[0], phased=True),
+                hl.or_missing(father_call.is_haploid(), hl.call(father_call[0], phased=True)),
+                phase_parent_call(mother_call, transmitted_allele[0]),
+            ]),
         )
 
     def phase_y_nonpar(
@@ -190,9 +184,11 @@ def phase_by_transmission(
         """
         return hl.or_missing(
             proband_call.is_haploid() & father_call.is_haploid() & (father_call[0] == proband_call[0]),
-            hl.array(
-                [hl.call(proband_call[0], phased=True), hl.call(father_call[0], phased=True), hl.missing(hl.tcall)]
-            ),
+            hl.array([
+                hl.call(proband_call[0], phased=True),
+                hl.call(father_call[0], phased=True),
+                hl.missing(hl.tcall),
+            ]),
         )
 
     return (

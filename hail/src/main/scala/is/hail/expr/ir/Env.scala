@@ -10,19 +10,21 @@ object Env {
   def fromSeq[V](bindings: Iterable[(String, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
-
 object BindingEnv {
   def empty[T]: BindingEnv[T] = BindingEnv(Env.empty[T], None, None)
-  def eval[T](bindings: (String, T)*): BindingEnv[T] = BindingEnv(Env.fromSeq[T](bindings), None, None)
+
+  def eval[T](bindings: (String, T)*): BindingEnv[T] =
+    BindingEnv(Env.fromSeq[T](bindings), None, None)
 }
 
 case class BindingEnv[V](
   eval: Env[V] = Env.empty[V],
   agg: Option[Env[V]] = None,
   scan: Option[Env[V]] = None,
-  relational: Env[V] = Env.empty[V]
+  relational: Env[V] = Env.empty[V],
 ) {
-  def allEmpty: Boolean = eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
+  def allEmpty: Boolean =
+    eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
   def promoteAgg: BindingEnv[V] = copy(eval = agg.get, agg = None)
 
@@ -47,7 +49,7 @@ case class BindingEnv[V](
     copy(eval = eval.bindIterable(bindings))
 
   def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
-  def deleteEval(names: IndexedSeq[String]) : BindingEnv[V] = copy(eval = eval.delete(names))
+  def deleteEval(names: IndexedSeq[String]): BindingEnv[V] = copy(eval = eval.delete(names))
 
   def bindAgg(name: String, v: V): BindingEnv[V] =
     copy(agg = Some(agg.get.bind(name, v)))
@@ -63,65 +65,83 @@ case class BindingEnv[V](
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
 
-  def bindRelational(name: String, v: V): BindingEnv[V] = copy(relational = relational.bind(name, v))
+  def bindRelational(name: String, v: V): BindingEnv[V] =
+    copy(relational = relational.bind(name, v))
 
   def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)
 
-  def pretty(valuePrinter: V => String = _.toString): String = {
+  def pretty(valuePrinter: V => String = _.toString): String =
     s"""BindingEnv:
-       |  Eval:${ eval.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("") }
-       |  Agg: ${ agg.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }
-       |  Scan: ${ scan.map(_.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("")).getOrElse("None") }
-       |  Relational: ${ relational.m.map { case (k, v) => s"\n    $k -> ${ valuePrinter(v) }" }.mkString("") }""".stripMargin
-  }
+       |  Eval:${eval.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")}
+       |  Agg: ${agg.map(_.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")).getOrElse("None")}
+       |  Scan: ${scan.map(_.m.map { case (k, v) => s"\n    $k -> ${valuePrinter(v)}" }.mkString("")).getOrElse("None")}
+       |  Relational: ${relational.m.map { case (k, v) =>
+        s"\n    $k -> ${valuePrinter(v)}"
+      }.mkString("")}""".stripMargin
 
   def merge(newBindings: BindingEnv[V]): BindingEnv[V] = {
     if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
       throw new RuntimeException(s"found inconsistent agg or scan environments:" +
-        s"\n  left: ${ agg.isDefined }, ${ scan.isDefined }" +
-        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }")
+        s"\n  left: ${agg.isDefined}, ${scan.isDefined}" +
+        s"\n  right: ${newBindings.agg.isDefined}, ${newBindings.scan.isDefined}")
     if (allEmpty)
       newBindings
     else if (newBindings.allEmpty)
       this
     else {
-      copy(eval = eval.bindIterable(newBindings.eval.m),
+      copy(
+        eval = eval.bindIterable(newBindings.eval.m),
         agg = agg.map(a => a.bindIterable(newBindings.agg.get.m)),
         scan = scan.map(a => a.bindIterable(newBindings.scan.get.m)),
-        relational = relational.bindIterable(newBindings.relational.m))
+        relational = relational.bindIterable(newBindings.relational.m),
+      )
     }
   }
 
   def subtract(newBindings: BindingEnv[_]): BindingEnv[V] = {
     if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
       throw new RuntimeException(s"found inconsistent agg or scan environments:" +
-        s"\n  left: ${ agg.isDefined }, ${ scan.isDefined }" +
-        s"\n  right: ${ newBindings.agg.isDefined }, ${ newBindings.scan.isDefined }")
+        s"\n  left: ${agg.isDefined}, ${scan.isDefined}" +
+        s"\n  right: ${newBindings.agg.isDefined}, ${newBindings.scan.isDefined}")
     if (allEmpty || newBindings.allEmpty)
       this
     else {
-      copy(eval = eval.delete(newBindings.eval.m.keys),
+      copy(
+        eval = eval.delete(newBindings.eval.m.keys),
         agg = agg.map(a => a.delete(newBindings.agg.get.m.keys)),
         scan = scan.map(a => a.delete(newBindings.scan.get.m.keys)),
-        relational = relational.delete(newBindings.relational.m.keys))
+        relational = relational.delete(newBindings.relational.m.keys),
+      )
     }
   }
 
-  def mapValues[T](f: V => T): BindingEnv[T] = {
-    copy[T](eval = eval.mapValues(f), agg = agg.map(_.mapValues(f)), scan = scan.map(_.mapValues(f)), relational = relational.mapValues(f))
-  }
+  def mapValues[T](f: V => T): BindingEnv[T] =
+    copy[T](
+      eval = eval.mapValues(f),
+      agg = agg.map(_.mapValues(f)),
+      scan = scan.map(_.mapValues(f)),
+      relational = relational.mapValues(f),
+    )
 
-  def mapValuesWithKey[T](f: (Env.K, V) => T): BindingEnv[T] = {
-    copy[T](eval = eval.mapValuesWithKey(f), agg = agg.map(_.mapValuesWithKey(f)), scan = scan.map(_.mapValuesWithKey(f)), relational = relational.mapValuesWithKey(f))
-  }
+  def mapValuesWithKey[T](f: (Env.K, V) => T): BindingEnv[T] =
+    copy[T](
+      eval = eval.mapValuesWithKey(f),
+      agg = agg.map(_.mapValuesWithKey(f)),
+      scan = scan.map(_.mapValuesWithKey(f)),
+      relational = relational.mapValuesWithKey(f),
+    )
 
-  def dropBindings[T]: BindingEnv[T] = copy(eval = Env.empty, agg = agg.map(_ => Env.empty), scan = scan.map(_ => Env.empty), relational = Env.empty)
+  def dropBindings[T]: BindingEnv[T] = copy(
+    eval = Env.empty,
+    agg = agg.map(_ => Env.empty),
+    scan = scan.map(_ => Env.empty),
+    relational = Env.empty,
+  )
 }
 
-class Env[V] private(val m: Map[Env.K, V]) {
-  def this() {
+class Env[V] private (val m: Map[Env.K, V]) {
+  def this() =
     this(Map())
-  }
 
   def contains(k: Env.K): Boolean = m.contains(k)
 
@@ -130,7 +150,7 @@ class Env[V] private(val m: Map[Env.K, V]) {
   def apply(name: String): V = m(name)
 
   def lookup(name: String): V =
-    m.get(name).getOrElse(throw new RuntimeException(s"Cannot find $name in $m"))
+    m.getOrElse(name, throw new RuntimeException(s"Cannot find $name in $m"))
 
   def lookupOption(name: String): Option[V] = m.get(name)
 
@@ -146,7 +166,8 @@ class Env[V] private(val m: Map[Env.K, V]) {
 
   def bind(bindings: (String, V)*): Env[V] = bindIterable(bindings)
 
-  def bindIterable(bindings: Iterable[(String, V)]): Env[V] = if (bindings.isEmpty) this else new Env(m ++ bindings)
+  def bindIterable(bindings: Iterable[(String, V)]): Env[V] =
+    if (bindings.isEmpty) this else new Env(m ++ bindings)
 
   def freshName(prefix: String): String = {
     var i = 0
@@ -182,7 +203,8 @@ class Env[V] private(val m: Map[Env.K, V]) {
 
   def mapValues[U](f: (V) => U): Env[U] = new Env(m.mapValues(f))
 
-  def mapValuesWithKey[U](f: (Env.K, V) => U): Env[U] = new Env(m.map { case (k, v) => (k, f(k, v)) })
+  def mapValuesWithKey[U](f: (Env.K, V) => U): Env[U] =
+    new Env(m.map { case (k, v) => (k, f(k, v)) })
 
   override def toString: String = m.map { case (k, v) => s"$k -> $v" }.mkString("(", ",", ")")
 }

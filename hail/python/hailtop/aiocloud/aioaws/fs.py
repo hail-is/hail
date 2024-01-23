@@ -10,9 +10,10 @@ from typing import (
     Set,
     Tuple,
     Type,
-    ClassVar,
+    Union,
 )
 from types import TracebackType
+import aiohttp
 import sys
 from concurrent.futures import ThreadPoolExecutor
 import os.path
@@ -87,8 +88,15 @@ class PageIterator:
 
 
 class S3HeadObjectFileStatus(FileStatus):
-    def __init__(self, head_object_resp):
+    def __init__(self, head_object_resp, url: str):
         self.head_object_resp = head_object_resp
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.rstrip('/'))
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return self.head_object_resp['ContentLength']
@@ -108,8 +116,15 @@ class S3HeadObjectFileStatus(FileStatus):
 
 
 class S3ListFilesFileStatus(FileStatus):
-    def __init__(self, item: Dict[str, Any]):
+    def __init__(self, item: Dict[str, Any], url: str):
         self._item = item
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.rstrip('/'))
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return self._item['Size']
@@ -179,8 +194,8 @@ class S3FileListEntry(FileListEntry):
         self._item = item
         self._status: Optional[S3ListFilesFileStatus] = None
 
-    def name(self) -> str:
-        return os.path.basename(self._key)
+    def basename(self) -> str:
+        return os.path.basename(self._key.rstrip('/'))
 
     async def url(self) -> str:
         return f's3://{self._bucket}/{self._key}'
@@ -195,7 +210,7 @@ class S3FileListEntry(FileListEntry):
         if self._status is None:
             if self._item is None:
                 raise IsADirectoryError(f's3://{self._bucket}/{self._key}')
-            self._status = S3ListFilesFileStatus(self._item)
+            self._status = S3ListFilesFileStatus(self._item, await self.url())
         return self._status
 
 
@@ -299,9 +314,7 @@ class S3MultiPartCreate(MultiPartCreate):
             UploadId=self._upload_id,
         )
 
-    async def create_part(
-        self, number: int, start: int, size_hint: Optional[int] = None
-    ) -> S3CreatePartManager:  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> S3CreatePartManager:  # pylint: disable=unused-argument
         if size_hint is None:
             size_hint = 256 * 1024
         return S3CreatePartManager(self, number, size_hint)
@@ -336,29 +349,58 @@ class S3AsyncFSURL(AsyncFSURL):
 
 
 class S3AsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'s3'}
-
     def __init__(
         self,
         thread_pool: Optional[ThreadPoolExecutor] = None,
         max_workers: Optional[int] = None,
         *,
         max_pool_connections: int = 10,
+        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]] = None,
     ):
         if not thread_pool:
             thread_pool = ThreadPoolExecutor(max_workers=max_workers)
         self._thread_pool = thread_pool
+
+        kwargs = {}
+        if isinstance(timeout, aiohttp.ClientTimeout):
+            if timeout.sock_read:
+                kwargs['read_timeout'] = timeout.sock_read
+            elif timeout.total:
+                kwargs['read_timeout'] = timeout.total
+
+            if timeout.sock_connect:
+                kwargs['connect_timeout'] = timeout.sock_connect
+            elif timeout.connect:
+                kwargs['connect_timeout'] = timeout.connect
+            elif timeout.total:
+                kwargs['connect_timeout'] = timeout.total
+        elif isinstance(timeout, (int, float)):
+            kwargs['read_timeout'] = timeout
+            kwargs['connect_timeout'] = timeout
+
         config = botocore.config.Config(
             max_pool_connections=max_pool_connections,
+            **kwargs,
         )
         self._s3 = boto3.client('s3', config=config)
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'s3'}
+
+    @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        # Because the S3 upload_part API call requires the entire part
+        # be loaded into memory, use a smaller part size.
+        return 32 * 1024 * 1024
 
     @staticmethod
     def valid_url(url: str) -> bool:
         return url.startswith('s3://')
 
-    def parse_url(self, url: str) -> S3AsyncFSURL:
-        return S3AsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> S3AsyncFSURL:
+        return S3AsyncFSURL(*S3AsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
@@ -406,9 +448,7 @@ class S3AsyncFS(AsyncFS):
                 raise UnexpectedEOFError from e
             raise
 
-    async def create(
-        self, url: str, *, retry_writes: bool = True
-    ) -> S3CreateManager:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> S3CreateManager:  # pylint: disable=unused-argument
         # It may be possible to write a more efficient version of this
         # that takes advantage of retry_writes=False.  Here's the
         # background information:
@@ -466,7 +506,7 @@ class S3AsyncFS(AsyncFS):
         bucket, name = self.get_bucket_and_name(url)
         try:
             resp = await blocking_to_async(self._thread_pool, self._s3.head_object, Bucket=bucket, Key=name)
-            return S3HeadObjectFileStatus(resp)
+            return S3HeadObjectFileStatus(resp, url)
         except botocore.exceptions.ClientError as e:
             if e.response['ResponseMetadata']['HTTPStatusCode'] == 404:
                 raise FileNotFoundError(url) from e
@@ -565,8 +605,3 @@ class S3AsyncFS(AsyncFS):
 
     async def close(self) -> None:
         del self._s3
-
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        # Because the S3 upload_part API call requires the entire part
-        # be loaded into memory, use a smaller part size.
-        return 32 * 1024 * 1024

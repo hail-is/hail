@@ -1,8 +1,10 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union, ClassVar
+from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
 from types import TracebackType
 
+import aiohttp
 import abc
 import re
+import os
 import asyncio
 from functools import wraps
 import secrets
@@ -236,8 +238,8 @@ class AzureFileListEntry(FileListEntry):
         self._blob_props = blob_props
         self._status: Optional[AzureFileStatus] = None
 
-    def name(self) -> str:
-        return self._url.path
+    def basename(self) -> str:
+        return os.path.basename(self._url.base.rstrip('/'))
 
     async def url(self) -> str:
         return self._url.base
@@ -255,13 +257,20 @@ class AzureFileListEntry(FileListEntry):
         if self._status is None:
             if self._blob_props is None:
                 raise IsADirectoryError(await self.url())
-            self._status = AzureFileStatus(self._blob_props)
+            self._status = AzureFileStatus(self._blob_props, self._url)
         return self._status
 
 
 class AzureFileStatus(FileStatus):
-    def __init__(self, blob_props: BlobProperties):
+    def __init__(self, blob_props: BlobProperties, url: 'AzureAsyncFSURL'):
         self.blob_props = blob_props
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.base.rstrip('/'))
+
+    def url(self) -> str:
+        return str(self._url)
 
     async def size(self) -> int:
         size = self.blob_props.size
@@ -362,10 +371,15 @@ def handle_public_access_error(fun):
 
 
 class AzureAsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'hail-az', 'https'}
     PATH_REGEX = re.compile('/(?P<container>[^/]+)(?P<name>.*)')
 
-    def __init__(self, *, credential_file: Optional[str] = None, credentials: Optional[AzureCredentials] = None):
+    def __init__(
+        self,
+        *,
+        credential_file: Optional[str] = None,
+        credentials: Optional[AzureCredentials] = None,
+        timeout: Optional[Union[int, float, aiohttp.ClientTimeout]] = None,
+    ):
         if credentials is None:
             scopes = ['https://storage.azure.com/.default']
             if credential_file is not None:
@@ -375,8 +389,22 @@ class AzureAsyncFS(AsyncFS):
         elif credential_file is not None:
             raise ValueError('credential and credential_file cannot both be defined')
 
+        if isinstance(timeout, aiohttp.ClientTimeout):
+            self.read_timeout = timeout.sock_read or timeout.total or 5
+            self.connection_timeout = timeout.sock_connect or timeout.connect or timeout.total or 5
+        elif isinstance(timeout, (int, float)):
+            self.read_timeout = timeout
+            self.connection_timeout = timeout
+        else:
+            self.read_timeout = 5
+            self.connection_timeout = 5
+
         self._credential = credentials.credential
         self._blob_service_clients: Dict[Tuple[str, str, Union[AzureCredentials, str, None]], BlobServiceClient] = {}
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'hail-az', 'https'}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -418,7 +446,7 @@ class AzureAsyncFS(AsyncFS):
             raise ValueError(f'invalid URL: {url}')
 
         scheme = url[:colon_index]
-        if scheme not in AzureAsyncFS.schemes:
+        if scheme not in AzureAsyncFS.schemes():
             raise ValueError(f'invalid scheme, expected hail-az or https: {scheme}')
 
         rest = url[(colon_index + 1) :]
@@ -471,8 +499,8 @@ class AzureAsyncFS(AsyncFS):
             self._blob_service_clients[k] = BlobServiceClient(
                 f'https://{account}.blob.core.windows.net',
                 credential=credential,  # type: ignore
-                connection_timeout=5,
-                read_timeout=5,
+                connection_timeout=self.connection_timeout,
+                read_timeout=self.read_timeout,
             )
         return self._blob_service_clients[k]
 
@@ -498,9 +526,7 @@ class AzureAsyncFS(AsyncFS):
         client = self.get_blob_client(self.parse_url(url))
         return AzureReadableStream(client, url, offset=start, length=length)
 
-    async def create(
-        self, url: str, *, retry_writes: bool = True
-    ) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         return AzureCreateManager(self.get_blob_client(self.parse_url(url)))
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
@@ -535,8 +561,9 @@ class AzureAsyncFS(AsyncFS):
     @handle_public_access_error
     async def statfile(self, url: str) -> FileStatus:
         try:
-            blob_props = await self.get_blob_client(self.parse_url(url)).get_blob_properties()
-            return AzureFileStatus(blob_props)
+            parsed_url = self.parse_url(url)
+            blob_props = await self.get_blob_client(parsed_url).get_blob_properties()
+            return AzureFileStatus(blob_props, parsed_url)
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 

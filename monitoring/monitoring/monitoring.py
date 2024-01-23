@@ -13,7 +13,14 @@ import prometheus_client as pc  # type: ignore
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthServiceAuthenticator, Database, json_response, setup_aiohttp_session, transaction
+from gear import (
+    AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
+    Database,
+    json_response,
+    setup_aiohttp_session,
+    transaction,
+)
 from hailtop import aiotools, httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.config import get_deploy_config
@@ -123,7 +130,7 @@ async def _billing(request: web.Request):
         set_message(session, msg, 'error')
         return ([], [], [], time_period_query)
 
-    db = app['db']
+    db = app[AppKeys.DB]
     records = db.execute_and_fetchall(
         'SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;', (time_period.year, time_period.month)
     )
@@ -161,8 +168,8 @@ async def billing(request: web.Request, userdata) -> web.Response:  # pylint: di
 
 
 async def query_billing_body(app):
-    db = app['db']
-    bigquery_client = app['bigquery_client']
+    db = app[AppKeys.DB]
+    bigquery_client = app[AppKeys.BQ_CLIENT]
 
     async def _query(dt):
         month = dt.month
@@ -183,7 +190,7 @@ async def query_billing_body(app):
         invoice_month = datetime.date.strftime(start, '%Y%m')
 
         # service.id: service.description -- "6F81-5844-456A": "Compute Engine"
-        cmd = f'''
+        cmd = f"""
 SELECT service.id as service_id, service.description as service_description, sku.id as sku_id, sku.description as sku_description, SUM(cost) as cost,
 CASE
   WHEN service.id = "6F81-5844-456A" AND EXISTS(SELECT 1 FROM UNNEST(labels) WHERE key = "namespace" and value = "default") THEN "batch-production"
@@ -196,7 +203,7 @@ END AS source
 FROM `broad-ctsa.hail_billing.gcp_billing_export_v1_0055E5_9CA197_B9B894`
 WHERE DATE(_PARTITIONTIME) >= "{start_str}" AND DATE(_PARTITIONTIME) <= "{end_str}" AND project.name = "{PROJECT}" AND invoice.month = "{invoice_month}"
 GROUP BY service_id, service_description, sku_id, sku_description, source;
-'''
+"""
 
         log.info(f'querying BigQuery with command: {cmd}')
 
@@ -217,17 +224,17 @@ GROUP BY service_id, service_description, sku_id, sku_description, source;
         @transaction(db)
         async def insert(tx):
             await tx.just_execute(
-                '''
+                """
 DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
-''',
+""",
                 (year, month),
             )
 
             await tx.execute_many(
-                '''
+                """
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-''',
+""",
                 records,
             )
 
@@ -249,22 +256,22 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 
 
 async def polling_loop(app):
-    db = app['db']
+    db = app[AppKeys.DB]
     while True:
         now = datetime.datetime.now()
         row = await db.select_and_fetchone('SELECT mark FROM monitoring_billing_mark;')
         if not row['mark'] or now > datetime.datetime.fromtimestamp(row['mark'] / 1000) + datetime.timedelta(days=1):
-            app['query_billing_event'].set()
+            app[AppKeys.QUERY_BILLING_EVENT].set()
         await asyncio.sleep(60)
 
 
 async def monitor_disks(app):
     log.info('monitoring disks')
-    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
+    compute_client = app[AppKeys.COMPUTE_CLIENT]
 
     disk_counts = defaultdict(list)
 
-    for zone in app['zones']:
+    for zone in app[AppKeys.ZONES]:
         async for disk in await compute_client.list(f'/zones/{zone}/disks', params={'filter': '(labels.batch = 1)'}):
             namespace = disk['labels']['namespace']
             size_gb = int(disk['sizeGb'])
@@ -296,11 +303,11 @@ async def monitor_disks(app):
 
 async def monitor_instances(app):
     log.info('monitoring instances')
-    compute_client: aiogoogle.GoogleComputeClient = app['compute_client']
+    compute_client = app[AppKeys.COMPUTE_CLIENT]
 
     instance_counts: Dict[InstanceLabels, int] = defaultdict(int)
 
-    for zone in app['zones']:
+    for zone in app[AppKeys.ZONES]:
         async for instance in await compute_client.list(
             f'/zones/{zone}/instances', params={'filter': '(labels.role = batch2-agent)'}
         ):
@@ -318,46 +325,55 @@ async def monitor_instances(app):
         INSTANCES.labels(**labels._asdict()).set(count)
 
 
+class AppKeys(CommonAiohttpAppKeys):
+    DB = web.AppKey('db', Database)
+    BQ_CLIENT = web.AppKey('bigquery_client', aiogoogle.GoogleBigQueryClient)
+    COMPUTE_CLIENT = web.AppKey('compute_client', aiogoogle.GoogleComputeClient)
+    QUERY_BILLING_EVENT = web.AppKey('query_billing_event', asyncio.Event)
+    ZONES = web.AppKey('zones', List[str])
+    TASK_MANAGER = web.AppKey('task_manager', aiotools.BackgroundTaskManager)
+
+
 async def on_startup(app):
     db = Database()
     await db.async_init()
-    app['db'] = db
-    app['client_session'] = httpx.client_session()
+    app[AppKeys.DB] = db
+    app[AppKeys.CLIENT_SESSION] = httpx.client_session()
 
     aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/billing-monitoring-gsa-key/key.json')
 
-    bigquery_client = aiogoogle.GoogleBigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
-    app['bigquery_client'] = bigquery_client
+    app[AppKeys.BQ_CLIENT] = aiogoogle.GoogleBigQueryClient('broad-ctsa', credentials=aiogoogle_credentials)
 
     compute_client = aiogoogle.GoogleComputeClient(PROJECT, credentials=aiogoogle_credentials)
-    app['compute_client'] = compute_client
+    app[AppKeys.COMPUTE_CLIENT] = compute_client
 
     query_billing_event = asyncio.Event()
-    app['query_billing_event'] = query_billing_event
+    app[AppKeys.QUERY_BILLING_EVENT] = query_billing_event
 
     region_info = {name: await compute_client.get(f'/regions/{name}') for name in BATCH_GCP_REGIONS}
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
-    app['zones'] = zones
+    app[AppKeys.ZONES] = zones
 
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    task_manager = aiotools.BackgroundTaskManager()
+    app[AppKeys.TASK_MANAGER] = task_manager
 
-    app['task_manager'].ensure_future(retry_long_running('polling_loop', polling_loop, app))
+    task_manager.ensure_future(retry_long_running('polling_loop', polling_loop, app))
 
-    app['task_manager'].ensure_future(
+    task_manager.ensure_future(
         retry_long_running(
             'query_billing_loop', run_if_changed_idempotent, query_billing_event, query_billing_body, app
         )
     )
 
-    app['task_manager'].ensure_future(periodically_call(60, monitor_disks, app))
-    app['task_manager'].ensure_future(periodically_call(60, monitor_instances, app))
+    task_manager.ensure_future(periodically_call(60, monitor_disks, app))
+    task_manager.ensure_future(periodically_call(60, monitor_instances, app))
 
 
 async def on_cleanup(app):
     async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app['db'].async_close)
-        cleanup.push_async_callback(app['client_session'].close)
-        cleanup.callback(app['task_manager'].shutdown)
+        cleanup.push_async_callback(app[AppKeys.DB].async_close)
+        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
+        cleanup.callback(app[AppKeys.TASK_MANAGER].shutdown)
 
 
 def run():

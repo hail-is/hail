@@ -1,13 +1,14 @@
 package is.hail.utils
 
-import is.hail.check.Prop._
 import is.hail.check._
+import is.hail.check.Prop._
+
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class BitVectorSuite extends TestNGSuite {
 
-  @Test def test() {
+  @Test def test(): Unit = {
     val bv0 = new BitVector(0)
     assert(bv0.length == 0)
 
@@ -20,10 +21,10 @@ class BitVectorSuite extends TestNGSuite {
     }
 
     val g =
-      for (
-        n <- Gen.choose(1, 1000);
+      for {
+        n <- Gen.choose(1, 1000)
         s <- Gen.buildableOf[Set](Gen.choose(0, n - 1))
-      ) yield {
+      } yield {
         val bv = new BitVector(n)
 
         assert(bv.length == n)
@@ -62,7 +63,7 @@ class BitVectorSuite extends TestNGSuite {
 
         ()
       }
-    val p = forAll(g) { _ => true }
+    val p = forAll(g)(_ => true)
     p.check()
   }
 }

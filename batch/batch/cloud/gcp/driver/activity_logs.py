@@ -95,14 +95,14 @@ async def process_activity_log_events_since(
     project: str,
     mark: str,
 ) -> str:
-    filter = f'''
+    filter = f"""
 (logName="projects/{project}/logs/cloudaudit.googleapis.com%2Factivity" OR
 logName="projects/{project}/logs/cloudaudit.googleapis.com%2Fsystem_event"
 ) AND
 resource.type=gce_instance AND
 protoPayload.resourceName:"{machine_name_prefix}" AND
 timestamp >= "{mark}"
-'''
+"""
 
     body = {
         'resourceNames': [f'projects/{project}'],

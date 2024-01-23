@@ -1290,10 +1290,12 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --doctest-continue-on-failure \
+              --ignore=$HAIL_LOCATION/test \
               --ignore=$HAIL_LOCATION/docs/conf.py \
               --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
               --rootdir $HAIL_LOCATION \
-              $HAIL_LOCATION/docs
+              $HAIL_LOCATION
     inputs:
       - from: /repo/hail/python/hail/docs
         to: /io/docs
@@ -1495,7 +1497,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN hail-apt-get-install git make
+        RUN hail-apt-get-install git make openjdk-11-jre-headless
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
@@ -1564,8 +1566,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
-      - from: /repo/hail/python
-        to: /io/repo/hail/python
+      - from: /repo/hail
+        to: /io/repo/hail
       - from: /repo/config.mk
         to: /io/repo/config.mk
     dependsOn:
@@ -3165,6 +3167,7 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --doctest-continue-on-failure \
               --ignore=docs/cookbook/files/ \
               --timeout=120 \
               --ignore=docs/conf.py \

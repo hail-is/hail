@@ -1,14 +1,15 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir._
+import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.utils._
 
 final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
   private[this] var hashCounter: Int = 0
   private[this] var markCounter: Int = 0
+
   def nextHash: Option[SemanticHash.Type] = {
     hashCounter += 1
     semhash.map(SemanticHash.extend(_, SemanticHash.Bytes.fromInt(hashCounter)))
@@ -95,10 +96,13 @@ case object InlineApplyIR extends LoweringPass {
   val after: IRState = CompilableIRNoApply
   val context: String = "InlineApplyIR"
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(ir, {
-    case x: ApplyIR => Some(x.explicitNode)
-    case _ => None
-  })
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(
+    ir,
+    {
+      case x: ApplyIR => Some(x.explicitNode)
+      case _ => None
+    },
+  )
 }
 
 case object LowerArrayAggsToRunAggsPass extends LoweringPass {
@@ -109,48 +113,51 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     val x = ir.noSharing(ctx)
     val r = Requiredness(x, ctx)
-    RewriteBottomUp(x, {
-      case x@StreamAgg(a, name, query) =>
-        val res = genUID()
-        val aggs = Extract(query, res, r)
+    RewriteBottomUp(
+      x,
+      {
+        case x @ StreamAgg(a, name, query) =>
+          val res = genUID()
+          val aggs = Extract(query, res, r)
 
-        val newNode = aggs.rewriteFromInitBindingRoot { root =>
-          Let(
-            FastSeq(
-              res -> RunAgg(
-                Begin(FastSeq(
-                  aggs.init,
-                  StreamFor(a, name, aggs.seqPerElt)
-                )),
-                aggs.results,
-                aggs.states
-              )
-            ),
-            root
-          )
-        }
+          val newNode = aggs.rewriteFromInitBindingRoot { root =>
+            Let(
+              FastSeq(
+                res -> RunAgg(
+                  Begin(FastSeq(
+                    aggs.init,
+                    StreamFor(a, name, aggs.seqPerElt),
+                  )),
+                  aggs.results,
+                  aggs.states,
+                )
+              ),
+              root,
+            )
+          }
 
-        if (newNode.typ != x.typ)
-          throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-        Some(newNode.noSharing(ctx))
-      case x@StreamAggScan(a, name, query) =>
-        val res = genUID()
-        val aggs = Extract(query, res, r, isScan=true)
-        val newNode = aggs.rewriteFromInitBindingRoot { root =>
-          RunAggScan(
-            a,
-            name,
-            aggs.init,
-            aggs.seqPerElt,
-            Let(FastSeq(res -> aggs.results), root),
-            aggs.states
-          )
-        }
-        if (newNode.typ != x.typ)
-          throw new RuntimeException(s"types differ:\n  new: ${ newNode.typ }\n  old: ${ x.typ }")
-        Some(newNode.noSharing(ctx))
-      case _ => None
-    })
+          if (newNode.typ != x.typ)
+            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+          Some(newNode.noSharing(ctx))
+        case x @ StreamAggScan(a, name, query) =>
+          val res = genUID()
+          val aggs = Extract(query, res, r, isScan = true)
+          val newNode = aggs.rewriteFromInitBindingRoot { root =>
+            RunAggScan(
+              a,
+              name,
+              aggs.init,
+              aggs.seqPerElt,
+              Let(FastSeq(res -> aggs.results), root),
+              aggs.states,
+            )
+          }
+          if (newNode.typ != x.typ)
+            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+          Some(newNode.noSharing(ctx))
+        case _ => None
+      },
+    )
   }
 }
 
@@ -159,9 +166,8 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
   val after: IRState = before + NoRelationalLetsState
   val context: String = "EvalRelationalLets"
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     EvalRelationalLets(ir, ctx, passesBelow)
-  }
 }
 
 case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
@@ -169,7 +175,6 @@ case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends Lo
   val after: IRState = before + LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     LowerAndExecuteShuffles(ir, ctx, passesBelow)
-  }
 }

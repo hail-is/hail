@@ -7,7 +7,6 @@ import glob
 import fnmatch
 
 from hailtop.aiotools.fs import Copier, Transfer, FileListEntry as AIOFileListEntry, ReadableStream, WritableStream
-from hailtop.aiotools.local_fs import LocalAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import bounded_gather2, async_to_blocking
 
@@ -50,8 +49,8 @@ class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def readable(self):
         return True
 
-    def seek(self, offset: int, whence: int = os.SEEK_SET):
-        async_to_blocking(self.ars.seek(offset, whence))
+    def seek(self, offset: int, whence: int = os.SEEK_SET) -> int:
+        return async_to_blocking(self.ars.seek(offset, whence))
 
     def seekable(self) -> bool:
         return self.ars.seekable()
@@ -59,7 +58,7 @@ class SyncReadableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def tell(self) -> int:
         return self.ars.tell()
 
-    def truncate(self):
+    def truncate(self, size: Optional[int] = None):
         raise io.UnsupportedOperation
 
     def writable(self):
@@ -117,7 +116,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def readable(self):
         return False
 
-    def readline(self, size=-1):
+    def readline(self, size: Optional[int] = -1):
         raise OSError
 
     def readlines(self, hint=-1):
@@ -132,7 +131,7 @@ class SyncWritableStream(io.RawIOBase, BinaryIO):  # type: ignore # https://gith
     def tell(self):
         raise io.UnsupportedOperation
 
-    def truncate(self):
+    def truncate(self, size: Optional[int] = None):
         raise io.UnsupportedOperation
 
     def writable(self):
@@ -408,10 +407,11 @@ class RouterFS(FS):
         return await self.afs.rmtree(None, path)
 
     def supports_scheme(self, scheme: str) -> bool:
-        return scheme in self.afs.schemes
+        return scheme in self.afs.schemes()
 
     def canonicalize_path(self, path: str) -> str:
-        if isinstance(self.afs._get_fs(path), LocalAsyncFS):
+        url = self.afs.parse_url(path)
+        if url.scheme == 'file':
             if path.startswith('file:'):
                 return 'file:' + os.path.realpath(path[5:])
             return 'file:' + os.path.realpath(path)

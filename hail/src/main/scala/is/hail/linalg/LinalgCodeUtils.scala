@@ -19,7 +19,7 @@ object LinalgCodeUtils {
 
     cb.assign(answer, true)
     cb.assign(runningProduct, st.elementByteSize)
-    (0 until nDims).foreach{ index =>
+    (0 until nDims).foreach { index =>
       cb.assign(answer, answer & (strides(index) ceq runningProduct))
       cb.assign(runningProduct, runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L))
     }
@@ -44,46 +44,66 @@ object LinalgCodeUtils {
     answer
   }
 
-  def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
+  def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region])
+    : SNDArrayValue = {
     val shape = pndv.shapes
-    val pt = PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
+    val pt =
+      PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, cb)
 
-    val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)
+    val (dataFirstElementAddress, dataFinisher) =
+      pt.constructDataFunction(shape, strides, cb, region)
     // construct an SNDArrayCode with undefined contents
     val result = dataFinisher(cb)
 
-    result.coiterateMutate(cb, region, (pndv, "pndv")) { case Seq(l, r) => r }
+    result.coiterateMutate(cb, region, (pndv, "pndv")) { case Seq(_, r) => r }
     result
   }
 
-  def checkColMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
+  def checkColMajorAndCopyIfNeeded(
+    aInput: SNDArrayValue,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+  ): SNDArrayValue = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
-    val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.if_(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
-      {
-        cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
-      })
+    val aColMajor =
+      cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
+    cb.if_(
+      aIsColumnMajor,
+      cb.assign(aColMajor, aInput),
+      cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region)),
+    )
     aColMajor
   }
 
-  def checkStandardStriding(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayValue, Value[Boolean]) = {
+  def checkStandardStriding(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region])
+    : (SNDArrayValue, Value[Boolean]) = {
     if (aInput.st.isInstanceOf[SUnreachableNDArray])
       return (aInput, const(true))
 
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
-    val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
-    cb.if_(aIsColumnMajor, {cb.assign(a, aInput)}, {
-      val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
-      cb.if_(isRowMajor, {cb.assign(a, aInput)}, {
-        cb.assign(a, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
-      })
-    })
+    val a =
+      cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
+    cb.if_(
+      aIsColumnMajor,
+      cb.assign(a, aInput), {
+        val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
+        cb.if_(
+          isRowMajor,
+          cb.assign(a, aInput),
+          cb.assign(a, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region)),
+        )
+      },
+    )
 
     (a, aIsColumnMajor)
   }
 
-  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+  def linearizeIndicesRowMajor(
+    indices: IndexedSeq[Code[Long]],
+    shapeArray: IndexedSeq[Value[Long]],
+    mb: EmitMethodBuilder[_],
+  ): Code[Long] = {
     val index = mb.genFieldThisRef[Long]()
     val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
     Code(
@@ -92,14 +112,18 @@ object LinalgCodeUtils {
       Code.foreach(shapeArray.zip(indices).reverse) { case (shapeElement, currentIndex) =>
         Code(
           index := index + currentIndex * elementsInProcessedDimensions,
-          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
+          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement,
         )
       },
-      index
+      index,
     )
   }
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+  def unlinearizeIndexRowMajor(
+    index: Code[Long],
+    shapeArray: IndexedSeq[Value[Long]],
+    mb: EmitMethodBuilder[_],
+  ): (Code[Unit], IndexedSeq[Value[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.genFieldThisRef[Long]())
     val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
@@ -112,9 +136,9 @@ object LinalgCodeUtils {
         Code(
           elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
           newIndex := workRemaining / elementsInProcessedDimensions,
-          workRemaining := workRemaining % elementsInProcessedDimensions
+          workRemaining := workRemaining % elementsInProcessedDimensions,
         )
-      }
+      },
     )
     (createShape, newIndices)
   }

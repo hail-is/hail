@@ -1,8 +1,9 @@
 package is.hail.stats
 
-import breeze.linalg.{Matrix, Vector}
 import is.hail.annotations.Annotation
 import is.hail.types.virtual.{TFloat64, TStruct}
+
+import breeze.linalg.{Matrix, Vector}
 import net.sourceforge.jdistlib.T
 
 object LinearRegressionModel {
@@ -10,9 +11,17 @@ object LinearRegressionModel {
     ("beta", TFloat64),
     ("se", TFloat64),
     ("t_stat", TFloat64),
-    ("p_value", TFloat64))
+    ("p_value", TFloat64),
+  )
 
-  def fit(x: Vector[Double], y: Vector[Double], yyp: Double, qt: Matrix[Double], qty: Vector[Double], d: Int): Annotation = {
+  def fit(
+    x: Vector[Double],
+    y: Vector[Double],
+    yyp: Double,
+    qt: Matrix[Double],
+    qty: Vector[Double],
+    d: Int,
+  ): Annotation = {
     val qtx = qt * x
     val xxp = (x dot x) - (qtx dot qtx)
     val xyp = (x dot y) - (qtx dot qty)

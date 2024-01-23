@@ -20,12 +20,7 @@ def plot(results: 'pd.DataFrame', abs_differences: 'bool', head: 'Optional[int]'
     results = r_ if abs_differences else r_ / results.iloc[0]
 
     if head is not None:
-        results = results[
-            results.abs().max() \
-                .sort_values(ascending=False) \
-                .head(head) \
-                .keys()
-        ]
+        results = results[results.abs().max().sort_values(ascending=False).head(head).keys()]
 
     results.T.sort_index().plot.bar()
     plt.show()
@@ -38,13 +33,14 @@ def main(args) -> 'None':
 
 
 def register_main(subparser) -> 'None':
-    parser = subparser.add_parser('visualize',
+    parser = subparser.add_parser(
+        'visualize',
         description='Visualize benchmark results',
-        help='Graphically compare one or more benchmark results against a datum'
+        help='Graphically compare one or more benchmark results against a datum',
     )
     parser.add_argument('baseline', help='baseline benchmark results')
     parser.add_argument('runs', nargs='+', help='benchmarks to compare against baseline')
-    parser.add_argument('--metric', choices=['mean','median','stdev','max_memory'], default='mean')
+    parser.add_argument('--metric', choices=['mean', 'median', 'stdev', 'max_memory'], default='mean')
     parser.add_argument('--head', type=int, help="number of most significant results to take")
     parser.add_argument('--abs', action='store_true', help="plot absolute differences")
     parser.set_defaults(main=main)

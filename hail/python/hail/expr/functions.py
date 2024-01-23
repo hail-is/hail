@@ -693,7 +693,7 @@ def bind(f: Callable, *exprs, _ctx=None):
         indices, aggregations = unify_all(*exprs, lambda_result)
 
     res_ir = lambda_result._ir
-    for (uid, value_ir) in builtins.zip(uids, irs):
+    for uid, value_ir in builtins.zip(uids, irs):
         if _ctx == 'agg':
             res_ir = ir.AggLet(uid, value_ir, res_ir, is_scan=False)
         elif _ctx == 'scan':
@@ -2914,9 +2914,10 @@ def rand_norm2d(mean=None, cov=None, seed=None) -> ArrayNumericExpression:
         x = hl.range(0, 2).map(lambda i: rand_norm(seed=seed))
         return hl.rbind(
             hl.sqrt(s11),
-            lambda root_s11: hl.array(
-                [m1 + root_s11 * x[0], m2 + (s12 / root_s11) * x[0] + hl.sqrt(s22 - s12 * s12 / s11) * x[1]]
-            ),
+            lambda root_s11: hl.array([
+                m1 + root_s11 * x[0],
+                m2 + (s12 / root_s11) * x[0] + hl.sqrt(s22 - s12 * s12 / s11) * x[1],
+            ]),
         )
 
     return hl.rbind(mean, cov, f)
@@ -6328,9 +6329,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
     if not rg.has_liftover(dest_reference_genome.name):
         raise TypeError(
             """Reference genome '{}' does not have liftover to '{}'.
-        Use 'add_liftover' to load a liftover chain file.""".format(
-                rg.name, dest_reference_genome.name
-            )
+        Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name)
         )
 
     expr = _func(method_name, rtype, x, to_expr(min_match, tfloat64))
@@ -6943,17 +6942,13 @@ def query_table(path, point_or_interval):
                 raise ValueError("query_table: cannot query with empty key")
 
             point_size = builtins.len(point.dtype)
-            return hl.tuple(
-                [
-                    hl.struct(
-                        **{
-                            key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i]))
-                            for i in builtins.range(builtins.len(key_typ))
-                        }
-                    ),
-                    hl.int32(point_size),
-                ]
-            )
+            return hl.tuple([
+                hl.struct(**{
+                    key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i]))
+                    for i in builtins.range(builtins.len(key_typ))
+                }),
+                hl.int32(point_size),
+            ])
         else:
             raise ValueError(
                 f"query_table: key mismatch: cannot query a table with key "

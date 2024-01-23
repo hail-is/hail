@@ -189,12 +189,10 @@ def _impute_type(x, partial_type):
         return t
     elif isinstance(x, tuple):
         partial_type = refine(partial_type, hl.ttuple())
-        return ttuple(
-            *[
-                _impute_type(element, partial_type[index] if index < len(partial_type) else None)
-                for index, element in enumerate(x)
-            ]
-        )
+        return ttuple(*[
+            _impute_type(element, partial_type[index] if index < len(partial_type) else None)
+            for index, element in enumerate(x)
+        ])
     elif isinstance(x, list):
         partial_type = refine(partial_type, hl.tarray(None))
         if len(x) == 0:
@@ -230,8 +228,9 @@ def _impute_type(x, partial_type):
         unified_value_type = super_unify_types(*vts)
         if unified_key_type is None:
             raise ExpressionException(
-                "Hail does not support heterogeneous dicts: "
-                "found dict with keys {} of types {} ".format(list(x.keys()), list(kts))
+                "Hail does not support heterogeneous dicts: " "found dict with keys {} of types {} ".format(
+                    list(x.keys()), list(kts)
+                )
             )
         if not unified_value_type:
             if unified_key_type == hl.tstr and user_partial_type is None:
@@ -553,7 +552,6 @@ class Expression(object):
     def __init__(
         self, x: ir.IR, type: HailType, indices: Indices = Indices(), aggregations: LinkedList = LinkedList(Aggregation)
     ):
-
         self._ir: ir.IR = x
         self._type = type
         self._indices = indices
@@ -1009,31 +1007,30 @@ class Expression(object):
         >>> with open('output/gt.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus      alleles 0       1       2       3
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        locus	alleles	0	1	2	3
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.GT.export('output/gt-no-header.tsv', header=False)
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        1:1        ["A","C"]       0/1     0/1     1/1     0/0
-        1:2        ["A","C"]       1/1     1/1     0/1     1/1
-        1:3        ["A","C"]       0/0     0/0     1/1     0/1
-        1:4        ["A","C"]       0/0     0/0     0/0     1/1
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
         >>> small_mt.pop.export('output/pops.tsv')
         >>> with open('output/pops.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        sample_idx      pop
-        0       0
-        1       0
-        2       2
-        3       0
-        <BLANKLINE>
+        sample_idx	pop
+        0	1
+        1	2
+        2	2
+        3	2
 
         >>> small_mt.ancestral_af.export('output/ancestral_af.tsv')
         >>> with open('output/ancestral_af.tsv', 'r') as f:
@@ -1068,12 +1065,11 @@ class Expression(object):
         >>> with open('output/gt-no-header.tsv', 'r') as f:
         ...     for line in f:
         ...         print(line, end='')
-        locus   alleles {"s":0,"family":"fam1"} {"s":1,"family":"fam1"} {"s":2,"family":"fam1"} {"s":3,"family":"fam1"}
-        1:1     ["A","C"]       0/1     0/1     1/1     0/0
-        1:2     ["A","C"]       1/1     1/1     0/1     1/1
-        1:3     ["A","C"]       0/0     0/0     1/1     0/1
-        1:4     ["A","C"]       0/0     0/0     0/0     1/1
-        <BLANKLINE>
+        locus	alleles	{"s":0,"family":"fam1"}	{"s":1,"family":"fam1"}	{"s":2,"family":"fam1"}	{"s":3,"family":"fam1"}
+        1:1	["A","C"]	0/1	0/0	0/1	0/0
+        1:2	["A","C"]	1/1	0/1	0/1	0/1
+        1:3	["A","C"]	0/0	0/1	0/0	0/0
+        1:4	["A","C"]	0/1	1/1	0/1	0/1
 
 
         Parameters
@@ -1150,12 +1146,10 @@ class Expression(object):
         return e
 
     @overload
-    def collect(self) -> List[Any]:
-        ...
+    def collect(self) -> List[Any]: ...
 
     @overload
-    def collect(self, _localize=False) -> 'Expression':
-        ...
+    def collect(self, _localize=False) -> 'Expression': ...
 
     @typecheck_method(_localize=bool)
     def collect(self, _localize=True):
@@ -1214,13 +1208,11 @@ class Expression(object):
         return hl.missing(hl.tint32)
 
     def _all_summary_aggs(self):
-        return hl.tuple(
-            (
-                hl.agg.filter(hl.is_missing(self), hl.agg.count()),
-                hl.agg.filter(hl.is_defined(self), hl.agg.count()),
-                self._summary_aggs(),
-            )
-        )
+        return hl.tuple((
+            hl.agg.filter(hl.is_missing(self), hl.agg.count()),
+            hl.agg.filter(hl.is_defined(self), hl.agg.count()),
+            self._summary_aggs(),
+        ))
 
     def _summarize(self, agg_res=None, *, name=None, header=None, top=False):
         src = self._indices.source

@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine, ClassVar
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 import sys
@@ -25,15 +25,16 @@ from hailtop.aiotools.fs import (
 from hailtop.aiotools import FeedableAsyncIterable, WriteBuffer
 
 from .base_client import GoogleBaseClient
-from ..session import GoogleSession
 from ..credentials import GoogleCredentials
 from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
+from ...common.session import BaseSession
+
 
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'GoogleBaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
+    def __init__(self, client: GoogleBaseClient, path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -139,7 +140,7 @@ class _TaskManager:
 
 
 class ResumableInsertObjectStream(WritableStream):
-    def __init__(self, session: GoogleSession, session_url: str, chunk_size: int):
+    def __init__(self, session: BaseSession, session_url: str, chunk_size: int):
         super().__init__()
         self._session = session
         self._session_url = session_url
@@ -440,8 +441,15 @@ class GoogleStorageClient(GoogleBaseClient):
 
 
 class GetObjectFileStatus(FileStatus):
-    def __init__(self, items: Dict[str, str]):
+    def __init__(self, items: Dict[str, str], url: str):
         self._items = items
+        self._url = url
+
+    def basename(self) -> str:
+        return os.path.basename(self._url.rstrip('/'))
+
+    def url(self) -> str:
+        return self._url
 
     async def size(self) -> int:
         return int(self._items['size'])
@@ -463,8 +471,8 @@ class GoogleStorageFileListEntry(FileListEntry):
         self._items = items
         self._status: Optional[GetObjectFileStatus] = None
 
-    def name(self) -> str:
-        return os.path.basename(self._name)
+    def basename(self) -> str:
+        return os.path.basename(self._name.rstrip('/'))
 
     async def url(self) -> str:
         return f'gs://{self._bucket}/{self._name}'
@@ -479,7 +487,7 @@ class GoogleStorageFileListEntry(FileListEntry):
         if self._status is None:
             if self._items is None:
                 raise IsADirectoryError(await self.url())
-            self._status = GetObjectFileStatus(self._items)
+            self._status = GetObjectFileStatus(self._items, await self.url())
         return self._status
 
 
@@ -508,9 +516,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(
-        self, number: int, start: int, size_hint: Optional[int] = None
-    ) -> WritableStream:  # pylint: disable=unused-argument
+    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> WritableStream:  # pylint: disable=unused-argument
         part_name = self._part_name(number)
         params = {'uploadType': 'media'}
         return await self._fs._storage_client.insert_object(self._bucket, part_name, params=params)
@@ -596,8 +602,6 @@ class GoogleStorageAsyncFSURL(AsyncFSURL):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
-    schemes: ClassVar[Set[str]] = {'gs'}
-
     def __init__(
         self,
         *,
@@ -611,6 +615,10 @@ class GoogleStorageAsyncFS(AsyncFS):
         if bucket_allow_list is None:
             bucket_allow_list = []
         self.allowed_storage_locations = bucket_allow_list
+
+    @staticmethod
+    def schemes() -> Set[str]:
+        return {'gs'}
 
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
@@ -636,8 +644,9 @@ class GoogleStorageAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return url.startswith('gs://')
 
-    def parse_url(self, url: str) -> GoogleStorageAsyncFSURL:
-        return GoogleStorageAsyncFSURL(*self.get_bucket_and_name(url))
+    @staticmethod
+    def parse_url(url: str) -> GoogleStorageAsyncFSURL:
+        return GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
@@ -697,7 +706,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def statfile(self, url: str) -> GetObjectFileStatus:
         try:
             bucket, name = self.get_bucket_and_name(url)
-            return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name))
+            return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name), url)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError(url) from e

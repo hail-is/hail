@@ -21,6 +21,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 
 from gear import (
     AuthServiceAuthenticator,
+    CommonAiohttpAppKeys,
     Database,
     UserData,
     check_csrf_token,
@@ -75,9 +76,9 @@ class PRConfig(TypedDict):
     out_of_date: bool
 
 
-async def pr_config(app, pr: PR) -> PRConfig:
+async def pr_config(app: web.Application, pr: PR) -> PRConfig:
     batch_id = pr.batch.id if pr.batch and isinstance(pr.batch, Batch) else None
-    build_state = pr.build_state if await pr.authorized(app['db']) else 'unauthorized'
+    build_state = pr.build_state if await pr.authorized(app[AppKeys.DB]) else 'unauthorized'
     if build_state is None and batch_id is not None:
         build_state = 'building'
     return {
@@ -109,7 +110,7 @@ class WatchedBranchConfig(TypedDict):
     merge_candidate: Optional[str]
 
 
-async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
+async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: int) -> WatchedBranchConfig:
     if wb.prs:
         pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
     else:
@@ -135,7 +136,10 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> WatchedBr
 @auth.authenticated_developers_only()
 async def index(request: web.Request, userdata: UserData) -> web.Response:
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-    page_context = {'watched_branches': wb_configs, 'frozen_merge_deploy': request.app['frozen_merge_deploy']}
+    page_context = {
+        'watched_branches': wb_configs,
+        'frozen_merge_deploy': request.app[AppKeys.FROZEN_MERGE_DEPLOY],
+    }
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
@@ -200,7 +204,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
                 traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
             )
 
-    batch_client = request.app['batch_client']
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
     target_branch = wb.branch.short_str()
     batches = batch_client.list_batches(f'test=1 ' f'pr={pr.number} ' f'target_branch={target_branch} ' f'user:ci')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
@@ -216,19 +220,26 @@ def storage_uri_to_url(uri: str) -> str:
     return uri
 
 
-async def retry_pr(wb, pr, request):
+async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
     app = request.app
     session = await aiohttp_session.get_session(request)
 
     if pr.batch is None:
-        log.info('retry cannot be requested for PR #{pr.number} because it has no batch')
+        log.info(f'retry cannot be requested for PR #{pr.number} because it has no batch')
         set_message(session, f'Retry cannot be requested for PR #{pr.number} because it has no batch.', 'error')
         return
 
+    if isinstance(pr.batch, MergeFailureBatch):
+        log.info(f'retry cannot be requested for PR #{pr.number} because it was a merge failure')
+        set_message(session, f'Retry cannot be requested for PR #{pr.number} because it was a merge failure.', 'error')
+        return
+
     batch_id = pr.batch.id
-    db: Database = app['db']
+    db = app[AppKeys.DB]
     await db.execute_insertone('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
-    await wb.notify_batch_changed(app)
+    await wb.notify_batch_changed(
+        db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+    )
 
     log.info(f'retry requested for PR: {pr.number}')
     set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
@@ -245,8 +256,8 @@ async def post_retry_pr(request: web.Request, _) -> NoReturn:
 
 @routes.get('/batches')
 @auth.authenticated_developers_only()
-async def get_batches(request, userdata):
-    batch_client = request.app['batch_client']
+async def get_batches(request: web.Request, userdata: UserData):
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
     batches = [b async for b in batch_client.list_batches()]
     statuses = [await b.last_known_status() for b in batches]
     page_context = {'batches': statuses}
@@ -255,9 +266,9 @@ async def get_batches(request, userdata):
 
 @routes.get('/batches/{batch_id}')
 @auth.authenticated_developers_only()
-async def get_batch(request, userdata):
+async def get_batch(request: web.Request, userdata: UserData):
     batch_id = int(request.match_info['batch_id'])
-    batch_client = request.app['batch_client']
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
     b = await batch_client.get_batch(batch_id)
     status = await b.last_known_status()
     jobs = await collect_aiter(b.jobs())
@@ -318,7 +329,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(user.gh_username, pr))
     actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(user.gh_username, pr))
 
-    batch_client = request.app['batch_client']
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
     dev_deploys = batch_client.list_batches(f'user={user.hail_username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
 
@@ -340,7 +351,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 @auth.authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
-    db: Database = app['db']
+    db = app[AppKeys.DB]
     post = await request.post()
     sha = str(post['sha']).strip()
     await db.execute_insertone('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
@@ -365,7 +376,10 @@ async def pull_request_callback(event):
     target_branch = FQBranch.from_gh_json(gh_pr['base'])
     for wb in watched_branches:
         if (wb.prs and number in wb.prs) or (wb.branch == target_branch):
-            await wb.notify_github_changed(event.app)
+            app: web.Application = event.app
+            await wb.notify_github_changed(
+                app[AppKeys.DB], app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+            )
 
 
 @gh_router.register('push')
@@ -377,7 +391,10 @@ async def push_callback(event):
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
             if wb.branch == branch:
-                await wb.notify_github_changed(event.app)
+                app: web.Application = event.app
+                await wb.notify_github_changed(
+                    app[AppKeys.DB], app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+                )
 
 
 @gh_router.register('pull_request_review')
@@ -386,17 +403,20 @@ async def pull_request_review_callback(event):
     number = gh_pr['number']
     for wb in watched_branches:
         if number in wb.prs:
-            await wb.notify_github_changed(event.app)
+            app: web.Application = event.app
+            await wb.notify_github_changed(
+                app[AppKeys.DB], app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+            )
 
 
-async def github_callback_handler(request):
+async def github_callback_handler(request: web.Request):
     event = gh_sansio.Event.from_http(request.headers, await request.read())
     event.app = request.app  # type: ignore
     await gh_router.dispatch(event)
 
 
 @routes.post('/github_callback')
-async def github_callback(request):
+async def github_callback(request: web.Request):
     await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
 
@@ -409,9 +429,9 @@ async def remove_namespace_from_db(db: Database, namespace: str):
     )
 
 
-async def batch_callback_handler(request):
+async def batch_callback_handler(request: web.Request):
     app = request.app
-    db: Database = app['db']
+    db = app[AppKeys.DB]
     params = await json_request(request)
     log.info(f'batch callback {params}')
     attrs = params.get('attributes')
@@ -429,13 +449,15 @@ async def batch_callback_handler(request):
                         if DEFAULT_NAMESPACE == 'default':
                             await remove_namespace_from_db(db, namespace)
 
-                    await wb.notify_batch_changed(app)
+                    await wb.notify_batch_changed(
+                        db, app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+                    )
 
 
 @routes.get('/api/v1alpha/deploy_status')
 @auth.authenticated_developers_only()
 async def deploy_status(request: web.Request, _) -> web.Response:
-    batch_client = request.app['batch_client']
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
 
     async def get_failure_information(batch):
         if isinstance(batch, MergeFailureBatch):
@@ -446,7 +468,8 @@ async def deploy_status(request: web.Request, _) -> web.Response:
         async def fetch_job_and_log(j):
             full_job = await batch_client.get_job(j['batch_id'], j['job_id'])
             log = await full_job.log()
-            return {**full_job._status, 'log': log}
+            status = await full_job.status()
+            return {**status, 'log': log}
 
         return await asyncio.gather(*[fetch_job_and_log(j) for j in jobs if j['state'] in ('Error', 'Failed')])
 
@@ -470,12 +493,16 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 @auth.authenticated_developers_only()
 async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
+    db = request.app[AppKeys.DB]
+    batch_client = request.app[AppKeys.BATCH_CLIENT]
+    gh_client = request.app[AppKeys.GH_CLIENT]
+    frozen = request.app[AppKeys.FROZEN_MERGE_DEPLOY]
 
     async def update_all():
         for wb in watched_branches:
-            await wb.update(request.app)
+            await wb.update(db, batch_client, gh_client, frozen)
 
-    request.app['task_manager'].ensure_future(update_all())
+    request.app[AppKeys.TASK_MANAGER].ensure_future(update_all())
     return web.Response(status=200)
 
 
@@ -504,7 +531,7 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    gh = app['github_client']
+    gh = app[AppKeys.GH_CLIENT]
     request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
 
     try:
@@ -517,12 +544,12 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    unwatched_branch = UnwatchedBranch(branch, sha, userdata, app['developers'], extra_config=extra_config)
+    unwatched_branch = UnwatchedBranch(branch, sha, userdata, app[AppKeys.DEVELOPERS], extra_config=extra_config)
 
-    batch_client = app['batch_client']
+    batch_client = app[AppKeys.BATCH_CLIENT]
 
     try:
-        batch_id = await unwatched_branch.deploy(app['db'], batch_client, steps, excluded_steps=excluded_steps)
+        batch_id = await unwatched_branch.deploy(app[AppKeys.DB], batch_client, steps, excluded_steps=excluded_steps)
     except asyncio.CancelledError:
         raise
     except Exception as e:  # pylint: disable=broad-except
@@ -532,7 +559,7 @@ async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Res
 
 
 @routes.post('/api/v1alpha/batch_callback')
-async def batch_callback(request):
+async def batch_callback(request: web.Request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
 
@@ -541,20 +568,18 @@ async def batch_callback(request):
 @auth.authenticated_developers_only()
 async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
-    db: Database = app['db']
+    db = app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
 
-    if app['frozen_merge_deploy']:
+    if app[AppKeys.FROZEN_MERGE_DEPLOY]:
         set_message(session, 'CI is already frozen.', 'info')
         raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
-    await db.execute_update(
-        '''
+    await db.execute_update("""
 UPDATE globals SET frozen_merge_deploy = 1;
-'''
-    )
+""")
 
-    app['frozen_merge_deploy'] = True
+    app[AppKeys.FROZEN_MERGE_DEPLOY] = True
 
     set_message(session, 'Froze all merges and deploys.', 'info')
 
@@ -565,20 +590,18 @@ UPDATE globals SET frozen_merge_deploy = 1;
 @auth.authenticated_developers_only()
 async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
-    db: Database = app['db']
+    db = app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
 
-    if not app['frozen_merge_deploy']:
+    if not app[AppKeys.FROZEN_MERGE_DEPLOY]:
         set_message(session, 'CI is already unfrozen.', 'info')
         raise web.HTTPFound(deploy_config.external_url('ci', '/'))
 
-    await db.execute_update(
-        '''
+    await db.execute_update("""
 UPDATE globals SET frozen_merge_deploy = 0;
-'''
-    )
+""")
 
-    app['frozen_merge_deploy'] = False
+    app[AppKeys.FROZEN_MERGE_DEPLOY] = False
 
     set_message(session, 'Unfroze all merges and deploys.', 'info')
 
@@ -588,17 +611,15 @@ UPDATE globals SET frozen_merge_deploy = 0;
 @routes.get('/namespaces')
 @auth.authenticated_developers_only()
 async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
-    db: Database = request.app['db']
+    db = request.app[AppKeys.DB]
     namespaces = [
         r
-        async for r in db.execute_and_fetchall(
-            '''
+        async for r in db.execute_and_fetchall("""
 SELECT active_namespaces.*, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
-GROUP BY active_namespaces.namespace'''
-        )
+GROUP BY active_namespaces.namespace""")
     ]
     for ns in namespaces:
         ns['services'] = [s for s in json.loads(ns['services']) if s is not None]
@@ -611,16 +632,16 @@ GROUP BY active_namespaces.namespace'''
 @routes.post('/namespaces/{namespace}/services/add')
 @auth.authenticated_developers_only()
 async def add_namespaced_service(request: web.Request, _) -> NoReturn:
-    db: Database = request.app['db']
+    db = request.app[AppKeys.DB]
     post = await request.post()
     service = post['service']
     namespace = request.match_info['namespace']
 
     record = await db.select_and_fetchone(
-        '''
+        """
 SELECT 1 FROM deployed_services
 WHERE namespace = %s AND service = %s
-''',
+""",
         (namespace, service),
     )
 
@@ -639,7 +660,7 @@ WHERE namespace = %s AND service = %s
 @routes.post('/namespaces/add')
 @auth.authenticated_developers_only()
 async def add_namespace(request: web.Request, _) -> NoReturn:
-    db: Database = request.app['db']
+    db = request.app[AppKeys.DB]
     post = await request.post()
     namespace = post['namespace']
 
@@ -684,13 +705,13 @@ async def update_envoy_configs(db: Database, k8s_client):
     services_per_namespace = {
         r['namespace']: [s for s in json.loads(r['services']) if s is not None]
         async for r in db.execute_and_fetchall(
-            f'''
+            f"""
 SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
 WHERE active_namespaces.namespace IN {namespace_arg_list}
-GROUP BY active_namespaces.namespace''',
+GROUP BY active_namespaces.namespace""",
             live_namespaces,
         )
     }
@@ -715,13 +736,15 @@ GROUP BY active_namespaces.namespace''',
         )
 
 
-async def update_loop(app):
+async def update_loop(app: web.Application):
     wb: Optional[WatchedBranch] = None
     while True:
         try:
             for wb in watched_branches:
                 log.info(f'updating {wb.branch.short_str()}')
-                await wb.update(app)
+                await wb.update(
+                    app[AppKeys.DB], app[AppKeys.BATCH_CLIENT], app[AppKeys.GH_CLIENT], app[AppKeys.FROZEN_MERGE_DEPLOY]
+                )
         except concurrent.futures.CancelledError:
             raise
         except Exception:  # pylint: disable=broad-except
@@ -730,30 +753,47 @@ async def update_loop(app):
         await asyncio.sleep(300)
 
 
-async def on_startup(app):
+class AppKeys(CommonAiohttpAppKeys):
+    DB = web.AppKey('db', Database)
+    GH_CLIENT = web.AppKey('github_client', gh_aiohttp.GitHubAPI)
+    BATCH_CLIENT = web.AppKey('batch_client', BatchClient)
+    FROZEN_MERGE_DEPLOY = web.AppKey('frozen_merge_deploy', bool)
+    TASK_MANAGER = web.AppKey('task_manager', aiotools.BackgroundTaskManager)
+    DEVELOPERS = web.AppKey('developers', List[UserData])
+    EXIT_STACK = web.AppKey('exit_stack', AsyncExitStack)
+
+
+async def on_startup(app: web.Application):
+    exit_stack = AsyncExitStack()
+    app[AppKeys.EXIT_STACK] = exit_stack
+
     client_session = httpx.client_session()
-    app['client_session'] = client_session
-    app['github_client'] = gh_aiohttp.GitHubAPI(app['client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient.create('ci')
+    exit_stack.push_async_callback(client_session.close)
 
-    app['db'] = Database()
-    await app['db'].async_init()
+    app[AppKeys.CLIENT_SESSION] = client_session
+    app[AppKeys.GH_CLIENT] = gh_aiohttp.GitHubAPI(client_session.client_session, 'ci', oauth_token=oauth_token)
+    app[AppKeys.BATCH_CLIENT] = await BatchClient.create('ci')
+    exit_stack.push_async_callback(app[AppKeys.BATCH_CLIENT].close)
 
-    row = await app['db'].select_and_fetchone(
-        '''
+    app[AppKeys.DB] = Database()
+    await app[AppKeys.DB].async_init()
+    exit_stack.push_async_callback(app[AppKeys.DB].async_close)
+
+    row = await app[AppKeys.DB].select_and_fetchone("""
 SELECT frozen_merge_deploy FROM globals;
-'''
-    )
+""")
 
-    app['frozen_merge_deploy'] = row['frozen_merge_deploy']
-
-    app['task_manager'] = aiotools.BackgroundTaskManager()
+    app[AppKeys.FROZEN_MERGE_DEPLOY] = row['frozen_merge_deploy']
+    app[AppKeys.TASK_MANAGER] = aiotools.BackgroundTaskManager()
+    exit_stack.callback(app[AppKeys.TASK_MANAGER].shutdown)
 
     if DEFAULT_NAMESPACE == 'default':
         kubernetes_asyncio.config.load_incluster_config()
         k8s_client = kubernetes_asyncio.client.CoreV1Api()
-        app['task_manager'].ensure_future(periodically_call(10, update_envoy_configs, app['db'], k8s_client))
-        app['task_manager'].ensure_future(periodically_call(10, cleanup_expired_namespaces, app['db']))
+        app[AppKeys.TASK_MANAGER].ensure_future(
+            periodically_call(10, update_envoy_configs, app[AppKeys.DB], k8s_client)
+        )
+        app[AppKeys.TASK_MANAGER].ensure_future(periodically_call(10, cleanup_expired_namespaces, app[AppKeys.DB]))
 
     async with hail_credentials() as creds:
         headers = await creds.auth_headers()
@@ -762,25 +802,21 @@ SELECT frozen_merge_deploy FROM globals;
         deploy_config.url('auth', '/api/v1alpha/users'),
         headers=headers,
     )
-    app['developers'] = [u for u in users if u['is_developer'] == 1 and u['state'] == 'active']
+    app[AppKeys.DEVELOPERS] = [u for u in users if u['is_developer'] == 1 and u['state'] == 'active']
 
     global watched_branches
     watched_branches = [
-        WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable, app['developers'])
+        WatchedBranch(index, FQBranch.from_short_str(bss), deployable, mergeable, app[AppKeys.DEVELOPERS])
         for (index, [bss, deployable, mergeable]) in enumerate(
             json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]'))
         )
     ]
 
-    app['task_manager'].ensure_future(update_loop(app))
+    app[AppKeys.TASK_MANAGER].ensure_future(update_loop(app))
 
 
-async def on_cleanup(app):
-    async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app['db'].async_close)
-        cleanup.push_async_callback(app['client_session'].close)
-        cleanup.push_async_callback(app['batch_client'].close)
-        cleanup.callback(app['task_manager'].shutdown)
+async def on_cleanup(app: web.Application):
+    await app[AppKeys.EXIT_STACK].aclose()
 
 
 def run():

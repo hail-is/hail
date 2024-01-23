@@ -66,15 +66,13 @@ def test_config_get_unknown_names(runner: CliRunner, config_dir: str):
     config_path = get_user_config_path(_config_dir=config_dir)
     os.makedirs(os.path.dirname(config_path))
     with open(config_path, 'w', encoding='utf-8') as config:
-        config.write(
-            f'''
+        config.write(f"""
 [global]
 email = johndoe@gmail.com
 
 [batch]
 foo = 5
-'''
-        )
+""")
 
     res = runner.invoke(cli.app, ['get', 'email'], catch_exceptions=False)
     assert res.exit_code == 0

@@ -1,17 +1,11 @@
 import abc
-from typing import Dict, Generic, List, TypeVar, Union
-
-from typing_extensions import TypedDict
+from typing import Dict, List, TypedDict, Union
 
 from hailtop import httpx
-from hailtop.aiotools.fs import AsyncFS
 from hailtop.utils import CalledProcessError, sleep_before_try
 
 from ..instance_config import InstanceConfig
-from .credentials import CloudUserCredentials
 from .disk import CloudDisk
-
-CredsType = TypeVar("CredsType", bound=CloudUserCredentials)
 
 
 class ContainerRegistryUsernamePassword(TypedDict):
@@ -26,7 +20,7 @@ class ContainerRegistryAnonymousCredentials(TypedDict):
 ContainerRegistryCredentials = Union[ContainerRegistryUsernamePassword, ContainerRegistryAnonymousCredentials]
 
 
-class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
+class CloudWorkerAPI(abc.ABC):
     nameserver_ip: str
 
     @property
@@ -39,14 +33,6 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def get_cloud_async_fs(self) -> AsyncFS:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def user_credentials(self, credentials: Dict[str, str]) -> CredsType:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
@@ -54,7 +40,7 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
         return {}
 
     @abc.abstractmethod
-    async def user_container_registry_credentials(self, user_credentials: CredsType) -> ContainerRegistryCredentials:
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
         raise NotImplementedError
 
     @abc.abstractmethod
@@ -64,7 +50,7 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
     @abc.abstractmethod
     async def _mount_cloudfuse(
         self,
-        credentials: CredsType,
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,
@@ -73,7 +59,7 @@ class CloudWorkerAPI(abc.ABC, Generic[CredsType]):
 
     async def mount_cloudfuse(
         self,
-        credentials: CredsType,
+        credentials: Dict[str, str],
         mount_base_path_data: str,
         mount_base_path_tmp: str,
         config: dict,

@@ -28,13 +28,11 @@ class Tests(unittest.TestCase):
             tlocus('GRCh38'),
             tstruct(),
             tstruct(x=tint32, y=tint64, z=tarray(tset(tstr))),
-            tstruct(
-                **{
-                    'weird field name 1': tint32,
-                    r"""this one ' has "" quotes and `` backticks```""": tint64,
-                    '!@#$%^&({[': tarray(tset(tstr)),
-                }
-            ),
+            tstruct(**{
+                'weird field name 1': tint32,
+                r"""this one ' has "" quotes and `` backticks```""": tint64,
+                '!@#$%^&({[': tarray(tset(tstr)),
+            }),
             tinterval(tlocus()),
             tset(tinterval(tlocus())),
             tstruct(a=tint32, b=tint32, c=tarray(tstr)),
