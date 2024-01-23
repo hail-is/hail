@@ -3103,7 +3103,7 @@ steps:
           exit 1;
       fi
 
-      cat >file.sh <<EOF
+      cat >file.sh <<'EOF'
       set -ex
 
       cat foo/baz.txt
@@ -3118,7 +3118,7 @@ steps:
           exit 1;
       fi
 
-      cat >file-with-args.sh <<EOF
+      cat >file-with-args.sh <<'EOF'
       set -ex
 
       [[ $# -eq 2 ]]
