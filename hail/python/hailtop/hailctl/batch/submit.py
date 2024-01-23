@@ -71,14 +71,15 @@ async def submit(
         src = result.get('src')
         if src is None:
             raise ValueError(f'invalid file specification {file}. Must have a "src" defined.')
+        src_looks_like_directory = src[-1] == '/'  # NB: realpath removes trailing slash
         src = real_absolute_expanded_path(src)
         src = src.rstrip('/')
 
         dest = result.get('dest')
         if dest is not None:
-            dest_intended_as_directory = dest[-1] == '/' and src[-1] != '/'
+            dest_looks_like_directory = dest[-1] == '/'  # NB: realpath removes trailing slash
             dest = real_absolute_expanded_path(dest)
-            if dest_intended_as_directory:
+            if not src_looks_like_directory and dest_looks_like_directory:
                 dest = os.path.join(dest, os.path.basename(src))
         else:
             dest = os.path.join(real_absolute_cwd(), os.path.basename(src))
