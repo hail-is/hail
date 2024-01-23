@@ -76,7 +76,7 @@ async def submit(
 
         dest = result.get('dest')
         if dest is not None:
-            dest_intended_as_directory = dest[-1] == '/'
+            dest_intended_as_directory = dest[-1] == '/' and src[-1] != '/'
             dest = real_absolute_expanded_path(dest)
             if dest_intended_as_directory:
                 dest = os.path.join(dest, os.path.basename(src))
