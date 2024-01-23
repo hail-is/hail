@@ -1,12 +1,14 @@
-FROM {{ hailgenetics_hail_image.image }}
+FROM {{ hail_ubuntu_image.image }}
 
-RUN apt-get update && apt-get -y install \
+RUN hail-apt-get-install \
     build-essential \
     cmake \
     git \
     libfribidi-dev \
     libharfbuzz-dev \
+    liblapack3 \
     libopenblas-base \
+    openjdk-8-jre-headless \
     python3-pip \
     r-cran-devtools
 
@@ -18,7 +20,7 @@ ENV OMP_NUM_THREADS=1
 
 RUN Rscript extdata/install_packages.R
 
-RUN pip3 install cget
+RUN hail-pip-install cget
 
 RUN R CMD INSTALL .
 
@@ -33,3 +35,19 @@ RUN createSparseGRM.R  --help && \
     step1_fitNULLGLMM.R --help && \
     step2_SPAtests.R --help && \
     step3_LDmat.R --help
+
+COPY hail/python/pinned-requirements.txt requirements.txt
+RUN hail-pip-install -r requirements.txt scikit-learn ipython
+
+RUN export SPARK_HOME=$(find_spark_home.py) && \
+    curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
+         >$SPARK_HOME/jars/gcs-connector-hadoop2-2.2.7.jar && \
+    mkdir -p $SPARK_HOME/conf && \
+    touch $SPARK_HOME/conf/spark-defaults.conf && \
+    sed -i $SPARK_HOME/conf/spark-defaults.conf \
+        -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.enable.*:spark.hadoop.google.cloud.auth.service.account.enable true:' \
+        -e 's:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile.*:spark\.hadoop\.google\.cloud\.auth\.service\.account\.json\.keyfile /gsa-key/key.json:'
+
+ARG HAIL_WHEEL_DIR=hail/build/deploy/dist
+RUN --mount=src=${HAIL_WHEEL_DIR},target=/wheel \
+    hail-pip-install --no-deps /wheel/hail-*-py3-none-any.whl
