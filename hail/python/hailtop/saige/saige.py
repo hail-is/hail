@@ -242,6 +242,7 @@ def prepare_variant_chunks_by_contig(mt: hl.MatrixTable,
 
 
 # FIXME: what is the group type?
+# FIXME: this should output the groups annotation file as well
 def prepare_variant_chunks_by_group(
     mt: hl.MatrixTable, group: hl.ArrayExpression, max_count_per_chunk: int = 5000, max_span_per_chunk: int = 5_000_000
 ) -> List[VariantChunk]:
@@ -310,9 +311,11 @@ def extract_phenotypes(mt: hl.MatrixTable,
                        output_file: str) -> Tuple[List[Phenotype], List[str]]:
     require_col_key_str(mt, 'saige')
 
-    ht = mt.select_cols(**phenotypes, **covariates).cols()
-
-    # FIXME: actually make this the format of phenotypes file
+    ht = (mt
+          .key_cols_by(IID=list(mt.col_key)[0])
+          .select_cols(**phenotypes, **covariates)
+          .cols()
+          )
     ht.export(output_file, delimiter="\t")
 
     saige_phenotypes = []
@@ -327,7 +330,3 @@ def extract_phenotypes(mt: hl.MatrixTable,
             saige_phenotypes.append(Phenotype(phenotype_name, phenotype_type, 'group1'))
 
     return (saige_phenotypes, list(covariates.keys()))
-
-
-def prepare_plink_null_model_input(mt: hl.MatrixTable, output_path: str):
-    hl.export_plink(mt, output_path)
