@@ -1,6 +1,12 @@
 import pytest
 import hail as hl
-from hailtop.saige import SAIGE, SaigeConfig
+from hailtop.saige import (
+    SaigeConfig,
+    extract_phenotypes,
+    prepare_plink_null_model_input,
+    prepare_variant_chunks_by_contig,
+    saige
+)
 
 from ...hail.helpers import *
 
@@ -41,13 +47,25 @@ def test_phenotype_grouping(ds):
 
 
 def test_saige_categorical(ds, output_path):
-    saige = SAIGE()
-    saige.run(
-        mt=ds,
-        output=output_path,
-        phenotypes=[ds.phenotype.psych],
-        covariates=[ds.cov.c1, ds.cov.c2]
-    )
+
+    phenotypes, covariates = extract_phenotypes(ds,
+                                                phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
+                                                covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
+                                                phenotypes_file)
+
+    variant_chunks = prepare_variant_chunks_by_contig(ds)
+
+    ds.write(mt_path)
+
+    prepare_plink_null_model_input(ds, null_model_plink_path)
+
+    saige(mt_path=mt_path,
+          null_model_plink_path=null_model_plink_path,
+          phenotypes_path=phenotypes_file,
+          phenotypes=phenotypes,
+          covariates=covariates,
+          variant_chunks=variant_chunks,
+          output_path=output_path)
 
 
 def test_saige_categorical_custom_config(ds):
