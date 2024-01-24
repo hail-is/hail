@@ -104,6 +104,8 @@ object Worker {
       throw new IllegalArgumentException(s"expected seven arguments, not: ${argv.length}")
     }
     val scratchDir = argv(0)
+    // val logFile = argv(1)
+    // var jarLocation = argv(2)
     val kind = argv(3)
     assert(kind == Main.WORKER)
     val root = argv(4)
