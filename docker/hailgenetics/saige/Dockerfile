@@ -24,7 +24,7 @@ ENV OMP_NUM_THREADS=1
 
 RUN Rscript extdata/install_packages.R
 
-RUN hail-pip-install cget pycairo
+RUN hail-pip-install cget==0.2.0
 
 RUN R CMD INSTALL .
 

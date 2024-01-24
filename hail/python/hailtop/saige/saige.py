@@ -202,7 +202,7 @@ def saige(
     ))
 
 
-def prepare_variant_chunks_by_contig(mt: hl.MatrixTable,
+def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
                                      max_count_per_chunk: int = 5000,
                                      max_span_per_chunk: int = 5_000_000) -> List[VariantChunk]:
     require_row_key_variant(mt, 'saige')

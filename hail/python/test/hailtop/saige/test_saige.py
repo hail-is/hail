@@ -5,7 +5,7 @@ from hailtop.saige import (
     SaigeConfig,
     extract_phenotypes,
     prepare_plink_null_model_input,
-    prepare_variant_chunks_by_contig,
+    compute_variant_chunks_by_contig,
     saige
 )
 
@@ -60,7 +60,7 @@ def test_saige_categorical(ds):
                                                 covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
                                                 output_file=phenotypes_file)
 
-    variant_chunks = prepare_variant_chunks_by_contig(ds)
+    variant_chunks = compute_variant_chunks_by_contig(ds)
 
     hl.export_plink(ds, null_model_plink_path)
 

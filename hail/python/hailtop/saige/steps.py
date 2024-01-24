@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 import json
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
-import hail as hl
 from hailtop.aiotools.fs import AsyncFS
 import hailtop.batch as hb
 
