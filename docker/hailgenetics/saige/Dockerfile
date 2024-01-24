@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.3.0-labs
-1;95;0c# ^ necessary to use an ARG in a --mount value with our current version of buildkit
+# 1;95;0c# ^ necessary to use an ARG in a --mount value with our current version of buildkit
 
 ARG BASE_IMAGE
 FROM $BASE_IMAGE
