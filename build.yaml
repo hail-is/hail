@@ -2358,6 +2358,9 @@ steps:
       - name: rename-job-groups-tables
         script: /io/sql/rename-job-groups-tables.sql
         online: false  # this must be offline
+      - name: remove-v2-billing-writes
+        script: /io/sql/remove-v2-billing-writes.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
