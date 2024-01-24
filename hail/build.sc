@@ -10,8 +10,10 @@ import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.util.Jvm
 
-def hailMajorMinorVersion = "0.2"
-def hailPatchVersion = "127"
+object Settings {
+  val hailMajorMinorVersion = "0.2"
+  val hailPatchVersion = "127"
+}
 
 /** Update the millw script. */
 def millw(): Command[PathRef] = T.command {
@@ -54,16 +56,58 @@ def buildInfo: T[PathRef] = T {
     s"""[Build Metadata]
        |revision=$revision
        |sparkVersion=${sparkVersion()}
-       |hailPipVersion=$hailMajorMinorVersion.$hailPatchVersion
+       |hailPipVersion=${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}
        |""".stripMargin,
   )
   PathRef(T.dest)
 }
 
+object Deps {
+  object HTTPComponents {
+    val core = ivy"org.apache.httpcomponents:httpcore:4.4.14"
+    val client = ivy"org.apache.httpcomponents:httpclient:4.5.13"
+  }
+  object Asm {
+    val version: String = "7.3.1"
+    val core = ivy"org.ow2.asm:asm:$version"
+    val analysis = ivy"org.ow2.asm:asm-analysis:$version"
+    val util = ivy"org.ow2.asm:asm-util:$version"
+  }
+  object Breeze {
+    val core = ivy"org.scalanlp::breeze:1.1"
+    val natives = ivy"org.scalanlp::breeze-natives:1.1"
+  }
+  object Commons {
+    val io = ivy"commons-io:commons-io:2.11.0"
+    val lang3 = ivy"org.apache.commons:commons-lang3:3.12.0"
+    val codec = ivy"commons-codec:commons-codec:1.15"
+  }
+  object Spark {
+    def core: Task[Dep] = T.task(ivy"org.apache.spark::spark-core:${sparkVersion()}")
+    def mllib: Task[Dep] = T.task(ivy"org.apache.spark::spark-mllib:${sparkVersion()}")
+  }
+  val samtools = ivy"com.github.samtools:htsjdk:3.0.5"
+  val jdistlib = ivy"net.sourceforge.jdistlib:jdistlib:0.4.5"
+  val freemarker = ivy"org.freemarker:freemarker:2.3.31"
+  val elasticsearch = ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3"
+  val gcloud = ivy"com.google.cloud:google-cloud-storage:2.30.1"
+  val jna = ivy"net.java.dev.jna:jna:5.13.0"
+  val json4s = ivy"org.json4s::json4s-jackson:3.7.0-M11"
+  val zstd = ivy"com.github.luben:zstd-jni:1.5.5-11"
+  val lz4 = ivy"org.lz4:lz4-java:1.8.0"
+  val netlib = ivy"com.github.fommil.netlib:all:1.1.2"
+  val avro = ivy"org.apache.avro:avro:1.11.2"
+  val junixsocket = ivy"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
+  val log4j = ivy"org.apache.logging.log4j:log4j-1.2-api:2.17.2"
+  val hadoopClient = ivy"org.apache.hadoop:hadoop-client:3.3.4"
+  val jackson = ivy"com.fasterxml.jackson.core:jackson-core:2.14.2"
+  object Plugins {
+    val betterModadicFor = ivy"com.olegpy::better-monadic-for:0.3.1"
+  }
+}
+
 trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule { outer =>
   override def scalaVersion: T[String] = build.scalaVersion()
-
-  def asmVersion: String = "7.3.1"
 
   override def javacOptions: T[Seq[String]] = Seq(
     "-Xlint:all",
@@ -132,40 +176,40 @@ object main extends RootModule with HailScalaModule { outer =>
     Jvm.createJar((resources() ++ Agg(compile().classes)).map(_.path).filter(os.exists), manifest())
 
   override def ivyDeps: T[Agg[Dep]] = Agg(
-    ivy"org.apache.httpcomponents:httpcore:4.4.14",
-    ivy"org.apache.httpcomponents:httpclient:4.5.13",
-    ivy"org.ow2.asm:asm:$asmVersion",
-    ivy"org.ow2.asm:asm-analysis:$asmVersion",
-    ivy"org.ow2.asm:asm-util:$asmVersion",
-    ivy"com.github.samtools:htsjdk:3.0.5".excludeOrg("*"),
-    ivy"net.sourceforge.jdistlib:jdistlib:0.4.5".excludeOrg("*"),
-    ivy"org.freemarker:freemarker:2.3.31",
-    ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3".excludeOrg("org.apache.spark"),
-    ivy"com.google.cloud:google-cloud-storage:2.30.1".excludeOrg("com.fasterxml.jackson.core"),
-    ivy"net.java.dev.jna:jna:5.13.0",
-    ivy"org.json4s::json4s-jackson:3.7.0-M11".excludeOrg("com.fasterxml.jackson.core"),
-    ivy"com.github.luben:zstd-jni:1.5.5-11",
+    Deps.HTTPComponents.core,
+    Deps.HTTPComponents.client,
+    Deps.Asm.core,
+    Deps.Asm.analysis,
+    Deps.Asm.util,
+    Deps.samtools.excludeOrg("*"),
+    Deps.jdistlib.excludeOrg("*"),
+    Deps.freemarker,
+    Deps.elasticsearch.excludeOrg("org.apache.spark"),
+    Deps.gcloud.excludeOrg("com.fasterxml.jackson.core"),
+    Deps.jna,
+    Deps.json4s.excludeOrg("com.fasterxml.jackson.core"),
+    Deps.zstd,
   )
 
   override def runIvyDeps: T[Agg[Dep]] = Agg(
-    ivy"org.scalanlp::breeze-natives:1.1".excludeOrg("org.apache.commons.math3"),
-    ivy"commons-io:commons-io:2.11.0",
-    ivy"org.apache.commons:commons-lang3:3.12.0",
+    Deps.Breeze.natives.excludeOrg("org.apache.commons.math3"),
+    Deps.Commons.io,
+    Deps.Commons.lang3,
     //    ivy"org.apache.commons:commons-math3:3.6.1",
-    ivy"commons-codec:commons-codec:1.15",
-    ivy"org.lz4:lz4-java:1.8.0",
-    ivy"com.github.fommil.netlib:all:1.1.2",
-    ivy"org.apache.avro:avro:1.11.2".excludeOrg("com.fasterxml.jackson.core"),
-    ivy"com.kohlschutter.junixsocket:junixsocket-core:2.6.1",
-    ivy"com.github.luben:zstd-jni:1.5.5-11",
+    Deps.Commons.codec,
+    Deps.lz4,
+    Deps.netlib,
+    Deps.avro.excludeOrg("com.fasterxml.jackson.core"),
+    Deps.junixsocket,
+//    Deps.zstd
   )
 
   override def compileIvyDeps: T[Agg[Dep]] = Agg(
-    ivy"org.apache.logging.log4j:log4j-1.2-api:2.17.2",
-    ivy"org.apache.hadoop:hadoop-client:3.3.4",
-    ivy"org.apache.spark::spark-core:${sparkVersion()}",
-    ivy"org.apache.spark::spark-mllib:${sparkVersion()}",
-    ivy"org.scalanlp::breeze:1.1",
+    Deps.log4j,
+    Deps.hadoopClient,
+    Deps.Spark.core(),
+    Deps.Spark.mllib(),
+    Deps.Breeze.core,
     //      ivy"org.scalanlp::breeze-natives:1.1",
   )
 
@@ -185,7 +229,7 @@ object main extends RootModule with HailScalaModule { outer =>
   )
 
   override def scalacPluginIvyDeps: T[Agg[Dep]] = Agg(
-    ivy"com.olegpy::better-monadic-for:0.3.1"
+    Deps.Plugins.betterModadicFor,
   )
 
   object memory extends JavaModule { // with CrossValue {
@@ -205,8 +249,8 @@ object main extends RootModule with HailScalaModule { outer =>
     }
 
     override def compileIvyDeps: T[Agg[Dep]] = Agg(
-      ivy"org.apache.hadoop:hadoop-client:3.3.4",
-      ivy"com.github.samtools:htsjdk:3.0.5".excludeOrg("*"),
+      Deps.hadoopClient,
+      Deps.samtools.excludeOrg("*"),
     )
   }
 
@@ -219,7 +263,7 @@ object main extends RootModule with HailScalaModule { outer =>
     )
 
     override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Seq(
-      ivy"com.fasterxml.jackson.core:jackson-core:2.14.2"
+      Deps.jackson,
     )
   }
 
