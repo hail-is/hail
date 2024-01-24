@@ -16,14 +16,14 @@ class Phenotype:
 
 
 class Phenotypes:
-    @staticmethod
-    def from_grouped_str_phenotype_type_mapping(phenotypes: List[Dict[str, SaigePhenotype]]) -> 'Phenotypes':
-        new_phenotypes = []
-        for idx, group in enumerate(phenotypes):
-            group_name = f'group_{idx+1}'
-            for phenotype, typ in group.items():
-                new_phenotypes.append(Phenotype(phenotype, typ, group_name))
-        return Phenotypes(new_phenotypes)
+    # @staticmethod
+    # def from_grouped_str_phenotype_type_mapping(phenotypes: List[Dict[str, SaigePhenotype]]) -> 'Phenotypes':
+    #     new_phenotypes = []
+    #     for idx, group in enumerate(phenotypes):
+    #         group_name = f'group_{idx+1}'
+    #         for phenotype, typ in group.items():
+    #             new_phenotypes.append(Phenotype(phenotype, typ, group_name))
+    #     return Phenotypes(new_phenotypes)
 
     # @staticmethod
     # def from_matrix_table(mt: hl.MatrixTable, phenotypes: List[str]) -> 'Phenotypes':

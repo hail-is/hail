@@ -12,7 +12,7 @@ from hailtop.utils import async_to_blocking, bounded_gather
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
 from .io import load_plink_file, load_text_file
-from .phenotype import Phenotypes
+from .phenotype import Phenotype, Phenotypes, SaigePhenotype
 from .steps import CompileAllResultsStep, CompilePhenotypeResultsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
 from .variant_chunk import VariantChunk
 
@@ -310,10 +310,29 @@ def extract_phenotypes(mt: hl.MatrixTable,
     # FIXME: actually make this work with IID
     require_col_key_str(mt, 'saige')
     mt.select_cols(*phenotypes).cols().export(output_file, delimiter="\t")
+    col_key = set(mt.col_key)
+
+    phenotypes_ht = hl.import_table(output_file, impute=True, delimiter="\t")
+
+    phenotype_schema = phenotypes_ht.row.dtype
+    assert isinstance(phenotype_schema, hl.tstruct)
+
+    phenotypes = []
+    for phenotype_name, typ in phenotype_schema:
+        if phenotype_name not in col_key:
+            if isinstance(typ, hl.tbool):
+                phenotype_type = SaigePhenotype.CATEGORICAL
+            elif isinstance(typ, (hl.tint, hl.tfloat)):
+                phenotype_type = SaigePhenotype.CONTINUOUS
+            else:
+                raise Exception(f'unknown SAIGE phenotype type for ({phenotype_name}, {typ})')
+            phenotypes.append(Phenotype(phenotype_name, phenotype_type, 'group1'))
+
+    return Phenotypes(phenotypes)
 
 
-def prepare_plink_null_model_input():
-    pass
+def prepare_plink_null_model_input(mt: hl.MatrixTable, output_path: str):
+    hl.export_plink(mt, output_path)
 
 
 
