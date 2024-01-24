@@ -150,7 +150,7 @@ class Env[V] private (val m: Map[Env.K, V]) {
   def apply(name: String): V = m(name)
 
   def lookup(name: String): V =
-    m.get(name).getOrElse(throw new RuntimeException(s"Cannot find $name in $m"))
+    m.getOrElse(name, throw new RuntimeException(s"Cannot find $name in $m"))
 
   def lookupOption(name: String): Option[V] = m.get(name)
 

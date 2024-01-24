@@ -532,6 +532,7 @@ if os.environ.get('HAIL_DONT_RETRY_500') == '1':
 RETRYABLE_ERRNOS = {
     # these should match (where an equivalent exists) nettyRetryableErrorNumbers in
     # is/hail/services/package.scala
+    errno.EADDRNOTAVAIL,
     errno.ETIMEDOUT,
     errno.ECONNREFUSED,
     errno.EHOSTUNREACH,

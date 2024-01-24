@@ -160,24 +160,27 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def withScopedMaybeStreamValue[T](ec: EmitCode, name: String)(f: EmitValue => T): T = {
-    if (ec.st.isRealizable) {
-      f(memoizeField(ec, name))
-    } else {
-      assert(ec.st.isInstanceOf[SStream])
-      val ev = if (ec.required)
-        EmitValue(None, ec.toI(this).get(this, ""))
+    val ev = memoizeMaybeStreamValue(ec.toI(this), name)
+    val res = f(ev)
+    ec.pv match {
+      case ss: SStreamValue =>
+        ss.defineUnusedLabels(emb)
+      case _ =>
+    }
+    res
+  }
+
+  def memoizeMaybeStreamValue(iec: IEmitCode, name: String): EmitValue =
+    if (iec.st.isRealizable) memoizeField(iec, name)
+    else {
+      assert(iec.st.isInstanceOf[SStream])
+      if (iec.required) EmitValue(None, iec.get(this, ""))
       else {
         val m = emb.genFieldThisRef[Boolean](name + "_missing")
-        ec.toI(this).consume(this, assign(m, true), _ => assign(m, false))
-        EmitValue(Some(m), ec.pv)
+        iec.consume(this, assign(m, true), _ => assign(m, false))
+        EmitValue(Some(m), iec.value)
       }
-      val res = f(ev)
-      ec.pv match {
-        case ss: SStreamValue => ss.defineUnusedLabels(emb)
-      }
-      res
     }
-  }
 
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
     require(v.st.isRealizable)
