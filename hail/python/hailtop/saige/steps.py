@@ -40,33 +40,6 @@ def get_output_dir(config: CheckpointConfigMixin, temp_dir: str, checkpoint_dir:
     return temp_dir
 
 
-# @dataclass
-# class PrepareInputsStep(CheckpointConfigMixin):
-#     async def call(
-#         self,
-#         fs: AsyncFS,
-#         b: hb.Batch,
-#         mt: hl.MatrixTable,
-#         phenotypes: List[Union[str, hl.BooleanExpression, hl.NumericExpression]],
-#         temp_dir: str,
-#         checkpoint_dir: Optional[str],
-#     ) -> Tuple[TextResourceFile, PlinkResourceGroup]:
-#         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
-#         phenotype_file = f'{working_dir}/inputs/phenotypes.tsv'
-#         plink_file = f'{working_dir}/inputs/input_data'
-#
-#         def create_phenotype_file():
-#             mt.cols().select(*phenotypes).export(phenotype_file, delimiter="\t")
-#
-#         def create_plink_file():
-#             hl.export_plink(mt, plink_file)
-#
-#         phenotype_input = await load_text_file_or_create(fs, b, self, phenotype_file, create_phenotype_file)
-#         plink_input = await load_plink_file_or_create(fs, b, self, plink_file, create_plink_file)
-#
-#         return (phenotype_input, plink_input)
-
-
 @dataclass
 class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     relatedness_cutoff: float = ...
@@ -285,7 +258,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/results/{phenotype_name}/{chunk.idx}'
 
-    def output_dir(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
+    def output_glob(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/results/{phenotype_name}/*'
 
@@ -516,7 +489,7 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def attributes(self, *, phenotype: Phenotype) -> Optional[Dict]:
         return {'phenotype': phenotype.name}
 
-    def results_path(self, temp_dir: str, checkpoint_dir: Optional[str]):
+    def results_path_glob(self, temp_dir: str, checkpoint_dir: Optional[str]):
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/compiled-results/*.txt.gz'
 
