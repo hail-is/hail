@@ -13,7 +13,7 @@ import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
@@ -25,8 +25,8 @@ import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
 import scala.language.existentials
-
 import java.io._
+import scala.annotation.nowarn
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -766,6 +766,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
+    @nowarn("cat=unused-locals&msg=local default argument")
     def emit(
       ir: IR,
       mb: EmitMethodBuilder[C] = mb,
