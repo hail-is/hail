@@ -125,7 +125,7 @@ class AuthServiceAuthenticator(Authenticator):
 
 
 class TrustedSingleTenantAuthenticator(Authenticator):
-    async def _fetch_userdata(self, _: web.Request) -> Optional[UserData]:
+    async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
         return cast(
             UserData,
             {
