@@ -22,9 +22,7 @@ async def use_checkpoints_if_exist_and_requested(
     typ: Type[RG], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, **inputs: str
 ) -> Optional[RG]:
     if config.use_checkpoints and not config.overwrite:
-        all_files_exist = all(await asyncio.gather(fs.exists(input) for input in inputs.values()))
-        if all_files_exist:
-            return cast(typ, b.read_input_group(**inputs))
+        await load_files(typ, fs, b, **inputs)
     return None
 
 
@@ -39,8 +37,7 @@ async def use_checkpoint_if_exists_and_requested(
     typ: Type[RF], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, input: str
 ) -> Optional[RF]:
     if config.use_checkpoints and not config.overwrite:
-        if await fs.exists(input):
-            return cast(typ, b.read_input(input))
+        await load_file(typ, fs, b, input)
     return None
 
 
@@ -74,18 +71,6 @@ async def load_plink_file(
     return await use_checkpoints_if_exist_and_requested(
         PlinkResourceGroup, fs, b, config, bed=f'{root}.bed', bim=f'{root}.bim', fam=f'{root}.fam'
     )
-
-
-async def load_plink_file_or_create(
-    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, file: str, creator_f: Callable[[], None]
-) -> PlinkResourceGroup:
-    input = await load_plink_file(fs, b, config, file)
-    if input is not None:
-        return input
-    creator_f()
-    input = await load_plink_file(fs, b, config, file)
-    assert input is not None
-    return input
 
 
 def new_bgen_file(j: hb.Job) -> BgenResourceGroup:
@@ -125,18 +110,6 @@ async def load_text_file(
     if config is None:
         return await load_file(TextResourceFile, fs, b, file)
     return await use_checkpoint_if_exists_and_requested(TextResourceFile, fs, b, config, file)
-
-
-async def load_text_file_or_create(
-    fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, file: str, creator_f: Callable[[], None]
-) -> TextResourceFile:
-    input = await load_text_file(fs, b, config, file)
-    if input is not None:
-        return input
-    creator_f()
-    input = await load_text_file(fs, b, config, file)
-    assert input is not None
-    return input
 
 
 def new_saige_sparse_grm_file(j: hb.Job, relatedness_cutoff: float, num_markers: int) -> SaigeSparseGRMResourceGroup:
