@@ -28,7 +28,7 @@ abstract class StateMachine[A] {
 object StateMachine {
   def terminal[A]: StateMachine[A] = new StateMachine[A] {
     val isValid = false
-    val value: A = ???
+    def value: A = ???
     def advance(): Unit = {}
   }
 }

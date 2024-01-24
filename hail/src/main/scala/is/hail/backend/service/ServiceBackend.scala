@@ -447,6 +447,7 @@ object ServiceBackendAPI {
     assert(argv.length == 7, argv.toFastSeq)
 
     val scratchDir = argv(0)
+    // val logFile = argv(1)
     val jarLocation = argv(2)
     val kind = argv(3)
     assert(kind == Main.DRIVER)
