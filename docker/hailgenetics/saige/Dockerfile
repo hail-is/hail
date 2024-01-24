@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.3.0-labs
-# ^ necessary to use an ARG in a --mount value with our current version of buildkit
+1;95;0c# ^ necessary to use an ARG in a --mount value with our current version of buildkit
 
 ARG BASE_IMAGE
 FROM $BASE_IMAGE
@@ -24,7 +24,7 @@ ENV OMP_NUM_THREADS=1
 
 RUN Rscript extdata/install_packages.R
 
-RUN hail-pip-install cget
+RUN hail-pip-install cget pycairo
 
 RUN R CMD INSTALL .
 

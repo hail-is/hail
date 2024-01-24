@@ -34,26 +34,31 @@ def ds():
     return dataset
 
 
-@pytest.fixture
-def output_path():
-    return hl.utils.new_temp_file('saige_output')
+# @pytest.fixture
+# def output_path():
+#     return hl.utils.new_temp_file('saige_output')
 
 
 def test_variant_chunking(ds):
     pass
 
 
-def test_phenotype_grouping(ds):
+def test_variant_group_chunking(ds):
     pass
 
 
-def test_saige_categorical(ds, output_path):
+def test_saige_categorical(ds):
+    mt_path = hl.utils.new_temp_file('input-data', '.mt')
+    phenotypes_file = hl.utils.new_temp_file('phenotypes', '.txt')
+    null_model_plink_path = hl.utils.new_temp_file('null-model-plink-input')
+    output_path = hl.utils.new_temp_file('saige-results', '.ht')
+
     ds.write(mt_path)
 
     phenotypes, covariates = extract_phenotypes(ds,
                                                 phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
                                                 covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
-                                                phenotypes_file)
+                                                output_file=phenotypes_file)
 
     variant_chunks = prepare_variant_chunks_by_contig(ds)
 
@@ -67,11 +72,8 @@ def test_saige_categorical(ds, output_path):
           variant_chunks=variant_chunks,
           output_path=output_path)
 
-    assert hfs.is_dir(output_path)
-
-
-def test_saige_categorical_custom_config(ds):
-    pass
+    # check results table is there
+    hl.import_table(output_path)
 
 
 def test_saige_continuous(ds):
@@ -79,5 +81,9 @@ def test_saige_continuous(ds):
 
 
 def test_saige_gene(ds):
+    pass
+
+
+def test_saige_custom_config(ds):
     pass
 
