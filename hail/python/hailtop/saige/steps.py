@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import json
 from typing import Dict, List, Optional, Tuple, Union
 
 import hail as hl
@@ -324,6 +325,16 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
 
         if analysis_type == SaigeAnalysisType.GENE:
             assert sparse_grm is not None and group_annotations is not None
+            assert chunk.groups is not None
+            group_ann_filter_cmd = f'''
+cat > filter_gene_annotations.py <<EOF
+import hail as hl
+import json
+annotations = hl.import_table("{group_annotations}")
+groups = json.loads("{json.dumps(chunk.groups)}")
+annotations = annotations.select(groups[annotations.group])
+EOF
+'''
 
         hail_io_cmd = f'''
 cat > read_from_mt.py <<EOF
