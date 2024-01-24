@@ -62,36 +62,36 @@ else
 build_type = release
 endif
 
-SHADOW_JAR := out/main/$(build_type)/assembly.dest/out.jar
+SHADOW_JAR := out/assembly.dest/out.jar
 $(SHADOW_JAR):
-	$(mill) main[$(build_type)].assembly
+	$(mill) assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-NON_SHADOW_JAR := out/main/$(build_type)/jar.dest/out.jar
+NON_SHADOW_JAR := out/jar.dest/out.jar
 $(NON_SHADOW_JAR):
-	$(mill) main[$(build_type)].jar
+	$(mill) jar
 
-SHADOW_TEST_JAR := out/main/debug/test/assembly.dest/out.jar
+SHADOW_TEST_JAR := out/test/assembly.dest/out.jar
 $(SHADOW_TEST_JAR):
-	$(mill) main[debug].test.assembly
+	$(mill) test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := out/main/debug/printRunClasspath.log
+EXTRA_CLASSPATH := out/printRunClasspath.log
 .PHONY: $(EXTRA_CLASSPATH)
 $(EXTRA_CLASSPATH):
-	$(mill) main[debug].printRunClasspath
+	$(mill) printRunClasspath
 
 .PHONY: jvm-test
 jvm-test:
-	$(mill) main[debug].test testng.xml
+	$(mill) test testng.xml
 
 .PHONY: services-jvm-test
 services-jvm-test:
-	$(mill) main[debug].test testng-services.xml
+	$(mill) test testng-services.xml
 
 .PHONY: fs-jvm-test
 fs-jvm-test: upload-remote-qob-test-resources
@@ -101,7 +101,7 @@ fs-jvm-test: upload-remote-qob-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(mill) main[debug].test.test testng-fs.xml
+	$(mill) test testng-fs.xml
 
 # end mill integration
 
