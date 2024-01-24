@@ -91,6 +91,7 @@ class TerraAzureStorageFS extends FS {
   def delete(url: URL, recursive: Boolean): Unit = azureFS.delete(url, recursive)
   def glob(url: URL): Array[FileListEntry] = azureFS.glob(url)
   def fileListEntry(url: URL): FileListEntry = azureFS.fileListEntry(url)
+  def fileStatus(url: URL): FileStatus = azureFS.fileStatus(url)
   def makeQualified(filename: String): String = azureFS.makeQualified(filename)
   def eTag(url: URL): Some[String] = azureFS.eTag(url)
   def listDirectory(url: URL): Array[FileListEntry] = azureFS.listDirectory(url)

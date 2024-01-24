@@ -45,7 +45,7 @@ object DeployConfig {
     if (file != null) {
       using(new FileInputStream(file))(in => fromConfig(JsonMethods.parse(in)))
     } else
-      fromConfig("external", "default", "hail.is")
+      fromConfig("external", "default", "hail.is", None)
   }
 
   def fromConfig(config: JValue): DeployConfig = {
@@ -56,10 +56,7 @@ object DeployConfig {
     val domain = (config \ "domain").extract[Option[String]].getOrElse("hail.is")
     val basePath = (config \ "base_path").extract[Option[String]]
 
-    sys.env.get("HAIL_TERRA") match {
-      case Some(_) => new TerraDeployConfig(location, defaultNamespace, domain, basePath)
-      case None => fromConfig(location, defaultNamespace, domain, basePath)
-    }
+    fromConfig(location, defaultNamespace, domain, basePath)
   }
 
   def fromConfig(location: String, defaultNamespace: String, domain: String, basePath: Option[String]): DeployConfig =
@@ -67,7 +64,7 @@ object DeployConfig {
       sys.env.getOrElse(toEnvVarName("location"), location),
       sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespace),
       sys.env.getOrElse(toEnvVarName("domain"), domain),
-      sys.env.getOrElse(toEnvVarName("base_path"), basePath),
+      basePath,
     )
 
   private[this] def toEnvVarName(s: String): String =
