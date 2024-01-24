@@ -55,11 +55,12 @@ class SingleRegionMonitor(CloudLocationMonitor):
 
     def choose_location(
         self,
-        cores: int,  # pylint: disable=unused-argument
-        local_ssd_data_disk: bool,  # pylint: disable=unused-argument
-        data_disk_size_gb: int,  # pylint: disable=unused-argument
-        preemptible: bool,  # pylint: disable=unused-argument
+        cores: int,
+        local_ssd_data_disk: bool,
+        data_disk_size_gb: int,
+        preemptible: bool,
         regions: List[str],
+        machine_type: str,
     ) -> str:
         return self._default_region
 
@@ -96,7 +97,6 @@ def create_vm_config(
     instance_config: InstanceConfig,
 ):
     BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
-    HAIL_DOMAIN = os.environ['HAIL_DOMAIN']
     TERRA_STORAGE_ACCOUNT = os.environ['TERRA_STORAGE_ACCOUNT']
     WORKSPACE_STORAGE_CONTAINER_ID = os.environ['WORKSPACE_STORAGE_CONTAINER_ID']
     WORKSPACE_STORAGE_CONTAINER_URL = os.environ['WORKSPACE_STORAGE_CONTAINER_URL']
@@ -108,7 +108,7 @@ def create_vm_config(
     assert isinstance(deploy_config, TerraDeployConfig)
     assert isinstance(instance_config, TerraAzureSlimInstanceConfig)
 
-    startup_script = fr'''#cloud-config
+    startup_script = rf"""#cloud-config
 
 mounts:
   - [ ephemeral0, null ]
@@ -182,6 +182,12 @@ write_files:
 
       sudo mkdir -p /etc/netns
 
+      sudo mkdir /deploy-config
+      sudo cat >/deploy-config/deploy-config.json <<EOF
+      { json.dumps(get_deploy_config().with_location('external').get_config()) }
+      EOF
+
+
       SUBSCRIPTION_ID=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/subscriptionId?api-version=2021-02-01&format=text")
       RESOURCE_GROUP=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/resourceGroupName?api-version=2021-02-01&format=text")
       LOCATION=$(curl -s -H Metadata:true --noproxy "*" "http://169.254.169.254/metadata/instance/compute/location?api-version=2021-02-01&format=text")
@@ -197,8 +203,6 @@ write_files:
       MAX_IDLE_TIME_MSECS={ max_idle_time_msecs }
       BATCH_WORKER_IMAGE={ BATCH_WORKER_IMAGE }
       INTERNET_INTERFACE=eth0
-      HAIL_DOMAIN={ HAIL_DOMAIN }
-      HAIL_SUBPATH={ deploy_config._subpath }
       WORKSPACE_STORAGE_CONTAINER_ID={ WORKSPACE_STORAGE_CONTAINER_ID }
       TERRA_STORAGE_ACCOUNT={ TERRA_STORAGE_ACCOUNT }
       WORKSPACE_STORAGE_CONTAINER_URL={ WORKSPACE_STORAGE_CONTAINER_URL }
@@ -239,8 +243,6 @@ write_files:
       -e INTERNET_INTERFACE=$INTERNET_INTERFACE \
       -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
       -e DOCKER_PREFIX=$DOCKER_PREFIX \
-      -e HAIL_DOMAIN=$HAIL_DOMAIN \
-      -e HAIL_SUBPATH=$HAIL_SUBPATH \
       -e HAIL_TERRA=true \
       -e WORKSPACE_STORAGE_CONTAINER_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
       -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
@@ -275,7 +277,7 @@ write_files:
 
 runcmd:
   - nohup bash /startup.sh 2>&1 >worker.log &
-    '''
+    """
 
     encoded_startup_script = base64.b64encode(startup_script.encode()).decode()
 
@@ -459,10 +461,10 @@ class TerraAzureDriver(CloudDriver):
 
         region_args = [(r,) for r in regions]
         await db.execute_many(
-            '''
+            """
 INSERT INTO regions (region) VALUES (%s)
 ON DUPLICATE KEY UPDATE region = region;
-''',
+""",
             region_args,
         )
 

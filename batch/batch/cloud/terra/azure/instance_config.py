@@ -23,12 +23,10 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
         resource_id = str(uuid.uuid4())
         disk_resource_id = str(uuid.uuid4())
 
-        resources: List[AzureResource] = filter_none(
-            [
-                AzureVMResource.create(product_versions, machine_type, preemptible, location),
-                AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
-            ]
-        )
+        resources: List[AzureResource] = filter_none([
+            AzureVMResource.create(product_versions, machine_type, preemptible, location),
+            AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
+        ])
 
         return TerraAzureSlimInstanceConfig(
             machine_type=machine_type,
@@ -54,7 +52,6 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
         resource_id: str,
         disk_resource_id: str,
     ):
-
         super().__init__(
             machine_type=machine_type,
             preemptible=preemptible,
@@ -85,10 +82,8 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
 
     def to_dict(self) -> dict:
         azure_dict = super().to_dict()
-        azure_dict.update(
-            {
-                'resource_id': self._resource_id,
-                'disk_resource_id': self._disk_resource_id,
-            }
-        )
+        azure_dict.update({
+            'resource_id': self._resource_id,
+            'disk_resource_id': self._disk_resource_id,
+        })
         return azure_dict

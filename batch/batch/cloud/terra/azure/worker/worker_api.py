@@ -1,33 +1,20 @@
 import os
 from typing import Dict, List
 
+import orjson
+
 from hailtop import httpx
 from hailtop.aiocloud.aioazure import AzureCredentials
 from hailtop.aiocloud.aioterra.azure import TerraAzureAsyncFS
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.auth.auth import IdentityProvider
 
-from .....worker.credentials import CloudUserCredentials
 from .....worker.disk import CloudDisk
 from .....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ....terra.azure.instance_config import TerraAzureSlimInstanceConfig
 
 
-class AzureManagedIdentityCredentials(CloudUserCredentials):
-    @property
-    def cloud_env_name(self) -> str:
-        return 'HAIL_IGNORE'
-
-    @property
-    def mount_path(self) -> str:
-        return ''
-
-    @property
-    def identity_provider_json(self):
-        return {'idp': IdentityProvider.MICROSOFT.value}
-
-
-class TerraAzureWorkerAPI(CloudWorkerAPI[AzureManagedIdentityCredentials]):
+class TerraAzureWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '168.63.129.16'
 
     @staticmethod
@@ -54,9 +41,11 @@ class TerraAzureWorkerAPI(CloudWorkerAPI[AzureManagedIdentityCredentials]):
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
+        idp_json = orjson.dumps({'idp': IdentityProvider.MICROSOFT.value}).decode('utf-8')
         return [
             'HAIL_TERRA=1',
             'HAIL_LOCATION=external',  # There is no internal gateway, jobs must communicate over the internet
+            f'HAIL_IDENTITY_PROVIDER_JSON={idp_json}',
             f'WORKSPACE_STORAGE_CONTAINER_ID={self.workspace_storage_container_id}',
             f'WORKSPACE_STORAGE_CONTAINER_URL={self.workspace_storage_container_url}',
             f'WORKSPACE_ID={self.workspace_id}',
@@ -69,15 +58,10 @@ class TerraAzureWorkerAPI(CloudWorkerAPI[AzureManagedIdentityCredentials]):
     def get_cloud_async_fs(self) -> AsyncFS:
         return TerraAzureAsyncFS()
 
-    def user_credentials(self, _: Dict[str, str]) -> AzureManagedIdentityCredentials:
-        return AzureManagedIdentityCredentials()
-
-    async def worker_container_registry_credentials(self, _: httpx.ClientSession) -> ContainerRegistryCredentials:
+    async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         return {}
 
-    async def user_container_registry_credentials(
-        self, _: AzureManagedIdentityCredentials
-    ) -> ContainerRegistryCredentials:
+    async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
         return {}
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> TerraAzureSlimInstanceConfig:
@@ -90,7 +74,7 @@ class TerraAzureWorkerAPI(CloudWorkerAPI[AzureManagedIdentityCredentials]):
     async def _mount_cloudfuse(self, *_):
         raise NotImplementedError
 
-    async def unmount_cloudfuse(self, _: str):
+    async def unmount_cloudfuse(self, mount_base_path_data: str):
         raise NotImplementedError
 
     async def close(self):
