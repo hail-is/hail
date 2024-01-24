@@ -10,6 +10,7 @@ fi
 source $HAIL/devbin/functions.sh
 
 copy_images() {
+    export NAMESPACE=default
     make -C $HAIL/docker/third-party copy
 
     make -C $HAIL/hail python/hail/hail_pip_version
