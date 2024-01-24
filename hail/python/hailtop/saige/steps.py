@@ -300,7 +300,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
         result: SaigeResultResourceGroup,
         stdout: TextResourceFile,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup],
-        group_col: Optional[str],
+        group_annotations: Optional[TextResourceFile],
     ):
         if self.mkl_off:
             mkl_off = 'export MKL_NUM_THREADS=1; export MKL_DYNAMIC=false; export OMP_NUM_THREADS=1; export OMP_DYNAMIC=false; '
@@ -314,7 +314,6 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
                 f'--vcfFileIndex=/data.vcf.bgz.tbi',
                 f'--vcfField=GT',
             ]
-            variant_ann_name = 'group_ann.locus.contig + ":" + hl.str(group_ann.locus.position) + ":" + group_ann.alleles[0] + ":" + group_ann.alleles[1]'
         else:
             export_cmd = f'hl.export_bgen(mt, "/data")'
             input_flags = [
@@ -322,23 +321,9 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
                 f'--bgenFileIndex=/data.bgen.idx',
                 f'--sampleFile=/data.sample',
             ]
-            variant_ann_name = 'group_ann.rsid'  # FIXME: Can't find docs for what this should be
 
         if analysis_type == SaigeAnalysisType.GENE:
-            assert sparse_grm is not None and group_col is not None
-            group_file_cmd = f'''
-groups_of_interest = hl.set({repr(chunk.groups)})
-group_ann = mt.rows()
-group_ann = group_ann.select(group_ann={group_col}, var={variant_ann_name})
-group_ann = group_ann.explode("group_ann")
-group_ann = group_ann.select(group=group_ann.group_ann.group, ann=group_ann.group_ann.ann)
-group_ann = group_ann.filter(groups_of_interest.contains(group_ann.group))
-group_ann = group_ann.group_by(group=group_ann.group).aggregate(var=hl.agg.collect(group_ann.var), ann=hl.agg.collect(group_ann.ann))
-group_ann = group_ann.annotate(output=group_ann.group + "\t" + "var" + hl.str("\t").join(group_ann.var) + "\n" + group_ann.group + "\t" + "ann" + hl.str("\t").join(group_ann.ann))
-group_ann.key_by().select('output').export("/group_ann_file.txt", delimiter="\n")
-'''
-        else:
-            group_file_cmd = ''
+            assert sparse_grm is not None and group_annotations is not None
 
         hail_io_cmd = f'''
 cat > read_from_mt.py <<EOF
@@ -347,7 +332,6 @@ mt = hl.read_matrix_table("{mt_path}")
 interval = hl.parse_locus_interval("{chunk.to_interval_str()}", reference_genome=mt.locus.dtype.reference_genome)
 mt = mt.filter_rows(interval.contains(mt.locus))
 {export_cmd}
-{group_file_cmd}
 EOF
 python3 read_from_mt.py
 '''
@@ -423,7 +407,7 @@ python3 read_from_mt.py
                 ]
             else:
                 gene_options = [
-                    f'--groupFile=/group_ann_file.txt',
+                    f'--groupFile={group_annotations}',
                     f'--sparseSigmaFile={sparse_grm.grm}',
                     f'--IsSingleVarinGroupTest={str(self.single_variant_in_group_test).upper()}',
                     f'--IsOutputBETASEinBurdenTest={str(self.output_beta_se_in_burden_test).upper()}',
@@ -458,12 +442,11 @@ step2_SPAtests.R \
         analysis_type: SaigeAnalysisType,
         null_model: Union[SaigeGeneGLMMResourceGroup, SaigeGLMMResourceGroup],
         input_data_type: SaigeInputDataType,
-        interval: hl.Interval,
+        chunk: VariantChunk,
         phenotype: Phenotype,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None,
-        group_col: Optional[str] = None,
+        group_annotations: Optional[TextResourceFile] = None,
     ) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
-        chunk = VariantChunk(interval)
         output_root = self.output_file_prefix(temp_dir, checkpoint_dir, phenotype.name, chunk)
 
         results = await load_saige_result_file(fs, b, self, output_root, analysis_type)
@@ -498,7 +481,7 @@ step2_SPAtests.R \
             result=results,
             stdout=j.stdout,
             sparse_grm=sparse_grm,
-            group_col=group_col,
+            group_annotations=group_annotations,
         )
 
         j.command(command)
