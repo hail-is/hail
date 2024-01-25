@@ -4,7 +4,6 @@ import hailtop.fs as hfs
 from hailtop.saige import (
     SaigeConfig,
     extract_phenotypes,
-    prepare_plink_null_model_input,
     compute_variant_chunks_by_contig,
     saige
 )
@@ -48,32 +47,33 @@ def test_variant_group_chunking(ds):
 
 
 def test_saige_categorical(ds):
-    mt_path = hl.utils.new_temp_file('input-data', '.mt')
-    phenotypes_file = hl.utils.new_temp_file('phenotypes', '.txt')
-    null_model_plink_path = hl.utils.new_temp_file('null-model-plink-input')
-    output_path = hl.utils.new_temp_file('saige-results', '.ht')
+    with hl.TemporaryDirectory(suffix='.mt', ensure_exists=False) as mt_path:
+        with hl.TemporaryFilename(suffix='.txt') as phenotypes_file:
+            with hl.TemporaryDirectory() as null_model_plink_dir:
+                with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as output_path:
+                    null_model_plink_path = f'{null_model_plink_dir}/null-model-input'
 
-    ds.write(mt_path)
+                    ds.write(mt_path)
 
-    phenotypes, covariates = extract_phenotypes(ds,
-                                                phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
-                                                covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
-                                                output_file=phenotypes_file)
+                    phenotypes, covariates = extract_phenotypes(ds,
+                                                                phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
+                                                                covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
+                                                                output_file=phenotypes_file)
 
-    variant_chunks = compute_variant_chunks_by_contig(ds)
+                    variant_chunks = compute_variant_chunks_by_contig(ds)
 
-    hl.export_plink(ds, null_model_plink_path)
+                    hl.export_plink(ds, null_model_plink_path)
 
-    saige(mt_path=mt_path,
-          null_model_plink_path=null_model_plink_path,
-          phenotypes_path=phenotypes_file,
-          phenotypes=phenotypes,
-          covariates=covariates,
-          variant_chunks=variant_chunks,
-          output_path=output_path)
+                    saige(mt_path=mt_path,
+                          null_model_plink_path=null_model_plink_path,
+                          phenotypes_path=phenotypes_file,
+                          phenotypes=phenotypes,
+                          covariates=covariates,
+                          variant_chunks=variant_chunks,
+                          output_path=output_path)
 
-    # check results table is there
-    hl.import_table(output_path)
+                    # check results table is there
+                    hl.import_table(output_path)
 
 
 def test_saige_continuous(ds):
