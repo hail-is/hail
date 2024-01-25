@@ -2,9 +2,10 @@ package is.hail.annotations
 
 import is.hail.expr.ir.LongArrayBuilder
 
+import scala.collection.mutable
+
 import java.util.TreeMap
 import java.util.function.BiConsumer
-import scala.collection.mutable
 
 /** ChunkCache minimizes calls to free and allocate by holding onto chunks when they are no longer
   * in use. When a chunk is needed, the cache is searched. If the size requested is less than a

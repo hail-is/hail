@@ -1,5 +1,3 @@
-import os
-
 import aiohttp_session
 import aiohttp_session.cookie_storage
 
@@ -21,7 +19,8 @@ def setup_aiohttp_session(app):
                 secure=True,
                 httponly=True,
                 samesite='Lax',
-                domain=os.environ['HAIL_DOMAIN'],
+                domain=deploy_config._domain,
+                path=deploy_config._base_path or '/',
                 # 2592000s = 30d
                 max_age=2592000,
             ),

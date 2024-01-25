@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
-import is.hail.expr.ir.lowering.{BlockMatrixStage2, BMSContexts, LowererUnsupportedOperation}
+import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
@@ -14,16 +14,15 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-
 import scala.collection.immutable.NumericRange
 import scala.collection.mutable.ArrayBuffer
 
 import breeze.linalg.DenseMatrix
 import breeze.numerics
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 object BlockMatrixIR {
-  def checkFitsIntoArray(nRows: Long, nCols: Long) {
+  def checkFitsIntoArray(nRows: Long, nCols: Long): Unit = {
     require(nRows <= Int.MaxValue, s"Number of rows exceeds Int.MaxValue: $nRows")
     require(nCols <= Int.MaxValue, s"Number of columns exceeds Int.MaxValue: $nCols")
     require(

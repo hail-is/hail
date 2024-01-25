@@ -1,14 +1,13 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction2, LongInfo, Value}
+import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  Compile, Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv,
-  EmitMethodBuilder, Env, IEmitCode, IR, SCodeEmitParamType,
+  Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env,
+  IEmitCode, IR,
 }
-import is.hail.types.physical.PType
-import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
 
 // (IR => T), seq op (IR T => T), and comb op (IR (T,T) => T)

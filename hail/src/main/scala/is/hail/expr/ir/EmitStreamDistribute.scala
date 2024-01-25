@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.{const, Code, Value, _}
 import is.hail.expr.ir.functions.MathFunctions
-import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.io.{AbstractTypedCodecSpec, OutputBuffer}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SValue}

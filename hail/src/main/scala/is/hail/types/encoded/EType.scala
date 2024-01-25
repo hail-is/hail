@@ -14,11 +14,11 @@ import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JString
-
 import java.util
 import java.util.Map.Entry
+
+import org.json4s.CustomSerializer
+import org.json4s.JsonAST.JString
 
 class ETypeSerializer extends CustomSerializer[EType](format =>
       (
@@ -167,7 +167,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
 
-  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  final def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (required)
       sb.append("+")
     _pretty(sb, indent, compact)
@@ -179,9 +179,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   def _toPretty: String
 
-  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb.append(_toPretty)
-  }
 
   final def decodedSType(requestedType: Type): SType =
     _decodedSType(requestedType)

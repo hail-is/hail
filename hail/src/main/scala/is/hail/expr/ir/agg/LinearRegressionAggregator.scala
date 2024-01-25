@@ -11,7 +11,6 @@ import is.hail.types.physical.stypes.concrete.{
 }
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
-import is.hail.utils.FastSeq
 
 import breeze.linalg.{diag, inv, DenseMatrix, DenseVector}
 

@@ -2,7 +2,6 @@ package is.hail.sparkextras
 
 import is.hail.utils._
 
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 import org.apache.spark.{Dependency, NarrowDependency, Partition, TaskContext}
@@ -43,7 +42,7 @@ class BlockedRDD[T](
         partitions(id).asInstanceOf[BlockedRDDPartition].range
     })
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     prev = null
   }

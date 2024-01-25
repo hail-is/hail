@@ -532,6 +532,7 @@ if os.environ.get('HAIL_DONT_RETRY_500') == '1':
 RETRYABLE_ERRNOS = {
     # these should match (where an equivalent exists) nettyRetryableErrorNumbers in
     # is/hail/services/package.scala
+    errno.EADDRNOTAVAIL,
     errno.ETIMEDOUT,
     errno.ECONNREFUSED,
     errno.EHOSTUNREACH,
@@ -1077,13 +1078,11 @@ def find_spark_home() -> str:
     if spark_home is None:
         find_spark_home = subprocess.run('find_spark_home.py', capture_output=True, check=False)
         if find_spark_home.returncode != 0:
-            raise ValueError(
-                f"""SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
+            raise ValueError(f"""SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
 {find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr!r}"""
-            )
+{find_spark_home.stderr!r}""")
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
 

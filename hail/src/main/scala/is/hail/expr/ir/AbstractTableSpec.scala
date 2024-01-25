@@ -5,11 +5,10 @@ import is.hail.rvd._
 import is.hail.types._
 import is.hail.utils._
 
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-import org.json4s.jackson.JsonMethods
-
 import java.io.OutputStreamWriter
-import scala.language.implicitConversions
+
+import org.json4s.{Formats, JValue}
+import org.json4s.jackson.JsonMethods
 
 object SortOrder {
   def deserialize(b: Byte): SortOrder =
@@ -89,11 +88,10 @@ case class TableSpecParameters(
   components: Map[String, ComponentSpec],
 ) {
 
-  def write(fs: FS, path: String) {
+  def write(fs: FS, path: String): Unit =
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
       out.write(JsonMethods.compact(decomposeWithName(this, "TableSpec")(RelationalSpec.formats)))
     }
-  }
 }
 
 class TableSpec(

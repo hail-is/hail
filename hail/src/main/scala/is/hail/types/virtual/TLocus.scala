@@ -1,10 +1,8 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.{BroadcastValue, HailStateManager}
+import is.hail.backend.HailStateManager
 import is.hail.check._
-import is.hail.types.physical.PLocus
-import is.hail.types.virtual.TCall.representation
 import is.hail.utils._
 import is.hail.variant._
 

@@ -28,15 +28,15 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
+import scala.reflect.ClassTag
 
 import java.io.{Closeable, DataInputStream, DataOutputStream, InputStream}
-import scala.reflect.ClassTag
 
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
+import org.json4s.JsonAST.JString
+import org.json4s.jackson.JsonMethods
 
 object TableIR {
   def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None)

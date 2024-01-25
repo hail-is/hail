@@ -79,8 +79,6 @@ async def render_template(
     userdata: Optional[UserData],
     file: str,
     page_context: Dict[str, Any],
-    *,
-    cookie_domain: Optional[str] = None,
 ) -> web.Response:
     if request.headers.get('x-hail-return-jinja-context'):
         if userdata and userdata['is_developer']:
@@ -98,6 +96,5 @@ async def render_template(
     context['csrf_token'] = csrf_token
 
     response = aiohttp_jinja2.render_template(file, request, context)
-    domain = cookie_domain or os.environ['HAIL_DOMAIN']
-    response.set_cookie('_csrf', csrf_token, domain=domain, secure=True, httponly=True)
+    response.set_cookie('_csrf', csrf_token, secure=True, httponly=True, samesite='strict')
     return response

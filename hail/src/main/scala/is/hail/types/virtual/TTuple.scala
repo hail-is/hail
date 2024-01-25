@@ -55,7 +55,7 @@ final case class TTuple(_types: IndexedSeq[TupleField]) extends TBaseStruct {
 
   override def subst() = TTuple(_types.map(tf => tf.copy(typ = tf.typ.subst())))
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (!_isCanonical) {
       sb.append("TupleSubset[")
       fields.foreachBetween { fd =>

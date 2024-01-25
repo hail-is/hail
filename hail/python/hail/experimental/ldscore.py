@@ -127,11 +127,9 @@ def ld_score(entry_expr, locus_expr, radius, coord_expr=None, annotation_exprs=N
         )
 
     if not check_mts:
-        raise ValueError(
-            """ld_score: entry_expr, locus_expr, coord_expr
+        raise ValueError("""ld_score: entry_expr, locus_expr, coord_expr
                             (if specified), and annotation_exprs (if
-                            specified) must come from same MatrixTable."""
-        )
+                            specified) must come from same MatrixTable.""")
 
     n = mt.count_cols()
     r2 = hl.row_correlation(entry_expr, block_size) ** 2

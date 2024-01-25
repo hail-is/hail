@@ -6,22 +6,22 @@ object Children {
   private val none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def apply(x: IR): IndexedSeq[BaseIR] = x match {
-    case I32(x) => none
-    case I64(x) => none
-    case F32(x) => none
-    case F64(x) => none
-    case Str(x) => none
+    case I32(_) => none
+    case I64(_) => none
+    case F32(_) => none
+    case F64(_) => none
+    case Str(_) => none
     case UUID4(_) => none
     case True() => none
     case False() => none
     case Literal(_, _) => none
     case EncodedLiteral(_, _) => none
     case Void() => none
-    case Cast(v, typ) =>
+    case Cast(v, _) =>
       Array(v)
-    case CastRename(v, typ) =>
+    case CastRename(v, _) =>
       Array(v)
-    case NA(typ) => none
+    case NA(_) => none
     case IsNA(value) =>
       Array(value)
     case Coalesce(values) => values.toFastSeq
@@ -39,25 +39,25 @@ object Children {
       for (i <- bindings.indices) children(i) = bindings(i)._2
       children(bindings.size) = body
       children
-    case RelationalLet(name, value, body) =>
+    case RelationalLet(_, value, body) =>
       Array(value, body)
-    case AggLet(name, value, body, _) =>
+    case AggLet(_, value, body, _) =>
       Array(value, body)
     case TailLoop(_, args, _, body) =>
       args.map(_._2).toFastSeq :+ body
     case Recur(_, args, _) =>
       args.toFastSeq
-    case Ref(name, typ) =>
+    case Ref(_, _) =>
       none
     case RelationalRef(_, _) =>
       none
-    case ApplyBinaryPrimOp(op, l, r) =>
+    case ApplyBinaryPrimOp(_, l, r) =>
       Array(l, r)
-    case ApplyUnaryPrimOp(op, x) =>
+    case ApplyUnaryPrimOp(_, x) =>
       Array(x)
-    case ApplyComparisonOp(op, l, r) =>
+    case ApplyComparisonOp(_, l, r) =>
       Array(l, r)
-    case MakeArray(args, typ) =>
+    case MakeArray(args, _) =>
       args.toFastSeq
     case MakeStream(args, _, _) =>
       args.toFastSeq
@@ -121,9 +121,9 @@ object Children {
       Array(a, size)
     case StreamGroupByKey(a, _, _) =>
       Array(a)
-    case StreamMap(a, name, body) =>
+    case StreamMap(a, _, body) =>
       Array(a, body)
-    case StreamZip(as, names, body, _, _) =>
+    case StreamZip(as, _, body, _, _) =>
       as :+ body
     case StreamZipJoin(as, _, _, _, joinF) =>
       as :+ joinF
@@ -131,27 +131,27 @@ object Children {
       Array(contexts, makeProducer, joinF)
     case StreamMultiMerge(as, _) =>
       as
-    case StreamFilter(a, name, cond) =>
+    case StreamFilter(a, _, cond) =>
       Array(a, cond)
-    case StreamTakeWhile(a, name, cond) =>
+    case StreamTakeWhile(a, _, cond) =>
       Array(a, cond)
-    case StreamDropWhile(a, name, cond) =>
+    case StreamDropWhile(a, _, cond) =>
       Array(a, cond)
-    case StreamFlatMap(a, name, body) =>
+    case StreamFlatMap(a, _, body) =>
       Array(a, body)
-    case StreamFold(a, zero, accumName, valueName, body) =>
+    case StreamFold(a, zero, _, _, body) =>
       Array(a, zero, body)
-    case StreamFold2(a, accum, valueName, seq, result) =>
+    case StreamFold2(a, accum, _, seq, result) =>
       Array(a) ++ accum.map(_._2) ++ seq ++ Array(result)
-    case StreamScan(a, zero, accumName, valueName, body) =>
+    case StreamScan(a, zero, _, _, body) =>
       Array(a, zero, body)
-    case StreamJoinRightDistinct(left, right, lKey, rKey, l, r, join, joinType) =>
+    case StreamJoinRightDistinct(left, right, _, _, _, _, join, _) =>
       Array(left, right, join)
-    case StreamFor(a, valueName, body) =>
+    case StreamFor(a, _, body) =>
       Array(a, body)
-    case StreamAgg(a, name, query) =>
+    case StreamAgg(a, _, query) =>
       Array(a, query)
-    case StreamAggScan(a, name, query) =>
+    case StreamAggScan(a, _, query) =>
       Array(a, query)
     case StreamBufferedAggregate(streamChild, initAggs, newKey, seqOps, _, _, _) =>
       Array(streamChild, initAggs, newKey, seqOps)
@@ -183,7 +183,7 @@ object Children {
       Array(nd)
     case NDArrayEigh(nd, _, _) =>
       Array(nd)
-    case NDArrayInv(nd, errorID) =>
+    case NDArrayInv(nd, _) =>
       Array(nd)
     case NDArrayWrite(nd, path) =>
       Array(nd, path)
@@ -197,7 +197,7 @@ object Children {
       Array(a, aggBody) ++ knownLength.toArray[IR]
     case MakeStruct(fields) =>
       fields.map(_._2).toFastSeq
-    case SelectFields(old, fields) =>
+    case SelectFields(old, _) =>
       Array(old)
     case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastSeq
@@ -210,21 +210,21 @@ object Children {
     case InitFromSerializedValue(_, value, _) => Array(value)
     case SerializeAggs(_, _, _, _) => none
     case DeserializeAggs(_, _, _, _) => none
-    case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+    case ApplyAggOp(initOpArgs, seqOpArgs, _) =>
       initOpArgs ++ seqOpArgs
-    case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+    case ApplyScanOp(initOpArgs, seqOpArgs, _) =>
       initOpArgs ++ seqOpArgs
-    case AggFold(zero, seqOp, combOp, elementName, accumName, _) =>
+    case AggFold(zero, seqOp, combOp, _, _, _) =>
       Array(zero, seqOp, combOp)
-    case GetField(o, name) =>
+    case GetField(o, _) =>
       Array(o)
     case MakeTuple(fields) =>
       fields.map(_._2).toFastSeq
-    case GetTupleElement(o, idx) =>
+    case GetTupleElement(o, _) =>
       Array(o)
-    case In(i, typ) =>
+    case In(_, _) =>
       none
-    case Die(message, typ, errorId) =>
+    case Die(message, _, _) =>
       Array(message)
     case Trap(child) => Array(child)
     case ConsoleLog(message, result) =>

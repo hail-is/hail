@@ -15,9 +15,8 @@ final case class Box[T](
       true
   }
 
-  def clear() {
+  def clear(): Unit =
     b.set(None)
-  }
 
   def get: T = b.get.get
 

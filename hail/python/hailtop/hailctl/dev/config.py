@@ -1,6 +1,6 @@
 from enum import Enum
 import os
-import json
+import orjson
 import typer
 
 app = typer.Typer(
@@ -19,17 +19,13 @@ class DevConfigProperty(str, Enum):
 @app.command()
 def set(property: DevConfigProperty, value: str):
     """Set dev config property PROPERTY to value VALUE."""
-    from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
-
-    deploy_config = get_deploy_config()
-    config = deploy_config.get_config()
-
-    p = property
-    config[p] = value
-
     config_file = os.environ.get('HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
-    with open(config_file, 'w', encoding='utf-8') as f:
-        json.dump(config, f)
+    with open(config_file, 'r', encoding='utf-8') as old_config_f:
+        config = orjson.loads(old_config_f.read())
+
+    config[property] = value
+    with open(config_file, 'w', encoding='utf-8') as new_config_f:
+        new_config_f.write(orjson.dumps(config).decode('utf-8'))
 
 
 @app.command()

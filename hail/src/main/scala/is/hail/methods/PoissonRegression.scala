@@ -5,7 +5,6 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.types.{MatrixType, TableType}
 import is.hail.types.virtual.{TFloat64, TStruct}

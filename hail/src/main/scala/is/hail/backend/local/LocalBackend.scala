@@ -19,14 +19,14 @@ import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import org.json4s._
-import org.json4s.jackson.Serialization
-
-import java.io.PrintWriter
 import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
+import java.io.PrintWriter
+
 import org.apache.hadoop
+import org.json4s._
+import org.json4s.jackson.Serialization
 import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
@@ -289,7 +289,7 @@ class LocalBackend(
         log.info(s"starting execution of query $queryID} of initial size ${IRSize(ir)}")
         val retVal = _execute(ctx, ir)
         val literalIR = retVal match {
-          case Left(x) => throw new HailException("Can't create literal")
+          case Left(_) => throw new HailException("Can't create literal")
           case Right((pt, addr)) =>
             GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }

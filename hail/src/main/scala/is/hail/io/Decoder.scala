@@ -9,7 +9,7 @@ import is.hail.utils.RestartableByteArrayInputStream
 import java.io._
 
 trait Decoder extends Closeable {
-  def close()
+  def close(): Unit
 
   def ptype: PType
 
@@ -26,9 +26,8 @@ final class CompiledDecoder(
   theHailClassLoader: HailClassLoader,
   f: (HailClassLoader) => DecoderAsmFunction,
 ) extends Decoder {
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   def readByte(): Byte = in.readByte()
 
@@ -59,7 +58,6 @@ final class ByteArrayDecoder(
 
   def readValue(region: Region): Long = dec.readRegionValue(region)
 
-  def set(bytes: Array[Byte]) {
+  def set(bytes: Array[Byte]): Unit =
     bais.restart(bytes)
-  }
 }

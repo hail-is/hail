@@ -1,30 +1,25 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{BroadcastRow, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.rvd._
-import is.hail.sparkextras.ContextRDD
 import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
-import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.physical.PStruct
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SStackStruct, SStackStructValue}
-import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SStream, SStreamValue}
-import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
+import is.hail.types.physical.stypes.interfaces.{primitive, SBaseStructValue, SStreamValue}
+import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual.{TArray, TInt32, TInt64, TStruct, TTuple, Type}
 import is.hail.utils._
 
+import org.apache.spark.sql.Row
 import org.json4s.{Extraction, JValue}
 import org.json4s.JsonAST.{JObject, JString}
-
-import org.apache.spark.{Partition, TaskContext}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 
 class PartitionIteratorLongReader(
   rowType: TStruct,

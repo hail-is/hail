@@ -22,11 +22,10 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import java.io.OutputStream
+
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
-
-import java.io.OutputStream
-import scala.language.existentials
 
 sealed trait IR extends BaseIR {
   private var _typ: Type = null
@@ -346,14 +345,14 @@ object ArraySort {
     val compare = if (onKey) {
       val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
       elementType match {
-        case t: TStruct =>
+        case _: TStruct =>
           val elt = tcoerce[TStruct](atyp.elementType)
           ApplyComparisonOp(
             Compare(elt.types(0)),
             GetField(Ref(l, elt), elt.fieldNames(0)),
             GetField(Ref(r, atyp.elementType), elt.fieldNames(0)),
           )
-        case t: TTuple =>
+        case _: TTuple =>
           val elt = tcoerce[TTuple](atyp.elementType)
           ApplyComparisonOp(
             Compare(elt.types(0)),
@@ -972,7 +971,7 @@ object In {
         case TFloat32 => Float32SingleCodeType
         case TFloat64 => Float64SingleCodeType
         case TBoolean => BooleanSingleCodeType
-        case ts: TStream => throw new UnsupportedOperationException
+        case _: TStream => throw new UnsupportedOperationException
         case t => PTypeReferenceSingleCodeType(PType.canonical(t))
       },
     ),

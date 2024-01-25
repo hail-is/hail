@@ -5,12 +5,10 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.types.physical.{typeToTypeInfo, PType}
 import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 
-import scala.language.existentials
 import scala.reflect.ClassTag
 
 trait StagedMonoidSpec {

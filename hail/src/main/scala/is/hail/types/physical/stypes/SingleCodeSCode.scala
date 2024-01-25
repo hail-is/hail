@@ -5,11 +5,10 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.interfaces.{
-  NoBoxLongIterator, SStream, SStreamConcrete, SStreamIteratorLong, SStreamValue,
+  NoBoxLongIterator, SStream, SStreamConcrete, SStreamIteratorLong,
 }
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
-import is.hail.utils._
 
 object SingleCodeType {
   def typeInfoFromType(t: Type): TypeInfo[_] = t match {

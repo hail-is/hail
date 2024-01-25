@@ -264,13 +264,11 @@ class InstanceCollectionConfigs:
     async def instance_collections_from_db(
         db: Database,
     ) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
-        records = db.execute_and_fetchall(
-            """
+        records = db.execute_and_fetchall("""
 SELECT inst_colls.*, pools.*
 FROM inst_colls
 LEFT JOIN pools ON inst_colls.name = pools.name;
-"""
-        )
+""")
 
         name_pool_config: Dict[str, PoolConfig] = {}
         jpim_config: Optional[JobPrivateInstanceManagerConfig] = None

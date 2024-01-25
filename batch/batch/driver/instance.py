@@ -6,8 +6,7 @@ from typing import Dict, Optional
 
 import aiohttp
 
-from gear import Database, transaction
-from hailtop import httpx
+from gear import CommonAiohttpAppKeys, Database, transaction
 from hailtop.humanizex import naturaldelta_msec
 from hailtop.utils import retry_transient_errors, time_msecs, time_msecs_str
 
@@ -133,7 +132,7 @@ VALUES (%s, %s);
         instance_config: InstanceConfig,
     ):
         self.db: Database = app['db']
-        self.client_session: httpx.ClientSession = app['client_session']
+        self.client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state
