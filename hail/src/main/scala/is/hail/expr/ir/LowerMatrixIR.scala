@@ -1035,7 +1035,6 @@ object LowerMatrixIR {
           .aggregate(makeTuple(applyAggOp(Count(), FastSeq(), FastSeq()), 'global(colsField).len))
       case MatrixAggregate(child, query) =>
         val lc = lower(ctx, child, ab)
-        val idx = Symbol(genUID())
         TableAggregate(
           lc,
           aggExplodeIR(

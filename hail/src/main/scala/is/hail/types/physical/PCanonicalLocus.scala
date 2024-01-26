@@ -13,7 +13,7 @@ import is.hail.utils.FastSeq
 import is.hail.variant._
 
 object PCanonicalLocus {
-  private def representation(required: Boolean = false): PCanonicalStruct = PCanonicalStruct(
+  private def representation(required: Boolean): PCanonicalStruct = PCanonicalStruct(
     required,
     "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true),

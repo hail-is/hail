@@ -25,7 +25,6 @@ import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
 import java.nio.file.Paths
 import java.time.Duration
 
-import org.apache.log4j.Logger
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
@@ -87,10 +86,6 @@ object AzureStorageFS {
 
   private val AZURE_HTTPS_URI_REGEX =
     "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
-
-  private val log = Logger.getLogger(getClass.getName)
-
-  val schemes: Array[String] = Array("hail-az", "https")
 
   def parseUrl(filename: String): AzureStorageFSURL = {
     val scheme = filename.split(":")(0)

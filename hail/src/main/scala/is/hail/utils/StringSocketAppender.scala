@@ -19,13 +19,11 @@ object StringSocketAppender {
 }
 
 class StringSocketAppender() extends AppenderSkeleton {
-  private var remoteHost: String = _
   private var address: InetAddress = _
   private var port: Int = _
   private var os: OutputStream = _
-  private var reconnectionDelay = StringSocketAppender.DEFAULT_RECONNECTION_DELAY
+  private val reconnectionDelay = StringSocketAppender.DEFAULT_RECONNECTION_DELAY
   private var connector: SocketConnector = null
-  private var counter = 0
   private var patternLayout: PatternLayout = _
   private var initialized: Boolean = false
 
@@ -34,7 +32,6 @@ class StringSocketAppender() extends AppenderSkeleton {
   def connect(host: String, port: Int, format: String): Unit = {
     this.port = port
     this.address = InetAddress.getByName(host)
-    this.remoteHost = host
     this.patternLayout = new PatternLayout(format)
     connect(address, port)
     initialized = true

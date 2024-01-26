@@ -11,8 +11,6 @@ import is.hail.variant._
 
 import java.util
 
-import org.apache.spark.rdd.RDD
-
 object BitPackedVector {
   final val GENOTYPES_PER_PACK: Int = 32
   final val BITS_PER_PACK: Int = 2 * GENOTYPES_PER_PACK
@@ -278,21 +276,6 @@ object LocalLDPrune {
     keepVariant
   }
 
-  private def pruneLocal(
-    inputRDD: RDD[BitPackedVector],
-    r2Threshold: Double,
-    windowSize: Int,
-    queueSize: Int,
-  ): RDD[BitPackedVector] = {
-    inputRDD.mapPartitions(
-      { it =>
-        val queue = new util.ArrayDeque[BitPackedVector](queueSize)
-        it.filter(bpvv => pruneLocal(queue, bpvv, r2Threshold, windowSize, queueSize))
-      },
-      preservesPartitioning = true,
-    )
-  }
-
   def apply(
     ctx: ExecuteContext,
     mt: MatrixValue,
@@ -337,8 +320,6 @@ case class LocalLDPrune(
 
   def execute(ctx: ExecuteContext, mv: MatrixValue): TableValue = {
     val nSamples = mv.nCols
-    val fullRowPType = mv.rvRowPType
-    val localCallField = callField
     val tableType = typ(mv.typ)
     val ts = TableExecuteIntermediate(mv.toTableValue).asTableStage(ctx).mapPartition(Some(
       tableType.key

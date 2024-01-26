@@ -54,7 +54,6 @@ object LowerDistributedSort {
     val rowsType = resultPType.fieldType("rows").asInstanceOf[PArray]
     val rowType = rowsType.elementType.asInstanceOf[PStruct]
     val rows = rowsAndGlobal.getAs[IndexedSeq[Annotation]](0)
-    val kType = TStruct(sortFields.map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
 
     val sortedRows = localAnnotationSort(ctx, rows, sortFields, rowType.virtualType)
 
