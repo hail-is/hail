@@ -303,7 +303,7 @@ object BlockMatrix {
 
         RichDenseMatrixDouble.exportToDoubles(fsBc.value, path, m, forceRowMajor = true)
 
-        Iterator.empty
+        Iterator.single(1)
       }
       .collect()
 
@@ -375,7 +375,7 @@ object BlockMatrix {
           }
         }
 
-        Iterator.empty
+        Iterator.single(1)
       }
       .collect()
 
