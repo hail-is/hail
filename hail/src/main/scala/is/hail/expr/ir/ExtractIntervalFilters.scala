@@ -168,7 +168,6 @@ class KeySetLattice(ctx: ExecuteContext, keyType: TStruct) extends Lattice {
     if (v.isEmpty) return top
 
     val builder = mutable.ArrayBuilder.make[Interval]()
-    var i = 0
     if (v.head.left != IntervalEndpoint(Row(), -1)) {
       builder += Interval(IntervalEndpoint(Row(), -1), v.head.left)
     }
@@ -750,24 +749,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   private def literalSizeOkay(lit: Any): Boolean = lit.asInstanceOf[Iterable[_]].size <=
     MAX_LITERAL_SIZE
-
-  private def wrapInRow(intervals: IndexedSeq[Interval]): IndexedSeq[Interval] = intervals
-    .map { interval =>
-      Interval(
-        IntervalEndpoint(Row(interval.left.point), interval.left.sign),
-        IntervalEndpoint(Row(interval.right.point), interval.right.sign),
-      )
-    }
-
-  private def intervalFromComparison(v: Any, op: ComparisonOp[_]): Interval = {
-    (op: @unchecked) match {
-      case _: EQ => Interval(endpoint(v, -1), endpoint(v, 1))
-      case GT(_, _) => Interval(negInf, endpoint(v, -1)) // value > key
-      case GTEQ(_, _) => Interval(negInf, endpoint(v, 1)) // value >= key
-      case LT(_, _) => Interval(endpoint(v, 1), posInf) // value < key
-      case LTEQ(_, _) => Interval(endpoint(v, -1), posInf) // value <= key
-    }
-  }
 
   private def posInf: IntervalEndpoint = IntervalEndpoint(Row(), 1)
 

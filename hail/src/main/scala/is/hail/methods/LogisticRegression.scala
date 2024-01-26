@@ -40,8 +40,6 @@ case class LogisticRegression(
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType
 
-    val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
-
     val (yVecs, cov, completeColIdx) =
       RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)
 

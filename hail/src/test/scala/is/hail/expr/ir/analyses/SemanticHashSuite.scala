@@ -309,7 +309,7 @@ class SemanticHashSuite extends HailSuite {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =
-          throw new FileNotFoundException(url.getPath())
+          throw new FileNotFoundException(url.getPath)
       }
 
     val ir =
@@ -345,7 +345,7 @@ class SemanticHashSuite extends HailSuite {
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
           override def getPath: String = url.getPath
-          override def getActualUrl(): String = url.getPath
+          override def getActualUrl: String = url.getPath
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???

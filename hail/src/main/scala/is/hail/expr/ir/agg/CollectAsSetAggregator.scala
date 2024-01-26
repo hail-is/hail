@@ -161,8 +161,6 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq)
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val kDec = et.buildDecoder(t.virtualType, kb)
-    val km = kb.genFieldThisRef[Boolean]("km")
-    val kv = kb.genFieldThisRef("kv")(typeToTypeInfo(t))
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       init(cb)

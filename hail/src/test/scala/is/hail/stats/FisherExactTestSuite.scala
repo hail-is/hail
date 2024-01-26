@@ -7,10 +7,6 @@ import org.testng.annotations.Test
 class FisherExactTestSuite extends HailSuite {
 
   @Test def testPvalue(): Unit = {
-    val N = 200
-    val K = 100
-    val k = 10
-    val n = 15
     val a = 5
     val b = 10
     val c = 95

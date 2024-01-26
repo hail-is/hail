@@ -79,7 +79,6 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t).asInstanceOf[PStruct]
-        val rvb = new RegionValueBuilder(sm, region)
 
         val v = pType.unstagedStoreJavaObject(sm, a, region)
 
@@ -236,7 +235,6 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
-        val rvb = new RegionValueBuilder(sm, region)
 
         val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
 
@@ -291,7 +289,6 @@ class OrderingSuite extends HailSuite {
     val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
-        val rvb = new RegionValueBuilder(sm, region)
 
         val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
 
@@ -480,14 +477,11 @@ class OrderingSuite extends HailSuite {
       val pArray = PCanonicalArray(pt)
 
       pool.scopedRegion { region =>
-        val rvb = new RegionValueBuilder(sm, region)
-
         val soff = pset.unstagedStoreJavaObject(sm, set, region)
 
         val eoff = pTuple.unstagedStoreJavaObject(sm, Row(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
-        val cregion = fb.getCodeParam[Region](1).load()
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
 
@@ -685,8 +679,6 @@ class OrderingSuite extends HailSuite {
   def rowDoubleOrderingData(): Array[Array[Any]] = {
     val xs =
       Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
-    val as = Array(null: IndexedSeq[Any]) ++
-      (for (x <- xs) yield FastSeq[Any](x))
     val ss = Array[Any](null, "a", "aa")
 
     val rs = for {

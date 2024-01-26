@@ -3511,7 +3511,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
         0,
       ))
 
-    val (len, l) = Compile[AsmFunction2RegionLongInt](
+    val (_, l) = Compile[AsmFunction2RegionLongInt](
       ctx,
       FastSeq((
         "row",
@@ -3972,7 +3972,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
           var current: Long = 0
           val rowKey: WritableRegionValue = WritableRegionValue(sm, keyType, ctx.freshRegion())
           val consumerRegion: Region = ctx.region
-          val newRV = RegionValue(consumerRegion)
 
           def hasNext: Boolean = {
             if (isEnd || (current == 0 && !it.hasNext)) {
