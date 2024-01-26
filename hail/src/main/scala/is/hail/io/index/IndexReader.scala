@@ -172,7 +172,6 @@ class IndexReader(
     } else {
       val node = readInternalNode(offset)
       val children = node.children
-      val n = children.length
       val idx = children.upperBound(key, ordering.lt, _.firstKey)
       upperBound(key, level - 1, children(idx - 1).indexFileOffset)
     }

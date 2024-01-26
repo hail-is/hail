@@ -51,7 +51,7 @@ object LinalgCodeUtils {
       PCanonicalNDArray(pndv.st.elementType.storageType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, cb)
 
-    val (dataFirstElementAddress, dataFinisher) =
+    val (_, dataFinisher) =
       pt.constructDataFunction(shape, strides, cb, region)
     // construct an SNDArrayCode with undefined contents
     val result = dataFinisher(cb)

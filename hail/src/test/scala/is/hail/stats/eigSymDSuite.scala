@@ -24,7 +24,6 @@ class eigSymDSuite extends HailSuite {
     val svdK = svd(K)
     val eigSymK = eigSym(K)
     val eigSymDK = eigSymD(K)
-    val eigSymRK = eigSymR(K)
 
     // eigSymD = svdW
     for (j <- 0 until n) {

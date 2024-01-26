@@ -123,11 +123,6 @@ class ReferenceGenomeSuite extends HailSuite {
     assert(rg.compare("X", "Y") < 0)
     assert(rg.compare("Y", "X") > 0)
     assert(rg.compare("Y", "MT") < 0)
-
-    // Test loci
-    val l1 = Locus("1", 25)
-    val l2 = Locus("1", 13000)
-    val l3 = Locus("2", 26)
   }
 
   @Test def testWriteToFile(): Unit = {
@@ -230,7 +225,6 @@ class ReferenceGenomeSuite extends HailSuite {
     withExecuteContext() { ctx =>
       val grch38 = ctx.getReference(ReferenceGenome.GRCh38)
       val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
-      val cb = fb.ecb
       val rgfield = fb.getReferenceGenome(grch38.name)
       fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
 
@@ -248,7 +242,6 @@ class ReferenceGenomeSuite extends HailSuite {
 
       val fb =
         EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
-      val cb = fb.ecb
       val rgfield = fb.getReferenceGenome(grch37.name)
       fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)](
         "liftoverLocus",

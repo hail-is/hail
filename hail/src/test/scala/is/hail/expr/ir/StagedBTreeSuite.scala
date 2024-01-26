@@ -69,7 +69,6 @@ object BTreeBackedSet {
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
     val ib = fb.getCodeParam[InputBuffer](2)
-    val ib2 = fb.genFieldThisRef[InputBuffer]()
 
     val km = fb.genFieldThisRef[Boolean]()
     val kv = fb.genFieldThisRef[Long]()

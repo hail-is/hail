@@ -43,7 +43,7 @@ class PartitionCountsSuite extends TestNGSuite {
   }
 
   @Test def testIncrementalPCSubset() = {
-    var pcs = Array(0L, 0L, 5L, 6L, 4L, 3L, 3L, 3L, 2L, 1L)
+    val pcs = Array(0L, 0L, 5L, 6L, 4L, 3L, 3L, 3L, 2L, 1L)
 
     def headOffset(n: Long) =
       incrementalPCSubsetOffset(n, 0 until pcs.length)(_.map(pcs))

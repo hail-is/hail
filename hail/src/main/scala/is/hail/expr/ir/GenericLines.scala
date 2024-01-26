@@ -67,7 +67,7 @@ object GenericLines {
         private var eof = false
         private var closed = false
 
-        private var buf = new Array[Byte](64 * 1024)
+        private val buf = new Array[Byte](64 * 1024)
         private var bufOffset = 0L
         private var bufMark = 0
         private var bufPos = 0
@@ -339,7 +339,6 @@ object GenericLines {
     }
     val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]
-      val index = contextRow.getAs[Int](0)
       val file = contextRow.getAs[String](1)
       val chrom = contextRow.getAs[String](2)
       val start = contextRow.getAs[Int](3)

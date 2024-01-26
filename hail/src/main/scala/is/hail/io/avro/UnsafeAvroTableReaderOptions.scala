@@ -29,7 +29,6 @@ class UnsafeAvroTableReaderOptionsSerializer
           UnsafeAvroTableReaderOptions(key, intervals, intervalPointType)
         },
         { case UnsafeAvroTableReaderOptions(key, intervals, intervalPointType) =>
-          implicit val fmt: Formats = format
           val ty = TArray(TInterval(intervalPointType))
           ("name" -> UnsafeAvroTableReaderOptions.getClass.getSimpleName) ~
             ("key" -> key) ~

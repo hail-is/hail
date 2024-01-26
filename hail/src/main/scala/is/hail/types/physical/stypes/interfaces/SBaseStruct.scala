@@ -17,7 +17,6 @@ object SBaseStruct {
     val rt = s2.st.virtualType.asInstanceOf[TStruct]
     val resultVType = TStruct.concat(lt, rt)
 
-    val st1 = s1.st
     val st2 = s2.st
 
     (s1, s2) match {

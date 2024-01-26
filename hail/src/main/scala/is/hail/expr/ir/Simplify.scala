@@ -68,24 +68,6 @@ object Simplify {
   private[this] def rewriteBlockMatrixNode: BlockMatrixIR => Option[BlockMatrixIR] =
     blockMatrixRules.lift
 
-  /** Returns true if 'x' propagates missingness, meaning if any child of 'x' evaluates to missing,
-    * then 'x' will evaluate to missing.
-    */
-  private[this] def isStrict(x: IR): Boolean = {
-    x match {
-      case _: Apply |
-          _: ApplySeeded |
-          _: ApplyUnaryPrimOp |
-          _: ApplyBinaryPrimOp |
-          _: ArrayRef |
-          _: ArrayLen |
-          _: GetField |
-          _: GetTupleElement => true
-      case ApplyComparisonOp(op, _, _) => op.strict
-      case _ => false
-    }
-  }
-
   /** Returns true if any strict child of 'x' is NA. A child is strict if 'x' evaluates to missing
     * whenever the child does.
     */
@@ -484,7 +466,6 @@ object Simplify {
 
           allRefsCanBePassedThrough(Let(after.toFastSeq, body))
         } =>
-      val r = Ref(name, x.typ)
       val fieldNames = newFields.map(_._1).toArray
       val newFieldMap = newFields.toMap
       val newFieldRefs = newFieldMap.map { case (k, ir) =>

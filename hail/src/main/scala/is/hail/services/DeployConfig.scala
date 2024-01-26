@@ -4,13 +4,10 @@ import is.hail.utils._
 
 import java.io.{File, FileInputStream}
 
-import org.apache.log4j.Logger
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 object DeployConfig {
-  private[this] val log = Logger.getLogger("DeployConfig")
-
   private[this] lazy val default: DeployConfig = fromConfigFile()
   private[this] var _get: DeployConfig = null
 

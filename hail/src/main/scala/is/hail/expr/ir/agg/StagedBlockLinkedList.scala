@@ -75,9 +75,6 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   private def next(n: Node): Code[Long] =
     Region.loadAddress(nodeType.fieldOffset(n, "next"))
 
-  private def hasNext(n: Node): Code[Boolean] =
-    next(n) cne nil
-
   private def setNext(cb: EmitCodeBuilder, n: Node, nNext: Node): Unit =
     cb += Region.storeAddress(nodeType.fieldOffset(n, "next"), nNext)
 

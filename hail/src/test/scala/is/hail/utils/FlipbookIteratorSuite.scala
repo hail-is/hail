@@ -329,7 +329,7 @@ class FlipbookIteratorSuite extends HailSuite {
       val a: Array[Box[Int]] = Array.fill(3)(default)
       var i = 0;
       while (i < ar.size) {
-        var v = ar(i)
+        val v = ar(i)
         a(v._2) = v._1
         i += 1
       }

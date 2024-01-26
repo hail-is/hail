@@ -193,7 +193,7 @@ class BatchClient(
       // at most, 5s
       val now = System.nanoTime()
       val elapsed = now - start
-      var d = math.max(
+      val d = math.max(
         math.min(
           (0.1 * (0.8 + Random.nextFloat() * 0.4) * (elapsed / 1000.0 / 1000)).toInt,
           5000,
