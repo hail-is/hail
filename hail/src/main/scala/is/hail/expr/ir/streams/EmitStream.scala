@@ -149,7 +149,7 @@ object EmitStream {
       cb: EmitCodeBuilder,
       region: Value[Region] = outerRegion,
       env: EmitEnv = env,
-      container: Option[AggContainer],
+      container: Option[AggContainer] = container,
     ): Unit =
       emitter.emitVoid(cb, ir, region, env, container, None)
 
