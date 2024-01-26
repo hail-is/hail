@@ -263,11 +263,15 @@ object JSONAnnotationImpex {
         if (t.size == 0)
           Annotation.empty
         else {
-          val annotationSize =
-            if (padNulls) t.size
-            else jfields.map { case (name, _) =>
+          val annotationSize = if (padNulls) {
+            t.size
+          } else if (jfields.size == 0) {
+            0
+          } else {
+            jfields.map { case (name, jv2) =>
               t.selfField(name).map(_.index).getOrElse(-1)
             }.max + 1
+          }
           val a = Array.fill[Any](annotationSize)(null)
 
           for ((name, jv2) <- jfields) {
