@@ -15,15 +15,17 @@ object ForwardLets {
     def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR = {
 
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: IR): Boolean = {
-        value.isInstanceOf[Ref] ||
-        value.isInstanceOf[In] ||
-        (IsConstant(value) && !value.isInstanceOf[Str]) ||
-        refs.isEmpty ||
-        (refs.size == 1 &&
-          nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
-          !ContainsScan(value) &&
-          !ContainsAgg(value)) &&
-        !ContainsAggIntermediate(value)
+        IsPure(value) && (
+          value.isInstanceOf[Ref] ||
+            value.isInstanceOf[In] ||
+            (IsConstant(value) && !value.isInstanceOf[Str]) ||
+            refs.isEmpty ||
+            (refs.size == 1 &&
+              nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
+              !ContainsScan(value) &&
+              !ContainsAgg(value)) &&
+            !ContainsAggIntermediate(value)
+        )
       }
 
       ir match {

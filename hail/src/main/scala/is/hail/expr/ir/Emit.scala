@@ -819,13 +819,15 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case let: Let =>
+        println(Pretty.sexprStyle(let))
         val newEnv = emitLetBindings(
           emitI = (ir, cb, env, r) =>
-            if (ir.typ.isInstanceOf[TStream]) emitStream(ir, r, env = env).toI(cb)
+            if (ir.typ.isInstanceOf[TStream])
+              EmitStream.produce(this, ir, cb, cb.emb, r, env, container)
             else emitI(ir, cb = cb, env = env, region = r),
-          emitVoid = (ir, cb, env, r) => emitVoid(ir, env = env, region = r)
+          emitVoid = (ir, cb, env, r) => emitVoid(ir, env = env, region = r, cb = cb),
         )(let, cb, env, region)
-        emitVoid(let.body, cb, env = newEnv)
+        emitVoid(let.body, env = newEnv)
 
       case StreamFor(a, valueName, body) =>
         emitStream(a, region).toI(cb).consume(
@@ -1004,7 +1006,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     ): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region], env: EmitEnv = env): IEmitCode =
+    def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region], env: EmitEnv = env)
+      : IEmitCode =
       EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container)
 
     def emitVoid(
@@ -1109,10 +1112,11 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case let: Let =>
         val newEnv = emitLetBindings(
           emitI = (ir, cb, env, r) =>
-            if (ir.typ.isInstanceOf[TStream]) emitStream(ir, cb, region, env = env)
+            if (ir.typ.isInstanceOf[TStream]) // emitStream(ir, cb, region, env = env)
+              EmitStream.produce(this, ir, cb, cb.emb, r, env, container)
             else emitInNewBuilder(cb, ir, region = r, env = env),
           emitVoid = (ir, cb, env, r) =>
-            emitVoid(ir, cb = cb, env = env, region = r)
+            emitVoid(ir, cb = cb, env = env, region = r),
         )(let, cb, env, region)
         emitI(let.body, env = newEnv)
 
@@ -3646,11 +3650,13 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         case None => mutable.Set.empty
       }
 
-    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[(String, IR)], r: Value[Region]): EmitEnv =
+    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[(String, IR)], env: EmitEnv, r: Value[Region])
+      : EmitEnv =
       bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
-        if (!uses.contains(name)) newEnv
-        else if (ir.typ == TVoid) {
+        if (ir.typ == TVoid) {
           emitVoid(ir, cb, newEnv, r)
+          newEnv
+        } else if (IsPure(ir) && !uses.contains(name)) {
           newEnv
         } else {
           val value = emitI(ir, cb, newEnv, r)
@@ -3660,7 +3666,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       }
 
     if (
-      !ctx.inLoopCriticalPath.contains(let) && let.bindings.forall(x => !ctx.inLoopCriticalPath.contains(x._2))
+      !ctx.inLoopCriticalPath.contains(let) &&
+      let.bindings.forall(x => !ctx.inLoopCriticalPath.contains(x._2))
+//      false
     ) {
       var newEnv = env
       let.bindings.grouped(16).zipWithIndex.foreach { case (group, idx) =>
@@ -3669,14 +3677,12 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           FastSeq[ParamType](classInfo[Region]),
           UnitInfo,
         )
-        mb.voidWithBuilder { cb =>
-          newEnv = emitChunk(cb, group, mb.getCodeParam[Region](1))
-        }
+        mb.voidWithBuilder(cb => newEnv = emitChunk(cb, group, newEnv, mb.getCodeParam[Region](1)))
         cb.invokeVoid(mb, cb.this_, r)
       }
       newEnv
     } else
-      emitChunk(cb, let.bindings, r)
+      emitChunk(cb, let.bindings, env, r)
   }
 }
 

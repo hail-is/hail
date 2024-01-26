@@ -919,12 +919,11 @@ final case class RunAggScan(
 ) extends IR
 
 object Begin {
-  def apply(xs: IndexedSeq[IR]): IR = {
+  def apply(xs: IndexedSeq[IR]): IR =
     if (xs.isEmpty)
       Void()
     else
       Let(xs.init.map(x => ("__void", x)), xs.last)
-  }
 }
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR

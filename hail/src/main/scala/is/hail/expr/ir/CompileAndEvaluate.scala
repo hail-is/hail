@@ -7,7 +7,7 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
-import is.hail.utils.{log, FastSeq}
+import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
 

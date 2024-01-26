@@ -367,7 +367,7 @@ object EmitStream {
       case let: Let =>
         val newEnv = emitter.emitLetBindings(
           emitI = (ir, cb, env, r) => emit(ir, cb, region = r, env = env),
-          emitVoid = (ir, cb, env, r) => emitVoid(ir, cb, region = r, env = env)
+          emitVoid = (ir, cb, env, r) => emitVoid(ir, cb, region = r, env = env),
         )(let, cb, env, outerRegion)
         produce(let.body, cb, env = newEnv)
 
