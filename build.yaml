@@ -3953,3 +3953,4 @@ steps:
       - gcp
     dependsOn:
       - test_gcp_ar_cleanup_policies
+      - ci_utils_image
