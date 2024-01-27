@@ -370,9 +370,10 @@ LIMIT {self.max_new_instances_per_autoscaler_loop * self.worker_cores};
             query_name='get_job_queue_head',
         )
 
-        def extract_regions(regions_bits_rep: int):
+        def extract_regions(regions_bits_rep: int) -> List[str]:
             if regions_bits_rep is None:
-                return self.all_supported_regions
+                # return self.all_supported_regions
+                return ['us-central1']
             return regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
         return [(extract_regions(record['regions_bits_rep']), record['ready_cores_mcpu']) async for record in result]
@@ -668,8 +669,10 @@ LIMIT 300;
                 supported_regions = self.pool.all_supported_regions
                 regions_bits_rep = record['regions_bits_rep']
 
+                regions: List[str]
                 if regions_bits_rep is None:
-                    regions = supported_regions
+                    # regions = supported_regions
+                    regions = ['us-central1']
                 else:
                     regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
