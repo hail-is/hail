@@ -15,7 +15,6 @@ package object hail {
       hail_spark_version: String,
       hail_pip_version: String,
     ) =
-
       loadFromResource[(String, String, String)]("build-info.properties") {
         (is: InputStream) =>
           val unknownProp = "<unknown>"
