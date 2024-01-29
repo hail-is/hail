@@ -132,7 +132,7 @@ def config_variables():
                 help_msg='Disable the progress bar with a value of 1. Enable the progress bar with a value of 0',
                 validation=(lambda x: x in ('0', '1'), 'should be a value of 0 or 1'),
             ),
-            ConfigVariable.TIMEOUT_IN_SECONDS: ConfigVariableInfo(
+            ConfigVariable.HTTP_TIMEOUT_IN_SECONDS: ConfigVariableInfo(
                 help_msg='The default timeout for HTTP requests in seconds.',
                 validation=(_is_float_str, 'should be a float or an int like 42.42 or 42'),
             ),
