@@ -268,7 +268,7 @@ object JSONAnnotationImpex {
           } else if (jfields.size == 0) {
             0
           } else {
-            jfields.map { case (name, jv2) =>
+            jfields.map { case (name, _) =>
               t.selfField(name).map(_.index).getOrElse(-1)
             }.max + 1
           }
