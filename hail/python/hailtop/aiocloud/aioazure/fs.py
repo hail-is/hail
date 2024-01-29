@@ -2,7 +2,6 @@ from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional
 from types import TracebackType
 
 import aiohttp
-import abc
 import re
 import os
 import asyncio
@@ -299,6 +298,10 @@ class AzureAsyncFSURL(AsyncFSURL):
         self._query = query
 
     @property
+    def scheme(self) -> str:
+        return 'https'
+
+    @property
     def bucket_parts(self) -> List[str]:
         return [self._account, self._container]
 
@@ -319,35 +322,14 @@ class AzureAsyncFSURL(AsyncFSURL):
         return self._query
 
     @property
-    @abc.abstractmethod
     def base(self) -> str:
-        pass
+        return f'https://{self._account}.blob.core.windows.net/{self._container}/{self._path}'
 
     def with_path(self, path) -> 'AzureAsyncFSURL':
-        return self.__class__(self._account, self._container, path, self._query)
+        return AzureAsyncFSURL(self._account, self._container, path, self._query)
 
     def __str__(self) -> str:
         return self.base if not self._query else f'{self.base}?{self._query}'
-
-
-class AzureAsyncFSHailAzURL(AzureAsyncFSURL):
-    @property
-    def scheme(self) -> str:
-        return 'hail-az'
-
-    @property
-    def base(self) -> str:
-        return f'hail-az://{self._account}/{self._container}/{self._path}'
-
-
-class AzureAsyncFSHttpsURL(AzureAsyncFSURL):
-    @property
-    def scheme(self) -> str:
-        return 'https'
-
-    @property
-    def base(self) -> str:
-        return f'https://{self._account}.blob.core.windows.net/{self._container}/{self._path}'
 
 
 # ABS errors if you attempt credentialed access for a public container,
@@ -404,7 +386,7 @@ class AzureAsyncFS(AsyncFS):
 
     @staticmethod
     def schemes() -> Set[str]:
-        return {'hail-az', 'https'}
+        return {'https'}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -415,7 +397,7 @@ class AzureAsyncFS(AsyncFS):
                 return False
             _, suffix = authority.split('.', maxsplit=1)
             return suffix == 'blob.core.windows.net'
-        return url.startswith('hail-az://')
+        return False
 
     async def generate_sas_token(
         self,
@@ -447,7 +429,7 @@ class AzureAsyncFS(AsyncFS):
 
         scheme = url[:colon_index]
         if scheme not in AzureAsyncFS.schemes():
-            raise ValueError(f'invalid scheme, expected hail-az or https: {scheme}')
+            raise ValueError(f'invalid scheme, expected https: {scheme}')
 
         rest = url[(colon_index + 1) :]
         if not rest.startswith('//'):
@@ -459,7 +441,9 @@ class AzureAsyncFS(AsyncFS):
 
         match = AzureAsyncFS.PATH_REGEX.fullmatch(container_and_name)
         if match is None:
-            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {container_and_name}')
+            raise ValueError(
+                f'invalid path name, expected https://account.blob.core.windows.net/container/blob_name: {container_and_name}'
+            )
 
         container = match.groupdict()['container']
 
@@ -470,14 +454,10 @@ class AzureAsyncFS(AsyncFS):
 
         name, token = AzureAsyncFS.get_name_parts(name)
 
-        if scheme == 'hail-az':
-            account = authority
-            return AzureAsyncFSHailAzURL(account, container, name, token)
-
         assert scheme == 'https'
         assert len(authority) > len('.blob.core.windows.net')
         account = authority[: -len('.blob.core.windows.net')]
-        return AzureAsyncFSHttpsURL(account, container, name, token)
+        return AzureAsyncFSURL(account, container, name, token)
 
     @staticmethod
     def get_name_parts(name: str) -> Tuple[str, str]:
