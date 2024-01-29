@@ -4,8 +4,6 @@
 ARG BASE_IMAGE
 FROM $BASE_IMAGE
 
-# FROM "us-docker.pkg.dev/hail-vdc/hail/hail-ubuntu:dev-e9fqpgi8gnrr"
-
 ARG PYTHON_VERSION=3.9
 
 RUN hail-apt-get-install \
@@ -51,6 +49,15 @@ RUN createSparseGRM.R  --help && \
     step1_fitNULLGLMM.R --help && \
     step2_SPAtests.R --help && \
     step3_LDmat.R --help
+
+RUN hail-apt-get-install wget && \
+    wget https://github.com/samtools/samtools/releases/download/1.19.2/samtools-1.19.2.tar.bz2 && \
+    bzip2 -d samtools-1.19.2.tar.bz2 && \
+    tar -xf samtools-1.19.2.tar && \
+    cd samtools-1.19.2 && \
+    ./configure && \
+    make && \
+    make install
 
 COPY hail/python/pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt scikit-learn ipython

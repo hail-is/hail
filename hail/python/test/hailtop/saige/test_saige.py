@@ -3,6 +3,7 @@ import hail as hl
 import hailtop.fs as hfs
 from hailtop.saige import (
     SaigeConfig,
+    Step1NullGlmmStep,
     extract_phenotypes,
     compute_variant_chunks_by_contig,
     saige
@@ -17,19 +18,22 @@ def ds():
                                key=['locus', 'alleles'],
                                types={'locus': hl.tlocus('GRCh37'), 'alleles': hl.tarray(hl.tstr), 'vep': hl.tstr},
                                force=True)
-    variants = variants.select().collect()
+    variants = variants.add_index()
+    variants = variants.key_by(variants.idx)
 
-    dataset = hl.balding_nichols_model(1, 100, len(variants))
+    dataset = hl.balding_nichols_model(1, 100, variants.count())
     dataset = dataset.add_row_index()
-    dataset = dataset.annotate_rows(new_locus=variants[dataset.name].locus, new_alleles=variants[dataset.name].alleles)
+    dataset = dataset.annotate_rows(new_locus=variants[dataset.row_idx].locus, new_alleles=variants[dataset.row_idx].alleles)
     dataset = dataset.key_rows_by()
     dataset = dataset.key_rows_by(locus=dataset.new_locus, alleles=dataset.new_alleles)
     dataset = dataset.key_cols_by(s=hl.str(dataset.sample_idx + 1))
     # dataset = hl.vep(dataset)
-    dataset = dataset.annotate_cols(phenotype=hl.struct(height=hl.rand_norm(), psych=hl.rand_bool(), cardio=hl.rand_bool()))
+    dataset = dataset.annotate_cols(phenotype=hl.struct(height=hl.rand_norm(), psych=hl.rand_bool(0.5), cardio=hl.rand_bool(0.5)))
     dataset = dataset.annotate_cols(cov=hl.struct(c1=hl.rand_norm(), c2=hl.rand_norm()))
-    cohorts = ['cohort1', 'cohort2', 'cohort3']
+    cohorts = hl.array(['cohort1', 'cohort2', 'cohort3'])
     dataset = dataset.annotate_cols(cohort=cohorts[hl.rand_cat([1, 1, 1])])
+    dataset.write('gs://hail-jigold/saige-test-dataset.mt')
+    assert False
     return dataset
 
 
@@ -46,14 +50,17 @@ def test_variant_group_chunking(ds):
     pass
 
 
-def test_saige_categorical(ds):
-    with hl.TemporaryDirectory(suffix='.mt', ensure_exists=False) as mt_path:
+def test_saige_categorical():
+    mt_path = 'gs://hail-jigold/saige-test-dataset.mt'
+    ds = hl.read_matrix_table(mt_path)
+
+    with hl.TemporaryDirectory(suffix='.mt', ensure_exists=False):
         with hl.TemporaryFilename(suffix='.txt') as phenotypes_file:
             with hl.TemporaryDirectory() as null_model_plink_dir:
                 with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as output_path:
                     null_model_plink_path = f'{null_model_plink_dir}/null-model-input'
 
-                    ds.write(mt_path)
+                    # ds.write(mt_path)
 
                     phenotypes, covariates = extract_phenotypes(ds,
                                                                 phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
@@ -70,7 +77,8 @@ def test_saige_categorical(ds):
                           phenotypes=phenotypes,
                           covariates=covariates,
                           variant_chunks=variant_chunks,
-                          output_path=output_path)
+                          output_path=output_path,
+                          config=SaigeConfig(step1_null_glmm=Step1NullGlmmStep(min_covariate_count=1, skip_model_fitting=False)))
 
                     # check results table is there
                     hl.import_table(output_path)

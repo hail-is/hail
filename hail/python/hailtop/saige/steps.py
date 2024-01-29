@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from typing import Dict, List, Optional, Union
 
@@ -95,7 +95,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         return f'{output_dir}/null-model-{phenotype.name}'
 
     def name(self, phenotype: Phenotype) -> str:
-        return f'{phenotype.name}-null-model'
+        return f'null-model-{phenotype.name}'
 
     def attributes(self, analysis_type: SaigeAnalysisType, phenotype: Phenotype) -> Optional[Dict]:
         return {'analysis_type': analysis_type.value, 'trait_type': phenotype.phenotype_type.value}
@@ -109,7 +109,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         input_phenotypes: TextResourceFile,
         phenotype: Phenotype,
         analysis_type: SaigeAnalysisType,
-        covariates: List[str],
+        covariates: List[str],  # FIXME: add q_covariates
         user_id_col: str,
         temp_dir: str,
         checkpoint_dir: Optional[str],
@@ -141,7 +141,6 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             covariates,
             user_id_col,
             phenotype,
-            analysis_type,
             null_glmm,
             j.stdout,
         )
@@ -153,7 +152,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         if self.save_stdout:
             b.write_output(j.stdout, f'{output_root}.log')
 
-        return j
+        return null_glmm
 
     def command(
         self,
@@ -162,7 +161,6 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         covariates: List[str],
         user_id_col: str,
         phenotype: Phenotype,
-        analysis_type: SaigeAnalysisType,
         null_glmm: SaigeGLMMResourceGroup,
         stdout: TextResourceFile,
     ) -> str:
@@ -183,13 +181,13 @@ perl -pi -e s/^chr// {input_bfile.bim};
 step1_fitNULLGLMM.R \
     --plinkFile={input_bfile} \
     --phenoFile={phenotypes} \
-    --covarColList={covariates} \
+    --covarColList={','.join(covariates)} \
     --minCovariateCount={self.min_covariate_count} \
-    --phenoCol={phenotype} \
+    --phenoCol={phenotype.name} \
     --sampleIDColinphenoFile={user_id_col} \
     --traitType={test_type.value} \
     --outputPrefix={null_glmm} \
-    --outputPrefix_varRatio={null_glmm}.{analysis_type.value} \
+    --outputPrefix_varRatio={null_glmm} \
     --skipModelFitting={skip_model_fitting_str} \
     {inv_normalize_flag} \
     --nThreads={self.cpu} \
@@ -202,23 +200,21 @@ step1_fitNULLGLMM.R \
 class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
     save_stdout: bool = True
     mkl_off: bool = False
-    drop_missing_dosages: bool = ...
+    drop_missing_dosages: bool = True  # FIXME
     min_mac: float = 0.5  # FIXME
     min_maf: float = 0
-    max_maf_for_group_test: float = 0.5
+    max_maf_for_group_test: Optional[List[float]] = None
     min_info: float = 0
-    num_lines_output: int = 10000
-    is_sparse: bool = True
     spa_cutoff: float = 2.0
     output_af_in_case_control: bool = False
     output_n_in_case_control: bool = False
     output_het_hom_counts: bool = False
-    kernel: Optional[str] = ...
-    method: Optional[str] = ...
-    weights_beta_rare: Optional[float] = ...
-    weights_beta_common: Optional[float] = ...
-    weight_maf_cutoff: Optional[float] = ...
-    r_corr: Optional[float] = ...
+    kernel: Optional[str] = None  # FIXME
+    method: Optional[str] = None  # FIXME
+    weights_beta_rare: Optional[float] = None  # FIXME
+    weights_beta_common: Optional[float] = None  # FIXME
+    weight_maf_cutoff: Optional[float] = None  # FIXME
+    r_corr: Optional[float] = None  # FIXME
     single_variant_in_group_test: bool = False
     output_maf_in_case_control_in_group_test: bool = False
     cate_var_ratio_min_mac_vec_exclude: Optional[List[float]] = None
@@ -235,9 +231,10 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
     method_to_collapse_ultra_rare: str = 'absence_or_presence'
     mac_cutoff_to_collapse_ultra_rare: float = 10
     dosage_cutoff_for_ultra_rare_presence: float = 0.5
+    loco: bool = False
 
     def name(self, phenotype: Phenotype, chunk: VariantChunk) -> str:
-        return f'{phenotype.name}-{chunk.idx}'
+        return f'step2-spa-{phenotype.name}-{chunk.idx}'
 
     def attributes(
         self, *, analysis_type: SaigeAnalysisType, phenotype: Phenotype, chunk: VariantChunk
@@ -246,7 +243,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             'analysis_type': analysis_type.value,
             'trait_type': phenotype.phenotype_type.value,
             'phenotype': phenotype.name,
-            'chunk': chunk.to_interval_str(),
+            'chunk': chunk.name,
         }
 
     def output_file_prefix(
@@ -279,12 +276,13 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             mkl_off = ''
 
         if input_data_type == SaigeInputDataType.VCF:
-            export_cmd = f'hl.export_vcf(mt.filter_entries("GT"), "/data.vcf.bgz")'
+            export_cmd = f'hl.export_vcf(mt.select_entries("GT"), "/data.vcf.bgz")'
             input_flags = [
                 f'--vcfFile=/data.vcf.bgz',
                 f'--vcfFileIndex=/data.vcf.bgz.tbi',
                 f'--vcfField=GT',
             ]
+            index_cmd = 'samtools -C /data.vcf.bgz'
         else:
             export_cmd = f'hl.export_bgen(mt, "/data")'
             input_flags = [
@@ -292,6 +290,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
                 f'--bgenFileIndex=/data.bgen.idx',
                 f'--sampleFile=/data.sample',
             ]
+            index_cmd = ''
 
         if analysis_type == SaigeAnalysisType.GENE:
             assert sparse_grm is not None and group_annotations is not None
@@ -317,66 +316,67 @@ mt = mt.filter_rows(interval.contains(mt.locus))
 {export_cmd}
 EOF
 python3 read_from_mt.py
+{index_cmd}
 '''
 
         saige_options = [
             f'--chrom={chunk.interval.start.contig}',
             f'--minMAF={self.min_maf}',
             f'--minMAC={self.min_mac}',
-            f'--maxMAFforGroupTest={self.max_maf_for_group_test}',
             f'--GMMATmodelFile={null_model.rda}',
             f'--varianceRatioFile={null_model.variance_ratio}',
             f'--SAIGEOutputFile={result}',
-            f'--numLinesOutput={self.num_lines_output}',
-            f'--IsSparse={str(self.is_sparse).upper()}',
             f'--SPAcutoff={self.spa_cutoff}',
-            f'--IsOutputAFinCaseCtrl={str(self.output_af_in_case_control).upper()}',
-            f'--IsOutputNinCaseCtrl={str(self.output_n_in_case_control).upper()}',
-            f'--IsOutputHetHomCountsinCaseCtrl={str(self.output_het_hom_counts).upper()}',
-            f'--IsOutputAFinCaseCtrl={str(self.output_af_in_case_control).upper()}',
-            f'--IsOutputMAFinCaseCtrlinGroupTest={str(self.output_maf_in_case_control_in_group_test).upper()}',
-            f'--IsOutputlogPforSingle={str(self.output_logp_for_single).upper()}',
+            f'--LOCO={str(self.loco).upper()}',
+            # f'--IsOutputAFinCaseCtrl={str(self.output_af_in_case_control).upper()}',
+            # f'--IsOutputNinCaseCtrl={str(self.output_n_in_case_control).upper()}',
+            # f'--IsOutputHetHomCountsinCaseCtrl={str(self.output_het_hom_counts).upper()}',
+            # f'--IsOutputAFinCaseCtrl={str(self.output_af_in_case_control).upper()}',
+            # f'--IsOutputMAFinCaseCtrlinGroupTest={str(self.output_maf_in_case_control_in_group_test).upper()}',
+            # f'--IsOutputlogPforSingle={str(self.output_logp_for_single).upper()}',
         ]
 
-        if self.kernel is not None:
-            saige_options.append(f'--kernel={self.kernel}')
-        if self.method is not None:
-            saige_options.append(f'--method={self.method}')
-        if self.weights_beta_rare is not None:
-            saige_options.append(f'--weights.beta.rare={self.weights_beta_rare}')
-        if self.weights_beta_common is not None:
-            saige_options.append(f'--weights.beta.common={self.weights_beta_common}')
-        if self.weight_maf_cutoff is not None:
-            saige_options.append(f'--weightMAFcutoff={self.weight_maf_cutoff}')
-        if self.r_corr is not None:
-            saige_options.append(f'--r.corr={self.r_corr}')
-        if self.cate_var_ratio_min_mac_vec_exclude is not None:
-            exclude = ','.join(str(val) for val in self.cate_var_ratio_min_mac_vec_exclude)
-            saige_options.append(f'--cateVarRatioMinMACVecExclude={exclude}')
-        if self.cate_var_ratio_max_mac_vec_include is not None:
-            include = ','.join(str(val) for val in self.cate_var_ratio_max_mac_vec_include)
-            saige_options.append(f'--cateVarRatioMaxMACVecInclude={include}')
-        if self.dosage_zerod_cutoff is not None:
-            saige_options.append(f'--dosageZerodCutoff={self.dosage_zerod_cutoff}')
-        if self.output_pvalue_na_in_group_test_for_binary is not None:
-            saige_options.append(
-                f'--IsOutputPvalueNAinGroupTestforBinary={str(self.output_pvalue_na_in_group_test_for_binary).upper()}'
-            )
-        if self.account_for_case_control_imbalance_in_group_test is not None:
-            saige_options.append(
-                f'--IsAccountforCasecontrolImbalanceinGroupTest={str(self.account_for_case_control_imbalance_in_group_test).upper()}'
-            )
-        if self.x_par_region is not None:
-            regions = ','.join(self.x_par_region)
-            saige_options.append(f'--X_PARregion={regions}')
-        if self.rewrite_x_nonpar_for_males is not None:
-            saige_options.append(f'--is_rewrite_XnonPAR_forMales={str(self.rewrite_x_nonpar_for_males).upper()}')
-        if self.method_to_collapse_ultra_rare is not None:
-            saige_options.append(f'--method_to_CollapseUltraRare={self.method_to_collapse_ultra_rare}')
-        if self.mac_cutoff_to_collapse_ultra_rare is not None:
-            saige_options.append(f'--MACCutoff_to_CollapseUltraRare={self.mac_cutoff_to_collapse_ultra_rare}')
-        if self.dosage_cutoff_for_ultra_rare_presence is not None:
-            saige_options.append(f'--DosageCutoff_for_UltraRarePresence={self.dosage_cutoff_for_ultra_rare_presence}')
+        # if self.max_maf_for_group_test is not None:
+        #     saige_options.append(f'maxMAF_in_groupTest={",".join(str(maf) for maf in self.max_maf_for_group_test)}')
+        # if self.kernel is not None:
+        #     saige_options.append(f'--kernel={self.kernel}')
+        # if self.method is not None:
+        #     saige_options.append(f'--method={self.method}')
+        # if self.weights_beta_rare is not None:
+        #     saige_options.append(f'--weights.beta.rare={self.weights_beta_rare}')
+        # if self.weights_beta_common is not None:
+        #     saige_options.append(f'--weights.beta.common={self.weights_beta_common}')
+        # if self.weight_maf_cutoff is not None:
+        #     saige_options.append(f'--weightMAFcutoff={self.weight_maf_cutoff}')
+        # if self.r_corr is not None:
+        #     saige_options.append(f'--r.corr={self.r_corr}')
+        # if self.cate_var_ratio_min_mac_vec_exclude is not None:
+        #     exclude = ','.join(str(val) for val in self.cate_var_ratio_min_mac_vec_exclude)
+        #     saige_options.append(f'--cateVarRatioMinMACVecExclude={exclude}')
+        # if self.cate_var_ratio_max_mac_vec_include is not None:
+        #     include = ','.join(str(val) for val in self.cate_var_ratio_max_mac_vec_include)
+        #     saige_options.append(f'--cateVarRatioMaxMACVecInclude={include}')
+        # if self.dosage_zerod_cutoff is not None:
+        #     saige_options.append(f'--dosageZerodCutoff={self.dosage_zerod_cutoff}')
+        # if self.output_pvalue_na_in_group_test_for_binary is not None:
+        #     saige_options.append(
+        #         f'--IsOutputPvalueNAinGroupTestforBinary={str(self.output_pvalue_na_in_group_test_for_binary).upper()}'
+        #     )
+        # if self.account_for_case_control_imbalance_in_group_test is not None:
+        #     saige_options.append(
+        #         f'--IsAccountforCasecontrolImbalanceinGroupTest={str(self.account_for_case_control_imbalance_in_group_test).upper()}'
+        #     )
+        # if self.x_par_region is not None:
+        #     regions = ','.join(self.x_par_region)
+        #     saige_options.append(f'--X_PARregion={regions}')
+        # if self.rewrite_x_nonpar_for_males is not None:
+        #     saige_options.append(f'--is_rewrite_XnonPAR_forMales={str(self.rewrite_x_nonpar_for_males).upper()}')
+        # if self.method_to_collapse_ultra_rare is not None:
+        #     saige_options.append(f'--method_to_CollapseUltraRare={self.method_to_collapse_ultra_rare}')
+        # if self.mac_cutoff_to_collapse_ultra_rare is not None:
+        #     saige_options.append(f'--MACCutoff_to_CollapseUltraRare={self.mac_cutoff_to_collapse_ultra_rare}')
+        # if self.dosage_cutoff_for_ultra_rare_presence is not None:
+        #     saige_options.append(f'--DosageCutoff_for_UltraRarePresence={self.dosage_cutoff_for_ultra_rare_presence}')
 
         # FIXME: --weightsIncludeinGroupFile, --weights_for_G2_cond, --sampleFile_male
 
@@ -396,9 +396,9 @@ python3 read_from_mt.py
                     f'--IsOutputBETASEinBurdenTest={str(self.output_beta_se_in_burden_test).upper()}',
                 ]
 
-        input_flags = '\n'.join(f'    {flag} \\ ' for flag in input_flags)
-        saige_options = '\n'.join(f'    {opt} \\ ' for opt in saige_options)
-        gene_options = '\n'.join(f'    {opt} \\ ' for opt in gene_options)
+        input_flags = '    \\\n'.join(input_flags)
+        saige_options = '    \\\n'.join(saige_options)
+        gene_options = '    \\\n'.join(gene_options)
 
         command = f'''
 set -o pipefail;
@@ -407,10 +407,11 @@ set -o pipefail;
 {hail_io_cmd}
 {group_ann_filter_cmd}
 
-step2_SPAtests.R \
-{input_flags}
-{saige_options}
-{gene_options} 2>&1 | tee {stdout};
+step2_SPAtests.R \\
+{input_flags} \\
+{saige_options} \\
+{gene_options} \\
+    2>&1 | tee {stdout};
 '''
 
         return command
@@ -443,7 +444,7 @@ step2_SPAtests.R \
                 attributes=self.attributes(
                     phenotype=phenotype,
                     chunk=chunk,
-                    analysis_type=analysis_type.value,
+                    analysis_type=analysis_type,
                 ),
             )
             .storage(self.storage)
@@ -475,7 +476,7 @@ step2_SPAtests.R \
         if self.save_stdout:
             b.write_output(j.stdout, f'{output_root}.log')
 
-        return j
+        return results
 
 
 @dataclass
@@ -494,12 +495,12 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/compiled-results/{phenotype_name}.txt.gz'
 
-    def check_if_output_exists(self,
-                               fs: AsyncFS,
-                               b: hb.Batch,
-                               phenotype: Phenotype,
-                               temp_dir: str,
-                               checkpoint_dir: Optional[str]) -> Optional[TextResourceFile]:
+    async def check_if_output_exists(self,
+                                     fs: AsyncFS,
+                                     b: hb.Batch,
+                                     phenotype: Phenotype,
+                                     temp_dir: str,
+                                     checkpoint_dir: Optional[str]) -> Optional[TextResourceFile]:
         output_file = self.output_file(temp_dir, checkpoint_dir, phenotype.name)
         return await load_text_file(fs, b, self, output_file)
 

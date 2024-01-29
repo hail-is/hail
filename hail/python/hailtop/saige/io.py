@@ -1,7 +1,8 @@
 import asyncio
-from typing import Callable, Optional, NewType, Type, TypeVar, Union, cast
+from typing import Optional, NewType, Type, TypeVar, Union, cast
 
 from hailtop.aiotools.fs import AsyncFS
+from hailtop.utils import secret_alnum_string
 import hailtop.batch as hb
 
 
@@ -11,6 +12,11 @@ from .constants import SaigeAnalysisType
 
 RG = TypeVar('RG', bound=hb.ResourceGroup)
 RF = TypeVar('RF', bound=hb.ResourceFile)
+
+
+def declare_resource_group(j, **kwargs):
+    uid = secret_alnum_string(5)
+    j.declare_resource_group(**{uid: kwargs})
 
 
 def checkpoint_if_requested(resource: hb.Resource, b: hb.Batch, config: CheckpointConfigMixin, output_file: str):
@@ -27,7 +33,7 @@ async def use_checkpoints_if_exist_and_requested(
 
 
 async def load_files(typ: Type[RG], fs: AsyncFS, b: hb.Batch, **inputs: str) -> Optional[RG]:
-    all_files_exist = all(await asyncio.gather(fs.exists(input) for input in inputs.values()))
+    all_files_exist = all(await asyncio.gather(*[fs.exists(input) for input in inputs.values()]))
     if all_files_exist:
         return cast(typ, b.read_input_group(**inputs))
     return None
@@ -59,7 +65,7 @@ SaigeGeneResultResourceGroup = NewType('SaigeGeneResultResourceGroup', hb.Resour
 
 
 def new_plink_file(j: hb.Job) -> PlinkResourceGroup:
-    j.declare_resource_group({'bfile': dict(bed='{root}.bed', bim='{root}.bim', fam='{root}.fam')})
+    j.declare_resource_group(bfile=dict(bed='{root}.bed', bim='{root}.bim', fam='{root}.fam'))
     return cast(PlinkResourceGroup, j.bfile)
 
 
@@ -74,7 +80,7 @@ async def load_plink_file(
 
 
 def new_bgen_file(j: hb.Job) -> BgenResourceGroup:
-    j.declare_resource_group({'bgen': dict(bgen='{root}.bgen', bgi='{root}.bgen.bgi', sample='{root}.sample')})
+    j.declare_resource_group(bgen=dict(bgen='{root}.bgen', bgi='{root}.bgen.bgi', sample='{root}.sample'))
     return cast(BgenResourceGroup, j.bgen)
 
 
@@ -87,7 +93,7 @@ async def load_bgen_file(
 
 
 def new_vcf_file(j: hb.Job) -> VcfResourceGroup:
-    j.declare_resource_group({'vcf': dict(vcf='{root}.vcf.gz', tbi='{root}.vcf.gz.tbi')})
+    j.declare_resource_group(vcf=dict(vcf='{root}.vcf.gz', tbi='{root}.vcf.gz.tbi'))
     return cast(VcfResourceGroup, j.vcf)
 
 
@@ -100,7 +106,7 @@ async def load_vcf_file(
 
 
 def new_text_file(j: hb.Job) -> TextResourceFile:
-    j.declare_resource_group({'file': dict(file='{root}')})
+    j.declare_resource_group(file=dict(file='{root}'))
     return cast(TextResourceFile, cast(hb.ResourceGroup, j.file)['file'])
 
 
@@ -115,7 +121,7 @@ async def load_text_file(
 def new_saige_sparse_grm_file(j: hb.Job, relatedness_cutoff: float, num_markers: int) -> SaigeSparseGRMResourceGroup:
     suffix = f'_relatednessCutoff_{relatedness_cutoff}_{num_markers}_randomMarkersUsed'
     j.declare_resource_group(
-        {'grm': dict(grm=f'{{root}}{suffix}.sparseGRM.mtx', sample_ids=f'{{root}}{suffix}.sparseGRM.mtx.sampleIDs.txt')}
+        grm=dict(grm=f'{{root}}{suffix}.sparseGRM.mtx', sample_ids=f'{{root}}{suffix}.sparseGRM.mtx.sampleIDs.txt')
     )
     return cast(SaigeSparseGRMResourceGroup, j.grm)
 
@@ -135,15 +141,13 @@ async def load_saige_sparse_grm_file(
 
 def new_saige_gene_glmm_file(j: hb.Job) -> SaigeGeneGLMMResourceGroup:
     j.declare_resource_group(
-        {
-            'glmm': dict(
+        glmm=dict(
                 mtx='{root}.sparseGRM.mtx',
                 sample_ids='{root}.sparseGRM.mtx.sampleIDs.txt',
                 rda='{root}.rda',
                 results='{root}_30markers.SAIGE.results.txt',
                 variance_ratio='{root}.gene.varianceRatio.txt',
             )
-        }
     )
     return cast(SaigeGeneGLMMResourceGroup, j.glmm)
 
@@ -165,14 +169,10 @@ async def load_saige_gene_glmm_file(
 
 
 def new_saige_variant_glmm_file(j: hb.Job) -> SaigeGLMMResourceGroup:
-    j.declare_resource_group(
-        {
-            'glmm': dict(
+    j.declare_resource_group(glmm=dict(
                 rda='{root}.rda',
-                results='{root}_30markers.SAIGE.results.txt',
-                variance_ratio='{root}.gene.varianceRatio.txt',
+                variance_ratio='{root}.varianceRatio.txt',
             )
-        }
     )
     return cast(SaigeGLMMResourceGroup, j.glmm)
 
@@ -210,7 +210,7 @@ async def load_saige_glmm_file(
 
 
 def new_saige_variant_result_file(j: hb.Job) -> SaigeResultResourceGroup:
-    j.declare_resource_group({'result': dict(result='{root}')})
+    j.declare_resource_group(result=dict(result='{root}'))
     return cast(SaigeResultResourceGroup, j.result)
 
 
@@ -221,7 +221,7 @@ async def load_saige_variant_result_file(
 
 
 def new_saige_gene_result_file(j: hb.Job) -> SaigeGeneResultResourceGroup:
-    j.declare_resource_group({'bgen': dict(result='{root}', single='{root}_single')})
+    j.declare_resource_group(bgen=dict(result='{root}', single='{root}_single'))
     return cast(SaigeGeneResultResourceGroup, j.bgen)
 
 

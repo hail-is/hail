@@ -49,6 +49,9 @@ async def async_saige(
     if config is None:
         config = SaigeConfig()
 
+    if router_fs_args is None:
+        router_fs_args = {}
+
     async with RouterAsyncFS(**router_fs_args) as fs:
         with hl.TemporaryDirectory() as temp_dir:
             if b is None:
@@ -56,7 +59,7 @@ async def async_saige(
 
             if group_annotations_file is not None:
                 analysis_type = SaigeAnalysisType.GENE
-                group_annotations = load_text_file(fs, b, None, group_annotations_file)
+                group_annotations = await load_text_file(fs, b, None, group_annotations_file)
             else:
                 analysis_type = SaigeAnalysisType.VARIANT
                 group_annotations = None
@@ -65,10 +68,8 @@ async def async_saige(
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 
-            input_phenotypes = load_text_file(fs, b, None, phenotypes_path)
-            input_null_model_plink_data = load_plink_file(fs, b, None, null_model_plink_path)
-
-            user_id_col = list(mt.col_key)[0]
+            input_phenotypes = await load_text_file(fs, b, None, phenotypes_path)
+            input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
 
             if 'GP' in list(mt.entry):
                 input_data_type = SaigeInputDataType.BGEN
@@ -83,14 +84,14 @@ async def async_saige(
                         fs,
                         b,
                         phenotype=phenotype,
-                        temp_dir=temp_dir.name,
+                        temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
                     for phenotype in phenotypes
                 ]
             )
 
-            existing_phenotype_results = {phenotype: result
+            existing_phenotype_results = {phenotype.name: result
                                           for phenotype, result in zip(phenotypes, maybe_phenotype_results)
                                           if result is not None}
 
@@ -105,12 +106,12 @@ async def async_saige(
                         phenotype=phenotype,
                         analysis_type=analysis_type,
                         covariates=covariates,
-                        user_id_col=user_id_col,
-                        temp_dir=temp_dir.name,
+                        user_id_col='IID',
+                        temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir,
                     )
                     for phenotype in phenotypes
-                    if phenotype not in existing_phenotype_results
+                    if phenotype.name not in existing_phenotype_results
                 ],
                 parallelism=parallelism,
             )
@@ -124,20 +125,20 @@ async def async_saige(
                                                                  analysis_type=analysis_type,
                                                                  null_model=null_glmm,
                                                                  input_data_type=input_data_type,
-                                                                 interval=chunk,
+                                                                 chunk=chunk,
                                                                  phenotype=phenotype,
                                                                  group_annotations=group_annotations))
                             for phenotype, null_glmm in zip(phenotypes, null_glmms)
                             for chunk in variant_chunks
-                            if phenotype not in existing_phenotype_results
+                            if phenotype.name not in existing_phenotype_results
                             ]
 
             step2_spa_results = await bounded_gather(*[f for _, _, f in step2_spa_fs], parallelism=parallelism)
 
             step2_spa_jobs_by_phenotype = collections.defaultdict(list)
             for ((phenotype, _, _), result) in zip(step2_spa_fs, step2_spa_results):
-                if result.source is not None:
-                    step2_spa_jobs_by_phenotype[phenotype].append(result.source)
+                if result.source() is not None:
+                    step2_spa_jobs_by_phenotype[phenotype.name].append(result.source())
 
             compiled_results = await bounded_gather(
                 *[
@@ -147,8 +148,8 @@ async def async_saige(
                         b=b,
                         phenotype=phenotype,
                         results_path=config.step2_spa.output_glob(temp_dir, checkpoint_dir, phenotype.name),
-                        dependencies=step2_spa_jobs_by_phenotype[phenotype],
-                        temp_dir=temp_dir.name,
+                        dependencies=step2_spa_jobs_by_phenotype[phenotype.name],
+                        temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
                     for phenotype in phenotypes
@@ -161,12 +162,11 @@ async def async_saige(
                 b,
                 results_path=config.compile_phenotype_results.results_path_glob(temp_dir, checkpoint_dir),
                 output_ht_path=output_path,
-                dependencies=[result.source for result in compiled_results],
+                dependencies=[result.source() for result in compiled_results],
             )
 
             run_kwargs = run_kwargs or {}
-            run_kwargs.pop('wait')
-            b.run(**run_kwargs, wait=True)
+            b.run(**run_kwargs)
 
 
 def saige(
@@ -214,25 +214,27 @@ def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
     )
 
     chunks = []
-    for contig, cdf in group_metadata.items():
-        first_rank = 0
-        first_locus = cdf.values[0]
-        cur_locus = cdf.values[0]
 
-        for i in range(1, len(cdf.values)):
-            cur_locus = cdf.values[i]
+    for contig, cdf in group_metadata.items():
+        cdf_values = cdf['values']
+        first_rank = 0
+        first_position = cdf_values[0]
+        cur_position = cdf_values[0]
+
+        for i in range(1, len(cdf_values)):
+            cur_position = cdf_values[i]
             cur_rank = cdf.ranks[i]
-            chunk_size = cur_rank - first_rank  # approximately how many rows are in interval [ first_locus, cur_locus )
-            chunk_span = cur_locus.position - first_locus.position
+            chunk_size = cur_rank - first_rank  # approximately how many rows are in interval [ first_position, cur_position )
+            chunk_span = cur_position - first_position
             if chunk_size > max_count_per_chunk or chunk_span > max_span_per_chunk:
-                interval = hl.Interval(first_locus, cur_locus, includes_start=True, includes_end=False)
+                interval = hl.Interval(hl.Locus(contig, first_position), hl.Locus(contig, cur_position), includes_start=True, includes_end=False)
                 chunks.append(VariantChunk(interval))
                 first_rank = cur_rank
-                first_locus = cur_locus
+                first_position = cur_position
 
         interval = hl.Interval(
-            first_locus,
-            cur_locus,
+            hl.Locus(contig, first_position),
+            hl.Locus(contig, cur_position),
             includes_start=True,
             includes_end=True,
         )
@@ -311,19 +313,21 @@ def extract_phenotypes(mt: hl.MatrixTable,
                        output_file: str) -> Tuple[List[Phenotype], List[str]]:
     require_col_key_str(mt, 'saige')
 
-    ht = (mt
-          .key_cols_by(IID=list(mt.col_key)[0])
-          .select_cols(**phenotypes, **covariates)
-          .cols()
-          )
+    sample_id = list(mt.col_key)[0]
+
+    mt = mt.select_cols(**phenotypes, **covariates)
+    ht = mt.key_cols_by(IID=mt[sample_id]).cols()
     ht.export(output_file, delimiter="\t")
 
+    row_schema = ht.row_value.dtype
+    assert isinstance(row_schema, hl.tstruct)
+
     saige_phenotypes = []
-    for phenotype_name, typ in ht.row_value:
+    for phenotype_name, typ in row_schema.items():
         if phenotype_name in phenotypes.keys():
-            if isinstance(typ, hl.tbool):
+            if typ == hl.tbool:
                 phenotype_type = SaigePhenotype.CATEGORICAL
-            elif isinstance(typ, (hl.tint, hl.tfloat)):
+            elif typ in (hl.tint, hl.tfloat):
                 phenotype_type = SaigePhenotype.CONTINUOUS
             else:
                 raise Exception(f'unknown SAIGE phenotype type for ({phenotype_name}, {typ})')
