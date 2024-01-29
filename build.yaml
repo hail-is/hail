@@ -750,7 +750,7 @@ steps:
       set -ex
       cd /io/repo/hail
       time retry sh millw --version
-      time retry make shadowJar wheel
+      time retry make shadowJar wheel HAIL_RELEASE_MODE=1
 
       # Check wheel size is small enough for pypi (< 200 MiB)
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
@@ -764,7 +764,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/main/release/assembly.dest/out.jar
+      - from: /io/repo/hail/out/assembly.dest/out.jar
         to: /hail.jar
       - from: /io/wheel
         to: /wheel
@@ -782,14 +782,14 @@ steps:
       set -ex
       cd /io/repo/hail
       time retry sh millw --version
-      time retry make jars wheel HAIL_DEBUG_MODE=1
+      time retry make jars wheel
       mkdir /io/debug-wheel
       mv build/deploy/dist/hail-*-py3-none-any.whl /io/debug-wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/main/debug/test/assembly.dest/out.jar
+      - from: /io/repo/hail/out/test/assembly.dest/out.jar
         to: /hail-debug-test.jar
       - from: /io/debug-wheel
         to: /debug-wheel
@@ -818,7 +818,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/main/debug/test/assembly.dest/out.jar
+      - from: /io/repo/hail/out/test/assembly.dest/out.jar
         to: /hail-test.jar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
@@ -842,7 +842,7 @@ steps:
       set -ex
       cd /io/repo/hail
       time retry sh millw --version
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10" HAIL_RELEASE_MODE=1
       time retry make wheel
 
       mkdir /io/azure-wheel
@@ -3263,7 +3263,7 @@ steps:
 
       cd hail
       time retry sh millw --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3304,7 +3304,7 @@ steps:
 
       cd hail
       time retry sh millw --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3354,7 +3354,7 @@ steps:
       fi
 
       time retry sh millw --version
-      make wheel upload-artifacts DEPLOY_REMOTE=origin
+      make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
 
       bash scripts/release.sh $(cat /io/hail_pip_version) \
                               $(cat /io/hail_version) \
