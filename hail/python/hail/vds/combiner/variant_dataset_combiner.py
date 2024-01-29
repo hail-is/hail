@@ -428,19 +428,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self._job_id += 1
 
     def _write_final(self, vds):
-        fd = VariantDataset.ref_block_max_length_field
-
-        if fd not in vds.reference_data.globals:
-            info("VDS combiner: computing reference block max length...")
-            max_len = vds.reference_data.aggregate_entries(
-                hl.agg.max(vds.reference_data.END + 1 - vds.reference_data.locus.position)
-            )
-            info(f"VDS combiner: max reference block length is {max_len}")
-            vds = VariantDataset(
-                reference_data=vds.reference_data.annotate_globals(**{fd: max_len}), variant_data=vds.variant_data
-            )
-
         vds.write(self._output_path)
+
+        if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
+            info("VDS combiner: computing reference block max length...")
+            hl.vds.store_ref_block_max_length(self._output_path)
 
     def _step_vdses(self):
         current_bin = original_bin = min(self._vdses)
