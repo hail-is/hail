@@ -663,12 +663,26 @@ def new_combiner(
     reference_genome: Union[str, hl.ReferenceGenome] = 'default',
     contig_recoding: Optional[Dict[str, str]] = None,
     force: bool = False,
+    _testing_allow_duplicate_gvcfs: bool = False,
 ) -> VariantDatasetCombiner:
     """Create a new :class:`.VariantDatasetCombiner` or load one from `save_path`."""
     if not (gvcf_paths or vds_paths):
         raise ValueError("at least one  of 'gvcf_paths' or 'vds_paths' must be nonempty")
     if gvcf_paths is None:
         gvcf_paths = []
+    if len(gvcf_paths) > 0 and not _testing_allow_duplicate_gvcfs:
+        if len(set(gvcf_paths)) != len(gvcf_paths):
+            duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_paths).items() if count > 1]
+            duplicates = '\n    '.join(duplicates)
+            raise ValueError(f'gvcf paths should be unique, the following paths are repeated:{duplicates}')
+        if gvcf_sample_names is not None and len(set(gvcf_sample_names)) != len(gvcf_sample_names):
+            duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_sample_names).items() if count > 1]
+            duplicates = '\n    '.join(duplicates)
+            raise ValueError(
+                "provided sample names ('gvcf_sample_names') should be unique, "
+                f'the following names are repeated:{duplicates}'
+            )
+
     if vds_paths is None:
         vds_paths = []
     if vds_sample_counts is not None and len(vds_paths) != len(vds_sample_counts):
