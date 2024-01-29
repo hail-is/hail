@@ -663,14 +663,13 @@ def new_combiner(
     reference_genome: Union[str, hl.ReferenceGenome] = 'default',
     contig_recoding: Optional[Dict[str, str]] = None,
     force: bool = False,
-    _testing_allow_duplicate_gvcfs: bool = False,
 ) -> VariantDatasetCombiner:
     """Create a new :class:`.VariantDatasetCombiner` or load one from `save_path`."""
     if not (gvcf_paths or vds_paths):
         raise ValueError("at least one  of 'gvcf_paths' or 'vds_paths' must be nonempty")
     if gvcf_paths is None:
         gvcf_paths = []
-    if len(gvcf_paths) > 0 and not _testing_allow_duplicate_gvcfs:
+    if len(gvcf_paths) > 0:
         if len(set(gvcf_paths)) != len(gvcf_paths):
             duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_paths).items() if count > 1]
             duplicates = '\n    '.join(duplicates)
