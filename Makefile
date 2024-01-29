@@ -51,7 +51,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && sh millw main[].checkFormat + main[].test.checkFormat
+	cd hail && sh millw __.checkFormat
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)

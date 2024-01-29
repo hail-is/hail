@@ -842,7 +842,7 @@ steps:
       set -ex
       cd /io/repo/hail
       time retry sh millw --version
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10" HAIL_RELEASE_MODE=1
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1
       time retry make wheel
 
       mkdir /io/azure-wheel
