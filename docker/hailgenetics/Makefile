@@ -6,6 +6,5 @@ publish-python-dill:
 	bash python-dill/push.sh
 
 mirror-dockerhub-images:
-	DOCKER_PREFIX=$(DOCKER_PREFIX) \
-	HAIL_PIP_VERSION=$(shell cat ../../hail/python/hail/hail_pip_version) \
-	./mirror_images.sh
+	$(info mirror-dockerhub-images has moved to the target mirror-images in the ../Makefile)
+	$(MAKE) -C .. mirror-images

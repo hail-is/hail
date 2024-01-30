@@ -3456,8 +3456,8 @@ steps:
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
-      - from: /repo/docker/hailgenetics/mirror_images.sh
-        to: /io/docker/hailgenetics/mirror_images.sh
+      - from: /repo/docker/mirror_images.sh
+        to: /io/docker/mirror_images.sh
       - from: /repo/docker/copy_image.sh
         to: /io/docker/copy_image.sh
     secrets:

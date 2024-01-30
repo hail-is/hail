@@ -46,7 +46,10 @@ from gear import json_request, json_response
 from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
+from hailtop.batch.publicly_available_images import (
+    is_docker_hub_image_mirrored_in_hail_batch,
+    publicly_available_images,
+)
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import (
@@ -81,7 +84,6 @@ from ..cloud.resource_utils import (
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
 from ..instance_config import InstanceConfig
-from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
@@ -489,7 +491,7 @@ class Image:
             log.info(f'adding latest tag to image {name} for {self}')
             image_ref.tag = 'latest'
 
-        if image_ref.name() in HAIL_GENETICS_IMAGES:
+        if is_docker_hub_image_mirrored_in_hail_batch(image_ref):
             # We want the "hailgenetics/python-dill" translate to (based on the prefix):
             # * gcr.io/hail-vdc/hailgenetics/python-dill
             # * us-central1-docker.pkg.dev/hail-vdc/hail/hailgenetics/python-dill

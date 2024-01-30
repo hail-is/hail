@@ -19,7 +19,8 @@ from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, 
 from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
 from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
 from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
+from hailtop.batch.hail_genetics_images import hailgenetics_hail_image_for_current_python_version
+from hailtop.batch.publicly_available_images import is_docker_hub_image_mirrored_in_hail_batch
 
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
@@ -785,7 +786,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             image = job._image if job._image else default_image
             image_ref = parse_docker_image_reference(image)
-            if image_ref.hosted_in('dockerhub') and image_ref.name() not in HAIL_GENETICS_IMAGES:
+            if is_docker_hub_image_mirrored_in_hail_batch(image_ref):
                 warnings.warn(
                     f'Using an image {image} from Docker Hub. ' f'Jobs may fail due to Docker Hub rate limits.'
                 )
