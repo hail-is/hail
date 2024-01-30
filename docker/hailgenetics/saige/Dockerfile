@@ -50,14 +50,18 @@ RUN createSparseGRM.R  --help && \
     step2_SPAtests.R --help && \
     step3_LDmat.R --help
 
+WORKDIR /
+
 RUN hail-apt-get-install wget && \
-    wget https://github.com/samtools/samtools/releases/download/1.19.2/samtools-1.19.2.tar.bz2 && \
-    bzip2 -d samtools-1.19.2.tar.bz2 && \
-    tar -xf samtools-1.19.2.tar && \
-    cd samtools-1.19.2 && \
+    wget https://github.com/samtools/htslib/releases/download/1.19.1/htslib-1.19.1.tar.bz2 && \
+    bzip2 -d htslib-1.19.1.tar.bz2 && \
+    tar -xf htslib-1.19.1.tar && \
+    cd htslib-1.19.1 && \
     ./configure && \
     make && \
-    make install
+    make install && \
+    mv tabix /usr/local/bin/ && \
+    chmod a+x /usr/local/bin/tabix
 
 COPY hail/python/pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt scikit-learn ipython

@@ -8,18 +8,20 @@ import hailtop.batch as hb
 from .config import CheckpointConfigMixin, JobConfigMixin
 from .constants import SaigeAnalysisType, SaigeInputDataType, SaigeTestType, saige_phenotype_to_test_type
 from .io import (
+    HailTableResourceFile,
     PlinkResourceGroup,
-    TextResourceFile,
     SaigeGeneGLMMResourceGroup,
     SaigeGLMMResourceGroup,
     SaigeSparseGRMResourceGroup,
     SaigeGeneResultResourceGroup,
     SaigeResultResourceGroup,
+    TextResourceFile,
     checkpoint_if_requested,
     load_saige_glmm_file,
     load_saige_result_file,
     load_saige_sparse_grm_file,
     load_text_file,
+    new_hail_table,
     new_saige_glmm_file,
     new_saige_result_file,
     new_saige_sparse_grm_file,
@@ -246,6 +248,12 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             'chunk': chunk.name,
         }
 
+    def log_file_prefix(
+        self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk
+    ) -> str:
+        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        return f'{working_dir}/logs/{phenotype_name}/{chunk.idx}'
+
     def output_file_prefix(
         self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk
     ) -> str:
@@ -279,10 +287,10 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             export_cmd = f'hl.export_vcf(mt.select_entries("GT"), "/data.vcf.bgz")'
             input_flags = [
                 f'--vcfFile=/data.vcf.bgz',
-                f'--vcfFileIndex=/data.vcf.bgz.tbi',
+                f'--vcfFileIndex=/data.vcf.bgz.csi',
                 f'--vcfField=GT',
             ]
-            index_cmd = 'samtools -C /data.vcf.bgz'
+            index_cmd = 'tabix -C /data.vcf.bgz'
         else:
             export_cmd = f'hl.export_bgen(mt, "/data")'
             input_flags = [
@@ -433,6 +441,7 @@ step2_SPAtests.R \\
         group_annotations: Optional[TextResourceFile] = None,
     ) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
         output_root = self.output_file_prefix(temp_dir, checkpoint_dir, phenotype.name, chunk)
+        log_root = self.log_file_prefix(temp_dir, checkpoint_dir, phenotype.name, chunk)
 
         results = await load_saige_result_file(fs, b, self, output_root, analysis_type)
         if results is not None:
@@ -471,10 +480,10 @@ step2_SPAtests.R \\
 
         j.command(command)
 
-        checkpoint_if_requested(results, b, self, output_root)
+        b.write_output(results, output_root)
 
         if self.save_stdout:
-            b.write_output(j.stdout, f'{output_root}.log')
+            b.write_output(j.stdout, f'{log_root}.log')
 
         return results
 
@@ -489,11 +498,11 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
 
     def results_path_glob(self, temp_dir: str, checkpoint_dir: Optional[str]):
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
-        return f'{working_dir}/compiled-results/*.txt.gz'
+        return f'{working_dir}/compiled-results/*.tsv'
 
     def output_file(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
-        return f'{working_dir}/compiled-results/{phenotype_name}.txt.gz'
+        return f'{working_dir}/compiled-results/{phenotype_name}.tsv'  # FIXME: compress this
 
     async def check_if_output_exists(self,
                                      fs: AsyncFS,
@@ -510,7 +519,7 @@ cat > compile_results.py <<EOF
 import hail as hl
 ht = hl.import_table("{results_path}", impute=True)
 ht = ht.annotate(phenotype="{phenotype_name}")
-ht.export("{output_file}", overwrite=True)
+ht.export("{output_file}")
 EOF
 python3 compile_results.py
 '''
@@ -544,7 +553,7 @@ python3 compile_results.py
 
         j.command(cmd)
 
-        checkpoint_if_requested(compiled_results, b, self, output_file)
+        b.write_output(compiled_results, output_file)
 
         return compiled_results
 
@@ -554,12 +563,18 @@ class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def name(self) -> str:
         return 'compile-all-results'
 
-    def command(self, results_path: str, output_file: str) -> str:
+    def command(self, mt_path: str, results_path: str, results_ht: HailTableResourceFile) -> str:
         return f'''
 cat > compile_results.py <<EOF
 import hail as hl
+mt = hl.read_matrix_table("{mt_path}")
+reference_genome=mt.locus.dtype.reference_genome
 ht = hl.import_table("{results_path}", impute=True)
-ht.write("{output_file}", overwrite=True)
+ht = ht.annotate(locus=hl.locus(hl.str(ht.CHR), ht.POS, reference_genome=reference_genome), alleles=hl.array([ht.Allele1, ht.Allele2]))
+ht = ht.key_by(ht.locus, ht.alleles, ht.phenotype)
+ht = ht.drop('CHR', 'POS', 'Allele1', 'Allele2')
+ht.write("{results_ht}")
+ht.describe()
 EOF
 python3 compile_results.py
 '''
@@ -571,6 +586,7 @@ python3 compile_results.py
         results_path: str,
         output_ht_path: str,
         dependencies: List[hb.Job],
+        mt_path: str,
     ):
         if fs.isdir(output_ht_path) and not self.overwrite:
             return
@@ -583,6 +599,10 @@ python3 compile_results.py
              .depends_on(*dependencies)
         )
 
-        cmd = self.command(results_path, output_ht_path)
+        results_ht = new_hail_table(j)
+
+        cmd = self.command(mt_path, results_path, results_ht)
 
         j.command(cmd)
+
+        b.write_output(results_ht, output_ht_path)

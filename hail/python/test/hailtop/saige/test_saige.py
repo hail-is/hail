@@ -81,7 +81,8 @@ def test_saige_categorical():
                           config=SaigeConfig(step1_null_glmm=Step1NullGlmmStep(min_covariate_count=1, skip_model_fitting=False)))
 
                     # check results table is there
-                    hl.import_table(output_path)
+                    ht = hl.read_table(output_path)
+                    ht.describe()
 
 
 def test_saige_continuous(ds):

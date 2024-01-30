@@ -57,6 +57,7 @@ PlinkResourceGroup = NewType('PlinkResourceGroup', hb.ResourceGroup)
 BgenResourceGroup = NewType('BgenResourceGroup', hb.ResourceGroup)
 VcfResourceGroup = NewType('VcfResourceGroup', hb.ResourceGroup)
 TextResourceFile = NewType('TextResourceFile', hb.ResourceFile)
+HailTableResourceFile = NewType('HailTableResourceFile', hb.ResourceFile)
 SaigeSparseGRMResourceGroup = NewType('SaigeSparseGRMResourceGroup', hb.ResourceGroup)
 SaigeGeneGLMMResourceGroup = NewType('SaigeGeneGLMMResourceGroup', hb.ResourceGroup)
 SaigeGLMMResourceGroup = NewType('SaigeGLMMResourceGroup', hb.ResourceGroup)
@@ -247,3 +248,8 @@ async def load_saige_result_file(
         return await load_saige_variant_result_file(fs, b, config, root)
     assert analysis_type == SaigeAnalysisType.GENE
     return await load_saige_gene_result_file(fs, b, config, root)
+
+
+def new_hail_table(j: hb.Job) -> HailTableResourceFile:
+    j.declare_resource_group(ht=dict(ht='{root}.ht'))
+    return cast(HailTableResourceFile, cast(hb.ResourceGroup, j.ht)['ht'])

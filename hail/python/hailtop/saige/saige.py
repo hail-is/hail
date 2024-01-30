@@ -68,6 +68,8 @@ async def async_saige(
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 
+            reference_genome_name = mt.locus.dtype.reference_genome.name
+
             input_phenotypes = await load_text_file(fs, b, None, phenotypes_path)
             input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
 
@@ -163,6 +165,7 @@ async def async_saige(
                 results_path=config.compile_phenotype_results.results_path_glob(temp_dir, checkpoint_dir),
                 output_ht_path=output_path,
                 dependencies=[result.source() for result in compiled_results],
+                mt_path=mt_path,
             )
 
             run_kwargs = run_kwargs or {}
