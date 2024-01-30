@@ -6,7 +6,7 @@
 #
 aiodocker==0.21.0
     # via -r hail/batch/requirements.txt
-aiohttp==3.9.1
+aiohttp==3.9.2
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
