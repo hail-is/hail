@@ -2853,12 +2853,18 @@ object PruneDeadFields {
       ir
     else {
       val result = ir.typ match {
-        case _: TStruct =>
-          bindIR(ir) { ref =>
-            val ms = MakeStruct(rType.asInstanceOf[TStruct].fields.map { f =>
-              f.name -> upcast(ctx, GetField(ref, f.name), f.typ)
-            })
-            If(IsNA(ref), NA(ms.typ), ms)
+        case tstruct: TStruct =>
+          if rType.asInstanceOf[TStruct].fields.all(f =>
+            tstruct.field(f.name).typ == f.typ
+          ) {
+              SelectFields(ir, rType.asInstanceOf[TStruct].fields.map(f.name))
+          } else {
+            bindIR(ir) { ref =>
+              val ms = MakeStruct(rType.asInstanceOf[TStruct].fields.map { f =>
+                f.name -> upcast(ctx, GetField(ref, f.name), f.typ)
+              })
+              If(IsNA(ref), NA(ms.typ), ms)
+                }
           }
         case ts: TStream =>
           val ra = rType.asInstanceOf[TStream]
