@@ -248,6 +248,8 @@ object Simplify {
       else
         If(IsNA(c), NA(cnsq.typ), cnsq)
 
+    case If(IsNA(a), NA(_), b) if a == b => b
+
     case If(ApplyUnaryPrimOp(Bang, c), cnsq, altr) => If(c, altr, cnsq)
 
     case If(c1, If(c2, cnsq2, _), altr1) if c1 == c2 => If(c1, cnsq2, altr1)
@@ -545,6 +547,10 @@ object Simplify {
       val preservedFields =
         selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
       InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastSeq))
+
+    case MakeStructOfGetField(o, newNames) =>
+      val select = SelectFields(o, newNames.map(_._1))
+      CastRename(select, select.typ.asInstanceOf[TStruct].rename(newNames.toMap))
 
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
@@ -1349,5 +1355,21 @@ object Simplify {
         typ.shape,
         typ.blockSize,
       )
+  }
+
+  private object MakeStructOfGetField {
+    def unapply(ir: IR): Option[(IR, IndexedSeq[(String, String)])] =
+      ir match {
+        case MakeStruct(fields) if fields.nonEmpty =>
+          fields.view.map {
+            case (a, GetField(o, b)) => Some(o -> FastSeq(b -> a))
+            case _ => None
+          }.reduce[Option[(IR, IndexedSeq[(String, String)])]] {
+            case (Some((x, r1)), Some((y, r2))) if x == y => Some((x, r1 ++ r2))
+            case _ => None
+          }
+        case _ =>
+          None
+      }
   }
 }
