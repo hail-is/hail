@@ -820,7 +820,7 @@ def test_job_regions_controls_job_execution_region(backend: ServiceBackend):
 
     assert res
     job_status = res.get_job(1).status()
-    assert job_status['region'] == the_region, str((job_status, res.debug_info()))
+    assert job_status['status']['region'] == the_region, str((job_status, res.debug_info()))
 
 
 def test_job_regions_overrides_batch_regions(backend: ServiceBackend):
@@ -834,7 +834,7 @@ def test_job_regions_overrides_batch_regions(backend: ServiceBackend):
 
     assert res
     job_status = res.get_job(1).status()
-    assert job_status['region'] == the_region, str((job_status, res.debug_info()))
+    assert job_status['status']['region'] == the_region, str((job_status, res.debug_info()))
 
 
 def test_always_copy_output(backend: ServiceBackend, output_tmpdir: str):

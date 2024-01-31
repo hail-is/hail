@@ -245,7 +245,7 @@ and execute the following batch:
 
 .. code-block:: python
 
-    >>> import hailtop.batch as hb # doctest: +SKIP
+    >>> import hailtop.batch as hb
     >>> backend = hb.ServiceBackend('my-billing-project', remote_tmpdir='gs://my-bucket/batch/tmp/') # doctest: +SKIP
     >>> b = hb.Batch(backend=backend, name='test') # doctest: +SKIP
     >>> j = b.new_job(name='hello') # doctest: +SKIP
@@ -287,14 +287,14 @@ listed from highest to lowest precedence.
    .. code-block:: python
 
        >>> b = hb.Batch(backend=hb.ServiceBackend())
-       >>> j = b.create_job()
+       >>> j = b.new_job()
        >>> j.regions(['us-central1'])
 
-2. The ``regions`` parameter of :class:`.Batch`:
+2. The ``default_regions`` parameter of :class:`.Batch`:
 
    .. code-block:: python
 
-       >>> b = hb.Batch(backend=hb.ServiceBackend(), regions=['us-central1'])
+       >>> b = hb.Batch(backend=hb.ServiceBackend(), default_regions=['us-central1'])
 
 
 3. The ``regions`` parameter of :class:`.ServiceBackend`:

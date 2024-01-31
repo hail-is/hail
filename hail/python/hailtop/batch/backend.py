@@ -422,9 +422,9 @@ class ServiceBackend(Backend[bc.Batch]):
     and stores temporary intermediate files in "gs://my-bucket/temporary-files".
 
     >>> service_backend = ServiceBackend(
-    >>>     billing_project='my-billing-account',
-    >>>     remote_tmpdir='gs://my-bucket/temporary-files/'
-    >>> )
+    ...     billing_project='my-billing-account',
+    ...     remote_tmpdir='gs://my-bucket/temporary-files/'
+    ... )
     >>> b = Batch(backend=service_backend)
     >>> j = b.new_job()
     >>> j.command('echo hello world!')
@@ -460,9 +460,9 @@ class ServiceBackend(Backend[bc.Batch]):
     "https://my-account.blob.core.windows.net/my-container/tempdir".
 
     >>> service_backend = ServiceBackend(
-    >>>     billing_project='my-billing-account',
-    >>>     remote_tmpdir='https://my-account.blob.core.windows.net/my-container/tempdir'
-    >>> )
+    ...     billing_project='my-billing-account',
+    ...     remote_tmpdir='https://my-account.blob.core.windows.net/my-container/tempdir'
+    ... )
 
     Require all jobs in all batches in this backend to execute in us-central1::
 
@@ -489,9 +489,9 @@ class ServiceBackend(Backend[bc.Batch]):
     Allow reading or writing to buckets even though they are "cold" storage::
 
     >>> b = Batch(
-    >>>     backend=ServiceBackend(),
-    >>>     gcs_bucket_allow_list=['cold-bucket', 'cold-bucket2']
-    >>> )
+    ...     backend=ServiceBackend(),
+    ...     gcs_bucket_allow_list=['cold-bucket', 'cold-bucket2']
+    ... )
 
     Parameters
     ----------
