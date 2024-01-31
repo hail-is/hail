@@ -60,12 +60,10 @@ def test_saige_categorical():
                 with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as output_path:
                     null_model_plink_path = f'{null_model_plink_dir}/null-model-input'
 
-                    # ds.write(mt_path)
-
-                    phenotypes, covariates = extract_phenotypes(ds,
-                                                                phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
-                                                                covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
-                                                                output_file=phenotypes_file)
+                    phenotype_information = extract_phenotypes(ds,
+                                                               phenotypes={'psych': ds.phenotype.psych, 'cardio': ds.phenotype.cardio},
+                                                               covariates={'c1': ds.cov.c1, 'c2': ds.cov.c2},
+                                                               output_file=phenotypes_file)
 
                     variant_chunks = compute_variant_chunks_by_contig(ds)
 
@@ -74,8 +72,7 @@ def test_saige_categorical():
                     saige(mt_path=mt_path,
                           null_model_plink_path=null_model_plink_path,
                           phenotypes_path=phenotypes_file,
-                          phenotypes=phenotypes,
-                          covariates=covariates,
+                          phenotype_information=phenotype_information,
                           variant_chunks=variant_chunks,
                           output_path=output_path,
                           config=SaigeConfig(step1_null_glmm=Step1NullGlmmStep(min_covariate_count=1, skip_model_fitting=False)))

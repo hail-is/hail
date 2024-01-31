@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import json
 from typing import Dict, List, Optional, Union
 
@@ -27,7 +27,7 @@ from .io import (
     new_saige_sparse_grm_file,
     new_text_file,
 )
-from .phenotype import Phenotype
+from .phenotype import Phenotype, PhenotypeInformation
 from .variant_chunk import VariantChunk
 
 
@@ -111,8 +111,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         input_phenotypes: TextResourceFile,
         phenotype: Phenotype,
         analysis_type: SaigeAnalysisType,
-        covariates: List[str],  # FIXME: add q_covariates
-        user_id_col: str,
+        phenotype_information: PhenotypeInformation,
         temp_dir: str,
         checkpoint_dir: Optional[str],
     ) -> SaigeGLMMResourceGroup:
@@ -140,8 +139,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         command = self.command(
             input_bfile,
             input_phenotypes,
-            covariates,
-            user_id_col,
+            phenotype_information,
             phenotype,
             null_glmm,
             j.stdout,
@@ -159,9 +157,8 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     def command(
         self,
         input_bfile: PlinkResourceGroup,
-        phenotypes: TextResourceFile,
-        covariates: List[str],
-        user_id_col: str,
+        phenotypes_file: TextResourceFile,
+        phenotype_information: PhenotypeInformation,
         phenotype: Phenotype,
         null_glmm: SaigeGLMMResourceGroup,
         stdout: TextResourceFile,
@@ -175,6 +172,11 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
 
         skip_model_fitting_str = str(self.skip_model_fitting).upper()
 
+        covariates = [cov.name for cov in phenotype_information.covariates]
+
+        # FIXME: this is used somewhere and make sure q means continuous and not categorical
+        q_covariates = [cov.name for cov in phenotype_information.covariates if saige_phenotype_to_test_type[cov.phenotype_type] == SaigeTestType.QUANTITATIVE]
+
         command = f'''
 set -o pipefail;
 
@@ -182,11 +184,11 @@ perl -pi -e s/^chr// {input_bfile.bim};
 
 step1_fitNULLGLMM.R \
     --plinkFile={input_bfile} \
-    --phenoFile={phenotypes} \
+    --phenoFile={phenotypes_file} \
     --covarColList={','.join(covariates)} \
     --minCovariateCount={self.min_covariate_count} \
     --phenoCol={phenotype.name} \
-    --sampleIDColinphenoFile={user_id_col} \
+    --sampleIDColinphenoFile={phenotype_information.sample_id_col} \
     --traitType={test_type.value} \
     --outputPrefix={null_glmm} \
     --outputPrefix_varRatio={null_glmm} \

@@ -2,7 +2,7 @@ import collections
 import functools
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Union
 
 import hail as hl
 from hail.methods.qc import require_col_key_str, require_row_key_variant
@@ -12,7 +12,7 @@ from hailtop.utils import async_to_blocking, bounded_gather
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
 from .io import load_plink_file, load_text_file
-from .phenotype import Phenotype, SaigePhenotype
+from .phenotype import Phenotype, PhenotypeInformation, SaigePhenotype
 from .steps import CompileAllResultsStep, CompilePhenotypeResultsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
 from .variant_chunk import VariantChunk
 
@@ -35,8 +35,7 @@ async def async_saige(
         null_model_plink_path: str,
         phenotypes_path: str,
         output_path: str,
-        phenotypes: List[Phenotype],
-        covariates: List[str],
+        phenotype_information: PhenotypeInformation,
         variant_chunks: List[VariantChunk],
         group_annotations_file: Optional[str] = None,
         b: Optional[hb.Batch] = None,
@@ -68,9 +67,7 @@ async def async_saige(
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 
-            reference_genome_name = mt.locus.dtype.reference_genome.name
-
-            input_phenotypes = await load_text_file(fs, b, None, phenotypes_path)
+            input_phenotypes_file = await load_text_file(fs, b, None, phenotypes_path)
             input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
 
             if 'GP' in list(mt.entry):
@@ -89,12 +86,12 @@ async def async_saige(
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
-                    for phenotype in phenotypes
+                    for phenotype in phenotype_information.phenotypes
                 ]
             )
 
             existing_phenotype_results = {phenotype.name: result
-                                          for phenotype, result in zip(phenotypes, maybe_phenotype_results)
+                                          for phenotype, result in zip(phenotype_information.phenotypes, maybe_phenotype_results)
                                           if result is not None}
 
             null_glmms = await bounded_gather(
@@ -104,15 +101,14 @@ async def async_saige(
                         fs,
                         b,
                         input_bfile=input_null_model_plink_data,
-                        input_phenotypes=input_phenotypes,
+                        input_phenotypes_file=input_phenotypes_file,
+                        phenotype_information=phenotype_information,
                         phenotype=phenotype,
                         analysis_type=analysis_type,
-                        covariates=covariates,
-                        user_id_col='IID',
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir,
                     )
-                    for phenotype in phenotypes
+                    for phenotype in phenotype_information.phenotypes
                     if phenotype.name not in existing_phenotype_results
                 ],
                 parallelism=parallelism,
@@ -130,7 +126,7 @@ async def async_saige(
                                                                  chunk=chunk,
                                                                  phenotype=phenotype,
                                                                  group_annotations=group_annotations))
-                            for phenotype, null_glmm in zip(phenotypes, null_glmms)
+                            for phenotype, null_glmm in zip(phenotype_information.phenotypes, null_glmms)
                             for chunk in variant_chunks
                             if phenotype.name not in existing_phenotype_results
                             ]
@@ -154,7 +150,7 @@ async def async_saige(
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
-                    for phenotype in phenotypes
+                    for phenotype in phenotype_information.phenotypes
                 ],
                 parallelism=parallelism,
             )
@@ -178,8 +174,7 @@ def saige(
         null_model_plink_path: str,
         phenotypes_path: str,
         output_path: str,
-        phenotypes: List[Phenotype],
-        covariates: List[str],
+        phenotype_information: PhenotypeInformation,
         variant_chunks: List[VariantChunk],
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
@@ -193,8 +188,7 @@ def saige(
         null_model_plink_path=null_model_plink_path,
         phenotypes_path=phenotypes_path,
         output_path=output_path,
-        phenotypes=phenotypes,
-        covariates=covariates,
+        phenotype_information=phenotype_information,
         variant_chunks=variant_chunks,
         b=b,
         checkpoint_dir=checkpoint_dir,
@@ -313,27 +307,34 @@ def prepare_variant_chunks_by_group(
 def extract_phenotypes(mt: hl.MatrixTable,
                        phenotypes: Dict[str, List[Union[str, hl.NumericExpression, hl.BooleanExpression]]],
                        covariates: Dict[str, List[Union[str, hl.NumericExpression, hl.BooleanExpression]]],
-                       output_file: str) -> Tuple[List[Phenotype], List[str]]:
+                       output_file: str) -> PhenotypeInformation:
     require_col_key_str(mt, 'saige')
 
-    sample_id = list(mt.col_key)[0]
+    sample_id_col = list(mt.col_key)[0]
 
     mt = mt.select_cols(**phenotypes, **covariates)
-    ht = mt.key_cols_by(IID=mt[sample_id]).cols()
+    ht = mt.cols()
     ht.export(output_file, delimiter="\t")
 
     row_schema = ht.row_value.dtype
     assert isinstance(row_schema, hl.tstruct)
 
     saige_phenotypes = []
+    saige_covariates = []
     for phenotype_name, typ in row_schema.items():
-        if phenotype_name in phenotypes.keys():
-            if typ == hl.tbool:
-                phenotype_type = SaigePhenotype.CATEGORICAL
-            elif typ in (hl.tint, hl.tfloat):
-                phenotype_type = SaigePhenotype.CONTINUOUS
-            else:
-                raise Exception(f'unknown SAIGE phenotype type for ({phenotype_name}, {typ})')
-            saige_phenotypes.append(Phenotype(phenotype_name, phenotype_type, 'group1'))
+        if typ == hl.tbool:
+            phenotype_type = SaigePhenotype.CATEGORICAL
+        elif typ in (hl.tint, hl.tfloat):
+            phenotype_type = SaigePhenotype.CONTINUOUS
+        else:
+            raise Exception(f'unknown SAIGE phenotype type for ({phenotype_name}, {typ})')
 
-    return (saige_phenotypes, list(covariates.keys()))
+        phenotype = Phenotype(phenotype_name, phenotype_type)
+
+        if phenotype_name in phenotypes.keys():
+            saige_phenotypes.append(phenotype)
+        else:
+            assert phenotype_name in covariates.keys()
+            saige_covariates.append(phenotype)
+
+    return PhenotypeInformation(saige_phenotypes, saige_covariates, sample_id_col)
