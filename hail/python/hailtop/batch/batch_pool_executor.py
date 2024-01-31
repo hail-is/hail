@@ -232,7 +232,12 @@ class BatchPoolExecutor:
     ) -> AsyncGenerator[int, None]:
         """Aysncio compatible version of :meth:`.map`."""
         if not iterables:
-            return (x for x in range(0))
+
+            async def empty():
+                async for x in ():
+                    yield x
+
+            return empty()
 
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]
