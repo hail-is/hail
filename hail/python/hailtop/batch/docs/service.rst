@@ -327,7 +327,7 @@ bucket in the `us` multi-region, this incurs network charges becuse `us` is not 
 `us-central1`.
 
 Container (aka Docker) images are a form of data. In Google Cloud Platform, we recommend storing
-your images in a multi-regional artifact registry, which, at time of writing, despite being
+your images in a multi-regional artifact registry, which at time of writing, despite being
 "multi-regional", does not incur network charges in the manner described above.
 
 

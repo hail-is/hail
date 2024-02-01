@@ -485,7 +485,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
     >>> b = hb.Batch(backend=hb.ServiceBackend(regions=['us-central1', 'us-east1']))
 
-    Same as a bove, but using a configuration file::
+    Same as above, but using a configuration file::
 
         hailctl config set batch/regions us-central1,us-east1
 
