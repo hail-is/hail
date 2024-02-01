@@ -57,7 +57,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
     val seen = mutable.Set.empty[String]
     fields.toArray.map { f =>
       val name = f.name
-      assert(seen.add(name), f"duplicate name '$name' fount in '${_toPretty}'.")
+      assert(seen.add(name), f"duplicate name '$name' found in '${_toPretty}'.")
       name
     }
   }
