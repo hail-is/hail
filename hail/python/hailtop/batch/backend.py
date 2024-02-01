@@ -486,7 +486,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         hailctl config set batch/regions us-central1,us-east1
 
-    Allow reading or writing to buckets even though they are "cold" storage::
+    Allow reading or writing to buckets even though they are "cold" storage:
 
     >>> b = Batch(
     ...     backend=ServiceBackend(),
