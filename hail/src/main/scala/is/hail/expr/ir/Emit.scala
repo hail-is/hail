@@ -26,7 +26,7 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.mutable
 import scala.language.existentials
 import java.io._
-import scala.annotation.nowarn
+import scala.annotation.{nowarn, tailrec}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -3655,24 +3655,65 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         }
       }
 
-    if (
-      !ctx.inLoopCriticalPath.contains(let) &&
-      let.bindings.forall(x => !ctx.inLoopCriticalPath.contains(x._2))
-//      false
-    ) {
-      var newEnv = env
-      let.bindings.grouped(16).zipWithIndex.foreach { case (group, idx) =>
+    @tailrec def go(
+      env: EmitEnv,
+      chunkStart: Int,
+      pos: Int,
+      chunkSize: Int,
+      groupIdx: Int,
+    ): EmitEnv = {
+
+      def emitChunkWrapped(): EmitEnv = {
         val mb = cb.emb.genEmitMethod(
-          s"begin_group_$idx",
+          s"begin_group_$groupIdx",
           FastSeq[ParamType](classInfo[Region]),
           UnitInfo,
         )
-        mb.voidWithBuilder(cb => newEnv = emitChunk(cb, group, newEnv, mb.getCodeParam[Region](1)))
+        var newEnv = env
+        mb.voidWithBuilder { cb =>
+          newEnv =
+            emitChunk(cb, let.bindings.slice(chunkStart, pos), env, mb.getCodeParam[Region](1))
+        }
         cb.invokeVoid(mb, cb.this_, r)
+        newEnv
       }
-      newEnv
-    } else
+
+      if (pos == let.bindings.length) {
+        if (chunkSize > 0)
+          return emitChunkWrapped()
+        else
+          return env
+      }
+
+      val (curName, curIR) = let.bindings(pos)
+
+      // skip over unused streams
+      if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {
+        go(env, chunkStart, pos + 1, chunkSize, groupIdx)
+      } else if (chunkSize == 16 || (chunkSize > 0 && curIR.typ.isInstanceOf[TStream])) {
+        // emit the current chunk if it's either max size, or broken by a stream
+        val newEnv = emitChunkWrapped()
+        go(newEnv, pos, pos, 0, groupIdx + 1)
+      } else if (curIR.typ.isInstanceOf[TStream]) {
+        assert(chunkSize == 0) // no pending bindings
+        val value = emitI(curIR, cb, env, r)
+        val memo = cb.memoizeMaybeStreamValue(value, s"let_$curName")
+        val newEnv = env.bind(curName, memo)
+        go(newEnv, pos + 1, pos + 1, 0, groupIdx)
+      } else {
+        // add cur binding to pending group
+        go(env, chunkStart, pos + 1, chunkSize + 1, groupIdx)
+      }
+    }
+
+    if (
+      !ctx.inLoopCriticalPath.contains(let) &&
+      let.bindings.forall(x => !ctx.inLoopCriticalPath.contains(x._2))
+    ) {
+      go(env, 0, 0, 0, 0)
+    } else {
       emitChunk(cb, let.bindings, env, r)
+    }
   }
 }
 
