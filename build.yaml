@@ -2730,7 +2730,7 @@ steps:
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
       export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
+      export HAIL_BATCH_REMOTE_TMPDIR="{{ global.test_storage_uri }}/test_batch/{{ token }}/"
 
       hail-pip-install -r /io/dev-requirements.txt
 

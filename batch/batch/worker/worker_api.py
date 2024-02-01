@@ -1,6 +1,8 @@
 import abc
 from typing import Dict, List, TypedDict
 
+from aiohttp import web
+
 from hailtop import httpx
 from hailtop.utils import CalledProcessError, sleep_before_try
 
@@ -31,6 +33,10 @@ class CloudWorkerAPI(abc.ABC):
 
     @abc.abstractmethod
     async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         raise NotImplementedError
 
     @abc.abstractmethod
