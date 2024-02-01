@@ -7,7 +7,7 @@ import concurrent.futures
 import dill
 import functools
 
-from hailtop.utils import secret_alnum_string, partition, async_to_blocking
+from hailtop.utils import secret_alnum_string, partition, async_to_blocking, the_empty_async_generator
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -232,12 +232,7 @@ class BatchPoolExecutor:
     ) -> AsyncGenerator[int, None]:
         """Aysncio compatible version of :meth:`.map`."""
         if not iterables:
-
-            async def empty():
-                async for x in ():
-                    yield x
-
-            return empty()
+            return the_empty_async_generator()
 
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]
