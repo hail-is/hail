@@ -67,25 +67,30 @@ object Deps {
     val core = ivy"org.apache.httpcomponents:httpcore:4.4.14"
     val client = ivy"org.apache.httpcomponents:httpclient:4.5.13"
   }
+
   object Asm {
     val version: String = "7.3.1"
     val core = ivy"org.ow2.asm:asm:$version"
     val analysis = ivy"org.ow2.asm:asm-analysis:$version"
     val util = ivy"org.ow2.asm:asm-util:$version"
   }
+
   object Breeze {
     val core = ivy"org.scalanlp::breeze:1.1"
     val natives = ivy"org.scalanlp::breeze-natives:1.1"
   }
+
   object Commons {
     val io = ivy"commons-io:commons-io:2.11.0"
     val lang3 = ivy"org.apache.commons:commons-lang3:3.12.0"
     val codec = ivy"commons-codec:commons-codec:1.15"
   }
+
   object Spark {
     def core: Task[Dep] = T.task(ivy"org.apache.spark::spark-core:${sparkVersion()}")
     def mllib: Task[Dep] = T.task(ivy"org.apache.spark::spark-mllib:${sparkVersion()}")
   }
+
   val samtools = ivy"com.github.samtools:htsjdk:3.0.5"
   val jdistlib = ivy"net.sourceforge.jdistlib:jdistlib:0.4.5"
   val freemarker = ivy"org.freemarker:freemarker:2.3.31"
@@ -101,6 +106,7 @@ object Deps {
   val log4j = ivy"org.apache.logging.log4j:log4j-1.2-api:2.17.2"
   val hadoopClient = ivy"org.apache.hadoop:hadoop-client:3.3.4"
   val jackson = ivy"com.fasterxml.jackson.core:jackson-core:2.14.2"
+
   object Plugins {
     val betterModadicFor = ivy"com.olegpy::better-monadic-for:0.3.1"
   }
@@ -138,10 +144,6 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   // needed to force IntelliJ to include resources in the classpath when running tests
   override def bspCompileClasspath: T[Agg[UnresolvedPath]] =
     super.bspCompileClasspath() ++ resources().map(p => UnresolvedPath.ResolvedPath(p.path))
-
-  def printRunClasspath(): Command[Unit] = T.command {
-    println(runClasspath().map(_.path).mkString(":"))
-  }
 
   trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule {
     override def forkArgs: T[Seq[String]] = Seq("-Xss4m", "-Xmx4096M")
@@ -229,8 +231,16 @@ object main extends RootModule with HailScalaModule { outer =>
   )
 
   override def scalacPluginIvyDeps: T[Agg[Dep]] = Agg(
-    Deps.Plugins.betterModadicFor,
+    Deps.Plugins.betterModadicFor
   )
+
+  def writeRunClasspath: T[PathRef] = T {
+    os.write(
+      T.dest / "runClasspath",
+      runClasspath().map(_.path).mkString(":"),
+    )
+    PathRef(T.dest)
+  }
 
   object memory extends JavaModule { // with CrossValue {
     override def zincIncrementalCompilation: T[Boolean] = false
@@ -263,7 +273,7 @@ object main extends RootModule with HailScalaModule { outer =>
     )
 
     override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Seq(
-      Deps.jackson,
+      Deps.jackson
     )
   }
 

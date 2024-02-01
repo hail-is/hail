@@ -80,10 +80,10 @@ $(SHADOW_TEST_JAR):
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := out/printRunClasspath.log
+EXTRA_CLASSPATH := out/writeRunClasspath.dest/runClasspath
 .PHONY: $(EXTRA_CLASSPATH)
 $(EXTRA_CLASSPATH):
-	$(mill) printRunClasspath
+	$(mill) writeRunClasspath
 
 .PHONY: jvm-test
 jvm-test:
