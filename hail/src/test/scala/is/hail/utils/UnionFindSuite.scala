@@ -5,12 +5,11 @@ import org.testng.annotations.Test
 
 class UnionFindSuite extends TestNGSuite {
   @Test
-  def emptyUnionFindHasNoSets() {
+  def emptyUnionFindHasNoSets(): Unit =
     assert(new UnionFind().size == 0)
-  }
 
   @Test
-  def growingPastInitialCapacityOK() {
+  def growingPastInitialCapacityOK(): Unit = {
     val uf = new UnionFind(4)
     uf.makeSet(0)
     uf.makeSet(1)
@@ -26,7 +25,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def simpleUnions() {
+  def simpleUnions(): Unit = {
     val uf = new UnionFind()
 
     uf.makeSet(0)
@@ -40,7 +39,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def nonMonotonicMakeSet() {
+  def nonMonotonicMakeSet(): Unit = {
     val uf = new UnionFind()
 
     uf.makeSet(1000)
@@ -62,7 +61,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def multipleUnions() {
+  def multipleUnions(): Unit = {
     val uf = new UnionFind()
 
     uf.makeSet(1)
@@ -96,7 +95,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def unionsNoInterveningFinds() {
+  def unionsNoInterveningFinds(): Unit = {
     val uf = new UnionFind()
 
     uf.makeSet(1)
@@ -122,7 +121,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def sameSetWorks() {
+  def sameSetWorks(): Unit = {
     val uf = new UnionFind()
 
     uf.makeSet(1)

@@ -27,7 +27,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
   val examples =
     List((15, 10), (15, 9), (15, 0), (15, 15), (1, 0), (1, 1), (0, 0), (1526, 431), (1526, 430))
 
-  @Test def pmfTest() {
+  @Test def pmfTest(): Unit = {
 
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
@@ -38,7 +38,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
     examples foreach { e => assert(test(e)) }
   }
 
-  @Test def modeTest() {
+  @Test def modeTest(): Unit = {
 
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
@@ -48,7 +48,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
     examples foreach { e => assert(test(e)) }
   }
 
-  @Test def meanTest() {
+  @Test def meanTest(): Unit = {
 
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
@@ -61,7 +61,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
     examples foreach { e => assert(test(e)) }
   }
 
-  @Test def varianceTest() {
+  @Test def varianceTest(): Unit = {
 
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e
@@ -74,7 +74,7 @@ class LeveneHaldaneSuite extends TestNGSuite {
     examples foreach { e => assert(test(e)) }
   }
 
-  @Test def exactTestsTest() {
+  @Test def exactTestsTest(): Unit = {
 
     def test(e: (Int, Int)): Boolean = {
       val (n, nA) = e

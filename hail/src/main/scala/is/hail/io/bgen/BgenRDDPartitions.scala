@@ -1,13 +1,8 @@
 package is.hail.io.bgen
 
-import is.hail.annotations.Region
-import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailTaskContext}
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, ParamType, TableReader}
-import is.hail.io.fs.FS
+import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.{Call2, ReferenceGenome}
 
 case class FilePartitionInfo(
   metadata: BgenFileMetadata,
@@ -56,8 +51,6 @@ object BgenRDDPartitions extends Logging {
     nPartitions: Option[Int],
     keyType: Type,
   ): IndexedSeq[FilePartitionInfo] = {
-    val fs = ctx.fs
-
     val fileRangeBounds = checkFilesDisjoint(ctx, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering(ctx.stateManager)
 

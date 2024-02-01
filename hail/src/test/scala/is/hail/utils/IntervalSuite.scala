@@ -2,8 +2,7 @@ package is.hail.utils
 
 import is.hail.HailSuite
 import is.hail.annotations.ExtendedOrdering
-import is.hail.backend.ExecuteContext
-import is.hail.backend.HailStateManager
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual.{TInt32, TStruct}
 
@@ -45,7 +44,7 @@ class IntervalSuite extends HailSuite {
       }
   }
 
-  @Test def interval_agrees_with_set_interval_greater_than_point() {
+  @Test def interval_agrees_with_set_interval_greater_than_point(): Unit = {
     for {
       set_interval <- test_intervals
       p <- points
@@ -58,7 +57,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_less_than_point() {
+  @Test def interval_agrees_with_set_interval_less_than_point(): Unit = {
     for {
       set_interval <- test_intervals
       p <- points
@@ -71,7 +70,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_contains() {
+  @Test def interval_agrees_with_set_interval_contains(): Unit = {
     for {
       set_interval <- test_intervals
       p <- points
@@ -81,7 +80,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_includes() {
+  @Test def interval_agrees_with_set_interval_includes(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -92,7 +91,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_probably_overlaps() {
+  @Test def interval_agrees_with_set_interval_probably_overlaps(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -106,7 +105,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_definitely_disjoint() {
+  @Test def interval_agrees_with_set_interval_definitely_disjoint(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -120,7 +119,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_disjoint_greater_than() {
+  @Test def interval_agrees_with_set_interval_disjoint_greater_than(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -131,7 +130,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_disjoint_less_than() {
+  @Test def interval_agrees_with_set_interval_disjoint_less_than(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -142,7 +141,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_mergeable() {
+  @Test def interval_agrees_with_set_interval_mergeable(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -153,7 +152,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_merge() {
+  @Test def interval_agrees_with_set_interval_merge(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -167,7 +166,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_agrees_with_set_interval_intersect() {
+  @Test def interval_agrees_with_set_interval_intersect(): Unit = {
     for {
       set_interval1 <- test_intervals
       set_interval2 <- test_intervals
@@ -181,7 +180,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_contains() {
+  @Test def interval_tree_agrees_with_set_interval_tree_contains(): Unit = {
     for {
       set_itree <- test_itrees
       p <- points
@@ -191,7 +190,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps() {
+  @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps(): Unit = {
     for {
       set_itree <- test_itrees
       set_interval <- test_intervals
@@ -202,7 +201,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_definitely_disjoint() {
+  @Test def interval_tree_agrees_with_set_interval_tree_definitely_disjoint(): Unit = {
     for {
       set_itree <- test_itrees
       set_interval <- test_intervals
@@ -213,7 +212,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_query_values() {
+  @Test def interval_tree_agrees_with_set_interval_tree_query_values(): Unit = {
     for {
       set_itree <- test_itrees
       point <- points
@@ -225,7 +224,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_query_overlapping_values() {
+  @Test def interval_tree_agrees_with_set_interval_tree_query_overlapping_values(): Unit = {
     for {
       set_itree <- test_itrees
       set_interval <- test_intervals

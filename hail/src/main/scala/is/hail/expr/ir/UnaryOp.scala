@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr._
-import is.hail.types._
 import is.hail.types.physical.{typeToTypeInfo, PType}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._

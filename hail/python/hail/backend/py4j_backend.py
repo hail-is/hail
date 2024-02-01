@@ -62,6 +62,9 @@ def handle_java_exception(f):
             if s.startswith('java.util.NoSuchElementException'):
                 raise
 
+            if not Env.is_fully_initialized:
+                raise ValueError('Error occurred during Hail initialization.') from e
+
             tpl = Env.jutils().handleForPython(e.java_exception)
             deepest, full, error_id = tpl._1(), tpl._2(), tpl._3()
             raise fatal_error_from_java_error_triplet(deepest, full, error_id) from None

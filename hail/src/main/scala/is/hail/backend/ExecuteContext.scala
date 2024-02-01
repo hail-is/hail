@@ -9,9 +9,10 @@ import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.mutable
+
 import java.io._
 import java.security.SecureRandom
-import scala.collection.mutable
 
 trait TempFileManager {
   def own(path: String): Unit
@@ -134,8 +135,6 @@ class ExecuteContext(
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
   private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
-
-  private[this] val broadcasts = mutable.ArrayBuffer.empty[BroadcastValue[_]]
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 

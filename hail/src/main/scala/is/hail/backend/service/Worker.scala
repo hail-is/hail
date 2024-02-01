@@ -7,16 +7,16 @@ import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
 
+import scala.collection.mutable
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
+import scala.util.control.NonFatal
+
 import java.io._
 import java.nio.charset._
 import java.util
 import java.util.{concurrent => javaConcurrent}
-import scala.collection.mutable
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.concurrent.duration.{Duration, MILLISECONDS}
-import scala.util.control.NonFatal
 
-import org.apache.commons.io.IOUtils
 import org.apache.log4j.Logger
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
@@ -104,8 +104,8 @@ object Worker {
       throw new IllegalArgumentException(s"expected seven arguments, not: ${argv.length}")
     }
     val scratchDir = argv(0)
-    val logFile = argv(1)
-    var jarLocation = argv(2)
+    // val logFile = argv(1)
+    // var jarLocation = argv(2)
     val kind = argv(3)
     assert(kind == Main.WORKER)
     val root = argv(4)

@@ -5,8 +5,9 @@ import is.hail.asm4s.Code._
 import is.hail.check.{Gen, Prop}
 import is.hail.utils.FastSeq
 
-import java.io.PrintWriter
 import scala.language.postfixOps
+
+import java.io.PrintWriter
 
 import org.testng.annotations.Test
 
@@ -67,44 +68,44 @@ class ASM4SSuite extends HailSuite {
   }
 
   @Test def get(): Unit = {
-    val fb = FunctionBuilder[A, Int]("F")
-    fb.emit(fb.getArg[A](1).getField[Int]("i"))
+    val fb = FunctionBuilder[Foo, Int]("F")
+    fb.emit(fb.getArg[Foo](1).getField[Int]("i"))
     val i = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
-    val a = new A
+    val a = new Foo
     assert(i(a) == 5)
   }
 
   @Test def invoke(): Unit = {
-    val fb = FunctionBuilder[A, Int]("F")
-    fb.emit(fb.getArg[A](1).invoke[Int]("f"))
+    val fb = FunctionBuilder[Foo, Int]("F")
+    fb.emit(fb.getArg[Foo](1).invoke[Int]("f"))
     val i = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
-    val a = new A
+    val a = new Foo
     assert(i(a) == 6)
   }
 
   @Test def invoke2(): Unit = {
-    val fb = FunctionBuilder[A, Int]("F")
-    fb.emit(fb.getArg[A](1).invoke[Int, Int]("g", 6))
+    val fb = FunctionBuilder[Foo, Int]("F")
+    fb.emit(fb.getArg[Foo](1).invoke[Int, Int]("g", 6))
     val j = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
-    val a = new A
+    val a = new Foo
     assert(j(a) == 11)
   }
 
   @Test def newInstance(): Unit = {
     val fb = FunctionBuilder[Int]("F")
-    fb.emit(Code.newInstance[A]().invoke[Int]("f"))
+    fb.emit(Code.newInstance[Foo]().invoke[Int]("f"))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f() == 6)
   }
 
   @Test def put(): Unit = {
     val fb = FunctionBuilder[Int]("F")
-    val inst = fb.newLocal[A]()
+    val inst = fb.newLocal[Foo]()
     fb.emit(Code(
-      inst.store(Code.newInstance[A]()),
+      inst.store(Code.newInstance[Foo]()),
       inst.put("i", -2),
       inst.getField[Int]("i"),
     ))
@@ -114,11 +115,11 @@ class ASM4SSuite extends HailSuite {
 
   @Test def staticPut(): Unit = {
     val fb = FunctionBuilder[Int]("F")
-    val inst = fb.newLocal[A]()
+    val inst = fb.newLocal[Foo]()
     fb.emit(Code(
-      inst.store(Code.newInstance[A]()),
+      inst.store(Code.newInstance[Foo]()),
       inst.put("j", -2),
-      Code.getStatic[A, Int]("j"),
+      Code.getStatic[Foo, Int]("j"),
     ))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
     assert(f() == -2)
@@ -173,11 +174,11 @@ class ASM4SSuite extends HailSuite {
 
   @Test def anewarray(): Unit = {
     val fb = FunctionBuilder[Int]("F")
-    val arr = fb.newLocal[Array[A]]()
+    val arr = fb.newLocal[Array[Foo]]()
     fb.emit(Code(
-      arr.store(newArray[A](2)),
-      arr(0) = Code.newInstance[A](),
-      arr(1) = Code.newInstance[A](),
+      arr.store(newArray[Foo](2)),
+      arr(0) = Code.newInstance[Foo](),
+      arr(1) = Code.newInstance[Foo](),
       arr(0).getField[Int]("i") + arr(1).getField[Int]("i"),
     ))
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)

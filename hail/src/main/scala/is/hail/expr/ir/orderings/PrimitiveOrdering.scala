@@ -2,7 +2,7 @@ package is.hail.expr.ir.orderings
 
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder}
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.primitives._
 
 object Int32Ordering {

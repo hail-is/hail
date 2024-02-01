@@ -26,7 +26,6 @@ import is.hail.utils._
 import is.hail.variant.Locus
 
 import java.util
-import scala.language.implicitConversions
 
 import org.objectweb.asm.Opcodes._
 
@@ -150,7 +149,7 @@ object EmitStream {
       cb: EmitCodeBuilder,
       region: Value[Region] = outerRegion,
       env: EmitEnv = env,
-      container: Option[AggContainer] = container,
+      container: Option[AggContainer],
     ): Unit =
       emitter.emitVoid(cb, ir, region, env, container, None)
 
@@ -171,8 +170,7 @@ object EmitStream {
       streamIR: IR,
       elementPType: PType,
       cb: EmitCodeBuilder,
-      outerRegion: Value[Region] = outerRegion,
-      env: EmitEnv = env,
+      env: EmitEnv,
     ): IEmitCode = {
       val ecb = cb.emb.genEmitClass[NoBoxLongIterator]("stream_to_iter")
       ecb.cb.addInterface(typeInfo[MissingnessAsMethod].iname)
@@ -318,7 +316,7 @@ object EmitStream {
 
     streamIR match {
 
-      case x @ NA(_typ: TStream) =>
+      case NA(_typ: TStream) =>
         val st = SStream(EmitType(SUnreachable.fromVirtualType(_typ.elementType), true))
         val region = mb.genFieldThisRef[Region]("na_region")
         val producer = new StreamProducer {
@@ -365,17 +363,15 @@ object EmitStream {
             SStreamValue(producer)
           }
 
-      case Let(bindings, body) =>
-        def go(env: EmitEnv): IndexedSeq[(String, IR)] => IEmitCode = {
-          case (name, value) +: rest =>
-            cb.withScopedMaybeStreamValue(
-              EmitCode.fromI(cb.emb)(cb => emit(value, cb, env = env)),
-              s"let_$name",
-            )(ev => go(env.bind(name, ev))(rest))
-          case Seq() =>
-            produce(body, cb, env = env)
-        }
-        go(env)(bindings)
+      case let: Let =>
+        emitter.emitLet(
+          emitI = (ir, cb, env) => emit(ir, cb, env = env),
+          emitBody = (ir, cb, env) => produce(ir, cb, env = env),
+        )(
+          let,
+          cb,
+          env,
+        )
 
       case In(n, _) =>
         // this, Code[Region], ...
@@ -615,7 +611,7 @@ object EmitStream {
             SStreamValue(producer)
           }
 
-      case x @ MakeStream(args, _, _requiresMemoryManagementPerElement) =>
+      case MakeStream(args, _, _requiresMemoryManagementPerElement) =>
         val region = mb.genFieldThisRef[Region]("makestream_region")
 
         // FIXME use SType.chooseCompatibleType
@@ -665,7 +661,7 @@ object EmitStream {
           ),
         )
 
-      case x @ If(cond, cnsq, altr) =>
+      case If(cond, cnsq, altr) =>
         emit(cond, cb).flatMap(cb) { cond =>
           val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
           cb.assign(xCond, cond.asBoolean.value)
@@ -931,7 +927,7 @@ object EmitStream {
           }
         }
 
-      case SeqSample(totalSize, numToSample, rngState, _requiresMemoryManagementPerElement) =>
+      case SeqSample(totalSize, numToSample, _, _requiresMemoryManagementPerElement) =>
         // Implemented based on http://www.ittc.ku.edu/~jsv/Papers/Vit84.sampling.pdf Algorithm A
         emit(totalSize, cb).flatMap(cb) { case totalSizeVal: SInt32Value =>
           emit(numToSample, cb).map(cb) { case numToSampleVal: SInt32Value =>
@@ -1723,7 +1719,7 @@ object EmitStream {
           SStreamValue(producer)
         }
 
-      case x @ StreamLeftIntervalJoin(left, right, lKeyField, rIntrvlName, lName, rName, body) =>
+      case StreamLeftIntervalJoin(left, right, lKeyField, rIntrvlName, lName, rName, body) =>
         produce(left, cb).flatMap(cb) { case lStream: SStreamValue =>
           produce(right, cb).map(cb) { case rStream: SStreamValue =>
             // map over the keyStream
@@ -2920,8 +2916,6 @@ object EmitStream {
                     producers.flatMap(_.length) match {
                       case Seq() => None
                       case ls =>
-                        val len = mb.genFieldThisRef[Int]("zip_asl_len")
-                        val lenTemp = mb.genFieldThisRef[Int]("zip_asl_len_temp")
                         Some({ cb: EmitCodeBuilder =>
                           val len = cb.newLocal[Int]("zip_len", ls.head(cb))
                           ls.tail.foreach { compL =>
@@ -3078,7 +3072,7 @@ object EmitStream {
             SStreamValue(producer)
         }
 
-      case x @ StreamZipJoin(as, key, keyRef, valsRef, joinIR) =>
+      case StreamZipJoin(as, key, keyRef, valsRef, joinIR) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emit(a, cb)))) {
           children =>
             val producers = children.map(_.asStream.getProducer(mb))
@@ -3354,7 +3348,7 @@ object EmitStream {
             SStreamValue(producer)
         }
 
-      case x @ StreamZipJoinProducers(contexts, ctxName, makeProducer, key, keyRef, valsRef,
+      case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, keyRef, valsRef,
             joinIR) =>
         emit(contexts, cb).map(cb) { case contextsArray: SIndexableValue =>
           val nStreams = cb.memoizeField(contextsArray.loadLength())
@@ -3373,7 +3367,6 @@ object EmitStream {
                 makeProducer,
                 eltType,
                 cb,
-                outerRegion,
                 env.bind(ctxName, cb.memoize(contextsArray.loadElement(cb, idx))),
               )
                 .get(cb, "streams in zipJoinProducers cannot be missing")
@@ -3630,7 +3623,7 @@ object EmitStream {
           SStreamValue(producer)
         }
 
-      case x @ StreamMultiMerge(as, key) =>
+      case StreamMultiMerge(as, key) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) {
           children =>
             val producers = children.map(_.asStream.getProducer(mb))
@@ -3643,7 +3636,6 @@ object EmitStream {
                 .storageType
                 .asInstanceOf[PCanonicalStruct]
 
-            val region = mb.genFieldThisRef[Region]("smm_region")
             val regionArray = mb.genFieldThisRef[Array[Region]]("smm_region_array")
 
             val staticMemManagementArray =

@@ -5,7 +5,6 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.types.{MatrixType, TableType}
 import is.hail.types.virtual.{TFloat64, TStruct}
@@ -61,7 +60,7 @@ case class PoissonRegression(
       + s"    with input variable x, and $k additional ${plural(k, "covariate")}...")
 
     val nullModel = new PoissonRegressionModel(cov, y)
-    var nullFit = nullModel.fit(None, maxIter = maxIterations, tol = tolerance)
+    val nullFit = nullModel.fit(None, maxIter = maxIterations, tol = tolerance)
 
     if (!nullFit.converged)
       fatal("Failed to fit poisson regression null model (standard MLE with covariates only): " + (

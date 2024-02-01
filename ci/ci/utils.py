@@ -64,15 +64,13 @@ def gcp_service_logging_url(
 ) -> str:
     service_queries = []
     for service in services:
-        service_queries.append(
-            f"""
+        service_queries.append(f"""
 (
 resource.type="k8s_container"
 resource.labels.namespace_name="{namespace}"
 resource.labels.container_name="{service}"
 )
-"""
-        )
+""")
 
     query = ' OR '.join(service_queries)
 

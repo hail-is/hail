@@ -1,7 +1,5 @@
 package is.hail.asm4s
 
-import is.hail.expr.ir.EmitCodeBuilder
-
 sealed abstract class MaybeGenericTypeInfo[T: TypeInfo] {
   def castFromGeneric(cb: CodeBuilderLike, x: Value[_]): Value[T]
   def castToGeneric(cb: CodeBuilderLike, x: Value[T]): Value[_]
@@ -61,9 +59,9 @@ final case class GenericTypeInfo[T: TypeInfo]() extends MaybeGenericTypeInfo[T] 
       cb.memoize(Code.newInstance[java.lang.Character, Char](coerce[Char](x)))
     case _: UnitInfo.type =>
       Code._null[java.lang.Void]
-    case cti: ClassInfo[_] =>
+    case _: ClassInfo[_] =>
       x
-    case ati: ArrayInfo[_] =>
+    case _: ArrayInfo[_] =>
       x
   }
 

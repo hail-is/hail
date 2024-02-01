@@ -8,7 +8,7 @@ import org.apache.commons.math3.random.JDKRandomGenerator
 import org.testng.annotations.Test
 
 class eigSymDSuite extends HailSuite {
-  @Test def eigSymTest() {
+  @Test def eigSymTest(): Unit = {
     val seed = 0
 
     val rand = new JDKRandomGenerator()
@@ -24,7 +24,6 @@ class eigSymDSuite extends HailSuite {
     val svdK = svd(K)
     val eigSymK = eigSym(K)
     val eigSymDK = eigSymD(K)
-    val eigSymRK = eigSymR(K)
 
     // eigSymD = svdW
     for (j <- 0 until n) {
@@ -68,13 +67,13 @@ class eigSymDSuite extends HailSuite {
     assert(D_==(math.abs(eigSymRK2.eigenvectors(1, 1)), c))
   }
 
-  def symEigSpeedTest() {
+  def symEigSpeedTest(): Unit = {
     val seed = 0
 
     val rand = new JDKRandomGenerator()
     rand.setSeed(seed)
 
-    def timeSymEig() {
+    def timeSymEig(): Unit = {
       for (n <- 500 to 5500 by 500) {
         val W = DenseMatrix.fill[Double](n, n)(rand.nextGaussian())
         val K = W * W.t
@@ -98,7 +97,7 @@ class eigSymDSuite extends HailSuite {
     timeSymEig()
   }
 
-  @Test def triSolveTest() {
+  @Test def triSolveTest(): Unit = {
     val seed = 0
 
     val rand = new JDKRandomGenerator()

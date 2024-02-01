@@ -11,8 +11,8 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
-  @Test def copyTests() {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false) {
+  @Test def copyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
       copyTestExecutor(
         PCanonicalNDArray(PInt64(true), 1),
         PCanonicalNDArray(PInt64(true), 1),
@@ -54,10 +54,10 @@ class PNDArraySuite extends PhysicalTestUtils {
         val work3 = vecType.constructUninitialized(FastSeq(btwpn), cb, region)
         val T = vecType.constructUninitialized(FastSeq(btwpn), cb, region)
 
-        A.coiterateMutate(cb, region) { case Seq(a) =>
+        A.coiterateMutate(cb, region) { case Seq(_) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
         }
-        Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(acopy, a) => a }
+        Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(_, a) => a }
 
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work3, blocksize)
 
@@ -117,10 +117,10 @@ class PNDArraySuite extends PhysicalTestUtils {
         val work = vecType.constructUninitialized(FastSeq(btm), FastSeq(8), cb, region)
         val T = vecType.constructUninitialized(FastSeq(btn), FastSeq(8), cb, region)
 
-        A.coiterateMutate(cb, region) { case Seq(a) =>
+        A.coiterateMutate(cb, region) { case Seq(_) =>
           primitive(cb.memoize(cb.emb.newRNG(0L).invoke[Double]("rnorm")))
         }
-        Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(acopy, a) => a }
+        Acopy.coiterateMutate(cb, region, (A, "A")) { case Seq(_, a) => a }
         SNDArray.geqrt_full(cb, Acopy, Q, R, T, work, blocksize)
 
         new LocalWhitening(cb, m, w, n, blocksize, region, false).qrPivot(cb, Q, R, 0, p)
@@ -371,7 +371,6 @@ class PNDArraySuite extends PhysicalTestUtils {
     val fb = EmitFunctionBuilder[Region, Region, Region, Long](ctx, "ref_count_test")
     val codeRegion1 = fb.getCodeParam[Region](1)
     val codeRegion2 = fb.getCodeParam[Region](2)
-    val codeRegion3 = fb.getCodeParam[Region](3)
 
     try {
       fb.emitWithBuilder { cb =>
@@ -386,7 +385,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
         val (_, snd2Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)
-        val snd2 = snd2Finisher(cb)
+        snd2Finisher(cb)
         cb.assign(r2PointerToNDAddress1, nd.store(cb, codeRegion2, snd1, true))
 
         // Return the 1st ndarray

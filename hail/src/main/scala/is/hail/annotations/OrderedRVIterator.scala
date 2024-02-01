@@ -79,7 +79,7 @@ case class OrderedRVIterator(
 
       var isValid: Boolean = true
 
-      def setValue() {
+      def setValue(): Unit = {
         if (left.isValid) {
           while (buffer.nonEmpty && mixedOrd(left.value, buffer.head) > 0)
             buffer.dequeue()
@@ -95,7 +95,7 @@ case class OrderedRVIterator(
         }
       }
 
-      def advance() {
+      def advance(): Unit = {
         left.advance()
         setValue()
       }

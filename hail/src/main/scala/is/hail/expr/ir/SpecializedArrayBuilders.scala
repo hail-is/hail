@@ -2,10 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{typeToTypeInfo, PType}
 import is.hail.types.physical.stypes.SingleCodeType
-import is.hail.types.virtual.Type
-import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
@@ -130,18 +127,18 @@ sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
     missing(i) = m
   }
 
-  def addMissing() {
+  def addMissing(): Unit = {
     ensureCapacity(size_ + 1)
     missing(size_) = true
     size_ += 1
   }
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 }
 
 final class IntMissingArrayBuilder(initialCapacity: Int)
@@ -451,7 +448,7 @@ final class ByteArrayArrayBuilder(initialCapacity: Int) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -481,7 +478,7 @@ final class ByteArrayArrayBuilder(initialCapacity: Int) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Array[Byte]] = b.slice(0, size_)
 }
@@ -493,7 +490,7 @@ final class LongArrayBuilder(initialCapacity: Int = 16) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -539,7 +536,7 @@ final class LongArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Long] = b.slice(0, size_)
 
@@ -568,7 +565,7 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -619,7 +616,7 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Int] = b.slice(0, size_)
 
@@ -648,7 +645,7 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -699,7 +696,7 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Double] = b.slice(0, size_)
 
@@ -728,14 +725,13 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
 
-  def setSizeUnchecked(n: Int) {
+  def setSizeUnchecked(n: Int): Unit =
     size_ = n
-  }
 
   def apply(i: Int): Byte = {
     require(i >= 0 && i < size)
@@ -778,7 +774,7 @@ final class ByteArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Byte] = b.slice(0, size_)
 
@@ -807,7 +803,7 @@ final class BooleanArrayBuilder(initialCapacity: Int = 16) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -839,7 +835,7 @@ final class BooleanArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[Boolean] = b.slice(0, size_)
 
@@ -867,7 +863,7 @@ final class StringArrayBuilder(initialCapacity: Int = 16) {
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -899,7 +895,7 @@ final class StringArrayBuilder(initialCapacity: Int = 16) {
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[String] = {
     val a = new Array[String](size_)
@@ -932,7 +928,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
 
   def size: Int = size_
 
-  def setSize(n: Int) {
+  def setSize(n: Int): Unit = {
     require(n >= 0 && n <= size)
     size_ = n
   }
@@ -964,7 +960,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
     b(i) = x
   }
 
-  def clear() { size_ = 0 }
+  def clear(): Unit = size_ = 0
 
   def result(): Array[T] = b.slice(0, size_)
 

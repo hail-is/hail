@@ -59,7 +59,6 @@ trait ErrorHandling {
   def handleForPython(e: Throwable): (String, String, Int) = {
     val short = deepestMessage(e)
     val expanded = expandException(e, false)
-    val logExpanded = expandException(e, true)
 
     def searchForErrorCode(exception: Throwable): Int = {
       if (exception.isInstanceOf[HailException]) {

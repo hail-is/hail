@@ -5,7 +5,6 @@ import is.hail.io.compress.LZ4
 import is.hail.utils._
 
 import java.io._
-import java.util
 import java.util.UUID
 import java.util.function.Supplier
 
@@ -68,7 +67,7 @@ trait InputBuffer extends Closeable {
 trait InputBlockBuffer extends Spec with Closeable {
   def close(): Unit
 
-  def seek(offset: Long)
+  def seek(offset: Long): Unit
 
   def skipBytesReadRemainder(n0: Int, buf: Array[Byte]): Int = {
     var n = n0
@@ -169,7 +168,7 @@ final class StreamInputBuffer(in: InputStream) extends InputBuffer {
 }
 
 final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
-  def close() {}
+  def close(): Unit = {}
 
   def seek(offset: Long) = ???
 
@@ -186,7 +185,7 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
   def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toOff, n)
 
   def readBytesArray(n: Int): Array[Byte] = {
-    var arr = new Array[Byte](n)
+    val arr = new Array[Byte](n)
     mb.readBytesArray(arr, n)
     arr
   }
@@ -207,9 +206,8 @@ final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
 }
 
 final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 
@@ -252,13 +250,13 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   def skipByte(): Unit = in.skipByte()
 
-  def skipInt() {
+  def skipInt(): Unit = {
     var b: Byte = readByte()
     while ((b & 0x80) != 0)
       b = readByte()
   }
 
-  def skipLong() {
+  def skipLong(): Unit = {
     var b: Byte = readByte()
     while ((b & 0x80) != 0)
       b = readByte()
@@ -368,7 +366,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   private[this] var end: Int = 0
   private[this] var off: Int = 0
 
-  private[this] def ensure(n: Int) {
+  private[this] def ensure(n: Int): Unit = {
     if (off == end) {
       end = in.readBlock(buf)
       off = 0
@@ -376,9 +374,8 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     assert(off + n <= end)
   }
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = {
     in.seek(offset)
@@ -422,7 +419,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     d
   }
 
-  def readBytes(toRegion: Region, toOff0: Long, n0: Int) {
+  def readBytes(toRegion: Region, toOff0: Long, n0: Int): Unit = {
     assert(n0 >= 0)
     var toOff = toOff0
     var n = n0
@@ -441,7 +438,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     }
   }
 
-  override def read(arr: Array[Byte], toOff0: Int, n0: Int) {
+  override def read(arr: Array[Byte], toOff0: Int, n0: Int): Unit = {
     var toOff = toOff0;
     var n = n0
 
@@ -460,37 +457,37 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   }
 
   def readBytesArray(n: Int): Array[Byte] = {
-    var arr = new Array[Byte](n)
+    val arr = new Array[Byte](n)
     read(arr, 0, n)
     arr
   }
 
-  def skipByte() {
+  def skipByte(): Unit = {
     ensure(1)
     off += 1
   }
 
-  def skipInt() {
+  def skipInt(): Unit = {
     ensure(4)
     off += 4
   }
 
-  def skipLong() {
+  def skipLong(): Unit = {
     ensure(8)
     off += 8
   }
 
-  def skipFloat() {
+  def skipFloat(): Unit = {
     ensure(4)
     off += 4
   }
 
-  def skipDouble() {
+  def skipDouble(): Unit = {
     ensure(8)
     off += 8
   }
 
-  def skipBytes(n0: Int) {
+  def skipBytes(n0: Int): Unit = {
     var n = n0
     if (off + n > end) {
       n -= (end - off)
@@ -502,7 +499,7 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
     }
   }
 
-  def readDoubles(to: Array[Double], toOff0: Int, n0: Int) {
+  def readDoubles(to: Array[Double], toOff0: Int, n0: Int): Unit = {
     assert(toOff0 >= 0)
     assert(n0 >= 0)
     assert(toOff0 <= to.length - n0)
@@ -527,9 +524,8 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
 final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   private[this] val lenBuf = new Array[Byte](4)
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   // this takes a virtual offset and will seek the underlying stream to offset >> 16
   def seek(offset: Long): Unit = in.asInstanceOf[ByteTrackingInputStream].seek(offset >> 16)
@@ -548,9 +544,8 @@ final class LZ4InputBlockBuffer(lz4: LZ4, blockSize: Int, in: InputBlockBuffer)
     extends InputBlockBuffer {
   private[this] val comp = new Array[Byte](4 + lz4.maxCompressedLength(blockSize))
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 
@@ -592,9 +587,8 @@ final class LZ4SizeBasedCompressingInputBlockBuffer(lz4: LZ4, blockSize: Int, in
   private[this] val comp = new Array[Byte](8 + lz4.maxCompressedLength(blockSize))
   private[this] var lim = 0
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   def seek(offset: Long): Unit = in.seek(offset)
 

@@ -458,9 +458,34 @@ class Table(ExprContainer):
     def n_partitions(self):
         """Returns the number of partitions in the table.
 
+        Examples
+        --------
+
+        Range tables can be constructed with an explicit number of partitions:
+
+        >>> ht = hl.utils.range_table(100, n_partitions=10)
+        >>> ht.n_partitions()
+        10
+
+        Small files are often imported with one partition:
+
+        >>> ht2 = hl.import_table('data/coordinate_matrix.tsv', impute=True)
+        >>> ht2.n_partitions()
+        1
+
+        The `min_partitions` argument to :func:`.import_table` forces more partitions, but it can
+        produce empty partitions. Empty partitions do not affect correctness but introduce
+        unnecessary extra bookkeeping that slows down the pipeline.
+
+        >>> ht2 = hl.import_table('data/coordinate_matrix.tsv', impute=True, min_partitions=10)
+        >>> ht2.n_partitions()
+        10
+
         Returns
         -------
         :obj:`int`
+            Number of partitions.
+
         """
         return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'NPartitionsTable'}))
 
@@ -470,12 +495,18 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> table1.count()
+        Count the number of rows in a table loaded from 'data/kt_example1.tsv'. Each line of the TSV
+        becomes one row in the Hail Table.
+
+        >>> ht = hl.import_table('data/kt_example1.tsv', impute=True)
+        >>> ht.count()
         4
 
         Returns
         -------
         :obj:`int`
+            The number of rows in the table.
+
         """
         return Env.backend().execute(ir.TableCount(self._tir))
 
@@ -514,21 +545,76 @@ class Table(ExprContainer):
 
         Examples
         --------
-        Parallelize a list of dictionaries:
 
-        >>> a = [ {'a': 5, 'b': 10}, {'a': 0, 'b': 200} ]
-        >>> t = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
-        >>> t.show()
+        Parallelize a list of dictionaries into a Hail Table. The fields of the dictionary become
+        the fields of the Table. The schema should always be a :class:`.tstruct` whose fields
+        correspond to the dictionaries' fields.
 
-        Parallelize complex JSON with a `partial_type`:
-        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},\
-                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},\
-                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},\
-                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},\
-                     {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
         >>> t = hl.Table.parallelize(
-        ...     dicts,
-        ...     partial_type={"milestone":hl.tstr, "labels":hl.tarray(hl.tstr)})
+        ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
+        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint)
+        ... )
+        >>> t.show()
+        +-------+-------+
+        |     a |     b |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     5 |    10 |
+        |     0 |   200 |
+        +-------+-------+
+
+        The `key` parameter sets the key of the Table. Notice that the order of the rows changes,
+        because the rows of a Table are always appear in ascending order of the key.
+
+        >>> t = hl.Table.parallelize(
+        ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
+        ...     schema=hl.tstruct(a=hl.tint, b=hl.tint),
+        ...     key='a'
+        ... )
+        >>> t.show()
+        +-------+-------+
+        |     a |     b |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |   200 |
+        |     5 |    10 |
+        +-------+-------+
+
+        You may also elide schema entirely and let Hail guess the type. The list elements must
+        either be Hail :class:`.Struct` or :class:`.dict` s.
+
+        >>> t = hl.Table.parallelize(
+        ...     [{'a': 5, 'b': 10}, {'a': 0, 'b': 200}],
+        ...     key='a'
+        ... )
+        >>> t.show()
+        +-------+-------+
+        |     a |     b |
+        +-------+-------+
+        | int32 | int32 |
+        +-------+-------+
+        |     0 |   200 |
+        |     5 |    10 |
+        +-------+-------+
+
+        You may also specify only a handful of types in `partial_type`. Hail will automatically
+        deduce the types of the other fields. Hail _cannot_ deduce the type of a field which only
+        contains empty arrays (the element type is unspecified), so we specify the type of labels
+        explicitly.
+
+        >>> dictionaries = [
+        ...     {"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794}, "milestone":None,"labels":[]},
+        ...     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},
+        ...     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},
+        ...     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+        ...     {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+        ... ]
+        >>> t = hl.Table.parallelize(
+        ...     dictionaries,
+        ...     partial_type={"milestone": hl.tstr, "labels": hl.tarray(hl.tstr)}
+        ... )
         >>> t.show()
         +--------+--------+--------------------+-----------------+----------+
         | number | state  | user.login         | user.site_admin |  user.id |
@@ -553,8 +639,25 @@ class Table(ExprContainer):
         | NA        | []         |
         +-----------+------------+
 
+        Parallelizing with a specified number of partitions:
+
+        >>> rows = [ {'a': i} for i in range(100) ]
+        >>> ht = hl.Table.parallelize(rows, n_partitions=10)
+        >>> ht.n_partitions()
+        10
+        >>> ht.count()
+        100
+
+        Parallelizing with some global information:
+
+        >>> rows = [ {'a': i} for i in range(5) ]
+        >>> ht = hl.Table.parallelize(rows, globals=hl.Struct(global_value=3))
+        >>> ht.aggregate(hl.agg.sum(ht.global_value * ht.a))
+        30
+
         Warning
         -------
+
         Parallelizing very large local arrays will be slow.
 
         Parameters
@@ -575,6 +678,7 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`.Table`
+            A distributed Hail table created from the local collection of rows.
 
         """
         if schema and partial_type:
@@ -582,9 +686,15 @@ class Table(ExprContainer):
 
         dtype = schema
         if schema is not None:
+            if not isinstance(schema, hl.tstruct):
+                raise ValueError(
+                    "parallelize expectes the 'schema' argument to be an hl.tstruct, see docs for details."
+                )
             dtype = hl.tarray(schema)
-        if partial_type is not None:
+        elif partial_type is not None:
             partial_type = hl.tarray(hl.tstruct(**partial_type))
+        else:
+            partial_type = hl.tarray(hl.tstruct())
         rows = to_expr(rows, dtype=dtype, partial_type=partial_type)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'".format(rows.dtype))
@@ -634,31 +744,136 @@ class Table(ExprContainer):
     def key_by(self, *keys, **named_keys) -> 'Table':
         """Key table by a new set of fields.
 
+        Table keys control both the order of the rows in the table and the ability to join or
+        annotate one table with the information in another table.
+
         Examples
         --------
-        Assume `table1` is a :class:`.Table` with three fields: `C1`, `C2`
-        and `C3`.
 
-        Changing key fields:
+        Consider a simple unkeyed table. Its rows appear are guaranteed to appear in the same order
+        as they were in the source text file.
 
-        >>> table_result = table1.key_by('C2', 'C3')
+        >>> ht = hl.import_table('data/kt_example1.tsv', impute=True)
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
-        This keys the table by 'C2' and 'C3', preserving old keys as value fields.
+        Changing the key forces the rows to appear in ascending order. For this reason,
+        :meth:`.key_by` is a relatively expensive operation. It must sort the entire dataset.
 
-        >>> table_result = table1.key_by(table1.C1)
+        >>> ht = ht.key_by('HT')
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
-        This keys the table by 'C1', preserving old keys as value fields.
+        Suppose that `ht` represents some human subjects in an experiment. We might need to combine
+        sample metadata from `ht` with sample metadata from another source. For example:
 
-        >>> table_result = table1.key_by(C1 = table1.C2, foo = table1.C1)
+        >>> ht2 = hl.import_table('data/kt_example2.tsv', impute=True)
+        >>> ht2 = ht2.key_by('ID')
+        >>> ht2.show()
+        +-------+-------+----------+
+        |    ID |     A | B        |
+        +-------+-------+----------+
+        | int32 | int32 | str      |
+        +-------+-------+----------+
+        |     1 |    65 | "cat"    |
+        |     2 |    72 | "dog"    |
+        |     3 |    70 | "mouse"  |
+        |     4 |    60 | "rabbit" |
+        +-------+-------+----------+
+        >>> combined_ht = ht
+        >>> combined_ht = combined_ht.key_by('ID')
+        >>> combined_ht = combined_ht.annotate(favorite_pet = ht2[combined_ht.key].B)
+        >>> combined_ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | favorite_pet |
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | str          |
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 | "cat"        |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 | "dog"        |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 | "mouse"      |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 | "rabbit"     |
+        +-------+-------+-----+-------+-------+-------+-------+-------+--------------+
 
-        This keys the table by fields named 'C1' and 'foo', which have values
-        corresponding to the original 'C2' and 'C1' fields respectively. The original
-        'C1' field has been overwritten by the new assignment, but the original
-        'C2' field is preserved as a value field.
+        Hail supports compound keys which enforce a dictionary ordering on the rows of the Table.
 
-        Remove key:
+        >>> ht = ht.key_by('SEX', 'HT')
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
-        >>> table_result = table1.key_by()
+        A key may also be shortened by removing some fields. The ordering of two rows with the same
+        key is undefined. You should not rely on them appearing in any particular order.
+
+        >>> ht = ht.key_by('SEX')
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+
+        Key fields may also be a complex expression:
+
+        >>> ht = ht.key_by(C4 = ht.X + ht.Z)
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |    C4 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |     9 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |     9 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    10 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+
+        The key can be "removed" or set to the empty key. The ordering of the rows in a table
+        without a key is undefined.
+
+        >>> ht = ht.key_by()
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |    C4 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |     9 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |     9 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    10 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -679,6 +894,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
             Table with a new key.
+
         """
         key_fields, computed_keys = get_key_by_exprs("Table.key_by", keys, named_keys, self._row_indices)
 
@@ -719,7 +935,23 @@ class Table(ExprContainer):
 
         Add a new global field:
 
-        >>> table_result = table1.annotate_globals(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
+        >>> ht = hl.utils.range_table(1)
+        >>> ht = ht.annotate_globals(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
+        >>> ht.globals.show()
+        +---------------------------+
+        | <expr>.pops               |
+        +---------------------------+
+        | array<str>                |
+        +---------------------------+
+        | ["EUR","AFR","EAS","SAS"] |
+        +---------------------------+
+
+        Global fields may be used to store metadata about an experiment:
+
+        >>> ht = ht.annotate_globals(
+        ...     study_name='HGDP+1kG',
+        ...     release_date='2023-01-01'
+        ... )
 
         Note
         ----
@@ -728,7 +960,7 @@ class Table(ExprContainer):
         Parameters
         ----------
         named_exprs : varargs of :class:`.Expression`
-            Annotation expressions.
+            Expressions defining new global fields.
 
         Returns
         -------
@@ -744,10 +976,48 @@ class Table(ExprContainer):
 
         Examples
         --------
-        Select one existing field and compute a new one:
 
-        >>> table_result = table1.select_globals(table1.global_field_1,
-        ...                                      another_global=['AFR', 'EUR', 'EAS', 'AMR', 'SAS'])
+        Selecting two global fields, one by name and one new one, replacing any previously annotated
+        global fields.
+
+        >>> ht = hl.utils.range_table(1)
+        >>> ht = ht.annotate_globals(pops = ['EUR', 'AFR', 'EAS', 'SAS'])
+        >>> ht = ht.annotate_globals(study_name = 'HGDP+1kg')
+        >>> ht.describe()
+        ----------------------------------------
+        Global fields:
+            'pops': array<str>
+            'study_name': str
+        ----------------------------------------
+        Row fields:
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+        >>> ht = ht.select_globals(ht.pops, target_date='2025-01-01')
+        >>> ht.describe()
+        ----------------------------------------
+        Global fields:
+            'pops': array<str>
+            'target_date': str
+        ----------------------------------------
+        Row fields:
+            'idx': int32
+        ----------------------------------------
+        Key: ['idx']
+        ----------------------------------------
+
+        Fields may also be selected by their name:
+
+        >>> ht = ht.select_globals('target_date')
+        >>> ht.globals.show()
+        +--------------------+
+        | <expr>.target_date |
+        +--------------------+
+        | str                |
+        +--------------------+
+        | "2025-01-01"       |
+        +--------------------+
 
         Notes
         -----
@@ -774,6 +1044,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
             Table with specified global fields.
+
         """
         caller = 'Table.select_globals'
         new_globals = get_select_exprs(caller, exprs, named_exprs, self._global_indices, self._globals)
@@ -786,10 +1057,35 @@ class Table(ExprContainer):
 
         Notes
         -----
-        This method adds new global fields according to `named_exprs`, and
-        drops all global fields referenced in those expressions. See
-        :meth:`.Table.transmute` for full documentation on how transmute
-        methods work.
+        Consider a table with global fields `population`, `area`, and `year`:
+
+        >>> ht = hl.utils.range_table(1)
+        >>> ht = ht.annotate_globals(population=1000000, area=500, year=2020)
+
+        Compute a new field, `density` from `population` and `area` and also drop the latter two
+        fields:
+
+        >>> ht = ht.transmute_globals(density=ht.population / ht.area)
+        >>> ht.globals.show()
+        +-------------+----------------+
+        | <expr>.year | <expr>.density |
+        +-------------+----------------+
+        |       int32 |        float64 |
+        +-------------+----------------+
+        |        2020 |       2.00e+03 |
+        +-------------+----------------+
+
+        Introduce a new global field `next_year` based on `year`:
+
+        >>> ht = ht.transmute_globals(next_year=ht.year + 1)
+        >>> ht.globals.show()
+        +----------------+------------------+
+        | <expr>.density | <expr>.next_year |
+        +----------------+------------------+
+        |        float64 |            int32 |
+        +----------------+------------------+
+        |       2.00e+03 |             2021 |
+        +----------------+------------------+
 
         See Also
         --------
@@ -804,6 +1100,7 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`.Table`
+
         """
         caller = 'Table.transmute_globals'
         check_annotate_exprs(caller, named_exprs, self._global_indices, set())
@@ -820,26 +1117,62 @@ class Table(ExprContainer):
         Examples
         --------
 
-        Create a single field from an expression of `C1`, `C2`, and `C3`.
+        Consider this table:
 
-        >>> table4.show()
-        +-------+------+---------+-------+-------+-------+-------+-------+
-        |     A | B.B0 | B.B1    | C     | D.cat | D.dog |   E.A |   E.B |
-        +-------+------+---------+-------+-------+-------+-------+-------+
-        | int32 | bool | str     | bool  | int32 | int32 | int32 | int32 |
-        +-------+------+---------+-------+-------+-------+-------+-------+
-        |    32 | True | "hello" | False |     5 |     7 |     5 |     7 |
-        +-------+------+---------+-------+-------+-------+-------+-------+
+        >>> ht = table1
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
-        >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
-        >>> table_result.show()
-        +------+---------+-------+-------+-------+-------+
-        | B.B0 | B.B1    | C     | D.cat | D.dog |     F |
-        +------+---------+-------+-------+-------+-------+
-        | bool | str     | bool  | int32 | int32 | int32 |
-        +------+---------+-------+-------+-------+-------+
-        | True | "hello" | False |     5 |     7 |    46 |
-        +------+---------+-------+-------+-------+-------+
+        Transmuting a field without referencing other fields has the same effect as annotating:
+
+        >>> ht = ht.transmute(new_field=hl.struct(x=3, y=4))
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | new_field.x |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |       int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |           3 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |           3 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |           3 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |           3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+-------------+
+        +-------------+
+        | new_field.y |
+        +-------------+
+        |       int32 |
+        +-------------+
+        |           4 |
+        |           4 |
+        |           4 |
+        |           4 |
+        +-------------+
+
+        Transmuting a field while referencing other fields drops those other fields. Notice how the
+        compound field, `new_field` is dropped entirely even though we only used one of its
+        component fields.
+
+        >>> ht = ht.transmute(F=ht.X + 2 * ht.new_field.x)
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     Z |    C1 |    C2 |    C3 |     F |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | "M" |     4 |     2 |    50 |     5 |    11 |
+        |     2 |    72 | "M" |     3 |     2 |    61 |     1 |    12 |
+        |     3 |    70 | "F" |     3 |    10 |    81 |    -5 |    13 |
+        |     4 |    60 | "F" |     2 |    11 |    90 |   -10 |    14 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -855,9 +1188,9 @@ class Table(ExprContainer):
 
         Warning
         -------
-        References to fields inside a top-level struct will remove the entire
-        struct, as field `E` was removed in the example above since `E.B` was
-        referenced.
+
+        References to fields inside a top-level struct will remove the entire struct, as field
+        `new_field` was removed in the example above since `new_field.x` was referenced.
 
         Note
         ----
@@ -872,6 +1205,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
             Table with transmuted fields.
+
         """
         caller = "Table.transmute"
         check_annotate_exprs(caller, named_exprs, self._row_indices, set())
@@ -884,17 +1218,138 @@ class Table(ExprContainer):
     def annotate(self, **named_exprs) -> 'Table':
         """Add new fields.
 
+        New Table fields may be defined in several ways:
+
+        1. In terms of constant values. Every row will have the same value.
+        2. In terms of other fields in the table.
+        3. In terms of fields in other tables, this is called "joining".
+
         Examples
         --------
 
-        Add field `Y` by computing the square of `X`:
+        Consider this table:
 
-        >>> table_result = table1.annotate(Y = table1.X ** 2)
+        >>> ht = ht.drop('C1', 'C2', 'C3')
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
+        |     2 |    72 | "M" |     6 |     3 |
+        |     3 |    70 | "F" |     7 |     3 |
+        |     4 |    60 | "F" |     8 |     2 |
+        +-------+-------+-----+-------+-------+
+
+        Add field Y containing the square of field X
+
+        >>> ht = ht.annotate(Y = ht.X ** 2)
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+----------+
+        |    ID |    HT | SEX |     X |     Z |        Y |
+        +-------+-------+-----+-------+-------+----------+
+        | int32 | int32 | str | int32 | int32 |  float64 |
+        +-------+-------+-----+-------+-------+----------+
+        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |
+        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |
+        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |
+        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |
+        +-------+-------+-----+-------+-------+----------+
 
         Add multiple fields simultaneously:
 
-        >>> table_result = table1.annotate(A = table1.X / 2,
-        ...                                B = table1.X + 21)
+        >>> ht = ht.annotate(
+        ...     A = ht.X / 2,
+        ...     B = ht.X + 21
+        ... )
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+----------+----------+-------+
+        |    ID |    HT | SEX |     X |     Z |        Y |        A |     B |
+        +-------+-------+-----+-------+-------+----------+----------+-------+
+        | int32 | int32 | str | int32 | int32 |  float64 |  float64 | int32 |
+        +-------+-------+-----+-------+-------+----------+----------+-------+
+        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 | 2.50e+00 |    26 |
+        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 | 3.00e+00 |    27 |
+        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 | 3.50e+00 |    28 |
+        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 | 4.00e+00 |    29 |
+        +-------+-------+-----+-------+-------+----------+----------+-------+
+
+        Add a new field computed from extant fields and a small dictionary:
+
+        >>> py_height_description = {65: 'sixty-five', 72: 'seventy-two', 70: 'seventy', 60: 'sixty'}
+        >>> hail_height_description = hl.literal(py_height_description)
+        >>> ht = ht.annotate(HT_DESCRIPTION=hail_height_description[ht.HT])
+        >>> ht.select('HT', 'HT_DESCRIPTION').show()
+        +-------+-------+----------------+
+        |    ID |    HT | HT_DESCRIPTION |
+        +-------+-------+----------------+
+        | int32 | int32 | str            |
+        +-------+-------+----------------+
+        |     1 |    65 | "sixty-five"   |
+        |     2 |    72 | "seventy-two"  |
+        |     3 |    70 | "seventy"      |
+        |     4 |    60 | "sixty"        |
+        +-------+-------+----------------+
+
+        Add fields from another table onto this table:
+
+        >>> ht2 = table2
+        >>> ht2 = ht2.key_by('ID')
+        >>> ht2.show()
+
+        >>> ht = ht.key_by('ID')
+        >>> ht = ht.annotate(
+        ...    A=ht2[ht.key].A,
+        ...    B=ht2[ht.key].B,
+        ... )
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |    ID |    HT | SEX |     X |     Z |        Y |     A | B        |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        | int32 | int32 | str | int32 | int32 |  float64 | int32 | str      |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |    65 | "cat"    |
+        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |    72 | "dog"    |
+        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  |
+        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        +----------------+
+        | HT_DESCRIPTION |
+        +----------------+
+        | str            |
+        +----------------+
+        | "sixty-five"   |
+        | "seventy-two"  |
+        | "seventy"      |
+        | "sixty"        |
+        +----------------+
+
+        Instead of repeating all the fields from the other table, we may use Python's splat operator
+        to indicate we want to copy all the non-key fields from the other table:
+
+        >>> ht = ht.annotate(**ht2[ht.key])
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |    ID |    HT | SEX |     X |     Z |        Y |     A | B        |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        | int32 | int32 | str | int32 | int32 |  float64 | int32 | str      |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        |     1 |    65 | "M" |     5 |     4 | 2.50e+01 |    65 | "cat"    |
+        |     2 |    72 | "M" |     6 |     3 | 3.60e+01 |    72 | "dog"    |
+        |     3 |    70 | "F" |     7 |     3 | 4.90e+01 |    70 | "mouse"  |
+        |     4 |    60 | "F" |     8 |     2 | 6.40e+01 |    60 | "rabbit" |
+        +-------+-------+-----+-------+-------+----------+-------+----------+
+        +----------------+
+        | HT_DESCRIPTION |
+        +----------------+
+        | str            |
+        +----------------+
+        | "sixty-five"   |
+        | "seventy-two"  |
+        | "seventy"      |
+        | "sixty"        |
+        +----------------+
 
         Parameters
         ----------
@@ -905,6 +1360,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
             Table with new fields.
+
         """
         caller = "Table.annotate"
         check_annotate_exprs(caller, named_exprs, self._row_indices, set())
@@ -912,18 +1368,162 @@ class Table(ExprContainer):
 
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter(self, expr, keep: bool = True) -> 'Table':
-        """Filter rows.
+        """Filter rows conditional on the value of each row's fields.
+
+        Note
+        ----
+
+        Hail will can read much less data if a Table filter condition references the key field and
+        the Table is stored in Hail native format (i.e. read using :func:`.read_table`, _not_
+        :func:`.import_table`). In other words: filtering on the key will make a pipeline faster by
+        reading fewer rows. This optimization is prevented by certain operations appearing between a
+        :func:`.read_table` and a :meth:`.filter`. For example, a `key_by` and `group_by`, both
+        force reading all the data.
+
+        Suppose we previously :meth:`.write` a Hail Table with one million rows keyed by a field
+        called `idx`. If we filter this table to one value of `idx`, the pipeline will be fast
+        because we read only the rows that have that value of `idx`:
+
+        >>> ht = hl.read_table('large-table.ht')  # doctest: +SKIP
+        >>> ht = ht.filter(ht.idx == 5)  # doctest: +SKIP
+
+        This also works with inequality conditions:
+
+        >>> ht = hl.read_table('large-table.ht')  # doctest: +SKIP
+        >>> ht = ht.filter(ht.idx <= 5)  # doctest: +SKIP
 
         Examples
         --------
 
-        Keep rows where ``C1`` equals 5:
+        Consider this table:
 
-        >>> table_result = table1.filter(table1.C1 == 5)
+        >>> ht = ht.drop('C1', 'C2', 'C3')
+        >>> ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
+        |     2 |    72 | "M" |     6 |     3 |
+        |     3 |    70 | "F" |     7 |     3 |
+        |     4 |    60 | "F" |     8 |     2 |
+        +-------+-------+-----+-------+-------+
 
-        Remove rows where ``C1`` equals 10:
+        Keep rows where ``Z`` is 3:
 
-        >>> table_result = table1.filter(table1.C1 == 10, keep=False)
+        >>> filtered_ht = ht.filter(ht.Z == 3)
+        >>> filtered_ht.show()
+
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     2 |    72 | "M" |     6 |     3 |
+        |     3 |    70 | "F" |     7 |     3 |
+        +-------+-------+-----+-------+-------+
+
+        Remove rows where ``Z`` is 3:
+
+        >>> filtered_ht = ht.filter(ht.Z == 3, keep=False)
+        >>> filtered_ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
+        |     4 |    60 | "F" |     8 |     2 |
+        +-------+-------+-----+-------+-------+
+
+        Keep rows where X is less than 7 and Z is greater than 2:
+
+        >>> filtered_ht = ht.filter(hl.all(
+        ...     ht.X < 7,
+        ...     ht.Z > 2
+        ... ))
+        >>> filtered_ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
+        |     2 |    72 | "M" |     6 |     3 |
+        +-------+-------+-----+-------+-------+
+
+        Keep rows where X is less than 7 or Z is greater than 2:
+
+        >>> filtered_ht = ht.filter(hl.any(
+        ...     ht.X < 7,
+        ...     ht.Z > 2
+        ... ))
+        >>> filtered_ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
+        |     2 |    72 | "M" |     6 |     3 |
+        |     3 |    70 | "F" |     7 |     3 |
+        +-------+-------+-----+-------+-------+
+
+        Keep "M" rows where ``HT`` is less than 72 and "F" rows where ``HT`` is less than 65:
+
+        >>> filtered_ht = ht.filter(
+        ...     hl.if_else(
+        ...         ht.SEX == "M",
+        ...         ht.HT < 72,
+        ...         ht.HT < 65
+        ...     )
+        ... )
+        >>> filtered_ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |
+        |     4 |    60 | "F" |     8 |     2 |
+        +-------+-------+-----+-------+-------+
+
+        Notice that if the condition evaluates to missing, the row is _always_ removed regardless of
+        the setting of `keep`:
+
+        >>> ht2 = ht
+        >>> ht2 = ht.annotate(X = hl.or_missing(ht.X != 5, ht.X))
+        >>> ht2.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     1 |    65 | "M" |    NA |     4 |
+        |     2 |    72 | "M" |     6 |     3 |
+        |     3 |    70 | "F" |     7 |     3 |
+        |     4 |    60 | "F" |     8 |     2 |
+        +-------+-------+-----+-------+-------+
+        >>> filtered_ht = ht2.filter(ht2.X < 7, keep=True)
+        >>> filtered_ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     2 |    72 | "M" |     6 |     3 |
+        +-------+-------+-----+-------+-------+
+        >>> filtered_ht = ht2.filter(ht2.X < 7, keep=False)
+        >>> filtered_ht.show()
+        +-------+-------+-----+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |
+        +-------+-------+-----+-------+-------+
+        | int32 | int32 | str | int32 | int32 |
+        +-------+-------+-----+-------+-------+
+        |     3 |    70 | "F" |     7 |     3 |
+        |     4 |    60 | "F" |     8 |     2 |
+        +-------+-------+-----+-------+-------+
 
         Notes
         -----
@@ -953,6 +1553,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
             Filtered table.
+
         """
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
@@ -1350,7 +1951,7 @@ class Table(ExprContainer):
 
         Examples
         --------
-        >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
+        >>> table1 = table1.checkpoint('output/table_checkpoint.ht', overwrite=True)
 
         """
         hl.current_backend().validate_file(output)
@@ -1377,7 +1978,7 @@ class Table(ExprContainer):
         Examples
         --------
 
-        >>> table1.write('output/table1.ht')
+        >>> table1.write('output/table1.ht', overwrite=True)
 
         .. include:: _templates/write_warning.rst
 
@@ -1419,8 +2020,8 @@ class Table(ExprContainer):
 
         >>> t = hl.utils.range_table(10)
         >>> t = t.annotate(a = t.idx, b = t.idx * t.idx, c = hl.str(t.idx))
-        >>> t.write_many('output', fields=('a', 'b', 'c'))
-        >>> hl.read_table('output/a').describe()
+        >>> t.write_many('output-many', fields=('a', 'b', 'c'), overwrite=True)
+        >>> hl.read_table('output-many/a').describe()
         ----------------------------------------
         Global fields:
             None
@@ -1431,7 +2032,7 @@ class Table(ExprContainer):
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
-        >>> hl.read_table('output/a').show()
+        >>> hl.read_table('output-many/a').show()
         +-------+-------+
         |     a |   idx |
         +-------+-------+
@@ -1448,7 +2049,7 @@ class Table(ExprContainer):
         |     8 |     8 |
         |     9 |     9 |
         +-------+-------+
-        >>> hl.read_table('output/b').describe()
+        >>> hl.read_table('output-many/b').describe()
         ----------------------------------------
         Global fields:
             None
@@ -1459,7 +2060,7 @@ class Table(ExprContainer):
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
-        >>> hl.read_table('output/b').show()
+        >>> hl.read_table('output-many/b').show()
         +-------+-------+
         |     b |   idx |
         +-------+-------+
@@ -1476,7 +2077,7 @@ class Table(ExprContainer):
         |    64 |     8 |
         |    81 |     9 |
         +-------+-------+
-        >>> hl.read_table('output/c').describe()
+        >>> hl.read_table('output-many/c').describe()
         ----------------------------------------
         Global fields:
             None
@@ -1487,7 +2088,7 @@ class Table(ExprContainer):
         ----------------------------------------
         Key: ['idx']
         ----------------------------------------
-        >>> hl.read_table('output/c').show()
+        >>> hl.read_table('output-many/c').show()
         +-----+-------+
         | c   |   idx |
         +-----+-------+
@@ -3759,25 +4360,21 @@ class Table(ExprContainer):
 
         is_same = True
         if mismatched_globals is not None:
-            print(
-                f"""Table._same: globals differ:
+            print(f"""Table._same: globals differ:
     Left:
 {pretty(mismatched_globals.left_globals)}
     Right:
-{pretty(mismatched_globals.right_globals)}"""
-            )
+{pretty(mismatched_globals.right_globals)}""")
             is_same = False
 
         if len(mismatched_rows) > 0:
             print('Table._same: rows differ:')
             for r in mismatched_rows:
-                print(
-                    f"""  Row mismatch at key={r.key}:
+                print(f"""  Row mismatch at key={r.key}:
     Left:
 {pretty(r.left_row)}
     Right:
-{pretty(r.right_row)}"""
-                )
+{pretty(r.right_row)}""")
             is_same = False
 
         return is_same

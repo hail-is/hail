@@ -652,7 +652,7 @@ object SNDArray {
     work: SNDArrayValue,
     blocksize: Value[Long],
   ): Unit = {
-    val Seq(m, n) = A.shapes
+    val Seq(_, n) = A.shapes
     SNDArray.geqrt(A, T, work, blocksize, cb)
     // copy upper triangle of A0 to R
     SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ColonIndex), R)
@@ -803,7 +803,7 @@ object SNDArray {
     T: SNDArrayValue,
     work: SNDArrayValue,
   ): Unit = {
-    val Seq(m, n) = A.shapes
+    val Seq(_, n) = A.shapes
     SNDArray.geqr(cb, A, T, work)
     // copy upper triangle of A0 to R
     SNDArray.copyMatrix(cb, "U", A.slice(cb, (null, n), ColonIndex), R)

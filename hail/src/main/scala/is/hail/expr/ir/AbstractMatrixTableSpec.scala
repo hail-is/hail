@@ -6,13 +6,13 @@ import is.hail.types._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.mutable
+
+import java.io.{FileNotFoundException, OutputStreamWriter}
+
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
-
-import java.io.{FileNotFoundException, OutputStreamWriter}
-import scala.collection.mutable
-import scala.language.{existentials, implicitConversions}
 
 abstract class ComponentSpec
 
@@ -41,7 +41,7 @@ object RelationalSpec {
       try
         using(fs.open(metadataFile))(in => parse(in))
       catch {
-        case exc: FileNotFoundException =>
+        case _: FileNotFoundException =>
           if (fs.isFile(path)) {
             fatal(s"MatrixTable and Table files are directories; path '$path' is a file.")
           } else {
@@ -75,7 +75,6 @@ object RelationalSpec {
 
   def read(fs: FS, path: String): RelationalSpec = {
     val jv = readMetadata(fs, path)
-    val references = readReferences(fs, path, jv)
 
     (jv \ "name").extract[String] match {
       case "TableSpec" => TableSpec.fromJValue(fs, path, jv)
@@ -204,13 +203,12 @@ case class MatrixTableSpecParameters(
   components: Map[String, ComponentSpec],
 ) {
 
-  def write(fs: FS, path: String) {
+  def write(fs: FS, path: String): Unit =
     using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
       out.write(
         JsonMethods.compact(decomposeWithName(this, "MatrixTableSpec")(RelationalSpec.formats))
       )
     }
-  }
 
 }
 

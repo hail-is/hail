@@ -7,13 +7,14 @@ import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
 import is.hail.services._
 import is.hail.utils._
 
+import scala.collection.mutable
+import scala.io.Source
+
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.charset._
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
-import scala.collection.mutable
-import scala.io.Source
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
@@ -698,7 +699,7 @@ trait FS extends Serializable {
     deleteSource: Boolean = true,
     header: Boolean = true,
     partFilesOpt: Option[IndexedSeq[String]] = None,
-  ) {
+  ): Unit = {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
@@ -745,7 +746,7 @@ trait FS extends Serializable {
     srcFileStatuses: Array[_ <: FileStatus],
     destFilename: String,
     deleteSource: Boolean = true,
-  ) {
+  ): Unit = {
     val codec = Option(getCodecFromPath(destFilename))
     val isBGzip = codec.exists(_ == BGZipCompressionCodec)
 

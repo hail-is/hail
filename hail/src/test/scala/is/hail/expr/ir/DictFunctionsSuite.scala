@@ -25,26 +25,24 @@ class DictFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "basic")
-  def dictFromArray(a: IndexedSeq[(Integer, Integer)]) {
+  def dictFromArray(a: IndexedSeq[(Integer, Integer)]): Unit = {
     assertEvalsTo(invoke("dict", TDict(TInt32, TInt32), toIRPairArray(a)), tuplesToMap(a))
     assertEvalsTo(toIRDict(a), tuplesToMap(a))
   }
 
   @Test(dataProvider = "basic")
-  def dictFromSet(a: IndexedSeq[(Integer, Integer)]) {
+  def dictFromSet(a: IndexedSeq[(Integer, Integer)]): Unit =
     assertEvalsTo(
       invoke("dict", TDict(TInt32, TInt32), ToSet(ToStream(toIRPairArray(a)))),
       tuplesToMap(a),
     )
-  }
 
   @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[(Integer, Integer)]) {
+  def isEmpty(a: IndexedSeq[(Integer, Integer)]): Unit =
     assertEvalsTo(
       invoke("isEmpty", TBoolean, toIRDict(a)),
       Option(a).map(_.forall(_ == null)).orNull,
     )
-  }
 
   @DataProvider(name = "dictToArray")
   def dictToArrayData(): Array[Array[Any]] = Array(
@@ -59,9 +57,8 @@ class DictFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "dictToArray")
-  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: (IndexedSeq[Row])) {
+  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: (IndexedSeq[Row])): Unit =
     assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
-  }
 
   @DataProvider(name = "keysAndValues")
   def keysAndValuesData(): Array[Array[Any]] = Array(
@@ -81,33 +78,30 @@ class DictFunctionsSuite extends HailSuite {
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
-  ) {
+  ): Unit =
     assertEvalsTo(invoke("keySet", TSet(TInt32), toIRDict(a)), Option(keys).map(_.toSet).orNull)
-  }
 
   @Test(dataProvider = "keysAndValues")
   def keys(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
-  ) {
+  ): Unit =
     assertEvalsTo(invoke("keys", TArray(TInt32), toIRDict(a)), keys)
-  }
 
   @Test(dataProvider = "keysAndValues")
   def values(
     a: IndexedSeq[(Integer, Integer)],
     keys: IndexedSeq[Integer],
     values: IndexedSeq[Integer],
-  ) {
+  ): Unit =
     assertEvalsTo(invoke("values", TArray(TInt32), toIRDict(a)), values)
-  }
 
   val d = IRDict((1, 3), (3, 7), (5, null), (null, 5))
   val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32)
 
-  @Test def dictGet() {
+  @Test def dictGet(): Unit = {
     assertEvalsTo(invoke("get", TInt32, NA(TDict(TInt32, TInt32)), 1, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 0, na), null)
     assertEvalsTo(invoke("get", TInt32, d, 1, na), 3)
@@ -133,7 +127,7 @@ class DictFunctionsSuite extends HailSuite {
     assertFatal(invoke("index", TInt32, IRDict(), 100), "dictionary")
   }
 
-  @Test def dictContains() {
+  @Test def dictContains(): Unit = {
     assertEvalsTo(invoke("contains", TBoolean, d, 0), false)
     assertEvalsTo(invoke("contains", TBoolean, d, 1), true)
     assertEvalsTo(invoke("contains", TBoolean, d, 2), false)

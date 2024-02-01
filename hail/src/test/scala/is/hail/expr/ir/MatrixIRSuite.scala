@@ -9,9 +9,8 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.json4s.jackson.JsonMethods
-
 import org.apache.spark.sql.Row
+import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
 
 class MatrixIRSuite extends HailSuite {
@@ -99,7 +98,7 @@ class MatrixIRSuite extends HailSuite {
   def getCols(mir: MatrixIR): Array[Row] =
     Interpret(MatrixColsTable(mir), ctx).rdd.collect()
 
-  @Test def testScanCountBehavesLikeIndexOnRows() {
+  @Test def testScanCountBehavesLikeIndexOnRows(): Unit = {
     val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
@@ -110,7 +109,7 @@ class MatrixIRSuite extends HailSuite {
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx }, rows.toSeq)
   }
 
-  @Test def testScanCollectBehavesLikeRangeOnRows() {
+  @Test def testScanCollectBehavesLikeRangeOnRows(): Unit = {
     val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
@@ -123,7 +122,7 @@ class MatrixIRSuite extends HailSuite {
     })
   }
 
-  @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
+  @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows(): Unit = {
     val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
@@ -139,7 +138,7 @@ class MatrixIRSuite extends HailSuite {
     })
   }
 
-  @Test def testScanCountBehavesLikeIndexOnCols() {
+  @Test def testScanCountBehavesLikeIndexOnCols(): Unit = {
     val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
@@ -150,7 +149,7 @@ class MatrixIRSuite extends HailSuite {
     assert(cols.forall { case Row(col_idx, idx) => col_idx == idx })
   }
 
-  @Test def testScanCollectBehavesLikeRangeOnCols() {
+  @Test def testScanCollectBehavesLikeRangeOnCols(): Unit = {
     val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
@@ -163,7 +162,7 @@ class MatrixIRSuite extends HailSuite {
     })
   }
 
-  @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols() {
+  @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols(): Unit = {
     val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
@@ -206,7 +205,7 @@ class MatrixIRSuite extends HailSuite {
   )
 
   @Test(dataProvider = "unionRowsData")
-  def testMatrixUnionRows(ranges: IndexedSeq[(Int, Int)]) {
+  def testMatrixUnionRows(ranges: IndexedSeq[(Int, Int)]): Unit = {
     val expectedOrdering = ranges.flatMap { case (start, end) =>
       Array.range(start, end)
     }.sorted
@@ -232,8 +231,7 @@ class MatrixIRSuite extends HailSuite {
   )
 
   @Test(dataProvider = "explodeRowsData")
-  def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]) {
-    val tarray = TArray(TInt32)
+  def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]): Unit = {
     val range = rangeMatrix(5, 2, None)
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
@@ -267,7 +265,7 @@ class MatrixIRSuite extends HailSuite {
     TableLiteral(tv, theHailClassLoader)
   }
 
-  @Test def testCastTableToMatrix() {
+  @Test def testCastTableToMatrix(): Unit = {
     val rdata = Array(
       Row(1, "fish", FastSeq(Row("a", 1.0), Row("x", 2.0))),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
@@ -296,7 +294,7 @@ class MatrixIRSuite extends HailSuite {
     assert(localCols sameElements cdata)
   }
 
-  @Test def testCastTableToMatrixErrors() {
+  @Test def testCastTableToMatrixErrors(): Unit = {
     val rdata = Array(
       Row(1, "fish", FastSeq(Row("x", 2.0))),
       Row(2, "cat", FastSeq(Row("b", 0.0), Row("y", 0.1))),
@@ -331,7 +329,7 @@ class MatrixIRSuite extends HailSuite {
     interceptSpark("missing")(Interpret(mir2, ctx, optimize = true).rvd.count())
   }
 
-  @Test def testMatrixFiltersWorkWithRandomness() {
+  @Test def testMatrixFiltersWorkWithRandomness(): Unit = {
     val range = rangeMatrix(20, 20, Some(4), uids = true)
     def rand(rng: IR): IR =
       ApplySeeded("rand_bool", FastSeq(0.5), rng, 0, TBoolean)
@@ -356,7 +354,7 @@ class MatrixIRSuite extends HailSuite {
     assert(entries < 400 && entries > 0)
   }
 
-  @Test def testMatrixRepartition() {
+  @Test def testMatrixRepartition(): Unit = {
     val range = rangeMatrix(11, 3, Some(10))
 
     val params = Array(
@@ -375,7 +373,7 @@ class MatrixIRSuite extends HailSuite {
     }
   }
 
-  @Test def testMatrixMultiWriteDifferentTypesRaisesError() {
+  @Test def testMatrixMultiWriteDifferentTypesRaisesError(): Unit = {
     val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")

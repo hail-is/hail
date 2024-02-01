@@ -3,19 +3,19 @@ package is.hail.expr.ir.analyses
 import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
-import is.hail.io.fs.{FakeFS, FakeURL, FileListEntry, FS}
+import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.{MatrixType, TableType}
 import is.hail.types.virtual._
 import is.hail.utils.{using, FastSeq}
 
-import org.json4s.JValue
+import scala.util.control.NonFatal
 
 import java.io.FileNotFoundException
 import java.lang
-import scala.util.control.NonFatal
 
+import org.json4s.JValue
 import org.testng.annotations.{DataProvider, Test}
 
 class SemanticHashSuite extends HailSuite {
@@ -309,7 +309,7 @@ class SemanticHashSuite extends HailSuite {
     val fs =
       new FakeFS {
         override def eTag(url: FakeURL): Option[String] =
-          throw new FileNotFoundException(url.getPath())
+          throw new FileNotFoundException(url.getPath)
       }
 
     val ir =
@@ -345,7 +345,7 @@ class SemanticHashSuite extends HailSuite {
       override def glob(url: FakeURL): Array[FileListEntry] =
         Array(new FileListEntry {
           override def getPath: String = url.getPath
-          override def getActualUrl(): String = url.getPath
+          override def getActualUrl: String = url.getPath
           override def getModificationTime: lang.Long = ???
           override def getLen: Long = ???
           override def isDirectory: Boolean = ???

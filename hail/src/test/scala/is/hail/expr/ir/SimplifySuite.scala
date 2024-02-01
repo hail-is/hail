@@ -17,7 +17,7 @@ class SimplifySuite extends HailSuite {
   def resetUidCounter(): Unit =
     is.hail.expr.ir.uidCounter = 0
 
-  @Test def testTableMultiWayZipJoinGlobalsRewrite() {
+  @Test def testTableMultiWayZipJoinGlobalsRewrite(): Unit = {
     hc
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
       Array(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
@@ -27,7 +27,7 @@ class SimplifySuite extends HailSuite {
     assertEvalsTo(tmwzj, Row(FastSeq(Row(), Row(), Row())))
   }
 
-  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations() {
+  @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(): Unit = {
     hc
     val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
@@ -43,7 +43,7 @@ class SimplifySuite extends HailSuite {
 
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1, 2))
 
-  @Test def testInsertFieldsRewriteRules() {
+  @Test def testInsertFieldsRewriteRules(): Unit = {
     val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
     assert(Simplify(ctx, ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastSeq("1", "2"))))
 
@@ -92,7 +92,7 @@ class SimplifySuite extends HailSuite {
     assert(simplify1.typ == ir1.typ)
   }
 
-  @Test def testInsertSelectRewriteRules() {
+  @Test def testInsertSelectRewriteRules(): Unit = {
     val ir1 = SelectFields(InsertFields(base, FastSeq("3" -> I32(1)), None), FastSeq("1"))
     assert(Simplify(ctx, ir1) == SelectFields(base, FastSeq("1")))
 
@@ -104,7 +104,7 @@ class SimplifySuite extends HailSuite {
     ))
   }
 
-  @Test def testContainsRewrites() {
+  @Test def testContainsRewrites(): Unit = {
     assertEvalsTo(
       invoke("contains", TBoolean, Literal(TArray(TString), FastSeq("a")), In(0, TString)),
       FastSeq("a" -> TString),
@@ -124,7 +124,7 @@ class SimplifySuite extends HailSuite {
     )
   }
 
-  @Test def testTableCountExplodeSetRewrite() {
+  @Test def testTableCountExplodeSetRewrite(): Unit = {
     var ir: TableIR = TableRange(1, 1)
     ir = TableMapRows(
       ir,
@@ -362,7 +362,7 @@ class SimplifySuite extends HailSuite {
     assert(Simplify(ctx, tir) == tir)
   }
 
-  @Test def testFilterParallelize() {
+  @Test def testFilterParallelize(): Unit = {
     for (
       rowsAndGlobals <- Array(
         MakeStruct(FastSeq(
@@ -393,7 +393,7 @@ class SimplifySuite extends HailSuite {
     })
   }
 
-  @Test def testNestedFilterIntervals() {
+  @Test def testNestedFilterIntervals(): Unit = {
     var tir: TableIR = TableRange(10, 5)
     def r = Ref("row", tir.typ.rowType)
     tir = TableMapRows(tir, InsertFields(r, FastSeq("idx2" -> GetField(r, "idx"))))
@@ -406,7 +406,7 @@ class SimplifySuite extends HailSuite {
     ))
   }
 
-  @Test def testSimplifyReadFilterIntervals() {
+  @Test def testSimplifyReadFilterIntervals(): Unit = {
     val src = "src/test/resources/sample-indexed-0.2.52.mt"
 
     val mnr = MatrixNativeReader(fs, src, None)
@@ -478,7 +478,7 @@ class SimplifySuite extends HailSuite {
     assert(Simplify(ctx, ztfi2) == zexp2)
   }
 
-  @Test(enabled = false) def testFilterIntervalsKeyByToFilter() {
+  @Test(enabled = false) def testFilterIntervalsKeyByToFilter(): Unit = {
     var t: TableIR = TableRange(100, 10)
     t = TableMapRows(
       t,

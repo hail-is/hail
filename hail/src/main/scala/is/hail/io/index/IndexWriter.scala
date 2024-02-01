@@ -1,6 +1,6 @@
 package is.hail.io.index
 
-import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionPool}
 import is.hail.asm4s.{HailClassLoader, _}
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
 import is.hail.expr.ir.{
@@ -19,9 +19,9 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 
-import org.json4s.jackson.Serialization
-
 import java.io.OutputStream
+
+import org.json4s.jackson.Serialization
 
 trait AbstractIndexMetadata {
   def fileVersion: Int
@@ -110,7 +110,6 @@ class IndexWriter(
   attributes: Map[String, Any],
 ) extends AutoCloseable {
   private val region = Region(pool = pool)
-  private val rvb = new RegionValueBuilder(sm, region)
 
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
     val koff = keyType.unstagedStoreJavaObject(sm, x, region)
@@ -225,7 +224,7 @@ case class StagedIndexMetadata(
   annotationType: Type,
   attributes: Map[String, Any],
 ) {
-  def serialize(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long) {
+  def serialize(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long): Unit = {
     import AbstractRVDSpec.formats
     val metadata = IndexMetadata(
       IndexWriter.version.rep,
@@ -370,7 +369,7 @@ class StagedIndexWriter(
 ) {
   require(branchingFactor > 1)
 
-  private var elementIdx = cb.genFieldThisRef[Long]()
+  private val elementIdx = cb.genFieldThisRef[Long]()
   private val ob = cb.genFieldThisRef[OutputBuffer]()
   private val utils = new StagedIndexWriterUtils(cb.genFieldThisRef[IndexWriterUtils]())
 
@@ -476,7 +475,8 @@ class StagedIndexWriter(
       }
     }
 
-  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode) {
+  def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode)
+    : Unit = {
     cb.if_(leafBuilder.ab.length.ceq(branchingFactor), cb.invokeVoid(writeLeafNode, cb.this_))
     leafBuilder.add(cb, key, offset, annotation)
     cb.assign(elementIdx, elementIdx + 1L)

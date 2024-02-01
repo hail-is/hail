@@ -217,22 +217,16 @@ def ld_score_regression(
     # format input dataset
     if isinstance(ds, hl.MatrixTable):
         if len(chi_sq_exprs) != 1:
-            raise ValueError(
-                """Only one chi_sq_expr allowed if originating
-                from a matrix table."""
-            )
+            raise ValueError("""Only one chi_sq_expr allowed if originating
+                from a matrix table.""")
         if len(n_samples_exprs) != 1:
-            raise ValueError(
-                """Only one n_samples_expr allowed if
-                originating from a matrix table."""
-            )
+            raise ValueError("""Only one n_samples_expr allowed if
+                originating from a matrix table.""")
 
         col_key = list(ds.col_key)
         if len(col_key) != 1:
-            raise ValueError(
-                """Matrix table must be keyed by a single
-                phenotype field."""
-            )
+            raise ValueError("""Matrix table must be keyed by a single
+                phenotype field.""")
 
         analyze('ld_score_regression/chi_squared_expr', chi_sq_exprs[0], ds._entry_indices)
         analyze('ld_score_regression/n_samples_expr', n_samples_exprs[0], ds._entry_indices)

@@ -463,11 +463,19 @@ class SourceCopier:
             assert self.pending == 0
 
             for result in results:
-                if isinstance(result, Exception):
+                if isinstance(result, BaseException):
                     raise result
 
             assert (self.src_is_file is None) == self.src.endswith('/')
-            assert self.src_is_dir is not None
+            assert self.src_is_dir is not None, repr((
+                results,
+                self.src_is_file,
+                self.src_is_dir,
+                self.src,
+                self.dest,
+                self.barrier,
+                self.pending,
+            ))
             if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
                 raise FileNotFoundError(self.src)
 

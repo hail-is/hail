@@ -14,8 +14,9 @@ import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.utils._
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import scala.collection.mutable
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import org.testng.annotations.Test
 
@@ -68,7 +69,6 @@ object BTreeBackedSet {
     val root = fb.genFieldThisRef[Long]()
     val r = fb.genFieldThisRef[Region]()
     val ib = fb.getCodeParam[InputBuffer](2)
-    val ib2 = fb.genFieldThisRef[InputBuffer]()
 
     val km = fb.genFieldThisRef[Boolean]()
     val kv = fb.genFieldThisRef[Long]()

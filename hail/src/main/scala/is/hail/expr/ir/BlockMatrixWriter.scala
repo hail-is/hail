@@ -15,9 +15,9 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
 
-import org.json4s.{jackson, DefaultFormats, Formats, ShortTypeHints}
-
 import java.io.DataOutputStream
+
+import org.json4s.{jackson, DefaultFormats, Formats, ShortTypeHints}
 
 object BlockMatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {

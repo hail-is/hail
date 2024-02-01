@@ -29,15 +29,15 @@ import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
-import org.json4s.jackson.JsonMethods
+import scala.language.existentials
 
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
-import scala.language.existentials
 
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+import org.json4s.jackson.JsonMethods
 
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
@@ -1011,7 +1011,6 @@ case class VCFPartitionWriter(
         _writeB(cb, v.toBytes(cb).loadBytes(cb))
       case v: SCallValue =>
         val ploidy = v.ploidy(cb)
-        val phased = v.isPhased(cb)
         cb.if_(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
         cb.if_(ploidy.ceq(1), cb._fatal("VCF spec does not support phased haploid calls."))
         val c = v.canonicalCall(cb)

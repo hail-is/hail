@@ -39,11 +39,6 @@ spec:
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
-          - name: HAIL_DOMAIN
-            valueFrom:
-              secretKeyRef:
-                name: global-config
-                key: domain
           - name: PROJECT
             valueFrom:
               secretKeyRef:

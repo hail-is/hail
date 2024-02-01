@@ -5,7 +5,6 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.rvd.RVDType
 import is.hail.stats._
 import is.hail.types.{MatrixType, TableType}
 import is.hail.types.virtual.{TArray, TFloat64, TStruct}
@@ -40,8 +39,6 @@ case class LogisticRegression(
     val logRegTest = LogisticRegressionTest.tests(test)
     val tableType = typ(mv.typ)
     val newRVDType = tableType.canonicalRVDType
-
-    val multiPhenoSchema = TStruct(("logistic_regression", TArray(logRegTest.schema)))
 
     val (yVecs, cov, completeColIdx) =
       RegressionUtils.getPhenosCovCompleteSamples(mv, yFields.toArray, covFields.toArray)

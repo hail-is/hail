@@ -2,10 +2,10 @@ package is.hail.lir
 
 import is.hail.utils._
 
-import java.io.ByteArrayOutputStream
-import java.io.PrintWriter
-import java.nio.charset.StandardCharsets
 import scala.collection.mutable
+
+import java.io.{ByteArrayOutputStream, PrintWriter}
+import java.nio.charset.StandardCharsets
 
 import org.objectweb.asm.{ClassReader, ClassVisitor, ClassWriter, Label}
 import org.objectweb.asm.Opcodes._
@@ -165,7 +165,7 @@ object Emit {
           mv.visitIincInsn(getLocalIndex(x.l), x.i)
         case x: StmtOpX =>
           mv.visitInsn(x.op)
-        case x: ThrowX =>
+        case _: ThrowX =>
           mv.visitInsn(ATHROW)
       }
     }

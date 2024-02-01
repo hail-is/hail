@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.PCanonicalNDArray
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.virtual.{TNDArray, Type}

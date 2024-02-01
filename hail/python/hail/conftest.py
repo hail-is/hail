@@ -216,5 +216,3 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['ld_score_all_phenos_sumstats'] = hl.read_matrix_table(
         'data/ld_score_regression.all_phenos.sumstats.mt'
     )
-
-    print("finished setting up doctest...")

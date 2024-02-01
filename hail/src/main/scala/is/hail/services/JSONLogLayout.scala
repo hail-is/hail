@@ -1,16 +1,15 @@
 package is.hail.services
 
-import org.json4s._
-import org.json4s.jackson.JsonMethods
+import scala.collection.mutable.ArrayBuffer
 
 import java.io.StringWriter
-import java.nio.charset.StandardCharsets
 import java.text._
 import java.util.function._
-import scala.collection.mutable.ArrayBuffer
 
 import org.apache.log4j._
 import org.apache.log4j.spi._
+import org.json4s._
+import org.json4s.jackson.JsonMethods
 
 class DateFormatter {
   private[this] val fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")

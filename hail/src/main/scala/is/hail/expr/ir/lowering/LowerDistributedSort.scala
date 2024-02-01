@@ -13,12 +13,11 @@ import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.json4s.JsonAST.JString
-import org.json4s.JValue
-
 import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.sql.Row
+import org.json4s.JValue
+import org.json4s.JsonAST.JString
 
 object LowerDistributedSort {
   def localSort(
@@ -55,7 +54,6 @@ object LowerDistributedSort {
     val rowsType = resultPType.fieldType("rows").asInstanceOf[PArray]
     val rowType = rowsType.elementType.asInstanceOf[PStruct]
     val rows = rowsAndGlobal.getAs[IndexedSeq[Annotation]](0)
-    val kType = TStruct(sortFields.map(f => (f.field, rowType.virtualType.fieldType(f.field))): _*)
 
     val sortedRows = localAnnotationSort(ctx, rows, sortFields, rowType.virtualType)
 

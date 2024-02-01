@@ -15,7 +15,7 @@ trait MissingnessAsMethod {
 }
 
 trait NoBoxLongIterator {
-  def init(partitionRegion: Region, elementRegion: Region)
+  def init(partitionRegion: Region, elementRegion: Region): Unit
 
   // after next() has been called, if eos is true, stream has ended
   // (and value returned by next() is garbage)

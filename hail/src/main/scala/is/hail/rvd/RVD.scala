@@ -16,11 +16,10 @@ import is.hail.types.virtual.{TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 
-import java.util
-import scala.language.existentials
 import scala.reflect.ClassTag
 
-import org.apache.commons.lang3.StringUtils
+import java.util
+
 import org.apache.spark.{Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
@@ -385,7 +384,7 @@ class RVD(
         j
       }.toArray
 
-      newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) =>
+      newPartEnd = newPartEnd.zipWithIndex.filter { case (_, i) =>
         i == 0 || newPartEnd(i) != newPartEnd(i - 1)
       }
         .map(_._1)
@@ -747,7 +746,7 @@ class RVD(
             val hcl = theHailClassLoaderForSparkWorkers
             val htc = SparkTaskContext.get()
             var acc = mkZero(hcl, htc)
-            it.foreach { case (newPart, (oldPart, v)) =>
+            it.foreach { case (_, (_, v)) =>
               acc = combOp(hcl, htc, acc, deserialize(hcl, htc)(v))
             }
             Iterator.single(serialize(hcl, htc, acc))
@@ -1198,7 +1197,6 @@ object RVD {
       def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(execCtx, typ)
     }
 
-    val numPartitions = keys.getNumPartitions
     val keyInfo = getKeyInfo(execCtx, fullType, partitionKey, keys)
 
     if (keyInfo.isEmpty)
@@ -1408,7 +1406,6 @@ object RVD {
       _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
 
     val partDigits = digitsNeeded(nPartitions)
-    val fileDigits = digitsNeeded(rvds.length)
     for (i <- 0 until nRVDs) {
       val path = paths(i)
       fs.mkDir(path + "/rows/rows/parts")
@@ -1456,7 +1453,6 @@ object RVD {
         .par
         .foreach { case (partFiles, i) =>
           val fs = fsBc.value
-          val s = StringUtils.leftPad(i.toString, fileDigits, '0')
           val basePath = paths(i)
           RichContextRDDRegionValue.writeSplitSpecs(
             fs,

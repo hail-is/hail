@@ -16,11 +16,10 @@ import is.hail.utils._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.variant._
 
-import org.json4s.{DefaultFormats, Formats, JValue}
-import org.json4s.jackson.JsonMethods
-
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Formats, JValue}
+import org.json4s.jackson.JsonMethods
 
 case class FamFileConfig(
   isQuantPheno: Boolean = false,
@@ -113,7 +112,7 @@ object LoadPlink {
     val idBuilder = new BoxedArrayBuilder[String]
     val structBuilder = new BoxedArrayBuilder[Row]
 
-    val m = fs.readLines(filename) {
+    fs.readLines(filename) {
       _.foreachLine { line =>
         val split = line.split(delimiter)
         if (split.length != 6)
@@ -182,7 +181,6 @@ object LoadPlink {
 
 object MatrixPLINKReader {
   def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixPLINKReader = {
-    val backend = ctx.backend
     val fs = ctx.fs
 
     implicit val formats: Formats = DefaultFormats

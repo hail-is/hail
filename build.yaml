@@ -1042,7 +1042,6 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
-              --ignore=test/hailtop/hailctl/batch/ \
               --timeout=120 \
               test
     inputs:
@@ -1291,6 +1290,7 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --doctest-continue-on-failure \
               --ignore=$HAIL_LOCATION/test \
               --ignore=$HAIL_LOCATION/docs/conf.py \
               --ignore=$HAIL_LOCATION/docs/doctest_write_data.py \
@@ -1497,7 +1497,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN hail-apt-get-install git make
+        RUN hail-apt-get-install git make openjdk-11-jre-headless
         COPY hail/python/pinned-requirements.txt hail-requirements.txt
         COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
         COPY gear/pinned-requirements.txt gear-requirements.txt
@@ -1566,8 +1566,8 @@ steps:
         to: /io/repo/pylintrc
       - from: /repo/pyproject.toml
         to: /io/repo/pyproject.toml
-      - from: /repo/hail/python
-        to: /io/repo/hail/python
+      - from: /repo/hail
+        to: /io/repo/hail
       - from: /repo/config.mk
         to: /io/repo/config.mk
     dependsOn:
@@ -2361,6 +2361,9 @@ steps:
       - name: finalize-job-groups
         script: /io/sql/finalize-job-groups.sql
         online: true
+      - name: remove-v2-billing-writes
+        script: /io/sql/remove-v2-billing-writes.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2730,7 +2733,7 @@ steps:
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
       export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
+      export HAIL_BATCH_REMOTE_TMPDIR="{{ global.test_storage_uri }}/test_batch/{{ token }}/"
 
       hail-pip-install -r /io/dev-requirements.txt
 
@@ -3010,8 +3013,7 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=360 \
-              /io/test/hailtop/batch/ \
-              /io/test/hailtop/hailctl/batch/
+              /io/test/hailtop/batch/
     inputs:
       - from: /repo/hail/python/test
         to: /io/test
@@ -3171,6 +3173,7 @@ steps:
               --durations=50 \
               --doctest-modules \
               --doctest-glob='*.rst' \
+              --doctest-continue-on-failure \
               --ignore=docs/cookbook/files/ \
               --timeout=120 \
               --ignore=docs/conf.py \

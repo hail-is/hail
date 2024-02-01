@@ -3,9 +3,10 @@ package is.hail.io
 import is.hail.io.fs.FS
 import is.hail.utils._
 
+import scala.collection.mutable
+
 import java.io.{Closeable, DataOutputStream}
 import java.util.Arrays
-import scala.collection.mutable
 
 object IndexBTree {
   private[io] def calcDepth(internalAndExternalNodeCount: Long, branchingFactor: Int): Int = {
@@ -181,7 +182,7 @@ class IndexBTree(indexFileName: String, fs: FS, branchingFactor: Int = 1024) ext
   def queryIndex(query: Long): Option[Long] = {
     require(query >= 0)
 
-    val (index, result) = traverseTree(query, 0L, 1)
+    val (_, result) = traverseTree(query, 0L, 1)
 
     if (result != -1L)
       Option(result)

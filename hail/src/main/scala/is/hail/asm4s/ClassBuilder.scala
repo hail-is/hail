@@ -4,15 +4,15 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.lir
 import is.hail.utils._
 
-import java.io._
-import java.nio.charset.StandardCharsets
 import scala.collection.mutable
 import scala.language.existentials
+
+import java.io._
+import java.nio.charset.StandardCharsets
 
 import javassist.bytecode.DuplicateMemberException
 import org.apache.spark.TaskContext
 import org.objectweb.asm.ClassReader
-import org.objectweb.asm.Opcodes.INVOKESPECIAL
 import org.objectweb.asm.util.{Textifier, TraceClassVisitor}
 
 object Field {
@@ -575,7 +575,7 @@ class ClassBuilder[C](
 }
 
 object FunctionBuilder {
-  def bytesToBytecodeString(bytes: Array[Byte], out: OutputStream) {
+  def bytesToBytecodeString(bytes: Array[Byte], out: OutputStream): Unit = {
     val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(out))
     new ClassReader(bytes).accept(tcv, 0)
   }

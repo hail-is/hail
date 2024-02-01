@@ -28,15 +28,15 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
 
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-import org.json4s.JsonAST.JString
-import org.json4s.jackson.JsonMethods
+import scala.reflect.ClassTag
 
 import java.io.{Closeable, DataInputStream, DataOutputStream, InputStream}
-import scala.reflect.ClassTag
 
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
+import org.json4s.JsonAST.JString
+import org.json4s.jackson.JsonMethods
 
 object TableIR {
   def read(fs: FS, path: String, dropRows: Boolean = false, requestedType: Option[TableType] = None)
@@ -3511,7 +3511,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
         0,
       ))
 
-    val (len, l) = Compile[AsmFunction2RegionLongInt](
+    val (_, l) = Compile[AsmFunction2RegionLongInt](
       ctx,
       FastSeq((
         "row",
@@ -3972,7 +3972,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
           var current: Long = 0
           val rowKey: WritableRegionValue = WritableRegionValue(sm, keyType, ctx.freshRegion())
           val consumerRegion: Region = ctx.region
-          val newRV = RegionValue(consumerRegion)
 
           def hasNext: Boolean = {
             if (isEnd || (current == 0 && !it.hasNext)) {
