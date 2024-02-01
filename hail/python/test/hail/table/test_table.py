@@ -729,9 +729,9 @@ class Tests(unittest.TestCase):
         df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
 
     def test_sample(self):
-        kt = hl.utils.range_table(10)
-        kt_small = kt.sample(0.01)
-        self.assertTrue(kt_small.count() < kt.count())
+        kt = hl.utils.range_table(16)
+        kt_small = kt.sample(0.25, seed=0)
+        self.assertEqual(4, kt_small.count())
 
     @skip_unless_spark_backend()
     def test_from_spark_works(self):
