@@ -7,6 +7,8 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.mutable
+
 object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply. */
@@ -1357,17 +1359,26 @@ object Simplify {
       )
   }
 
+  // Match on expressions of the form
+  //  MakeStruct(IndexedSeq(a -> GetField(o, x) [, b -> GetField(o, y), ...]))
+  // where
+  //  - all fields are extracted from the same object, `o`
+  //  - all references to the fields in o are unique
   private object MakeStructOfGetField {
     def unapply(ir: IR): Option[(IR, IndexedSeq[(String, String)])] =
       ir match {
         case MakeStruct(fields) if fields.nonEmpty =>
+          val names = mutable.HashSet.empty[String]
+          val rewrites = new BoxedArrayBuilder[(String, String)](fields.length)
+
           fields.view.map {
-            case (a, GetField(o, b)) => Some(o -> FastSeq(b -> a))
-            case _ => None
-          }.reduce[Option[(IR, IndexedSeq[(String, String)])]] {
-            case (Some((x, r1)), Some((y, r2))) if x == y => Some((x, r1 ++ r2))
+            case (a, GetField(o, b)) if names.add(b) =>
+              rewrites += (b -> a)
+              Some(o)
             case _ => None
           }
+            .reduce((a, b) => if (a == b) a else None)
+            .map(_ -> rewrites.underlying().toFastSeq)
         case _ =>
           None
       }

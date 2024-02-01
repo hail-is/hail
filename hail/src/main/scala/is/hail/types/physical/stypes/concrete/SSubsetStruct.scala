@@ -8,20 +8,19 @@ import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
 import is.hail.types.virtual.{TStruct, Type}
 
-final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String])
-    extends SBaseStruct {
+case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
 
   override val size: Int = fieldNames.size
 
   val _fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
 
-  val newToOldFieldMapping: Map[Int, Int] = _fieldIdx
+  lazy val newToOldFieldMapping: Map[Int, Int] = _fieldIdx
     .map { case (f, i) => (i, parent.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
 
-  override val fieldTypes: IndexedSeq[SType] =
+  override lazy val fieldTypes: IndexedSeq[SType] =
     Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
 
-  override val fieldEmitTypes: IndexedSeq[EmitType] =
+  override lazy val fieldEmitTypes: IndexedSeq[EmitType] =
     Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
 
   override lazy val virtualType: TStruct = {
@@ -29,24 +28,21 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
     TStruct(fieldNames.map(f => (f, vparent.field(f).typ)): _*)
   }
 
-  override def fieldIdx(fieldName: String): Int = _fieldIdx(fieldName)
+  override def fieldIdx(fieldName: String): Int =
+    _fieldIdx(fieldName)
 
   override def castRename(t: Type): SType = {
     val renamedVType = t.asInstanceOf[TStruct]
-    val newNames = renamedVType.fieldNames
-    val subsetPrevVirtualType = virtualType
-    val vparent = parent.virtualType.asInstanceOf[TStruct]
-    val newParent = TStruct(vparent.fieldNames.map(f =>
-      subsetPrevVirtualType.fieldIdx.get(f) match {
-        case Some(idxInSelectedFields) =>
-          val renamed = renamedVType.fields(idxInSelectedFields)
-          (renamed.name, renamed.typ)
-        case None => (f, vparent.fieldType(f))
-      }
-    ): _*)
-    val newType = SSubsetStruct(parent.castRename(newParent).asInstanceOf[SBaseStruct], newNames)
-    assert(newType.virtualType == t)
-    newType
+    new SSubsetStruct(parent, renamedVType.fieldNames) {
+      override lazy val newToOldFieldMapping: Map[Int, Int] =
+        SSubsetStruct.this.newToOldFieldMapping
+      override lazy val fieldTypes: IndexedSeq[SType] =
+        SSubsetStruct.this.fieldTypes
+      override lazy val fieldEmitTypes: IndexedSeq[EmitType] =
+        SSubsetStruct.this.fieldEmitTypes
+      override lazy val virtualType: TStruct =
+        renamedVType
+    }
   }
 
   override def _coerceOrCopy(

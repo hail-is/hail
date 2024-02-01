@@ -6,10 +6,11 @@ import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
-
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
+
+import scala.collection.mutable
 
 class TStructSerializer extends CustomSerializer[TStruct](format =>
       (
@@ -52,7 +53,14 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   lazy val types: Array[Type] = fields.map(_.typ).toArray
 
-  lazy val fieldNames: Array[String] = fields.map(_.name).toArray
+  val fieldNames: Array[String] = {
+    val seen = mutable.Set.empty[String]
+    fields.toArray.map { f =>
+      val name = f.name
+      assert(seen.add(name), f"duplicate name '$name' fount in '${_toPretty}'.")
+      name
+    }
+  }
 
   def size: Int = fields.length
 
