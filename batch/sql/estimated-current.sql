@@ -617,51 +617,19 @@ BEGIN
       msec_diff_rollup * quantity
     FROM attempt_resources
     JOIN batches ON batches.id = attempt_resources.batch_id
-<<<<<<< HEAD
-    INNER JOIN aggregated_billing_project_user_resources_v2 ON
-      aggregated_billing_project_user_resources_v2.billing_project = batches.billing_project AND
-      aggregated_billing_project_user_resources_v2.user = batches.user AND
-      aggregated_billing_project_user_resources_v2.resource_id = attempt_resources.resource_id AND
-      aggregated_billing_project_user_resources_v2.token = rand_token
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id AND migrated = 1
-    ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v3.`usage` + msec_diff_rollup * quantity;
-
-    INSERT INTO aggregated_job_group_resources_v2 (batch_id, job_group_id, resource_id, token, `usage`)
-    SELECT attempt_resources.batch_id,
-      job_group_self_and_ancestors.ancestor_id,
-      resource_id,
-      rand_token,
-      msec_diff_rollup * quantity
-    FROM attempt_resources
-    LEFT JOIN jobs ON attempt_resources.batch_id = jobs.batch_id AND attempt_resources.job_id = jobs.job_id
-    LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND jobs.job_group_id = job_group_self_and_ancestors.job_group_id
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = `usage` + msec_diff_rollup * quantity;
-
-    INSERT INTO aggregated_job_group_resources_v3 (batch_id, job_group_id, resource_id, token, `usage`)
-=======
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v3.`usage` + msec_diff_rollup * quantity;
 
-    INSERT INTO aggregated_job_group_resources_v3 (batch_id, resource_id, token, `usage`)
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
+    INSERT INTO aggregated_job_group_resources_v3 (batch_id, job_group_id, resource_id, token, `usage`)
     SELECT attempt_resources.batch_id,
       job_group_self_and_ancestors.ancestor_id,
       attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
-<<<<<<< HEAD
     LEFT JOIN jobs ON attempt_resources.batch_id = jobs.batch_id AND attempt_resources.job_id = jobs.job_id
     LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND jobs.job_group_id = job_group_self_and_ancestors.job_group_id
-    JOIN aggregated_job_group_resources_v2 ON
-      aggregated_job_group_resources_v2.batch_id = attempt_resources.batch_id AND
-      aggregated_job_group_resources_v2.resource_id = attempt_resources.resource_id AND
-      aggregated_job_group_resources_v2.token = rand_token
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id AND migrated = 1
-=======
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
     ON DUPLICATE KEY UPDATE `usage` = aggregated_job_group_resources_v3.`usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
@@ -669,15 +637,7 @@ BEGIN
       attempt_resources.deduped_resource_id,
       msec_diff_rollup * quantity
     FROM attempt_resources
-<<<<<<< HEAD
-    JOIN aggregated_job_resources_v2 ON
-      aggregated_job_resources_v2.batch_id = attempt_resources.batch_id AND
-      aggregated_job_resources_v2.job_id = attempt_resources.job_id AND
-      aggregated_job_resources_v2.resource_id = attempt_resources.resource_id
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id AND migrated = 1
-=======
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
     ON DUPLICATE KEY UPDATE `usage` = aggregated_job_resources_v3.`usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
@@ -689,17 +649,7 @@ BEGIN
       msec_diff_rollup * quantity
     FROM attempt_resources
     JOIN batches ON batches.id = attempt_resources.batch_id
-<<<<<<< HEAD
-    JOIN aggregated_billing_project_user_resources_by_date_v2 ON
-      aggregated_billing_project_user_resources_by_date_v2.billing_date = cur_billing_date AND
-      aggregated_billing_project_user_resources_by_date_v2.billing_project = batches.billing_project AND
-      aggregated_billing_project_user_resources_by_date_v2.user = batches.user AND
-      aggregated_billing_project_user_resources_by_date_v2.resource_id = attempt_resources.resource_id AND
-      aggregated_billing_project_user_resources_by_date_v2.token = rand_token
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id AND migrated = 1
-=======
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
     ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_by_date_v3.`usage` + msec_diff_rollup * quantity;
   END IF;
 END $$
