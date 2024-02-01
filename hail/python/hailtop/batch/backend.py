@@ -489,8 +489,9 @@ class ServiceBackend(Backend[bc.Batch]):
     Allow reading or writing to buckets even though they are "cold" storage:
 
     >>> b = Batch(
-    ...     backend=ServiceBackend(),
-    ...     gcs_bucket_allow_list=['cold-bucket', 'cold-bucket2']
+    ...     backend=ServiceBackend(
+    ...         gcs_bucket_allow_list=['cold-bucket', 'cold-bucket2'],
+    ...     ),
     ... )
 
     Parameters
