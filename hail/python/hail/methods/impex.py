@@ -3149,6 +3149,8 @@ def import_gvcf_interval(
     find=None,
     replace=None,
 ):
+    hl.current_backend().validate_file(path)
+
     indices, aggs = hl.expr.unify_all(path, file_num, contig, start, end)
     stream_ir = ir.ReadPartition(
         hl.struct(fileNum=file_num, path=path, contig=contig, start=start, end=end)._ir,
@@ -3380,7 +3382,7 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
 
 @typecheck(paths=sequenceof(str), key=nullable(sequenceof(str)), intervals=nullable(sequenceof(anytype)))
 def import_avro(paths, *, key=None, intervals=None):
-    for path in paths:
+    for p in path:
         hl.current_backend().validate_file(path)
 
     if not paths:
