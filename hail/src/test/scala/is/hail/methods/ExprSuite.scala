@@ -74,14 +74,13 @@ class ExprSuite extends HailSuite {
   @Test def testImportEmptyJSONObjectAsStruct(): Unit =
     assert(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()) == Row())
 
-  @Test def testExportEmptyJSONObjectAsStruct(): Unit = {
+  @Test def testExportEmptyJSONObjectAsStruct(): Unit =
     assert(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}")
-  }
 
   @Test def testRoundTripEmptyJSONObject(): Unit = {
     val actual = JSONAnnotationImpex.exportAnnotation(
       JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()),
-      TStruct()
+      TStruct(),
     )
     assert(compact(render(actual)) == "{}")
   }
@@ -89,7 +88,7 @@ class ExprSuite extends HailSuite {
   @Test def testRoundTripEmptyStruct(): Unit = {
     val actual = JSONAnnotationImpex.importAnnotation(
       JSONAnnotationImpex.exportAnnotation(Row(), TStruct()),
-      TStruct()
+      TStruct(),
     )
     assert(actual == Row())
   }
