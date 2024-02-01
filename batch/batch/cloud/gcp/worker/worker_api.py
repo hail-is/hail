@@ -3,17 +3,18 @@ import os
 import tempfile
 from typing import Dict, List
 
-import aiohttp
 import orjson
+from aiohttp import web
 
 from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.auth.auth import IdentityProvider
-from hailtop.utils import check_exec_output, retry_transient_errors
+from hailtop.utils import check_exec_output
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
 from ..instance_config import GCPSlimInstanceConfig
 from .disk import GCPDisk
+from .metadata_server import create_app
 
 
 class GCPWorkerAPI(CloudWorkerAPI):
@@ -24,14 +25,24 @@ class GCPWorkerAPI(CloudWorkerAPI):
     async def from_env() -> 'GCPWorkerAPI':
         project = os.environ['PROJECT']
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
-        compute_client = aiogoogle.GoogleComputeClient(project)
-        return GCPWorkerAPI(project, zone, compute_client)
+        worker_credentials = aiogoogle.GoogleInstanceMetadataCredentials()
+        http_session = httpx.ClientSession()
+        return GCPWorkerAPI(project, zone, worker_credentials, http_session)
 
-    def __init__(self, project: str, zone: str, compute_client: aiogoogle.GoogleComputeClient):
+    def __init__(
+        self,
+        project: str,
+        zone: str,
+        worker_credentials: aiogoogle.GoogleInstanceMetadataCredentials,
+        http_session: httpx.ClientSession,
+    ):
         self.project = project
         self.zone = zone
-        self._compute_client = compute_client
+        self._http_session = http_session
+        self._metadata_server_client = aiogoogle.GoogleMetadataServerClient(http_session)
+        self._compute_client = aiogoogle.GoogleComputeClient(project)
         self._gcsfuse_credential_files: Dict[str, str] = {}
+        self._worker_credentials = worker_credentials
 
     @property
     def cloud_specific_env_vars_for_user_jobs(self) -> List[str]:
@@ -53,13 +64,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
         )
 
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
-        token_dict = await retry_transient_errors(
-            session.post_read_json,
-            'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-            headers={'Metadata-Flavor': 'Google'},
-            timeout=aiohttp.ClientTimeout(total=60),  # type: ignore
-        )
-        access_token = token_dict['access_token']
+        access_token = await self._worker_credentials.access_token()
         return {'username': 'oauth2accesstoken', 'password': access_token}
 
     async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
@@ -67,6 +72,10 @@ class GCPWorkerAPI(CloudWorkerAPI):
         async with aiogoogle.GoogleServiceAccountCredentials(key) as sa_credentials:
             access_token = await sa_credentials.access_token()
         return {'username': 'oauth2accesstoken', 'password': access_token}
+
+    def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
+        key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
+        return create_app(aiogoogle.GoogleServiceAccountCredentials(key), self._metadata_server_client)
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)

@@ -42,7 +42,7 @@ object DeployConfig {
     if (file != null) {
       using(new FileInputStream(file))(in => fromConfig(JsonMethods.parse(in)))
     } else
-      fromConfig("external", "default", "hail.is")
+      fromConfig("external", "default", "hail.is", None)
   }
 
   def fromConfig(config: JValue): DeployConfig = {
@@ -51,15 +51,28 @@ object DeployConfig {
       (config \ "location").extract[String],
       (config \ "default_namespace").extract[String],
       (config \ "domain").extract[Option[String]].getOrElse("hail.is"),
+      (config \ "base_path").extract[Option[String]],
     )
   }
 
-  def fromConfig(location: String, defaultNamespace: String, domain: String): DeployConfig =
-    new DeployConfig(
-      sys.env.getOrElse(toEnvVarName("location"), location),
-      sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespace),
-      sys.env.getOrElse(toEnvVarName("domain"), domain),
-    )
+  def fromConfig(
+    locationFromConfig: String,
+    defaultNamespaceFromConfig: String,
+    domainFromConfig: String,
+    basePathFromConfig: Option[String],
+  ): DeployConfig = {
+    val location = sys.env.getOrElse(toEnvVarName("location"), locationFromConfig)
+    val defaultNamespace =
+      sys.env.getOrElse(toEnvVarName("default_namespace"), defaultNamespaceFromConfig)
+    val domain = sys.env.getOrElse(toEnvVarName("domain"), domainFromConfig)
+    val basePath = sys.env.get(toEnvVarName("basePath")).orElse(basePathFromConfig)
+
+    (basePath, defaultNamespace) match {
+      case (None, ns) if ns != "default" =>
+        new DeployConfig(location, ns, s"internal.$domain", Some(s"/$ns"))
+      case _ => new DeployConfig(location, defaultNamespace, domain, basePath)
+    }
+  }
 
   private[this] def toEnvVarName(s: String): String =
     "HAIL_" + s.toUpperCase
@@ -69,6 +82,7 @@ class DeployConfig(
   val location: String,
   val defaultNamespace: String,
   val domain: String,
+  val basePath: Option[String],
 ) {
 
   def scheme(baseScheme: String = "http"): String =
@@ -77,34 +91,28 @@ class DeployConfig(
     else
       baseScheme
 
-  def getServiceNamespace(service: String): String =
-    defaultNamespace
-
   def domain(service: String): String = {
-    val ns = getServiceNamespace(service)
     location match {
       case "k8s" =>
-        s"$service.$ns"
+        s"$service.$defaultNamespace"
       case "gce" =>
-        if (ns == "default")
+        if (basePath.isEmpty)
           s"$service.hail"
         else
           "internal.hail"
       case "external" =>
-        if (ns == "default")
+        if (basePath.isEmpty)
           s"$service.$domain"
         else
-          s"internal.$domain"
+          domain
     }
   }
 
-  def basePath(service: String): String = {
-    val ns = getServiceNamespace(service)
-    if (ns == "default")
-      ""
-    else
-      s"/$ns/$service"
-  }
+  def basePath(service: String): String =
+    basePath match {
+      case Some(base) => s"$base/$service"
+      case None => ""
+    }
 
   def baseUrl(service: String, baseScheme: String = "http"): String =
     s"${scheme(baseScheme)}://${domain(service)}${basePath(service)}"

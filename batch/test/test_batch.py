@@ -8,7 +8,7 @@ import orjson
 import pytest
 
 from hailtop import httpx
-from hailtop.auth import hail_credentials
+from hailtop.auth import get_userinfo, hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
 from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
@@ -1098,24 +1098,57 @@ def test_duplicate_parents(client: BatchClient):
 
 
 @skip_in_azure
-def test_verify_no_access_to_google_metadata_server(client: BatchClient):
+def test_hail_metadata_server_uses_correct_user_credentials(client: BatchClient):
     b = create_batch(client)
-    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
+    userinfo = get_userinfo()
+    assert userinfo
+    hail_identity = userinfo['hail_identity']
+    j = b.create_job(
+        os.environ['HAIL_CURL_IMAGE'],
+        ['curl', '-fsSL', 'metadata.google.internal/computeMetadata/v1/instance/service-accounts/', '--max-time', '10'],
+    )
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str((status, b.debug_info()))
     job_log = j.log()
-    assert "Could not resolve host" in job_log['main'], str((job_log, b.debug_info()))
+    service_accounts = set(sa.strip() for sa in job_log['main'].split())
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert service_accounts == set(('default', hail_identity))
 
 
-def test_verify_no_access_to_metadata_server(client: BatchClient):
+@skip_in_azure
+def test_gcloud_works_with_hail_metadata_server(client: BatchClient):
+    b = create_batch(client)
+    token = secrets.token_urlsafe(16)
+    tmpdir = os.environ['HAIL_BATCH_REMOTE_TMPDIR']
+    random_dir = f'{tmpdir}/{token}'
+    script = f"""
+set -ex
+unset GOOGLE_APPLICATION_CREDENTIALS
+gcloud config list account
+echo "hello" >hello.txt
+gcloud storage cp hello.txt {random_dir}/hello.txt
+gcloud storage ls {random_dir}
+gcloud storage rm -r {random_dir}/
+"""
+    j = b.create_job(os.environ['CI_UTILS_IMAGE'], ['/bin/bash', '-c', script])
+    b.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+
+def test_hail_metadata_server_available_only_in_gcp(client: BatchClient):
+    cloud = os.environ['HAIL_CLOUD']
     b = create_batch(client)
     j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', str((status, b.debug_info()))
-    job_log = j.log()
-    assert "Connection timeout" in job_log['main'], str((job_log, b.debug_info()))
+    if cloud == 'gcp':
+        assert status['state'] == 'Success', str((status, b.debug_info()))
+    else:
+        assert cloud == 'azure'
+        assert status['state'] == 'Failed', str((status, b.debug_info()))
+        job_log = j.log()
+        assert "Connection timeout" in job_log['main'], str((job_log, b.debug_info()))
 
 
 def test_submit_batch_in_job(client: BatchClient, remote_tmpdir: str):

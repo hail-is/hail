@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 
 import aiohttp
 import orjson
+from aiohttp import web
 
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
@@ -59,6 +60,9 @@ class AzureWorkerAPI(CloudWorkerAPI):
     async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
         credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
         return {'username': credentials['appId'], 'password': credentials['password']}
+
+    def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
+        raise NotImplementedError
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
