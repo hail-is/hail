@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Optional, Tuple
 
 from hailtop.utils import async_to_blocking, ait_to_blocking
+from hailtop.batch_client.types import GetJobGroupResponseV1Alpha
 from ..config import DeployConfig
 from . import aioclient
 from .. import httpx
@@ -100,9 +101,6 @@ class JobGroup:
     def __init__(self, async_job_group: aioclient.JobGroup):
         self._async_job_group = async_job_group
 
-    def name(self):
-        return async_to_blocking(self._async_job_group.name())
-
     def attributes(self):
         return async_to_blocking(self._async_job_group.attributes())
 
@@ -124,23 +122,7 @@ class JobGroup:
     def jobs(self, q: Optional[str] = None, version: Optional[int] = None, recursive: bool = False):
         return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
 
-    # {
-    #   batch_id: int
-    #   job_group_id: int
-    #   state: str, (failure, cancelled, success, running)
-    #   complete: bool
-    #   n_jobs: int
-    #   n_completed: int
-    #   n_succeeded: int
-    #   n_failed: int
-    #   n_cancelled: int
-    #   time_created: optional(str), (date)
-    #   time_completed: optional(str), (date)
-    #   duration: optional(str)
-    #   attributes: optional(dict(str, str))
-    #   cost: float
-    # }
-    def status(self) -> Dict[str, Any]:
+    def status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.status())
 
     def wait(self, *args, **kwargs):

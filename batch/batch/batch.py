@@ -3,7 +3,7 @@ import logging
 from typing import Any, Dict, List, Optional
 
 from gear import transaction
-from hailtop.batch_client.types import CostBreakdownEntry, JobListEntryV1Alpha
+from hailtop.batch_client.types import CostBreakdownEntry, GetJobGroupResponseV1Alpha, JobListEntryV1Alpha
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
@@ -79,7 +79,7 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     return d
 
 
-def job_group_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
+def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alpha:
     if record['n_failed'] > 0:
         state = 'failure'
     elif record['cancelled'] or record['n_cancelled'] > 0:
@@ -100,10 +100,8 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
 
     if record['time_created'] and record['time_completed']:
         duration_ms = record['time_completed'] - record['time_created']
-        duration = humanize_timedelta_msecs(duration_ms)
     else:
         duration_ms = None
-        duration = None
 
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
@@ -120,8 +118,7 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
         'n_cancelled': record['n_cancelled'],
         'time_created': time_created,
         'time_completed': time_completed,
-        'duration_ms': duration_ms,
-        'duration': duration,
+        'duration': duration_ms,
         'cost': coalesce(record['cost'], 0),
         'cost_breakdown': record['cost_breakdown'],
     }

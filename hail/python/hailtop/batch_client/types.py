@@ -43,3 +43,21 @@ class JobListEntryV1Alpha(TypedDict):
 class GetJobsResponseV1Alpha(TypedDict):
     jobs: List[JobListEntryV1Alpha]
     last_job_id: NotRequired[int]
+
+
+class GetJobGroupResponseV1Alpha(TypedDict):
+    batch_id: int
+    job_group_id: int
+    state: Literal['failure', 'cancelled', 'success', 'running']
+    complete: bool
+    n_jobs: int
+    n_completed: int
+    n_succeeded: int
+    n_failed: int
+    n_cancelled: int
+    time_created: Optional[str]  # date string
+    time_completed: Optional[str]  # date string
+    duration: Optional[int]
+    cost: float
+    attributes: Optional[Dict[str, str]]
+    cost_breakdown: List[CostBreakdownEntry]
