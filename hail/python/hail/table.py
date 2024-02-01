@@ -3034,9 +3034,17 @@ class Table(ExprContainer):
         --------
         Subset to the first three rows:
 
-        >>> table_result = table1.head(3)
-        >>> table_result.count()
-        3
+        >>> ht = hl.import_table('data/kt_example1.tsv', impute=True)
+        >>> ht.head(3).show()
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        +-------+-------+-----+-------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -3052,7 +3060,7 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`.Table`
-            Table including the first `n` rows.
+            Table limited to the first `n` rows.
         """
 
         return Table(ir.TableHead(self._tir, n))
