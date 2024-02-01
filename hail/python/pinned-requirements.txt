@@ -93,7 +93,7 @@ commonmark==0.9.1
     #   rich
 contourpy==1.2.0
     # via bokeh
-cryptography==41.0.7
+cryptography==42.0.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
