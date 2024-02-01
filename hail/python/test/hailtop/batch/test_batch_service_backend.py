@@ -826,7 +826,7 @@ def test_job_regions_controls_job_execution_region(backend: ServiceBackend):
 def test_job_regions_overrides_batch_regions(backend: ServiceBackend):
     the_region = backend.supported_regions()[0]
 
-    b = batch(backend, regions=['some-other-region'])
+    b = batch(backend, default_regions=['some-other-region'])
     j = b.new_job()
     j.regions([the_region])
     j.command('true')

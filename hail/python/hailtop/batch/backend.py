@@ -424,10 +424,10 @@ class ServiceBackend(Backend[bc.Batch]):
     >>> service_backend = ServiceBackend(
     ...     billing_project='my-billing-account',
     ...     remote_tmpdir='gs://my-bucket/temporary-files/'
-    ... )
-    >>> b = Batch(backend=service_backend)
-    >>> j = b.new_job()
-    >>> j.command('echo hello world!')
+    ... )  # doctest: +SKIP
+    >>> b = Batch(backend=service_backend)  # doctest: +SKIP
+    >>> j = b.new_job()  # doctest: +SKIP
+    >>> j.command('echo hello world!')  # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
 
     Same as above, but set the billing project and temporary intermediate folders via a
@@ -462,7 +462,7 @@ class ServiceBackend(Backend[bc.Batch]):
     >>> service_backend = ServiceBackend(
     ...     billing_project='my-billing-account',
     ...     remote_tmpdir='https://my-account.blob.core.windows.net/my-container/tempdir'
-    ... )
+    ... )  # doctest: +SKIP
 
     Require all jobs in all batches in this backend to execute in us-central1::
 
