@@ -829,13 +829,6 @@ BEGIN
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
   DECLARE cur_billing_date DATE;
-<<<<<<< HEAD
-  DECLARE bp_user_resources_migrated BOOLEAN DEFAULT FALSE;
-  DECLARE bp_user_resources_by_date_migrated BOOLEAN DEFAULT FALSE;
-  DECLARE job_group_resources_migrated BOOLEAN DEFAULT FALSE;
-  DECLARE job_resources_migrated BOOLEAN DEFAULT FALSE;
-=======
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
 
   SELECT billing_project, user INTO cur_billing_project, cur_user
   FROM batches WHERE id = NEW.batch_id;
@@ -862,51 +855,15 @@ BEGIN
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
-<<<<<<< HEAD
-    SELECT migrated INTO bp_user_resources_migrated
-    FROM aggregated_billing_project_user_resources_v2
-    WHERE billing_project = cur_billing_project AND user = cur_user AND resource_id = NEW.resource_id AND token = rand_token
-    FOR UPDATE;
-
-    IF bp_user_resources_migrated THEN
-      INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-      VALUES (cur_billing_project, cur_user, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
-      ON DUPLICATE KEY UPDATE
-        `usage` = `usage` + NEW.quantity * msec_diff_rollup;
-    END IF;
-
-    INSERT INTO aggregated_job_group_resources_v2 (batch_id, job_group_id, resource_id, token, `usage`)
+    INSERT INTO aggregated_job_group_resources_v3 (batch_id, job_group_id, resource_id, token, `usage`)
     SELECT NEW.batch_id, ancestor_id, NEW.resource_id, rand_token, NEW.quantity * msec_diff_rollup
     FROM job_group_self_and_ancestors
     WHERE job_group_self_and_ancestors.batch_id = NEW.batch_id AND job_group_self_and_ancestors.job_group_id = cur_job_group_id
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
-    SELECT migrated INTO job_group_resources_migrated
-    FROM aggregated_job_group_resources_v2
-    WHERE batch_id = NEW.batch_id AND job_group_id = cur_job_group_id AND resource_id = NEW.resource_id AND token = rand_token
-    FOR UPDATE;
-
-    IF job_group_resources_migrated THEN
-      INSERT INTO aggregated_job_group_resources_v3 (batch_id, job_group_id, resource_id, token, `usage`)
-      SELECT NEW.batch_id, ancestor_id, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup
-      FROM job_group_self_and_ancestors
-      WHERE job_group_self_and_ancestors.batch_id = NEW.batch_id AND job_group_self_and_ancestors.job_group_id = cur_job_group_id
-      ON DUPLICATE KEY UPDATE
-        `usage` = `usage` + NEW.quantity * msec_diff_rollup;
-    END IF;
-
-    INSERT INTO aggregated_job_resources_v2 (batch_id, job_id, resource_id, `usage`)
-    VALUES (NEW.batch_id, NEW.job_id, NEW.resource_id, NEW.quantity * msec_diff_rollup)
-=======
-    INSERT INTO aggregated_job_group_resources_v3 (batch_id, resource_id, token, `usage`)
-    VALUES (NEW.batch_id, NEW.deduped_resource_id, rand_token, NEW.quantity * msec_diff_rollup)
-    ON DUPLICATE KEY UPDATE
-      `usage` = `usage` + NEW.quantity * msec_diff_rollup;
-
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
     VALUES (NEW.batch_id, NEW.job_id, NEW.deduped_resource_id, NEW.quantity * msec_diff_rollup)
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
     ON DUPLICATE KEY UPDATE
       `usage` = `usage` + NEW.quantity * msec_diff_rollup;
 
