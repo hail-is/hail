@@ -66,8 +66,8 @@ P = ParamSpec("P")
 
 
 async def the_empty_async_generator() -> AsyncGenerator[T, None]:
-    if False:
-        yield
+    if False:  # pylint: disable=using-constant-test
+        yield  # The appearance of the keyword `yield` forces Python to make this function into a generator
 
 
 def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
