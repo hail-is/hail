@@ -421,11 +421,12 @@ class ServiceBackend(Backend[bc.Batch]):
     Create and use a backend that bills to the Hail Batch billing project named "my-billing-account"
     and stores temporary intermediate files in "gs://my-bucket/temporary-files".
 
-    >>> service_backend = ServiceBackend(
+    >>> import hailtop.batch as hb
+    >>> service_backend = hb.ServiceBackend(
     ...     billing_project='my-billing-account',
     ...     remote_tmpdir='gs://my-bucket/temporary-files/'
     ... )  # doctest: +SKIP
-    >>> b = Batch(backend=service_backend)  # doctest: +SKIP
+    >>> b = hb.Batch(backend=service_backend)  # doctest: +SKIP
     >>> j = b.new_job()  # doctest: +SKIP
     >>> j.command('echo hello world!')  # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
@@ -434,7 +435,8 @@ class ServiceBackend(Backend[bc.Batch]):
     configuration file::
 
         cat >my-batch-script.py >>EOF
-        b = Batch(backend=ServiceBackend())
+        import hailtop.batch as hb
+        b = hb.Batch(backend=ServiceBackend())
         j = b.new_job()
         j.command('echo hello world!')
         b.run()
@@ -446,7 +448,8 @@ class ServiceBackend(Backend[bc.Batch]):
     Same as above, but also specify the use of the :class:`.ServiceBackend` via configuration file::
 
         cat >my-batch-script.py >>EOF
-        b = Batch()
+        import hailtop.batch as hb
+        b = hb.Batch()
         j = b.new_job()
         j.command('echo hello world!')
         b.run()
@@ -459,14 +462,14 @@ class ServiceBackend(Backend[bc.Batch]):
     Create a backend which stores temporary intermediate files in
     "https://my-account.blob.core.windows.net/my-container/tempdir".
 
-    >>> service_backend = ServiceBackend(
+    >>> service_backend = hb.ServiceBackend(
     ...     billing_project='my-billing-account',
     ...     remote_tmpdir='https://my-account.blob.core.windows.net/my-container/tempdir'
     ... )  # doctest: +SKIP
 
     Require all jobs in all batches in this backend to execute in us-central1::
 
-    >>> b = Batch(backend=ServiceBackend(regions=['us-central1']))
+    >>> b = hb.Batch(backend=hb.ServiceBackend(regions=['us-central1']))
 
     Same as above, but using a configuration file::
 
@@ -480,7 +483,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
     Permit jobs to execute in *either* us-central1 or us-east1::
 
-    >>> b = Batch(backend=ServiceBackend(regions=['us-central1', 'us-east1']))
+    >>> b = hb.Batch(backend=hb.ServiceBackend(regions=['us-central1', 'us-east1']))
 
     Same as a bove, but using a configuration file::
 
@@ -488,8 +491,8 @@ class ServiceBackend(Backend[bc.Batch]):
 
     Allow reading or writing to buckets even though they are "cold" storage:
 
-    >>> b = Batch(
-    ...     backend=ServiceBackend(
+    >>> b = hb.Batch(
+    ...     backend=hb.ServiceBackend(
     ...         gcs_bucket_allow_list=['cold-bucket', 'cold-bucket2'],
     ...     ),
     ... )

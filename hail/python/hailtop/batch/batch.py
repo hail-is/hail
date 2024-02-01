@@ -24,7 +24,8 @@ class Batch:
     --------
     Create a batch object:
 
-    >>> p = Batch()
+    >>> import hailtop.batch as hb
+    >>> p = hb.Batch()
 
     Create a new job that prints "hello":
 
@@ -37,7 +38,7 @@ class Batch:
 
     Require all jobs in this batch to execute in us-central1:
 
-    >>> b = Batch(backend=ServiceBackend(), regions=['us-central1'])
+    >>> b = hb.Batch(backend=hb.ServiceBackend(), default_regions=['us-central1'])
 
     Notes
     -----
