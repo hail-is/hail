@@ -3,19 +3,24 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s.{Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.{PCanonicalStruct, PType}
-import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructSettable, SBaseStructValue}
-import is.hail.types.virtual.{TStruct, Type}
+import is.hail.types.physical.stypes.{EmitType, SType, SValue}
+import is.hail.types.physical.{PCanonicalStruct, PType}
+import is.hail.types.virtual.{Field, TStruct, Type}
 
-case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
+class SSubsetStruct(
+  private val parent: SBaseStruct,
+  private val fieldNames: IndexedSeq[String],
+) extends SBaseStruct {
 
   override val size: Int = fieldNames.size
 
   val _fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
 
-  lazy val newToOldFieldMapping: Map[Int, Int] = _fieldIdx
-    .map { case (f, i) => (i, parent.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
+  lazy val newToOldFieldMapping: Map[Int, Int] = {
+    val parentFieldIdx = parent.virtualType.asInstanceOf[TStruct]
+    _fieldIdx.map { case (f, i) => i -> parentFieldIdx.fieldIdx(f) }
+  }
 
   override lazy val fieldTypes: IndexedSeq[SType] =
     Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
@@ -24,24 +29,35 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
 
   override lazy val virtualType: TStruct = {
-    val vparent = parent.virtualType.asInstanceOf[TStruct]
-    TStruct(fieldNames.map(f => (f, vparent.field(f).typ)): _*)
+    val vparentTypes = parent.virtualType.asInstanceOf[TStruct].types
+    TStruct(fieldNames.zipWithIndex.map { case (f, i) =>
+      Field(f, vparentTypes(newToOldFieldMapping(i)), i)
+    })
   }
 
   override def fieldIdx(fieldName: String): Int =
     _fieldIdx(fieldName)
 
   override def castRename(t: Type): SType = {
-    val renamedVType = t.asInstanceOf[TStruct]
-    new SSubsetStruct(parent, renamedVType.fieldNames) {
+    val newVirtualType = t.asInstanceOf[TStruct]
+    val oldToNewFieldMapping = newToOldFieldMapping.map(n => n._2 -> n._1)
+
+    // note we may have subsetted a parent struct{x,y,z} to struct{z} then renamed to struct{x}
+    // must only tell parent to castRename what it knows as `z`, leaving others intact
+    val newParent = parent.castRename(
+      TStruct(parent.virtualType.fields.zipWithIndex.map { case (f, i) =>
+        oldToNewFieldMapping.get(i) match {
+          case Some(idx) => f.copy(typ = newVirtualType.types(idx))
+          case None => f
+        }
+      })
+    )
+
+    new SSubsetStruct(newParent.asInstanceOf[SBaseStruct], newVirtualType.fieldNames) {
       override lazy val newToOldFieldMapping: Map[Int, Int] =
         SSubsetStruct.this.newToOldFieldMapping
-      override lazy val fieldTypes: IndexedSeq[SType] =
-        SSubsetStruct.this.fieldTypes
-      override lazy val fieldEmitTypes: IndexedSeq[EmitType] =
-        SSubsetStruct.this.fieldEmitTypes
       override lazy val virtualType: TStruct =
-        renamedVType
+        newVirtualType
     }
   }
 
@@ -53,8 +69,9 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
   ): SValue = {
     if (deepCopy)
       throw new NotImplementedError("Deep copy on subset struct")
+
     value.st match {
-      case SSubsetStruct(parent2, fd2) if parent == parent2 && fieldNames == fd2 && !deepCopy =>
+      case ss: SSubsetStruct if parent == ss.parent && fieldNames == ss.fieldNames && !deepCopy =>
         value
     }
   }
@@ -92,10 +109,19 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     pt
   }
 
-//  aspirational implementation
-//  def storageType(): PType = StoredSTypePType(this, false)
+  //  aspirational implementation
+  //  def storageType(): PType = StoredSTypePType(this, false)
 
   override def containsPointers: Boolean = parent.containsPointers
+
+  override def equals(obj: Any): Boolean =
+    obj match {
+      case s: SSubsetStruct =>
+        newToOldFieldMapping == s.newToOldFieldMapping &&
+        parent.fieldTypes == s.parent.fieldTypes
+      case _ =>
+        false
+    }
 }
 
 class SSubsetStructValue(val st: SSubsetStruct, val prev: SBaseStructValue)

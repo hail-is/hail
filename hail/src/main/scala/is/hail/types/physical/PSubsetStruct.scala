@@ -6,7 +6,7 @@ import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.SSubsetStruct
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
@@ -137,7 +137,8 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) ext
   ): Long =
     throw new UnsupportedOperationException
 
-  def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SBaseStruct], _fieldNames)
+  def sType: SSubsetStruct =
+    new SSubsetStruct(ps.sType, _fieldNames)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] =

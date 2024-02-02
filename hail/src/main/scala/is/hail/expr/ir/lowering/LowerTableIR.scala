@@ -2,9 +2,9 @@ package is.hail.expr.ir.lowering
 
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{agg, TableNativeWriter, _}
 import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
+import is.hail.expr.ir.{TableNativeWriter, agg, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
@@ -12,7 +12,6 @@ import is.hail.types._
 import is.hail.types.physical.{PCanonicalBinary, PCanonicalTuple}
 import is.hail.types.virtual._
 import is.hail.utils._
-
 import org.apache.spark.sql.Row
 
 class LowererUnsupportedOperation(msg: String = null) extends Exception(msg)
@@ -2375,26 +2374,35 @@ object LowerTableIR {
     lowered
   }
 
+  // format: off
+
   /* We have a couple of options when repartitioning a table:
-   * 1. Send only the contexts needed to compute each new partition and take/drop the rows that fall
-   * in that partition.
-   * 2. Compute the table with the old partitioner, write the table to cloud storage then read the
-   * new partitions from the index.
+   *  1. Send only the contexts needed to compute each new partition and
+   *     take/drop the rows that fall in that partition.
+   *  2. Compute the table with the old partitioner, write the table to cloud
+   *     storage then read the new partitions from the index.
    *
-   * We'd like to do 1 as keeping things in memory (with perhaps a bit of work duplication) is
-   * generally less expensive than writing and reading a table to and from cloud storage. There
-   * comes a cross-over point, however, where it's cheaper to do the latter. One such example is as
-   * follows: consider a repartitioning where the same context is used to compute multiple
-   * partitions. The (parallel) computation of each partition involves at least all of the work to
-   * compute the previous partition:
+   * We'd like to do 1 as keeping things in memory (with perhaps a bit of work
+   * duplication) is generally less expensive than writing and reading a table
+   * to and from cloud storage. There comes a cross-over point, however, where
+   * it's cheaper to do the latter. One such example is as follows: consider a
+   * repartitioning where the same context is used to compute multiple
+   * partitions. The (parallel) computation of each partition involves at least
+   * all of the work to compute the previous partition:
    *
-   * *----------------------* in: | | ...
-   * *----------------------* / | \ / | \
-   * *--* *---* *--* out: | | | | ... | |
-   * *--* *---* *--*
+   *                  *----------------------*
+   *           in:    |                      |  ...
+   *                  *----------------------*
+   *                      /    |         \
+   *                     /     |          \
+   *                   *--*  *---*       *--*
+   *          out:     |  |  |   |  ...  |  |
+   *                   *--*  *---*       *--*
    *
-   * We can estimate the relative cost of computing the new partitions vs spilling as being
-   * proportional to the mean number of old partitions used to compute new partitions. */
+   * We can estimate the relative cost of computing the new partitions vs
+   * spilling as being proportional to the mean number of old partitions
+   * used to compute new partitions.
+   */
   def isRepartitioningCheap(original: RVDPartitioner, planned: RVDPartitioner): Boolean = {
     val cost =
       if (original.numPartitions == 0)
@@ -2402,12 +2410,12 @@ object LowerTableIR {
       else
         (0.0167 / original.numPartitions) * planned
           .rangeBounds
-          .map { intrvl =>
-            val (lo, hi) = original.intervalRange(intrvl); hi - lo
-          }
+          .map { intrvl => val (lo, hi) = original.intervalRange(intrvl); hi - lo }
           .sum
 
     log.info(s"repartition cost: $cost")
     cost <= 1.0
   }
+
+  // format: on
 }
