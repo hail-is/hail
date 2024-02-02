@@ -87,7 +87,7 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
 
     sql = f"""
 WITH base_t AS (
-  SELECT batches.*, job_groups.batch_id, job_groups.job_group_id,
+  SELECT batches.*, job_groups.job_group_id,
     job_groups_cancelled.id IS NOT NULL AS cancelled,
     job_groups_n_jobs_in_complete_states.n_completed,
     job_groups_n_jobs_in_complete_states.n_succeeded,

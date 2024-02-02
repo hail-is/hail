@@ -291,7 +291,7 @@ async def _query_job_group_jobs(
     return (jobs, last_job_id)
 
 
-async def _get_jobs(
+async def _get_job_group_jobs(
     request: web.Request,
     batch_id: int,
     job_group_id: int,
@@ -306,8 +306,13 @@ async def _get_jobs(
         """
 SELECT * FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
-LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id AND job_groups.update_id = batch_updates.update_id
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s);
+LEFT JOIN batch_updates
+  ON job_groups.batch_id = batch_updates.batch_id AND
+     job_groups.update_id = batch_updates.update_id
+WHERE job_groups.batch_id = %s AND
+      job_groups.job_group_id = %s AND
+      NOT deleted AND
+      (batch_updates.committed OR job_groups.job_group_id = %s);
 """,
         (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
     )
@@ -325,14 +330,14 @@ WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted 
 @billing_project_users_only()
 @add_metadata_to_request
 async def get_batch_jobs_v1(request: web.Request, _, batch_id: int) -> web.Response:
-    return await _get_job_group_jobs(request, batch_id, ROOT_JOB_GROUP_ID, 1)
+    return await _api_get_job_group_jobs(request, batch_id, ROOT_JOB_GROUP_ID, 1)
 
 
 @routes.get('/api/v2alpha/batches/{batch_id}/jobs')
 @billing_project_users_only()
 @add_metadata_to_request
 async def get_batch_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
-    return await _get_job_group_jobs(request, batch_id, ROOT_JOB_GROUP_ID, 2)
+    return await _api_get_job_group_jobs(request, batch_id, ROOT_JOB_GROUP_ID, 2)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs')
@@ -340,7 +345,7 @@ async def get_batch_jobs_v2(request: web.Request, _, batch_id: int) -> web.Respo
 @add_metadata_to_request
 async def get_job_group_jobs_v1(request: web.Request, _, batch_id: int) -> web.Response:
     job_group_id = int(request.match_info['job_group_id'])
-    return await _get_job_group_jobs(request, batch_id, job_group_id, 1)
+    return await _api_get_job_group_jobs(request, batch_id, job_group_id, 1)
 
 
 @routes.get('/api/v2alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs')
@@ -348,14 +353,14 @@ async def get_job_group_jobs_v1(request: web.Request, _, batch_id: int) -> web.R
 @add_metadata_to_request
 async def get_job_group_jobs_v2(request: web.Request, _, batch_id: int) -> web.Response:
     job_group_id = int(request.match_info['job_group_id'])
-    return await _get_job_group_jobs(request, batch_id, job_group_id, 2)
+    return await _api_get_job_group_jobs(request, batch_id, job_group_id, 2)
 
 
-async def _get_job_group_jobs(request, batch_id: int, job_group_id: int, version: int):
+async def _api_get_job_group_jobs(request, batch_id: int, job_group_id: int, version: int):
     q = request.query.get('q', '')
     recursive = cast_query_param_to_bool(request.query.get('recursive'))
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
-    resp = await _handle_api_error(_get_jobs, request, batch_id, job_group_id, version, q, last_job_id, recursive)
+    resp = await _handle_api_error(_get_job_group_jobs, request, batch_id, job_group_id, version, q, last_job_id, recursive)
     assert resp is not None
     return json_response(resp)
 
@@ -723,8 +728,10 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
 async def _query_job_groups(request, batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]):
     db: Database = request.app['db']
 
-    record = await db.select_and_fetchone(
-        """
+    @transaction(db)
+    async def _query(tx):
+        record = await tx.select_and_fetchone(
+            """
 SELECT 1
 FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
@@ -732,21 +739,23 @@ LEFT JOIN batch_updates
   ON job_groups.batch_id = batch_updates.batch_id AND job_groups.update_id = batch_updates.update_id
 WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s);
 """,
-        (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
-    )
-    if not record:
-        raise NonExistentJobGroupError(batch_id, job_group_id)
+            (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
+        )
+        if not record:
+            raise NonExistentJobGroupError(batch_id, job_group_id)
+    
+        sql, sql_args = parse_list_job_groups_query_v1(batch_id, job_group_id, last_child_job_group_id)
+        job_groups = [job_group_record_to_dict(record) async for record in tx.select_and_fetchall(sql, sql_args)]
 
-    sql, sql_args = parse_list_job_groups_query_v1(batch_id, job_group_id, last_child_job_group_id)
-    job_groups = [job_group_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
+        if len(job_groups) == 51:
+            job_groups.pop()
+            new_last_child_job_group_id = job_groups[-1]['job_group_id']
+        else:
+            new_last_child_job_group_id = None
 
-    if len(job_groups) == 51:
-        job_groups.pop()
-        last_child_job_group_id = job_groups[-1]['job_group_id']
-    else:
-        last_child_job_group_id = None
+        return (job_groups, new_last_child_job_group_id)
 
-    return (job_groups, last_child_job_group_id)
+    return await _query()
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/job-groups')
