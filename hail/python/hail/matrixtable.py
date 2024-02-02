@@ -2807,10 +2807,10 @@ class MatrixTable(ExprContainer):
         Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     class _Show:
-        def __init__(self, table, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types):
-            self.table_show = table._show(n_rows, width, truncate, types)
+        def __init__(self, table, row_count, actual_n_cols, display_column_count, width, truncate, types):
+            self.table_show = table._show(row_count, width, truncate, types)
             self.actual_n_cols = actual_n_cols
-            self.displayed_n_cols = displayed_n_cols
+            self.displayed_n_cols = display_column_count
 
         def __str__(self):
             s = self.table_show.__str__()
@@ -2884,27 +2884,31 @@ class MatrixTable(ExprContainer):
                 characters -= estimate_size(self.row_value)
             characters = max(characters, 0)
             n_cols = characters // (estimate_size(self.entry) + 4)  # 4 for the column index
-        actual_n_cols = self.count_cols()
-        displayed_n_cols = min(actual_n_cols, n_cols)
+        total_column_count = self.count_cols()
+        display_column_count = min(total_column_count, n_cols)  # The number of columns to display
 
-        t = self.localize_entries('entries', 'cols')
-        if len(t.key) > 0:
-            t = t.order_by(*t.key)
-        col_key_type = self.col_key.dtype
+        table = self.localize_entries('entries', 'cols')
+        if len(table.key) > 0:
+            table = table.order_by(*table.key)
+        column_key_type = self.col_key.dtype
 
-        col_headers = [f'<col {i}>' for i in range(0, displayed_n_cols)]
-        if len(col_key_type) == 1 and col_key_type[0] in (hl.tstr, hl.tint32, hl.tint64):
-            cols = self.col_key[0].take(displayed_n_cols)
-            if len(set(cols)) == len(cols):
-                col_headers = [repr(c) for c in cols]
+        column_headers = [f'<col {i}>' for i in range(0, display_column_count)]
+        if len(column_key_type) == 1 and column_key_type[0] in (hl.tstr, hl.tint32, hl.tint64):
+            columns = self.col_key[0].take(display_column_count)
+            if len(set(columns)) == len(columns):
+                column_headers = [repr(column) for column in columns]
 
-        entries = {col_headers[i]: t.entries[i] for i in range(0, displayed_n_cols)}
-        t = t.select(
-            **{f: t[f] for f in self.row_key}, **{f: t[f] for f in self.row_value if include_row_fields}, **entries
+        entries = {column_headers[index]: table.entries[index] for index in range(0, display_column_count)}
+        table = table.select(
+            **{field: table[field] for field in self.row_key},
+            **{field: table[field] for field in self.row_value if include_row_fields},
+            **entries,
         )
         if handler is None:
             handler = default_handler()
-        return handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
+        return handler(
+            MatrixTable._Show(table, n_rows, total_column_count, display_column_count, width, truncate, types)
+        )
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
