@@ -3707,6 +3707,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     }
 
     if (
+      let.bindings.size > 4 &&
       !ctx.inLoopCriticalPath.contains(let) &&
       let.bindings.forall(x => !ctx.inLoopCriticalPath.contains(x._2))
     ) {
