@@ -232,21 +232,14 @@ error messages in the terminal window.
 Submitting a Batch to the Service
 ---------------------------------
 
+.. warning::
+
+   To avoid substantial network costs, ensure your jobs and data reside in the same `region`_.
+
 To execute a batch on the Batch service rather than locally, first
 construct a :class:`.ServiceBackend` object with a billing project and
 bucket for storing intermediate files. Your service account must have read
 and write access to the bucket.
-
-.. warning::
-
-   By default, the Batch Service runs jobs in any region in the US. Make sure you have considered additional `ingress and
-   egress fees <https://cloud.google.com/storage/pricing>`_ when using regional buckets and container or artifact
-   registries. Multi-regional buckets also have additional replication fees when writing data. A good rule of thumb is to use
-   a multi-regional artifact registry for Docker images and regional buckets for data. You can then specify which region(s)
-   you want your job to run in with :meth:`.Job.regions`. To set the default region(s) for all jobs, you can set the input
-   regions argument to :class:`.ServiceBackend` or use hailctl to set the default value. An example invocation is
-   `hailctl config set batch/regions "us-central1,us-east1"`. You can also get the full list of supported regions
-   with py:staticmethod:`.ServiceBackend.supported_regions`.
 
 Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
@@ -257,7 +250,7 @@ and execute the following batch:
 
 .. code-block:: python
 
-    >>> import hailtop.batch as hb # doctest: +SKIP
+    >>> import hailtop.batch as hb
     >>> backend = hb.ServiceBackend('my-billing-project', remote_tmpdir='gs://my-bucket/batch/tmp/') # doctest: +SKIP
     >>> b = hb.Batch(backend=backend, name='test') # doctest: +SKIP
     >>> j = b.new_job(name='hello') # doctest: +SKIP
@@ -275,6 +268,72 @@ have previously set them with ``hailctl``:
 .. note::
 
     A trial billing project is automatically created for you with the name {USERNAME}-trial
+
+.. _region:
+
+Regions
+-------
+
+Data and compute both reside in a physical location. In Google Cloud Platform, the location of data
+is controlled by the location of the containing bucket. ``gcloud`` can determine the location of a
+bucket::
+
+    gcloud storage buckets describe gs://my-bucket
+
+If your compute resides in a different location from the data it reads or writes, then you will
+accrue substantial `network charges <https://cloud.google.com/storage/pricing#network-pricing>`__.
+
+To avoid network charges ensure all your data is in one region and specify that region in one of the
+following five ways. As a running example, we consider data stored in `us-central1`. The options are
+listed from highest to lowest precedence.
+
+1. :meth:`.Job.regions`:
+
+   .. code-block:: python
+
+       >>> b = hb.Batch(backend=hb.ServiceBackend())
+       >>> j = b.new_job()
+       >>> j.regions(['us-central1'])
+
+2. The ``default_regions`` parameter of :class:`.Batch`:
+
+   .. code-block:: python
+
+       >>> b = hb.Batch(backend=hb.ServiceBackend(), default_regions=['us-central1'])
+
+
+3. The ``regions`` parameter of :class:`.ServiceBackend`:
+
+   .. code-block:: python
+
+       >>> b = hb.Batch(backend=hb.ServiceBackend(regions=['us-central1']))
+
+4. The ``HAIL_BATCH_REGIONS`` environment variable:
+
+   .. code-block:: sh
+
+       export HAIL_BATCH_REGIONS=us-central1
+       python3 my-batch-script.py
+
+5. The ``batch/region`` configuration variable:
+
+   .. code-block:: sh
+
+       hailctl config set batch/regions us-central1
+       python3 my-batch-script.py
+
+.. warning::
+
+   If none of the five options above are specified, your job may run in *any* region!
+
+In Google Cloud Platform, the location of a multi-region bucket is considered *different* from any
+region within that multi-region. For example, if a VM in the `us-central1` region reads data from a
+bucket in the `us` multi-region, this incurs network charges becuse `us` is not considered equal to
+`us-central1`.
+
+Container (aka Docker) images are a form of data. In Google Cloud Platform, we recommend storing
+your images in a multi-regional artifact registry, which at time of writing, despite being
+"multi-regional", does not incur network charges in the manner described above.
 
 
 Using the UI
