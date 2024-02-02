@@ -811,7 +811,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         fsurl = self.parse_url(url, error_if_bucket=True)
         assert not fsurl._path or fsurl.path.endswith('/'), fsurl._path
         params = {'prefix': fsurl._path, 'delimiter': '/', 'includeTrailingDelimiter': 'true', 'maxResults': 1}
-        async for page in await self._storage_client.list_objects(fsurl._path, params=params):
+        async for page in await self._storage_client.list_objects(fsurl._bucket, params=params):
             prefixes = page.get('prefixes')
             items = page.get('items')
             return bool(prefixes or items)
