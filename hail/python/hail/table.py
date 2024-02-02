@@ -1587,7 +1587,7 @@ class Table(ExprContainer):
         arguments.
 
         Select methods will always preserve the key along that axis; e.g. for
-        :meth:`.Table.select`, the table key will aways be kept. To modify the
+        :meth:`.Table.select`, the table key will always be kept. To modify the
         key, use :meth:`.key_by`.
 
         Variable-length arguments can be either strings or expressions that reference a
@@ -2135,19 +2135,20 @@ class Table(ExprContainer):
         return Table._Show(self, n, width, truncate, types)
 
     class _Show:
-        def __init__(self, table, n, width, truncate, types):
-            if n is None or width is None:
+        def __init__(self, table, n_rows, width, truncate_limit, should_show_types):
+            if n_rows is None or width is None:
                 (columns, lines) = shutil.get_terminal_size((80, 10))
                 width = width or columns
-                n = n or min(max(10, (lines - 20)), 100)
+                if n_rows is None:  # Careful with truthiness here, 0 is a valid value
+                    n_rows = min(max(10, (lines - 20)), 100)
             self.table = table
-            self.n = n
+            self.n_rows = n_rows
             self.width = max(width, 8)
-            if truncate:
-                self.truncate = min(max(truncate, 4), width - 4)
+            if truncate_limit:
+                self.truncate_limit = min(max(truncate_limit, 4), width - 4)
             else:
-                self.truncate = width - 4
-            self.types = types
+                self.truncate_limit = width - 4
+            self.should_show_types = should_show_types
             self._data = None
 
         def __str__(self):
@@ -2161,7 +2162,7 @@ class Table(ExprContainer):
                 t = self.table.flatten()
                 row_dtype = t.row.dtype
                 t = t.select(**{k: hl._showstr(v) for (k, v) in t.row.items()})
-                rows, has_more = t._take_n(self.n)
+                rows, has_more = t._take_n(self.n_rows)
                 self._data = (rows, has_more, row_dtype)
             return self._data
 
@@ -2169,53 +2170,54 @@ class Table(ExprContainer):
             return self._html_str()
 
         def _ascii_str(self):
-            truncate = self.truncate
-            types = self.types
+            truncate_limit = self.truncate_limit
+            types = self.should_show_types
 
-            def trunc(s):
-                if len(s) > truncate:
-                    return s[: truncate - 3] + "..."
-                return s
+            def truncate(string: str):
+                return string[: truncate_limit - 3] + "..." if len(string) > truncate_limit else string
 
             rows, has_more, dtype = self.data()
             fields = list(dtype)
-            trunc_fields = [trunc(f) for f in fields]
-            n_fields = len(fields)
+            truncated_fields = [truncate(field) for field in fields]
+            field_count = len(fields)
 
-            type_strs = [trunc(str(dtype[f])) for f in fields] if types else [''] * len(fields)
-            right_align = [hl.expr.types.is_numeric(dtype[f]) for f in fields]
+            type_names = [truncate(str(dtype[field])) for field in fields] if types else [''] * field_count
+            right_align = [hl.expr.types.is_numeric(dtype[field]) for field in fields]
 
-            rows = [[trunc(row[f]) for f in fields] for row in rows]
+            rows = [[truncate(row[field]) for field in fields] for row in rows]
 
-            def max_value_width(i):
-                return max(itertools.chain([0], (len(row[i]) for row in rows)))
+            def max_value_width(column_index):
+                return max(itertools.chain([0], (len(row[column_index]) for row in rows)))
 
-            column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
+            column_widths = [
+                max(len(truncated_fields[column_index]), len(type_names[column_index]), max_value_width(column_index))
+                for column_index in range(field_count)
+            ]
 
-            column_blocks = []
-            start = 0
-            i = 1
-            w = column_width[0] + 4 if column_width else 0
-            while i < n_fields:
-                w = w + column_width[i] + 3
-                if w > self.width:
-                    column_blocks.append((start, i))
-                    start = i
-                    w = column_width[i] + 4
-                i = i + 1
-            column_blocks.append((start, i))
+            column_block_slices = []
+            start_index = 0
+            end_index = 1
+            width = column_widths[0] + 4 if column_widths else 0
+            while end_index < field_count:
+                width += column_widths[end_index] + 3
+                if width > self.width:
+                    column_block_slices.append(slice(start_index, end_index))
+                    start_index = end_index
+                    width = column_widths[end_index] + 4
+                end_index = end_index + 1
+            column_block_slices.append(slice(start_index, end_index))
 
             def format_hline(widths):
                 if not widths:
                     return "++\n"
-                return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
+                return '+-' + '-+-'.join(['-' * width for width in widths]) + '-+\n'
 
-            def pad(v, w, ra):
-                e = w - len(v)
-                if ra:
-                    return ' ' * e + v
+            def pad(value, width, right_align: bool):
+                extra_count = width - len(value)
+                if right_align:
+                    return ' ' * extra_count + value
                 else:
-                    return v + ' ' * e
+                    return value + ' ' * extra_count
 
             def format_line(values, widths, right_align):
                 if not values:
@@ -2223,39 +2225,39 @@ class Table(ExprContainer):
                 values = map(pad, values, widths, right_align)
                 return '| ' + ' | '.join(values) + ' |\n'
 
-            s = ''
-            first = True
-            for start, end in column_blocks:
-                if first:
-                    first = False
+            ascii_str = ''
+            is_first_column_block = True
+            for column_block_slice in column_block_slices:
+                if is_first_column_block:
+                    is_first_column_block = False
                 else:
-                    s += '\n'
+                    ascii_str += '\n'
 
-                block_column_width = column_width[start:end]
-                block_right_align = right_align[start:end]
-                hline = format_hline(block_column_width)
+                block_column_widths = column_widths[column_block_slice]
+                block_right_align = right_align[column_block_slice]
+                hline = format_hline(block_column_widths)
 
-                s += hline
-                s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
-                s += hline
+                ascii_str += hline
+                ascii_str += format_line(truncated_fields[column_block_slice], block_column_widths, block_right_align)
+                ascii_str += hline
                 if types:
-                    s += format_line(type_strs[start:end], block_column_width, block_right_align)
-                    s += hline
+                    ascii_str += format_line(type_names[column_block_slice], block_column_widths, block_right_align)
+                    ascii_str += hline
                 for row in rows:
-                    row = row[start:end]
-                    s += format_line(row, block_column_width, block_right_align)
-                s += hline
+                    row = row[column_block_slice]
+                    ascii_str += format_line(row, block_column_widths, block_right_align)
+                ascii_str += hline
 
             if has_more:
-                n_rows = len(rows)
-                s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+                row_count = len(rows)
+                ascii_str += f"showing top { row_count } { 'row' if row_count == 1 else 'rows' }\n"
 
-            return s
+            return ascii_str
 
         def _html_str(self):
             import html
 
-            types = self.types
+            types = self.should_show_types
 
             rows, has_more, dtype = self.data()
             fields = list(dtype)
