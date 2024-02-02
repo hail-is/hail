@@ -251,8 +251,9 @@ multidict==6.0.4
     #   yarl
 nbclient==0.9.0
     # via nbconvert
-nbconvert==7.14.2
+nbconvert==7.13.1
     # via
+    #   -r hail/hail/python/dev/requirements.txt
     #   jupyter
     #   jupyter-server
     #   nbsphinx
@@ -367,7 +368,7 @@ pytest-html==1.22.1
     # via -r hail/hail/python/dev/requirements.txt
 pytest-instafail==0.5.0
     # via -r hail/hail/python/dev/requirements.txt
-pytest-metadata==3.0.0
+pytest-metadata==3.1.0
     # via pytest-html
 pytest-timeout==2.2.0
     # via -r hail/hail/python/dev/requirements.txt
