@@ -14,7 +14,6 @@ import sys
 import tempfile
 import traceback
 import uuid
-import warnings
 from collections import defaultdict
 from contextlib import AsyncExitStack, ExitStack
 from typing import (
@@ -94,19 +93,6 @@ from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, w
 
 with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
-
-oldwarn = warnings.warn
-
-
-def deeper_stack_level_warn(*args, **kwargs):
-    if 'stacklevel' in kwargs:
-        kwargs['stacklevel'] = max(kwargs['stacklevel'], 5)
-    else:
-        kwargs['stacklevel'] = 5
-    return oldwarn(*args, **kwargs)
-
-
-warnings.warn = deeper_stack_level_warn
 
 
 class BatchWorkerAccessLogger(AccessLogger):
