@@ -218,7 +218,7 @@ object main extends RootModule with HailScalaModule { outer =>
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
     Rule.Exclude("META-INF/INDEX.LIST"),
     Rule.ExcludePattern("scala/.*"),
-    Rule.AppendPattern("META-INF/services/.*"),
+    Rule.AppendPattern("META-INF/services/.*", "\n"),
     Rule.Relocate("breeze.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.cloud.**", "is.hail.relocated.@0"),
     Rule.Relocate("com.google.common.**", "is.hail.relocated.@0"),
