@@ -6,11 +6,11 @@ import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
-
-import scala.collection.mutable
 
 class TStructSerializer extends CustomSerializer[TStruct](format =>
       (

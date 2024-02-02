@@ -5,6 +5,7 @@ import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 import is.hail.utils.FastSeq
+
 import org.testng.annotations.Test
 
 class SSubsetStructSuite extends HailSuite {
@@ -32,7 +33,7 @@ class SSubsetStructSuite extends HailSuite {
             "x" -> TStruct("b" -> TInt32),
           )
         ).asInstanceOf[SBaseStruct],
-        FastSeq("x")
+        FastSeq("x"),
       )
 
     assert(subset == expected)

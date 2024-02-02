@@ -3,12 +3,12 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue, IEmitCode}
+import is.hail.types.{RStruct, RTuple, TypeWithRequiredness}
 import is.hail.types.physical.PCanonicalStruct
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.primitives.{SInt32Value, SInt64Value}
 import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple}
-import is.hail.types.{RStruct, RTuple, TypeWithRequiredness}
 import is.hail.utils._
 
 object SBaseStruct {

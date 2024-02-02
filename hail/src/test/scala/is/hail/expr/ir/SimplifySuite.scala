@@ -1,10 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
-import is.hail.{ExecStrategy, HailSuite}
+
 import org.apache.spark.sql.Row
 import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
