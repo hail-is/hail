@@ -666,9 +666,8 @@ async def test_hfs_ls_bucket_url_not_an_error(filesystem: Tuple[asyncio.Semaphor
         return
 
     bucket_url = str(base.with_path(''))
-    fs = RouterFS()
-
-    fs.ls(bucket_url)
+    with RouterFS() as fs:
+        fs.ls(bucket_url)
 
 
 async def test_with_new_path_component(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):

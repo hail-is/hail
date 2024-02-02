@@ -1,4 +1,5 @@
-from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any
+from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any, Type
+from types import TracebackType
 import asyncio
 import io
 import os
@@ -190,6 +191,20 @@ class RouterFS(FS):
         self.afs = afs or RouterAsyncFS(
             local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         )
+
+    def __enter__(self):
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ):
+        self.close()
+
+    def close(self):
+        async_to_blocking(self.afs.close())
 
     @property
     def _gcs_kwargs(self) -> Optional[Dict[str, Any]]:
