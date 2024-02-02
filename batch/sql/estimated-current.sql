@@ -1282,7 +1282,8 @@ BEGIN
       n_cancelled_creating_jobs = n_cancelled_creating_jobs + @n_creating_cancellable_jobs;
 
     # delete all rows that are children of this job group
-    DELETE job_group_inst_coll_cancellable_resources FROM job_group_inst_coll_cancellable_resources
+    DELETE job_group_inst_coll_cancellable_resources
+    FROM job_group_inst_coll_cancellable_resources
     LEFT JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
       job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     INNER JOIN job_group_self_and_ancestors ON job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND

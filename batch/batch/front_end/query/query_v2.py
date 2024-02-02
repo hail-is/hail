@@ -125,12 +125,13 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
         where_args += args
 
     sql = f"""
-SELECT batches.*, cost_t.cost, cost_t.cost_breakdown,
-    job_groups_cancelled.id IS NOT NULL AS cancelled,
-    job_groups_n_jobs_in_complete_states.n_completed,
-    job_groups_n_jobs_in_complete_states.n_succeeded,
-    job_groups_n_jobs_in_complete_states.n_failed,
-    job_groups_n_jobs_in_complete_states.n_cancelled
+SELECT batches.*,
+  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  job_groups_n_jobs_in_complete_states.n_completed,
+  job_groups_n_jobs_in_complete_states.n_succeeded,
+  job_groups_n_jobs_in_complete_states.n_failed,
+  job_groups_n_jobs_in_complete_states.n_cancelled,
+  cost_t.cost, cost_t.cost_breakdown
 FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
@@ -140,13 +141,12 @@ STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
-    SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
     WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
-    GROUP BY batch_id, job_group_id, resource_id
+    GROUP BY resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id, job_group_id
 ) AS cost_t ON TRUE
 WHERE {' AND '.join(where_conditions)}
 ORDER BY batches.id DESC
@@ -293,13 +293,12 @@ LEFT JOIN job_attributes
 {attempts_table_join_str}
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-FROM (SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_resources_v3
   WHERE aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggregated_job_resources_v3.job_id = jobs.job_id
-  GROUP BY aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, aggregated_job_resources_v3.resource_id
+  GROUP BY aggregated_job_resources_v3.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY usage_t.batch_id, usage_t.job_id
 ) AS cost_t ON TRUE
 WHERE {" AND ".join(where_conditions)}
 LIMIT 50;
