@@ -193,7 +193,7 @@ DROP TABLE IF EXISTS `job_groups`;
 CREATE TABLE IF NOT EXISTS `job_groups` (
   `batch_id` BIGINT NOT NULL,
   `job_group_id` INT NOT NULL,
-  `update_id` INT DEFAULT NULL,
+  `update_id` INT DEFAULT 1,
   `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT,
   `cancel_after_n_failures` INT DEFAULT NULL,

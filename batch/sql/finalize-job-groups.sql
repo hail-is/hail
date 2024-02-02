@@ -359,7 +359,7 @@ ALTER TABLE batch_updates ADD COLUMN start_job_group_id INT NOT NULL DEFAULT 1, 
 ALTER TABLE batch_updates ADD COLUMN n_job_groups INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
 CREATE INDEX `batch_updates_start_job_group_id` ON `batch_updates` (`batch_id`, `start_job_group_id`);
 
-ALTER TABLE job_groups ADD COLUMN update_id INT DEFAULT NULL, ALGORITHM=INSTANT;
+ALTER TABLE job_groups ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
 ALTER TABLE job_groups ADD FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE, ALGORITHM=INPLACE;
 CREATE INDEX `job_groups_batch_id_update_id` ON `job_groups` (`batch_id`, `update_id`);
 
