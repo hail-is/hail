@@ -652,9 +652,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         return url.startswith('gs://')
 
     @staticmethod
-    def parse_url(url: str, *, error_if_bucket: bool = True) -> GoogleStorageAsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> GoogleStorageAsyncFSURL:
         fsurl = GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
-        if fsurl._path == '':
+        if error_if_bucket and fsurl._path == '':
             raise IsABucketError
         return fsurl
 
