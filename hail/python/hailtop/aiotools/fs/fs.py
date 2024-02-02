@@ -268,7 +268,7 @@ class AsyncFS(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def parse_url(url: str) -> AsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod

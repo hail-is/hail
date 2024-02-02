@@ -652,8 +652,11 @@ class GoogleStorageAsyncFS(AsyncFS):
         return url.startswith('gs://')
 
     @staticmethod
-    def parse_url(url: str) -> GoogleStorageAsyncFSURL:
-        return GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
+    def parse_url(url: str, error_if_bucket: bool = True) -> GoogleStorageAsyncFSURL:
+        fsurl = GoogleStorageAsyncFSURL(*GoogleStorageAsyncFS.get_bucket_and_name(url))
+        if fsurl._path == '':
+            raise IsABucketError
+        return fsurl
 
     @staticmethod
     def get_bucket_and_name(url: str) -> Tuple[str, str]:
@@ -680,29 +683,26 @@ class GoogleStorageAsyncFS(AsyncFS):
         return (bucket, name)
 
     async def open(self, url: str) -> GetObjectStream:
-        bucket, name = self.get_bucket_and_name(url)
-        if name == '':
-            raise IsABucketError(url)
-        return await self._storage_client.get_object(bucket, name)
+        fsurl = self.parse_url(url, error_if_bucket=True)
+        return await self._storage_client.get_object(fsurl._bucket, fsurl._path)
 
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> GetObjectStream:
-        bucket, name = self.get_bucket_and_name(url)
+        fsurl = self.parse_url(url, error_if_bucket=True)
         range_str = f'bytes={start}-'
         if length is not None:
             assert length >= 1
             range_str += str(start + length - 1)
-        return await self._storage_client.get_object(bucket, name, headers={'Range': range_str})
+        return await self._storage_client.get_object(fsurl._bucket, fsurl._path, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
-        bucket, name = self.get_bucket_and_name(url)
-        if name == '':
-            raise IsABucketError(url)
+        fsurl = self.parse_url(url)
         params = {'uploadType': 'resumable' if retry_writes else 'media'}
-        return await self._storage_client.insert_object(bucket, name, params=params)
+        return await self._storage_client.insert_object(fsurl._bucket, fsurl._path, params=params)
 
     async def multi_part_create(
         self, sema: asyncio.Semaphore, url: str, num_parts: int
     ) -> GoogleStorageMultiPartCreate:
+        self.parse_url(url, error_if_bucket=True)
         return GoogleStorageMultiPartCreate(sema, self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
@@ -716,10 +716,8 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def statfile(self, url: str) -> GetObjectFileStatus:
         try:
-            bucket, name = self.get_bucket_and_name(url)
-            if name == '':
-                raise IsABucketError(url)
-            return GetObjectFileStatus(await self._storage_client.get_object_metadata(bucket, name), url)
+            fsurl = self.parse_url(url, error_if_bucket=True)
+            return GetObjectFileStatus(await self._storage_client.get_object_metadata(fsurl._bucket, fsurl._path), url)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise FileNotFoundError(url) from e
@@ -797,12 +795,12 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isfile(self, url: str) -> bool:
         try:
-            bucket, name = self.get_bucket_and_name(url)
+            fsurl = self.parse_url(url)
             # if name is empty, get_object_metadata behaves like list objects
             # the urls are the same modulo the object name
-            if not name:
+            if not fsurl._path:
                 return False
-            await self._storage_client.get_object_metadata(bucket, name)
+            await self._storage_client.get_object_metadata(fsurl._bucket, fsurl._path)
             return True
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -810,12 +808,10 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def isdir(self, url: str) -> bool:
-        bucket, name = self.get_bucket_and_name(url)
-        if name == '':
-            raise IsABucketError(url)
-        assert not name or name.endswith('/'), name
-        params = {'prefix': name, 'delimiter': '/', 'includeTrailingDelimiter': 'true', 'maxResults': 1}
-        async for page in await self._storage_client.list_objects(bucket, params=params):
+        fsurl = self.parse_url(url, error_if_bucket=True)
+        assert not fsurl._path or fsurl.path.endswith('/'), fsurl._path
+        params = {'prefix': fsurl._path, 'delimiter': '/', 'includeTrailingDelimiter': 'true', 'maxResults': 1}
+        async for page in await self._storage_client.list_objects(fsurl._path, params=params):
             prefixes = page.get('prefixes')
             items = page.get('items')
             return bool(prefixes or items)

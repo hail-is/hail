@@ -252,7 +252,7 @@ class LocalAsyncFS(AsyncFS):
         return url.startswith('file://') or '://' not in url
 
     @staticmethod
-    def parse_url(url: str) -> LocalAsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> LocalAsyncFSURL:
         return LocalAsyncFSURL(LocalAsyncFS._get_path(url))
 
     @staticmethod
