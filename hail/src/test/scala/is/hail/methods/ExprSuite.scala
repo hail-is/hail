@@ -6,12 +6,13 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
-import is.hail.types.virtual.{TInt32, Type}
+import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
+import org.apache.spark.sql.Row
 
 class ExprSuite extends HailSuite {
 
@@ -68,6 +69,28 @@ class ExprSuite extends HailSuite {
     }
 
     p.check()
+  }
+
+  @Test def testImportEmptyJSONObjectAsStruct(): Unit =
+    assert(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()) == Row())
+
+  @Test def testExportEmptyJSONObjectAsStruct(): Unit =
+    assert(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}")
+
+  @Test def testRoundTripEmptyJSONObject(): Unit = {
+    val actual = JSONAnnotationImpex.exportAnnotation(
+      JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()),
+      TStruct(),
+    )
+    assert(compact(render(actual)) == "{}")
+  }
+
+  @Test def testRoundTripEmptyStruct(): Unit = {
+    val actual = JSONAnnotationImpex.importAnnotation(
+      JSONAnnotationImpex.exportAnnotation(Row(), TStruct()),
+      TStruct(),
+    )
+    assert(actual == Row())
   }
 
   @Test def testImpexes(): Unit = {
