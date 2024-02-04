@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterable, Optional, Dict, Tuple, Any, List
+from typing import Iterable, Optional, Dict, Tuple, Any, List, Callable
 from collections import Counter
 import hail as hl
 from hail.expr.expressions import (
@@ -3019,7 +3019,14 @@ class MatrixTable(ExprContainer):
         handler=nullable(anyfunc),
     )
     def show(
-        self, n_rows=None, n_cols=None, include_row_fields=False, width=None, truncate=None, types=True, handler=None
+        self,
+        n_rows: Optional[int] = None,
+        n_cols: Optional[int] = None,
+        include_row_fields: bool = False,
+        width: Optional[int] = None,
+        truncate: Optional[int] = None,
+        types: bool = True,
+        handler: Optional[Callable[[str], Any]] = None,
     ):
         """Print the first few rows and columns of the matrix table to the console.
 
