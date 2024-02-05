@@ -78,6 +78,36 @@ def sync(
 
     First generate a plan with --make-plan, then use the plan with --use-plan.
 
+    -----
+
+    Plans
+
+    -----
+
+    The command, `hailctl fs sync --make-plan` creates a "plan". A plan is a folder containing six
+    files:
+
+    1. matches: files whose names and sizes match. Two columns: source URL, destination URL.
+
+    2. differs: files or folders whose names match but either differ in size or differ in type.
+       Four columns: source URL, destination URL, source state, destination state. The states
+       are either: file, dif, or a size. If either state is a size, both states are sizes.
+
+    3. srconly: files only present in the source. One column: source URL.
+
+    4. dstonly: files only present in the destination. One column: destination URL.
+
+    5. plan: a proposed set of object-to-object copies. Two columns: source URL, destination URL.
+
+    6. summary: a one-line file containing the total number of copies in plan and the total number of bytes which would be copied.
+
+
+    --------
+
+    Examples
+
+    --------
+
     Copy all the files under gs://gcs-bucket/a to s3://s3-bucket/b. For example,
     gs://gcs-bucket/a/b/c will appear at s3://s3-bucket/b/b/c:
 
@@ -88,6 +118,46 @@ def sync(
 
 
     $ hailctl fs sync --use-plan plan1
+
+
+
+
+    Copy all the files under gs://gcs-bucket/a into the (possibly not existing) s3://s3-bucket/b folder.
+    For example, gs://gcs-bucket/a/b/c will appear at s3://s3-bucket/b/a/b/c:
+
+
+
+    $ hailctl fs sync --make-plan plan1 --copy-into gs://gcs-bucket/a s3://s3-bucket/b
+
+
+
+    $ hailctl fs sync --use-plan plan1
+
+
+
+
+    Sync to cloud locations and then regenerate a plan folder to verify that all copies completed
+    successfully:
+
+
+
+    $ hailctl fs sync --make-plan plan1 --copy-to gs://gcs-bucket/a s3://s3-bucket/b
+
+
+
+    $ hailctl fs sync --use-plan plan1
+
+
+
+    $ hailctl fs sync --make-plan plan1 --copy-to gs://gcs-bucket/a s3://s3-bucket/b
+
+
+
+    $ cat plan1/summary
+
+
+
+    $ less plan1/plan
     """
     if (make_plan is None and use_plan is None) or (make_plan is not None and use_plan is not None):
         print('Must specify one of --make-plan or --use-plan. See hailctl fs sync --help.')
