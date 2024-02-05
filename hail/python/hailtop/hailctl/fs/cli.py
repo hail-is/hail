@@ -43,7 +43,7 @@ def callback():
 @click.option(
     '-v',
     '--verbose',
-    help='The Google project to which to charge egress costs.',
+    help='Enable extra logging information including a progress bar.',
     is_flag=True,
     required=False,
     default=False,
