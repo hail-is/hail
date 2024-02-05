@@ -660,10 +660,12 @@ async def test_operations_on_a_bucket_url_is_error(filesystem: Tuple[asyncio.Sem
 
 
 async def test_hfs_ls_bucket_url_not_an_error(filesystem: Tuple[asyncio.Semaphore, AsyncFS, AsyncFSURL]):
-    _, _, base = filesystem
+    _, fs, base = filesystem
 
     if base.scheme in ('', 'file'):
         return
+
+    await fs.write(str(base.with_new_path_component('abc123')), b'foo')  # ensure the bucket is non-empty
 
     bucket_url = str(base.with_path(''))
     with RouterFS() as fs:
