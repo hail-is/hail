@@ -695,7 +695,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(fsurl._bucket, fsurl._path, headers={'Range': range_str})
 
     async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
-        fsurl = self.parse_url(url)
+        fsurl = self.parse_url(url, error_if_bucket=True)
         params = {'uploadType': 'resumable' if retry_writes else 'media'}
         return await self._storage_client.insert_object(fsurl._bucket, fsurl._path, params=params)
 
