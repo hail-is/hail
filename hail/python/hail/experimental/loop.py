@@ -1,7 +1,7 @@
 from typing import Callable
 
-import hail.ir as ir
-from hail.expr.expressions import construct_variable, construct_expr, expr_any, to_expr, unify_all
+from hail import ir
+from hail.expr.expressions import construct_expr, construct_variable, expr_any, to_expr, unify_all
 from hail.expr.types import hail_type
 from hail.typecheck import anytype, typecheck
 from hail.utils.java import Env

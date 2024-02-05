@@ -1,7 +1,7 @@
 import hail as hl
 from hail import Table
-from hail.typecheck import typecheck, nullable, oneof, sequenceof
-from hail.utils import wrap_to_list, new_temp_file
+from hail.typecheck import nullable, oneof, sequenceof, typecheck
+from hail.utils import new_temp_file, wrap_to_list
 
 
 @typecheck(ht=Table, key=str, value=str, fields=str)
@@ -82,7 +82,7 @@ def spread(ht, field, value, key=None) -> Table:
 
     field_vals = list(ht.aggregate(hl.agg.collect_as_set(ht[field])))
     ht = ht.group_by(*key).aggregate(
-        **{rv: hl.agg.take(ht[rv], 1)[0] for rv in ht.row_value if rv not in set(key + [field, value])},
+        **{rv: hl.agg.take(ht[rv], 1)[0] for rv in ht.row_value if rv not in set([*key, field, value])},
         **{
             fv: hl.agg.filter(
                 ht[field] == fv,

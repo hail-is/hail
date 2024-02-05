@@ -1,10 +1,11 @@
-import operator
 import functools
+import operator
+
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import typecheck, nullable, sequenceof
-from hail.utils.java import info
+from hail.typecheck import nullable, sequenceof, typecheck
 from hail.utils import new_temp_file
+from hail.utils.java import info
 
 
 @typecheck(

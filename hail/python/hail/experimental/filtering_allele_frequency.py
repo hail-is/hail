@@ -1,7 +1,7 @@
-from hail.expr.expressions import expr_float64, expr_int32, Float64Expression
+from hail.expr.expressions import Float64Expression, expr_float64, expr_int32
+from hail.expr.functions import _func
 from hail.expr.types import tfloat64
 from hail.typecheck import typecheck
-from hail.expr.functions import _func
 
 
 @typecheck(ac=expr_int32, an=expr_int32, ci=expr_float64)
@@ -12,7 +12,7 @@ def filtering_allele_frequency(ac, an, ci) -> Float64Expression:
 
     The filtering allele frequency is the highest true population allele frequency
     for which the upper bound of the `ci` (confidence interval) of allele count
-    under a Poisson distribution is still less than the variant’s observed
+    under a Poisson distribution is still less than the variant's observed
     `ac` (allele count) in the reference sample, given an `an` (allele number).
 
     This function defines a "filtering AF" that represents
