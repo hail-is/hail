@@ -21,7 +21,6 @@ force-exclude = true
 known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "website", "web_common"]
 
 [tool.ruff.per-file-ignores]
-"hail/python/hail/backend/**/*" = ["I", "PL", "RUF"]
 "hail/python/hail/docs/**/*" = ["I", "PL", "RUF"]
 "hail/python/hail/experimental/**/*" = ["I", "PL", "RUF"]
 "hail/python/hail/expr/**/*" = ["I", "PL", "RUF"]

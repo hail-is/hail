@@ -1,20 +1,21 @@
-from typing import Mapping, List, Union, TypeVar, Tuple, Dict, Optional, Any, AbstractSet
 import abc
-from enum import Enum
-from dataclasses import dataclass
 import warnings
+import zipfile
+from dataclasses import dataclass
+from enum import Enum
+from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
+
 import orjson
 import pkg_resources
-import zipfile
 
 from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
-from ..expr.table_type import ttable
-from ..expr.matrix_type import tmatrix
 from ..expr.blockmatrix_type import tblockmatrix
+from ..expr.matrix_type import tmatrix
+from ..expr.table_type import ttable
 from ..expr.types import HailType, dtype, tvoid
 from ..ir import BaseIR, finalize_randomness
 from ..ir.renderer import CSERenderer
@@ -22,7 +23,6 @@ from ..linalg.blockmatrix import BlockMatrix
 from ..matrixtable import MatrixTable
 from ..table import Table
 from ..utils.java import FatalError
-
 
 Dataset = TypeVar('Dataset', Table, MatrixTable, BlockMatrix)
 
@@ -139,7 +139,7 @@ class FromFASTAFilePayload(ActionPayload):
 
 class Backend(abc.ABC):
     # Must match knownFlags in HailFeatureFlags.scala
-    _flags_env_vars_and_defaults: Dict[str, Tuple[str, Optional[str]]] = {
+    _flags_env_vars_and_defaults: ClassVar[Dict[str, Tuple[str, Optional[str]]]] = {
         "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
         "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
         "lower": ("HAIL_DEV_LOWER", None),
