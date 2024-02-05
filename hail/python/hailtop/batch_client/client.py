@@ -131,6 +131,74 @@ class JobGroup:
     def last_known_status(self) -> Dict[str, Any]:
         return async_to_blocking(self._async_job_group.last_known_status())
 
+    def create_job(
+        self,
+        image,
+        command,
+        *,
+        env=None,
+        port=None,
+        resources=None,
+        secrets=None,
+        service_account=None,
+        attributes=None,
+        parents=None,
+        input_files=None,
+        output_files=None,
+        always_run=False,
+        timeout=None,
+        cloudfuse=None,
+        requester_pays_project=None,
+        mount_tokens=False,
+        network: Optional[str] = None,
+        unconfined: bool = False,
+        user_code: Optional[str] = None,
+        regions: Optional[List[str]] = None,
+        always_copy_output: bool = False,
+    ) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_job_group.create_job(
+            image,
+            command,
+            env=env,
+            port=port,
+            resources=resources,
+            secrets=secrets,
+            service_account=service_account,
+            attributes=attributes,
+            parents=parents,
+            input_files=input_files,
+            output_files=output_files,
+            always_run=always_run,
+            always_copy_output=always_copy_output,
+            timeout=timeout,
+            cloudfuse=cloudfuse,
+            requester_pays_project=requester_pays_project,
+            mount_tokens=mount_tokens,
+            network=network,
+            unconfined=unconfined,
+            user_code=user_code,
+            regions=regions,
+        )
+
+        return Job(async_job)
+
+    def create_jvm_job(self, command, *, profile: bool = False, parents=None, **kwargs) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_job_group.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
+
+        return Job(async_job)
+
+    def debug_info(self):
+        return async_to_blocking(self._async_job_group.debug_info())
+
+    def __str__(self):
+        return str(self._async_job_group)
+
 
 class Batch:
     @staticmethod

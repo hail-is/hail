@@ -520,6 +520,9 @@ class JobGroup:
             jobs.append({'log': log, 'status': job._status})
         return {'status': jg_status, 'job_groups': job_groups, 'jobs': jobs}
 
+    def __str__(self):
+        return str(await self.debug_info())
+
 
 class BatchSubmissionInfo:
     def __init__(self, used_fast_path: Optional[bool] = None):
@@ -537,6 +540,7 @@ class BatchAlreadyCreatedError(Exception):
 class BatchDebugInfo(TypedDict):
     status: Dict[str, Any]
     jobs: List[JobListEntryV1Alpha]
+    job_groups: List[GetJobGroupResponseV1Alpha]
 
 
 class SpecType(Enum):
@@ -694,9 +698,15 @@ class Batch:
         self,
         _jobs_query_string: Optional[str] = None,
         _max_jobs: Optional[int] = None,
+        _max_job_groups: Optional[int] = None,
     ) -> BatchDebugInfo:
         self._raise_if_not_created()
         batch_status = await self.status()
+        job_groups = []
+        async for job_group in self._root_job_group.job_groups():
+            if _max_job_groups and len(job_groups) == _max_job_groups:
+                break
+            job_groups.append({'status': (await job_group.status())})
         jobs = []
         async for j_status in self._root_job_group.jobs(q=_jobs_query_string):
             if _max_jobs and len(jobs) == _max_jobs:
@@ -705,7 +715,7 @@ class Batch:
             id = j_status['job_id']
             log, job = await asyncio.gather(self.get_job_log(id), self.get_job(id))
             jobs.append({'log': log, 'status': job._status})
-        return {'status': batch_status, 'jobs': jobs}
+        return {'status': batch_status, 'jobs': jobs, 'job_groups': job_groups}
 
     async def delete(self):
         self._raise_if_not_created()
