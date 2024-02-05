@@ -889,7 +889,7 @@ class Batch:
             b.extend(spec)
         b.append(ord(']'))
         b.extend(b',"batch":')
-        b.extend(json.dumps(self._batch_spec()).encode('utf-8'))
+        b.extend(orjson.dumps(self._batch_spec()))
         b.append(ord('}'))
         resp = await self._client._post(
             '/api/v1alpha/batches/create-fast',

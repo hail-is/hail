@@ -13,6 +13,12 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
+def _maybe_time_msecs_str(t):
+    if t:
+        return time_msecs_str(t)
+    return None
+
+
 def cost_breakdown_to_dict(cost_breakdown: Dict[str, float]) -> List[CostBreakdownEntry]:
     return [{'resource': resource, 'cost': cost} for resource, cost in cost_breakdown.items()]
 
@@ -30,14 +36,9 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     else:
         state = 'running'
 
-    def _time_msecs_str(t):
-        if t:
-            return time_msecs_str(t)
-        return None
-
-    time_created = _time_msecs_str(record['time_created'])
-    time_closed = _time_msecs_str(record['time_closed'])
-    time_completed = _time_msecs_str(record['time_completed'])
+    time_created = _maybe_time_msecs_str(record['time_created'])
+    time_closed = _maybe_time_msecs_str(record['time_closed'])
+    time_completed = _maybe_time_msecs_str(record['time_completed'])
 
     if record['time_created'] and record['time_completed']:
         duration_ms = record['time_completed'] - record['time_created']
@@ -90,13 +91,8 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alp
     else:
         state = 'running'
 
-    def _time_msecs_str(t):
-        if t:
-            return time_msecs_str(t)
-        return None
-
-    time_created = _time_msecs_str(record['time_created'])
-    time_completed = _time_msecs_str(record['time_completed'])
+    time_created = _maybe_time_msecs_str(record['time_created'])
+    time_completed = _maybe_time_msecs_str(record['time_completed'])
 
     if record['time_created'] and record['time_completed']:
         duration_ms = record['time_completed'] - record['time_created']
