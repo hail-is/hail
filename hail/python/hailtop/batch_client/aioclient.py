@@ -309,6 +309,12 @@ class JobGroupNotSubmittedError(Exception):
     pass
 
 
+class JobGroupDebugInfo(TypedDict):
+    status: Dict[str, Any]
+    jobs: List[JobListEntryV1Alpha]
+    job_groups: List[GetJobGroupResponseV1Alpha]
+
+
 class JobGroup:
     @staticmethod
     def submitted_job_group(
@@ -441,6 +447,12 @@ class JobGroup:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
+    def create_job(self, image: str, command: List[str], **kwargs) -> Job:
+        return self._batch._create_job(self, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
+
+    def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
+        return self._batch._create_job(self, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs)
+
     # FIXME Error if this is called while in a job within the same job group
     async def _wait(
         self,
@@ -482,6 +494,31 @@ class JobGroup:
             return await self._wait(description, progress, disable_progress_bar)
         with BatchProgressBar(disable=disable_progress_bar) as progress2:
             return await self._wait(description, progress2, disable_progress_bar)
+
+    async def debug_info(
+        self,
+        _jobs_query_string: Optional[str] = None,
+        _max_job_groups: Optional[int] = None,
+        _max_jobs: Optional[int] = None,
+    ) -> JobGroupDebugInfo:
+        self._raise_if_not_submitted()
+        jg_status = await self.status()
+
+        job_groups = []
+        jobs = []
+
+        async for jg in self.job_groups():
+            if _max_job_groups and _max_job_groups == len(job_groups):
+                break
+            job_groups.append({'status': jg._last_known_status})
+
+        async for j_status in self.jobs(q=_jobs_query_string):
+            if _max_jobs and len(jobs) == _max_jobs:
+                break
+            id = j_status['job_id']
+            log, job = await asyncio.gather(self._batch.get_job_log(id), self._batch.get_job(id))
+            jobs.append({'log': log, 'status': job._status})
+        return {'status': jg_status, 'job_groups': job_groups, 'jobs': jobs}
 
 
 class BatchSubmissionInfo:
@@ -679,12 +716,12 @@ class Batch:
                 raise
 
     def create_job(self, image: str, command: List[str], **kwargs) -> Job:
-        return self._create_job({'command': command, 'image': image, 'type': 'docker'}, **kwargs)
+        return self._create_job(self._root_job_group, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
 
     def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
         if 'always_copy_output' in kwargs:
             raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
-        return self._create_job({'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs)
+        return self._create_job(self._root_job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs)
 
     def create_job_group(
         self,
@@ -702,6 +739,7 @@ class Batch:
 
     def _create_job(
         self,
+        job_group: JobGroup,
         process: dict,
         *,
         env: Optional[Dict[str, str]] = None,
@@ -770,6 +808,11 @@ class Batch:
             'in_update_parent_ids': in_update_parent_ids,
             'process': process,
         }
+
+        if job_group.is_submitted:
+            job_spec['absolute_job_group_id'] = job_group._job_group_id
+        else:
+            job_spec['in_update_job_group_id'] = job_group._job_group_id
 
         if env:
             job_spec['env'] = [{'name': k, 'value': v} for (k, v) in env.items()]

@@ -1014,7 +1014,7 @@ async def _create_jobs(
 
     record = await db.select_and_fetchone(
         """
-SELECT `state`, format_version, `committed`, start_job_id
+SELECT `state`, format_version, `committed`, start_job_id, start_job_group_id
 FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
 WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted
@@ -1027,8 +1027,10 @@ LOCK IN SHARE MODE;
         raise web.HTTPNotFound()
     if record['committed']:
         raise web.HTTPBadRequest(reason=f'update {update_id} is already committed')
+
     batch_format_version = BatchFormatVersion(record['format_version'])
     update_start_job_id = int(record['start_job_id'])
+    update_start_job_group_id = int(record['start_job_group_id'])
 
     try:
         validate_and_clean_jobs(job_specs)
@@ -1061,6 +1063,15 @@ LOCK IN SHARE MODE;
         absolute_parent_ids = spec.pop('absolute_parent_ids', [])
         in_update_parent_ids = spec.pop('in_update_parent_ids', [])
         parent_ids = absolute_parent_ids + [update_start_job_id + parent_id - 1 for parent_id in in_update_parent_ids]
+
+        absolute_job_group_id = spec.pop('absolute_job_group_id', None)
+        in_update_job_group_id = spec.pop('in_update_job_group_id', None)
+        if absolute_job_group_id is not None:
+            job_group_id = absolute_job_group_id
+        else:
+            assert in_update_job_group_id is not None
+            job_group_id = update_start_job_group_id + in_update_job_group_id - 1
+        spec['job_group_id'] = job_group_id
 
         always_run = spec.pop('always_run', False)
 
@@ -1289,7 +1300,7 @@ LOCK IN SHARE MODE;
             batch_id,
             job_id,
             update_id,
-            ROOT_JOB_GROUP_ID,
+            job_group_id,
             state,
             json.dumps(db_spec),
             always_run,

@@ -63,6 +63,8 @@ job_validator = keyed({
     'parent_ids': listof(int_type),
     'absolute_parent_ids': listof(int_type),
     'in_update_parent_ids': listof(int_type),
+    'absolute_job_group_id': int_type,
+    'in_update_job_group_id': int_type,
     'port': int_type,
     required('process'): switch(
         'type',
