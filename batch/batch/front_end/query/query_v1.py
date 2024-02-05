@@ -145,9 +145,9 @@ SELECT job_groups.*,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
   cost_t.cost, cost_t.cost_breakdown
-FROM job_groups
+FROM job_group_self_and_ancestors
 LEFT JOIN batches ON batches.id = job_groups.batch_id
-LEFT JOIN job_group_self_and_ancestors
+LEFT JOIN job_groups
   ON job_group_self_and_ancestors.batch_id = job_groups.batch_id AND
      job_group_self_and_ancestors.job_group_id = job_groups.job_group_id
 LEFT JOIN job_groups_n_jobs_in_complete_states

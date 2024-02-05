@@ -1203,11 +1203,11 @@ LOCK IN SHARE MODE;
     await check()
 
 
-async def _cancel_batch(app, batch_id):
+async def _cancel_job_group(app, batch_id, job_group_id):
     try:
-        await cancel_job_group_in_db(app['db'], batch_id, ROOT_JOB_GROUP_ID)
+        await cancel_job_group_in_db(app['db'], batch_id, job_group_id)
     except BatchUserError as exc:
-        log.info(f'cannot cancel batch because {exc.message}')
+        log.info(f'cannot cancel job group because {exc.message}')
         return
     set_cancel_state_changed(app)
 
@@ -1229,34 +1229,22 @@ WHERE billing_project = %s AND state = 'running';
                 (record['billing_project'],),
             )
             async for batch in running_batches:
-                await _cancel_batch(app, batch['id'])
+                await _cancel_job_group(app, batch['id'], ROOT_JOB_GROUP_ID)
 
 
-async def cancel_fast_failing_batches(app):
+async def cancel_fast_failing_job_groups(app):
     db: Database = app['db']
-
-<<<<<<< HEAD
     records = db.select_and_fetchall(
         """
-SELECT job_groups.batch_id, job_groups_n_jobs_in_complete_states.n_failed
+SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_n_jobs_in_complete_states.n_failed
 FROM job_groups
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures AND job_groups.job_group_id = %s
+WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
 """,
-        (ROOT_JOB_GROUP_ID,),
     )
-=======
-    records = db.select_and_fetchall("""
-SELECT batches.id, job_groups_n_jobs_in_complete_states.n_failed
-FROM batches
-LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON batches.id = job_groups_n_jobs_in_complete_states.id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
-""")
->>>>>>> f47efb4d4f95c9377cb1d15b4c06a61e4139334d
-    async for batch in records:
-        await _cancel_batch(app, batch['batch_id'])
+    async for job_group in records:
+        await _cancel_job_group(app, job_group['batch_id'], job_group['job_group_id'])
 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
@@ -1618,7 +1606,7 @@ SELECT instance_id, frozen FROM globals;
     exit_stack.push_async_callback(app['task_manager'].shutdown_and_wait)
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
-    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_job_groups, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))

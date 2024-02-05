@@ -172,28 +172,7 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
-    # {
-    #   id: int
-    #   user: str
-    #   billing_project: str
-    #   token: str
-    #   state: str, (open, failure, cancelled, success, running)
-    #   complete: bool
-    #   closed: bool
-    #   n_jobs: int
-    #   n_completed: int
-    #   n_succeeded: int
-    #   n_failed: int
-    #   n_cancelled: int
-    #   time_created: optional(str), (date)
-    #   time_closed: optional(str), (date)
-    #   time_completed: optional(str), (date)
-    #   duration: optional(str)
-    #   attributes: optional(dict(str, str))
-    #   msec_mcpu: int
-    #   cost: float
-    # }
-    def status(self):
+    def status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_batch.status())
 
     def last_known_status(self):

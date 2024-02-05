@@ -943,6 +943,7 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0', 401),
         (session.delete, '/api/v1alpha/batches/0', 401),
         (session.patch, '/api/v1alpha/batches/0/close', 401),
+        (session.get, '/api/v1alpha/batches/0/job-groups', 401),
         (session.get, '/api/v1alpha/batches/0/job-groups/0/job-groups', 401),
         (session.post, '/api/v1alpha/batches/0/updates/0/job-groups/create', 401),
         (session.post, '/api/v1alpha/batches/0/updates/0/jobs/create', 401),
@@ -1375,7 +1376,7 @@ async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: B
     b = create_batch(client)._async_batch
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    update_id = await b._create_update()
+    update_id, _, _ = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',
@@ -1392,7 +1393,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
     b = create_batch(client)._async_batch
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    update_id = await b._create_update()
+    update_id, _, _ = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',

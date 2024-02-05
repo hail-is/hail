@@ -129,10 +129,17 @@ job_group_validator = keyed({
 def validate_and_clean_jobs(jobs):
     if not isinstance(jobs, list):
         raise ValidationError('jobs is not list')
+
+    prev_job_id = None
     for i, job in enumerate(jobs):
         handle_deprecated_job_keys(i, job)
         job_validator.validate(f"jobs[{i}]", job)
         handle_job_backwards_compatibility(job)
+        job_id = job['job_id']
+        if prev_job_id:
+            if job_id != prev_job_id + 1:
+                raise ValidationError(f'noncontiguous job ids found in the spec: {prev_job_id} -> {job_id}')
+        prev_job_id = job_id
 
 
 def handle_deprecated_job_keys(i, job):
@@ -229,7 +236,13 @@ def validate_batch_update(update):
 def validate_job_groups(job_groups):
     if not isinstance(job_groups, list):
         raise ValidationError('job_groups is not a list')
+    prev_job_group_id = None
     for i, job_group in enumerate(job_groups):
         job_group_validator.validate(f'job_groups[{i}]', job_group)
         if 'in_update_parent_id' not in job_group and 'absolute_parent_id' not in job_group:
             raise ValidationError('job group must define in_update_parent_id or absolute_parent_id')
+        job_group_id = job_group['job_group_id']
+        if prev_job_group_id:
+            if job_group_id != prev_job_group_id + 1:
+                raise ValidationError(f'noncontiguous job group ids found in the spec: {prev_job_group_id} -> {job_group_id}')
+        prev_job_group_id = job_group_id

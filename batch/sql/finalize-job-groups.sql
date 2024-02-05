@@ -1,4 +1,66 @@
+START TRANSACTION;
+
+SET foreign_key_checks = 0;
+
+ALTER TABLE batch_updates ADD COLUMN start_job_group_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
+ALTER TABLE batch_updates ADD COLUMN n_job_groups INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
+CREATE INDEX `batch_updates_start_job_group_id` ON `batch_updates` (`batch_id`, `start_job_group_id`);
+
+ALTER TABLE job_groups ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
+ALTER TABLE job_groups ADD FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE, ALGORITHM=INPLACE;
+CREATE INDEX `job_groups_batch_id_update_id` ON `job_groups` (`batch_id`, `update_id`);
+
+ALTER TABLE jobs MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE jobs ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id` ON `jobs` (`batch_id`, `job_group_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
+
+ALTER TABLE job_group_attributes MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE job_group_attributes ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE job_group_attributes DROP PRIMARY KEY, ADD PRIMARY KEY (batch_id, job_group_id, `key`), ALGORITHM=INPLACE, LOCK=NONE;
+
+ALTER TABLE job_groups_cancelled MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE job_groups_cancelled ADD FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE job_groups_cancelled DROP PRIMARY KEY, ADD PRIMARY KEY (id, job_group_id), ALGORITHM=INPLACE, LOCK=NONE;
+
+ALTER TABLE job_groups_inst_coll_staging MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE job_groups_inst_coll_staging ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE job_groups_inst_coll_staging DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
+
+ALTER TABLE job_group_inst_coll_cancellable_resources MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE job_group_inst_coll_cancellable_resources ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE job_group_inst_coll_cancellable_resources DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
+
+ALTER TABLE aggregated_job_group_resources_v2 MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE aggregated_job_group_resources_v2 ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE aggregated_job_group_resources_v2 DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
+
+ALTER TABLE aggregated_job_group_resources_v3 MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE aggregated_job_group_resources_v3 ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE aggregated_job_group_resources_v3 DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
+
+ALTER TABLE job_groups_n_jobs_in_complete_states MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE job_groups_n_jobs_in_complete_states ADD FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE job_groups_n_jobs_in_complete_states DROP PRIMARY KEY, ADD PRIMARY KEY (`id`, `job_group_id`), ALGORITHM=INPLACE, LOCK=NONE;
+
+SET foreign_key_checks = 1;
+
 DELIMITER $$
+
+DROP TRIGGER IF EXISTS jobs_before_insert $$
+CREATE TRIGGER jobs_before_insert BEFORE INSERT ON jobs
+FOR EACH ROW
+BEGIN
+  DECLARE job_group_cancelled BOOLEAN;
+
+  SET job_group_cancelled = EXISTS (SELECT TRUE
+                                    FROM job_groups_cancelled
+                                    WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
+                                    LOCK IN SHARE MODE);
+
+  IF job_group_cancelled THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = "job group has already been cancelled";
+  END IF;
+END $$
 
 DROP TRIGGER IF EXISTS attempts_after_update $$
 CREATE TRIGGER attempts_after_update AFTER UPDATE ON attempts
@@ -354,46 +416,4 @@ END $$
 
 DELIMITER ;
 
-SET foreign_key_checks = 0;
-
-ALTER TABLE batch_updates ADD COLUMN start_job_group_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
-ALTER TABLE batch_updates ADD COLUMN n_job_groups INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
-CREATE INDEX `batch_updates_start_job_group_id` ON `batch_updates` (`batch_id`, `start_job_group_id`);
-
-ALTER TABLE job_groups ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
-ALTER TABLE job_groups ADD FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE, ALGORITHM=INPLACE;
-CREATE INDEX `job_groups_batch_id_update_id` ON `job_groups` (`batch_id`, `update_id`);
-
-ALTER TABLE jobs MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE jobs ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-CREATE INDEX `jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id` ON `jobs` (`batch_id`, `job_group_id`, `inst_coll`, `state`, `always_run`, `n_regions`, `regions_bits_rep`, `job_id`);
-
-ALTER TABLE job_group_attributes MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE job_group_attributes ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE job_group_attributes DROP PRIMARY KEY, ADD PRIMARY KEY (batch_id, job_group_id, `key`), ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE job_groups_cancelled MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE job_groups_cancelled ADD FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE job_groups_cancelled DROP PRIMARY KEY, ADD PRIMARY KEY (id, job_group_id), ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE job_groups_inst_coll_staging MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE job_groups_inst_coll_staging ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE job_groups_inst_coll_staging DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE job_group_inst_coll_cancellable_resources MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE job_group_inst_coll_cancellable_resources ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE job_group_inst_coll_cancellable_resources DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE aggregated_job_group_resources_v2 MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE aggregated_job_group_resources_v2 ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE aggregated_job_group_resources_v2 DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE aggregated_job_group_resources_v3 MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE aggregated_job_group_resources_v3 ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE aggregated_job_group_resources_v3 DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
-
-ALTER TABLE job_groups_n_jobs_in_complete_states MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE job_groups_n_jobs_in_complete_states ADD FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE job_groups_n_jobs_in_complete_states DROP PRIMARY KEY, ADD PRIMARY KEY (`id`, `job_group_id`), ALGORITHM=INPLACE, LOCK=NONE;
-
-SET foreign_key_checks = 1;
+COMMIT;

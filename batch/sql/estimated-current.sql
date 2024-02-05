@@ -671,6 +671,22 @@ BEGIN
   END IF;
 END $$
 
+DROP TRIGGER IF EXISTS jobs_before_insert $$
+CREATE TRIGGER jobs_before_insert BEFORE INSERT ON jobs
+FOR EACH ROW
+BEGIN
+  DECLARE job_group_cancelled BOOLEAN;
+
+  SET job_group_cancelled = EXISTS (SELECT TRUE
+                                    FROM job_groups_cancelled
+                                    WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
+                                    LOCK IN SHARE MODE);
+
+  IF job_group_cancelled THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = "job group has already been cancelled";
+  END IF;
+END $$
+
 DROP TRIGGER IF EXISTS jobs_after_update $$
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW

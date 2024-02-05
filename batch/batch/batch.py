@@ -7,7 +7,8 @@ from hailtop.batch_client.types import CostBreakdownEntry, GetJobGroupResponseV1
 from hailtop.utils import humanize_timedelta_msecs, time_msecs_str
 
 from .batch_format_version import BatchFormatVersion
-from .exceptions import NonExistentBatchError, OpenBatchError
+from .constants import ROOT_JOB_GROUP_ID
+from .exceptions import NonExistentJobGroupError
 from .utils import coalesce
 
 log = logging.getLogger('batch')
@@ -160,17 +161,18 @@ async def cancel_job_group_in_db(db, batch_id, job_group_id):
     async def cancel(tx):
         record = await tx.execute_and_fetchone(
             """
-SELECT `state` FROM batches
-WHERE id = %s AND NOT deleted
+SELECT `state`
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id AND
+  job_groups.update_id = batch_updates.update_id
+WHERE batch_id = %s AND job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s)
 FOR UPDATE;
 """,
-            (batch_id,),
+            (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
         )
         if not record:
-            raise NonExistentBatchError(batch_id)
-
-        if record['state'] == 'open':
-            raise OpenBatchError(batch_id)
+            raise NonExistentJobGroupError(batch_id, job_group_id)
 
         await tx.just_execute('CALL cancel_job_group(%s, %s);', (batch_id, job_group_id))
 
