@@ -1,11 +1,9 @@
 import math
 import operator
 import random
-import pytest
 
-import hail as hl
-import hail.ir as ir
 import hail.expr.aggregators as agg
+import hail.ir as ir
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
@@ -1745,6 +1743,71 @@ class Tests(unittest.TestCase):
     def test_show_runs(self):
         mt = self.get_mt()
         mt.show()
+
+    def test_show(self):
+        def assign_output(output):
+            nonlocal actual_output
+            actual_output = output
+
+        mt = self.get_mt()
+        expected_output = """+---------------+------------+
+| locus         | alleles    |
++---------------+------------+
+| locus<GRCh37> | array<str> |
++---------------+------------+
++---------------+------------+
+showing top 0 rows
+showing the first 0 of 100 columns"""
+        actual_output = None
+        mt.show(0, 0, handler=assign_output)
+        self.assertEqual(expected_output, actual_output)
+        expected_output = """+-------+---------+
+| locus | alleles |
++-------+---------+
++-------+---------+
+showing top 0 rows
+showing the first 0 of 100 columns"""
+        actual_output = None
+        mt.show(0, 0, types=False, handler=assign_output)
+        self.assertEqual(expected_output, actual_output)
+        expected_output = """+---------------+------------+---------------------+---------------------+
+| locus         | alleles    | 'C1046::HG02024'.GT | 'C1046::HG02024'.AD |
++---------------+------------+---------------------+---------------------+
+| locus<GRCh37> | array<str> | call                | array<int32>        |
++---------------+------------+---------------------+---------------------+
+| 20:10019093   | ['A', 'G'] | 0/0                 | [30, 0]             |
+| 20:10026348   | ['A', 'G'] | 0/0                 | [23, 0]             |
+| 20:10026357   | ['T', 'C'] | 0/0                 | [23, 0]             |
+| 20:10030188   | ['T', 'A'] | 0/0                 | [35, 0]             |
+| 20:10030452   | ['G', 'A'] | 0/0                 | [35, 0]             |
+| 20:10030508   | ['T', 'C'] | 0/0                 | [35, 0]             |
+| 20:10030573   | ['G', 'A'] | 0/0                 | [35, 0]             |
+| 20:10032413   | ['T', 'G'] | 0/0                 | [21, 0]             |
+| 20:10036107   | ['T', 'G'] | 0/0                 | [26, 0]             |
+| 20:10036141   | ['C', 'T'] | 0/0                 | [29, 0]             |
++---------------+------------+---------------------+---------------------+
+
++---------------------+---------------------+---------------------+
+| 'C1046::HG02024'.DP | 'C1046::HG02024'.GQ | 'C1046::HG02024'.PL |
++---------------------+---------------------+---------------------+
+|               int32 |               int32 | array<int32>        |
++---------------------+---------------------+---------------------+
+|                  30 |                  72 | [0, 72, 1080]       |
+|                  23 |                  60 | [0, 60, 900]        |
+|                  23 |                  60 | [0, 60, 900]        |
+|                  35 |                  60 | [0, 60, 900]        |
+|                  35 |                  60 | [0, 60, 900]        |
+|                  35 |                  60 | [0, 60, 900]        |
+|                  35 |                  60 | [0, 60, 900]        |
+|                  21 |                  60 | [0, 60, 849]        |
+|                  26 |                  66 | [0, 66, 990]        |
+|                  29 |                  81 | [0, 81, 1215]       |
++---------------------+---------------------+---------------------+
+showing top 10 rows
+showing the first 1 of 100 columns"""
+        actual_output = None
+        mt.show(10, 1, handler=assign_output)
+        self.assertEqual(expected_output, actual_output)
 
     def test_show_header(self):
         mt = hl.utils.range_matrix_table(1, 1)
