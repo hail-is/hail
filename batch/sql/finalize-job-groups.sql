@@ -1,5 +1,7 @@
 START TRANSACTION;
 
+DROP TRIGGER IF EXISTS batches_after_update;
+
 SET foreign_key_checks = 0;
 
 # we need to remove the unique index on batch_id, start_job_id because the start_job_id can be repeated if the n_jobs in an update is 0
@@ -112,7 +114,7 @@ BEGIN
     FROM attempt_resources
     LEFT JOIN jobs ON attempt_resources.batch_id = jobs.batch_id AND attempt_resources.job_id = jobs.job_id
     LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND jobs.job_group_id = job_group_self_and_ancestors.job_group_id
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
+    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = aggregated_job_group_resources_v3.`usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
@@ -142,7 +144,7 @@ CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
 BEGIN
   DECLARE cur_user VARCHAR(100);
-  DECLARE cur_batch_cancelled BOOLEAN;
+  DECLARE cur_job_group_cancelled BOOLEAN;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
@@ -184,10 +186,10 @@ BEGIN
 
   SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
-  SET cur_batch_cancelled = EXISTS (SELECT TRUE
-                                    FROM job_groups_cancelled
-                                    WHERE id = NEW.batch_id
-                                    LOCK IN SHARE MODE);
+  SET cur_job_group_cancelled = EXISTS (SELECT TRUE
+                                        FROM job_groups_cancelled
+                                        WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
+                                        LOCK IN SHARE MODE);
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -195,11 +197,11 @@ BEGIN
   SET always_run = old.always_run; # always_run is immutable
   SET cores_mcpu = old.cores_mcpu; # cores_mcpu is immutable
 
-  SET was_marked_cancelled = old.cancelled OR cur_batch_cancelled;
+  SET was_marked_cancelled = old.cancelled OR cur_job_group_cancelled;
   SET was_cancelled        = NOT always_run AND was_marked_cancelled;
   SET was_cancellable      = NOT always_run AND NOT was_marked_cancelled;
 
-  SET now_marked_cancelled = new.cancelled or cur_batch_cancelled;
+  SET now_marked_cancelled = new.cancelled or cur_job_group_cancelled;
   SET now_cancelled        = NOT always_run AND now_marked_cancelled;
   SET now_cancellable      = NOT always_run AND NOT now_marked_cancelled;
 
@@ -684,30 +686,17 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id, token, n_completed, n_cancelled, n_failed, n_succeeded)
-    SELECT in_batch_id, ancestor_id, rand_token,
-      1,
-      (new_state = 'Cancelled'),
-      (new_state = 'Error' OR new_state = 'Failed'),
-      (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
-    FROM job_group_self_and_ancestors
-    WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id
-    ON DUPLICATE KEY UPDATE n_completed = n_completed + 1,
-      n_cancelled = n_cancelled + (new_state = 'Cancelled'),
-      n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
-      n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
-
---     UPDATE job_groups_n_jobs_in_complete_states
---     INNER JOIN (
---       SELECT batch_id, ancestor_id
---       FROM job_group_self_and_ancestors
---       WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id
---       ORDER BY job_group_id ASC
---     ) AS t ON job_groups_n_jobs_in_complete_states.id = t.batch_id AND job_groups_n_jobs_in_complete_states.job_group_id = t.ancestor_id
---     SET n_completed = n_completed + 1,
---         n_cancelled = n_cancelled + (new_state = 'Cancelled'),
---         n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
---         n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
+    UPDATE job_groups_n_jobs_in_complete_states
+    INNER JOIN (
+      SELECT batch_id, ancestor_id
+      FROM job_group_self_and_ancestors
+      WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id
+      ORDER BY job_group_id ASC
+    ) AS t ON job_groups_n_jobs_in_complete_states.id = t.batch_id AND job_groups_n_jobs_in_complete_states.job_group_id = t.ancestor_id
+    SET n_completed = n_completed + 1,
+        n_cancelled = n_cancelled + (new_state = 'Cancelled'),
+        n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+        n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
 
     CALL mark_job_group_complete(in_batch_id, cur_job_group_id, new_timestamp);
 
