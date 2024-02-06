@@ -1,9 +1,9 @@
 import hail as hl
 from hail import ir
-from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str, expr_bool
+from hail.expr import expr_any, expr_array, expr_bool, expr_interval, expr_locus, expr_str
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration, func_spec, dictof
+from hail.typecheck import dictof, enumeration, func_spec, nullable, oneof, sequenceof, typecheck
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
@@ -327,7 +327,7 @@ def impute_sex_chr_ploidy_from_interval_coverage(
 )
 def impute_sex_chromosome_ploidy(
     vds: VariantDataset, calling_intervals, normalization_contig: str, use_variant_dataset: bool = False
-) -> hl.Table:
+) -> Table:
     """Impute sex chromosome ploidy from depth of reference or variant data within calling intervals.
 
     Returns a :class:`.Table` with sample ID keys, with the following fields:
@@ -744,7 +744,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 )
 def interval_coverage(
     vds: VariantDataset,
-    intervals: hl.Table,
+    intervals: Table,
     gq_thresholds=(
         0,
         10,

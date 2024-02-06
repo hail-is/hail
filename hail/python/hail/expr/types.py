@@ -1,10 +1,10 @@
-from typing import Union
 import abc
+import builtins
 import json
 import math
-from collections.abc import Mapping, Sequence
 import pprint
-import builtins
+from collections.abc import Mapping, Sequence
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -13,16 +13,15 @@ import hail as hl
 from hailtop.frozendict import frozendict
 from hailtop.hail_frozenlist import frozenlist
 
+from .. import genetics
+from ..genetics.reference_genome import reference_genome_type
+from ..typecheck import nullable, oneof, transformed, typecheck, typecheck_method
+from ..utils.byte_reader import ByteReader, ByteWriter
+from ..utils.java import escape_parsable
+from ..utils.misc import lookup_bit
+from ..utils.struct import Struct
 from .nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_node_visitor
-from .. import genetics
-from ..typecheck import typecheck, typecheck_method, oneof, transformed, nullable
-from ..utils.struct import Struct
-from ..utils.byte_reader import ByteReader, ByteWriter
-from ..utils.misc import lookup_bit
-from ..utils.java import escape_parsable
-from ..genetics.reference_genome import reference_genome_type
-
 
 __all__ = [
     'dtype',

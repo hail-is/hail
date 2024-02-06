@@ -1,6 +1,5 @@
 from enum import IntEnum, auto
 
-
 _ALLELE_STRS = (
     "Unknown",
     "SNP",

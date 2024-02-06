@@ -1,5 +1,6 @@
-import hail as hl
 from pprint import pformat
+
+import hail as hl
 
 
 def test_repr_empty_struct():

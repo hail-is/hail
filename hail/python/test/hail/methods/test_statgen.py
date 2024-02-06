@@ -1,17 +1,18 @@
-import os
 import math
-import pytest
+import os
+import unittest
+
 import numpy as np
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
-import hail.utils as utils
+from hail import utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError, new_temp_file
-from hail.utils.java import choose_backend, Env
-from ..helpers import resource, fails_service_backend, skip_when_service_backend, test_timeout, qobtest
+from hail.utils.java import Env, choose_backend
 
-import unittest
+from ..helpers import fails_service_backend, qobtest, resource, skip_when_service_backend, test_timeout
 
 
 class Tests(unittest.TestCase):

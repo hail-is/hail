@@ -1,27 +1,28 @@
-from typing import Optional, Union, Tuple, Type, List, Dict
-from types import TracebackType
-import warnings
-import sys
 import os
+import sys
+import warnings
 from contextlib import contextmanager
-from urllib.parse import urlparse, urlunparse
 from random import Random
+from types import TracebackType
+from typing import Dict, List, Optional, Tuple, Type, Union
+from urllib.parse import urlparse, urlunparse
 
 import pkg_resources
 from pyspark import SparkContext
 
 import hail
-from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
-from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, dictof, oneof, sized_tupleof, sequenceof
-from hail.utils import get_env_or_default
-from hail.utils.java import Env, warning, choose_backend
 from hail.backend import Backend
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
+from hail.typecheck import dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck, typecheck_method
+from hail.utils import get_env_or_default
+from hail.utils.java import Env, choose_backend, warning
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
+from hailtop.fs.fs import FS
 from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
-from hailtop.fs.fs import FS
-from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
-from .builtin_references import BUILTIN_REFERENCES
+
 from .backend.backend import local_jar_information
+from .builtin_references import BUILTIN_REFERENCES
 
 
 def _get_tmpdir(tmpdir):
@@ -598,8 +599,8 @@ def init_local(
     _optimizer_iterations=None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
 ):
-    from hail.backend.py4j_backend import connect_logger
     from hail.backend.local_backend import LocalBackend
+    from hail.backend.py4j_backend import connect_logger
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmpdir)
@@ -961,8 +962,8 @@ def _with_flags(**flags):
 
 
 def debug_info():
-    from hail.backend.spark_backend import SparkBackend
     from hail.backend.backend import local_jar_information
+    from hail.backend.spark_backend import SparkBackend
 
     spark_conf = None
     if isinstance(Env.backend(), SparkBackend):

@@ -1,11 +1,11 @@
-from typing import Dict, Optional, TypeVar, Union
-import os
-import ssl
 import json
 import logging
-from ..utils import first_extant_file
-from ..tls import external_client_ssl_context, internal_client_ssl_context, internal_server_ssl_context
+import os
+import ssl
+from typing import Dict, Optional, TypeVar, Union
 
+from ..tls import external_client_ssl_context, internal_client_ssl_context, internal_server_ssl_context
+from ..utils import first_extant_file
 from .user_config import get_user_config
 
 log = logging.getLogger('deploy_config')

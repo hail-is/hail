@@ -14,7 +14,7 @@ from hail.genetics.allele_type import AlleleType
 from hail.methods.misc import require_first_key_field_locus
 from hail.methods.qc import _qc_allele_type
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable
+from hail.typecheck import nullable, sequenceof, typecheck
 from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.vds.variant_dataset import VariantDataset

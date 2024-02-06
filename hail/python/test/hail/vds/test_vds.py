@@ -1,10 +1,12 @@
 import os
+
 import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
 from hail.vds.combiner.combine import defined_entry_fields
-from ..helpers import resource, test_timeout, qobtest
+
+from ..helpers import qobtest, resource, test_timeout
 
 
 # run this method to regenerate the combined VDS from 5 samples

@@ -3,16 +3,17 @@ import os
 import warnings
 from typing import Iterable, List, Optional, Set, Tuple, Union
 
-import hail as hl
 import pkg_resources
+
+import hail as hl
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
-from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
 from ..matrixtable import MatrixTable, matrix_table_type
 from ..table import Table, table_type
 from ..typecheck import oneof, typecheck_method
 from ..utils.java import Env, info
+from .lens import MatrixRows, TableRows
 
 
 class DatasetVersion:

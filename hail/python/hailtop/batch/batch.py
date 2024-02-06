@@ -1,20 +1,25 @@
 import os
-import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set
+import warnings
 from io import BytesIO
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Union
+
 import dill
 
-from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
-from hailtop.aiotools import AsyncFS
-from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
-from hailtop.aiotools.router_fs import RouterAsyncFS
-import hailtop.batch_client.client as _bc
 import hailtop.batch_client.aioclient as _aiobc
+import hailtop.batch_client.client as _bc
+from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
+from hailtop.aiotools import AsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import ConfigVariable, configuration_of
+from hailtop.utils import async_to_blocking, secret_alnum_string, url_scheme
 
-from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
+from . import job
+from . import resource as _resource
 from .exceptions import BatchException
+
+if TYPE_CHECKING:
+    from hailtop.batch.backend import LocalBackend, ServiceBackend
 
 
 class Batch:
@@ -150,15 +155,17 @@ class Batch:
 
     @staticmethod
     async def _async_from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
+        from hailtop.batch.backend import ServiceBackend  # pylint: disable=import-outside-toplevel
+
         b = Batch(*args, **kwargs)
-        assert isinstance(b._backend, _backend.ServiceBackend)
+        assert isinstance(b._backend, ServiceBackend)
         b._async_batch = await (await b._backend._batch_client()).get_batch(batch_id)
         return b
 
     def __init__(
         self,
         name: Optional[str] = None,
-        backend: Optional[Union[_backend.LocalBackend, _backend.ServiceBackend]] = None,
+        backend: Optional[Union['LocalBackend', 'ServiceBackend']] = None,
         attributes: Optional[Dict[str, str]] = None,
         requester_pays_project: Optional[str] = None,
         default_image: Optional[str] = None,
@@ -173,6 +180,8 @@ class Batch:
         project: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ):
+        from hailtop.batch.backend import LocalBackend, ServiceBackend  # pylint: disable=import-outside-toplevel
+
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -185,10 +194,10 @@ class Batch:
         else:
             backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
-                self._backend = _backend.ServiceBackend()
+                self._backend = ServiceBackend()
             else:
                 assert backend_config == 'local'
-                self._backend = _backend.LocalBackend()
+                self._backend = LocalBackend()
 
         self.name = name
 
@@ -205,7 +214,7 @@ class Batch:
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_regions = default_regions
-        if self._default_regions is None and isinstance(self._backend, _backend.ServiceBackend):
+        if self._default_regions is None and isinstance(self._backend, ServiceBackend):
             self._default_regions = self._backend.regions
         self._default_timeout = default_timeout
         self._default_shell = default_shell
@@ -610,6 +619,7 @@ class Batch:
             where `identifier` is the identifier of the file in the
             :class:`.ResourceGroup` map.
         """
+        from hailtop.batch.backend import LocalBackend  # pylint: disable=import-outside-toplevel
 
         if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
@@ -636,7 +646,7 @@ class Batch:
                 f"using the PythonJob 'call' method"
             )
 
-        if isinstance(self._backend, _backend.LocalBackend):
+        if isinstance(self._backend, LocalBackend):
             dest_scheme = url_scheme(dest)
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))

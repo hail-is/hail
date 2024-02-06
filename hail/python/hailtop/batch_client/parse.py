@@ -1,6 +1,6 @@
-from typing import Optional, Mapping, Pattern
-import re
 import math
+import re
+from typing import Mapping, Optional, Pattern
 
 MEMORY_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?'
 MEMORY_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)

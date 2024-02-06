@@ -4,9 +4,8 @@ import json
 import avro.schema
 
 import hail as hl
-
-from hail.ir.utils import make_filter_and_replace, default_row_uid
-from hail.typecheck import typecheck_method, sequenceof, nullable, anytype, oneof
+from hail.ir.utils import default_row_uid, make_filter_and_replace
+from hail.typecheck import anytype, nullable, oneof, sequenceof, typecheck_method
 from hail.utils.misc import escape_str
 
 from .utils import impute_type_of_partition_interval_array

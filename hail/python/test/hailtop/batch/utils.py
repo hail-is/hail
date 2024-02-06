@@ -1,8 +1,8 @@
-import os
 import inspect
+import os
+
 from hailtop import pip_version
 from hailtop.batch import Batch
-
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'

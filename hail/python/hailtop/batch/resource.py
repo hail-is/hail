@@ -1,8 +1,10 @@
 import abc
-from typing import Optional, Set, cast, Union
+from typing import TYPE_CHECKING, Optional, Set, Union, cast
 
-from . import job  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+
+if TYPE_CHECKING:
+    from hailtop.batch.job import Job, PythonJob
 
 
 class Resource:
@@ -13,7 +15,7 @@ class Resource:
     _uid: str
 
     @abc.abstractmethod
-    def source(self) -> Optional[job.Job]:
+    def source(self) -> Optional['Job']:
         pass
 
     @abc.abstractmethod
@@ -131,12 +133,12 @@ class JobResourceFile(ResourceFile):
     to be saved.
     """
 
-    def __init__(self, value, source: job.Job):
+    def __init__(self, value, source: 'Job'):
         super().__init__(value)
         self._has_extension = False
         self._source = source
 
-    def source(self) -> job.Job:
+    def source(self) -> 'Job':
         return self._source
 
     def _get_path(self, directory: str) -> str:
@@ -234,7 +236,7 @@ class ResourceGroup(Resource):
         cls._counter += 1
         return uid
 
-    def __init__(self, source: Optional[job.Job], root: str, **values: ResourceFile):
+    def __init__(self, source: Optional['Job'], root: str, **values: ResourceFile):
         self._source = source
         self._resources = {}  # dict of name to resource uid
         self._root = root
@@ -335,7 +337,7 @@ class PythonResult(Resource, str):
         r._uid = uid
         return r
 
-    def __init__(self, value: str, source: job.PythonJob):
+    def __init__(self, value: str, source: 'PythonJob'):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
@@ -362,7 +364,7 @@ class PythonResult(Resource, str):
         if self._source is not None:
             self._source._external_outputs.add(self)
 
-    def source(self) -> job.PythonJob:
+    def source(self) -> 'PythonJob':
         """
         Get the job that created the Python result.
         """

@@ -1,5 +1,5 @@
-from typing import TypeVar, Dict, Generic
 from collections.abc import Mapping
+from typing import Dict, Generic, TypeVar
 
 T = TypeVar("T")
 U = TypeVar("U")

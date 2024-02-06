@@ -1,14 +1,15 @@
-from typing import Generator
-import pytest
-import secrets
 import os
+import secrets
+from typing import Generator
+
+import pytest
 
 import hail as hl
-import hailtop.fs as fs
 from hail.context import _get_local_tmpdir
-from hail.utils import hadoop_open, hadoop_copy, hadoop_ls
-from hailtop.utils import secret_alnum_string
+from hail.utils import hadoop_copy, hadoop_ls, hadoop_open
 from hail.utils.java import FatalError
+from hailtop import fs
+from hailtop.utils import secret_alnum_string
 
 from ..helpers import qobtest
 

@@ -10,20 +10,22 @@ from typing import Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 from hail.expr import HailType, tmatrix
+from hail.genetics.reference_genome import ReferenceGenome
 from hail.utils import FatalError, Interval
 from hail.utils.java import info, warning
+
+from ..variant_dataset import VariantDataset
 from .combine import (
-    combine_variant_datasets,
-    transform_gvcf,
-    defined_entry_fields,
-    make_variant_stream,
-    make_reference_stream,
-    combine_r,
     calculate_even_genome_partitioning,
     calculate_new_intervals,
     combine,
+    combine_r,
+    combine_variant_datasets,
+    defined_entry_fields,
+    make_reference_stream,
+    make_variant_stream,
+    transform_gvcf,
 )
-from ..variant_dataset import VariantDataset
 
 
 class VDSMetadata(NamedTuple):
@@ -220,7 +222,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         save_path: str,
         output_path: str,
         temp_path: str,
-        reference_genome: hl.ReferenceGenome,
+        reference_genome: ReferenceGenome,
         dataset_type: CombinerOutType,
         gvcf_type: Optional[tmatrix] = None,
         branch_factor: int = _default_branch_factor,
@@ -662,7 +664,7 @@ def new_combiner(
     target_records: int = VariantDatasetCombiner._default_target_records,
     gvcf_batch_size: Optional[int] = None,
     batch_size: Optional[int] = None,
-    reference_genome: Union[str, hl.ReferenceGenome] = 'default',
+    reference_genome: Union[str, ReferenceGenome] = 'default',
     contig_recoding: Optional[Dict[str, str]] = None,
     force: bool = False,
 ) -> VariantDatasetCombiner:

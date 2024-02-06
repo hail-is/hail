@@ -1,10 +1,12 @@
-from numpy import linspace
 from typing import Optional
 
+from numpy import linspace
+
 import hail as hl
-from .misc import check_nonnegative_and_in_range, check_positive_and_in_range
+
 from ..genetics.reference_genome import reference_genome_type
-from ..typecheck import typecheck, nullable
+from ..typecheck import nullable, typecheck
+from .misc import check_nonnegative_and_in_range, check_positive_and_in_range
 
 
 @typecheck(n=int, n_partitions=nullable(int), reference_genome=nullable(reference_genome_type))

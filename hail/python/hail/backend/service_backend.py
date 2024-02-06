@@ -1,40 +1,39 @@
-from typing import Dict, Optional, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
 import abc
 import asyncio
-from dataclasses import dataclass
+import logging
 import math
 import struct
-from hail.expr.expressions.base_expression import Expression
-import orjson
-import logging
-from contextlib import AsyncExitStack
 import warnings
+from contextlib import AsyncExitStack
+from dataclasses import dataclass
+from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
 
-from hail.context import TemporaryDirectory, TemporaryFilename, tmp_dir, revision, version
-from hail.utils import FatalError
-from hail.expr.types import HailType
+import orjson
+
+import hailtop.aiotools.fs as afs
+from hail.context import TemporaryDirectory, TemporaryFilename, revision, tmp_dir, version
 from hail.experimental import read_expression, write_expression
+from hail.expr.expressions.base_expression import Expression
+from hail.expr.types import HailType
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
-
+from hail.utils import FatalError
 from hailtop import yamlx
-from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
-from hailtop.hail_event_loop import hail_event_loop
-from hailtop.utils import async_to_blocking, Timings, am_i_interactive, retry_transient_errors
-from hailtop.utils.rich_progress_bar import BatchProgressBar
-from hailtop.batch_client.aioclient import Batch, BatchClient
-from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
-import hailtop.aiotools.fs as afs
+from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
+from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
-from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
+from hailtop.hail_event_loop import hail_event_loop
+from hailtop.utils import Timings, am_i_interactive, async_to_blocking, retry_transient_errors
+from hailtop.utils.rich_progress_bar import BatchProgressBar
 
-from .backend import Backend, fatal_error_from_java_error_triplet, ActionTag, ActionPayload, ExecutePayload
 from ..builtin_references import BUILTIN_REFERENCES
 from ..utils import ANY_REGION
-from hailtop.aiotools.validators import validate_file
-
+from .backend import ActionPayload, ActionTag, Backend, ExecutePayload, fatal_error_from_java_error_triplet
 
 ReferenceGenomeConfig = Dict[str, Any]
 

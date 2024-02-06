@@ -1,11 +1,12 @@
-from typing import Optional, List, Any, Tuple
+from typing import Any, List, Optional, Tuple
+
 import hail as hl
-from hail.utils.java import Env
 from hail.expr.types import tint32, tint64
+from hail.utils.java import Env
 
 
 def finalize_randomness(x):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     if isinstance(x, ir.IR):
         x = ir.Let('__rng_state', ir.RNGStateLiteral(), x)
@@ -21,7 +22,7 @@ default_col_uid = '__col_uid'
 
 
 def unpack_row_uid(new_row_type, uid_field_name, drop_uid=True):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     new_row = ir.Ref('va', new_row_type)
     if uid_field_name in new_row_type.fields:
@@ -34,7 +35,7 @@ def unpack_row_uid(new_row_type, uid_field_name, drop_uid=True):
 
 
 def unpack_col_uid(new_col_type, uid_field_name):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     new_row = ir.Ref('sa', new_col_type)
     if uid_field_name in new_col_type.fields:
@@ -45,7 +46,7 @@ def unpack_col_uid(new_col_type, uid_field_name):
 
 
 def modify_deep_field(struct, path, new_deep_field, new_struct=None):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     refs = [struct]
     for i in range(len(path)):
@@ -62,7 +63,7 @@ def modify_deep_field(struct, path, new_deep_field, new_struct=None):
 
 
 def zip_with_index(array):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     elt = Env.get_uid()
     inner_row_uid = Env.get_uid()
@@ -78,7 +79,7 @@ def zip_with_index(array):
 
 
 def zip_with_index_field(array, idx_field_name):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     elt = Env.get_uid()
     inner_row_uid = Env.get_uid()
@@ -120,7 +121,7 @@ def impute_type_of_partition_interval_array(intervals: Optional[List[Any]]) -> T
 
 
 def filter_predicate_with_keep(ir_pred, keep):
-    import hail.ir.ir as ir
+    from hail.ir import ir
 
     return ir.Coalesce(ir_pred if keep else ir.ApplyUnaryPrimOp('!', ir_pred), ir.FalseIR())
 

@@ -1,12 +1,12 @@
 import io
 import json
 import time
-from typing import Dict, List, Union, Any
+from typing import Any, Dict, List, Union
 
 import dateutil.parser
 
 from hailtop.fs.fs import FS
-from hailtop.fs.stat_result import FileType, FileListEntry, FileStatus
+from hailtop.fs.stat_result import FileListEntry, FileStatus, FileType
 
 
 def _file_status_scala_to_python(file_status: Dict[str, Any]) -> FileStatus:
