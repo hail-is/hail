@@ -208,7 +208,7 @@ class LocalBackend(
       throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
 
     if (ir.typ == TVoid) {
-      val (pt, f) = ctx.timer.time("Compile") {
+      val (_, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionUnit](
           ctx,
           FastSeq(),

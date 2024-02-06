@@ -1470,7 +1470,7 @@ class IRSuite extends HailSuite {
     val t = TDict(TInt32, TString)
     assertEvalsTo(CastToArray(NA(t)), null)
 
-    val d = Map(1 -> "a", 2 -> null, (null, "c"))
+    val d: Map[Any, Any] = Map(1 -> "a", 2 -> null, (null, "c"))
     assertEvalsTo(
       CastToArray(In(0, t)),
       // wtf you can't do null -> ...
@@ -1515,7 +1515,7 @@ class IRSuite extends HailSuite {
     val t = TDict(TInt32, TString)
     assertEvalsTo(invoke("contains", TBoolean, NA(t), I32(2)), null)
 
-    val d = Map(1 -> "a", 2 -> null, (null, "c"))
+    val d: Map[Any, Any] = Map(1 -> "a", 2 -> null, (null, "c"))
     assertEvalsTo(invoke("contains", TBoolean, In(0, t), NA(TInt32)), FastSeq((d, t)), true)
     assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(2)), FastSeq((d, t)), true)
     assertEvalsTo(invoke("contains", TBoolean, In(0, t), I32(0)), FastSeq((d, t)), false)
@@ -2096,7 +2096,6 @@ class IRSuite extends HailSuite {
 
     val data = 0 until 10
     val shape = FastSeq(2L, 5L)
-    val nDim = 2
 
     val positives = makeNDArray(data.map(_.toDouble), shape, True())
     val negatives = NDArrayMap(positives, "e", ApplyUnaryPrimOp(Negate, Ref("e", TFloat64)))
@@ -3422,10 +3421,7 @@ class IRSuite extends HailSuite {
         "newChunk" -> TNDArray(TFloat64, Nat(2)),
       )),
     )
-    val mat = Ref("mat", TNDArray(TFloat64, Nat(2)))
-    val aa = Ref("aa", TArray(TArray(TInt32)))
     val sta = Ref("sta", TStream(TArray(TInt32)))
-    val da = Ref("da", TArray(TTuple(TInt32, TString)))
     val std = Ref("std", TStream(TTuple(TInt32, TString)))
     val v = Ref("v", TInt32)
     val s = Ref("s", TStruct("x" -> TInt32, "y" -> TInt64, "z" -> TFloat64))
@@ -4390,8 +4386,6 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testTailLoopNDMemory(): Unit = {
-    implicit val execStrats = ExecStrategy.compileOnly
-
     val ndType = TNDArray(TInt32, Nat(2))
 
     val ndSum: IR = TailLoop(

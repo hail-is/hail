@@ -792,7 +792,7 @@ def test_async_fun_returns_value(backend: ServiceBackend):
 
 
 def test_specify_job_region(backend: ServiceBackend):
-    b = batch(backend, cancel_after_n_failures=1)
+    b = batch(backend)
     j = b.new_job('region')
     possible_regions = backend.supported_regions()
     j.regions(possible_regions)
@@ -801,6 +801,34 @@ def test_specify_job_region(backend: ServiceBackend):
     assert res
     res_status = res.status()
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+
+def test_job_regions_controls_job_execution_region(backend: ServiceBackend):
+    the_region = backend.supported_regions()[0]
+
+    b = batch(backend)
+    j = b.new_job()
+    j.regions([the_region])
+    j.command('true')
+    res = b.run()
+
+    assert res
+    job_status = res.get_job(1).status()
+    assert job_status['status']['region'] == the_region, str((job_status, res.debug_info()))
+
+
+def test_job_regions_overrides_batch_regions(backend: ServiceBackend):
+    the_region = backend.supported_regions()[0]
+
+    b = batch(backend, default_regions=['some-other-region'])
+    j = b.new_job()
+    j.regions([the_region])
+    j.command('true')
+    res = b.run()
+
+    assert res
+    job_status = res.get_job(1).status()
+    assert job_status['status']['region'] == the_region, str((job_status, res.debug_info()))
 
 
 def test_always_copy_output(backend: ServiceBackend, output_tmpdir: str):

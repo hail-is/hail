@@ -14,7 +14,6 @@ import sys
 import tempfile
 import traceback
 import uuid
-import warnings
 from collections import defaultdict
 from contextlib import AsyncExitStack, ExitStack
 from typing import (
@@ -94,19 +93,6 @@ from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, w
 
 with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
-
-oldwarn = warnings.warn
-
-
-def deeper_stack_level_warn(*args, **kwargs):
-    if 'stacklevel' in kwargs:
-        kwargs['stacklevel'] = max(kwargs['stacklevel'], 5)
-    else:
-        kwargs['stacklevel'] = 5
-    return oldwarn(*args, **kwargs)
-
-
-warnings.warn = deeper_stack_level_warn
 
 
 class BatchWorkerAccessLogger(AccessLogger):
@@ -263,6 +249,8 @@ class NetworkNamespace:
                 for service in HAIL_SERVICES:
                     hosts.write(f'{INTERNAL_GATEWAY_IP} {service}.hail\n')
             hosts.write(f'{INTERNAL_GATEWAY_IP} internal.hail\n')
+            if CLOUD == 'gcp':
+                hosts.write('169.254.169.254 metadata metadata.google.internal')
 
         # Jobs on the private network should have access to the metadata server
         # and our vdc. The public network should not so we use google's public
@@ -760,6 +748,7 @@ class Container:
         command: List[str],
         cpu_in_mcpu: int,
         memory_in_bytes: int,
+        user_credentials: Optional[Dict[str, str]],
         network: Optional[Union[bool, str]] = None,
         port: Optional[int] = None,
         timeout: Optional[int] = None,
@@ -777,6 +766,7 @@ class Container:
         self.command = command
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = memory_in_bytes
+        self.user_credentials = user_credentials
         self.network = network
         self.port = port
         self.timeout = timeout
@@ -819,6 +809,8 @@ class Container:
         self._cleaned_up = False
 
         self.monitor: Optional[ResourceUsageMonitor] = None
+
+        self.metadata_app_runner: Optional[web.AppRunner] = None
 
     async def create(self):
         self.state = 'creating'
@@ -959,6 +951,9 @@ class Container:
         if self._cleaned_up:
             return
 
+        if self.metadata_app_runner:
+            await self.metadata_app_runner.cleanup()
+
         assert self._run_fut is None
         try:
             if self.overlay_mounted:
@@ -1025,6 +1020,14 @@ class Container:
                 else:
                     assert self.network is None or self.network == 'public'
                     self.netns = await network_allocator.allocate_public()
+            if self.user_credentials and CLOUD == 'gcp':
+                assert CLOUD_WORKER_API
+                self.metadata_app_runner = web.AppRunner(
+                    CLOUD_WORKER_API.create_metadata_server_app(self.user_credentials)
+                )
+                await self.metadata_app_runner.setup()
+                site = web.TCPSite(self.metadata_app_runner, self.netns.host_ip, 5555)
+                await site.start()
         except asyncio.TimeoutError:
             log.exception(network_allocator.task_manager.tasks)
             raise
@@ -1454,6 +1457,7 @@ def copy_container(
         cpu_in_mcpu=cpu_in_mcpu,
         memory_in_bytes=memory_in_bytes,
         volume_mounts=volume_mounts,
+        user_credentials=job.credentials,
         stdin=json.dumps(files),
     )
 
@@ -1778,6 +1782,7 @@ class DockerJob(Job):
             command=job_spec['process']['command'],
             cpu_in_mcpu=self.cpu_in_mcpu,
             memory_in_bytes=self.memory_in_bytes,
+            user_credentials=self.credentials,
             network=job_spec.get('network'),
             port=job_spec.get('port'),
             timeout=job_spec.get('timeout'),
@@ -2536,6 +2541,7 @@ class JVMContainer:
             command=command,
             cpu_in_mcpu=n_cores * 1000,
             memory_in_bytes=total_memory_bytes,
+            user_credentials=None,
             env=[f'HAIL_WORKER_OFF_HEAP_MEMORY_PER_CORE_MB={off_heap_memory_per_core_mib}', f'HAIL_CLOUD={CLOUD}'],
             volume_mounts=volume_mounts,
             log_path=f'/batch/jvm-container-logs/jvm-{index}.log',

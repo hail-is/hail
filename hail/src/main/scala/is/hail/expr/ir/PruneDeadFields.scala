@@ -1109,7 +1109,6 @@ object PruneDeadFields {
         memoizeMatrixIR(ctx, child, dep, memo)
       case MatrixColsTail(child, _) => memoizeMatrixIR(ctx, child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
-        val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(
           key = requestedType.rowKey,
           globalType = unify(
@@ -1679,7 +1678,6 @@ object PruneDeadFields {
           memoizeValueIR(ctx, aggIR, requestedType.asInstanceOf[TDict].valueType, memo),
         )
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan) =>
-        val aType = a.typ.asInstanceOf[TArray]
         val bodyEnv = memoizeValueIR(ctx, aggBody, TIterable.elementType(requestedType), memo)
         if (isScan) {
           val valueType =
@@ -1778,7 +1776,6 @@ object PruneDeadFields {
         val sType = requestedType.asInstanceOf[TStruct]
         val insFieldNames = fields.map(_._1).toSet
         val rightDep = sType.filter(f => insFieldNames.contains(f.name))._1
-        val rightDepFields = rightDep.fieldNames.toSet
         val leftDep = TStruct(
           old.typ.asInstanceOf[TStruct]
             .fields
@@ -1815,7 +1812,6 @@ object PruneDeadFields {
           }
         )
       case GetTupleElement(o, idx) =>
-        val childTupleType = o.typ.asInstanceOf[TTuple]
         val tupleDep = TTuple(FastSeq(TupleField(idx, requestedType)))
         memoizeValueIR(ctx, o, tupleDep, memo)
       case ConsoleLog(message, result) =>
@@ -2857,12 +2853,16 @@ object PruneDeadFields {
       ir
     else {
       val result = ir.typ match {
-        case _: TStruct =>
-          bindIR(ir) { ref =>
-            val ms = MakeStruct(rType.asInstanceOf[TStruct].fields.map { f =>
-              f.name -> upcast(ctx, GetField(ref, f.name), f.typ)
-            })
-            If(IsNA(ref), NA(ms.typ), ms)
+        case tstruct: TStruct =>
+          if (rType.asInstanceOf[TStruct].fields.forall(f => tstruct.field(f.name).typ == f.typ)) {
+            SelectFields(ir, rType.asInstanceOf[TStruct].fields.map(f => f.name))
+          } else {
+            bindIR(ir) { ref =>
+              val ms = MakeStruct(rType.asInstanceOf[TStruct].fields.map { f =>
+                f.name -> upcast(ctx, GetField(ref, f.name), f.typ)
+              })
+              If(IsNA(ref), NA(ms.typ), ms)
+            }
           }
         case ts: TStream =>
           val ra = rType.asInstanceOf[TStream]

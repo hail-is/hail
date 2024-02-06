@@ -2358,6 +2358,12 @@ steps:
       - name: rename-job-groups-tables
         script: /io/sql/rename-job-groups-tables.sql
         online: false  # this must be offline
+      - name: remove-v2-billing-writes
+        script: /io/sql/remove-v2-billing-writes.sql
+        online: true
+      - name: update-ip-fee-resource
+        script: /io/sql/update-ip-fee-resource.py
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2727,7 +2733,7 @@ steps:
       export HAIL_CLOUD="{{ global.cloud }}"
       export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
       export HAIL_GPU_IMAGE="{{ gpu_image.image }}"
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_batch/{{ token }}/
+      export HAIL_BATCH_REMOTE_TMPDIR="{{ global.test_storage_uri }}/test_batch/{{ token }}/"
 
       hail-pip-install -r /io/dev-requirements.txt
 

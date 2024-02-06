@@ -27,7 +27,8 @@ class Batch:
     --------
     Create a batch object:
 
-    >>> p = Batch()
+    >>> import hailtop.batch as hb
+    >>> p = hb.Batch()
 
     Create a new job that prints "hello":
 
@@ -37,6 +38,10 @@ class Batch:
     Execute the DAG:
 
     >>> p.run()
+
+    Require all jobs in this batch to execute in us-central1:
+
+    >>> b = hb.Batch(backend=hb.ServiceBackend(), default_regions=['us-central1'])
 
     Notes
     -----
@@ -80,6 +85,9 @@ class Batch:
     default_storage:
         Storage setting to use by default if not specified by a job. Only
         applicable for the :class:`.ServiceBackend`. See :meth:`.Job.storage`.
+    default_regions:
+        Cloud regions in which jobs may run. When unspecified or ``None``, use the regions attribute of
+        :class:`.ServiceBackend`. See :class:`.ServiceBackend` for details.
     default_timeout:
         Maximum time in seconds for a job to run before being killed. Only
         applicable for the :class:`.ServiceBackend`. If `None`, there is no
@@ -160,6 +168,7 @@ class Batch:
         default_memory: Optional[Union[int, str]] = None,
         default_cpu: Optional[Union[float, int, str]] = None,
         default_storage: Optional[Union[int, str]] = None,
+        default_regions: Optional[List[str]] = None,
         default_timeout: Optional[Union[float, int]] = None,
         default_shell: Optional[str] = None,
         default_python_image: Optional[str] = None,
@@ -198,6 +207,9 @@ class Batch:
         self._default_memory = default_memory
         self._default_cpu = default_cpu
         self._default_storage = default_storage
+        self._default_regions = default_regions
+        if self._default_regions is None and isinstance(self._backend, _backend.ServiceBackend):
+            self._default_regions = self._backend.regions
         self._default_timeout = default_timeout
         self._default_shell = default_shell
         self._default_python_image = default_python_image
@@ -319,13 +331,12 @@ class Batch:
             j.cpu(self._default_cpu)
         if self._default_storage is not None:
             j.storage(self._default_storage)
+        if self._default_regions is not None:
+            j.regions(self._default_regions)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
         if self._default_spot is not None:
             j.spot(self._default_spot)
-
-        if isinstance(self._backend, _backend.ServiceBackend):
-            j.regions(self._backend.regions)
 
         self._jobs.append(j)
         return j
@@ -391,13 +402,12 @@ class Batch:
             j.cpu(self._default_cpu)
         if self._default_storage is not None:
             j.storage(self._default_storage)
+        if self._default_regions is not None:
+            j.regions(self._default_regions)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
         if self._default_spot is not None:
             j.spot(self._default_spot)
-
-        if isinstance(self._backend, _backend.ServiceBackend):
-            j.regions(self._backend.regions)
 
         self._jobs.append(j)
         return j

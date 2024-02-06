@@ -11,7 +11,7 @@ import dill
 import hailtop.batch_client.aioclient as low_level_batch_client
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
-from hailtop.utils import async_to_blocking, partition, secret_alnum_string
+from hailtop.utils import async_to_blocking, partition, secret_alnum_string, the_empty_async_generator
 
 from .backend import HAIL_GENETICS_HAIL_IMAGE, ServiceBackend
 from .batch import Batch
@@ -233,7 +233,7 @@ class BatchPoolExecutor:
     ) -> AsyncGenerator[int, None]:
         """Aysncio compatible version of :meth:`.map`."""
         if not iterables:
-            return (x for x in range(0))
+            return the_empty_async_generator()
 
         if chunksize > 1:
             list_per_argument = [list(x) for x in iterables]

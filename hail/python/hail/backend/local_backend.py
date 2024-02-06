@@ -1,5 +1,6 @@
 import os
 import sys
+from contextlib import ExitStack
 from typing import List, Optional, Tuple, Union
 
 from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
@@ -31,6 +32,7 @@ class LocalBackend(Py4JBackend):
         gcs_requester_pays_project: Optional[str] = None,
         gcs_requester_pays_buckets: Optional[str] = None,
     ):
+        self._exit_stack = ExitStack()
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         spark_home = find_spark_home()
@@ -59,6 +61,7 @@ class LocalBackend(Py4JBackend):
             die_on_exit=True,
         )
         self._gateway = JavaGateway(gateway_parameters=GatewayParameters(port=port, auto_convert=True))
+        self._exit_stack.callback(self._gateway.shutdown)
 
         hail_package = getattr(self._gateway.jvm, 'is').hail
 
@@ -75,7 +78,7 @@ class LocalBackend(Py4JBackend):
 
         super(LocalBackend, self).__init__(self._gateway.jvm, jbackend, jhc)
 
-        self._fs = RouterFS()
+        self._fs = self._exit_stack.enter_context(RouterFS())
         self._logger = None
 
         self._initialize_flags({})
@@ -108,7 +111,7 @@ class LocalBackend(Py4JBackend):
 
     def stop(self):
         super().stop()
-        self._gateway.shutdown()
+        self._exit_stack.close()
         uninstall_exception_handler()
 
     @property

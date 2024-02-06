@@ -157,7 +157,6 @@ class LocalLDPruneSuite extends HailSuite {
   ): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
-    val nSamples = unprunedMatrixTable.nCols
 
     val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map {
       case (_, _, gs) => gs
@@ -188,7 +187,6 @@ class LocalLDPruneSuite extends HailSuite {
   ): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
-    val nSamples = unprunedMatrixTable.nCols
 
     val locallyUncorrelated = {
       locallyPrunedRDD.mapPartitions(

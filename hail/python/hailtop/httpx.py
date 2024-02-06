@@ -7,6 +7,7 @@ import aiohttp.abc
 import aiohttp.typedefs
 import orjson
 
+from .config import ConfigVariable, configuration_of
 from .config.deploy_config import get_deploy_config
 from .tls import external_client_ssl_context, internal_client_ssl_context
 
@@ -102,15 +103,23 @@ class ClientSession:
 
         assert 'connector' not in kwargs
 
-        if timeout is None:
-            timeout = aiohttp.ClientTimeout(total=5)
-        if isinstance(timeout, (float, int)):
-            timeout = aiohttp.ClientTimeout(total=timeout)
+        configuration_of_timeout = configuration_of(ConfigVariable.HTTP_TIMEOUT_IN_SECONDS, timeout, 5)
+        del timeout
+
+        if isinstance(configuration_of_timeout, str):
+            configuration_of_timeout = float(configuration_of_timeout)
+        if isinstance(configuration_of_timeout, (float, int)):
+            configuration_of_timeout = aiohttp.ClientTimeout(total=configuration_of_timeout)
+        assert isinstance(configuration_of_timeout, aiohttp.ClientTimeout)
 
         self.loop = asyncio.get_running_loop()
         self.raise_for_status = raise_for_status
         self.client_session = aiohttp.ClientSession(
-            *args, timeout=timeout, raise_for_status=False, connector=aiohttp.TCPConnector(ssl=tls), **kwargs
+            *args,
+            timeout=configuration_of_timeout,
+            raise_for_status=False,
+            connector=aiohttp.TCPConnector(ssl=tls),
+            **kwargs,
         )
 
     def request(

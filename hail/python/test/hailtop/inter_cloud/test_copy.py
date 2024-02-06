@@ -469,10 +469,6 @@ async def test_file_and_directory_error_with_slash_empty_file(
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, cloud_scheme)
 
-        await Copier.copy(fs, sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
-
-        dest_base = await fresh_dir(fs, bases, cloud_scheme)
-
         await Copier.copy(fs, sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         await collect_files(await fs.listfiles(f'{dest_base}'))

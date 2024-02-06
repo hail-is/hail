@@ -4,10 +4,19 @@ import functools
 import glob
 import io
 import os
-from typing import Any, AsyncContextManager, BinaryIO, Dict, List, Optional, Tuple
+from types import TracebackType
+from typing import Any, AsyncContextManager, BinaryIO, Dict, List, Optional, Tuple, Type
 
-from hailtop.aiotools.fs import Copier, ReadableStream, Transfer, WritableStream
-from hailtop.aiotools.fs import FileListEntry as AIOFileListEntry
+from hailtop.aiotools.fs import (
+    AsyncFSURL,
+    Copier,
+    ReadableStream,
+    Transfer,
+    WritableStream,
+)
+from hailtop.aiotools.fs import (
+    FileListEntry as AIOFileListEntry,
+)
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.utils import async_to_blocking, bounded_gather2
 
@@ -185,6 +194,20 @@ class RouterFS(FS):
             local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         )
 
+    def __enter__(self):
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ):
+        self.close()
+
+    def close(self):
+        async_to_blocking(self.afs.close())
+
     @property
     def _gcs_kwargs(self) -> Optional[Dict[str, Any]]:
         return self.afs._gcs_kwargs
@@ -292,13 +315,19 @@ class RouterFS(FS):
             except FileNotFoundError:
                 return []
 
+        async def list_within_each_prefix(prefixes: List[AsyncFSURL], parts: List[str]) -> List[List[FileListEntry]]:
+            pfs = [functools.partial(ls_no_glob, str(prefix.with_new_path_components(*parts))) for prefix in prefixes]
+            return await bounded_gather2(sema, *pfs, cancel_on_error=True)
+
         url = self.afs.parse_url(path)
         if any(glob.escape(bucket_part) != bucket_part for bucket_part in url.bucket_parts):
             raise ValueError(f'glob pattern only allowed in path (e.g. not in bucket): {path}')
 
         blobpath = url.path
-        components = blobpath.split('/')
-        assert len(components) > 0
+        if blobpath == '':
+            components = []
+        else:
+            components = blobpath.split('/')
 
         glob_components = []
         running_prefix = []
@@ -312,48 +341,30 @@ class RouterFS(FS):
                 running_prefix = []
 
         suffix_components: List[str] = running_prefix
-        if len(url.bucket_parts) > 0:
-            first_prefix = [url.scheme + ':', '', *url.bucket_parts]
-        else:
-            assert url.scheme == 'file'
-            if path.startswith('file://'):
-                first_prefix = ['file:', '', '']
-            else:
-                first_prefix = []
-
         cached_stats_for_each_cumulative_prefix: Optional[List[FileListEntry]] = None
-        cumulative_prefixes = [first_prefix]
+        cumulative_prefixes: List[AsyncFSURL] = [url.with_root_path()]
 
         for intervening_components, single_component_glob_pattern in glob_components:
-            stats_grouped_by_prefix = await bounded_gather2(
-                sema,
-                *[
-                    functools.partial(ls_no_glob, '/'.join([*cumulative_prefix, *intervening_components]))
-                    for cumulative_prefix in cumulative_prefixes
-                ],
-                cancel_on_error=True,
-            )
+            stats_grouped_by_prefix = await list_within_each_prefix(cumulative_prefixes, intervening_components)
             cached_stats_for_each_cumulative_prefix = [
                 stat
                 for stats_for_one_prefix, cumulative_prefix in zip(stats_grouped_by_prefix, cumulative_prefixes)
                 for stat in stats_for_one_prefix
                 if fnmatch.fnmatch(
-                    stat.path, '/'.join([*cumulative_prefix, *intervening_components, single_component_glob_pattern])
+                    stat.path,
+                    str(
+                        cumulative_prefix.with_new_path_components(
+                            *intervening_components, single_component_glob_pattern
+                        )
+                    ),
                 )
             ]
-            cumulative_prefixes = [stat.path.split('/') for stat in cached_stats_for_each_cumulative_prefix]
+            cumulative_prefixes = [self.afs.parse_url(stat.path) for stat in cached_stats_for_each_cumulative_prefix]
 
         if len(suffix_components) == 0 and cached_stats_for_each_cumulative_prefix is not None:
             found_stats = cached_stats_for_each_cumulative_prefix
         else:
-            found_stats_grouped_by_prefix = await bounded_gather2(
-                sema,
-                *[
-                    functools.partial(ls_no_glob, '/'.join([*cumulative_prefix, *suffix_components]))
-                    for cumulative_prefix in cumulative_prefixes
-                ],
-                cancel_on_error=True,
-            )
+            found_stats_grouped_by_prefix = await list_within_each_prefix(cumulative_prefixes, suffix_components)
             found_stats = [stat for stats in found_stats_grouped_by_prefix for stat in stats]
 
         if len(glob_components) == 0 and len(found_stats) == 0:

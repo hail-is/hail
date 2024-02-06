@@ -220,9 +220,27 @@ class AsyncFSURL(abc.ABC):
     def with_path(self, path) -> "AsyncFSURL":
         pass
 
-    def with_new_path_component(self, new_path_component) -> "AsyncFSURL":
-        prefix = self.path if self.path.endswith("/") else self.path + "/"
-        suffix = new_path_component[1:] if new_path_component.startswith("/") else new_path_component
+    @abc.abstractmethod
+    def with_root_path(self) -> "AsyncFSURL":
+        pass
+
+    def with_new_path_component(self, new_path_component: str) -> "AsyncFSURL":
+        if new_path_component == '':
+            raise ValueError('new path component must be non-empty')
+        return self.with_new_path_components(new_path_component)
+
+    def with_new_path_components(self, *parts: str) -> "AsyncFSURL":
+        if len(parts) == 0:
+            return self
+
+        prefix = self.path
+        if not prefix.endswith("/") and not prefix == '':
+            prefix += "/"
+
+        suffix = '/'.join(parts)
+        if suffix[0] == '/':
+            suffix = suffix[1:]
+
         return self.with_path(prefix + suffix)
 
     @abc.abstractmethod
@@ -252,7 +270,7 @@ class AsyncFS(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def parse_url(url: str) -> AsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod

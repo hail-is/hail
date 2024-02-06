@@ -70,7 +70,8 @@ tasks.withType(ScalaCompile) {
         "-deprecation",
         "-unchecked",
         "-Ywarn-unused:_,-explicits,-implicits",
-        "-Wconf:cat=unused-locals:w,cat=unused:info,any:w",
+//        "-Wconf:cat=unused-locals:w,cat=unused:info,any:w",
+        "-Wconf:any:e",
         "-Ypartial-unification",
     ]
 

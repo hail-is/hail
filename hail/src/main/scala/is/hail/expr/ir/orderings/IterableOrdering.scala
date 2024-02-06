@@ -123,8 +123,6 @@ object IterableOrdering {
 
         val lhs = x.asIndexable
         val rhs = y.asIndexable
-        val gt = cb.newLocal("gt", false)
-        val eq = cb.newLocal("eq", true)
 
         loop(cb, lhs, rhs) { (lhs, rhs) =>
           val gt = elemGt(cb, lhs, rhs)

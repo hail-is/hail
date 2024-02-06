@@ -24,6 +24,7 @@ from hailtop.aiotools.fs import (
     FileAndDirectoryError,
     FileListEntry,
     FileStatus,
+    IsABucketError,
     MultiPartCreate,
     ReadableStream,
     UnexpectedEOFError,
@@ -296,6 +297,9 @@ class AzureAsyncFSURL(AsyncFSURL):
         self._path = path
         self._query = query
 
+    def __repr__(self):
+        return f'AzureAsyncFSURL({self._account}, {self._container}, {self._path}, {self._query})'
+
     @property
     def bucket_parts(self) -> List[str]:
         return [self._account, self._container]
@@ -323,6 +327,9 @@ class AzureAsyncFSURL(AsyncFSURL):
 
     def with_path(self, path) -> 'AzureAsyncFSURL':
         return self.__class__(self._account, self._container, path, self._query)
+
+    def with_root_path(self) -> 'AzureAsyncFSURL':
+        return self.with_path('')
 
     def __str__(self) -> str:
         return self.base if not self._query else f'{self.base}?{self._query}'
@@ -438,7 +445,14 @@ class AzureAsyncFS(AsyncFS):
         return token
 
     @staticmethod
-    def parse_url(url: str) -> AzureAsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> AzureAsyncFSURL:
+        fsurl = AzureAsyncFS._parse_url(url)
+        if error_if_bucket and fsurl._path == '':
+            raise IsABucketError
+        return fsurl
+
+    @staticmethod
+    def _parse_url(url: str) -> AzureAsyncFSURL:
         colon_index = url.find(':')
         if colon_index == -1:
             raise ValueError(f'invalid URL: {url}')
@@ -511,9 +525,10 @@ class AzureAsyncFS(AsyncFS):
 
     @handle_public_access_error
     async def open(self, url: str) -> ReadableStream:
+        parsed_url = self.parse_url(url, error_if_bucket=True)
         if not await self.exists(url):
             raise FileNotFoundError
-        client = self.get_blob_client(self.parse_url(url))
+        client = self.get_blob_client(parsed_url)
         return AzureReadableStream(client, url)
 
     @handle_public_access_error
@@ -521,11 +536,12 @@ class AzureAsyncFS(AsyncFS):
         assert length is None or length >= 1
         if not await self.exists(url):
             raise FileNotFoundError
-        client = self.get_blob_client(self.parse_url(url))
+        client = self.get_blob_client(self.parse_url(url, error_if_bucket=True))
         return AzureReadableStream(client, url, offset=start, length=length)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
-        return AzureCreateManager(self.get_blob_client(self.parse_url(url)))
+        parsed_url = self.parse_url(url, error_if_bucket=True)
+        return AzureCreateManager(self.get_blob_client(parsed_url))
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         client = self.get_blob_client(self.parse_url(url))
@@ -543,7 +559,7 @@ class AzureAsyncFS(AsyncFS):
 
     @handle_public_access_error
     async def isdir(self, url: str) -> bool:
-        fs_url = self.parse_url(url)
+        fs_url = self.parse_url(url, error_if_bucket=True)
         assert not fs_url.path or fs_url.path.endswith('/'), fs_url.path
         client = self.get_container_client(fs_url)
         async for _ in client.walk_blobs(name_starts_with=fs_url.path, include=['metadata'], delimiter='/'):
@@ -558,8 +574,8 @@ class AzureAsyncFS(AsyncFS):
 
     @handle_public_access_error
     async def statfile(self, url: str) -> FileStatus:
+        parsed_url = self.parse_url(url, error_if_bucket=True)
         try:
-            parsed_url = self.parse_url(url)
             blob_props = await self.get_blob_client(parsed_url).get_blob_properties()
             return AzureFileStatus(blob_props, parsed_url)
         except azure.core.exceptions.ResourceNotFoundError as e:
@@ -637,7 +653,8 @@ class AzureAsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         try:
-            await self.get_blob_client(self.parse_url(url)).delete_blob()
+            parsed_url = self.parse_url(url, error_if_bucket=True)
+            await self.get_blob_client(parsed_url).delete_blob()
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 

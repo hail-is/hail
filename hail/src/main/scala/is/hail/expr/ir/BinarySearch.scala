@@ -286,15 +286,6 @@ object BinarySearch {
     }
   }
 
-  private def runSearchUnit(
-    cb: EmitCodeBuilder,
-    haystack: SIndexableValue,
-    compare: Comparator,
-    found: (Value[Int], Value[Int], Value[Int]) => Unit,
-    notFound: Value[Int] => Unit,
-  ): Unit =
-    runSearchBoundedUnit(cb, haystack, compare, 0, haystack.loadLength(), found, notFound)
-
   private def runSearchBounded[T: TypeInfo](
     cb: EmitCodeBuilder,
     haystack: SIndexableValue,

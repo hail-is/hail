@@ -17,6 +17,7 @@ import urllib.parse
 from types import TracebackType
 from typing import (
     Any,
+    AsyncGenerator,
     AsyncIterator,
     Awaitable,
     Callable,
@@ -64,6 +65,11 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 T = TypeVar('T')  # pylint: disable=invalid-name
 U = TypeVar('U')  # pylint: disable=invalid-name
 P = ParamSpec("P")
+
+
+async def the_empty_async_generator() -> AsyncGenerator[T, None]:
+    if False:  # pylint: disable=using-constant-test
+        yield  # The appearance of the keyword `yield` forces Python to make this function into a generator
 
 
 def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
@@ -534,6 +540,7 @@ if os.environ.get('HAIL_DONT_RETRY_500') == '1':
 RETRYABLE_ERRNOS = {
     # these should match (where an equivalent exists) nettyRetryableErrorNumbers in
     # is/hail/services/package.scala
+    errno.EADDRNOTAVAIL,
     errno.ETIMEDOUT,
     errno.ECONNREFUSED,
     errno.EHOSTUNREACH,
