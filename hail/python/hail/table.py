@@ -69,7 +69,7 @@ from hail.utils.misc import (
     process_joins,
 )
 import hail as hl
-from hailtop.utils.box_drawing import Box, curved
+from hailtop.utils.box_drawing import TableStyle, standard_ts
 
 
 table_type = lazy()
@@ -2133,11 +2133,11 @@ class Table(ExprContainer):
             ir.TableWrite(self._tir, ir.TableNativeFanoutWriter(output, fields, overwrite, stage_locally, _codec_spec))
         )
 
-    def _show(self, n, width, truncate, types, box: Box):
-        return Table._Show(self, n, width, truncate, types, box)
+    def _show(self, n, width, truncate, types, table_style: TableStyle):
+        return Table._Show(self, n, width, truncate, types, table_style)
 
     class _Show:
-        def __init__(self, table, n_rows, width, truncate_limit, should_show_types, box: Box):
+        def __init__(self, table, n_rows, width, truncate_limit, should_show_types, table_style: TableStyle):
             if n_rows is None or width is None:
                 (columns, lines) = shutil.get_terminal_size((80, 10))
                 width = width or columns
@@ -2152,7 +2152,7 @@ class Table(ExprContainer):
                 self.truncate_limit = width - 4
             self.should_show_types = should_show_types
             self._data = None
-            self.box = box
+            self.table_style = table_style
 
         def __str__(self):
             return self._ascii_str()
@@ -2210,44 +2210,12 @@ class Table(ExprContainer):
                 end_index = end_index + 1
             column_block_slices.append(slice(start_index, end_index))
 
-            def format_hline(widths, kind: str):
-                if kind == 'top':
-                    empty = self.box.tl + self.box.tr
-                    left = self.box.tl + self.box.h
-                    splitter = self.box.h + self.box.ts + self.box.h
-                    right = self.box.h + self.box.tr
-                elif kind == 'middle':
-                    empty = self.box.ls + self.box.rs
-                    left = self.box.ls + self.box.h
-                    splitter = self.box.h + self.box.p + self.box.h
-                    right = self.box.h + self.box.rs
-                else:
-                    assert kind == 'bottom'
-                    empty = self.box.bl + self.box.br
-                    left = self.box.bl + self.box.h
-                    splitter = self.box.h + self.box.bs + self.box.h
-                    right = self.box.h + self.box.br
-
-                if not widths:
-                    return empty + '\n'
-                contents = splitter.join([self.box.h * width for width in widths])
-                return left + contents + right + '\n'
-
             def pad(value, width, right_align: bool):
                 extra_count = width - len(value)
                 if right_align:
                     return ' ' * extra_count + value
                 else:
                     return value + ' ' * extra_count
-
-            def format_line(values, widths, right_align):
-                if not values:
-                    return self.box.l + self.box.r + '\n'
-                values = map(pad, values, widths, right_align)
-                left_border = self.box.l + ' '
-                contents = (' ' + self.box.v + ' ').join(values)
-                right_border = ' ' + self.box.r + '\n'
-                return left_border + contents + right_border
 
             ascii_str = ''
             is_first_column_block = True
@@ -2260,17 +2228,23 @@ class Table(ExprContainer):
                 block_column_widths = column_widths[column_block_slice]
                 block_right_align = right_align[column_block_slice]
 
-                ascii_str += format_hline(block_column_widths, 'top')
-                ascii_str += format_line(truncated_fields[column_block_slice], block_column_widths, block_right_align)
-                middle_line = format_hline(block_column_widths, 'middle')
-                ascii_str += middle_line
+                def format_row(values: List[str], widths: List[int], right_align: List[bool], *, header: bool = False):
+                    return self.table_style.format_row(map(pad, values, widths, right_align), header=header)
+
+                ascii_str += self.table_style.format_line(block_column_widths, 'top')
+                ascii_str += format_row(
+                    truncated_fields[column_block_slice], block_column_widths, block_right_align, header=True
+                )
                 if types:
-                    ascii_str += format_line(type_names[column_block_slice], block_column_widths, block_right_align)
-                    ascii_str += middle_line
+                    ascii_str += self.table_style.format_line(block_column_widths, 'top-inner')
+                    ascii_str += format_row(
+                        type_names[column_block_slice], block_column_widths, block_right_align, header=True
+                    )
+                ascii_str += self.table_style.format_line(block_column_widths, 'top-bottom')
                 for row in rows:
                     row = row[column_block_slice]
-                    ascii_str += format_line(row, block_column_widths, block_right_align)
-                ascii_str += format_hline(block_column_widths, 'bottom')
+                    ascii_str += format_row(row, block_column_widths, block_right_align, header=False)
+                ascii_str += self.table_style.format_line(block_column_widths, 'bottom')
 
             if has_more:
                 row_count = len(rows)
@@ -2349,10 +2323,18 @@ class Table(ExprContainer):
         types=bool,
         handler=nullable(anyfunc),
         n_rows=nullable(int),
-        box=nullable(Box),
+        table_style=nullable(TableStyle),
     )
     def show(
-        self, n=None, width=None, truncate=None, types=True, handler=None, n_rows=None, *, box: Optional[Box] = None
+        self,
+        n=None,
+        width=None,
+        truncate=None,
+        types=True,
+        handler=None,
+        n_rows=None,
+        *,
+        table_style: Optional[TableStyle] = None,
     ):
         """Print the first few rows of the table to the console.
 
@@ -2391,8 +2373,8 @@ class Table(ExprContainer):
             Print an extra header line with the type of each field.
         handler : Callable[[str], Any]
             Handler function for data string.
-        box : Box
-            A box style to use.
+        table_style : TableStyle
+            A table style to use.
         """
         if n_rows is not None and n is not None:
             raise ValueError(f'specify one of n_rows or n, received {n_rows} and {n}')
@@ -2401,9 +2383,9 @@ class Table(ExprContainer):
         del n_rows
         if handler is None:
             handler = hl.utils.default_handler()
-        if box is None:
-            box = curved
-        return handler(self._show(n, width, truncate, types, box))
+        if table_style is None:
+            table_style = standard_ts
+        return handler(self._show(n, width, truncate, types, table_style))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing

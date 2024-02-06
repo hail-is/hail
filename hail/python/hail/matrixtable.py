@@ -37,7 +37,7 @@ from hail.typecheck import (
 from hail.utils import storage_level, default_handler, deduplicate
 from hail.utils.java import warning, Env, info
 from hail.utils.misc import wrap_to_tuple, get_key_by_exprs, get_select_exprs, check_annotate_exprs, process_joins
-from hailtop.utils.box_drawing import Box, curved
+from hailtop.utils.box_drawing import TableStyle, standard_ts
 import warnings
 
 
@@ -2811,7 +2811,7 @@ class MatrixTable(ExprContainer):
         def __init__(
             self,
             matrix_table: 'MatrixTable',
-            box: Box,
+            table_style: TableStyle,
             n_rows: Optional[int] = None,
             n_cols: Optional[int] = None,
             include_row_fields: bool = False,
@@ -2820,7 +2820,7 @@ class MatrixTable(ExprContainer):
             should_show_types: bool = True,
         ):
             self.matrix_table = matrix_table
-            self.box = box
+            self.table_style = table_style
             self.n_rows = n_rows
             self.n_cols = n_cols
             self.include_row_fields = include_row_fields
@@ -2928,44 +2928,12 @@ class MatrixTable(ExprContainer):
                 end_index += 1
             display_block_slices.append(slice(start_index, end_index))
 
-            def format_hline(widths, kind: str):
-                if kind == 'top':
-                    empty = self.box.tl + self.box.tr
-                    left = self.box.tl + self.box.h
-                    splitter = self.box.h + self.box.ts + self.box.h
-                    right = self.box.h + self.box.tr
-                elif kind == 'middle':
-                    empty = self.box.ls + self.box.rs
-                    left = self.box.ls + self.box.h
-                    splitter = self.box.h + self.box.p + self.box.h
-                    right = self.box.h + self.box.rs
-                else:
-                    assert kind == 'bottom'
-                    empty = self.box.bl + self.box.br
-                    left = self.box.bl + self.box.h
-                    splitter = self.box.h + self.box.bs + self.box.h
-                    right = self.box.h + self.box.br
-
-                if not widths:
-                    return empty + '\n'
-                contents = splitter.join([self.box.h * width for width in widths])
-                return left + contents + right + '\n'
-
             def pad(value: str, width: int, right_align: bool):
                 extra_count = width - len(value)
                 if right_align:
                     return ' ' * extra_count + value
                 else:
                     return value + ' ' * extra_count
-
-            def format_line(values: List[str], widths: List[int], right_align: List[bool]):
-                if not values:
-                    return self.box.l + self.box.r + '\n'
-                values = map(pad, values, widths, right_align)
-                left_border = self.box.l + ' '
-                contents = (' ' + self.box.v + ' ').join(values)
-                right_border = ' ' + self.box.r + '\n'
-                return left_border + contents + right_border
 
             ascii_str = ''
             is_first_display_block = True
@@ -2978,20 +2946,24 @@ class MatrixTable(ExprContainer):
                 block_display_column_widths = display_column_widths[block_slice]
                 block_right_align = right_align[block_slice]
 
-                ascii_str += format_hline(block_display_column_widths, 'top')
-                ascii_str += format_line(
-                    display_column_names[block_slice], block_display_column_widths, block_right_align
+                def format_row(values: List[str], widths: List[int], right_align: List[bool], *, header: bool = False):
+                    return self.table_style.format_row(map(pad, values, widths, right_align), header=header)
+
+                ascii_str += self.table_style.format_line(block_display_column_widths, 'top')
+                ascii_str += format_row(
+                    display_column_names[block_slice], block_display_column_widths, block_right_align, header=True
                 )
-                middle_line = format_hline(block_display_column_widths, 'middle')
-                ascii_str += middle_line
                 if should_show_types:
-                    ascii_str += format_line(
-                        truncated_types[block_slice], block_display_column_widths, block_right_align
+                    ascii_str += self.table_style.format_line(block_display_column_widths, 'top-inner')
+                    ascii_str += format_row(
+                        truncated_types[block_slice], block_display_column_widths, block_right_align, header=True
                     )
-                    ascii_str += middle_line
+                ascii_str += self.table_style.format_line(block_display_column_widths, 'top-bottom')
                 for row in truncated_values:
-                    ascii_str += format_line(row[block_slice], block_display_column_widths, block_right_align)
-                ascii_str += format_hline(block_display_column_widths, 'bottom')
+                    ascii_str += format_row(
+                        row[block_slice], block_display_column_widths, block_right_align, header=False
+                    )
+                ascii_str += self.table_style.format_line(block_display_column_widths, 'bottom')
 
             if n_rows < matrix_table.count_rows():
                 row_count = len(rows)
@@ -3025,7 +2997,9 @@ class MatrixTable(ExprContainer):
                 **{f: table[f] for f in self.matrix_table.row_value if self.include_row_fields},
                 **entries,
             )
-            table_show = table._show(self.n_rows, self.width, self.truncate_limit, self.should_show_types, self.box)
+            table_show = table._show(
+                self.n_rows, self.width, self.truncate_limit, self.should_show_types, self.table_style
+            )
             s = table_show._repr_html_()
             if self.n_cols != total_n_cols:
                 s += '<p style="background: #fdd; padding: 0.4em;">'
@@ -3041,7 +3015,7 @@ class MatrixTable(ExprContainer):
         truncate=nullable(int),
         types=bool,
         handler=nullable(anyfunc),
-        box=nullable(Box),
+        box=nullable(TableStyle),
     )
     def show(
         self,
@@ -3052,7 +3026,7 @@ class MatrixTable(ExprContainer):
         truncate: Optional[int] = None,
         types: bool = True,
         handler: Optional[Callable[[str], Any]] = None,
-        box: Optional[Box] = None,
+        table_style: Optional[TableStyle] = None,
     ):
         """Print the first few rows and columns of the matrix table to the console.
 
@@ -3081,8 +3055,8 @@ class MatrixTable(ExprContainer):
             Print an extra header line with the type of each field.
         handler : Callable[[str], Any]
             Handler function for data string.
-        box : Box
-            A box style to use.
+        table_style : TableStyle
+            A table style to use.
         """
 
         def estimate_size(struct_expression):
@@ -3114,12 +3088,12 @@ class MatrixTable(ExprContainer):
 
         if handler is None:
             handler = default_handler()
-        if box is None:
-            box = curved
+        if table_style is None:
+            table_style = standard_ts
 
         show = self._Show(
             self,
-            box,
+            table_style,
             n_rows,
             n_cols,
             include_row_fields,
