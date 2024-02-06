@@ -63,6 +63,9 @@ mill-clean:
 FORCE:
 
 SHADOW_JAR := out/assembly.dest/out.jar
+ifdef HAIL_COMPILE_NATIVES
+$(SHADOW_JAR): native-lib-prebuilt
+endif
 $(SHADOW_JAR): FORCE
 	$(mill) assembly
 
@@ -70,10 +73,16 @@ $(SHADOW_JAR): FORCE
 shadowJar: $(SHADOW_JAR)
 
 NON_SHADOW_JAR := out/jar.dest/out.jar
+ifdef HAIL_COMPILE_NATIVES
+$(NON_SHADOW_JAR): native-lib-prebuilt
+endif
 $(NON_SHADOW_JAR): FORCE
 	$(mill) jar
 
 SHADOW_TEST_JAR := out/test/assembly.dest/out.jar
+ifdef HAIL_COMPILE_NATIVES
+$(SHADOW_TEST_JAR): native-lib-prebuilt
+endif
 $(SHADOW_TEST_JAR): FORCE
 	$(mill) test.assembly
 
@@ -85,14 +94,23 @@ $(EXTRA_CLASSPATH): FORCE
 	$(mill) writeRunClasspath
 
 .PHONY: jvm-test
+ifdef HAIL_COMPILE_NATIVES
+jvm-test: native-lib-prebuilt
+endif
 jvm-test:
 	$(mill) test testng.xml
 
 .PHONY: services-jvm-test
+ifdef HAIL_COMPILE_NATIVES
+services-jvm-test: native-lib-prebuilt
+endif
 services-jvm-test:
 	$(mill) test testng-services.xml
 
 .PHONY: fs-jvm-test
+ifdef HAIL_COMPILE_NATIVES
+fs-jvm-test: native-lib-prebuilt
+endif
 fs-jvm-test: upload-remote-qob-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
