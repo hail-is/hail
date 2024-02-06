@@ -69,8 +69,10 @@ trait SBaseStructValue extends SValue {
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode =
     loadField(cb, st.fieldIdx(fieldName))
 
-  def subset(fieldNames: String*): SBaseStructValue =
-    new SStructViewValue(SStructView.subset(fieldNames.toIndexedSeq, st), this)
+  def subset(fieldNames: String*): SBaseStructValue = {
+    val st = SSubsetStruct(this.st, fieldNames.toIndexedSeq)
+    new SSubsetStructValue(st, this)
+  }
 
   override def hash(cb: EmitCodeBuilder): SInt32Value = {
     val hash_result = cb.newLocal[Int]("hash_result_struct", 1)
