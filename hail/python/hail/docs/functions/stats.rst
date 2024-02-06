@@ -7,6 +7,7 @@ Statistical functions
     chi_squared_test
     fisher_exact_test
     contingency_table_test
+    cochran_mantel_haenszel_test
     dbeta
     dchisq
     dnorm
@@ -26,6 +27,7 @@ Statistical functions
 .. autofunction:: chi_squared_test
 .. autofunction:: fisher_exact_test
 .. autofunction:: contingency_table_test
+.. autofunction:: cochran_mantel_haenszel_test
 .. autofunction:: dbeta
 .. autofunction:: dchisq
 .. autofunction:: dnorm
