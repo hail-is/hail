@@ -11,7 +11,8 @@ from hailtop import httpx
 from hailtop.auth import get_userinfo, hail_credentials
 from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
-from hailtop.batch_client.aioclient import BatchClient as AioBatchClient, Batch as AioBatch
+from hailtop.batch_client.aioclient import Batch as AioBatch
+from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
 from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.test_utils import skip_in_azure
@@ -1892,7 +1893,7 @@ def test_more_than_one_bunch_of_job_groups_updated(client: BatchClient):
 def test_job_group_cancel_after_n_failures(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group(cancel_after_n_failures=1)
-    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
     j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     b.submit()
     j2_status = j2.wait()
@@ -1967,7 +1968,7 @@ def test_dependencies_across_job_groups(client: BatchClient):
     jg1 = b.create_job_group()
     j1 = jg1.create_job(DOCKER_ROOT_IMAGE, ['true'])
     jg2 = b.create_job_group()
-    j2 = jg2.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
+    jg2.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
     b.submit()
     status = b.wait()
     assert status['state'] == 'success', str(b.debug_info())

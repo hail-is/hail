@@ -15,7 +15,7 @@ from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
-from hailtop.utils import bounded_gather, sleep_before_try
+from hailtop.utils import async_to_blocking, bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
 from hailtop import httpx
 
@@ -521,7 +521,7 @@ class JobGroup:
         return {'status': jg_status, 'job_groups': job_groups, 'jobs': jobs}
 
     def __str__(self):
-        return str(await self.debug_info())
+        return str(async_to_blocking(self.debug_info()))
 
 
 class BatchSubmissionInfo:
