@@ -21,8 +21,8 @@ class TerraAzureAsyncFS(AsyncFS):
         self._azure_fs = AzureAsyncFS(**azure_kwargs)
         self._sas_token_cache: Dict[str, Tuple[str, int]] = {}
 
-    @property
-    def schemes(self) -> Set[str]:
+    @staticmethod
+    def schemes() -> Set[str]:
         return {'https'}
 
     @staticmethod
@@ -33,8 +33,9 @@ class TerraAzureAsyncFS(AsyncFS):
     def valid_url(url: str) -> bool:
         return AzureAsyncFS.valid_url(url)
 
-    def parse_url(self, url: str) -> AzureAsyncFSURL:
-        return AzureAsyncFS.parse_url(url)
+    @staticmethod
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> AzureAsyncFSURL:
+        return AzureAsyncFS.parse_url(url, error_if_bucket=error_if_bucket)
 
     async def _to_azure_url(self, url: str) -> str:
         if url in self._sas_token_cache:
