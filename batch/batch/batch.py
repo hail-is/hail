@@ -163,12 +163,12 @@ async def cancel_job_group_in_db(db, batch_id, job_group_id):
     async def cancel(tx):
         record = await tx.execute_and_fetchone(
             """
-SELECT `state`
+SELECT 1
 FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN batch_updates ON job_groups.batch_id = batch_updates.batch_id AND
   job_groups.update_id = batch_updates.update_id
-WHERE batch_id = %s AND job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s)
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s)
 FOR UPDATE;
 """,
             (batch_id, job_group_id, ROOT_JOB_GROUP_ID),

@@ -237,7 +237,7 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `committed` BOOLEAN NOT NULL DEFAULT FALSE,
   `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
-  PRIMARY KEY (`batch_id`, `update_id`),
+  PRIMARY KEY (`batch_id`, `update_id`, `start_job_group_id`, `start_job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),
   UNIQUE KEY (`batch_id`, `start_job_id`)
 ) ENGINE = InnoDB;

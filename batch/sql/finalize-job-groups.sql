@@ -5,6 +5,7 @@ SET foreign_key_checks = 0;
 ALTER TABLE batch_updates ADD COLUMN start_job_group_id INT NOT NULL DEFAULT 1, ALGORITHM=INSTANT;
 ALTER TABLE batch_updates ADD COLUMN n_job_groups INT NOT NULL DEFAULT 0, ALGORITHM=INSTANT;
 CREATE INDEX `batch_updates_start_job_group_id` ON `batch_updates` (`batch_id`, `start_job_group_id`);
+ALTER TABLE batch_updates DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `start_job_group_id`, `start_job_id`), ALGORITHM=INPLACE, LOCK=NONE;
 
 ALTER TABLE job_groups ADD COLUMN update_id INT DEFAULT 1, ALGORITHM=INSTANT;
 ALTER TABLE job_groups ADD FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE, ALGORITHM=INPLACE;

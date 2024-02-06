@@ -739,7 +739,7 @@ async def _query_job_groups(
 
     @transaction(db)
     async def _query(tx):
-        record = await tx.select_and_fetchone(
+        record = await tx.execute_and_fetchone(
             """
 SELECT 1
 FROM job_groups
@@ -754,7 +754,7 @@ WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted 
             raise NonExistentJobGroupError(batch_id, job_group_id)
 
         sql, sql_args = parse_list_job_groups_query_v1(batch_id, job_group_id, last_child_job_group_id)
-        job_groups = [job_group_record_to_dict(record) async for record in tx.select_and_fetchall(sql, sql_args)]
+        job_groups = [job_group_record_to_dict(record) async for record in tx.execute_and_fetchall(sql, sql_args)]
 
         if len(job_groups) == 51:
             job_groups.pop()
@@ -1798,36 +1798,39 @@ FOR UPDATE;
 
         record = await tx.execute_and_fetchone(
             """
-SELECT update_id, start_job_id, n_jobs, start_job_group_id, n_job_groups FROM batch_updates
+SELECT update_id, start_job_id, n_jobs, start_job_group_id, n_job_groups
+FROM batch_updates
 WHERE batch_id = %s
 ORDER BY update_id DESC
-LIMIT 1;
+LIMIT 1
+FOR UPDATE;
 """,
             (batch_id,),
         )
+
         if record is not None:
             update_id = int(record['update_id']) + 1
-            update_start_job_id = int(record['start_job_id']) + int(record['n_jobs'])
             update_start_job_group_id = int(record['start_job_group_id']) + int(record['n_job_groups'])
+            update_start_job_id = int(record['start_job_id']) + int(record['n_jobs'])
         else:
             update_id = 1
-            update_start_job_id = 1
             update_start_job_group_id = 1
+            update_start_job_id = 1
 
         await tx.execute_insertone(
             """
 INSERT INTO batch_updates
-(batch_id, update_id, token, start_job_id, n_jobs, start_job_group_id, n_job_groups, committed, time_created)
+(batch_id, update_id, token, start_job_group_id, n_job_groups, start_job_id, n_jobs, committed, time_created)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
             (
                 batch_id,
                 update_id,
                 update_token,
-                update_start_job_id,
-                n_jobs,
                 update_start_job_group_id,
                 n_job_groups,
+                update_start_job_id,
+                n_jobs,
                 False,
                 now,
             ),
@@ -2208,7 +2211,6 @@ FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   GROUP BY aggregated_job_resources_v3.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY usage_t.batch_id, usage_t.job_id
 ) AS cost_t ON TRUE;
 """,
         (batch_id, job_id, batch_id, job_id),
