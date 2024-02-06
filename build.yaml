@@ -3934,3 +3934,26 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
+  - kind: runImage
+    name: set_gcp_ar_cleanup_policies
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    scopes:
+      - deploy
+    script: |
+      gcloud artifacts repositories set-cleanup-policies hail \
+        --project={{ global.gcp_project }} \
+        --location=us \
+        --policy=/io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt \
+        --no-dry-run
+    inputs:
+      - from: /repo/infra
+        to: /io/repo/infra
+    clouds:
+      - gcp
+    dependsOn:
+      - test_gcp_ar_cleanup_policies
+      - ci_utils_image

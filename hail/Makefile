@@ -60,7 +60,6 @@ GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION)
 
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
 HAIL_TEST_GCS_BUCKET = $(shell kubectl get secret global-config --template={{.data.hail_test_gcs_bucket}} | base64 --decode)
-GCP_PROJECT = $(shell kubectl get secret global-config --template={{.data.gcp_project}} | base64 --decode)
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
@@ -452,7 +451,21 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: release
 release: test-dataproc $(WHEEL)
-	bash scripts/release.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR) $(GCP_PROJECT) $(HAIL_HAIL_DIR)/../infra/gcp-broad/gcp-ar-cleanup-policy.txt
+	bash scripts/release.sh \
+		$(HAIL_PIP_VERSION) \
+		$(HAIL_VERSION) \
+		$(REVISION) \
+		$(DEPLOY_REMOTE) \
+		$(WHEEL) \
+		$(GITHUB_OAUTH_HEADER_FILE) \
+		$(HAIL_GENETICS_HAIL_IMAGE) \
+		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
+		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
+		$(HAIL_GENETICS_HAILTOP_IMAGE) \
+		$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
+		$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
+		$(WHEEL_FOR_AZURE) \
+		$(WEBSITE_TAR)
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
