@@ -13,6 +13,7 @@ from hailtop.batch.backend import HAIL_GENETICS_HAILTOP_IMAGE
 from hailtop.batch_client import BatchNotCreatedError, JobNotSubmittedError
 from hailtop.batch_client.aioclient import Batch as AioBatch
 from hailtop.batch_client.aioclient import BatchClient as AioBatchClient
+from hailtop.batch_client.aioclient import SpecBytes, SpecType
 from hailtop.batch_client.client import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.test_utils import skip_in_azure
@@ -1386,7 +1387,8 @@ async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: B
         }
         spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
         with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
+            spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB)
+            await b._submit_jobs(update_id, [spec_bytes], pbar_task)
 
 
 async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(client: BatchClient):
@@ -1407,7 +1409,8 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
                 httpx.ClientResponseError,
                 match='mount_docker_socket is no longer supported but was set to True in request. Please upgrade.',
             ):
-                await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
+                spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB)
+                await b._submit_jobs(update_id, [spec_bytes], pbar_task)
 
 
 def test_pool_highmem_instance(client: BatchClient):
@@ -1786,7 +1789,7 @@ def test_region(client: BatchClient):
 
 def test_get_job_group_status(client: BatchClient):
     b = create_batch(client)
-    jg = b.create_job_group()
+    jg = b.create_job_group(attributes={'name': 'foo'})
     jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
 
@@ -1803,7 +1806,8 @@ def test_get_job_group_status(client: BatchClient):
     assert jg_from_client_status['batch_id'] == b.id, str(jg_from_client_status)
 
     assert len(debug_info['jobs']) == 1, str(debug_info)
-    assert len(jg.jobs()) == 1, str(debug_info)
+    assert len(list(jg.jobs())) == 1, str(debug_info)
+    assert jg.attributes()['name'] == 'foo', str(debug_info)
 
 
 def test_job_group_creation_with_no_jobs(client: BatchClient):
@@ -1812,8 +1816,7 @@ def test_job_group_creation_with_no_jobs(client: BatchClient):
     b.submit()
     job_groups = list(b.job_groups())
     assert len(job_groups) == 1, str(job_groups)
-    assert job_groups[0].name() == 'foo', str(job_groups)
-    assert len(b.jobs()) == 0, str(b.debug_info())
+    assert len(list(b.jobs())) == 0, str(b.debug_info())
 
 
 def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
@@ -1826,7 +1829,7 @@ def test_job_group_creation_on_update_with_no_jobs(client: BatchClient):
     jobs = list(b.jobs())
     job_groups = list(b.job_groups())
     assert len(job_groups) == 1, str(job_groups)
-    assert job_groups[0].name() == 'foo', str(job_groups)
+    assert job_groups[0].attributes()['name'] == 'foo', str(job_groups)
     assert len(jobs) == 1, str(jobs)
     b.cancel()
 
@@ -1864,7 +1867,7 @@ def test_job_groups_with_slow_update(client: BatchClient):
 
     status = b.status()
     assert status['n_jobs'] == 4, str(b.debug_info())
-    assert len(b.job_groups()) == 1, str(b.debug_info())
+    assert len(list(b.job_groups())) == 1, str(b.debug_info())
 
 
 def test_more_than_one_bunch_of_job_groups_created(client: BatchClient):
@@ -1934,7 +1937,7 @@ def test_get_job_group_from_client_batch(client: BatchClient):
     b.submit()
 
     b_copy = client.get_batch(b.id)
-    jg_copy = b_copy.get_job_group(jg.id)
+    jg_copy = b_copy.get_job_group(jg.job_group_id)
     jg_copy.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
     status = jg_copy.wait()

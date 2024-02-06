@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from gear import transaction
 from hailtop.batch_client.types import CostBreakdownEntry, GetJobGroupResponseV1Alpha, JobListEntryV1Alpha
@@ -124,7 +124,7 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alp
     if attributes:
         d['attributes'] = attributes
 
-    return d
+    return cast(GetJobGroupResponseV1Alpha, d)
 
 
 def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEntryV1Alpha:
@@ -141,7 +141,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    return {
+    d = {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'name': name,
@@ -154,6 +154,8 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
         'msec_mcpu': record['msec_mcpu'],
         'cost_breakdown': record['cost_breakdown'],
     }
+
+    return cast(JobListEntryV1Alpha, d)
 
 
 async def cancel_job_group_in_db(db, batch_id, job_group_id):

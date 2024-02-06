@@ -734,7 +734,7 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
 
 async def _query_job_groups(
     request, batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]
-) -> Tuple[List[GetJobGroupResponseV1Alpha], int]:
+) -> Tuple[List[GetJobGroupResponseV1Alpha], Optional[int]]:
     db: Database = request.app['db']
 
     @transaction(db)
@@ -781,7 +781,7 @@ async def _api_get_job_groups_v1(request: web.Request, batch_id: int, job_group_
 @billing_project_users_only()
 @add_metadata_to_request
 async def get_root_job_groups_v1(request: web.Request, _, batch_id: int):  # pylint: disable=unused-argument
-    await _api_get_job_groups_v1(request, batch_id, ROOT_JOB_GROUP_ID)
+    return await _api_get_job_groups_v1(request, batch_id, ROOT_JOB_GROUP_ID)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/job-groups')
@@ -789,7 +789,7 @@ async def get_root_job_groups_v1(request: web.Request, _, batch_id: int):  # pyl
 @add_metadata_to_request
 async def get_job_groups_v1(request: web.Request, _, batch_id: int):  # pylint: disable=unused-argument
     job_group_id = int(request.match_info['job_group_id'])
-    await _api_get_job_groups_v1(request, batch_id, job_group_id)
+    return await _api_get_job_groups_v1(request, batch_id, job_group_id)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/job-groups/create')
