@@ -32,7 +32,8 @@ abstract class TBaseStruct extends Type {
 
   def fields: IndexedSeq[Field]
 
-  lazy val fieldIdx: collection.Map[String, Int] = toMapFast(fields)(_.name, _.index)
+  lazy val fieldIdx: collection.Map[String, Int] =
+    toMapFast(fields)(_.name, _.index)
 
   override def children: IndexedSeq[Type] = types
 
