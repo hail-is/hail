@@ -67,6 +67,10 @@ class Env:
         return Env._hc
 
     @staticmethod
+    def is_fully_initialized() -> bool:
+        return Env._hc is not None
+
+    @staticmethod
     async def _async_hc() -> 'hail.context.HailContext':
         if not Env._hc:
             sys.stderr.write("Initializing Hail with default parameters...\n")

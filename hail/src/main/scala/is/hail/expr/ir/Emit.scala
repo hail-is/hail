@@ -13,7 +13,7 @@ import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
@@ -25,8 +25,8 @@ import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
 import scala.language.existentials
-
 import java.io._
+import scala.annotation.nowarn
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -766,6 +766,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
+    @nowarn("cat=unused-locals&msg=local default argument")
     def emit(
       ir: IR,
       mb: EmitMethodBuilder[C] = mb,
@@ -2788,7 +2789,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         }
 
       case ResultOp(idx, sig) =>
-        val AggContainer(aggs, sc, _) = container.get
+        val AggContainer(_, sc, _) = container.get
 
         val rvAgg = agg.Extract.getAgg(sig)
         rvAgg.result(cb, sc.states(idx), region)
@@ -3530,16 +3531,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     ): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitVoid(
-      ir: IR,
-      env: EmitEnv = env,
-      container: Option[AggContainer] = container,
-      loopEnv: Option[Env[LoopRef]] = loopEnv,
-    ): Code[Unit] =
-      EmitCodeBuilder.scopedVoid(mb) { cb =>
-        this.emitVoid(cb, ir, region, env, container, loopEnv)
-      }
-
     def emitStream(ir: IR, outerRegion: Value[Region], env: EmitEnv = env): EmitCode =
       EmitCode.fromI(mb)(cb =>
         EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container)
@@ -3669,7 +3660,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     )
 
     sort.emitWithBuilder[Boolean] { cb =>
-      val region = sort.getCodeParam[Region](1)
       val leftEC = cb.memoize(
         EmitCode.present(sort, elemSCT.loadToSValue(cb, sort.getCodeParam(2)(elemSCT.ti))),
         "sort_leftEC",
@@ -3794,8 +3784,6 @@ object NDArrayEmitter {
     rightShape: IndexedSeq[Value[Long]],
     errorID: Int,
   ): IndexedSeq[Value[Long]] = {
-    val mb = cb.emb
-
     assert(leftShape.nonEmpty)
     assert(rightShape.nonEmpty)
 

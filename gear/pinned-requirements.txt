@@ -4,7 +4,7 @@
 #
 #    pip-compile --output-file=hail/gear/pinned-requirements.txt hail/gear/requirements.txt
 #
-aiohttp==3.9.1
+aiohttp==3.9.3
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -27,7 +27,7 @@ async-timeout==4.0.3
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-attrs==23.1.0
+attrs==23.2.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -51,18 +51,18 @@ charset-normalizer==3.3.2
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   requests
-frozenlist==1.4.0
+frozenlist==1.4.1
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.15.0
+google-api-core==2.16.1
     # via google-api-python-client
-google-api-python-client==2.111.0
+google-api-python-client==2.116.0
     # via google-cloud-profiler
-google-auth==2.23.4
+google-auth==2.27.0
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -98,7 +98,7 @@ multidict==6.0.4
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-orjson==3.9.10
+orjson==3.9.12
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -183,7 +183,7 @@ wrapt==1.16.0
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   prometheus-async
-yarl==1.9.3
+yarl==1.9.4
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt

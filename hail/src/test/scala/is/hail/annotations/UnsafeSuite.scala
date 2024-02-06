@@ -71,9 +71,6 @@ class UnsafeSuite extends HailSuite {
     val region2 = Region(pool = pool)
     val region3 = Region(pool = pool)
     val region4 = Region(pool = pool)
-    val rvb = new RegionValueBuilder(sm, region)
-
-    val path = ctx.createTmpPath("test-codec", "ser")
 
     val g = Type.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
@@ -83,7 +80,6 @@ class UnsafeSuite extends HailSuite {
       val pt = PType.canonical(t).asInstanceOf[PStruct]
 
       val requestedType = subsetType(t).asInstanceOf[TStruct]
-      val prt = PType.canonical(requestedType).asInstanceOf[PStruct]
 
       val a2 = subset(t, requestedType, a)
       assert(requestedType.typeCheck(a2))
@@ -329,8 +325,6 @@ class UnsafeSuite extends HailSuite {
   @Test def testUnsafeOrdering(): Unit = {
     val region = Region(pool = pool)
     val region2 = Region(pool = pool)
-    val rvb = new RegionValueBuilder(sm, region)
-    val rvb2 = new RegionValueBuilder(sm, region2)
 
     val g = PType.genStruct
       .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.genValue(sm), t.genValue(sm))))

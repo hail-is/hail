@@ -55,9 +55,9 @@ class RouterAsyncFS(AsyncFS):
         return klass.copy_part_size(url)
 
     @staticmethod
-    def parse_url(url: str) -> AsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> AsyncFSURL:
         klass = RouterAsyncFS._fs_class(url)
-        return klass.parse_url(url)
+        return klass.parse_url(url, error_if_bucket=error_if_bucket)
 
     @staticmethod
     def _fs_class(url: str) -> Type[AsyncFS]:

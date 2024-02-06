@@ -1050,7 +1050,7 @@ class AggregatorsSuite extends HailSuite {
     val agg =
       FastSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
     val aggType = TStruct("k1" -> TString, "k2" -> TBoolean, "x" -> TInt32)
-    val expected = Map(
+    val expected: Map[String, Map[Any, Seq[Int]]] = Map(
       "EUR" -> Map(true -> FastSeq(1), false -> FastSeq(2)),
       "AFR" -> Map(true -> FastSeq(3), (null, FastSeq(4))),
     )

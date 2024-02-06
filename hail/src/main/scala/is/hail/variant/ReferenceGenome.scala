@@ -640,7 +640,6 @@ object ReferenceGenome {
     mtContigs: Array[String] = Array.empty[String],
     parInput: Array[String] = Array.empty[String],
   ): ReferenceGenome = {
-    val tmpdir = ctx.localTmpdir
     val fs = ctx.fs
 
     if (!fs.isFile(fastaFile))

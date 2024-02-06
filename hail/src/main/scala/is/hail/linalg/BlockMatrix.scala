@@ -295,7 +295,7 @@ object BlockMatrix {
 
     val d = digitsNeeded(bms.length)
     val fsBc = fs.broadcast
-    val partitionCounts = collectMatrices(bms)
+    collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
@@ -339,7 +339,7 @@ object BlockMatrix {
 
     val compressionExtension = compression.map(x => "." + x).getOrElse("")
 
-    val partitionCounts = collectMatrices(bms)
+    collectMatrices(bms)
       .mapPartitionsWithIndex { case (i, it) =>
         assert(it.hasNext)
         val m = it.next()
@@ -2375,7 +2375,7 @@ class BlockMatrixReadRowBlockedRDD(
     ) {
   import BlockMatrixReadRowBlockedRDD._
 
-  private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) =
+  private[this] val BlockMatrixMetadata(blockSize, nRows, nCols, _, partFiles) =
     metadata
 
   private[this] val gp = GridPartitioner(blockSize, nRows, nCols)
@@ -2411,7 +2411,6 @@ class BlockMatrixReadRowBlockedRDD(
     Iterator.single { ctx =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(HailStateManager(Map.empty), region)
-      val rv = RegionValue(region)
       val firstRow = rowsForPartition(0)
       var blockRow = (firstRow / blockSize).toInt
       val fs = fsBc.value
@@ -2519,7 +2518,6 @@ class BlockMatrixCachedPartFile(
       )
       in.readDoubles(cache, startWritingAt, doublesToRead)
       cacheEnd = doublesToRead + startWritingAt
-      var i = 0
       fileIndex += doublesToRead
       assert(doublesToRead > 0)
     }

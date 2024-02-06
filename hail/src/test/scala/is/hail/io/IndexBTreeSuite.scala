@@ -34,7 +34,6 @@ class IndexBTreeSuite extends HailSuite {
     property("query gives same answer as array") =
       forAll(arraySizeGenerator) { case (depth: Int, arraySize: Int) =>
         val arrayRandomStarts = fillRandomArray(arraySize)
-        val maxLong = arrayRandomStarts.takeRight(1)(0)
         val index = ctx.createTmpPath("testBtree", "idx")
 
         fs.delete(index, true)
