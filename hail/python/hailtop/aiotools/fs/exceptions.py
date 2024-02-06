@@ -4,3 +4,7 @@ class UnexpectedEOFError(Exception):
 
 class FileAndDirectoryError(Exception):
     pass
+
+
+class IsABucketError(FileNotFoundError):
+    pass
