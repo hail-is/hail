@@ -1020,7 +1020,8 @@ FROM
       (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS cancelled
     FROM job_groups
     LEFT JOIN jobs ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
-    LEFT JOIN job_groups_cancelled ON jobs.batch_id = job_groups_cancelled.id AND jobs.job_group_id = job_groups_cancelled.job_group_id
+    LEFT JOIN job_groups_cancelled ON jobs.batch_id = job_groups_cancelled.id AND
+              job_groups_cancelled.job_group_id = jobs.job_group_id
     WHERE job_groups.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1239,7 +1240,8 @@ async def cancel_fast_failing_job_groups(app):
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_n_jobs_in_complete_states.n_failed
 FROM job_groups
 LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+  ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
+     job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
 """,
     )

@@ -1375,7 +1375,7 @@ async def test_old_clients_that_submit_mount_docker_socket_false_is_ok(client: B
     b = create_batch(client)._async_batch
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    update_id, _, _ = await b._create_update()
+    update_id = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',
@@ -1392,7 +1392,7 @@ async def test_old_clients_that_submit_mount_docker_socket_true_is_rejected(clie
     b = create_batch(client)._async_batch
     await b._open_batch()
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    update_id, _, _ = await b._create_update()
+    update_id = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',
@@ -1802,6 +1802,7 @@ def test_get_job_group_status(client: BatchClient):
     assert jg_from_client_status['batch_id'] == b.id, str(jg_from_client_status)
 
     assert len(debug_info['jobs']) == 1, str(debug_info)
+    assert len(jg.jobs()) == 1, str(debug_info)
 
 
 def test_job_group_creation_with_no_jobs(client: BatchClient):

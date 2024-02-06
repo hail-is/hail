@@ -182,7 +182,7 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
     b = create_batch(client)
     b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     await b._open_batch()
-    update_id, _, _ = await b._create_update()
+    update_id = await b._create_update()
     with BatchProgressBar() as pbar:
         process = {
             'type': 'docker',

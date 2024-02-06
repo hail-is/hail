@@ -108,26 +108,24 @@ WHERE user = %s AND `state` = 'running';
                 if job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         """
-SELECT jobs.job_id
+SELECT jobs.batch_id, jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
 """,
                         (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                     ):
-                        record['batch_id'] = job_group['batch_id']
                         yield record
                 else:
                     async for record in self.db.select_and_fetchall(
                         """
-SELECT jobs.job_id
+SELECT jobs.batch_id, jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
 """,
                         (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                     ):
-                        record['batch_id'] = job_group['batch_id']
                         yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
@@ -196,7 +194,7 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     """
-SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
+SELECT jobs.batch_id, jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
@@ -205,7 +203,6 @@ LIMIT %s;
 """,
                     (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                 ):
-                    record['batch_id'] = job_group['batch_id']
                     yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
@@ -294,7 +291,7 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     """
-SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
+SELECT jobs.batch_id, jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
@@ -303,7 +300,6 @@ LIMIT %s;
 """,
                     (job_group['batch_id'], job_group['job_group_id'], remaining.value),
                 ):
-                    record['batch_id'] = job_group['batch_id']
                     yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)

@@ -59,5 +59,5 @@ class GetJobGroupResponseV1Alpha(TypedDict):
     time_completed: Optional[str]  # date string
     duration: Optional[int]
     cost: float
-    attributes: Optional[Dict[str, str]]
     cost_breakdown: List[CostBreakdownEntry]
+    attributes: Optional[Dict[str, str]]
