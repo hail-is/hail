@@ -323,9 +323,7 @@ class JobGroup:
         *,
         _last_known_status: Optional[dict] = None,
     ) -> 'JobGroup':
-        return JobGroup(
-            batch, job_group_id, submitted=True, last_known_status=_last_known_status
-        )
+        return JobGroup(batch, job_group_id, submitted=True, last_known_status=_last_known_status)
 
     @staticmethod
     def unsubmitted_job_group(batch: 'Batch', job_group_id: int) -> 'JobGroup':
@@ -451,7 +449,9 @@ class JobGroup:
         return self._batch._create_job(self, {'command': command, 'image': image, 'type': 'docker'}, **kwargs)
 
     def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
-        return self._batch._create_job(self, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs)
+        return self._batch._create_job(
+            self, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
+        )
 
     # FIXME Error if this is called while in a job within the same job group
     async def _wait(
@@ -731,7 +731,9 @@ class Batch:
     def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
         if 'always_copy_output' in kwargs:
             raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
-        return self._create_job(self._root_job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs)
+        return self._create_job(
+            self._root_job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
+        )
 
     def create_job_group(
         self,
@@ -875,7 +877,9 @@ class Batch:
         callback: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ) -> JobGroup:
-        assert parent_job_group == self._root_job_group, f'nested job groups are not allowed {parent_job_group} {self._root_job_group}'
+        assert (
+            parent_job_group == self._root_job_group
+        ), f'nested job groups are not allowed {parent_job_group} {self._root_job_group}'
 
         self._in_update_job_group_id += 1
         spec = {'job_group_id': self._in_update_job_group_id}
@@ -1037,17 +1041,13 @@ class Batch:
         )
         progress_task.update(len(byte_spec_bunch))
 
-    async def _submit_jobs(
-        self, update_id: int, bunch: List[SpecBytes], progress_task: BatchProgressBarTask
-    ):
+    async def _submit_jobs(self, update_id: int, bunch: List[SpecBytes], progress_task: BatchProgressBarTask):
         byte_job_specs = [spec.spec_bytes for spec in bunch if spec.typ == SpecType.JOB_GROUP]
         await self._submit_spec_bunch(
             f'/api/v1alpha/batches/{self.id}/updates/{update_id}/jobs/create', byte_job_specs, progress_task
         )
 
-    async def _submit_job_groups(
-        self, update_id: int, bunch: List[SpecBytes], progress_task: BatchProgressBarTask
-    ):
+    async def _submit_job_groups(self, update_id: int, bunch: List[SpecBytes], progress_task: BatchProgressBarTask):
         byte_job_group_specs = [spec.spec_bytes for spec in bunch if spec.typ == SpecType.JOB_GROUP]
         if byte_job_group_specs:
             await self._submit_spec_bunch(
@@ -1151,7 +1151,9 @@ class Batch:
                         log.info(f'created batch {self.id}')
                         return (None, None)
                     if n_bunches == 1:
-                        start_job_group_id, start_job_id = await self._create_fast(byte_specs_bunches[0], job_group_progress_task, job_progress_task)
+                        start_job_group_id, start_job_id = await self._create_fast(
+                            byte_specs_bunches[0], job_group_progress_task, job_progress_task
+                        )
                     else:
                         update_id = await self._open_batch()
                         assert update_id is not None

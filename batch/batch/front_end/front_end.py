@@ -365,7 +365,9 @@ async def _api_get_job_group_jobs(request, batch_id: int, job_group_id: int, ver
     q = request.query.get('q', '')
     recursive = cast_query_param_to_bool(request.query.get('recursive'))
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
-    resp = await _handle_api_error(_get_job_group_jobs, request, batch_id, job_group_id, version, q, last_job_id, recursive)
+    resp = await _handle_api_error(
+        _get_job_group_jobs, request, batch_id, job_group_id, version, q, last_job_id, recursive
+    )
     assert resp is not None
     return json_response(resp)
 
@@ -730,7 +732,9 @@ async def get_batches_v2(request, userdata):  # pylint: disable=unused-argument
     return json_response({'batches': batches})
 
 
-async def _query_job_groups(request, batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]) -> Tuple[List[GetJobGroupResponseV1Alpha], int]:
+async def _query_job_groups(
+    request, batch_id: int, job_group_id: int, last_child_job_group_id: Optional[int]
+) -> Tuple[List[GetJobGroupResponseV1Alpha], int]:
     db: Database = request.app['db']
 
     @transaction(db)
@@ -1543,7 +1547,12 @@ async def create_batch(request, userdata):
         start_job_id = None
 
     request['batch_telemetry']['batch_id'] = str(id)
-    return json_response({'id': id, 'update_id': update_id, 'start_job_group_id': start_job_group_id, 'start_job_id': start_job_id})
+    return json_response({
+        'id': id,
+        'update_id': update_id,
+        'start_job_group_id': start_job_group_id,
+        'start_job_id': start_job_id,
+    })
 
 
 async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
@@ -1739,8 +1748,14 @@ async def create_update(request, userdata):
     n_jobs = update_spec['n_jobs']
     n_job_groups = update_spec.get('n_job_groups', 0)
 
-    update_id, start_job_group_id, start_job_id = await _create_batch_update(batch_id, update_spec['token'], n_jobs, n_job_groups, user, db)
-    return json_response({'update_id': update_id, 'start_job_group_id': start_job_group_id, 'start_job_id': start_job_id})
+    update_id, start_job_group_id, start_job_id = await _create_batch_update(
+        batch_id, update_spec['token'], n_jobs, n_job_groups, user, db
+    )
+    return json_response({
+        'update_id': update_id,
+        'start_job_group_id': start_job_group_id,
+        'start_job_id': start_job_id,
+    })
 
 
 async def _create_batch_update(

@@ -246,5 +246,7 @@ def validate_job_groups(job_groups):
         job_group_id = job_group['job_group_id']
         if prev_job_group_id:
             if job_group_id != prev_job_group_id + 1:
-                raise ValidationError(f'noncontiguous job group ids found in the spec: {prev_job_group_id} -> {job_group_id}')
+                raise ValidationError(
+                    f'noncontiguous job group ids found in the spec: {prev_job_group_id} -> {job_group_id}'
+                )
         prev_job_group_id = job_group_id
