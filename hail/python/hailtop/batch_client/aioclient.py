@@ -955,20 +955,20 @@ class Batch:
         job_progress_task: BatchProgressBarTask,
     ) -> Tuple[int, int]:
         self._raise_if_not_created()
-        byte_job_specs = [spec.spec_bytes for spec in byte_specs_bunch if spec.typ == SpecType.JOB]
         byte_job_group_specs = [spec.spec_bytes for spec in byte_specs_bunch if spec.typ == SpecType.JOB_GROUP]
+        byte_job_specs = [spec.spec_bytes for spec in byte_specs_bunch if spec.typ == SpecType.JOB]
 
         b = bytearray()
-        b.extend(b'{"bunch":')
+        b.extend(b'{"job_groups":')
         b.append(ord('['))
-        for i, spec in enumerate(byte_job_specs):
+        for i, spec in enumerate(byte_job_group_specs):
             if i > 0:
                 b.append(ord(','))
             b.extend(spec)
         b.append(ord(']'))
-        b.extend(b',"job_groups":')
+        b.extend(b',"bunch":')
         b.append(ord('['))
-        for i, spec in enumerate(byte_job_group_specs):
+        for i, spec in enumerate(byte_job_specs):
             if i > 0:
                 b.append(ord(','))
             b.extend(spec)
@@ -992,17 +992,15 @@ class Batch:
         job_specs: List[dict],
         max_bunch_bytesize: int,
         max_bunch_size: int,
-    ) -> Tuple[List[List[SpecBytes]], List[int]]:
+    ) -> List[List[SpecBytes]]:
         assert max_bunch_bytesize > 0
         assert max_bunch_size > 0
         job_group_byte_specs = [SpecBytes(orjson.dumps(spec), SpecType.JOB_GROUP) for spec in job_group_specs]
         job_byte_specs = [SpecBytes(orjson.dumps(spec), SpecType.JOB) for spec in job_specs]
 
         byte_specs_bunches: List[List[SpecBytes]] = []
-        bunch_sizes = []
         bunch: List[SpecBytes] = []
         bunch_n_bytes = 0
-        bunch_n_specs = 0
         for spec in [*job_group_byte_specs, *job_byte_specs]:
             n_bytes = spec.n_bytes
             assert n_bytes < max_bunch_bytesize, (
@@ -1012,18 +1010,14 @@ class Batch:
             if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
                 bunch.append(spec)
                 bunch_n_bytes += n_bytes
-                bunch_n_specs += 1
             else:
                 byte_specs_bunches.append(bunch)
-                bunch_sizes.append(bunch_n_specs)
                 bunch = [spec]
                 bunch_n_bytes = n_bytes
-                bunch_n_specs = 1
         if bunch:
             byte_specs_bunches.append(bunch)
-            bunch_sizes.append(bunch_n_specs)
 
-        return (byte_specs_bunches, bunch_sizes)
+        return byte_specs_bunches
 
     async def _submit_spec_bunch(self, url: str, byte_spec_bunch: List[bytes], progress_task: BatchProgressBarTask):
         self._raise_if_not_created()
@@ -1143,7 +1137,7 @@ class Batch:
     ) -> Tuple[Optional[int], Optional[int]]:
         n_job_groups = len(self._job_groups)
         n_jobs = len(self._jobs)
-        byte_specs_bunches, bunch_sizes = self._create_bunches(
+        byte_specs_bunches = self._create_bunches(
             self._job_group_specs, self._job_specs, max_bunch_bytesize, max_bunch_size
         )
         n_bunches = len(byte_specs_bunches)

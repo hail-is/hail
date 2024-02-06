@@ -238,8 +238,7 @@ CREATE TABLE IF NOT EXISTS `batch_updates` (
   `time_created` BIGINT NOT NULL,
   `time_committed` BIGINT,
   PRIMARY KEY (`batch_id`, `update_id`, `start_job_group_id`, `start_job_id`),
-  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`),
-  UNIQUE KEY (`batch_id`, `start_job_id`)
+  FOREIGN KEY (`batch_id`) REFERENCES batches(`id`)
 ) ENGINE = InnoDB;
 CREATE INDEX `batch_updates_committed` ON `batch_updates` (`batch_id`, `committed`);
 CREATE INDEX `batch_updates_start_job_id` ON `batch_updates` (`batch_id`, `start_job_id`);
@@ -1098,10 +1097,9 @@ BEGIN
   ELSE
     SELECT COALESCE(SUM(n_jobs), 0) INTO staging_n_jobs
     FROM job_groups_inst_coll_staging
-    WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
+    WHERE batch_id = in_batch_id AND update_id = in_update_id
     FOR UPDATE;
 
-    # we can only check staged equals expected for the root job group
     IF staging_n_jobs = expected_n_jobs THEN
       UPDATE batch_updates
       SET committed = 1, time_committed = in_timestamp

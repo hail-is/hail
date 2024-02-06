@@ -1939,9 +1939,9 @@ def test_get_job_group_from_client_batch(client: BatchClient):
     b_copy = client.get_batch(b.id)
     jg_copy = b_copy.get_job_group(jg.job_group_id)
     jg_copy.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b.submit()
+    b_copy.submit()
     status = jg_copy.wait()
-    assert status['n_jobs'] == 1, str(b.debug_info())
+    assert status['n_jobs'] == 1, str(status)
 
 
 def test_cancellation_doesnt_cancel_other_job_groups(client: BatchClient):
