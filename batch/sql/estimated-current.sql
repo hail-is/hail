@@ -193,7 +193,7 @@ DROP TABLE IF EXISTS `job_groups`;
 CREATE TABLE IF NOT EXISTS `job_groups` (
   `batch_id` BIGINT NOT NULL,
   `job_group_id` INT NOT NULL,
-  `update_id` INT DEFAULT 1,
+  `update_id` INT,  # NULL is for the root job group
   `user` VARCHAR(100) NOT NULL,
   `attributes` TEXT,
   `cancel_after_n_failures` INT DEFAULT NULL,
@@ -1687,37 +1687,30 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    # update only the record for the root job group
-    # backwards compatibility for job groups that do not exist
-    UPDATE job_groups_n_jobs_in_complete_states
-      SET n_completed = (@new_n_completed := n_completed + 1),
-          n_cancelled = n_cancelled + (new_state = 'Cancelled'),
-          n_failed    = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
-          n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
-      WHERE id = in_batch_id AND job_group_id = 0;
+    INSERT INTO job_groups_n_jobs_in_complete_states (id, job_group_id, token, n_completed, n_cancelled, n_failed, n_succeeded)
+    SELECT in_batch_id, ancestor_id, rand_token,
+      1,
+      (new_state = 'Cancelled'),
+      (new_state = 'Error' OR new_state = 'Failed'),
+      (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed')
+    FROM job_group_self_and_ancestors
+    WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id
+    ON DUPLICATE KEY UPDATE n_completed = n_completed + 1,
+      n_cancelled = n_cancelled + (new_state = 'Cancelled'),
+      n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+      n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
 
-    # Grabbing an exclusive lock on batches here could deadlock,
-    # but this IF should only execute for the last job
-    IF @new_n_completed = total_jobs_in_batch THEN
-      UPDATE batches
-      SET time_completed = new_timestamp,
-          `state` = 'complete'
-      WHERE id = in_batch_id;
-    END IF;
-
-    # update the rest of the non-root job groups if they exist
-    # necessary for backwards compatibility
-    UPDATE job_groups_n_jobs_in_complete_states
-    INNER JOIN (
-      SELECT batch_id, ancestor_id
-      FROM job_group_self_and_ancestors
-      WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id AND job_group_id != 0
-      ORDER BY job_group_id ASC
-    ) AS t ON job_groups_n_jobs_in_complete_states.id = t.batch_id AND job_groups_n_jobs_in_complete_states.job_group_id = t.ancestor_id
-    SET n_completed = n_completed + 1,
-        n_cancelled = n_cancelled + (new_state = 'Cancelled'),
-        n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
-        n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
+--     UPDATE job_groups_n_jobs_in_complete_states
+--     INNER JOIN (
+--       SELECT batch_id, ancestor_id
+--       FROM job_group_self_and_ancestors
+--       WHERE batch_id = in_batch_id AND job_group_id = cur_job_group_id
+--       ORDER BY job_group_id ASC
+--     ) AS t ON job_groups_n_jobs_in_complete_states.id = t.batch_id AND job_groups_n_jobs_in_complete_states.job_group_id = t.ancestor_id
+--     SET n_completed = n_completed + 1,
+--         n_cancelled = n_cancelled + (new_state = 'Cancelled'),
+--         n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
+--         n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
 
     CALL mark_job_group_complete(in_batch_id, cur_job_group_id, new_timestamp);
 
