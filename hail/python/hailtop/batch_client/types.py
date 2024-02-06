@@ -60,4 +60,4 @@ class GetJobGroupResponseV1Alpha(TypedDict):
     duration: Optional[int]
     cost: float
     cost_breakdown: List[CostBreakdownEntry]
-    attributes: Optional[Dict[str, str]]
+    attributes: NotRequired[Dict[str, str]]

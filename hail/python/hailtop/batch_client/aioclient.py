@@ -310,7 +310,7 @@ class JobGroupNotSubmittedError(Exception):
 
 
 class JobGroupDebugInfo(TypedDict):
-    status: Dict[str, Any]
+    status: GetJobGroupResponseV1Alpha
     jobs: List[JobListEntryV1Alpha]
     job_groups: List[GetJobGroupResponseV1Alpha]
 
@@ -321,7 +321,7 @@ class JobGroup:
         batch: 'Batch',
         job_group_id: int,
         *,
-        _last_known_status: Optional[dict] = None,
+        _last_known_status: Optional[GetJobGroupResponseV1Alpha] = None,
     ) -> 'JobGroup':
         return JobGroup(batch, job_group_id, submitted=True, last_known_status=_last_known_status)
 
@@ -335,7 +335,7 @@ class JobGroup:
         job_group_id: int,
         submitted: bool,
         *,
-        last_known_status: Optional[dict] = None,
+        last_known_status: Optional[GetJobGroupResponseV1Alpha] = None,
     ):
         self._batch = batch
         self._job_group_id = job_group_id
@@ -436,10 +436,10 @@ class JobGroup:
         resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/job-groups/{self.job_group_id}')
         json_status = await resp.json()
         assert isinstance(json_status, dict), json_status
-        self._last_known_status = json_status
+        self._last_known_status = cast(GetJobGroupResponseV1Alpha, json_status)
         return self._last_known_status
 
-    async def last_known_status(self) -> Dict[str, Any]:
+    async def last_known_status(self) -> GetJobGroupResponseV1Alpha:
         self._raise_if_not_submitted()
         if self._last_known_status is None:
             return await self.status()  # updates _last_known_status
@@ -459,7 +459,7 @@ class JobGroup:
         description: str,
         progress: BatchProgressBar,
         disable_progress_bar: bool,
-    ) -> Dict[str, Any]:
+    ) -> GetJobGroupResponseV1Alpha:
         self._raise_if_not_submitted()
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.batch_id}')
@@ -486,7 +486,7 @@ class JobGroup:
     # FIXME Error if this is called while in a job within the same job group
     async def wait(
         self, *, disable_progress_bar: bool = False, description: str = '', progress: Optional[BatchProgressBar] = None
-    ) -> Dict[str, Any]:
+    ) -> GetJobGroupResponseV1Alpha:
         self._raise_if_not_submitted()
         if description:
             description += ': '
@@ -521,7 +521,8 @@ class JobGroup:
         return {'status': jg_status, 'job_groups': job_groups, 'jobs': jobs}
 
     def __str__(self):
-        return str(async_to_blocking(self.debug_info()))
+        debug_info = async_to_blocking(self.debug_info())
+        return str(orjson.dumps(debug_info))
 
 
 class BatchSubmissionInfo:
@@ -553,7 +554,8 @@ class SpecBytes:
         self.spec_bytes = spec_bytes
         self.typ = typ
 
-    def n_bytes(self):
+    @property
+    def n_bytes(self) -> int:
         return len(self.spec_bytes)
 
 
@@ -882,7 +884,7 @@ class Batch:
         ), f'nested job groups are not allowed {parent_job_group} {self._root_job_group}'
 
         self._in_update_job_group_id += 1
-        spec = {'job_group_id': self._in_update_job_group_id}
+        spec: Dict[str, Any] = {'job_group_id': self._in_update_job_group_id}
         if attributes is not None:
             spec['attributes'] = attributes
         if callback is not None:

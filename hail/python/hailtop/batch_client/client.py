@@ -125,10 +125,10 @@ class JobGroup:
     def status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.status())
 
-    def wait(self, *args, **kwargs):
+    def wait(self, *args, **kwargs) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.wait(*args, **kwargs))
 
-    def last_known_status(self) -> Dict[str, Any]:
+    def last_known_status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.last_known_status())
 
     def create_job(
@@ -240,7 +240,7 @@ class Batch:
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
-    def status(self) -> GetJobGroupResponseV1Alpha:
+    def status(self):
         return async_to_blocking(self._async_batch.status())
 
     def last_known_status(self):
