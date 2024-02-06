@@ -56,33 +56,32 @@ mill := bash millw
 mill-clean:
 	$(mill) clean
 
-ifdef HAIL_DEBUG_MODE
-build_type = debug
-else
-build_type = release
-endif
+# Any target depending on this will always be recomputed. We use this for any target that
+# runs mill, so that mill is always invoked and can decide if the target needs to be updated.
+# If not, the target file's timestamp is unchanged, so downstream targets are not forced to
+# be recomputed.
+FORCE:
 
 SHADOW_JAR := out/assembly.dest/out.jar
-$(SHADOW_JAR):
+$(SHADOW_JAR): FORCE
 	$(mill) assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
 NON_SHADOW_JAR := out/jar.dest/out.jar
-$(NON_SHADOW_JAR):
+$(NON_SHADOW_JAR): FORCE
 	$(mill) jar
 
 SHADOW_TEST_JAR := out/test/assembly.dest/out.jar
-$(SHADOW_TEST_JAR):
+$(SHADOW_TEST_JAR): FORCE
 	$(mill) test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
 EXTRA_CLASSPATH := out/writeRunClasspath.dest/runClasspath
-.PHONY: $(EXTRA_CLASSPATH)
-$(EXTRA_CLASSPATH):
+$(EXTRA_CLASSPATH): FORCE
 	$(mill) writeRunClasspath
 
 .PHONY: jvm-test
