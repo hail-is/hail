@@ -2835,13 +2835,12 @@ class MatrixTable(ExprContainer):
             truncate_limit = self.truncate_limit
             should_show_types = self.should_show_types
 
-            def truncate(string: str):
+            def truncate(string: str) -> str:
                 return string[: truncate_limit - 3] + "..." if len(string) > truncate_limit else string
 
             table = matrix_table.head(n_rows, n_cols).localize_entries('entries', 'cols')
             table_key_dtype = table.key.dtype
             if len(table.key) > 0:
-                # order_by unkeys the table
                 table = table.order_by(*table.key)
 
             row_dtype = table.row.dtype
@@ -2849,7 +2848,7 @@ class MatrixTable(ExprContainer):
             row_fields = list(row_dtype) if include_row_fields else list(table_key_dtype)
             row_fields = [row_field for row_field in row_fields if row_field != 'entries']
             truncated_row_fields = [truncate(field) for field in row_fields]
-            truncated_rows = [[truncate(str(row[field])) for field in row_fields] for row in rows]
+            truncated_rows = [[truncate(repr(row[field])) for field in row_fields] for row in rows]
             truncated_row_field_types = (
                 [truncate(str(row_dtype[field])) for field in row_fields] if should_show_types else None
             )
@@ -2857,17 +2856,13 @@ class MatrixTable(ExprContainer):
 
             entry_dtype = matrix_table.entry.dtype
             entry_fields = list(entry_dtype)
-            # entries has shape (n_rows, n_cols, len(entry_fields))
             entries = [[[entry[field] for field in entry_fields] for entry in row['entries']] for row in rows]
-            truncated_entries = [[[truncate(str(entry)) for entry in column] for column in row] for row in entries]
-            # entry_field_right_align has shape (len(entry_fields) * n_cols)
+            truncated_entries = [[[truncate(repr(entry)) for entry in column] for column in row] for row in entries]
             entry_field_right_align = [hl.expr.types.is_numeric(entry_dtype[field]) for field in entry_fields] * n_cols
-            # truncated_entry_field_types has shape (len(entry_fields) * n_cols)
             truncated_entry_field_types = (
                 [truncate(str(entry_dtype[field])) for field in entry_fields] * n_cols if should_show_types else None
             )
 
-            # truncated_values has shape (n_rows, len(row_fields) + n_cols * len(entry_fields))
             truncated_values = [
                 truncated_row
                 + [
@@ -2901,7 +2896,7 @@ class MatrixTable(ExprContainer):
                     f'<col {index}>.{entry_field}' for index in range(0, n_cols) for entry_field in entry_fields
                 ]
 
-            def max_value_width(index):
+            def max_value_width(index) -> int:
                 return max(itertools.chain([0], (len(row[index]) for row in truncated_values)))
 
             display_column_widths = [
@@ -2926,19 +2921,19 @@ class MatrixTable(ExprContainer):
                 end_index += 1
             display_block_slices.append(slice(start_index, end_index))
 
-            def format_hline(widths):
+            def format_hline(widths: List[int]) -> int:
                 if not widths:
                     return "++\n"
                 return '+-' + '-+-'.join(['-' * width for width in widths]) + '-+\n'
 
-            def pad(value: str, width: int, right_align: bool):
+            def pad(value: str, width: int, right_align: bool) -> str:
                 extra_count = width - len(value)
                 if right_align:
                     return ' ' * extra_count + value
                 else:
                     return value + ' ' * extra_count
 
-            def format_line(values: List[str], widths: List[int], right_align: List[bool]):
+            def format_line(values: List[str], widths: List[int], right_align: List[bool]) -> str:
                 if not values:
                     return "||\n"
                 values = map(pad, values, widths, right_align)
@@ -2970,9 +2965,7 @@ class MatrixTable(ExprContainer):
                     ascii_str += format_line(row[block_slice], block_display_column_widths, block_right_align)
                 ascii_str += hline
 
-            if n_rows < matrix_table.count_rows():
-                row_count = len(rows)
-                ascii_str += f"showing top { row_count } { 'row' if row_count == 1 else 'rows' }\n"
+            ascii_str += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
             total_n_cols = matrix_table.count_cols()
             if n_cols != total_n_cols:
                 ascii_str += f"showing the first { n_cols } of { total_n_cols } columns"
@@ -2983,7 +2976,6 @@ class MatrixTable(ExprContainer):
             return self.__str__()
 
         def _repr_html_(self):
-            # This method is not thoroughly tested and should be used carefully.
             total_n_cols = self.matrix_table.count_cols()
             table = self.matrix_table.localize_entries('entries', 'cols')
             if len(table.key) > 0:
@@ -3027,7 +3019,7 @@ class MatrixTable(ExprContainer):
         width: Optional[int] = None,
         truncate: Optional[int] = None,
         types: bool = True,
-        handler: Optional[Callable[[str], Any]] = None,
+        handler: Optional[Callable] = None,
     ):
         """Print the first few rows and columns of the matrix table to the console.
 
@@ -3078,6 +3070,7 @@ class MatrixTable(ExprContainer):
                     characters -= estimate_size(self.row_value)
                 characters = max(characters, 0)
                 n_cols = characters // (estimate_size(self.entry) + 4)  # 4 for the column index
+                n_cols = max(n_cols, 1)
         total_n_cols = self.count_cols()
         n_cols = min(total_n_cols, n_cols)
 
@@ -3097,7 +3090,7 @@ class MatrixTable(ExprContainer):
             truncate_limit,
             types,
         )
-        handler(repr(show))
+        handler(show)
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
