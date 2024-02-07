@@ -1975,3 +1975,6 @@ def test_dependencies_across_job_groups(client: BatchClient):
     b.submit()
     status = b.wait()
     assert status['state'] == 'success', str(b.debug_info())
+
+
+# FIXME: make sure cancellation in child job group doesn't cancel root job group jobs

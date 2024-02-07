@@ -1436,9 +1436,9 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
   FOR UPDATE;
 
-  UPDATE attempts
-  SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
-  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+--   UPDATE attempts
+--   SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
+--   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 
