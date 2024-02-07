@@ -542,7 +542,7 @@ object StreamJoin {
     val rType = tcoerce[TStream](right.typ)
     val lEltType = tcoerce[TStruct](lType.elementType)
     val rEltType = tcoerce[TStruct](rType.elementType)
-    assert(lEltType.typeAfterSelectNames(lKey) isIsomorphicTo rEltType.typeAfterSelectNames(rKey))
+    assert(lEltType.typeAfterSelectNames(lKey) isJoinableWith rEltType.typeAfterSelectNames(rKey))
 
     if (!rightKeyIsDistinct) {
       val rightGroupedStream = StreamGroupByKey(right, rKey, missingEqual = false)

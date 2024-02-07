@@ -52,7 +52,7 @@ object CodeOrdering {
 
   def makeOrdering(t1: SType, t2: SType, ecb: EmitClassBuilder[_]): CodeOrdering = {
     val canCompare = (t1.virtualType, t2.virtualType) match {
-      case (t1: TStruct, t2: TStruct) => t1.isIsomorphicTo(t2)
+      case (t1: TStruct, t2: TStruct) => t1.isJoinableWith(t2)
       case (t1, t2) if t1 == t2 => t1 == t2
     }
     if (!canCompare) {

@@ -16,7 +16,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
   val (kType, _) = rvd.rowType.select(virtType.key)
 
   private def checkJoinCompatability(right: KeyedRVD): Unit = {
-    if (!(kType isIsomorphicTo right.kType))
+    if (!(kType isJoinableWith right.kType))
       fatal(
         s"""Incompatible join keys. Keys must have same length and types, in order:
            | Left join key type: ${kType.toString}

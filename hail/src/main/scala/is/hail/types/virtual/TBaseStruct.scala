@@ -66,7 +66,7 @@ abstract class TBaseStruct extends Type {
     case _ => false
   }
 
-  def isIsomorphicTo(other: TBaseStruct): Boolean =
+  def isJoinableWith(other: TBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)
 
   def isPrefixOf(other: TBaseStruct): Boolean =
