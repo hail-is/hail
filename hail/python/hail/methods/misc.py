@@ -490,3 +490,46 @@ def segment_intervals(ht, points):
     )
     ht = ht.annotate(__new_intervals=interval_results, lower=lower, higher=higher).explode('__new_intervals')
     return ht.key_by(**{list(ht.key)[0]: ht.__new_intervals}).drop('__new_intervals')
+
+
+def dummy_code(matrix_table: MatrixTable, *column_field_names: str):
+    """Dummy code categorical variables.
+
+    Examples
+    --------
+    >>> mt = hail.balding_nichols_model(1, 50, 100)
+    >>> smoking_categories = hail.literal(['current', 'former', 'never'])
+    >>> mt = mt.annotate_cols(
+    ...     smoking_status = smoking_categories[hail.rand_cat([1, 1, 1])],
+    ...     is_case = hail.rand_bool(0.5)
+    ... )
+    >>> dummy_code(mt, "smoking_status")
+
+    Parameters
+    ----------
+    matrix_table : :class:`.MatrixTable`
+        A matrix table.
+    *column_field_names : :obj:`str`
+        The names of the column fields in the matrix table to dummy code.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        The matrix table with the dummy-coded variables.
+    :obj:`list`
+        A list of the names of the dummy-coded variables.
+    :obj:`dict`
+        A dictionary mapping the column field names to the categories of the column field.
+    """
+    field_name_to_categories = {
+        field_name: matrix_table.aggregate_cols(hl.agg.collect_as_set(matrix_table[field_name]))
+        for field_name in column_field_names
+    }
+    dummy_variables = {
+        f'{field_name}__{category}': hl.int(matrix_table[field_name] == category)
+        for field_name in column_field_names
+        for category in field_name_to_categories[field_name]
+    }
+    matrix_table = matrix_table.annotate_cols(**dummy_variables)
+    dummy_variable_field_names = list(dummy_variables)
+    return matrix_table, dummy_variable_field_names, field_name_to_categories
