@@ -82,7 +82,7 @@ abstract class TBaseStruct extends Type {
     forallZippedFields(other)(_.typ == _.typ)
 
   private def forallZippedFields(s: TBaseStruct)(p: (Field, Field) => Boolean): Boolean =
-    fields.zip(s.fields).forall { case (l, r) => p(l, r) }
+    (fields, s.fields).zipped.forall(p)
 
   def truncate(newSize: Int): TBaseStruct
 
