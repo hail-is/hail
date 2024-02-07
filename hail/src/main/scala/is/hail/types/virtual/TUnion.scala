@@ -130,4 +130,13 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   override def scalaClassTag: ClassTag[AnyRef] = ???
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = ???
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case u: TUnion =>
+        size == u.size &&
+        (cases, u.cases).zipped.forall(_.typ isIsomorphicTo _.typ)
+      case _ =>
+        false
+    }
 }

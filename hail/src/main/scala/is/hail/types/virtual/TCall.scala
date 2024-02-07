@@ -26,4 +26,7 @@ case object TCall extends Type {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }

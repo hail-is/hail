@@ -222,33 +222,14 @@ abstract class Type extends BaseType with Serializable {
     identity
   }
 
-  def canCastTo(t: Type): Boolean = this match {
-    case TInterval(tt1) => t match {
-        case TInterval(tt2) => tt1.canCastTo(tt2)
-        case _ => false
-      }
-    case TStruct(f1) => t match {
-        case TStruct(f2) =>
-          f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
-        case _ => false
-      }
-    case TTuple(f1) => t match {
-        case TTuple(f2) =>
-          f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
-        case _ => false
-      }
-    case TArray(t1) => t match {
-        case TArray(t2) => t1.canCastTo(t2)
-        case _ => false
-      }
-    case TSet(t1) => t match {
-        case TSet(t2) => t1.canCastTo(t2)
-        case _ => false
-      }
-    case TDict(k1, v1) => t match {
-        case TDict(k2, v2) => k1.canCastTo(k2) && v1.canCastTo(v2)
-        case _ => false
-      }
-    case _ => this == t
-  }
+  def isIsomorphicTo(t: Type): Boolean
+
+//  =
+//    this match {
+//      case TDict(k1, v1) => t match {
+//        case TDict(k2, v2) => k1.isIsomorphicTo(k2) && v1.isIsomorphicTo(v2)
+//        case _ => false
+//      }
+//      case _ => this == t
+//    }
 }

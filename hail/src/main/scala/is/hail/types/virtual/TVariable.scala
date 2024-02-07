@@ -77,4 +77,7 @@ final case class TVariable(name: String, cond: String = null) extends Type {
     throw new RuntimeException("TVariable is not realizable")
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    false
 }

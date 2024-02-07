@@ -85,4 +85,36 @@ class TStructSuite extends HailSuite {
   def testInsert(inserter: Inserter, base: Annotation, value: Any, expected: Annotation): Unit =
     assert(inserter(base, value) == expected)
 
+  @DataProvider(name = "isIsomorphicTo")
+  def isIsomorphicToData: Array[Array[Any]] =
+    Array(
+      Array(TStruct.empty, TStruct.empty, true),
+      Array(TStruct.empty, TStruct("a" -> TVoid), false),
+      Array(TStruct("a" -> TVoid), TStruct.empty, false),
+      Array(TStruct("a" -> TVoid), TStruct("b" -> TVoid), true),
+      Array(TStruct("a" -> TStruct("b" -> TVoid)), TStruct("b" -> TStruct("a" -> TVoid)), true),
+      Array(TStruct("a" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), false),
+      Array(TStruct("a" -> TVoid, "b" -> TVoid), TStruct("a" -> TVoid), false),
+    )
+
+  @Test(dataProvider = "isIsomorphicTo")
+  def testIsIsomorphicTo(a: TStruct, b: TStruct, isIsomorphic: Boolean): Unit =
+    assert((a isIsomorphicTo b) == isIsomorphic, s"expected $a isIsomorphicTo $b == $isIsomorphic")
+
+  @DataProvider(name = "isJoinableWith")
+  def isJoinableWithData: Array[Array[Any]] =
+    Array(
+      Array(TStruct.empty, TStruct.empty, true),
+      Array(TStruct.empty, TStruct("a" -> TVoid), false),
+      Array(TStruct("a" -> TVoid), TStruct.empty, false),
+      Array(TStruct("a" -> TVoid), TStruct("b" -> TVoid), true),
+      Array(TStruct("a" -> TStruct("a" -> TVoid)), TStruct("b" -> TStruct("a" -> TVoid)), true),
+      Array(TStruct("a" -> TStruct("a" -> TVoid)), TStruct("b" -> TStruct("b" -> TVoid)), false),
+      Array(TStruct("a" -> TVoid, "b" -> TVoid), TStruct("a" -> TVoid), false),
+      Array(TStruct("b" -> TVoid), TStruct("a" -> TVoid, "b" -> TVoid), false),
+    )
+
+  @Test(dataProvider = "isJoinableWith")
+  def testIsJoinableWith(a: TStruct, b: TStruct, isJoinable: Boolean): Unit =
+    assert((a isJoinableWith b) == isJoinable, s"expected $a isJoinableWith $b == $isJoinable")
 }

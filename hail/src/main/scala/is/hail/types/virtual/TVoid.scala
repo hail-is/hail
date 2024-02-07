@@ -21,4 +21,7 @@ case object TVoid extends Type {
     throw new UnsupportedOperationException("No elements of Void")
 
   override def isRealizable = false
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }
