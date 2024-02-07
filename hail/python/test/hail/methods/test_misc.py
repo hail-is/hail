@@ -268,3 +268,16 @@ class Tests(unittest.TestCase):
                 hl.interval(52, 52),
             ]
         )
+
+    def test_dummy_code(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        smoking_categories = hl.literal(['current', 'former', 'never'])
+        mt = mt.annotate_cols(smoking_status=smoking_categories[mt.col_idx % 3])
+        mt, dummy_variable_field_names, _ = hl.methods.misc.dummy_code(mt, 'smoking_status')
+        self.assertEqual(
+            {'smoking_status__current', 'smoking_status__former', 'smoking_status__never'},
+            set(dummy_variable_field_names),
+        )
+        self.assertEqual([1, 0, 0, 1, 0, 0, 1, 0, 0, 1], mt['smoking_status__current'].collect())
+        self.assertEqual([0, 1, 0, 0, 1, 0, 0, 1, 0, 0], mt['smoking_status__former'].collect())
+        self.assertEqual([0, 0, 1, 0, 0, 1, 0, 0, 1, 0], mt['smoking_status__never'].collect())
