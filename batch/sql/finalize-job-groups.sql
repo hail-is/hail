@@ -1,3 +1,5 @@
+START TRANSACTION;
+
 DROP TRIGGER IF EXISTS batches_after_update;
 
 SET foreign_key_checks = 0;
@@ -473,12 +475,12 @@ BEGIN
       ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
       SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
-      # compute global number of new ready jobs from root job group
+      # compute global number of new ready jobs from summing all job groups
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
       SELECT user, inst_coll, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
       FROM job_groups_inst_coll_staging
       JOIN batches ON batches.id = job_groups_inst_coll_staging.batch_id
-      WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
+      WHERE batch_id = in_batch_id AND update_id = in_update_id
       GROUP BY `user`, inst_coll
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs + @n_ready_jobs,
@@ -758,3 +760,5 @@ BEGIN
 END $$
 
 DELIMITER ;
+
+COMMIT;
