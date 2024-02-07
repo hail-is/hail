@@ -853,7 +853,7 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
-resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
+resource "kubernetes_pod_disruption_budget_v1" "kube_dns_pdb" {
   metadata {
     name = "kube-dns"
     namespace = "kube-system"
@@ -868,7 +868,7 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
   }
 }
 
-resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
+resource "kubernetes_pod_disruption_budget_v1" "kube_dns_autoscaler_pdb" {
   metadata {
     name = "kube-dns-autoscaler"
     namespace = "kube-system"
@@ -883,7 +883,7 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
   }
 }
 
-resource "kubernetes_pod_disruption_budget" "event_exporter_pdb" {
+resource "kubernetes_pod_disruption_budget_v1" "event_exporter_pdb" {
   metadata {
     name = "event-exporter"
     namespace = "kube-system"
