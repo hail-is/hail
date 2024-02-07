@@ -1094,6 +1094,7 @@ BEGIN
         n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
+      ### FIXME FIXME what should the state be of nested job groups?
       UPDATE job_groups
       INNER JOIN (
         SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs

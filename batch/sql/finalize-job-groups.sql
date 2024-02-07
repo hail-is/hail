@@ -105,21 +105,21 @@ BEGIN
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v3.`usage` + msec_diff_rollup * quantity;
 
-    INSERT INTO aggregated_job_group_resources_v3 (batch_id, job_group_id, resource_id, token, `usage`)
-    SELECT attempt_resources.batch_id,
-      job_group_self_and_ancestors.ancestor_id,
-      attempt_resources.deduped_resource_id,
-      rand_token,
-      msec_diff_rollup * quantity
-    FROM attempt_resources
-    LEFT JOIN jobs
-      ON attempt_resources.batch_id = jobs.batch_id AND
-         attempt_resources.job_id = jobs.job_id
-    LEFT JOIN job_group_self_and_ancestors
-      ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
-         jobs.job_group_id = job_group_self_and_ancestors.job_group_id
-    WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id
-    ON DUPLICATE KEY UPDATE `usage` = aggregated_job_group_resources_v3.`usage` + msec_diff_rollup * quantity;
+--     INSERT INTO aggregated_job_group_resources_v3 (batch_id, job_group_id, resource_id, token, `usage`)
+--     SELECT attempt_resources.batch_id,
+--       job_group_self_and_ancestors.ancestor_id,
+--       attempt_resources.deduped_resource_id,
+--       rand_token,
+--       msec_diff_rollup * quantity
+--     FROM attempt_resources
+--     LEFT JOIN jobs
+--       ON attempt_resources.batch_id = jobs.batch_id AND
+--          attempt_resources.job_id = jobs.job_id
+--     LEFT JOIN job_group_self_and_ancestors
+--       ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
+--          jobs.job_group_id = job_group_self_and_ancestors.job_group_id
+--     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id
+--     ON DUPLICATE KEY UPDATE `usage` = aggregated_job_group_resources_v3.`usage` + msec_diff_rollup * quantity;
 
     INSERT INTO aggregated_job_resources_v3 (batch_id, job_id, resource_id, `usage`)
     SELECT attempt_resources.batch_id, attempt_resources.job_id,
@@ -465,6 +465,7 @@ BEGIN
         n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
+      ### FIXME FIXME what should the state be of nested job groups
       UPDATE job_groups
       INNER JOIN (
         SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
@@ -564,10 +565,9 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
   FOR UPDATE;
 
-## FIXME FIXME FIXME
---   UPDATE attempts
---   SET start_time = new_start_time, rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
---   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+  UPDATE attempts
+  SET start_time = new_start_time, rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
@@ -734,10 +734,9 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
   FOR UPDATE;
 
-### FIXME FIXME
---   UPDATE attempts
---   SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
---   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+  UPDATE attempts
+  SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 
