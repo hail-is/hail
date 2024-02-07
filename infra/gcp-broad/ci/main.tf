@@ -16,6 +16,7 @@ resource "google_storage_bucket" "bucket" {
   location = var.bucket_location
   force_destroy = false
   storage_class = var.bucket_storage_class
+  uniform_bucket_level_access = true
   labels = {
     "name" = "hail-ci-${random_string.hail_ci_bucket_suffix.result}"
   }
