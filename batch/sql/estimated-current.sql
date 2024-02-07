@@ -1625,6 +1625,7 @@ BEGIN
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE expected_attempt_id VARCHAR(40);
   DECLARE new_batch_n_completed INT;
+  DECLARE total_jobs_in_batch INT;
 
   START TRANSACTION;
 
