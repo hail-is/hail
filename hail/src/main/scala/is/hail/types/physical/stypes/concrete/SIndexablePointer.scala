@@ -72,10 +72,8 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case p: SIndexablePointer =>
-        pType == p.pType
-      case _ =>
-        false
+      case p: SIndexablePointer => pType == p.pType
+      case _ => false
     }
 }
 

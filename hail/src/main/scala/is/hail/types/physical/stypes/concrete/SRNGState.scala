@@ -88,11 +88,8 @@ final case class SRNGState(staticInfo: Option[SRNGStateStaticInfo]) extends STyp
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case s: SRNGState =>
-        staticInfo == s.staticInfo
-
-      case _ =>
-        false
+      case s: SRNGState => staticInfo == s.staticInfo
+      case _ => false
     }
 }
 

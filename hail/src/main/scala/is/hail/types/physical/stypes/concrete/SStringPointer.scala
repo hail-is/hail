@@ -51,11 +51,8 @@ final case class SStringPointer(pType: PString) extends SString {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case p: SStringPointer =>
-        pType == p.pType
-
-      case _ =>
-        false
+      case p: SStringPointer => pType == p.pType
+      case _ => false
     }
 }
 

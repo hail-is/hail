@@ -91,11 +91,8 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case a: SJavaArrayString =>
-        elementRequired == a.elementRequired
-
-      case _ =>
-        false
+      case a: SJavaArrayString => elementRequired == a.elementRequired
+      case _ => false
     }
 }
 

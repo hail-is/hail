@@ -40,11 +40,8 @@ final case class SimpleSStream(elementEmitType: EmitType) extends SStream {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case s: SimpleSStream =>
-        elementType isIsomorphicTo s.elementType
-
-      case _ =>
-        false
+      case s: SimpleSStream => elementType isIsomorphicTo s.elementType
+      case _ => false
     }
 }
 

@@ -109,7 +109,8 @@ object Type {
     v <- t.genValue(sm).resize(y)
   } yield (t, v)
 
-  implicit def arbType = Arbitrary(genArb)
+  implicit def arbType: Arbitrary[Type] =
+    Arbitrary(genArb)
 }
 
 abstract class Type extends BaseType with Serializable {
@@ -205,13 +206,11 @@ abstract class Type extends BaseType with Serializable {
     ord
   }
 
-  def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
-    def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
-  }
+  def jsonReader: JSONReader[Annotation] =
+    (a: JValue) => JSONAnnotationImpex.importAnnotation(a, self)
 
-  def jsonWriter: JSONWriter[Annotation] = new JSONWriter[Annotation] {
-    def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
-  }
+  def jsonWriter: JSONWriter[Annotation] =
+    (pk: Annotation) => JSONAnnotationImpex.exportAnnotation(pk, self)
 
   def _typeCheck(a: Any): Boolean
 
@@ -223,13 +222,4 @@ abstract class Type extends BaseType with Serializable {
   }
 
   def isIsomorphicTo(t: Type): Boolean
-
-//  =
-//    this match {
-//      case TDict(k1, v1) => t match {
-//        case TDict(k2, v2) => k1.isIsomorphicTo(k2) && v1.isIsomorphicTo(v2)
-//        case _ => false
-//      }
-//      case _ => this == t
-//    }
 }

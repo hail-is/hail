@@ -92,11 +92,8 @@ final case class SStackInterval(pointEmitType: EmitType) extends SInterval {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case i: SStackInterval =>
-        pointType isIsomorphicTo i.pointType
-
-      case _ =>
-        false
+      case i: SStackInterval => pointType isIsomorphicTo i.pointType
+      case _ => false
     }
 }
 

@@ -164,11 +164,8 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case s: SStackStruct =>
-        virtualType isJoinableWith s.virtualType
-
-      case _ =>
-        false
+      case s: SStackStruct => virtualType isJoinableWith s.virtualType
+      case _ => false
     }
 }
 

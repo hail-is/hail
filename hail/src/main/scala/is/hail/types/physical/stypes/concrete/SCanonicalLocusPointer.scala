@@ -71,10 +71,8 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case p: SCanonicalLocusPointer =>
-        pType == p.pType
-      case _ =>
-        false
+      case p: SCanonicalLocusPointer => pType == p.pType
+      case _ => false
     }
 }
 

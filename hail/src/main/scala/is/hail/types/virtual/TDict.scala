@@ -93,7 +93,10 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def isIsomorphicTo(t: Type): Boolean =
     t match {
-      case d: TDict => (keyType isIsomorphicTo d.keyType) && (valueType isIsomorphicTo d.valueType)
-      case _ => false
+      case d: TDict =>
+        (keyType isIsomorphicTo d.keyType) &&
+          (valueType isIsomorphicTo d.valueType)
+      case _ =>
+        false
     }
 }

@@ -52,11 +52,8 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case p: SBinaryPointer =>
-        pType == p.pType
-
-      case _ =>
-        false
+      case p: SBinaryPointer => pType == p.pType
+      case _ => false
     }
 }
 

@@ -60,11 +60,8 @@ final case class SNDArraySlice(pType: PCanonicalNDArray) extends SNDArray {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case a: SNDArraySlice =>
-        pType.sType isIsomorphicTo a.pType.sType
-
-      case _ =>
-        false
+      case a: SNDArraySlice => pType.sType isIsomorphicTo a.pType.sType
+      case _ => false
     }
 }
 

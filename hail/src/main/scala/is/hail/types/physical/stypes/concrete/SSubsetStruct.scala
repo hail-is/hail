@@ -106,7 +106,6 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
       case s: SSubsetStruct =>
         (parent isIsomorphicTo s.parent) &&
         newToOldFieldMapping == s.newToOldFieldMapping
-
       case _ =>
         false
     }

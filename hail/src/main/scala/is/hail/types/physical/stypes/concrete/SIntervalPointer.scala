@@ -71,11 +71,8 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case p: SIntervalPointer =>
-        pointType isIsomorphicTo p.pointType
-
-      case _ =>
-        false
+      case p: SIntervalPointer => pointType isIsomorphicTo p.pointType
+      case _ => false
     }
 }
 

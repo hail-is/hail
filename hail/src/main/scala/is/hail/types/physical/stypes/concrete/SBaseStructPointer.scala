@@ -57,10 +57,8 @@ final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
 
   override def isIsomorphicTo(st: SType): Boolean =
     st match {
-      case p: SBaseStructPointer =>
-        pType isIsomorphicTo p.pType
-      case _ =>
-        false
+      case p: SBaseStructPointer => pType isIsomorphicTo p.pType
+      case _ => false
     }
 }
 
