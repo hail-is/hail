@@ -1624,6 +1624,7 @@ BEGIN
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE expected_attempt_id VARCHAR(40);
+  DECLARE new_batch_n_completed INT;
 
   START TRANSACTION;
 
@@ -1668,6 +1669,19 @@ BEGIN
     UPDATE jobs
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
+
+    SELECT n_completed + 1 INTO new_batch_n_completed
+    FROM job_groups_n_jobs_in_complete_states
+    WHERE id = in_batch_id AND job_group_id = 0;
+
+    # Grabbing an exclusive lock on batches here could deadlock,
+    # but this IF should only execute for the last job
+    IF new_batch_n_completed = total_jobs_in_batch THEN
+      UPDATE batches
+      SET time_completed = new_timestamp,
+          `state` = 'complete'
+      WHERE id = in_batch_id;
+    END IF;
 
     UPDATE job_groups_n_jobs_in_complete_states
     INNER JOIN (
