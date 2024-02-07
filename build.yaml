@@ -749,9 +749,8 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      time retry make shadowJar wheel
+      time retry sh millw --version
+      time retry make shadowJar wheel HAIL_RELEASE_MODE=1
 
       # Check wheel size is small enough for pypi (< 200 MiB)
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
@@ -765,7 +764,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark.jar
+      - from: /io/repo/hail/out/assembly.dest/out.jar
         to: /hail.jar
       - from: /io/wheel
         to: /wheel
@@ -782,16 +781,15 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      time retry make jars wheel HAIL_DEBUG_MODE=1
+      time retry sh millw --version
+      time retry make jars wheel
       mkdir /io/debug-wheel
       mv build/deploy/dist/hail-*-py3-none-any.whl /io/debug-wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+      - from: /io/repo/hail/out/test/assembly.dest/out.jar
         to: /hail-debug-test.jar
       - from: /io/debug-wheel
         to: /debug-wheel
@@ -808,8 +806,7 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
+      time retry sh millw --version
       time retry make shadowTestJar
 
       time tar czf test.tar.gz -C python test
@@ -821,7 +818,7 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/build/libs/hail-all-spark-test.jar
+      - from: /io/repo/hail/out/test/assembly.dest/out.jar
         to: /hail-test.jar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
@@ -844,9 +841,8 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.10"
+      time retry sh millw --version
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1
       time retry make wheel
 
       mkdir /io/azure-wheel
@@ -3269,9 +3265,8 @@ steps:
       fi
 
       cd hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37
+      time retry sh millw --version
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3311,9 +3306,8 @@ steps:
       fi
 
       cd hail
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38
+      time retry sh millw --version
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3362,9 +3356,8 @@ steps:
           exit 0
       fi
 
-      chmod 755 ./gradlew
-      time retry ./gradlew --version
-      make wheel upload-artifacts DEPLOY_REMOTE=origin
+      time retry sh millw --version
+      make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
 
       bash scripts/release.sh $(cat /io/hail_pip_version) \
                               $(cat /io/hail_version) \
@@ -3934,3 +3927,26 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
+  - kind: runImage
+    name: set_gcp_ar_cleanup_policies
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_utils_image.image
+    scopes:
+      - deploy
+    script: |
+      gcloud artifacts repositories set-cleanup-policies hail \
+        --project={{ global.gcp_project }} \
+        --location=us \
+        --policy=/io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt \
+        --no-dry-run
+    inputs:
+      - from: /repo/infra
+        to: /io/repo/infra
+    clouds:
+      - gcp
+    dependsOn:
+      - test_gcp_ar_cleanup_policies
+      - ci_utils_image

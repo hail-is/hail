@@ -21,14 +21,6 @@ import org.apache.commons.io.IOUtils
 import org.apache.hadoop
 import org.apache.log4j.Logger
 
-trait Positioned {
-  def getPosition: Long
-}
-
-trait Seekable extends Positioned {
-  def seek(pos: Long): Unit
-}
-
 class WrappedSeekableDataInputStream(is: SeekableInputStream)
     extends DataInputStream(is) with Seekable {
   def getPosition: Long = is.getPosition
