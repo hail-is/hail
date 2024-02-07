@@ -112,8 +112,12 @@ BEGIN
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
-    LEFT JOIN jobs ON attempt_resources.batch_id = jobs.batch_id AND attempt_resources.job_id = jobs.job_id
-    LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND jobs.job_group_id = job_group_self_and_ancestors.job_group_id
+    LEFT JOIN jobs
+      ON attempt_resources.batch_id = jobs.batch_id AND
+         attempt_resources.job_id = jobs.job_id
+    LEFT JOIN job_group_self_and_ancestors
+      ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
+         jobs.job_group_id = job_group_self_and_ancestors.job_group_id
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_resources.attempt_id = NEW.attempt_id
     ON DUPLICATE KEY UPDATE `usage` = aggregated_job_group_resources_v3.`usage` + msec_diff_rollup * quantity;
 
@@ -730,6 +734,58 @@ BEGIN
       delta_cores_mcpu,
       'job state not Ready, Creating, Running or complete' as message;
   END IF;
+END $$
+
+# https://dev.mysql.com/doc/refman/8.0/en/cursors.html
+# https://stackoverflow.com/questions/5817395/how-can-i-loop-through-all-rows-of-a-table-mysql/16350693#16350693
+DROP PROCEDURE IF EXISTS mark_job_group_complete $$
+CREATE PROCEDURE mark_job_group_complete(
+  IN in_batch_id BIGINT,
+  IN in_job_group_id INT,
+  IN new_timestamp BIGINT
+)
+BEGIN
+  DECLARE cursor_job_group_id INT;
+  DECLARE done BOOLEAN DEFAULT FALSE;
+  DECLARE total_jobs_in_job_group INT;
+  DECLARE cur_n_completed INT;
+
+  DECLARE job_group_cursor CURSOR FOR
+  SELECT ancestor_id
+  FROM job_group_self_and_ancestors
+  WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
+  ORDER BY ancestor_id ASC;
+
+  DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+  OPEN job_group_cursor;
+  update_job_group_loop: LOOP
+    FETCH job_group_cursor INTO cursor_job_group_id;
+
+    IF done THEN
+      LEAVE update_job_group_loop;
+    END IF;
+
+    SELECT n_jobs INTO total_jobs_in_job_group
+    FROM job_groups
+    WHERE batch_id = in_batch_id AND job_group_id = cursor_job_group_id
+    LOCK IN SHARE MODE;
+
+    SELECT n_completed INTO cur_n_completed
+    FROM job_groups_n_jobs_in_complete_states
+    WHERE id = in_batch_id AND job_group_id = cursor_job_group_id
+    LOCK IN SHARE MODE;
+
+    # Grabbing an exclusive lock on job groups here could deadlock,
+    # but this IF should only execute for the last job
+    IF cur_n_completed = total_jobs_in_job_group THEN
+      UPDATE job_groups
+      SET time_completed = new_timestamp,
+        `state` = 'complete'
+      WHERE batch_id = in_batch_id AND job_group_id = cursor_job_group_id;
+    END IF;
+  END LOOP;
+  CLOSE job_group_cursor;
 END $$
 
 DELIMITER ;

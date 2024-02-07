@@ -1569,7 +1569,7 @@ BEGIN
   SELECT ancestor_id
   FROM job_group_self_and_ancestors
   WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
-  ORDER BY job_group_id ASC;
+  ORDER BY ancestor_id ASC;
 
   DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
 
