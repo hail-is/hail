@@ -48,9 +48,9 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
     val a = settables(0).asInstanceOf[Settable[Long @unchecked]]
     val shape =
       settables.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Settable[Long @unchecked]]]
-    val strides = settables.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[
-      Settable[Long @unchecked]
-    ]]
+    val strides = settables
+      .slice(1 + pType.nDims, 1 + 2 * pType.nDims)
+      .asInstanceOf[IndexedSeq[Settable[Long @unchecked]]]
     val dataFirstElementPointer = settables.last.asInstanceOf[Settable[Long]]
     assert(a.ti == LongInfo)
     new SNDArrayPointerSettable(this, a, shape, strides, dataFirstElementPointer)
@@ -59,9 +59,9 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   override def fromValues(values: IndexedSeq[Value[_]]): SNDArrayPointerValue = {
     val a = values(0).asInstanceOf[Value[Long @unchecked]]
     val shape = values.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
-    val strides = values.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[
-      Value[Long @unchecked]
-    ]]
+    val strides = values
+      .slice(1 + pType.nDims, 1 + 2 * pType.nDims)
+      .asInstanceOf[IndexedSeq[Value[Long @unchecked]]]
     val dataFirstElementPointer = values.last.asInstanceOf[Value[Long]]
     assert(a.ti == LongInfo)
     new SNDArrayPointerValue(
@@ -78,6 +78,15 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   override def copiedType: SType = SNDArrayPointer(pType.copiedType.asInstanceOf[PCanonicalNDArray])
 
   override def containsPointers: Boolean = pType.containsPointers
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    st match {
+      case p: SNDArrayPointer =>
+        elementType isIsomorphicTo p.elementType
+
+      case _ =>
+        false
+    }
 }
 
 class SNDArrayPointerValue(

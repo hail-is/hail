@@ -88,6 +88,15 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   def construct(cb: EmitCodeBuilder, arr: Code[Array[String]]): SJavaArrayStringValue =
     new SJavaArrayStringValue(this, cb.memoize(arr))
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    st match {
+      case a: SJavaArrayString =>
+        elementRequired == a.elementRequired
+
+      case _ =>
+        false
+    }
 }
 
 class SJavaArrayStringValue(

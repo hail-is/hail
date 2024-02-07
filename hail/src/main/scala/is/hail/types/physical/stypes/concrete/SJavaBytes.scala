@@ -42,6 +42,9 @@ case object SJavaBytes extends SBinary {
     val IndexedSeq(b: Value[Array[Byte] @unchecked]) = values
     new SJavaBytesValue(b)
   }
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    this == st
 }
 
 class SJavaBytesValue(val bytes: Value[Array[Byte]]) extends SBinaryValue {

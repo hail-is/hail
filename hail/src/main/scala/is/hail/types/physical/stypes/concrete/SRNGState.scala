@@ -85,6 +85,15 @@ final case class SRNGState(staticInfo: Option[SRNGStateStaticInfo]) extends STyp
   override def copiedType: SType = ???
 
   override def castRename(t: Type): SType = ???
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    st match {
+      case s: SRNGState =>
+        staticInfo == s.staticInfo
+
+      case _ =>
+        false
+    }
 }
 
 trait SRNGStateValue extends SValue {

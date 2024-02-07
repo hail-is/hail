@@ -100,6 +100,16 @@ final case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[Strin
 //  def storageType(): PType = StoredSTypePType(this, false)
 
   override def containsPointers: Boolean = parent.containsPointers
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    st match {
+      case s: SSubsetStruct =>
+        (parent isIsomorphicTo s.parent) &&
+        newToOldFieldMapping == s.newToOldFieldMapping
+
+      case _ =>
+        false
+    }
 }
 
 class SSubsetStructValue(val st: SSubsetStruct, val prev: SBaseStructValue)

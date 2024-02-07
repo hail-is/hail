@@ -40,6 +40,9 @@ case object SInt32 extends SPrimitive {
   }
 
   override def storageType(): PType = PInt32()
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    this == st
 }
 
 class SInt32Value(val value: Value[Int]) extends SPrimitiveValue {

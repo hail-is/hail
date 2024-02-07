@@ -54,6 +54,14 @@ final case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   override def storageType(): PType = pType
 
   override def copiedType: SType = SBaseStructPointer(pType.copiedType.asInstanceOf[PBaseStruct])
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    st match {
+      case p: SBaseStructPointer =>
+        pType isIsomorphicTo p.pType
+      case _ =>
+        false
+    }
 }
 
 class SBaseStructPointerValue(

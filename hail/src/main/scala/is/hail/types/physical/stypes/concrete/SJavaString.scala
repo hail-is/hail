@@ -50,6 +50,9 @@ case object SJavaString extends SString {
 
   def construct(cb: EmitCodeBuilder, s: Code[String]): SJavaStringValue =
     new SJavaStringValue(cb.memoize(s))
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    this == st
 }
 
 class SJavaStringValue(val s: Value[String]) extends SStringValue {

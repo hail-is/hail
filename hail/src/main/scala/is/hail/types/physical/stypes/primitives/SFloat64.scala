@@ -41,6 +41,9 @@ case object SFloat64 extends SPrimitive {
   }
 
   override def storageType(): PType = PFloat64()
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    this == st
 }
 
 object SFloat64Value {

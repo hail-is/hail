@@ -92,6 +92,8 @@ trait SType {
     VirtualTypeWithReq(virtualType, _typeWithRequiredness)
 
   def containsPointers: Boolean
+
+  def isIsomorphicTo(st: SType): Boolean
 }
 
 case class EmitType(st: SType, required: Boolean) {

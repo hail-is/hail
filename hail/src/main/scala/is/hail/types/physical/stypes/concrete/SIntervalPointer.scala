@@ -68,6 +68,15 @@ final case class SIntervalPointer(pType: PInterval) extends SInterval {
   override def copiedType: SType = SIntervalPointer(pType.copiedType.asInstanceOf[PInterval])
 
   override def containsPointers: Boolean = pType.containsPointers
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    st match {
+      case p: SIntervalPointer =>
+        pointType isIsomorphicTo p.pointType
+
+      case _ =>
+        false
+    }
 }
 
 class SIntervalPointerValue(

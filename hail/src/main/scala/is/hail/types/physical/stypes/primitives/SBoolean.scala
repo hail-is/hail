@@ -41,6 +41,9 @@ case object SBoolean extends SPrimitive {
   }
 
   override def storageType(): PType = PBoolean()
+
+  override def isIsomorphicTo(st: SType): Boolean =
+    this == st
 }
 
 class SBooleanValue(val value: Value[Boolean]) extends SPrimitiveValue {
