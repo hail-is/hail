@@ -8,12 +8,12 @@ Datasets
     All functionality described on this page is experimental and subject to
     change.
 
-This page describes genetic datasets that are hosted in public buckets
-on both Google Cloud Storage and Amazon S3. Note that these datasets are
-stored in :ref:`Requester Pays<GCP Requester Pays>` buckets on GCS, and are
-available in both the US and EU regions. On AWS, the datasets are shared via
-`Open Data on AWS <https://aws.amazon.com/opendata/>`__ and are in buckets in
-the US region.
+This page describes genetic datasets that are hosted in public buckets on both
+Google Cloud Storage and Amazon S3. Note that these datasets are stored in
+:ref:`Requester Pays<GCP Requester Pays>` buckets on GCS, and are available in
+both the US-CENTRAL1 and EUROPE-WEST1 regions. On AWS, the datasets are shared
+via `Open Data on AWS <https://aws.amazon.com/opendata/>`__ and are in buckets
+in the US region.
 
 Check out the :func:`.load_dataset` function to see how to load one of these
 datasets into a Hail pipeline. You will need to provide the name, version, and
