@@ -1977,4 +1977,19 @@ def test_dependencies_across_job_groups(client: BatchClient):
     assert status['state'] == 'success', str(b.debug_info())
 
 
-# FIXME: make sure cancellation in child job group doesn't cancel root job group jobs
+def test_job_group_cancel_after_n_failures_does_not_cancel_higher_up_jobs(client: BatchClient):
+    b = create_batch(client)
+    b_j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
+    jg = b.create_job_group(cancel_after_n_failures=1)
+    jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
+    b.submit()
+    j2_status = j2.wait()
+    jg_status = jg.wait()
+    b_j_status = b_j.status()
+    try:
+        assert b_j_status['state'] in ('Running', 'Success'), str((b_j_status, b.debug_info()))
+        assert j2_status['state'] == 'Cancelled', str((j2_status, jg.debug_info()))
+        assert jg_status['state'] == 'failure', str((jg_status, jg.debug_info()))
+    finally:
+        b.cancel()
