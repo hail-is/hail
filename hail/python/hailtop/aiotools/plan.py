@@ -114,7 +114,7 @@ class FileStat:
 
 async def listfiles(fs: AsyncFS, x: str) -> List[FileStat]:
     try:
-        it = await fs.listfiles(x)
+        it = await fs.listfiles(x, recursive=True)
         return [await FileStat.from_file_list_entry(x) async for x in it]
     except (FileNotFoundError, NotADirectoryError):
         return []
@@ -136,7 +136,7 @@ def relativize_url(folder: str, file: str) -> str:
     if folder[-1] != '/':
         folder = folder + '/'
     relative_path = file.removeprefix(folder)
-    assert relative_path[0] != '/'
+    assert relative_path[0] != '/', (relative_path, folder, file)
     return relative_path
 
 
@@ -268,21 +268,15 @@ async def find_all_copy_pairs(
             while srcidx < len(srcfiles) and dstidx < len(dstfiles):
                 srcf = srcfiles[srcidx]
                 dstf = dstfiles[dstidx]
-                if srcf.basename == dstf.basename:
-                    if srcf.is_dir and dstf.is_dir:
-                        background_process_child_dir(srcf.url, dstf.url)
-                    elif srcf.is_dir and not dstf.is_dir:
-                        await writeline(differs, srcf.url, dstf.url, 'dir', 'file')
-                    elif not srcf.is_dir and dstf.is_dir:
-                        await writeline(differs, srcf.url, dstf.url, 'file', 'dir')
-                    elif srcf.size == dstf.size:
+                if srcf.url == dstf.url:
+                    if srcf.size == dstf.size:
                         await writeline(matches, srcf.url, dstf.url)
                     else:
                         await writeline(differs, srcf.url, dstf.url, str(srcf.size), str(dstf.size))
                     dstidx += 1
                     srcidx += 1
                     progress.update(tid, advance=2)
-                elif srcf.basename < dstf.basename:
+                elif srcf.url < dstf.url:
                     if srcf.is_dir:
                         background_process_child_dir(
                             srcf.url,
@@ -290,13 +284,13 @@ async def find_all_copy_pairs(
                         )
                     else:
                         await writeline(srconly, srcf.url)
-                        await writeline(plan, srcf.url, os.path.join(dst, srcf.basename))
+                        await writeline(plan, srcf.url, os.path.join(dst, relativize_url(folder=src, file=srcf.url)))
                         n_files += 1
                         n_bytes += srcf.size
                     srcidx += 1
                     progress.update(tid, advance=1)
                 else:
-                    assert srcf.basename >= dstf.basename
+                    assert srcf.url >= dstf.url
                     dstidx += 1
                     progress.update(tid, advance=1)
                     await writeline(dstonly, dstf.url)
@@ -311,7 +305,7 @@ async def find_all_copy_pairs(
                     )
                 else:
                     await writeline(srconly, srcf.url)
-                    await writeline(plan, srcf.url, os.path.join(dst, srcf.basename))
+                    await writeline(plan, srcf.url, os.path.join(dst, relativize_url(folder=src, file=srcf.url)))
                     n_files += 1
                     n_bytes += srcf.size
                 srcidx += 1
