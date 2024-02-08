@@ -95,7 +95,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
     t match {
       case d: TDict =>
         (keyType isIsomorphicTo d.keyType) &&
-          (valueType isIsomorphicTo d.valueType)
+        (valueType isIsomorphicTo d.valueType)
       case _ =>
         false
     }
