@@ -879,23 +879,23 @@ def cochran_mantel_haenszel_test(
     """
     # The variable names below correspond to the notation used in the Wikipedia article.
     # https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics
-    n1 = zip(a, b).map(lambda ab: ab[0] + ab[1])
-    n2 = zip(c, d).map(lambda cd: cd[0] + cd[1])
-    m1 = zip(a, c).map(lambda ac: ac[0] + ac[1])
-    m2 = zip(b, d).map(lambda bd: bd[0] + bd[1])
-    t = zip(n1, n2).map(lambda nn: nn[0] + nn[1])
+    n1 = hl.zip(a, b).map(lambda ab: ab[0] + ab[1])
+    n2 = hl.zip(c, d).map(lambda cd: cd[0] + cd[1])
+    m1 = hl.zip(a, c).map(lambda ac: ac[0] + ac[1])
+    m2 = hl.zip(b, d).map(lambda bd: bd[0] + bd[1])
+    t = hl.zip(n1, n2).map(lambda nn: nn[0] + nn[1])
 
     def numerator_term(a, n1, m1, t):
         return a - n1 * m1 / t
 
     # The numerator comes from the link below, not from the Wikipedia article.
     # https://www.biostathandbook.com/cmh.html
-    numerator = (abs(sum(zip(a, n1, m1, t).map(lambda tup: numerator_term(*tup)))) - 0.5) ** 2
+    numerator = (hl.abs(hl.sum(hl.zip(a, n1, m1, t).map(lambda tup: numerator_term(*tup)))) - 0.5) ** 2
 
     def denominator_term(n1, n2, m1, m2, t):
         return n1 * n2 * m1 * m2 / (t**3 - t**2)
 
-    denominator = sum(zip(n1, n2, m1, m2, t).map(lambda tup: denominator_term(*tup)))
+    denominator = hl.sum(hl.zip(n1, n2, m1, m2, t).map(lambda tup: denominator_term(*tup)))
 
     test_statistic = numerator / denominator
     p_value = pchisqtail(test_statistic, 1)
