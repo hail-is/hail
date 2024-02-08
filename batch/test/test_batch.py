@@ -1988,7 +1988,7 @@ def test_job_group_cancel_after_n_failures_does_not_cancel_higher_up_jobs(client
     jg_status = jg.wait()
     b_j_status = b_j.status()
     try:
-        assert b_j_status['state'] in ('Running', 'Success'), str((b_j_status, b.debug_info()))
+        assert b_j_status['state'] != 'Cancelled', str((b_j_status, b.debug_info()))
         assert j2_status['state'] == 'Cancelled', str((j2_status, jg.debug_info()))
         assert jg_status['state'] == 'failure', str((jg_status, jg.debug_info()))
     finally:

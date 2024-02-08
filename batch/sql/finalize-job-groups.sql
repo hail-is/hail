@@ -357,7 +357,6 @@ BEGIN
   DECLARE cur_cancelled_ready_cores_mcpu BIGINT;
   DECLARE cur_n_cancelled_running_jobs INT;
   DECLARE cur_cancelled_running_cores_mcpu BIGINT;
-  DECLARE cur_n_n_cancelled_creating_jobs INT;  # FIXME are these used?
 
   START TRANSACTION;
 
@@ -411,11 +410,11 @@ BEGIN
       n_running_cancellable_jobs,
       running_cancellable_cores_mcpu)
     SELECT job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, ancestor_id, inst_coll, 0,
-      -1 * (@n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0)),
-      -1 * (@ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0)),
-      -1 * (@n_creating_cancellable_jobs := COALESCE(SUM(n_creating_cancellable_jobs), 0)),
-      -1 * (@n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
-      -1 * (@running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0))
+      -1 * (@jg_n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0)),
+      -1 * (@jg_ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0)),
+      -1 * (@jg_n_creating_cancellable_jobs := COALESCE(SUM(n_creating_cancellable_jobs), 0)),
+      -1 * (@jg_n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
+      -1 * (@jg_running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0))
     FROM job_group_inst_coll_cancellable_resources
     JOIN batches ON batches.id = job_group_inst_coll_cancellable_resources.batch_id
     INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
@@ -427,11 +426,11 @@ BEGIN
       batch_updates.committed
     GROUP BY job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, ancestor_id, inst_coll
     ON DUPLICATE KEY UPDATE
-      n_ready_cancellable_jobs = n_ready_cancellable_jobs - @n_ready_cancellable_jobs,
-      ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - @ready_cancellable_cores_mcpu,
-      n_creating_cancellable_jobs = n_creating_cancellable_jobs - @n_creating_cancellable_jobs,
-      n_running_cancellable_jobs = n_running_cancellable_jobs - @n_running_cancellable_jobs,
-      running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - @running_cancellable_cores_mcpu;
+      n_ready_cancellable_jobs = n_ready_cancellable_jobs - @jg_n_ready_cancellable_jobs,
+      ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - @jg_ready_cancellable_cores_mcpu,
+      n_creating_cancellable_jobs = n_creating_cancellable_jobs - @jg_n_creating_cancellable_jobs,
+      n_running_cancellable_jobs = n_running_cancellable_jobs - @jg_n_running_cancellable_jobs,
+      running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - @jg_running_cancellable_cores_mcpu;
 
     # delete all rows that are children of this job group
     DELETE job_group_inst_coll_cancellable_resources
