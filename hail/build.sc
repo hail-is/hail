@@ -128,8 +128,8 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
       "-unchecked",
       "-Xsource:2.13",
       "-Xno-patmat-analysis",
-      // "-Ypartial-unification",
-      // "-Yno-adapted-args", // will be removed in 2.13
+      "-Ypartial-unification",
+      "-Yno-adapted-args", // will be removed in 2.13
       "-Xlint",
       "-Ywarn-unused:_,-explicits,-implicits",
     ) ++ (
