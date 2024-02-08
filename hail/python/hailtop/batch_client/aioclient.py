@@ -342,10 +342,9 @@ class JobGroup:
         self._submitted = submitted
         self._last_known_status = last_known_status
 
-    def _submit(self, in_update_start_job_group_id: Optional[int]):
+    def _submit(self, in_update_start_job_group_id: int):
         self._raise_if_submitted()
-        if in_update_start_job_group_id is not None:
-            self._job_group_id = in_update_start_job_group_id + self._job_group_id - 1
+        self._job_group_id = in_update_start_job_group_id + self._job_group_id - 1
         self._submitted = True
 
     def _raise_if_not_submitted(self):
@@ -935,6 +934,7 @@ class Batch:
         b.extend(b',"batch":')
         b.extend(orjson.dumps(self._batch_spec()))
         b.append(ord('}'))
+        print(b)
         resp = await self._client._post(
             '/api/v1alpha/batches/create-fast',
             data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),
@@ -943,10 +943,11 @@ class Batch:
         job_group_progress_task.update(len(byte_job_group_specs))
         job_progress_task.update(len(byte_job_specs))
 
+        start_job_group_id = int(batch_json['start_job_group_id'])
         self._id = batch_json['id']
-        self._root_job_group._submit(None)
+        self._root_job_group._submit(start_job_group_id)
         self._submission_info = BatchSubmissionInfo(used_fast_path=True)
-        return (int(batch_json['start_job_group_id']), int(batch_json['start_job_id']))
+        return (start_job_group_id, int(batch_json['start_job_id']))
 
     async def _update_fast(
         self,

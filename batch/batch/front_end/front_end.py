@@ -1053,7 +1053,7 @@ LOCK IN SHARE MODE;
     job_attributes_args = []
     jobs_telemetry_args = []
 
-    inst_coll_resources: Dict[str, Dict[str, int]] = collections.defaultdict(
+    inst_coll_resources: Dict[Tuple[int, str], Dict[str, int]] = collections.defaultdict(
         lambda: {
             'n_jobs': 0,
             'n_ready_jobs': 0,
@@ -1275,7 +1275,7 @@ LOCK IN SHARE MODE;
         sa = spec.get('service_account')
         check_service_account_permissions(user, sa)
 
-        icr = inst_coll_resources[inst_coll_name]
+        icr = inst_coll_resources[(job_group_id, inst_coll_name)]
         icr['n_jobs'] += 1
 
         # jobs in non-initial updates of a batch always start out as pending
@@ -1396,14 +1396,14 @@ VALUES (%s, %s, %s);
                 (
                     batch_id,
                     update_id,
-                    job_group_id,
+                    icr_job_group_id,
                     inst_coll,
                     rand_token,
                     resources['n_jobs'],
                     resources['n_ready_jobs'],
                     resources['ready_cores_mcpu'],
                 )
-                for inst_coll, resources in inst_coll_resources.items()
+                for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
             ]
             await tx.execute_many(
                 """
@@ -1422,13 +1422,13 @@ ON DUPLICATE KEY UPDATE
                 (
                     batch_id,
                     update_id,
-                    job_group_id,
+                    icr_job_group_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
                     resources['ready_cancellable_cores_mcpu'],
                 )
-                for inst_coll, resources in inst_coll_resources.items()
+                for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
             ]
             await tx.execute_many(
                 """

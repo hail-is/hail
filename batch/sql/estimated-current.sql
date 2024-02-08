@@ -1096,17 +1096,15 @@ BEGIN
 
       UPDATE job_groups
       INNER JOIN (
-        SELECT t.batch_id, t.ancestor_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
-        FROM job_groups_inst_coll_staging
-        INNER JOIN LATERAL (
-          SELECT batch_id, ancestor_id
-          FROM job_group_self_and_ancestors
-          WHERE job_group_self_and_ancestors.batch_id = job_groups_inst_coll_staging.batch_id AND
-                job_group_self_and_ancestors.job_group_id = job_groups_inst_coll_staging.job_group_id
-        ) AS t ON TRUE
+        SELECT job_group_self_and_ancestors.batch_id,
+          job_group_self_and_ancestors.ancestor_id,
+          CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
+        FROM job_group_self_and_ancestors
+        INNER JOIN job_groups_inst_coll_staging ON job_groups_inst_coll_staging.batch_id = job_group_self_and_ancestors.batch_id AND
+          job_groups_inst_coll_staging.job_group_id = job_group_self_and_ancestors.job_group_id
         WHERE job_groups_inst_coll_staging.batch_id = in_batch_id AND job_groups_inst_coll_staging.update_id = in_update_id
-        GROUP BY t.batch_id, t.ancestor_id
-      ) AS t ON job_groups_inst_coll_staging.batch_id = t.batch_id AND job_groups_inst_coll_staging.job_group_id = t.ancestor_id
+        GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id
+      ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.ancestor_id
       SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
       # compute global number of new ready jobs from summing all job groups
@@ -1160,7 +1158,6 @@ BEGIN
     END IF;
   END IF;
 END $$
-
 
 # FIXME -- Make sure there's no changes here!!!!
 DROP PROCEDURE IF EXISTS cancel_batch $$
@@ -1271,7 +1268,6 @@ BEGIN
   DECLARE cur_cancelled_ready_cores_mcpu BIGINT;
   DECLARE cur_n_cancelled_running_jobs INT;
   DECLARE cur_cancelled_running_cores_mcpu BIGINT;
-  DECLARE cur_n_n_cancelled_creating_jobs INT;
 
   START TRANSACTION;
 
