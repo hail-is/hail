@@ -26,7 +26,7 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.mutable
 import scala.language.existentials
 import java.io._
-import scala.annotation.nowarn
+import scala.annotation.{nowarn, tailrec}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -814,42 +814,14 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case Void() =>
         Code._empty
 
-      case x @ Begin(xs) =>
-        if (
-          !ctx.inLoopCriticalPath.contains(x) && xs.forall(x => !ctx.inLoopCriticalPath.contains(x))
-        ) {
-          xs.grouped(16).zipWithIndex.foreach { case (group, idx) =>
-            val mb = cb.emb.genEmitMethod(
-              s"begin_group_$idx",
-              FastSeq[ParamType](classInfo[Region]),
-              UnitInfo,
-            )
-            mb.voidWithBuilder { cb =>
-              group.foreach(x =>
-                emitVoid(x, cb, mb.getCodeParam[Region](1), env, container, loopEnv)
-              )
-            }
-            cb.invokeVoid(mb, cb.this_, region)
-          }
-        } else
-          xs.foreach(x => emitVoid(x))
-
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case let: Let =>
-        emitLet(
-          emitI = (ir, cb, env) =>
-            if (ir.typ.isInstanceOf[TStream]) emitStream(ir, region, env = env).toI(cb)
-            else emitI(ir, cb = cb, env = env),
-          emitBody = (ir, cb, env) => emitVoid(ir, cb, env = env),
-        )(
-          let,
-          cb,
-          env,
-        )
+        val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
+        emitVoid(let.body, env = newEnv)
 
       case StreamFor(a, valueName, body) =>
         emitStream(a, region).toI(cb).consume(
@@ -892,7 +864,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val AggContainer(aggs, sc, _) = container.get
         assert(sig.state == aggs(i1) && sig.state == aggs(i2))
         val rvAgg = agg.Extract.getAgg(sig)
-        rvAgg.combOp(ctx.executeContext, cb, sc.states(i1), sc.states(i2))
+        rvAgg.combOp(ctx.executeContext, cb, region, sc.states(i1), sc.states(i2))
 
       case SerializeAggs(start, sIdx, spec, sigs) =>
         val AggContainer(_, sc, _) = container.get
@@ -960,7 +932,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             tempState.createState(cb)
             tempState.newState(cb)
             tempState.deserializeFromBytes(cb, serializedValue)
-            rvAgg.combOp(ctx.executeContext, cb, sc.states(i), tempState)
+            rvAgg.combOp(ctx.executeContext, cb, region, sc.states(i), tempState)
           },
         )
 
@@ -1028,11 +1000,14 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     ): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region]): IEmitCode =
+    def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region], env: EmitEnv = env)
+      : IEmitCode =
       EmitStream.produce(this, ir, cb, cb.emb, outerRegion, env, container)
 
     def emitVoid(
       ir: IR,
+      cb: EmitCodeBuilder = cb,
+      region: Value[Region] = region,
       env: EmitEnv = env,
       container: Option[AggContainer] = container,
       loopEnv: Option[Env[LoopRef]] = loopEnv,
@@ -1127,6 +1102,10 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
+
+      case let: Let =>
+        val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
+        emitI(let.body, env = newEnv)
 
       case Coalesce(values) =>
         val emittedValues = values.map(v => EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, v)))
@@ -3442,45 +3421,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     result
   }
 
-  /** Invariants of the Returned Triplet ----------------------------------
-    *
-    * The elements of the triplet are called (precompute, missingness, value)
-    *
-    *   1. evaluate each returned Code[_] at most once 2. evaluate precompute *on all static
-    *      code-paths* leading to missingness or value 3. guard the the evaluation of value by
-    *      missingness
-    *
-    * Triplets returning values cannot have side-effects. For void triplets, precompute contains the
-    * side effect, missingness is false, and value is {@code Code._empty} .
-    *
-    * JVM gotcha: a variable must be initialized on all static code-paths prior to its use (ergo
-    * defaultValue)
-    *
-    * Argument Convention -------------------
-    *
-    * {@code In(i)} occupies two argument slots, one for the value and one for a missing bit. The
-    * value for {@code  In(0)} is passed as argument {@code  nSpecialArguments + 1} . The
-    * missingness bit is the subsequent argument. In general, the value for {@code  In(i)} appears
-    * at {@code  nSpecialArguments + 1 + 2 * i} .
-    *
-    * There must always be at least one special argument: a {@code  Region} in which the IR can
-    * allocate memory.
-    *
-    * When compiling an aggregation expression, {@code AggIn} refers to the first argument
-    * {@code In(0)} whose type must be of type {@code tAggIn.elementType} . {@code tAggIn.symTab} is
-    * not used by Emit.
-    */
   private[ir] def emit(
-    ir: IR,
-    mb: EmitMethodBuilder[C],
-    env: EmitEnv,
-    container: Option[AggContainer],
-  ): EmitCode = {
-    val region = mb.getCodeParam[Region](1)
-    emit(ir, mb, region, env, container, None)
-  }
-
-  private[ir] def emitWithRegion(
     ir: IR,
     mb: EmitMethodBuilder[C],
     region: Value[Region],
@@ -3545,20 +3486,6 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       }
 
     val result: EmitCode = (ir: @unchecked) match {
-
-      case let: Let =>
-        EmitCode.fromI(mb) { cb =>
-          emitLet(
-            emitI = (ir, cb, env) =>
-              if (ir.typ.isInstanceOf[TStream]) emitStream(ir, region, env = env).toI(cb)
-              else emitI(ir, cb = cb, env = env),
-            emitBody = (ir, cb, env) => emitI(ir, cb, env = env),
-          )(
-            let,
-            cb,
-            env,
-          )
-        }
 
       case Ref(name, t) =>
         val ev = env.bindings.lookup(name)
@@ -3684,32 +3611,116 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       cb.memoize(cb.invokeCode[Boolean](sort, cb.this_, region, l, r))
   }
 
-  def emitLet[A](
-    emitI: (IR, EmitCodeBuilder, EmitEnv) => IEmitCode,
-    emitBody: (IR, EmitCodeBuilder, EmitEnv) => A,
-  )(
+  /** Emit the bindings (but not the body) of `let`. If possible, split bindings into chunks, and
+    * emit each chunk in a separate method.
+    */
+  // TODO: splitting logic should get lifted into ComputeMethodSplits
+  def emitLetBindings(
     let: Let,
     cb: EmitCodeBuilder,
     env: EmitEnv,
-  ): A = {
+    r: Value[Region],
+    container: Option[AggContainer],
+    loopEnv: Option[Env[LoopRef]],
+  ): EmitEnv = {
+    def emitI(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): IEmitCode =
+      if (ir.typ.isInstanceOf[TStream])
+        EmitStream.produce(this, ir, cb, cb.emb, r, env, container)
+      else this.emitI(ir, cb, r, env, container, loopEnv)
+
+    def emitVoid(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): Unit =
+      this.emitVoid(cb, ir, r, env, container, loopEnv)
+
     val uses: mutable.Set[String] =
       ctx.usesAndDefs.uses.get(let) match {
         case Some(refs) => refs.map(_.t.name)
         case None => mutable.Set.empty
       }
 
-    emitBody(
-      let.body,
-      cb,
-      let.bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
-        if (!uses.contains(name)) newEnv
-        else {
-          val value = emitI(ir, cb, newEnv)
+    /* Emit a sequence of bindings into a code builder. Each is added to the environment of all
+     * following bindings. Any bindings which is unused and has no side effects is skipped (this is
+     * mostly an optimization, but it is important not to emit unused streams). */
+    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[(String, IR)], env: EmitEnv, r: Value[Region])
+      : EmitEnv =
+      bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+        if (ir.typ == TVoid) {
+          emitVoid(ir, cb, newEnv, r)
+          newEnv
+        } else if (IsPure(ir) && !uses.contains(name)) {
+          newEnv
+        } else {
+          val value = emitI(ir, cb, newEnv, r)
           val memo = cb.memoizeMaybeStreamValue(value, s"let_$name")
           newEnv.bind(name, memo)
         }
-      },
-    )
+      }
+
+    /* Bindings before chunkStart have been emitted. Bindings in the range chunkStart <= i < pos are
+     * a pending chunk, which have not yet been emitted. chunkSize is the number of non-skipped
+     * bindings in the pending chunk. groupIdx is how many chunks have already been emitted. */
+    @tailrec def go(
+      env: EmitEnv,
+      chunkStart: Int,
+      pos: Int,
+      chunkSize: Int,
+      groupIdx: Int,
+    ): EmitEnv = {
+
+      def emitChunkInSeparateMethod(): EmitEnv = {
+        val mb = cb.emb.genEmitMethod(
+          s"begin_group_$groupIdx",
+          FastSeq[ParamType](classInfo[Region]),
+          UnitInfo,
+        )
+        var newEnv = env
+        mb.voidWithBuilder { cb =>
+          newEnv =
+            emitChunk(cb, let.bindings.slice(chunkStart, pos), env, mb.getCodeParam[Region](1))
+        }
+        cb.invokeVoid(mb, cb.this_, r)
+        newEnv
+      }
+
+      def cantEmitInSeparateMethod(ir: IR): Boolean =
+        ir.typ.isInstanceOf[TStream] || ctx.inLoopCriticalPath.contains(ir)
+
+      // end of bindings, emit any pending chunk and return the final environment
+      if (pos == let.bindings.length) {
+        if (chunkSize > 0)
+          return emitChunkInSeparateMethod()
+        else
+          return env
+      }
+
+      val (curName, curIR) = let.bindings(pos)
+
+      // skip over unused streams
+      if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {
+        go(env, chunkStart, pos + 1, chunkSize, groupIdx)
+      } else if (chunkSize == 16 || (chunkSize > 0 && cantEmitInSeparateMethod(curIR))) {
+        /* emit the current chunk if it's either max size, or broken by a stream or other control
+         * flow */
+        val newEnv = emitChunkInSeparateMethod()
+        go(newEnv, pos, pos, 0, groupIdx + 1)
+      } else if (curIR.typ.isInstanceOf[TStream]) {
+        // emit a stream, assuming we've already emitted any prior chunk
+        assert(chunkSize == 0) // no pending bindings
+        val value = emitI(curIR, cb, env, r)
+        val memo = cb.memoizeMaybeStreamValue(value, s"let_$curName")
+        val newEnv = env.bind(curName, memo)
+        go(newEnv, pos + 1, pos + 1, 0, groupIdx)
+      } else {
+        // add cur binding to pending chunk
+        go(env, chunkStart, pos + 1, chunkSize + 1, groupIdx)
+      }
+    }
+
+    // don't split into separate methods if the bindings list is small
+    if (let.bindings.size > 4) {
+      go(env, 0, 0, 0, 0)
+    } else {
+      emitChunk(cb, let.bindings, env, r)
+    }
   }
 }
 
