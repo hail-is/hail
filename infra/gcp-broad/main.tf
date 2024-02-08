@@ -438,15 +438,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_repo_admin" {
-  provider = google-beta
-  project = var.gcp_project
-  repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
-  role = "roles/artifactregistry.repoAdmin"
-  member = "serviceAccount:${module.ci_gsa_secret.email}"
-}
-
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
   provider = google-beta
   project = var.gcp_project
