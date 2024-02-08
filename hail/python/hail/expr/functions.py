@@ -832,7 +832,7 @@ def cochran_mantel_haenszel_test(
 ) -> StructExpression:
     """Perform the Cochran-Mantel-Haenszel test for association.
 
-    Example
+    Examples
     --------
     >>> a = [56, 61, 73, 71]
     >>> b = [69, 257, 65, 48]
@@ -840,6 +840,20 @@ def cochran_mantel_haenszel_test(
     >>> d = [77, 301, 79, 48]
     >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
     Struct(test_statistic=5.0496881823306765, p_value=0.024630370456863417)
+
+    >>> mt = ds.filter_rows(mt.locus == Locus(20, 10633237))
+    >>> mt.count_rows()
+    1
+    >>> a, b, c, d = mt.aggregate_entries(
+    ...     hl.tuple([
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)])
+    ...     ])
+    ... )
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=0.2188830334629822, p_value=0.6398923118508772)
 
     Notes
     -----
