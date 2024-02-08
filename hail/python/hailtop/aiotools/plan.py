@@ -270,10 +270,6 @@ async def find_all_copy_pairs(
                 dstf = dstfiles[dstidx]
                 relsrcf = relativize_url(folder=src, file=srcf.url)
                 reldstf = relativize_url(folder=dst, file=dstf.url)
-                print(srcf, relsrcf)
-                print(dstf, reldstf)
-                print(relsrcf == reldstf)
-                print(relsrcf < reldstf)
                 if relsrcf == reldstf:
                     if srcf.size == dstf.size:
                         await writeline(matches, srcf.url, dstf.url)
