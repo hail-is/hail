@@ -404,37 +404,34 @@ BEGIN
       n_cancelled_running_jobs = n_cancelled_running_jobs + @n_running_cancellable_jobs,
       n_cancelled_creating_jobs = n_cancelled_creating_jobs + @n_creating_cancellable_jobs;
 
-    INSERT INTO job_group_inst_coll_cancellable_resources (user, inst_coll, token,
-      n_ready_jobs, ready_cores_mcpu,
-      n_running_jobs, running_cores_mcpu,
-      n_creating_jobs,
-      n_cancelled_ready_jobs, n_cancelled_running_jobs, n_cancelled_creating_jobs)
-    SELECT user, inst_coll, 0,
+    INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
+      n_ready_cancellable_jobs,
+      ready_cancellable_cores_mcpu,
+      n_creating_cancellable_jobs,
+      n_running_cancellable_jobs,
+      running_cancellable_cores_mcpu)
+    SELECT job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, ancestor_id, inst_coll, 0,
       -1 * (@n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0)),
       -1 * (@ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0)),
-      -1 * (@n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
-      -1 * (@running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0)),
       -1 * (@n_creating_cancellable_jobs := COALESCE(SUM(n_creating_cancellable_jobs), 0)),
-      COALESCE(SUM(n_ready_cancellable_jobs), 0),
-      COALESCE(SUM(n_running_cancellable_jobs), 0),
-      COALESCE(SUM(n_creating_cancellable_jobs), 0)
+      -1 * (@n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
+      -1 * (@running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0))
     FROM job_group_inst_coll_cancellable_resources
     JOIN batches ON batches.id = job_group_inst_coll_cancellable_resources.batch_id
     INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
       job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
+    LEFT JOIN job_group_self_and_ancestors ON job_group_self_and_ancestors.batch_id = job_group_inst_coll_cancellable_resources.batch_id AND
+      job_group_self_and_ancestors.job_group_id = job_group_inst_coll_cancellable_resources.job_group_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
       job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id AND
       batch_updates.committed
-    GROUP BY user, inst_coll
+    GROUP BY job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, ancestor_id, inst_coll
     ON DUPLICATE KEY UPDATE
-      n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
-      ready_cores_mcpu = ready_cores_mcpu - @ready_cancellable_cores_mcpu,
-      n_running_jobs = n_running_jobs - @n_running_cancellable_jobs,
-      running_cores_mcpu = running_cores_mcpu - @running_cancellable_cores_mcpu,
-      n_creating_jobs = n_creating_jobs - @n_creating_cancellable_jobs,
-      n_cancelled_ready_jobs = n_cancelled_ready_jobs + @n_ready_cancellable_jobs,
-      n_cancelled_running_jobs = n_cancelled_running_jobs + @n_running_cancellable_jobs,
-      n_cancelled_creating_jobs = n_cancelled_creating_jobs + @n_creating_cancellable_jobs;
+      n_ready_cancellable_jobs = n_ready_cancellable_jobs - @n_ready_cancellable_jobs,
+      ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - @ready_cancellable_cores_mcpu,
+      n_creating_cancellable_jobs = n_creating_cancellable_jobs - @n_creating_cancellable_jobs,
+      n_running_cancellable_jobs = n_running_cancellable_jobs - @n_running_cancellable_jobs,
+      running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - @running_cancellable_cores_mcpu;
 
     # delete all rows that are children of this job group
     DELETE job_group_inst_coll_cancellable_resources
@@ -508,7 +505,7 @@ BEGIN
         ) AS t ON TRUE
         WHERE job_groups_inst_coll_staging.batch_id = in_batch_id AND job_groups_inst_coll_staging.update_id = in_update_id
         GROUP BY t.batch_id, t.ancestor_id
-      ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.ancestor_id
+      ) AS t ON job_groups_inst_coll_staging.batch_id = t.batch_id AND job_groups_inst_coll_staging.job_group_id = t.ancestor_id
       SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
       # compute global number of new ready jobs from summing all job groups
