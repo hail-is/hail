@@ -64,12 +64,12 @@ def buildInfo: T[PathRef] = T {
 
 object Deps {
   object HTTPComponents {
-    val core = ivy"org.apache.httpcomponents:httpcore:4.4.14"
-    val client = ivy"org.apache.httpcomponents:httpclient:4.5.13"
+    val core = ivy"org.apache.httpcomponents:httpcore:4.4.16"
+    val client = ivy"org.apache.httpcomponents:httpclient:4.5.14"
   }
 
   object Asm {
-    val version: String = "7.3.1"
+    val version: String = "9.6"
     val core = ivy"org.ow2.asm:asm:$version"
     val analysis = ivy"org.ow2.asm:asm-analysis:$version"
     val util = ivy"org.ow2.asm:asm-util:$version"
@@ -81,9 +81,9 @@ object Deps {
   }
 
   object Commons {
-    val io = ivy"commons-io:commons-io:2.11.0"
-    val lang3 = ivy"org.apache.commons:commons-lang3:3.12.0"
-    val codec = ivy"commons-codec:commons-codec:1.15"
+    val io = ivy"commons-io:commons-io:2.15.1"
+    val lang3 = ivy"org.apache.commons:commons-lang3:3.14.0"
+    val codec = ivy"commons-codec:commons-codec:1.16.0"
   }
 
   object Spark {
@@ -91,20 +91,21 @@ object Deps {
     def mllib: Task[Dep] = T.task(ivy"org.apache.spark::spark-mllib:${sparkVersion()}")
   }
 
+  // last version of samtools to support java 8/11
   val samtools = ivy"com.github.samtools:htsjdk:3.0.5"
   val jdistlib = ivy"net.sourceforge.jdistlib:jdistlib:0.4.5"
-  val freemarker = ivy"org.freemarker:freemarker:2.3.31"
-  val elasticsearch = ivy"org.elasticsearch::elasticsearch-spark-30:8.4.3"
-  val gcloud = ivy"com.google.cloud:google-cloud-storage:2.30.1"
-  val jna = ivy"net.java.dev.jna:jna:5.13.0"
-  val json4s = ivy"org.json4s::json4s-jackson:3.7.0-M11"
+  val freemarker = ivy"org.freemarker:freemarker:2.3.32"
+  val elasticsearch = ivy"org.elasticsearch::elasticsearch-spark-30:8.12.1"
+  val gcloud = ivy"com.google.cloud:google-cloud-storage:2.33.0"
+  val jna = ivy"net.java.dev.jna:jna:5.14.0"
+  val json4s = ivy"org.json4s::json4s-jackson:4.1.0-M4"
   val zstd = ivy"com.github.luben:zstd-jni:1.5.5-11"
   val lz4 = ivy"org.lz4:lz4-java:1.8.0"
   val netlib = ivy"com.github.fommil.netlib:all:1.1.2"
-  val avro = ivy"org.apache.avro:avro:1.11.2"
-  val junixsocket = ivy"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
-  val log4j = ivy"org.apache.logging.log4j:log4j-1.2-api:2.17.2"
-  val hadoopClient = ivy"org.apache.hadoop:hadoop-client:3.3.4"
+  val avro = ivy"org.apache.avro:avro:1.11.3"
+  val junixsocket = ivy"com.kohlschutter.junixsocket:junixsocket-core:2.8.3"
+  val log4j = ivy"org.apache.logging.log4j:log4j-1.2-api:2.22.1"
+  val hadoopClient = ivy"org.apache.hadoop:hadoop-client:3.3.6"
   val jackson = ivy"com.fasterxml.jackson.core:jackson-core:2.14.2"
 
   object Plugins {
@@ -127,8 +128,8 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
       "-unchecked",
       "-Xsource:2.13",
       "-Xno-patmat-analysis",
-      "-Ypartial-unification",
-      "-Yno-adapted-args", // will be removed in 2.13
+      // "-Ypartial-unification",
+      // "-Yno-adapted-args", // will be removed in 2.13
       "-Xlint",
       "-Ywarn-unused:_,-explicits,-implicits",
     ) ++ (
