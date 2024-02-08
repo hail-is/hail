@@ -3632,10 +3632,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(5.0496881823306765, result['test_statistic'])
         self.assertEqual(0.024630370456863417, result['p_value'])
 
-        a = [2, 4, 1, 1, 2]
-        b = [46, 67, 86, 37, 92]
-        c = [11, 12, 4, 6, 1]
-        d = [41, 60, 76, 32, 93]
+        a = hl.array([2, 4, 1, 1, 2])
+        b = hl.array([46, 67, 86, 37, 92])
+        c = hl.array([11, 12, 4, 6, 1])
+        d = hl.array([41, 60, 76, 32, 93])
 
         expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
         result = hl.eval(expr)
