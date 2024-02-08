@@ -1078,7 +1078,7 @@ BEGIN
     COMMIT;
     SELECT 0 as rc;
   ELSE
-    SELECT COALESCE(SUM(n_jobs), 0) INTO staging_n_jobs
+    SELECT CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) INTO staging_n_jobs
     FROM job_groups_inst_coll_staging
     WHERE batch_id = in_batch_id AND update_id = in_update_id
     FOR UPDATE;
@@ -1094,19 +1094,26 @@ BEGIN
         n_jobs = n_jobs + expected_n_jobs
       WHERE id = in_batch_id;
 
-      ### FIXME FIXME what should the state be of nested job groups
       UPDATE job_groups
       INNER JOIN (
-        SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
+        SELECT batch_id, ancestor_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
         FROM job_groups_inst_coll_staging
+        INNER JOIN LATERAL (
+          SELECT batch_id, ancestor_id
+          FROM job_group_self_and_ancestors
+          WHERE job_group_self_and_ancestors.batch_id = job_groups_inst_coll_staging.batch_id AND
+                job_group_self_and_ancestors.job_group_id = job_groups_inst_coll_staging.job_group_id
+        ) AS t ON TRUE
         WHERE batch_id = in_batch_id AND update_id = in_update_id
-        GROUP BY batch_id, job_group_id
+        GROUP BY batch_id, ancestor_id
       ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
       SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
       # compute global number of new ready jobs from summing all job groups
       INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-      SELECT user, inst_coll, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
+      SELECT user, inst_coll, 0,
+        @n_ready_jobs := CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED),
+        @ready_cores_mcpu := CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED)
       FROM job_groups_inst_coll_staging
       JOIN batches ON batches.id = job_groups_inst_coll_staging.batch_id
       WHERE batch_id = in_batch_id AND update_id = in_update_id
