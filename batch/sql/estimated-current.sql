@@ -1328,7 +1328,7 @@ BEGIN
       -1 * (@jg_running_cancellable_cores_mcpu := running_cancellable_cores_mcpu)
     FROM job_group_self_and_ancestors
     INNER JOIN (
-      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0)) AS n_ready_cancellable_jobs,
+      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS n_ready_cancellable_jobs,
         COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS ready_cancellable_cores_mcpu,
         COALESCE(SUM(n_creating_cancellable_jobs), 0) AS n_creating_cancellable_jobs,
         COALESCE(SUM(n_running_cancellable_jobs), 0) AS n_running_cancellable_jobs,
