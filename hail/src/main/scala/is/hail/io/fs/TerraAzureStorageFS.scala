@@ -23,12 +23,9 @@ object TerraAzureStorageFS {
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
 }
 
-class TerraAzureStorageFS extends FS {
-  type URL = AzureStorageFSURL
+class TerraAzureStorageFS extends AzureStorageFS() {
   import TerraAzureStorageFS.{log, TEN_MINUTES_IN_MS}
 
-  private[this] val azureFS = new AzureStorageFS()
-  private[this] val credential = new DefaultAzureCredentialBuilder().build()
   private[this] val httpClient = HttpClients.custom().build()
   private[this] val sasTokenCache = mutable.Map[String, (String, Long)]()
 
@@ -37,7 +34,7 @@ class TerraAzureStorageFS extends FS {
   private[this] val containerResourceId = sys.env("WORKSPACE_STORAGE_CONTAINER_ID")
   private[this] val storageContainerUrl = sys.env("WORKSPACE_STORAGE_CONTAINER_URL")
 
-  def parseUrl(filename: String): AzureStorageFSURL = {
+  override def parseUrl(filename: String): AzureStorageFSURL = {
     val urlStr =
       if (filename.startsWith(storageContainerUrl)) {
         sasTokenCache.get(filename) match {
@@ -82,18 +79,4 @@ class TerraAzureStorageFS extends FS {
 
     (sasTokenUrl, expiration)
   }
-
-  def validUrl(filename: String): Boolean = azureFS.validUrl(filename)
-  def getConfiguration(): Unit = azureFS.getConfiguration
-  def setConfiguration(config: Any): Unit = azureFS.setConfiguration(config)
-  def openNoCompression(url: URL): SeekableDataInputStream = azureFS.openNoCompression(url)
-  def createNoCompression(url: URL): PositionedDataOutputStream = azureFS.createNoCompression(url)
-  def delete(url: URL, recursive: Boolean): Unit = azureFS.delete(url, recursive)
-  def glob(url: URL): Array[FileListEntry] = azureFS.glob(url)
-  def fileListEntry(url: URL): FileListEntry = azureFS.fileListEntry(url)
-  def fileStatus(url: URL): FileStatus = azureFS.fileStatus(url)
-  def makeQualified(filename: String): String = azureFS.makeQualified(filename)
-  def eTag(url: URL): Some[String] = azureFS.eTag(url)
-  def listDirectory(url: URL): Array[FileListEntry] = azureFS.listDirectory(url)
-  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 }
