@@ -1321,18 +1321,18 @@ BEGIN
       n_running_cancellable_jobs,
       running_cancellable_cores_mcpu)
     SELECT t.batch_id, t.update_id, ancestor_id, inst_coll, 0,
-      -1 * (@jg_n_ready_cancellable_jobs := n_ready_cancellable_jobs),
-      -1 * (@jg_ready_cancellable_cores_mcpu := ready_cancellable_cores_mcpu),
-      -1 * (@jg_n_creating_cancellable_jobs := n_creating_cancellable_jobs),
-      -1 * (@jg_n_running_cancellable_jobs := n_running_cancellable_jobs),
-      -1 * (@jg_running_cancellable_cores_mcpu := running_cancellable_cores_mcpu)
+      -1 * (@jg_n_ready_cancellable_jobs := old_n_ready_cancellable_jobs),
+      -1 * (@jg_ready_cancellable_cores_mcpu := old_ready_cancellable_cores_mcpu),
+      -1 * (@jg_n_creating_cancellable_jobs := old_n_creating_cancellable_jobs),
+      -1 * (@jg_n_running_cancellable_jobs := old_n_running_cancellable_jobs),
+      -1 * (@jg_running_cancellable_cores_mcpu := old_running_cancellable_cores_mcpu)
     FROM job_group_self_and_ancestors
-    INNER JOIN (
-      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS n_ready_cancellable_jobs,
-        COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS ready_cancellable_cores_mcpu,
-        COALESCE(SUM(n_creating_cancellable_jobs), 0) AS n_creating_cancellable_jobs,
-        COALESCE(SUM(n_running_cancellable_jobs), 0) AS n_running_cancellable_jobs,
-        COALESCE(SUM(running_cancellable_cores_mcpu), 0) AS n_running_cancellable_cores_mcpu
+    INNER JOIN LATERAL (
+      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS old_n_ready_cancellable_jobs,
+        COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS old_ready_cancellable_cores_mcpu,
+        COALESCE(SUM(n_creating_cancellable_jobs), 0) AS old_n_creating_cancellable_jobs,
+        COALESCE(SUM(n_running_cancellable_jobs), 0) AS old_n_running_cancellable_jobs,
+        COALESCE(SUM(running_cancellable_cores_mcpu), 0) AS old_running_cancellable_cores_mcpu
       FROM job_group_inst_coll_cancellable_resources
       WHERE job_group_self_and_ancestors.batch_id = job_group_inst_coll_cancellable_resources.batch_id AND
         job_group_self_and_ancestors.job_group_id = job_group_inst_coll_cancellable_resources.job_group_id
@@ -1504,9 +1504,9 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
   FOR UPDATE;
 
---   UPDATE attempts
---   SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
---   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
+  UPDATE attempts
+  SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
+  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
   SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 

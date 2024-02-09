@@ -314,7 +314,8 @@ LIMIT %s;
 
                 async def unschedule_with_error_handling(app, record, instance_name, id):
                     try:
-                        await unschedule_job(app, record)
+                        pass
+                        # await unschedule_job(app, record)
                     except Exception:
                         log.info(f'unscheduling job {id} on instance {instance_name}', exc_info=True)
 

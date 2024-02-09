@@ -410,18 +410,18 @@ BEGIN
       n_running_cancellable_jobs,
       running_cancellable_cores_mcpu)
     SELECT t.batch_id, t.update_id, ancestor_id, inst_coll, 0,
-      -1 * (@jg_n_ready_cancellable_jobs := n_ready_cancellable_jobs),
-      -1 * (@jg_ready_cancellable_cores_mcpu := ready_cancellable_cores_mcpu),
-      -1 * (@jg_n_creating_cancellable_jobs := n_creating_cancellable_jobs),
-      -1 * (@jg_n_running_cancellable_jobs := n_running_cancellable_jobs),
-      -1 * (@jg_running_cancellable_cores_mcpu := running_cancellable_cores_mcpu)
+      -1 * (@jg_n_ready_cancellable_jobs := old_n_ready_cancellable_jobs),
+      -1 * (@jg_ready_cancellable_cores_mcpu := old_ready_cancellable_cores_mcpu),
+      -1 * (@jg_n_creating_cancellable_jobs := old_n_creating_cancellable_jobs),
+      -1 * (@jg_n_running_cancellable_jobs := old_n_running_cancellable_jobs),
+      -1 * (@jg_running_cancellable_cores_mcpu := old_running_cancellable_cores_mcpu)
     FROM job_group_self_and_ancestors
-    INNER JOIN (
-      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS n_ready_cancellable_jobs,
-        COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS ready_cancellable_cores_mcpu,
-        COALESCE(SUM(n_creating_cancellable_jobs), 0) AS n_creating_cancellable_jobs,
-        COALESCE(SUM(n_running_cancellable_jobs), 0) AS n_running_cancellable_jobs,
-        COALESCE(SUM(running_cancellable_cores_mcpu), 0) AS n_running_cancellable_cores_mcpu
+    INNER JOIN LATERAL (
+      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS old_n_ready_cancellable_jobs,
+        COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS old_ready_cancellable_cores_mcpu,
+        COALESCE(SUM(n_creating_cancellable_jobs), 0) AS old_n_creating_cancellable_jobs,
+        COALESCE(SUM(n_running_cancellable_jobs), 0) AS old_n_running_cancellable_jobs,
+        COALESCE(SUM(running_cancellable_cores_mcpu), 0) AS old_running_cancellable_cores_mcpu
       FROM job_group_inst_coll_cancellable_resources
       WHERE job_group_self_and_ancestors.batch_id = job_group_inst_coll_cancellable_resources.batch_id AND
         job_group_self_and_ancestors.job_group_id = job_group_inst_coll_cancellable_resources.job_group_id
@@ -737,61 +737,6 @@ BEGIN
     END IF;
   END LOOP;
   CLOSE job_group_cursor;
-END $$
-
-DROP PROCEDURE IF EXISTS unschedule_job $$
-CREATE PROCEDURE unschedule_job(
-  IN in_batch_id BIGINT,
-  IN in_job_id INT,
-  IN in_attempt_id VARCHAR(40),
-  IN in_instance_name VARCHAR(100),
-  IN new_end_time BIGINT,
-  IN new_reason VARCHAR(40)
-)
-BEGIN
-  DECLARE cur_job_state VARCHAR(40);
-  DECLARE cur_instance_state VARCHAR(40);
-  DECLARE cur_attempt_id VARCHAR(40);
-  DECLARE cur_cores_mcpu INT;
-  DECLARE cur_end_time BIGINT;
-  DECLARE delta_cores_mcpu INT DEFAULT 0;
-
-  START TRANSACTION;
-
-  SELECT state, cores_mcpu, attempt_id
-  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
-  FROM jobs
-  WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
-
-  SELECT end_time INTO cur_end_time
-  FROM attempts
-  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
-  FOR UPDATE;
-
-  UPDATE attempts
-  SET rollup_time = new_end_time, end_time = new_end_time, reason = new_reason
-  WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
-
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
-
-  IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
-    UPDATE instances_free_cores_mcpu
-    SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
-    WHERE instances_free_cores_mcpu.name = in_instance_name;
-
-    SET delta_cores_mcpu = cur_cores_mcpu;
-  END IF;
-
-  IF (cur_job_state = 'Creating' OR cur_job_state = 'Running') AND cur_attempt_id = in_attempt_id THEN
-    UPDATE jobs SET state = 'Ready', attempt_id = NULL WHERE batch_id = in_batch_id AND job_id = in_job_id;
-    COMMIT;
-    SELECT 0 as rc, delta_cores_mcpu;
-  ELSE
-    COMMIT;
-    SELECT 1 as rc, cur_job_state, delta_cores_mcpu,
-      'job state not Running or Creating or wrong attempt id' as message;
-  END IF;
 END $$
 
 DELIMITER ;
