@@ -1,6 +1,6 @@
 package is.hail.io.avro
 
-import is.hail.backend.ExecuteContext
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
@@ -17,7 +17,7 @@ class AvroTableReader(
   unsafeOptions: Option[UnsafeAvroTableReaderOptions] = None,
 ) extends TableReaderWithExtraUID {
 
-  private val partitioner: RVDPartitioner =
+  private def partitioner(stateManager: HailStateManager): RVDPartitioner =
     unsafeOptions.map { case UnsafeAvroTableReaderOptions(key, intervals, _) =>
       require(
         intervals.length == paths.length,
@@ -27,12 +27,12 @@ class AvroTableReader(
           )} and ${intervals.length} ${plural(intervals.length, "interval")}",
       )
       RVDPartitioner.generate(
-        null,
+        stateManager,
         partitionReader.fullRowType.typeAfterSelectNames(key),
         intervals,
       )
     }.getOrElse {
-      RVDPartitioner.unkeyed(null, paths.length)
+      RVDPartitioner.unkeyed(stateManager, paths.length)
     }
 
   def pathsUsed: Seq[String] = paths
@@ -75,7 +75,7 @@ class AvroTableReader(
     }
     TableStage(
       globals,
-      partitioner,
+      partitioner(ctx.stateManager),
       TableStageDependency.none,
       contexts,
       ctx => ReadPartition(ctx, requestedType.rowType, partitionReader),
