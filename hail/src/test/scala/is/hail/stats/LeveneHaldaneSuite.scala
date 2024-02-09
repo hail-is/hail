@@ -3,7 +3,7 @@ package is.hail.stats
 import is.hail.utils._
 
 import org.apache.commons.math3.util.CombinatoricsUtils.factorialLog
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class LeveneHaldaneSuite extends TestNGSuite {

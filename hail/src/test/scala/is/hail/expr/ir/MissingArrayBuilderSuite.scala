@@ -5,7 +5,7 @@ import is.hail.utils.FastSeq
 
 import scala.reflect.ClassTag
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class MissingArrayBuilderSuite extends TestNGSuite {

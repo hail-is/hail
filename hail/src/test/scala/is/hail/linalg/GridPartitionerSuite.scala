@@ -1,6 +1,6 @@
 package is.hail.linalg
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class GridPartitionerSuite extends TestNGSuite {

@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.utils.PartitionCounts._
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class PartitionCountsSuite extends TestNGSuite {

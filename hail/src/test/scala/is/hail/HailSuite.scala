@@ -15,7 +15,7 @@ import java.io.{File, PrintWriter}
 import breeze.linalg.DenseMatrix
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
 
