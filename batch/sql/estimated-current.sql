@@ -265,21 +265,24 @@ CREATE TABLE IF NOT EXISTS `job_groups_cancelled` (
   FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-# FIXME: rename this table back to batches_inst_coll_staging
+# the values in this table have not been preaggregated to include jobs in all child job groups (recursive = false)
 CREATE TABLE IF NOT EXISTS `job_groups_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
+  `job_group_id` INT NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `ready_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `update_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
+  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX job_groups_inst_coll_staging_inst_coll ON job_groups_inst_coll_staging (`inst_coll`);
+CREATE INDEX job_groups_inst_coll_staging_batch_id_jg_id ON job_groups_inst_coll_staging (`batch_id`, `job_group_id`);
 
 # the values in this table have been preaggregated to include jobs in all child job groups (recursive = true)
 CREATE TABLE `job_group_inst_coll_cancellable_resources` (

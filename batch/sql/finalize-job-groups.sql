@@ -717,7 +717,9 @@ ALTER TABLE job_groups_cancelled MODIFY COLUMN `job_group_id` INT NOT NULL;
 ALTER TABLE job_groups_cancelled ADD FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
 ALTER TABLE job_groups_cancelled DROP PRIMARY KEY, ADD PRIMARY KEY (id, job_group_id), ALGORITHM=INPLACE, LOCK=NONE;
 
-ALTER TABLE job_groups_inst_coll_staging DROP COLUMN `job_group_id`;
+ALTER TABLE job_groups_inst_coll_staging MODIFY COLUMN `job_group_id` INT NOT NULL;
+ALTER TABLE job_groups_inst_coll_staging ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
+ALTER TABLE job_groups_inst_coll_staging DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
 
 ALTER TABLE job_group_inst_coll_cancellable_resources MODIFY COLUMN `job_group_id` INT NOT NULL;
 ALTER TABLE job_group_inst_coll_cancellable_resources ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;

@@ -896,10 +896,6 @@ class Batch:
         callback: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ) -> JobGroup:
-        assert (
-            parent_job_group == self._root_job_group
-        ), f'nested job groups are not allowed {parent_job_group} {self._root_job_group}'
-
         self._in_update_job_group_id += 1
         spec: Dict[str, Any] = {'job_group_id': self._in_update_job_group_id}
         if attributes is not None:
