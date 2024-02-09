@@ -1,5 +1,4 @@
-from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any, Type
-from types import TracebackType
+from typing import List, AsyncContextManager, BinaryIO, Optional, Tuple, Dict, Any
 import asyncio
 import io
 import os
@@ -16,7 +15,7 @@ from hailtop.aiotools.fs import (
     AsyncFSURL,
 )
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.utils import bounded_gather2, async_to_blocking
+from hailtop.utils import bounded_gather2, async_to_blocking, ClosableContextManager
 
 from .fs import FS
 from .stat_result import FileType, FileListEntry
@@ -174,7 +173,7 @@ def _stat_result(is_dir: bool, size_bytes_and_time_modified: Optional[Tuple[int,
     )
 
 
-class RouterFS(FS):
+class RouterFS(FS, ClosableContextManager):
     def __init__(
         self,
         afs: Optional[RouterAsyncFS] = None,
@@ -191,17 +190,6 @@ class RouterFS(FS):
         self.afs = afs or RouterAsyncFS(
             local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         )
-
-    def __enter__(self):
-        return self
-
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
-    ):
-        self.close()
 
     def close(self):
         async_to_blocking(self.afs.close())

@@ -1,3 +1,4 @@
+import abc
 from typing import (
     Any,
     Callable,
@@ -1119,3 +1120,18 @@ def am_i_interactive() -> bool:
     """
     # https://stackoverflow.com/questions/2356399/tell-if-python-is-in-interactive-mode
     return bool(getattr(sys, 'ps1', sys.flags.interactive))
+
+
+SelfType = TypeVar('SelfType')
+
+
+class ClosableContextManager(abc.ABC):
+    @abc.abstractmethod
+    def close(self) -> None:
+        raise NotImplementedError
+
+    def __enter__(self: SelfType) -> SelfType:
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()

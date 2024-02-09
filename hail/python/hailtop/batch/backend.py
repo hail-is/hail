@@ -18,7 +18,13 @@ from hailtop import pip_version
 from hailtop.config import ConfigVariable, configuration_of, get_deploy_config, get_remote_tmpdir
 from hailtop.utils.rich_progress_bar import SimpleCopyToolProgressBar
 from hailtop.utils.gcs_requester_pays import GCSRequesterPaysFSCache
-from hailtop.utils import parse_docker_image_reference, async_to_blocking, bounded_gather, url_scheme
+from hailtop.utils import (
+    parse_docker_image_reference,
+    async_to_blocking,
+    bounded_gather,
+    url_scheme,
+    ClosableContextManager,
+)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
 
 from hailtop.batch_client.parse import parse_cpu_in_mcpu
@@ -47,10 +53,8 @@ The type of value returned by :py:meth:`.Backend._run`. The value returned by so
 enables the user to monitor the asynchronous execution of a Batch.
 """
 
-SelfType = TypeVar('SelfType')
 
-
-class Backend(abc.ABC, Generic[RunningBatchType]):
+class Backend(Generic[RunningBatchType], ClosableContextManager):
     """
     Abstract class for backends.
     """
@@ -117,15 +121,6 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
         if not self._closed:
             await self._async_close()
             self._closed = True
-
-    def __del__(self):
-        self.close()
-
-    def __enter__(self: SelfType) -> SelfType:
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
 
 
 class LocalBackend(Backend[None]):

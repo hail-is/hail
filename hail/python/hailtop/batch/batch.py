@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 import os
 import warnings
 import re
@@ -5,7 +6,7 @@ from typing import Callable, Optional, Dict, Union, List, Any, Set
 from io import BytesIO
 import dill
 
-from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
+from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking, ClosableContextManager
 from hailtop.aiotools import AsyncFS
 from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
@@ -17,7 +18,7 @@ from . import backend as _backend, job, resource as _resource  # pylint: disable
 from .exceptions import BatchException
 
 
-class Batch:
+class Batch(ClosableContextManager):
     """Object representing the distributed acyclic graph (DAG) of jobs to run.
 
     Examples
@@ -180,6 +181,8 @@ class Batch:
         self._uid = Batch._get_uid()
         self._job_tokens: Set[str] = set()
 
+        self._exit_stack = ExitStack()
+
         if backend:
             self._backend = backend
         else:
@@ -189,6 +192,7 @@ class Batch:
             else:
                 assert backend_config == 'local'
                 self._backend = _backend.LocalBackend()
+            self._exit_stack.callback(self._backend.close)
 
         self.name = name
 
@@ -736,3 +740,6 @@ class Batch:
 
     def __str__(self):
         return self._uid
+
+    def close(self):
+        self._exit_stack.close()

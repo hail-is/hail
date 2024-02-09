@@ -1,6 +1,6 @@
 from typing import Any, Dict, List, Optional
 
-from hailtop.utils import async_to_blocking, ait_to_blocking
+from hailtop.utils import async_to_blocking, ait_to_blocking, ClosableContextManager
 from ..config import DeployConfig
 from . import aioclient
 from .. import httpx
@@ -241,7 +241,7 @@ class Batch:
         async_to_blocking(self._async_batch.submit(*args, **kwargs))
 
 
-class BatchClient:
+class BatchClient(ClosableContextManager):
     @staticmethod
     def from_async(async_client: aioclient.BatchClient):
         bc = BatchClient.__new__(BatchClient)
@@ -333,9 +333,3 @@ class BatchClient:
 
     def close(self):
         async_to_blocking(self._async_client.close())
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.close()
