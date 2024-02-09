@@ -934,7 +934,6 @@ class Batch:
         b.extend(b',"batch":')
         b.extend(orjson.dumps(self._batch_spec()))
         b.append(ord('}'))
-        print(b)
         resp = await self._client._post(
             '/api/v1alpha/batches/create-fast',
             data=aiohttp.BytesPayload(b, content_type='application/json', encoding='utf-8'),

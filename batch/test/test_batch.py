@@ -1997,6 +1997,16 @@ def test_job_group_cancel_after_n_failures_does_not_cancel_higher_up_jobs(client
         b.cancel()
 
 
-# create job in jg that has been cancelled
+def test_cannot_create_job_in_job_group_that_has_been_cancelled(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    b.submit()
+    jg.cancel()
+    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    with pytest.raises(
+        httpx.ClientResponseError, match='bunch contains job where the job group has already been cancelled'
+    ):
+        b.submit()
+
 
 # nested job groups

@@ -1,3 +1,5 @@
+START TRANSACTION;
+
 DROP TRIGGER IF EXISTS batches_after_update;
 
 DELIMITER $$
@@ -316,7 +318,7 @@ BEGIN
                               WHERE id = in_batch_id AND job_group_id = in_job_group_id
                               FOR UPDATE);
 
-  IF cur_job_group_state = 'running' AND NOT cur_cancelled THEN
+  IF NOT cur_cancelled THEN
     INSERT INTO user_inst_coll_resources (user, inst_coll, token,
       n_ready_jobs, ready_cores_mcpu,
       n_running_jobs, running_cores_mcpu,
@@ -332,6 +334,7 @@ BEGIN
       COALESCE(SUM(n_running_cancellable_jobs), 0),
       COALESCE(SUM(n_creating_cancellable_jobs), 0)
     FROM job_group_inst_coll_cancellable_resources
+    INNER JOIN batches ON job_group_inst_coll_cancellable_resources.batch_id = batches.id
     INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
       job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
@@ -733,3 +736,5 @@ ALTER TABLE job_groups_n_jobs_in_complete_states ADD FOREIGN KEY (`id`, `job_gro
 ALTER TABLE job_groups_n_jobs_in_complete_states DROP PRIMARY KEY, ADD PRIMARY KEY (`id`, `job_group_id`), ALGORITHM=INPLACE, LOCK=NONE;
 
 SET foreign_key_checks = 1;
+
+COMMIT;
