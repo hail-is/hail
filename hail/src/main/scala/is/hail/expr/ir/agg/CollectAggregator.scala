@@ -93,6 +93,7 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: CollectAggState,
     other: CollectAggState,
   ): Unit =

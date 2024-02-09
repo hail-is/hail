@@ -327,13 +327,14 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: DictState,
     other: DictState,
   ): Unit =
     state.combine(
       cb,
       other,
-      cb => state.nested.toCode((i, s) => nestedAggs(i).combOp(ctx, cb, s, other.nested(i))),
+      cb => state.nested.toCode((i, s) => nestedAggs(i).combOp(ctx, cb, region, s, other.nested(i))),
     )
 
   override protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region])
