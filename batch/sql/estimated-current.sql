@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS `job_groups_cancelled` (
   FOREIGN KEY (`id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
+# the values in this table have not been preaggregated to include jobs in all child job groups (recursive = false)
 CREATE TABLE IF NOT EXISTS `job_groups_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
@@ -282,6 +283,7 @@ CREATE TABLE IF NOT EXISTS `job_groups_inst_coll_staging` (
 CREATE INDEX job_groups_inst_coll_staging_inst_coll ON job_groups_inst_coll_staging (`inst_coll`);
 CREATE INDEX job_groups_inst_coll_staging_batch_id_jg_id ON job_groups_inst_coll_staging (`batch_id`, `job_group_id`);
 
+# the values in this table have been preaggregated to include jobs in all child job groups (recursive = true)
 CREATE TABLE `job_group_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
@@ -1121,33 +1123,6 @@ BEGIN
         n_ready_jobs = n_ready_jobs + @n_ready_jobs,
         ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
 
---       INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
---         n_ready_cancellable_jobs,
---         ready_cancellable_cores_mcpu,
---         n_creating_cancellable_jobs,
---         n_running_cancellable_jobs,
---         running_cancellable_cores_mcpu)
---       SELECT job_groups_inst_coll_staging.batch_id, update_id, ancestor_id, inst_coll, 0,
---         @n_ready_jobs := CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED),
---         @n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0),
---         @ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0),
---         @n_creating_cancellable_jobs := COALESCE(SUM(n_creating_cancellable_jobs), 0),
---         @n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0),
---         @running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0)
---       FROM job_groups_inst_coll_staging
---       INNER JOIN job_group_self_and_ancestors ON job_group_self_and_ancestors.batch_id = job_groups_inst_coll_staging.batch_id AND
---         job_group_self_and_ancestors.job_group_id = job_groups_inst_coll_staging.job_group_id
---       WHERE job_groups_inst_coll_staging.batch_id = in_batch_id AND
---         job_groups_inst_coll_staging.job_group_id = in_job_group_id AND
---         update_id = in_update_id
---       GROUP BY job_groups_inst_coll_staging.batch_id, job_groups_inst_coll_staging.update_id, ancestor_id, inst_coll, token
---       ON DUPLICATE KEY UPDATE
---         n_ready_cancellable_jobs = n_ready_cancellable_jobs + @n_ready_cancellable_jobs,
---         ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + @ready_cancellable_cores_mcpu,
---         n_creating_cancellable_jobs = n_creating_cancellable_jobs + @n_creating_cancellable_jobs,
---         n_running_cancellable_jobs = n_running_cancellable_jobs + @n_running_cancellable_jobs,
---         running_cancellable_cores_mcpu = running_cancellable_cores_mcpu + @running_cancellable_cores_mcpu;
-
       DELETE FROM job_groups_inst_coll_staging WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
       IF in_update_id != 1 THEN
@@ -1187,7 +1162,6 @@ BEGIN
   END IF;
 END $$
 
-# FIXME -- Make sure there's no changes here!!!!
 DROP PROCEDURE IF EXISTS cancel_batch $$
 CREATE PROCEDURE cancel_batch(
   IN in_batch_id VARCHAR(100)
@@ -1243,35 +1217,6 @@ BEGIN
       n_cancelled_ready_jobs = n_cancelled_ready_jobs + @n_ready_cancellable_jobs,
       n_cancelled_running_jobs = n_cancelled_running_jobs + @n_running_cancellable_jobs,
       n_cancelled_creating_jobs = n_cancelled_creating_jobs + @n_creating_cancellable_jobs;
-
-    INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
-      n_ready_cancellable_jobs,
-      ready_cancellable_cores_mcpu,
-      n_creating_cancellable_jobs,
-      n_running_cancellable_jobs,
-      running_cancellable_cores_mcpu)
-    SELECT job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, ancestor_id, inst_coll, 0,
-      -1 * (@n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0)),
-      -1 * (@ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0)),
-      -1 * (@n_creating_cancellable_jobs := COALESCE(SUM(n_creating_cancellable_jobs), 0)),
-      -1 * (@n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
-      -1 * (@running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0))
-    FROM job_group_inst_coll_cancellable_resources
-    JOIN batches ON batches.id = job_group_inst_coll_cancellable_resources.batch_id
-    INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
-      job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
-    LEFT JOIN job_group_self_and_ancestors ON job_group_self_and_ancestors.batch_id = job_group_inst_coll_cancellable_resources.batch_id AND
-      job_group_self_and_ancestors.job_group_id = job_group_inst_coll_cancellable_resources.job_group_id
-    WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
-      job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id AND
-      batch_updates.committed
-    GROUP BY job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, ancestor_id, inst_coll
-    ON DUPLICATE KEY UPDATE
-      n_ready_cancellable_jobs = n_ready_cancellable_jobs - @n_ready_cancellable_jobs,
-      ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - @ready_cancellable_cores_mcpu,
-      n_creating_cancellable_jobs = n_creating_cancellable_jobs - @n_creating_cancellable_jobs,
-      n_running_cancellable_jobs = n_running_cancellable_jobs - @n_running_cancellable_jobs,
-      running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - @running_cancellable_cores_mcpu;
 
     # there are no cancellable jobs left, they have been cancelled
     DELETE FROM job_group_inst_coll_cancellable_resources WHERE batch_id = in_batch_id;

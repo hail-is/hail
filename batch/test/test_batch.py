@@ -1995,3 +1995,8 @@ def test_job_group_cancel_after_n_failures_does_not_cancel_higher_up_jobs(client
         assert jg_status['state'] == 'failure', str((jg_status, jg.debug_info()))
     finally:
         b.cancel()
+
+
+# create job in jg that has been cancelled
+
+# nested job groups
