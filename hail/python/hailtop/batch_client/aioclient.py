@@ -453,6 +453,20 @@ class JobGroup:
             self, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
         )
 
+    def create_job_group(
+        self,
+        *,
+        attributes: Optional[Dict[str, str]] = None,
+        callback: Optional[str] = None,
+        cancel_after_n_failures: Optional[int] = None,
+    ) -> 'JobGroup':
+        return self._batch._create_job_group(
+            self,
+            attributes=attributes,
+            callback=callback,
+            cancel_after_n_failures=cancel_after_n_failures,
+        )
+
     # FIXME Error if this is called while in a job within the same job group
     async def _wait(
         self,

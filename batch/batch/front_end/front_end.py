@@ -81,7 +81,7 @@ from ..cloud.resource_utils import (
     valid_machine_types,
 )
 from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..constants import ROOT_JOB_GROUP_ID
+from ..constants import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,
@@ -895,7 +895,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     if job_group_id != ROOT_JOB_GROUP_ID:
         assert parent_job_group_id < job_group_id
 
-        await tx.execute_update(
+        n_rows_inserted = await tx.execute_update(
             """
 INSERT INTO job_group_self_and_ancestors (batch_id, job_group_id, ancestor_id, level)
 SELECT batch_id, %s, ancestor_id, ancestors.level + 1
@@ -905,6 +905,9 @@ WHERE batch_id = %s AND job_group_id = %s;
             (job_group_id, batch_id, parent_job_group_id),
             query_name='insert_job_group_ancestors',
         )
+
+        if n_rows_inserted >= MAX_JOB_GROUPS_DEPTH:
+            raise web.HTTPBadRequest(reason='job group exceeded the maximum level of nesting')
 
     await tx.execute_insertone(
         """
@@ -987,18 +990,23 @@ FOR UPDATE;
                 assert 'in_update_parent_id' in spec
                 parent_job_group_id = start_job_group_id + spec['in_update_parent_id'] - 1
 
-            await _create_job_group(
-                tx,
-                batch_id=batch_id,
-                job_group_id=job_group_id,
-                update_id=update_id,
-                user=user,
-                attributes=spec.get('attributes'),
-                cancel_after_n_failures=spec.get('cancel_after_n_failures'),
-                callback=spec.get('callback'),
-                timestamp=now,
-                parent_job_group_id=parent_job_group_id,
-            )
+            try:
+                await _create_job_group(
+                    tx,
+                    batch_id=batch_id,
+                    job_group_id=job_group_id,
+                    update_id=update_id,
+                    user=user,
+                    attributes=spec.get('attributes'),
+                    cancel_after_n_failures=spec.get('cancel_after_n_failures'),
+                    callback=spec.get('callback'),
+                    timestamp=now,
+                    parent_job_group_id=parent_job_group_id,
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                raise web.HTTPBadRequest(reason=f'error while inserting {spec["job_group_id"]} into batch {batch_id}') from e
 
     await insert()
 

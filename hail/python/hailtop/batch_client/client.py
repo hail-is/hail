@@ -131,6 +131,12 @@ class JobGroup:
     def last_known_status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.last_known_status())
 
+    def create_job_group(self, *, attributes=None, callback=None, cancel_after_n_failures=None) -> 'JobGroup':
+        async_job_group = self._async_job_group.create_job_group(
+            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+        )
+        return JobGroup(async_job_group)
+
     def create_job(
         self,
         image,

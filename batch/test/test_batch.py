@@ -2009,4 +2009,70 @@ def test_cannot_create_job_in_job_group_that_has_been_cancelled(client: BatchCli
         b.submit()
 
 
-# nested job groups
+def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    job_groups = [jg]
+    for _ in range(3):
+        jg = jg.create_job_group()
+        job_groups.append(jg)
+    b.submit()
+    job_groups[0].cancel()
+
+    for jg in job_groups:
+        status = jg.status()
+        assert status['state'] == 'cancelled', str(status)
+
+
+def test_create_job_in_nested_job_group(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    for _ in range(3):
+        jg = jg.create_job_group()
+    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.submit()
+    status = b.wait()
+    assert status['state'] == 'success', str(b.debug_info())
+
+
+def test_cancellation_does_not_propogate_up(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    job_groups = [jg]
+    for _ in range(3):
+        jg = jg.create_job_group()
+        job_groups.append(jg)
+    b.submit()
+    job_groups[-1].cancel()
+
+    for jg in job_groups[:-1]:
+        status = jg.status()
+        assert status['state'] != 'cancelled', str(jg.debug_info())
+
+
+def test_maximum_nesting_level(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    for _ in range(10):
+        jg = jg.create_job_group()
+    with pytest.raises(
+        httpx.ClientResponseError, match='job group exceeded the maximum level of nesting'
+    ):
+        b.submit()
+
+
+def test_all_nested_job_groups_end_up_with_correct_number_of_job_states(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    job_groups = [jg]
+    for _ in range(3):
+        jg = jg.create_job_group()
+        job_groups.append(jg)
+        jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    b.submit()
+    n_job_groups = len(job_groups)
+    for level, jg in enumerate(job_groups):
+        status = jg.status()
+        assert status['n_succeeded'] == n_job_groups - level, str(jg.debug_info())
+        assert status['n_failed'] == n_job_groups - level, str(jg.debug_info())
