@@ -23,9 +23,9 @@ class SStructViewSuite extends HailSuite {
     val newtype = TStruct("x" -> TStruct("b" -> TInt32))
 
     val expected =
-      SStructView(
+      new SStructView(
         parent = xyz,
-        restrict = xyz.virtualType.asInstanceOf[TStruct].typeAfterSelectNames(FastSeq("z")),
+        restrict = FastSeq("z"),
         rename = newtype,
       )
 
@@ -42,9 +42,9 @@ class SStructViewSuite extends HailSuite {
       )
 
     val expected =
-      SStructView(
+      new SStructView(
         parent = xyz,
-        restrict = xyz.virtualType.asInstanceOf[TStruct].typeAfterSelectNames(FastSeq("z")),
+        restrict = FastSeq("z"),
         rename = TStruct("x" -> TStruct("b" -> TInt32)),
       )
 

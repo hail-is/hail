@@ -11,36 +11,41 @@ import is.hail.types.virtual.{TBaseStruct, TStruct, Type}
 object SStructView {
   def subset(fieldnames: IndexedSeq[String], struct: SBaseStruct): SStructView =
     struct match {
-      case s @ SStructView(parent, restrict, rename) =>
-        SStructView(
-          parent,
-          restrict.typeAfterSelect(fieldnames.map(s.fieldIdx)),
-          rename.typeAfterSelectNames(fieldnames),
+      case s: SStructView =>
+        val pfields = s.parent.virtualType.fields
+        new SStructView(
+          s.parent,
+          fieldnames.map(f => pfields(s.fieldIdx(f)).name),
+          s.rename.typeAfterSelectNames(fieldnames),
         )
 
       case s =>
         val restrict = s.virtualType.asInstanceOf[TStruct].typeAfterSelectNames(fieldnames)
-        SStructView(s, restrict, restrict)
+        new SStructView(s, fieldnames, restrict)
     }
 }
 
 // A 'view' on `SBaseStruct`s, ie one that presents an upcast and/or renamed facade on another
-final case class SStructView(parent: SBaseStruct, restrict: TStruct, rename: TStruct)
-    extends SBaseStruct {
+final class SStructView(
+  private val parent: SBaseStruct,
+  private val restrict: IndexedSeq[String],
+  private val rename: TStruct,
+) extends SBaseStruct {
 
   assert(
-    restrict.canCastTo(rename),
-    f"""Upcast operations are not isomorphic
-       | restrict: '${restrict._toPretty}'
+    parent.virtualType.asInstanceOf[TStruct].typeAfterSelectNames(restrict) canCastTo rename,
+    s"""Renamed type is not isomorphic to subsetted type
+       |   parent: '${parent.virtualType._toPretty}'
+       | restrict: '${restrict.mkString("[", ",", "]")}'
        |   rename: '${rename._toPretty}'
        |""".stripMargin,
   )
 
-  override val size: Int =
-    restrict.fields.length
+  override def size: Int =
+    restrict.length
 
   lazy val newToOldFieldMapping: Map[Int, Int] =
-    restrict.fields.view.map(f => f.index -> parent.fieldIdx(f.name)).toMap
+    restrict.view.zipWithIndex.map { case (f, i) => i -> parent.fieldIdx(f) }.toMap
 
   override lazy val fieldTypes: IndexedSeq[SType] =
     Array.tabulate(size) { i =>
@@ -63,7 +68,7 @@ final case class SStructView(parent: SBaseStruct, restrict: TStruct, rename: TSt
     rename.fieldIdx(fieldName)
 
   override def castRename(t: Type): SType =
-    SStructView(parent, restrict, rename = t.asInstanceOf[TStruct])
+    new SStructView(parent, restrict, rename = t.asInstanceOf[TStruct])
 
   override def _coerceOrCopy(
     cb: EmitCodeBuilder,
