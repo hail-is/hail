@@ -1,5 +1,3 @@
-.PHONY: jars clean
-
 HAIL_HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
@@ -21,23 +19,14 @@ HAIL_PYTHON3 ?= python3
 PIP ?= $(HAIL_PYTHON3) -m pip
 ifdef JAVA_HOME
 JAVAC ?= $(JAVA_HOME)/bin/javac
-JAR ?= $(JAVA_HOME)/bin/jar
 else
 JAVAC ?= javac
-JAR ?= jar
 endif
 
 PYTEST_TARGET ?= test/hail test/hailtop
 DOCTEST_TARGET ?= hail
 PYTEST_INTER_CLOUD_TARGET ?= test/hailtop/inter_cloud
 
-# not perfect, not robust to simdpp changes, but probably fine
-BUILD_DEBUG_PREFIX := build/classes/scala/debug
-JAR_SOURCES := $(shell git ls-files src/main)
-JAR_SOURCES += build.gradle
-JAR_TEST_SOURCES := $(shell git ls-files src/test)
-JAR_DEBUG_SOURCES := src/debug/scala/is/hail/annotations/Memory.java
-JAR_DEBUG_CLASSES := $(addprefix $(BUILD_DEBUG_PREFIX)/, $(JAR_DEBUG_SOURCES:src/debug/scala/%.java=%.class))
 PY_FILES := $(shell git ls-files python)
 
 INIT_SCRIPTS := python/hailtop/hailctl/deploy.yaml
@@ -46,105 +35,94 @@ PYTHON_VERSION_INFO += python/hail/hail_version
 PYTHON_VERSION_INFO += python/hail/hail_pip_version
 PYTHON_VERSION_INFO += python/hailtop/hail_version
 PYTHON_VERSION_INFO += python/hail/docs/_static/hail_version.js
-SCALA_BUILD_INFO := src/main/resources/build-info.properties
 
-SHADOW_JAR := build/libs/hail-all-spark.jar
-NON_SHADOW_JAR := build/libs/hail.jar
-SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 FAST_PYTHON_JAR := python/hail/backend/hail.jar
 FAST_PYTHON_JAR_EXTRA_CLASSPATH := python/hail/backend/extra_classpath
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 
-GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
-
 TEST_STORAGE_URI = $(shell kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
 HAIL_TEST_GCS_BUCKET = $(shell kubectl get secret global-config --template={{.data.hail_test_gcs_bucket}} | base64 --decode)
-GCP_PROJECT = $(shell kubectl get secret global-config --template={{.data.gcp_project}} | base64 --decode)
 CLOUD_HAIL_TEST_RESOURCES_PREFIX = $(TEST_STORAGE_URI)/$(shell whoami)/hail-test-resources
 CLOUD_HAIL_TEST_RESOURCES_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/test/resources/
 CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
-.PHONY: shadowJar
-shadowJar: $(SHADOW_JAR)
+# mill integration
 
+mill := bash millw
+
+.PHONY: mill-clean
+mill-clean:
+	$(mill) clean
+
+# Any target depending on this will always be recomputed. We use this for any target that
+# runs mill, so that mill is always invoked and can decide if the target needs to be updated.
+# If not, the target file's timestamp is unchanged, so downstream targets are not forced to
+# be recomputed.
+FORCE:
+
+SHADOW_JAR := out/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
-ifdef HAIL_DEBUG_MODE
-$(SHADOW_JAR): $(JAR_DEBUG_CLASSES)
-endif
-$(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
-	./gradlew shadowJar $(GRADLE_ARGS)
-ifdef HAIL_DEBUG_MODE
-	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
-endif
+$(SHADOW_JAR): FORCE
+	$(mill) assembly
 
+.PHONY: shadowJar
+shadowJar: $(SHADOW_JAR)
+
+NON_SHADOW_JAR := out/jar.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
-ifdef HAIL_DEBUG_MODE
-$(NON_SHADOW_JAR): $(JAR_DEBUG_CLASSES)
+$(NON_SHADOW_JAR): FORCE
+	$(mill) jar
+
+SHADOW_TEST_JAR := out/test/assembly.dest/out.jar
+ifdef HAIL_COMPILE_NATIVES
+$(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
-$(NON_SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
-	./gradlew jar $(GRADLE_ARGS)
-ifdef HAIL_DEBUG_MODE
-	$(JAR) -uf $(NON_SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
-endif
+$(SHADOW_TEST_JAR): FORCE
+	$(mill) test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-ifdef HAIL_COMPILE_NATIVES
-$(SHADOW_TEST_JAR): native-lib-prebuilt
-endif
-$(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	./gradlew shadowTestJar $(GRADLE_ARGS)
-
-jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
+EXTRA_CLASSPATH := out/writeRunClasspath.dest/runClasspath
+$(EXTRA_CLASSPATH): FORCE
+	$(mill) writeRunClasspath
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	+./pgradle test $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+jvm-test:
+	$(mill) test testng.xml
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
-services-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
-	./gradlew testServices $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+services-jvm-test:
+	$(mill) test testng-services.xml
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES) upload-remote-test-resources
+fs-jvm-test: upload-remote-qob-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	./gradlew testFS $(GRADLE_ARGS) $(GRADLE_TEST_ARGS)
+	$(mill) test testng-fs.xml
 
-# javac args from compileJava in build.gradle
-$(BUILD_DEBUG_PREFIX)/%.class: src/debug/scala/%.java
-	@mkdir -p $(BUILD_DEBUG_PREFIX)
-	$(JAVAC) -d $(BUILD_DEBUG_PREFIX) -Xlint:all -Werror -XDenableSunApiLintControl -XDignore.symbol.file $<
+# end mill integration
 
-src/main/resources/build-info.properties: env/REVISION env/SHORT_REVISION env/BRANCH
-src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
-src/main/resources/build-info.properties: Makefile
-	echo '[Build Metadata]' > $@
-	echo 'user=$(USER)' >> $@
-	echo 'revision=$(REVISION)' >> $@
-	echo 'branch=$(BRANCH)' >> $@
-	echo 'date=$(shell date -u +%Y-%m-%dT%H:%M:%SZ)' >> $@
-	echo 'sparkVersion=$(SPARK_VERSION)' >> $@
-	echo 'hailPipVersion=$(HAIL_PIP_VERSION)' >> $@
+.PHONY: jars
+jars: shadowJar shadowTestJar
 
 .PHONY: python-version-info
 python-version-info: $(PYTHON_VERSION_INFO)
@@ -174,11 +152,11 @@ $(PYTHON_JAR): $(SHADOW_JAR)
 $(FAST_PYTHON_JAR): $(NON_SHADOW_JAR)
 	cp -f $(NON_SHADOW_JAR) $@
 
-$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): build.gradle
-	./gradlew -q printClasspath > $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
-
 .PHONY: python-jar
 python-jar: $(PYTHON_JAR)
+
+$(FAST_PYTHON_JAR_EXTRA_CLASSPATH): $(EXTRA_CLASSPATH)
+	cp $(EXTRA_CLASSPATH) $@
 
 .PHONY: pytest
 pytest: install-editable
@@ -388,7 +366,7 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 .PHONY: install-for-qob
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
-	javac -version 2>&1 | grep -e '1\.8\.0'  # install-for-qob requires javac version 1.8, see https://discuss.hail.is/t/on-mac-os-x-how-do-i-install-and-use-java-8-if-i-already-have-a-different-version-of-java-installed/831/2
+	$(JAVAC) -version 2>&1 | grep -e '1\.8\.0'  # install-for-qob requires javac version 1.8, see https://discuss.hail.is/t/on-mac-os-x-how-do-i-install-and-use-java-8-if-i-already-have-a-different-version-of-java-installed/831/2
 	hailctl config set query/backend batch
 	hailctl config set query/jar_url $$(cat upload-qob-jar)
 	hailctl dev config set default_namespace $(NAMESPACE)
@@ -452,7 +430,21 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: release
 release: test-dataproc $(WHEEL)
-	bash scripts/release.sh $(HAIL_PIP_VERSION) $(HAIL_VERSION) $(REVISION) $(DEPLOY_REMOTE) $(WHEEL) $(GITHUB_OAUTH_HEADER_FILE) $(HAIL_GENETICS_HAIL_IMAGE) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) $(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) $(HAIL_GENETICS_HAILTOP_IMAGE) $(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) $(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) $(WHEEL_FOR_AZURE) $(WEBSITE_TAR) $(GCP_PROJECT) $(HAIL_HAIL_DIR)/../infra/gcp-broad/gcp-ar-cleanup-policy.txt
+	bash scripts/release.sh \
+		$(HAIL_PIP_VERSION) \
+		$(HAIL_VERSION) \
+		$(REVISION) \
+		$(DEPLOY_REMOTE) \
+		$(WHEEL) \
+		$(GITHUB_OAUTH_HEADER_FILE) \
+		$(HAIL_GENETICS_HAIL_IMAGE) \
+		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
+		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
+		$(HAIL_GENETICS_HAILTOP_IMAGE) \
+		$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
+		$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
+		$(WHEEL_FOR_AZURE) \
+		$(WEBSITE_TAR)
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
@@ -528,10 +520,10 @@ native-lib-reset-prebuilt:
 clean-libs:
 	rm -rf libs
 
-clean: clean-env clean-libs native-lib-clean
+.PHONY: clean
+clean: clean-env clean-libs native-lib-clean mill-clean
 	$(MAKE) -C python/hail/docs clean
 	$(MAKE) -C python/hailtop/batch/docs clean
-	./gradlew clean $(GRADLE_ARGS)
 	rm -rf build/
 	rm -rf $(PYTHON_JAR)
 	rm -rf $(FAST_PYTHON_JAR)

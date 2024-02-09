@@ -668,6 +668,23 @@ class Tests(unittest.TestCase):
         ht = hl.Table.multi_way_zip_join(vcfs, 'data', 'new_globals')
         assert exp_count == ht._force_count()
 
+    def test_multi_way_zip_join_highly_unbalanced_partitions__issue_14245(self):
+        def import_vcf(file: str, partitions: int):
+            return (
+                hl.import_vcf(file, force_bgz=True, reference_genome='GRCh38', min_partitions=partitions)
+                .rows()
+                .select()
+            )
+
+        hl.Table.multi_way_zip_join(
+            [
+                import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), 100),
+                import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), 1),
+            ],
+            'data',
+            'new_globals',
+        ).write(new_temp_file(extension='ht'))
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize(
             [{'a': 'foo', 'b': 1}, {'a': 'bar', 'b': 2}, {'a': 'bar', 'b': 2}],
@@ -729,9 +746,9 @@ class Tests(unittest.TestCase):
         df.group_by(**{'*``81': df.a}).aggregate(c=agg.count())
 
     def test_sample(self):
-        kt = hl.utils.range_table(10)
-        kt_small = kt.sample(0.01)
-        self.assertTrue(kt_small.count() < kt.count())
+        kt = hl.utils.range_table(16)
+        kt_small = kt.sample(0.25, seed=0)
+        self.assertEqual(4, kt_small.count())
 
     @skip_unless_spark_backend()
     def test_from_spark_works(self):

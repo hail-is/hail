@@ -1197,39 +1197,39 @@ object LowerTableIR {
 
       case TableAggregateByKey(child, expr) =>
         val loweredChild = lower(child)
-
-        loweredChild.repartitionNoShuffle(
+        val repartitioned = loweredChild.repartitionNoShuffle(
           ctx,
           loweredChild.partitioner.coarsen(child.typ.key.length).strictify(),
         )
-          .mapPartition(Some(child.typ.key)) { partition =>
-            Let(
-              FastSeq("global" -> loweredChild.globals),
-              mapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
-                StreamAgg(
-                  groupRef,
-                  "row",
-                  bindIRs(
-                    ArrayRef(
-                      ApplyAggOp(
-                        FastSeq(I32(1)),
-                        FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
-                        AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType)),
-                      ),
-                      I32(0),
-                    ), // FIXME: would prefer a First() agg op
-                    expr,
-                  ) { case Seq(key, value) =>
-                    MakeStruct(child.typ.key.map(k =>
-                      (k, GetField(key, k))
-                    ) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-                      (f, GetField(value, f))
-                    })
-                  },
-                )
-              },
-            )
-          }
+
+        repartitioned.mapPartition(Some(child.typ.key)) { partition =>
+          Let(
+            FastSeq("global" -> repartitioned.globals),
+            mapIR(StreamGroupByKey(partition, child.typ.key, missingEqual = true)) { groupRef =>
+              StreamAgg(
+                groupRef,
+                "row",
+                bindIRs(
+                  ArrayRef(
+                    ApplyAggOp(
+                      FastSeq(I32(1)),
+                      FastSeq(SelectFields(Ref("row", child.typ.rowType), child.typ.key)),
+                      AggSignature(Take(), FastSeq(TInt32), FastSeq(child.typ.keyType)),
+                    ),
+                    I32(0),
+                  ), // FIXME: would prefer a First() agg op
+                  expr,
+                ) { case Seq(key, value) =>
+                  MakeStruct(child.typ.key.map(k =>
+                    (k, GetField(key, k))
+                  ) ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
+                    (f, GetField(value, f))
+                  })
+                },
+              )
+            },
+          )
+        }
 
       case TableDistinct(child) =>
         val loweredChild = lower(child)
@@ -2155,7 +2155,10 @@ object LowerTableIR {
         )
         val repartitioned = lowered.map(_.repartitionNoShuffle(ctx, newPartitioner))
         val newGlobals = MakeStruct(FastSeq(
-          globalName -> MakeArray(lowered.map(_.globals), TArray(lowered.head.globalType))
+          globalName -> MakeArray(
+            repartitioned.map(_.globals),
+            TArray(repartitioned.head.globalType),
+          )
         ))
         val globalsRef = Ref(genUID(), newGlobals.typ)
 
