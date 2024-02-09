@@ -1125,10 +1125,7 @@ class Batch:
     ):
         self._raise_if_not_created()
         await bounded_gather(
-            *[
-                functools.partial(self._submit_jobs, update_id, bunch, progress_task)
-                for bunch in byte_specs_bunches
-            ],
+            *[functools.partial(self._submit_jobs, update_id, bunch, progress_task) for bunch in byte_specs_bunches],
             parallelism=6,
             cancel_on_error=True,
         )
