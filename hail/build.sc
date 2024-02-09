@@ -157,9 +157,10 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
 
     override def ivyDeps: T[Agg[Dep]] =
       super.ivyDeps() ++ outer.compileIvyDeps() ++ Agg(
-        ivy"org.scalatest::scalatest:3.0.5",
-        // testng 7.6 and later does not support java8
-        ivy"org.testng:testng:7.5.1",
+        ivy"org.scalatest::scalatest:3.2.18",
+        ivy"org.scalatest::scalatest-shouldmatchers:3.2.18",
+        ivy"org.scalatestplus::testng-7-9:3.2.18.0",
+        ivy"org.testng:testng:7.9.0",
       )
 
     // needed to force IntelliJ to include resources in the classpath when running tests

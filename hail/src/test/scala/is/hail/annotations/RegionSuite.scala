@@ -5,7 +5,7 @@ import is.hail.utils.using
 
 import scala.collection.mutable.ArrayBuffer
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RegionSuite extends TestNGSuite {

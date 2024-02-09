@@ -6,6 +6,8 @@ import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import org.scalatest.AppendedClues.convertToClueful
+import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {
