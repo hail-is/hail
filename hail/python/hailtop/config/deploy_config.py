@@ -181,7 +181,8 @@ def get_deploy_config() -> DeployConfig:
     global deploy_config
 
     if not deploy_config:
-        deploy_config = DeployConfig.from_config_file()
-        if deploy_config._domain.endswith('servicebus.windows.net'):
+        if os.environ['HAIL_TERRA']:
             deploy_config = TerraDeployConfig.from_config_file()
+        else:
+            deploy_config = DeployConfig.from_config_file()
     return deploy_config
