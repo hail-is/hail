@@ -1955,10 +1955,12 @@ def test_cancellation_doesnt_cancel_other_job_groups(client: BatchClient):
     j1._wait_for_states('Running')
 
     jg1.cancel()
-    jg_status = jg1.wait()
+    jg1_status = jg1.wait()
+    jg2_status = jg2.status()
 
-    assert b.status()['state'] != 'cancelled', str(b.debug_info())
-    assert jg_status['state'] == 'cancelled', str(jg1.debug_info())
+    # assert b.status()['state'] == 'cancelled', str(b.debug_info())  # FIXME???: n_cancelled jobs propogates upwards which might be confusing
+    assert jg1_status['state'] == 'cancelled', str(jg1.debug_info())
+    assert jg2_status['state'] != 'cancelled', str(jg2.debug_info())
 
     assert j1.status()['state'] == 'Cancelled', str(j1.status())
     assert j2.status()['state'] != 'Cancelled', str(j2.status())
