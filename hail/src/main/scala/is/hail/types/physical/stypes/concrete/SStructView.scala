@@ -15,7 +15,7 @@ object SStructView {
         val pfields = s.parent.virtualType.fields
         new SStructView(
           s.parent,
-          fieldnames.map(f => pfields(s.fieldIdx(f)).name),
+          fieldnames.map(f => pfields(s.newToOldFieldMapping(s.fieldIdx(f))).name),
           s.rename.typeAfterSelectNames(fieldnames),
         )
 
