@@ -1418,22 +1418,37 @@ ON DUPLICATE KEY UPDATE
                 query_name='insert_job_groups_inst_coll_staging',
             )
 
+            # job_group_inst_coll_cancellable_resources_args = [
+            #     (
+            #         batch_id,
+            #         update_id,
+            #         icr_job_group_id,
+            #         inst_coll,
+            #         rand_token,
+            #         resources['n_ready_cancellable_jobs'],
+            #         resources['ready_cancellable_cores_mcpu'],
+            #     )
+            #     for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
+            # ]
             job_group_inst_coll_cancellable_resources_args = [
                 (
                     batch_id,
                     update_id,
-                    icr_job_group_id,
                     inst_coll,
                     rand_token,
                     resources['n_ready_cancellable_jobs'],
                     resources['ready_cancellable_cores_mcpu'],
+                    batch_id,
+                    icr_job_group_id,
                 )
                 for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
             ]
             await tx.execute_many(
                 """
 INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s, %s, %s)
+SELECT %s, %s, ancestor_id, %s, %s, %s, %s
+FROM job_group_self_and_ancestors
+WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);

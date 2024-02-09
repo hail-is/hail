@@ -1088,6 +1088,7 @@ BEGIN
       SET committed = 1, time_committed = in_timestamp
       WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
+      # FIXME is this correct? What if only job groups
       UPDATE batches SET
         `state` = 'running',
         time_completed = NULL,
@@ -1119,6 +1120,33 @@ BEGIN
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs + @n_ready_jobs,
         ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
+
+--       INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
+--         n_ready_cancellable_jobs,
+--         ready_cancellable_cores_mcpu,
+--         n_creating_cancellable_jobs,
+--         n_running_cancellable_jobs,
+--         running_cancellable_cores_mcpu)
+--       SELECT job_groups_inst_coll_staging.batch_id, update_id, ancestor_id, inst_coll, 0,
+--         @n_ready_jobs := CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED),
+--         @n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0),
+--         @ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0),
+--         @n_creating_cancellable_jobs := COALESCE(SUM(n_creating_cancellable_jobs), 0),
+--         @n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0),
+--         @running_cancellable_cores_mcpu := COALESCE(SUM(running_cancellable_cores_mcpu), 0)
+--       FROM job_groups_inst_coll_staging
+--       INNER JOIN job_group_self_and_ancestors ON job_group_self_and_ancestors.batch_id = job_groups_inst_coll_staging.batch_id AND
+--         job_group_self_and_ancestors.job_group_id = job_groups_inst_coll_staging.job_group_id
+--       WHERE job_groups_inst_coll_staging.batch_id = in_batch_id AND
+--         job_groups_inst_coll_staging.job_group_id = in_job_group_id AND
+--         update_id = in_update_id
+--       GROUP BY job_groups_inst_coll_staging.batch_id, job_groups_inst_coll_staging.update_id, ancestor_id, inst_coll, token
+--       ON DUPLICATE KEY UPDATE
+--         n_ready_cancellable_jobs = n_ready_cancellable_jobs + @n_ready_cancellable_jobs,
+--         ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + @ready_cancellable_cores_mcpu,
+--         n_creating_cancellable_jobs = n_creating_cancellable_jobs + @n_creating_cancellable_jobs,
+--         n_running_cancellable_jobs = n_running_cancellable_jobs + @n_running_cancellable_jobs,
+--         running_cancellable_cores_mcpu = running_cancellable_cores_mcpu + @running_cancellable_cores_mcpu;
 
       DELETE FROM job_groups_inst_coll_staging WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
@@ -1297,9 +1325,11 @@ BEGIN
       COALESCE(SUM(n_running_cancellable_jobs), 0),
       COALESCE(SUM(n_creating_cancellable_jobs), 0)
     FROM job_group_inst_coll_cancellable_resources
-    JOIN batches ON batches.id = job_group_inst_coll_cancellable_resources.batch_id
+    INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
+      job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
-      job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id
+      job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id AND
+      batch_updates.committed
     GROUP BY user, inst_coll
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
