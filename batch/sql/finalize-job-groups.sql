@@ -387,11 +387,8 @@ BEGIN
       COALESCE(SUM(n_creating_cancellable_jobs), 0)
     FROM job_group_inst_coll_cancellable_resources
     JOIN batches ON batches.id = job_group_inst_coll_cancellable_resources.batch_id
-    INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
-      job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
-      job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id AND
-      batch_updates.committed
+      job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id
     GROUP BY user, inst_coll
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
@@ -438,13 +435,10 @@ BEGIN
     # delete all rows that are children of this job group
     DELETE job_group_inst_coll_cancellable_resources
     FROM job_group_inst_coll_cancellable_resources
-    LEFT JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
-      job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     INNER JOIN job_group_self_and_ancestors ON job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
       job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
-      job_group_self_and_ancestors.ancestor_id = in_job_group_id AND
-      batch_updates.committed;
+      job_group_self_and_ancestors.ancestor_id = in_job_group_id;
 
     INSERT INTO job_groups_cancelled
     SELECT batch_id, job_group_id
