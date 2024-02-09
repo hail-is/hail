@@ -1090,12 +1090,13 @@ BEGIN
       SET committed = 1, time_committed = in_timestamp
       WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
-      # FIXME is this correct? What if only job groups
-      UPDATE batches SET
-        `state` = 'running',
-        time_completed = NULL,
-        n_jobs = n_jobs + expected_n_jobs
-      WHERE id = in_batch_id;
+      IF expected_n_jobs > 0 THEN
+        UPDATE batches SET
+          `state` = 'running',
+          time_completed = NULL,
+          n_jobs = n_jobs + expected_n_jobs
+        WHERE id = in_batch_id;
+      END IF;
 
       UPDATE job_groups
       INNER JOIN (
@@ -1107,6 +1108,7 @@ BEGIN
           job_groups_inst_coll_staging.job_group_id = job_group_self_and_ancestors.job_group_id
         WHERE job_groups_inst_coll_staging.batch_id = in_batch_id AND job_groups_inst_coll_staging.update_id = in_update_id
         GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id
+        HAVING staged_n_jobs > 0
       ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.ancestor_id
       SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
