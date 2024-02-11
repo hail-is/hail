@@ -1733,7 +1733,7 @@ def test_update_cancelled_batch_wout_fast_path(client: BatchClient):
         b.submit()
     except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'bunch contains job where the job group has already been cancelled' in err.body
+        assert 'Cannot submit new jobs or job groups to a cancelled batch' in err.body
     else:
         assert False
 
@@ -1749,7 +1749,7 @@ def test_submit_update_to_cancelled_batch(client: BatchClient):
         b.submit()
     except httpx.ClientResponseError as err:
         assert err.status == 400
-        assert 'bunch contains job where the job group has already been cancelled' in err.body
+        assert 'Cannot submit new jobs or job groups to a cancelled batch' in err.body
     else:
         assert False
 
@@ -2054,9 +2054,7 @@ def test_maximum_nesting_level(client: BatchClient):
     jg = b.create_job_group()
     for _ in range(10):
         jg = jg.create_job_group()
-    with pytest.raises(
-        httpx.ClientResponseError, match='job group exceeded the maximum level of nesting'
-    ):
+    with pytest.raises(httpx.ClientResponseError, match='job group exceeded the maximum level of nesting'):
         b.submit()
 
 

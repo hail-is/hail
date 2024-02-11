@@ -231,7 +231,7 @@ def validate_batch(batch):
 
 def validate_batch_update(update):
     batch_update_validator.validate('batch_update', update)
-    if update['n_job_groups'] is None:
+    if 'n_job_groups' not in update:
         update['n_job_groups'] = 0
 
 

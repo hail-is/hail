@@ -1383,7 +1383,7 @@ LIMIT 1000;
 DELETE FROM job_groups_inst_coll_staging
 WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
 """,
-            (target['batch_id'], target['update_id'], target['job_group_id'])
+            (target['batch_id'], target['update_id'], target['job_group_id']),
         )
 
 
@@ -1416,7 +1416,7 @@ LIMIT 1000;
 DELETE FROM job_group_inst_coll_cancellable_resources
 WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
 """,
-            (target['batch_id'], target['update_id'], target['job_group_id'])
+            (target['batch_id'], target['update_id'], target['job_group_id']),
         )
 
 

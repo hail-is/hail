@@ -1020,7 +1020,9 @@ FOR UPDATE;
             except asyncio.CancelledError:
                 raise
             except Exception as e:
-                raise web.HTTPBadRequest(reason=f'error while inserting job group {spec["job_group_id"]} into batch {batch_id}: {e}')
+                raise web.HTTPBadRequest(
+                    reason=f'error while inserting job group {spec["job_group_id"]} into batch {batch_id}: {e}'
+                )
 
     await insert()
 
