@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterable, Optional, Dict, Tuple, Any, List
+from typing import Iterable, Optional, Dict, Tuple, Any, List, Union
 from collections import Counter
 from deprecated import deprecated
 import hail as hl
@@ -4567,7 +4567,7 @@ class MatrixTable(ExprContainer):
             ir.TableToValueApply(ht._tir, {'name': 'TableCalculateNewPartitions', 'nPartitions': n_partitions})
         )
 
-    def dummy_code(self, *column_field_names: str):
+    def dummy_code(self, *column_fields: Union[str, Expression]):
         """Dummy code categorical variables.
 
         Examples
@@ -4583,8 +4583,8 @@ class MatrixTable(ExprContainer):
 
         Parameters
         ----------
-        column_field_names : variable-length args of :obj:`str`
-            The names of the column fields to dummy code.
+        column_fields : variable-length args of :class:`str` or :class:`.Expression`
+            The column fields to dummy code.
 
         Returns
         -------
@@ -4595,6 +4595,10 @@ class MatrixTable(ExprContainer):
         :obj:`dict`
             A dictionary mapping the column field names to the categories of the column field.
         """
+        column_field_names = [
+            self._fields_inverse[column_field] if isinstance(column_field, Expression) else column_field
+            for column_field in column_fields
+        ]
         field_name_to_categories = {
             field_name: self.aggregate_cols(hl.agg.collect_as_set(self[field_name]))
             for field_name in column_field_names
