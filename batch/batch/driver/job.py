@@ -178,7 +178,6 @@ async def mark_job_complete(
             ),
             'mark_job_complete',
         )
-        log.exception(str(rv))
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
