@@ -96,11 +96,17 @@ HAVING n_cancelled_ready_jobs > 0;
         async def user_cancelled_ready_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for job_group in self.db.select_and_fetchall(
                 """
-SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled
+SELECT job_groups.batch_id, job_groups.job_group_id, t.cancelled IS NOT NULL AS cancelled
 FROM job_groups
-LEFT JOIN job_groups_cancelled
-       ON job_groups.batch_id = job_groups_cancelled.id AND
-          job_groups.job_group_id = job_groups_cancelled.job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
 WHERE user = %s AND `state` = 'running';
 """,
                 (user,),
@@ -185,9 +191,15 @@ HAVING n_cancelled_creating_jobs > 0;
                 """
 SELECT job_groups.batch_id, job_groups.job_group_id
 FROM job_groups
-INNER JOIN job_groups_cancelled
-  ON job_groups.batch_id = job_groups_cancelled.id AND
-     job_groups.job_group_id = job_groups_cancelled.job_group_id
+INNER JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
 WHERE user = %s AND `state` = 'running';
 """,
                 (user,),
@@ -280,11 +292,17 @@ HAVING n_cancelled_running_jobs > 0;
         async def user_cancelled_running_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for job_group in self.db.select_and_fetchall(
                 """
-SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_cancelled.id IS NOT NULL AS cancelled
+SELECT job_groups.batch_id, job_groups.job_group_id
 FROM job_groups
-INNER JOIN job_groups_cancelled
-  ON job_groups.batch_id = job_groups_cancelled.id AND
-     job_groups.job_group_id = job_groups_cancelled.job_group_id
+INNER JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
 WHERE user = %s AND `state` = 'running';
 """,
                 (user,),

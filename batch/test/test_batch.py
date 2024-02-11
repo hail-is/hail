@@ -1958,7 +1958,6 @@ def test_cancellation_doesnt_cancel_other_job_groups(client: BatchClient):
     jg1_status = jg1.wait()
     jg2_status = jg2.status()
 
-    # assert b.status()['state'] == 'cancelled', str(b.debug_info())  # FIXME???: n_cancelled jobs propogates upwards which might be confusing
     assert jg1_status['state'] == 'cancelled', str(jg1.debug_info())
     assert jg2_status['state'] != 'cancelled', str(jg2.debug_info())
 
@@ -2063,16 +2062,89 @@ def test_maximum_nesting_level(client: BatchClient):
 
 def test_all_nested_job_groups_end_up_with_correct_number_of_job_states(client: BatchClient):
     b = create_batch(client)
+
     jg = b.create_job_group()
+    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
+
     job_groups = [jg]
     for _ in range(3):
         jg = jg.create_job_group()
         job_groups.append(jg)
         jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
         jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
+
     b.submit()
+    b.wait()
+
     n_job_groups = len(job_groups)
     for level, jg in enumerate(job_groups):
         status = jg.status()
         assert status['n_succeeded'] == n_job_groups - level, str(jg.debug_info())
         assert status['n_failed'] == n_job_groups - level, str(jg.debug_info())
+
+
+def test_cancel_job_group_with_different_updates(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
+    b.submit()
+
+    j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
+    b.submit()
+
+    j1._wait_for_states('Running')
+    j2._wait_for_states('Running')
+
+    jg.cancel()
+    b_status = b.wait()
+    jg_status = jg.status()
+
+    assert b_status['state'] == 'cancelled', str(b_status)
+    assert jg_status['state'] == 'cancelled', str(jg_status)
+
+    assert j1.status()['state'] == 'Cancelled', str(j1.status())
+    assert j2.status()['state'] == 'Cancelled', str(j2.status())
+
+
+def test_cancel_job_group_with_different_inst_colls(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    b.submit()
+
+    j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'standard'})
+    b.submit()
+
+    j1._wait_for_states('Running')
+    j2._wait_for_states('Running')
+
+    jg.cancel()
+    b_status = b.wait()
+    jg_status = jg.status()
+
+    assert b_status['state'] == 'cancelled', str(b_status)
+    assert jg_status['state'] == 'cancelled', str(jg_status)
+
+    assert j1.status()['state'] == 'Cancelled', str(j1.status())
+    assert j2.status()['state'] == 'Cancelled', str(j2.status())
+
+
+def test_billing_propogates_upwards(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    job_groups = [jg]
+    for _ in range(3):
+        jg = jg.create_job_group()
+        job_groups.append(jg)
+    j = jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.submit()
+    status = b.wait()
+    j_status = j.status()
+
+    assert status['state'] == 'success', str(b.debug_info())
+    assert j_status['cost_breakdown'] == status['cost_breakdown'], str((b.debug_info(), j_status))
+
+    for jg in job_groups:
+        status = jg.status()
+        assert j_status['cost_breakdown'] == status['cost_breakdown'], str((jg.debug_info(), j_status))

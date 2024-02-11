@@ -301,10 +301,6 @@ BEGIN
   DECLARE cur_user VARCHAR(100);
   DECLARE cur_job_group_state VARCHAR(40);
   DECLARE cur_cancelled BOOLEAN;
-  DECLARE cur_n_cancelled_ready_jobs INT;
-  DECLARE cur_cancelled_ready_cores_mcpu BIGINT;
-  DECLARE cur_n_cancelled_running_jobs INT;
-  DECLARE cur_cancelled_running_cores_mcpu BIGINT;
 
   START TRANSACTION;
 
@@ -314,8 +310,10 @@ BEGIN
   FOR UPDATE;
 
   SET cur_cancelled = EXISTS (SELECT TRUE
-                              FROM job_groups_cancelled
-                              WHERE id = in_batch_id AND job_group_id = in_job_group_id
+                              FROM job_group_self_and_ancestors
+                              INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                                job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+                              WHERE batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
                               FOR UPDATE);
 
   IF NOT cur_cancelled THEN
@@ -357,7 +355,7 @@ BEGIN
       n_creating_cancellable_jobs,
       n_running_cancellable_jobs,
       running_cancellable_cores_mcpu)
-    SELECT t.batch_id, t.update_id, ancestor_id, inst_coll, 0,
+    SELECT batch_id, update_id, ancestor_id, inst_coll, 0,
       -1 * (@jg_n_ready_cancellable_jobs := old_n_ready_cancellable_jobs),
       -1 * (@jg_ready_cancellable_cores_mcpu := old_ready_cancellable_cores_mcpu),
       -1 * (@jg_n_creating_cancellable_jobs := old_n_creating_cancellable_jobs),
@@ -365,15 +363,15 @@ BEGIN
       -1 * (@jg_running_cancellable_cores_mcpu := old_running_cancellable_cores_mcpu)
     FROM job_group_self_and_ancestors
     INNER JOIN LATERAL (
-      SELECT batch_id, update_id, job_group_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS old_n_ready_cancellable_jobs,
+      SELECT update_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS old_n_ready_cancellable_jobs,
         COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS old_ready_cancellable_cores_mcpu,
         COALESCE(SUM(n_creating_cancellable_jobs), 0) AS old_n_creating_cancellable_jobs,
         COALESCE(SUM(n_running_cancellable_jobs), 0) AS old_n_running_cancellable_jobs,
         COALESCE(SUM(running_cancellable_cores_mcpu), 0) AS old_running_cancellable_cores_mcpu
       FROM job_group_inst_coll_cancellable_resources
-      WHERE job_group_self_and_ancestors.batch_id = job_group_inst_coll_cancellable_resources.batch_id AND
-        job_group_self_and_ancestors.job_group_id = job_group_inst_coll_cancellable_resources.job_group_id
-      GROUP BY batch_id, update_id, job_group_id, inst_coll
+      WHERE job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
+        job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
+      GROUP BY update_id, inst_coll
     ) AS t ON TRUE
     WHERE job_group_self_and_ancestors.batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
     ON DUPLICATE KEY UPDATE
@@ -383,19 +381,12 @@ BEGIN
       n_running_cancellable_jobs = n_running_cancellable_jobs - @jg_n_running_cancellable_jobs,
       running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - @jg_running_cancellable_cores_mcpu;
 
-    # delete all rows that are children of this job group
-    DELETE job_group_inst_coll_cancellable_resources
-    FROM job_group_inst_coll_cancellable_resources
-    INNER JOIN job_group_self_and_ancestors ON job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
-      job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
-    WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
-      job_group_self_and_ancestors.ancestor_id = in_job_group_id;
+    # deleting all children rows from job_group_inst_coll_cancellable_resources is not performant with many children job groups
+    # we use a deletion loop on the driver instead to clean up the table
 
-    INSERT INTO job_groups_cancelled
-    SELECT batch_id, job_group_id
-    FROM job_group_self_and_ancestors
-    WHERE batch_id = in_batch_id AND ancestor_id = in_job_group_id
-    ON DUPLICATE KEY UPDATE job_group_id = job_groups_cancelled.job_group_id;
+    # inserting all cancelled job groups is not performant with many children job groups
+    INSERT INTO job_groups_cancelled (id, job_group_id)
+    VALUES (in_batch_id, in_job_group_id);
   END IF;
 
   COMMIT;
@@ -426,7 +417,7 @@ BEGIN
   ELSE
     SELECT CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) INTO staging_n_jobs
     FROM job_groups_inst_coll_staging
-    WHERE batch_id = in_batch_id AND update_id = in_update_id
+    WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
     FOR UPDATE;
 
     IF staging_n_jobs = expected_n_jobs THEN
@@ -440,63 +431,58 @@ BEGIN
           time_completed = NULL,
           n_jobs = n_jobs + expected_n_jobs
         WHERE id = in_batch_id;
-      END IF;
 
-      UPDATE job_groups
-      INNER JOIN (
-        SELECT job_group_self_and_ancestors.batch_id,
-          job_group_self_and_ancestors.ancestor_id,
-          CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
-        FROM job_group_self_and_ancestors
-        INNER JOIN job_groups_inst_coll_staging ON job_groups_inst_coll_staging.batch_id = job_group_self_and_ancestors.batch_id AND
-          job_groups_inst_coll_staging.job_group_id = job_group_self_and_ancestors.job_group_id
-        WHERE job_groups_inst_coll_staging.batch_id = in_batch_id AND job_groups_inst_coll_staging.update_id = in_update_id
-        GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id
-        HAVING staged_n_jobs > 0
-      ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.ancestor_id
-      SET `state` = 'running', time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
+        UPDATE job_groups
+        INNER JOIN (
+          SELECT batch_id, job_group_id, CAST(COALESCE(SUM(n_jobs), 0) AS SIGNED) AS staged_n_jobs
+          FROM job_groups_inst_coll_staging
+          WHERE batch_id = in_batch_id AND update_id = in_update_id
+          GROUP BY batch_id, job_group_id
+        ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
+        SET `state` = IF(staged_n_jobs > 0, 'running', job_groups.state), time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
-      # compute global number of new ready jobs from summing all job groups
-      INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-      SELECT user, inst_coll, 0,
-        @n_ready_jobs := CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED),
-        @ready_cores_mcpu := CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED)
-      FROM job_groups_inst_coll_staging
-      JOIN batches ON batches.id = job_groups_inst_coll_staging.batch_id
-      WHERE batch_id = in_batch_id AND update_id = in_update_id
-      GROUP BY `user`, inst_coll
-      ON DUPLICATE KEY UPDATE
-        n_ready_jobs = n_ready_jobs + @n_ready_jobs,
-        ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
+        # compute global number of new ready jobs from taking value from root job group only
+        INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
+        SELECT user, inst_coll, 0,
+          @n_ready_jobs := CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED),
+          @ready_cores_mcpu := CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED)
+        FROM job_groups_inst_coll_staging
+        JOIN batches ON batches.id = job_groups_inst_coll_staging.batch_id
+        WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
+        GROUP BY `user`, inst_coll
+        ON DUPLICATE KEY UPDATE
+          n_ready_jobs = n_ready_jobs + @n_ready_jobs,
+          ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
 
-      DELETE FROM job_groups_inst_coll_staging WHERE batch_id = in_batch_id AND update_id = in_update_id;
+        # deletion is slow with lots of job groups - cleanup will happen on the driver in a loop
 
-      IF in_update_id != 1 THEN
-        SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
+        IF in_update_id != 1 THEN
+          SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
 
-        UPDATE jobs
-          LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
-          LEFT JOIN (
-            SELECT `job_parents`.batch_id, `job_parents`.job_id,
-              COALESCE(SUM(1), 0) AS n_parents,
-              COALESCE(SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')), 0) AS n_pending_parents,
-              COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
-            FROM `job_parents`
-            LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
-            WHERE job_parents.batch_id = in_batch_id AND
-              `job_parents`.job_id >= cur_update_start_job_id AND
-              `job_parents`.job_id < cur_update_start_job_id + staging_n_jobs
-            GROUP BY `job_parents`.batch_id, `job_parents`.job_id
-            FOR UPDATE
-          ) AS t
-            ON jobs.batch_id = t.batch_id AND
-               jobs.job_id = t.job_id
-          SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
-              jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
-              jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
-              jobs_telemetry.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs_telemetry.time_ready IS NULL, in_timestamp, jobs_telemetry.time_ready)
-          WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
-              jobs.job_id < cur_update_start_job_id + staging_n_jobs;
+          UPDATE jobs
+            LEFT JOIN `jobs_telemetry` ON `jobs_telemetry`.batch_id = jobs.batch_id AND `jobs_telemetry`.job_id = jobs.job_id
+            LEFT JOIN (
+              SELECT `job_parents`.batch_id, `job_parents`.job_id,
+                COALESCE(SUM(1), 0) AS n_parents,
+                COALESCE(SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')), 0) AS n_pending_parents,
+                COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
+              FROM `job_parents`
+              LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
+              WHERE job_parents.batch_id = in_batch_id AND
+                `job_parents`.job_id >= cur_update_start_job_id AND
+                `job_parents`.job_id < cur_update_start_job_id + staging_n_jobs
+              GROUP BY `job_parents`.batch_id, `job_parents`.job_id
+              FOR UPDATE
+            ) AS t
+              ON jobs.batch_id = t.batch_id AND
+                 jobs.job_id = t.job_id
+            SET jobs.state = IF(COALESCE(t.n_pending_parents, 0) = 0, 'Ready', 'Pending'),
+                jobs.n_pending_parents = COALESCE(t.n_pending_parents, 0),
+                jobs.cancelled = IF(COALESCE(t.n_succeeded, 0) = COALESCE(t.n_parents - t.n_pending_parents, 0), jobs.cancelled, 1),
+                jobs_telemetry.time_ready = IF(COALESCE(t.n_pending_parents, 0) = 0 AND jobs_telemetry.time_ready IS NULL, in_timestamp, jobs_telemetry.time_ready)
+            WHERE jobs.batch_id = in_batch_id AND jobs.job_id >= cur_update_start_job_id AND
+                jobs.job_id < cur_update_start_job_id + staging_n_jobs;
+        END IF;
       END IF;
 
       COMMIT;
@@ -529,12 +515,15 @@ BEGIN
   DECLARE cur_end_time BIGINT;
   DECLARE delta_cores_mcpu INT DEFAULT 0;
   DECLARE expected_attempt_id VARCHAR(40);
-  DECLARE new_batch_n_completed INT;
+  DECLARE cur_batch_n_completed INT;
   DECLARE total_jobs_in_batch INT;
 
   START TRANSACTION;
 
-  SELECT n_jobs INTO total_jobs_in_batch FROM batches WHERE id = in_batch_id;
+  SELECT n_jobs INTO total_jobs_in_batch
+  FROM batches
+  WHERE id = in_batch_id
+  LOCK IN SHARE MODE;
 
   SELECT state, cores_mcpu, job_group_id
   INTO cur_job_state, cur_cores_mcpu, cur_job_group_id
@@ -576,13 +565,14 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    SELECT n_completed + 1 INTO new_batch_n_completed
+    SELECT n_completed INTO cur_batch_n_completed
     FROM job_groups_n_jobs_in_complete_states
-    WHERE id = in_batch_id AND job_group_id = 0;
+    WHERE id = in_batch_id AND job_group_id = 0
+    FOR UPDATE;
 
     # Grabbing an exclusive lock on batches here could deadlock,
     # but this IF should only execute for the last job
-    IF new_batch_n_completed = total_jobs_in_batch THEN
+    IF cur_batch_n_completed + 1 = total_jobs_in_batch THEN
       UPDATE batches
       SET time_completed = new_timestamp,
           `state` = 'complete'
@@ -619,7 +609,7 @@ BEGIN
     COMMIT;
     SELECT 0 as rc,
       cur_job_state as old_state,
-      delta_cores_mcpu;
+      delta_cores_mcpu, cur_batch_n_completed, total_jobs_in_batch;
   ELSEIF cur_job_state = 'Cancelled' OR cur_job_state = 'Error' OR
          cur_job_state = 'Failed' OR cur_job_state = 'Success' THEN
     COMMIT;

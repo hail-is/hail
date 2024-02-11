@@ -126,7 +126,7 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
 
     sql = f"""
 SELECT batches.*,
-  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  cancelled_t.cancelled IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
@@ -136,7 +136,15 @@ FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
 LEFT JOIN job_groups_n_jobs_in_complete_states ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-LEFT JOIN job_groups_cancelled ON job_groups.batch_id = job_groups_cancelled.id AND job_groups.job_group_id = job_groups_cancelled.job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS cancelled_t ON TRUE
 STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown

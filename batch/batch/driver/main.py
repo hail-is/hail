@@ -1016,12 +1016,19 @@ FROM
   FROM
   (
     SELECT job_groups.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR t.cancelled IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR t.cancelled IS NOT NULL)) AS cancelled
     FROM job_groups
     LEFT JOIN jobs ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
-    LEFT JOIN job_groups_cancelled ON jobs.batch_id = job_groups_cancelled.id AND
-              job_groups_cancelled.job_group_id = jobs.job_group_id
+    LEFT JOIN LATERAL (
+      SELECT 1 AS cancelled
+      FROM job_group_self_and_ancestors
+      INNER JOIN job_groups_cancelled
+        ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+           job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+      WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+            job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+    ) AS t ON TRUE
     WHERE job_groups.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1354,6 +1361,65 @@ async def monitor_system(app):
     monitor_instances(app)
 
 
+async def delete_committed_job_groups_inst_coll_staging_records(db: Database):
+    targets = db.execute_and_fetchall(
+        """
+SELECT job_groups_inst_coll_staging.batch_id,
+  job_groups_inst_coll_staging.update_id,
+  job_groups_inst_coll_staging.job_group_id
+FROM job_groups_inst_coll_staging
+INNER JOIN batch_updates ON batch_updates.batch_id = job_groups_inst_coll_staging.batch_id AND
+  batch_updates.update_id = job_groups_inst_coll_staging.update_id
+WHERE committed
+GROUP BY job_groups_inst_coll_staging.batch_id, job_groups_inst_coll_staging.update_id, job_groups_inst_coll_staging.job_group_id
+LIMIT 1000;
+""",
+        query_name='find_staging_records_to_delete',
+    )
+
+    async for target in targets:
+        await db.just_execute(
+            """
+DELETE FROM job_groups_inst_coll_staging
+WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
+""",
+            (target['batch_id'], target['update_id'], target['job_group_id'])
+        )
+
+
+async def delete_prev_cancelled_job_group_cancellable_resources_records(db: Database):
+    targets = db.execute_and_fetchall(
+        """
+SELECT job_group_inst_coll_cancellable_resources.batch_id,
+  job_group_inst_coll_cancellable_resources.update_id,
+  job_group_inst_coll_cancellable_resources.job_group_id
+FROM job_group_inst_coll_cancellable_resources
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
+WHERE t.cancelled IS NOT NULL
+GROUP BY job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, job_group_inst_coll_cancellable_resources.job_group_id
+LIMIT 1000;
+""",
+        query_name='find_cancelled_cancellable_resources_records_to_delete',
+    )
+
+    async for target in targets:
+        await db.just_execute(
+            """
+DELETE FROM job_group_inst_coll_cancellable_resources
+WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
+""",
+            (target['batch_id'], target['update_id'], target['job_group_id'])
+        )
+
+
 async def compact_agg_billing_project_users_table(app, db: Database):
     if not app['feature_flags']['compact_billing_tables']:
         return
@@ -1614,6 +1680,8 @@ SELECT instance_id, frozen FROM globals;
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
     task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app, db))
     task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
+    task_manager.ensure_future(periodically_call(60, delete_committed_job_groups_inst_coll_staging_records, db))
+    task_manager.ensure_future(periodically_call(60, delete_prev_cancelled_job_group_cancellable_resources_records, db))
 
 
 async def on_cleanup(app):

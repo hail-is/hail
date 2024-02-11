@@ -342,9 +342,12 @@ class JobGroup:
         self._submitted = submitted
         self._last_known_status = last_known_status
 
-    def _submit(self, in_update_start_job_group_id: int):
+    def _submit(self, in_update_start_job_group_id: Optional[int]):
         self._raise_if_submitted()
-        self._job_group_id = in_update_start_job_group_id + self._job_group_id - 1
+        if in_update_start_job_group_id is None:
+            assert self._job_group_id == ROOT_JOB_GROUP_ID
+        else:
+            self._job_group_id = in_update_start_job_group_id + self._job_group_id - 1
         self._submitted = True
 
     def _raise_if_not_submitted(self):
