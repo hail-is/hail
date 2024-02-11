@@ -106,7 +106,6 @@ identity by descent [1]_, KING [2]_, and PC-Relate [3]_.
     maximal_independent_set
     rename_duplicates
     segment_intervals
-    dummy_code
 
 .. [1] Purcell, Shaun et al. “PLINK: a tool set for whole-genome association and
        population-based linkage analyses.” American journal of human genetics

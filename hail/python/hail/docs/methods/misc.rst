@@ -17,4 +17,3 @@ Miscellaneous
 .. autofunction:: maximal_independent_set
 .. autofunction:: rename_duplicates
 .. autofunction:: segment_intervals
-.. autofunction:: dummy_code

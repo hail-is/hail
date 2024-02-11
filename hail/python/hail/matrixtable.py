@@ -4567,5 +4567,46 @@ class MatrixTable(ExprContainer):
             ir.TableToValueApply(ht._tir, {'name': 'TableCalculateNewPartitions', 'nPartitions': n_partitions})
         )
 
+    def dummy_code(self, *column_field_names: str):
+        """Dummy code categorical variables.
+
+        Examples
+        --------
+        >>> mt = hl.balding_nichols_model(1, 50, 100)
+        >>> smoking_categories = hl.literal(['current', 'former', 'never'])
+        >>> mt = mt.annotate_cols(
+        ...     smoking_status = smoking_categories[hl.rand_cat([1, 1, 1])],
+        ...     is_case = hl.rand_bool(0.5)
+        ... )
+        >>> mt.dummy_code("smoking_status")
+        >>> mt.dummy_code(mt.smoking_status)  # also works
+
+        Parameters
+        ----------
+        column_field_names : variable-length args of :obj:`str`
+            The names of the column fields to dummy code.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            The matrix table with the dummy-coded variables.
+        :obj:`list`
+            A list of the names of the dummy-coded variables.
+        :obj:`dict`
+            A dictionary mapping the column field names to the categories of the column field.
+        """
+        field_name_to_categories = {
+            field_name: self.aggregate_cols(hl.agg.collect_as_set(self[field_name]))
+            for field_name in column_field_names
+        }
+        dummy_variables = {
+            f'{field_name}__{category}': hl.int(self[field_name] == category)
+            for field_name in column_field_names
+            for category in field_name_to_categories[field_name]
+        }
+        matrix_table = self.annotate_cols(**dummy_variables)
+        dummy_variable_field_names = list(dummy_variables)
+        return matrix_table, dummy_variable_field_names, field_name_to_categories
+
 
 matrix_table_type.set(MatrixTable)

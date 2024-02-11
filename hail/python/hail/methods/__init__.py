@@ -68,7 +68,7 @@ from .qc import (
     compute_charr,
     vep_json_typ,
 )
-from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals, dummy_code
+from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals
 from .relatedness import identity_by_descent, king, pc_relate, simulate_random_mating
 
 __all__ = [
@@ -133,7 +133,6 @@ __all__ = [
     'balding_nichols_model',
     'ld_prune',
     'filter_intervals',
-    'dummy_code',
     'segment_intervals',
     'de_novo',
     'filter_alleles',
