@@ -13,6 +13,7 @@ from typing import (
     AsyncIterator,
     Iterator,
     Union,
+    AsyncGenerator,
 )
 from typing import Literal, Sequence
 from typing_extensions import ParamSpec
@@ -62,6 +63,11 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 T = TypeVar('T')  # pylint: disable=invalid-name
 U = TypeVar('U')  # pylint: disable=invalid-name
 P = ParamSpec("P")
+
+
+async def the_empty_async_generator() -> AsyncGenerator[T, None]:
+    if False:  # pylint: disable=using-constant-test
+        yield  # The appearance of the keyword `yield` forces Python to make this function into a generator
 
 
 def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:

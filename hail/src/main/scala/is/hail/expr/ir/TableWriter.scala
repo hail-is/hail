@@ -582,7 +582,7 @@ case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableT
     else
       cb.if_(
         cb.emb.getFS.invoke[String, Boolean]("exists", path),
-        cb._fatal(s"file already exists: $path"),
+        cb._fatal(s"RelationalSetup.writeMetadata: file already exists: $path"),
       )
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
@@ -637,7 +637,7 @@ case class RelationalWriter(
     else
       cb.if_(
         cb.emb.getFS.invoke[String, Boolean]("exists", path),
-        cb._fatal(s"file already exists: $path"),
+        cb._fatal(s"RelationalWriter.writeMetadata: file already exists: $path"),
       )
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
 
