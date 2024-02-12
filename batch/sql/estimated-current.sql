@@ -720,8 +720,10 @@ BEGIN
   SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
   SET cur_job_group_cancelled = EXISTS (SELECT TRUE
-                                        FROM job_groups_cancelled
-                                        WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
+                                        FROM job_group_self_and_ancestors
+                                        INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                                          job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+                                        WHERE batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
                                         LOCK IN SHARE MODE);
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
@@ -1105,7 +1107,7 @@ BEGIN
           WHERE batch_id = in_batch_id AND update_id = in_update_id
           GROUP BY batch_id, job_group_id
         ) AS t ON job_groups.batch_id = t.batch_id AND job_groups.job_group_id = t.job_group_id
-        SET `state` = IF(staged_n_jobs > 0, 'running', job_groups.state), time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
+        SET `state` = IF(t.staged_n_jobs > 0, 'running', job_groups.state), time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
         # compute global number of new ready jobs from taking value from root job group only
         INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
@@ -1120,7 +1122,7 @@ BEGIN
           n_ready_jobs = n_ready_jobs + @n_ready_jobs,
           ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
 
-        # deletion is slow with lots of job groups - cleanup will happen on the driver in a loop
+        # deletion of the staging table is slow with lots of job groups - cleanup will happen on the driver in a loop
 
         IF in_update_id != 1 THEN
           SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
