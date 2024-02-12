@@ -50,12 +50,12 @@ async def _copy_file_one_part(
             while True:
                 b = await srcf.read(Copier.BUFFER_SIZE)
                 if not b:
+                    files_listener(-1)
+                    bytes_listener(-total_written)
                     return
                 written = await destf.write(b)
                 assert written == len(b)
                 total_written += written
-    files_listener(-1)
-    bytes_listener(-total_written)
 
 
 async def _copy_part(
