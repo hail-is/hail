@@ -44,9 +44,6 @@ case object SCanonicalCall extends SCall {
 
   def constructFromIntRepr(cb: EmitCodeBuilder, c: Code[Int]): SCanonicalCallValue =
     new SCanonicalCallValue(cb.memoize(c))
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    this == st
 }
 
 class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {

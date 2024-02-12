@@ -49,12 +49,6 @@ final case class SBinaryPointer(pType: PBinary) extends SBinary {
   override def containsPointers: Boolean = pType.containsPointers
 
   override def castRename(t: Type): SType = this
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case p: SBinaryPointer => pType == p.pType
-      case _ => false
-    }
 }
 
 class SBinaryPointerValue(

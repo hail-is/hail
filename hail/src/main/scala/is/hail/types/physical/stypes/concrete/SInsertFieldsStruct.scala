@@ -138,17 +138,6 @@ final case class SInsertFieldsStruct(
     val renamedParentType = parent.castRename(parentCastType)
     SInsertFieldsStruct(ts, renamedParentType.asInstanceOf[SBaseStruct], renamedInsertedFields)
   }
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case p: SInsertFieldsStruct =>
-        (parent isIsomorphicTo p.parent) &&
-        (insertedFields, p.insertedFields).zipped.forall { case ((_, a), (_, b)) =>
-          a.st isIsomorphicTo b.st
-        }
-      case _ =>
-        false
-    }
 }
 
 class SInsertFieldsStructValue(

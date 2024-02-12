@@ -37,9 +37,6 @@ case object SVoid extends SType {
   override def _typeWithRequiredness: TypeWithRequiredness = throw new UnsupportedOperationException
 
   override def containsPointers: Boolean = false
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    this == st
 }
 
 case object SVoidValue extends SValue with SUnrealizableValue {

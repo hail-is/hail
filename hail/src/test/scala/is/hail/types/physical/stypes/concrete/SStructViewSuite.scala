@@ -56,25 +56,4 @@ class SStructViewSuite extends HailSuite {
       SStructView.subset(FastSeq("x", "y"), xyz)
         .castRename(TStruct("x" -> TInt64, "x" -> TInt32))
     }
-
-  @Test def testIsIsomorphicTo(): Unit = {
-    val view1 =
-      SStructView.subset(FastSeq("x"), xyz)
-        .castRename(TStruct("a" -> TInt32))
-
-    val view2 =
-      SStructView.subset(
-        FastSeq("a"),
-        tcoerce[SBaseStruct] {
-          SType.canonical(
-            xyz.virtualType.asInstanceOf[TStruct].rename(
-              Map("x" -> "a", "y" -> "b", "z" -> "c")
-            )
-          )
-        },
-      )
-
-    assert(view1 isIsomorphicTo view2)
-    assert(!(view1 isIsomorphicTo view2.copiedType))
-  }
 }

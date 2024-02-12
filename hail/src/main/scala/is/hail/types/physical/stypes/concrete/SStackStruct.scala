@@ -161,12 +161,6 @@ final case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedS
       ts.types.zip(fieldEmitTypes).map { case (v, e) => e.copy(st = e.st.castRename(v)) },
     )
   }
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case s: SStackStruct => virtualType isJoinableWith s.virtualType
-      case _ => false
-    }
 }
 
 class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])

@@ -37,12 +37,6 @@ final case class SimpleSStream(elementEmitType: EmitType) extends SStream {
     throw new NotImplementedError()
 
   override def fromValues(values: IndexedSeq[Value[_]]): SValue = throw new NotImplementedError()
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case s: SimpleSStream => elementType isIsomorphicTo s.elementType
-      case _ => false
-    }
 }
 
 final case class SStreamIteratorLong(
@@ -60,17 +54,6 @@ final case class SStreamIteratorLong(
     new SStreamConcrete(this, coerce[NoBoxLongIterator](values(0)))
 
   override val elementEmitType: EmitType = EmitType(elementPType.sType, elementRequired)
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case s: SStreamIteratorLong =>
-        elementRequired == s.elementRequired &&
-        requiresMemoryManagement == s.requiresMemoryManagement &&
-        (elementType isIsomorphicTo s.elementType)
-
-      case _ =>
-        false
-    }
 }
 
 sealed trait SStream extends SType {

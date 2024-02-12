@@ -78,12 +78,6 @@ final case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   override def copiedType: SType = SNDArrayPointer(pType.copiedType.asInstanceOf[PCanonicalNDArray])
 
   override def containsPointers: Boolean = pType.containsPointers
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case p: SNDArrayPointer => elementType isIsomorphicTo p.elementType
-      case _ => false
-    }
 }
 
 class SNDArrayPointerValue(

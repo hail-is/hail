@@ -69,12 +69,6 @@ final case class SIndexablePointer(pType: PContainer) extends SContainer {
   override def copiedType: SType = SIndexablePointer(pType.copiedType.asInstanceOf[PContainer])
 
   override def containsPointers: Boolean = pType.containsPointers
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case p: SIndexablePointer => pType == p.pType
-      case _ => false
-    }
 }
 
 class SIndexablePointerValue(

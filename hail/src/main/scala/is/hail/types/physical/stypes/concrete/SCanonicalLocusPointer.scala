@@ -68,12 +68,6 @@ final case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     SCanonicalLocusPointer(pType.copiedType.asInstanceOf[PCanonicalLocus])
 
   override def containsPointers: Boolean = pType.containsPointers
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case p: SCanonicalLocusPointer => pType == p.pType
-      case _ => false
-    }
 }
 
 class SCanonicalLocusPointerValue(

@@ -55,9 +55,6 @@ abstract class SUnreachable extends SType {
   override def copiedType: SType = this
 
   override def containsPointers: Boolean = false
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    this.getClass == st.getClass && (virtualType isIsomorphicTo st.virtualType)
 }
 
 abstract class SUnreachableValue extends SSettable {

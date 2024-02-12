@@ -48,12 +48,6 @@ final case class SStringPointer(pType: PString) extends SString {
   override def copiedType: SType = SStringPointer(pType.copiedType.asInstanceOf[PString])
 
   override def containsPointers: Boolean = pType.containsPointers
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case p: SStringPointer => pType == p.pType
-      case _ => false
-    }
 }
 
 class SStringPointerValue(val st: SStringPointer, val a: Value[Long]) extends SStringValue {

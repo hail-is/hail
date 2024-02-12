@@ -126,16 +126,7 @@ final class SStructView(
       case s: SStructView =>
         rename == s.rename &&
         newToOldFieldMapping == s.newToOldFieldMapping &&
-          parent == s.parent
-      case _ =>
-        false
-    }
-
-  override def isIsomorphicTo(st: SType): Boolean =
-    st match {
-      case s: SStructView =>
-        (rename isIsomorphicTo s.rename) &&
-          (parent isIsomorphicTo s.parent)
+        parent == s.parent
       case _ =>
         false
     }
