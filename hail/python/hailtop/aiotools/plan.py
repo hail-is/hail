@@ -12,13 +12,10 @@ from ..utils.rich_progress_bar import CopyToolProgressBar, Progress
 try:
     import uvloop
 
-    uvloop_install = uvloop.install
+    uvloop.install()
 except ImportError as e:
     if not sys.platform.startswith('win32'):
         raise e
-
-    def uvloop_install():
-        pass
 
 
 class PlanError(ValueError):
