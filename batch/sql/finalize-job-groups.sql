@@ -11,8 +11,10 @@ BEGIN
   DECLARE job_group_cancelled BOOLEAN;
 
   SET job_group_cancelled = EXISTS (SELECT TRUE
-                                    FROM job_groups_cancelled
-                                    WHERE id = NEW.batch_id AND job_group_id = NEW.job_group_id
+                                    FROM job_group_self_and_ancestors
+                                    INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                                      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+                                    WHERE batch_id = NEW.batch_id AND job_group_self_and_ancestors.job_group_id = NEW.job_group_id
                                     LOCK IN SHARE MODE);
 
   IF job_group_cancelled THEN
@@ -140,7 +142,7 @@ BEGIN
                                         FROM job_group_self_and_ancestors
                                         INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
                                           job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-                                        WHERE batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
+                                        WHERE batch_id = OLD.batch_id AND job_group_self_and_ancestors.job_group_id = OLD.job_group_id
                                         LOCK IN SHARE MODE);
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
