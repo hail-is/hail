@@ -1183,9 +1183,7 @@ LOCK IN SHARE MODE;
 """)
 
         attempt_resources = {
-            (record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(
-                record['resources']
-            )
+            (record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
             async for record in attempt_resources
         }
 
