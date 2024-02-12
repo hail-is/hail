@@ -1126,6 +1126,22 @@ GROUP BY attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id
 LOCK IN SHARE MODE;
 """)
 
+        attempt_resources_recursive_job_groups = tx.execute_and_fetchall("""
+SELECT job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, attempt_resources.job_id, attempt_resources.attempt_id,
+  JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
+FROM job_group_self_and_ancestors
+LEFT JOIN jobs ON job_group_self_and_ancestors.batch_id = jobs.batch_id AND job_group_self_and_ancestors.job_group_id = jobs.job_group_id
+LEFT JOIN attempt_resources ON jobs.batch_id = attempt_resources.batch_id AND jobs.job_id = attempt_resources.job_id
+INNER JOIN attempts
+ON attempts.batch_id = attempt_resources.batch_id AND
+  attempts.job_id = attempt_resources.job_id AND
+  attempts.attempt_id = attempt_resources.attempt_id
+LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
+GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, attempt_resources.job_id, attempt_resources.attempt_id
+LOCK IN SHARE MODE;
+""")
+
         agg_job_resources = tx.execute_and_fetchall("""
 SELECT aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM aggregated_job_resources_v3
@@ -1165,6 +1181,13 @@ LOCK IN SHARE MODE;
             async for record in attempt_resources
         }
 
+        attempt_resources_recursive_job_groups = {
+            (record['batch_id'], record['ancestor_id'], record['job_id'], record['attempt_id']): json_to_value(
+                record['resources']
+            )
+            async for record in attempt_resources_recursive_job_groups
+        }
+
         agg_job_resources = {
             (record['batch_id'], record['job_group_id'], record['job_id']): json_to_value(record['resources'])
             async for record in agg_job_resources
@@ -1180,7 +1203,7 @@ LOCK IN SHARE MODE;
             async for record in agg_billing_project_resources
         }
 
-        attempt_by_job_group_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
+        attempt_by_job_group_resources = fold(attempt_resources_recursive_job_groups, lambda k: (k[0], k[1]))
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[2]))
         job_by_job_resources = fold(agg_job_resources, lambda k: (k[0], k[2]))
         job_by_job_group_resources = fold(agg_job_resources, lambda k: (k[0], k[1]))
