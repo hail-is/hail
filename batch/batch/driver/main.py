@@ -1126,18 +1126,19 @@ LOCK IN SHARE MODE;
 """)
 
         attempt_by_job_group_resources = tx.execute_and_fetchall("""
-SELECT job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, attempt_resources.job_id, attempt_resources.attempt_id,
+SELECT job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, jobs.job_id, attempt_resources.attempt_id,
   JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
-FROM job_group_self_and_ancestors
-LEFT JOIN jobs ON job_group_self_and_ancestors.batch_id = jobs.batch_id AND
-  job_group_self_and_ancestors.job_group_id = jobs.job_group_id
-LEFT JOIN attempts ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-LEFT JOIN attempt_resources ON attempts.batch_id = attempt_resources.batch_id AND
+FROM attempt_resources
+INNER JOIN attempts
+ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+LEFT JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
+  jobs.job_group_id = job_group_self_and_ancestors.job_group_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
-GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, job_id, attempt_id
+GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, jobs.job_id, attempt_resources.attempt_id
 LOCK IN SHARE MODE;
 """)
 
