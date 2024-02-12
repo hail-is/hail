@@ -1096,7 +1096,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         iec.map(cb)(pc => cast(cb, pc))
       case CastRename(v, _typ) =>
         emitI(v)
-          .map(cb)(pc => pc.st.castRename(_typ).fromValues(pc.valueTuple))
+          .map(cb)(_.castRename(_typ))
       case NA(typ) =>
         IEmitCode.missing(cb, SUnreachable.fromVirtualType(typ).defaultValue)
       case IsNA(v) =>
