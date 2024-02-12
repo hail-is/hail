@@ -35,8 +35,8 @@ hailctl dataproc \
         --num-preemptible-workers=4 \
         --requester-pays-allow-buckets hail-us-vep \
         --subnet=default \
-	--bucket=gs://hail-dataproc-staging-bucket-us-central1 \
-	--temp-bucket=gs://hail-dataproc-temp-bucket-us-central1
+	--bucket=hail-dataproc-staging-bucket-us-central1 \
+	--temp-bucket=hail-dataproc-temp-bucket-us-central1
 for file in $cluster_test_files
 do
     hailctl dataproc \
