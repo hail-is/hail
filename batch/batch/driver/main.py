@@ -1183,7 +1183,9 @@ LOCK IN SHARE MODE;
 """)
 
         attempt_resources = {
-            (record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
+            (record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(
+                record['resources']
+            )
             async for record in attempt_resources
         }
 
@@ -1223,27 +1225,32 @@ LOCK IN SHARE MODE;
         agg_batch_resources_2 = {batch_id: resources for (batch_id, _), resources in agg_batch_resources.items()}
 
         assert attempt_by_batch_resources == agg_batch_resources_2, (
+            'attempt_by_batch_resources / agg_batch_resources_2',
             dictdiffer.diff(attempt_by_batch_resources, agg_batch_resources_2),
             attempt_by_batch_resources,
             agg_batch_resources_2,
         )
         assert attempt_by_job_resources == agg_job_resources, (
+            'attempt_by_job_resources / agg_job_resources',
             dictdiffer.diff(attempt_by_job_resources, agg_job_resources),
             attempt_by_job_resources,
             agg_job_resources,
         )
         assert job_by_batch_resources == agg_batch_resources_2, (
+            'job_by_batch_resources / agg_batch_resources_2',
             dictdiffer.diff(job_by_batch_resources, agg_batch_resources_2),
             job_by_batch_resources,
             agg_batch_resources_2,
         )
         assert batch_by_billing_project_resources == agg_billing_project_resources, (
+            'batch_by_billing_project_resources / agg_billing_project_resources',
             dictdiffer.diff(batch_by_billing_project_resources, agg_billing_project_resources),
             batch_by_billing_project_resources,
             agg_billing_project_resources,
         )
 
         assert attempt_by_job_group_resources == agg_job_group_resources, (
+            'attempt_by_job_group_resources / agg_job_group_resources',
             dictdiffer.diff(attempt_by_job_group_resources, agg_job_group_resources),
             attempt_by_job_group_resources,
             agg_job_group_resources,
