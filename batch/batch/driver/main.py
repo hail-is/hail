@@ -1112,54 +1112,62 @@ async def check_resource_aggregation(db):
     @transaction(db, read_only=True)
     async def check(tx):
         attempt_resources = tx.execute_and_fetchall("""
-SELECT attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id, attempt_resources.attempt_id,
+SELECT attempt_resources.batch_id, attempt_resources.job_id, attempt_resources.attempt_id,
   JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM attempt_resources
 INNER JOIN attempts
 ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
-LEFT JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
-GROUP BY attempt_resources.batch_id, jobs.job_group_id, attempt_resources.job_id, attempt_resources.attempt_id
+GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 """)
 
-        attempt_resources_recursive_job_groups = tx.execute_and_fetchall("""
+        attempt_by_job_group_resources = tx.execute_and_fetchall("""
 SELECT job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, attempt_resources.job_id, attempt_resources.attempt_id,
   JSON_OBJECTAGG(resources.resource, quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)) as resources
 FROM job_group_self_and_ancestors
-LEFT JOIN jobs ON job_group_self_and_ancestors.batch_id = jobs.batch_id AND job_group_self_and_ancestors.job_group_id = jobs.job_group_id
-LEFT JOIN attempt_resources ON jobs.batch_id = attempt_resources.batch_id AND jobs.job_id = attempt_resources.job_id
-INNER JOIN attempts
-ON attempts.batch_id = attempt_resources.batch_id AND
+LEFT JOIN jobs ON job_group_self_and_ancestors.batch_id = jobs.batch_id AND
+  job_group_self_and_ancestors.job_group_id = jobs.job_group_id
+LEFT JOIN attempts ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+LEFT JOIN attempt_resources ON attempts.batch_id = attempt_resources.batch_id AND
   attempts.job_id = attempt_resources.job_id AND
   attempts.attempt_id = attempt_resources.attempt_id
 LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
-GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, attempt_resources.job_id, attempt_resources.attempt_id
+GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 """)
 
         agg_job_resources = tx.execute_and_fetchall("""
-SELECT aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id, JSON_OBJECTAGG(resource, `usage`) as resources
+SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM aggregated_job_resources_v3
-LEFT JOIN jobs ON aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggregated_job_resources_v3.job_id = jobs.job_id
 LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
-GROUP BY aggregated_job_resources_v3.batch_id, job_group_id, aggregated_job_resources_v3.job_id
+GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 """)
 
         agg_job_group_resources = tx.execute_and_fetchall("""
-SELECT batch_id, job_group_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
+SELECT batch_id, job_group_id, JSON_OBJECTAGG(resource, `usage`) as resources
+FROM aggregated_job_group_resources_v3
+LEFT JOIN resources ON aggregated_job_group_resources_v3.resource_id = resources.resource_id
+GROUP BY batch_id, job_group_id
+LOCK IN SHARE MODE;
+""")
+
+        agg_batch_resources = tx.execute_and_fetchall("""
+SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
-  SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_group_resources_v3
-  GROUP BY batch_id, job_group_id, resource_id) AS t
+  WHERE job_group_id = 0
+  GROUP BY batch_id, resource_id
+) AS t
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
-GROUP BY t.batch_id, t.job_group_id, billing_project
+GROUP BY t.batch_id, billing_project
 LOCK IN SHARE MODE;
 """)
 
@@ -1175,27 +1183,28 @@ LOCK IN SHARE MODE;
 """)
 
         attempt_resources = {
-            (record['batch_id'], record['job_group_id'], record['job_id'], record['attempt_id']): json_to_value(
-                record['resources']
-            )
+            (record['batch_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
             async for record in attempt_resources
         }
 
-        attempt_resources_recursive_job_groups = {
-            (record['batch_id'], record['ancestor_id'], record['job_id'], record['attempt_id']): json_to_value(
-                record['resources']
-            )
-            async for record in attempt_resources_recursive_job_groups
+        attempt_by_job_group_resources = {
+            (record['batch_id'], record['ancestor_id'], record['job_id'], record['attempt_id']): json_to_value(record['resources'])
+            async for record in attempt_by_job_group_resources
         }
 
         agg_job_resources = {
-            (record['batch_id'], record['job_group_id'], record['job_id']): json_to_value(record['resources'])
+            (record['batch_id'], record['job_id']): json_to_value(record['resources'])
             async for record in agg_job_resources
         }
 
         agg_job_group_resources = {
-            (record['batch_id'], record['job_group_id'], record['billing_project']): json_to_value(record['resources'])
+            (record['batch_id'], record['job_group_id']): json_to_value(record['resources'])
             async for record in agg_job_group_resources
+        }
+
+        agg_batch_resources = {
+            (record['batch_id'], record['billing_project']): json_to_value(record['resources'])
+            async for record in agg_batch_resources
         }
 
         agg_billing_project_resources = {
@@ -1203,32 +1212,39 @@ LOCK IN SHARE MODE;
             async for record in agg_billing_project_resources
         }
 
-        attempt_by_job_group_resources = fold(attempt_resources_recursive_job_groups, lambda k: (k[0], k[1]))
-        attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[2]))
-        job_by_job_resources = fold(agg_job_resources, lambda k: (k[0], k[2]))
-        job_by_job_group_resources = fold(agg_job_resources, lambda k: (k[0], k[1]))
-        job_group_by_job_group_resources = fold(agg_job_group_resources, lambda k: (k[0], k[1]))
-        job_group_by_billing_project_resources = fold(agg_job_group_resources, lambda k: k[2])
+        attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
+        attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
+        attempt_by_job_group_resources = fold(attempt_by_job_group_resources, lambda k: (k[0], k[1]))
+        job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
+        batch_by_billing_project_resources = fold(agg_batch_resources, lambda k: k[1])
 
-        assert attempt_by_job_group_resources == job_group_by_job_group_resources, (
-            dictdiffer.diff(attempt_by_job_group_resources, job_group_by_job_group_resources),
-            attempt_by_job_group_resources,
-            job_group_by_job_group_resources,
+        agg_batch_resources_2 = {batch_id: resources for (batch_id, _), resources in agg_batch_resources.items()}
+
+        assert attempt_by_batch_resources == agg_batch_resources_2, (
+            dictdiffer.diff(attempt_by_batch_resources, agg_batch_resources_2),
+            attempt_by_batch_resources,
+            agg_batch_resources_2,
         )
-        assert attempt_by_job_resources == job_by_job_resources, (
+        assert attempt_by_job_resources == agg_job_resources, (
             dictdiffer.diff(attempt_by_job_resources, agg_job_resources),
             attempt_by_job_resources,
             agg_job_resources,
         )
-        assert job_by_job_group_resources == job_group_by_job_group_resources, (
-            dictdiffer.diff(job_by_job_group_resources, job_group_by_job_group_resources),
-            job_by_job_group_resources,
-            job_group_by_job_group_resources,
+        assert job_by_batch_resources == agg_batch_resources_2, (
+            dictdiffer.diff(job_by_batch_resources, agg_batch_resources_2),
+            job_by_batch_resources,
+            agg_batch_resources_2,
         )
-        assert job_group_by_billing_project_resources == agg_billing_project_resources, (
-            dictdiffer.diff(job_group_by_billing_project_resources, agg_billing_project_resources),
-            job_group_by_billing_project_resources,
+        assert batch_by_billing_project_resources == agg_billing_project_resources, (
+            dictdiffer.diff(batch_by_billing_project_resources, agg_billing_project_resources),
+            batch_by_billing_project_resources,
             agg_billing_project_resources,
+        )
+
+        assert attempt_by_job_group_resources == agg_job_group_resources, (
+            dictdiffer.diff(attempt_by_job_group_resources, agg_job_group_resources),
+            attempt_by_job_group_resources,
+            agg_job_group_resources,
         )
 
     await check()
