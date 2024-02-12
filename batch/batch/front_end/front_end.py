@@ -1505,18 +1505,6 @@ VALUES (%s, %s, %s);
     return web.Response()
 
 
-def root_job_group_spec(batch_spec: dict):
-    return {
-        'job_group_id': ROOT_JOB_GROUP_ID,
-        'attributes': batch_spec.get('attributes'),
-        'cancel_after_n_failures': batch_spec.get('cancel_after_n_failures'),
-        'callback': batch_spec.get('callback'),
-        'n_jobs': batch_spec['n_jobs'],
-        'absolute_parent_id': None,
-        'in_update_parent_id': None,
-    }
-
-
 @routes.post('/api/v1alpha/batches/create-fast')
 @auth.authenticated_users_only()
 @add_metadata_to_request

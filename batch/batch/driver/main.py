@@ -1293,10 +1293,19 @@ async def cancel_fast_failing_job_groups(app):
         """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_n_jobs_in_complete_states.n_failed
 FROM job_groups
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t_cancelled ON TRUE
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
      job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
+WHERE t_cancelled.cancelled IS NULL AND state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
 """,
     )
     async for job_group in records:
