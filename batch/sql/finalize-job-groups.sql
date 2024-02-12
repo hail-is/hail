@@ -373,9 +373,9 @@ BEGIN
       WHERE job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
         job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
       GROUP BY update_id, inst_coll
+      FOR UPDATE
     ) AS t ON TRUE
     WHERE job_group_self_and_ancestors.batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
-    FOR UPDATE
     ON DUPLICATE KEY UPDATE
       n_ready_cancellable_jobs = n_ready_cancellable_jobs - @jg_n_ready_cancellable_jobs,
       ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu - @jg_ready_cancellable_cores_mcpu,
