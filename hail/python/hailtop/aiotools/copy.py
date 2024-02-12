@@ -95,7 +95,7 @@ async def copy(
             local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         ) as fs:
             with CopyToolProgressBar(transient=True, disable=not verbose) as progress:
-                initial_simultaneous_transfers = 10
+                initial_simultaneous_transfers = min(10, max_simultaneous_transfers)
                 parallelism_tid = progress.add_task(
                     description='parallelism',
                     completed=initial_simultaneous_transfers,
