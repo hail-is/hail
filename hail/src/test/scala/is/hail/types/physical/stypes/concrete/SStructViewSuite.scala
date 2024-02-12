@@ -11,13 +11,15 @@ import org.testng.annotations.Test
 class SStructViewSuite extends HailSuite {
 
   val xyz: SBaseStruct =
-    SType.canonical(
-      TStruct(
-        "x" -> TInt32,
-        "y" -> TInt64,
-        "z" -> TStruct("a" -> TInt32),
+    tcoerce[SBaseStruct](
+      SType.canonical(
+        TStruct(
+          "x" -> TInt32,
+          "y" -> TInt64,
+          "z" -> TStruct("a" -> TInt32),
+        )
       )
-    ).asInstanceOf[SBaseStruct]
+    )
 
   @Test def testCastRename(): Unit = {
     val newtype = TStruct("x" -> TStruct("b" -> TInt32))
