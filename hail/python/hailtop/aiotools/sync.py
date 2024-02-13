@@ -160,9 +160,7 @@ async def sync(
                 visible=verbose,
             )
 
-            async with GrowingSempahore(
-                initial_parallelism, max_parallelism, (progress, parallelism_tid)
-            ) as file_sema, GrowingSempahore(
+            async with GrowingSempahore(1, 1, (progress, parallelism_tid)) as file_sema, GrowingSempahore(
                 initial_file_parallelism, max_file_parallelism, (progress, file_parallelism_tid)
             ) as transfer_sema:
                 await bounded_gather2(
