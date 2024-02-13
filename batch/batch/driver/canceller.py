@@ -149,7 +149,18 @@ LIMIT %s;
                 async def cancel_with_error_handling(app, batch_id, job_id, id):
                     try:
                         await mark_job_complete(
-                            app, batch_id, job_id, None, job_group_id, None, 'Cancelled', None, None, None, 'cancelled', []
+                            app,
+                            batch_id,
+                            job_id,
+                            None,
+                            job_group_id,
+                            None,
+                            'Cancelled',
+                            None,
+                            None,
+                            None,
+                            'cancelled',
+                            [],
                         )
                     except Exception:
                         log.info(f'error while cancelling job {id}', exc_info=True)

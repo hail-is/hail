@@ -86,7 +86,9 @@ WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
-async def notify_job_group_on_job_complete(db: Database, client_session: httpx.ClientSession, batch_id: int, job_group_id: int):
+async def notify_job_group_on_job_complete(
+    db: Database, client_session: httpx.ClientSession, batch_id: int, job_group_id: int
+):
     records = db.select_and_fetchall(
         """
 SELECT job_groups.*,
@@ -544,7 +546,9 @@ async def mark_job_errored(app, batch_id, job_group_id, job_id, attempt_id, user
 
     db_status = format_version.db_status(status)
 
-    await mark_job_complete(app, batch_id, job_id, attempt_id, job_group_id, None, 'Error', db_status, None, None, 'error', [])
+    await mark_job_complete(
+        app, batch_id, job_id, attempt_id, job_group_id, None, 'Error', db_status, None, None, 'error', []
+    )
 
 
 async def schedule_job(app, record, instance):
