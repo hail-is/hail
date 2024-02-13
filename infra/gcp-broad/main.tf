@@ -2,7 +2,7 @@ terraform {
   required_providers {
     google = {
       source = "hashicorp/google"
-      version = "4.32.0"
+      version = "5.15.0"
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
@@ -438,12 +438,12 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.artifact_registry_location
-  role = "roles/artifactregistry.reader"
+  role = "roles/artifactregistry.admin"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
@@ -525,15 +525,6 @@ module "ci_gsa_secret" {
   iam_roles = [
     "cloudprofiler.agent",
   ]
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
-  provider = google-beta
-  project = var.gcp_project
-  repository = google_artifact_registry_repository.repository.name
-  location = var.artifact_registry_location
-  role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
 module "testns_ci_gsa_secret" {
@@ -811,7 +802,7 @@ resource "google_storage_bucket" "hail_test_requester_pays_bucket" {
 }
 
 resource "google_dns_managed_zone" "dns_zone" {
-  description = ""
+  description = "hail managed dns zone"
   name = "hail"
   dns_name = "hail."
   visibility = "private"
@@ -862,7 +853,7 @@ resource "kubernetes_cluster_role_binding" "batch" {
   }
 }
 
-resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
+resource "kubernetes_pod_disruption_budget_v1" "kube_dns_pdb" {
   metadata {
     name = "kube-dns"
     namespace = "kube-system"
@@ -877,7 +868,7 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_pdb" {
   }
 }
 
-resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
+resource "kubernetes_pod_disruption_budget_v1" "kube_dns_autoscaler_pdb" {
   metadata {
     name = "kube-dns-autoscaler"
     namespace = "kube-system"
@@ -892,7 +883,7 @@ resource "kubernetes_pod_disruption_budget" "kube_dns_autoscaler_pdb" {
   }
 }
 
-resource "kubernetes_pod_disruption_budget" "event_exporter_pdb" {
+resource "kubernetes_pod_disruption_budget_v1" "event_exporter_pdb" {
   metadata {
     name = "event-exporter"
     namespace = "kube-system"

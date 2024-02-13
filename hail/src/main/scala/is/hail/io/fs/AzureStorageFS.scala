@@ -273,12 +273,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   }
 
   def openNoCompression(url: URL): SeekableDataInputStream = handlePublicAccessError(url) {
-    val blobClient: BlobClient = getBlobClient(url)
-    val blobSize = blobClient.getProperties.getBlobSize
+    val blobSize = getBlobClient(url).getProperties.getBlobSize
 
     val is: SeekableInputStream = new FSSeekableInputStream {
-      private[this] val client: BlobClient = blobClient
-
       val bbOS = new OutputStream {
         override def write(b: Array[Byte]): Unit = bb.put(b)
         override def write(b: Int): Unit = bb.put(b.toByte)
@@ -296,7 +293,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
         val response = retryTransientErrors {
           bb.clear()
-          client.downloadStreamWithResponse(
+          getBlobClient(url).downloadStreamWithResponse(
             bbOS,
             new BlobRange(pos, count),
             null,
