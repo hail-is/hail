@@ -10,8 +10,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/NYGC_30x/GRCh38/autosomes_phased.mt"
           }
         },
         "version": "NYGC_30x_phased"
@@ -23,8 +23,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/NYGC_30x/GRCh38/autosomes_unphased.mt"
           }
         },
         "version": "NYGC_30x_unphased"
@@ -42,8 +42,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/NYGC_30x/GRCh38/chrX_phased.mt"
           }
         },
         "version": "NYGC_30x_phased"
@@ -55,8 +55,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/NYGC_30x/GRCh38/chrX_unphased.mt"
           }
         },
         "version": "NYGC_30x_unphased"
@@ -74,8 +74,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/NYGC_30x/GRCh38/chrY_unphased.mt"
           }
         },
         "version": "NYGC_30x_unphased"
@@ -93,8 +93,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh38/autosomes.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh38/autosomes.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh38/autosomes.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh38/autosomes.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh38/autosomes.mt"
           }
         },
         "version": "phase_3"
@@ -112,8 +112,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh38/chrX.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh38/chrX.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh38/chrX.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh38/chrX.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh38/chrX.mt"
           }
         },
         "version": "phase_3"
@@ -131,8 +131,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh38/chrY.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh38/chrY.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh38/chrY.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh38/chrY.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh38/chrY.mt"
           }
         },
         "version": "phase_3"
@@ -150,8 +150,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/autosomes.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/autosomes.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/autosomes.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh37/autosomes.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh37/autosomes.mt"
           }
         },
         "version": "phase_3"
@@ -169,8 +169,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/chrMT.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/chrMT.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/chrMT.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh37/chrMT.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh37/chrMT.mt"
           }
         },
         "version": "phase_3"
@@ -188,8 +188,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/chrX.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/chrX.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/chrX.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh37/chrX.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh37/chrX.mt"
           }
         },
         "version": "phase_3"
@@ -207,8 +207,8 @@
             "us": "s3://hail-datasets-us-east-1/1000_Genomes/phase_3/GRCh37/chrY.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes/phase_3/GRCh37/chrY.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes/phase_3/GRCh37/chrY.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/1000_Genomes/phase_3/GRCh37/chrY.mt",
+            "us-central1": "gs://hail-datasets-us-central1/1000_Genomes/phase_3/GRCh37/chrY.mt"
           }
         },
         "version": "phase_3"
@@ -231,8 +231,8 @@
             "us": "s3://hail-datasets-us-east-1/CADD/v1.4/GRCh37/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/CADD/v1.4/GRCh37/table.ht",
-            "us": "gs://hail-datasets-us/CADD/v1.4/GRCh37/table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/CADD/v1.4/GRCh37/table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/CADD/v1.4/GRCh37/table.ht"
           }
         },
         "version": "1.4"
@@ -244,8 +244,8 @@
             "us": "s3://hail-datasets-us-east-1/CADD/v1.4/GRCh38/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/CADD/v1.4/GRCh38/table.ht",
-            "us": "gs://hail-datasets-us/CADD/v1.4/GRCh38/table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/CADD/v1.4/GRCh38/table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/CADD/v1.4/GRCh38/table.ht"
           }
         },
         "version": "1.4"
@@ -257,8 +257,8 @@
             "us": "s3://hail-datasets-us-east-1/CADD/v1.6/GRCh37/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/CADD/v1.6/GRCh37/table.ht",
-            "us": "gs://hail-datasets-us/CADD/v1.6/GRCh37/table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/CADD/v1.6/GRCh37/table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/CADD/v1.6/GRCh37/table.ht"
           }
         },
         "version": "1.6"
@@ -270,8 +270,8 @@
             "us": "s3://hail-datasets-us-east-1/CADD/v1.6/GRCh38/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/CADD/v1.6/GRCh38/table.ht",
-            "us": "gs://hail-datasets-us/CADD/v1.6/GRCh38/table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/CADD/v1.6/GRCh38/table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/CADD/v1.6/GRCh38/table.ht"
           }
         },
         "version": "1.6"
@@ -294,8 +294,8 @@
             "us": "s3://hail-datasets-us-east-1/DANN/GRCh37/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/DANN/GRCh37/table.ht",
-            "us": "gs://hail-datasets-us/DANN/GRCh37/table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/DANN/GRCh37/table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/DANN/GRCh37/table.ht"
           }
         },
         "version": null
@@ -307,8 +307,8 @@
             "us": "s3://hail-datasets-us-east-1/DANN/GRCh38/table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/DANN/GRCh38/table.ht",
-            "us": "gs://hail-datasets-us/DANN/GRCh38/table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/DANN/GRCh38/table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/DANN/GRCh38/table.ht"
           }
         },
         "version": null
@@ -331,8 +331,8 @@
             "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht",
-            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht",
+            "us-central1": "gs://hail-datasets-us-central1/Ensembl/release_95/GRCh37/homo_sapiens_low_complexity_regions.ht"
           }
         },
         "version": "release_95"
@@ -344,8 +344,8 @@
             "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht",
-            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht",
+            "us-central1": "gs://hail-datasets-us-central1/Ensembl/release_95/GRCh38/homo_sapiens_low_complexity_regions.ht"
           }
         },
         "version": "release_95"
@@ -368,8 +368,8 @@
             "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht",
-            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht",
+            "us-central1": "gs://hail-datasets-us-central1/Ensembl/release_95/GRCh37/homo_sapiens_reference_genome.ht"
           }
         },
         "version": "release_95"
@@ -381,8 +381,8 @@
             "us": "s3://hail-datasets-us-east-1/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht",
-            "us": "gs://hail-datasets-us/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht",
+            "us-central1": "gs://hail-datasets-us-central1/Ensembl/release_95/GRCh38/homo_sapiens_reference_genome.ht"
           }
         },
         "version": "release_95"
@@ -400,8 +400,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt",
-            "us": "gs://hail-datasets-us/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v7/GRCh37/RNA_seq_gene_TPMs.mt"
           }
         },
         "version": "v7"
@@ -419,8 +419,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt",
-            "us": "gs://hail-datasets-us/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v7/GRCh37/RNA_seq_gene_read_counts.mt"
           }
         },
         "version": "v7"
@@ -438,8 +438,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt",
-            "us": "gs://hail-datasets-us/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v7/GRCh37/RNA_seq_junction_read_counts.mt"
           }
         },
         "version": "v7"
@@ -460,8 +460,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -482,8 +482,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -504,8 +504,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -526,8 +526,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -548,8 +548,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -570,8 +570,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -592,8 +592,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -614,8 +614,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -636,8 +636,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -658,8 +658,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -680,8 +680,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -702,8 +702,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -724,8 +724,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -746,8 +746,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -768,8 +768,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -790,8 +790,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -812,8 +812,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -834,8 +834,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -856,8 +856,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -878,8 +878,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -900,8 +900,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -922,8 +922,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -944,8 +944,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -966,8 +966,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -988,8 +988,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1010,8 +1010,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1032,8 +1032,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1054,8 +1054,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1076,8 +1076,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1098,8 +1098,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1120,8 +1120,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Liver_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1142,8 +1142,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Lung_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1164,8 +1164,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1186,8 +1186,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1208,8 +1208,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1230,8 +1230,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1252,8 +1252,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1274,8 +1274,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1296,8 +1296,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1318,8 +1318,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1340,8 +1340,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1362,8 +1362,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1384,8 +1384,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1406,8 +1406,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1428,8 +1428,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Testis_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1450,8 +1450,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1472,8 +1472,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1494,8 +1494,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1516,8 +1516,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1535,8 +1535,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt",
-            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
           }
         },
         "version": "v8"
@@ -1557,8 +1557,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Adipose_Subcutaneous_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1579,8 +1579,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Adipose_Visceral_Omentum_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1601,8 +1601,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Adrenal_Gland_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1623,8 +1623,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Artery_Aorta_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1645,8 +1645,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Artery_Coronary_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1667,8 +1667,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Artery_Tibial_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1689,8 +1689,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Amygdala_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1711,8 +1711,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Anterior_cingulate_cortex_BA24_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1733,8 +1733,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Caudate_basal_ganglia_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1755,8 +1755,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellar_Hemisphere_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1777,8 +1777,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Cerebellum_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1799,8 +1799,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Cortex_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1821,8 +1821,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Frontal_Cortex_BA9_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1843,8 +1843,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Hippocampus_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1865,8 +1865,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Hypothalamus_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1887,8 +1887,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Nucleus_accumbens_basal_ganglia_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1909,8 +1909,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Putamen_basal_ganglia_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1931,8 +1931,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Spinal_cord_cervical_c-1_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1953,8 +1953,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Brain_Substantia_nigra_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1975,8 +1975,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Breast_Mammary_Tissue_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -1997,8 +1997,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Cells_Cultured_fibroblasts_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2019,8 +2019,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Cells_EBV-transformed_lymphocytes_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2041,8 +2041,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Colon_Sigmoid_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2063,8 +2063,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Colon_Transverse_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2085,8 +2085,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Esophagus_Gastroesophageal_Junction_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2107,8 +2107,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Esophagus_Mucosa_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2129,8 +2129,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Esophagus_Muscularis_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2151,8 +2151,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Heart_Atrial_Appendage_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2173,8 +2173,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Heart_Left_Ventricle_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2195,8 +2195,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Kidney_Cortex_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2217,8 +2217,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Liver_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2239,8 +2239,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Lung_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2261,8 +2261,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Minor_Salivary_Gland_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2283,8 +2283,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Muscle_Skeletal_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2305,8 +2305,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Nerve_Tibial_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2327,8 +2327,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Ovary_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2349,8 +2349,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Pancreas_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2371,8 +2371,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Pituitary_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2393,8 +2393,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Prostate_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2415,8 +2415,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Skin_Not_Sun_Exposed_Suprapubic_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2437,8 +2437,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Skin_Sun_Exposed_Lower_leg_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2459,8 +2459,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Small_Intestine_Terminal_Ileum_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2481,8 +2481,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Spleen_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2503,8 +2503,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Stomach_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2525,8 +2525,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Testis_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2547,8 +2547,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Thyroid_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2569,8 +2569,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Uterus_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2591,8 +2591,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Vagina_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2613,8 +2613,8 @@
             "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
-            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
           }
         },
         "version": "v8"
@@ -2632,8 +2632,8 @@
             "us": "s3://hail-datasets-us-east-1/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt",
-            "us": "gs://hail-datasets-us/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt",
+            "us-central1": "gs://hail-datasets-us-central1/UK_Biobank/Rapid_GWAS/v2/GRCh37/both_sexes.mt"
           }
         },
         "version": "v2"
@@ -2651,8 +2651,8 @@
             "us": "s3://hail-datasets-us-east-1/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt",
-            "us": "gs://hail-datasets-us/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt",
+            "us-central1": "gs://hail-datasets-us-central1/UK_Biobank/Rapid_GWAS/v2/GRCh37/female.mt"
           }
         },
         "version": "v2"
@@ -2670,8 +2670,8 @@
             "us": "s3://hail-datasets-us-east-1/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt",
-            "us": "gs://hail-datasets-us/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt",
+            "us-central1": "gs://hail-datasets-us-central1/UK_Biobank/Rapid_GWAS/v2/GRCh37/male.mt"
           }
         },
         "version": "v2"
@@ -2695,8 +2695,8 @@
             "us": "s3://hail-datasets-us-east-1/ClinVar/2019-07/gene_specific_summary.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/ClinVar/2019-07/gene_specific_summary.ht",
-            "us": "gs://hail-datasets-us/ClinVar/2019-07/gene_specific_summary.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/ClinVar/2019-07/gene_specific_summary.ht",
+            "us-central1": "gs://hail-datasets-us-central1/ClinVar/2019-07/gene_specific_summary.ht"
           }
         },
         "version": "2019-07"
@@ -2717,8 +2717,8 @@
             "us": "s3://hail-datasets-us-east-1/ClinVar/2019-07/GRCh37/variant_summary.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/ClinVar/2019-07/GRCh37/variant_summary.ht",
-            "us": "gs://hail-datasets-us/ClinVar/2019-07/GRCh37/variant_summary.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/ClinVar/2019-07/GRCh37/variant_summary.ht",
+            "us-central1": "gs://hail-datasets-us-central1/ClinVar/2019-07/GRCh37/variant_summary.ht"
           }
         },
         "version": "2019-07"
@@ -2730,8 +2730,8 @@
             "us": "s3://hail-datasets-us-east-1/ClinVar/2019-07/GRCh38/variant_summary.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/ClinVar/2019-07/GRCh38/variant_summary.ht",
-            "us": "gs://hail-datasets-us/ClinVar/2019-07/GRCh38/variant_summary.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/ClinVar/2019-07/GRCh38/variant_summary.ht",
+            "us-central1": "gs://hail-datasets-us-central1/ClinVar/2019-07/GRCh38/variant_summary.ht"
           }
         },
         "version": "2019-07"
@@ -2755,8 +2755,8 @@
             "us": "s3://hail-datasets-us-east-1/dbNSFP/v4.0a/gene_complete.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbNSFP/v4.0a/gene_complete.ht",
-            "us": "gs://hail-datasets-us/dbNSFP/v4.0a/gene_complete.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbNSFP/v4.0a/gene_complete.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbNSFP/v4.0a/gene_complete.ht"
           }
         },
         "version": "4.0"
@@ -2777,8 +2777,8 @@
             "us": "s3://hail-datasets-us-east-1/dbNSFP/v4.0a/GRCh37/variant.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbNSFP/v4.0a/GRCh37/variant.ht",
-            "us": "gs://hail-datasets-us/dbNSFP/v4.0a/GRCh37/variant.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbNSFP/v4.0a/GRCh37/variant.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbNSFP/v4.0a/GRCh37/variant.ht"
           }
         },
         "version": "4.0"
@@ -2790,8 +2790,8 @@
             "us": "s3://hail-datasets-us-east-1/dbNSFP/v4.0a/GRCh38/variant.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbNSFP/v4.0a/GRCh38/variant.ht",
-            "us": "gs://hail-datasets-us/dbNSFP/v4.0a/GRCh38/variant.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbNSFP/v4.0a/GRCh38/variant.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbNSFP/v4.0a/GRCh38/variant.ht"
           }
         },
         "version": "4.0"
@@ -2812,8 +2812,8 @@
             "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh37/full_table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh37/full_table.ht",
-            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh37/full_table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbSNP/build_154/GRCh37/full_table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbSNP/build_154/GRCh37/full_table.ht"
           }
         },
         "version": "154"
@@ -2825,8 +2825,8 @@
             "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh38/full_table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh38/full_table.ht",
-            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh38/full_table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbSNP/build_154/GRCh38/full_table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbSNP/build_154/GRCh38/full_table.ht"
           }
         },
         "version": "154"
@@ -2847,8 +2847,8 @@
             "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh37/rsid_only_table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh37/rsid_only_table.ht",
-            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh37/rsid_only_table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbSNP/build_154/GRCh37/rsid_only_table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbSNP/build_154/GRCh37/rsid_only_table.ht"
           }
         },
         "version": "154"
@@ -2860,8 +2860,8 @@
             "us": "s3://hail-datasets-us-east-1/dbSNP/build_154/GRCh38/rsid_only_table.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/dbSNP/build_154/GRCh38/rsid_only_table.ht",
-            "us": "gs://hail-datasets-us/dbSNP/build_154/GRCh38/rsid_only_table.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/dbSNP/build_154/GRCh38/rsid_only_table.ht",
+            "us-central1": "gs://hail-datasets-us-central1/dbSNP/build_154/GRCh38/rsid_only_table.ht"
           }
         },
         "version": "154"
@@ -2882,8 +2882,8 @@
             "us": "s3://hail-datasets-us-east-1/GENCODE/v19/GRCh37/annotation.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GENCODE/v19/GRCh37/annotation.ht",
-            "us": "gs://hail-datasets-us/GENCODE/v19/GRCh37/annotation.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GENCODE/v19/GRCh37/annotation.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GENCODE/v19/GRCh37/annotation.ht"
           }
         },
         "version": "v19"
@@ -2895,8 +2895,8 @@
             "us": "s3://hail-datasets-us-east-1/GENCODE/v31/GRCh38/annotation.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GENCODE/v31/GRCh38/annotation.ht",
-            "us": "gs://hail-datasets-us/GENCODE/v31/GRCh38/annotation.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GENCODE/v31/GRCh38/annotation.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GENCODE/v31/GRCh38/annotation.ht"
           }
         },
         "version": "v31"
@@ -2908,8 +2908,8 @@
             "us": "s3://hail-datasets-us-east-1/GENCODE/v35/GRCh38/annotation.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GENCODE/v35/GRCh38/annotation.ht",
-            "us": "gs://hail-datasets-us/GENCODE/v35/GRCh38/annotation.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GENCODE/v35/GRCh38/annotation.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GENCODE/v35/GRCh38/annotation.ht"
           }
         },
         "version": "v35"
@@ -2932,8 +2932,8 @@
             "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh37/elements.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh37/elements.ht",
-            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh37/elements.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GERP/GERP++/GRCh37/elements.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GERP/GERP++/GRCh37/elements.ht"
           }
         },
         "version": "hg19"
@@ -2945,8 +2945,8 @@
             "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh38/elements.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh38/elements.ht",
-            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh38/elements.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GERP/GERP++/GRCh38/elements.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GERP/GERP++/GRCh38/elements.ht"
           }
         },
         "version": "hg19"
@@ -2969,8 +2969,8 @@
             "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh37/scores.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh37/scores.ht",
-            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh37/scores.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GERP/GERP++/GRCh37/scores.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GERP/GERP++/GRCh37/scores.ht"
           }
         },
         "version": "hg19"
@@ -2982,8 +2982,8 @@
             "us": "s3://hail-datasets-us-east-1/GERP/GERP++/GRCh38/scores.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GERP/GERP++/GRCh38/scores.ht",
-            "us": "gs://hail-datasets-us/GERP/GERP++/GRCh38/scores.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GERP/GERP++/GRCh38/scores.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GERP/GERP++/GRCh38/scores.ht"
           }
         },
         "version": "hg19"
@@ -3006,8 +3006,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/bmi_AFR.ht"
           }
         },
         "version": "2018"
@@ -3030,8 +3030,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/bmi_ALL.ht"
           }
         },
         "version": "2018"
@@ -3054,8 +3054,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/bmi_AMR.ht"
           }
         },
         "version": "2018"
@@ -3078,8 +3078,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/bmi_EAS.ht"
           }
         },
         "version": "2018"
@@ -3102,8 +3102,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/bmi_EUR.ht"
           }
         },
         "version": "2018"
@@ -3126,8 +3126,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/bmi_SAS.ht"
           }
         },
         "version": "2018"
@@ -3150,8 +3150,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_AFR.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_AFR.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_AFR.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/height_AFR.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/height_AFR.ht"
           }
         },
         "version": "2018"
@@ -3174,8 +3174,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_ALL.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_ALL.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_ALL.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/height_ALL.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/height_ALL.ht"
           }
         },
         "version": "2018"
@@ -3198,8 +3198,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_AMR.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_AMR.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_AMR.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/height_AMR.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/height_AMR.ht"
           }
         },
         "version": "2018"
@@ -3222,8 +3222,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_EAS.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_EAS.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_EAS.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/height_EAS.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/height_EAS.ht"
           }
         },
         "version": "2018"
@@ -3246,8 +3246,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_EUR.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_EUR.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_EUR.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/height_EUR.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/height_EUR.ht"
           }
         },
         "version": "2018"
@@ -3270,8 +3270,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/height_SAS.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/height_SAS.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/height_SAS.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/height_SAS.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/height_SAS.ht"
           }
         },
         "version": "2018"
@@ -3294,8 +3294,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Add.ht"
           }
         },
         "version": "2018"
@@ -3318,8 +3318,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_C_ALL_Rec.ht"
           }
         },
         "version": "2018"
@@ -3342,8 +3342,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Add.ht"
           }
         },
         "version": "2018"
@@ -3366,8 +3366,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_C_EUR_Rec.ht"
           }
         },
         "version": "2018"
@@ -3390,8 +3390,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Add.ht"
           }
         },
         "version": "2018"
@@ -3414,8 +3414,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_M_ALL_Rec.ht"
           }
         },
         "version": "2018"
@@ -3438,8 +3438,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Add.ht"
           }
         },
         "version": "2018"
@@ -3462,8 +3462,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_M_EUR_Rec.ht"
           }
         },
         "version": "2018"
@@ -3486,8 +3486,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Add.ht"
           }
         },
         "version": "2018"
@@ -3510,8 +3510,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_W_ALL_Rec.ht"
           }
         },
         "version": "2018"
@@ -3534,8 +3534,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Add.ht"
           }
         },
         "version": "2018"
@@ -3558,8 +3558,8 @@
             "us": "s3://hail-datasets-us-east-1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht",
-            "us": "gs://hail-datasets-us/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht",
+            "us-central1": "gs://hail-datasets-us-central1/GIANT/2018_exome_array/GRCh37/whr_W_EUR_Rec.ht"
           }
         },
         "version": "2018"
@@ -3582,7 +3582,7 @@
             "us": "s3://gnomad-public-us-east-1/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
           }
         },
         "version": "2.1.1"
@@ -3603,7 +3603,7 @@
             "us": "s3://gnomad-public-us-east-1/papers/2019-tx-annotation/gnomad_browser/all.baselevel.021620.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/gnomad_browser/all.baselevel.021620.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/gnomad_browser/all.baselevel.021620.ht"
           }
         },
         "version": "2.1.1"
@@ -3626,7 +3626,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
           }
         },
         "version": "3.1"
@@ -3649,7 +3649,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
           }
         },
         "version": "3.1"
@@ -3672,7 +3672,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/coverage/exomes/gnomad.exomes.r2.1.coverage.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/coverage/exomes/gnomad.exomes.r2.1.coverage.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/coverage/exomes/gnomad.exomes.r2.1.coverage.ht"
           }
         },
         "version": "2.1"
@@ -3695,7 +3695,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ht/exomes/gnomad.exomes.r2.1.1.sites.ht"
           }
         },
         "version": "2.1.1"
@@ -3707,7 +3707,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/liftover_grch38/ht/exomes/gnomad.exomes.r2.1.1.sites.liftover_grch38.ht"
           }
         },
         "version": "2.1.1"
@@ -3730,7 +3730,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/coverage/genomes/gnomad.genomes.r2.1.coverage.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/coverage/genomes/gnomad.genomes.r2.1.coverage.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/coverage/genomes/gnomad.genomes.r2.1.coverage.ht"
           }
         },
         "version": "2.1"
@@ -3742,7 +3742,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.0.1/coverage/genomes/gnomad.genomes.r3.0.1.coverage.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.0.1/coverage/genomes/gnomad.genomes.r3.0.1.coverage.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.0.1/coverage/genomes/gnomad.genomes.r3.0.1.coverage.ht"
           }
         },
         "version": "3.0.1"
@@ -3765,7 +3765,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ht/genomes/gnomad.genomes.r2.1.1.sites.ht"
           }
         },
         "version": "2.1.1"
@@ -3777,7 +3777,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/liftover_grch38/ht/genomes/gnomad.genomes.r2.1.1.sites.liftover_grch38.ht"
           }
         },
         "version": "2.1.1"
@@ -3789,7 +3789,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.ht"
           }
         },
         "version": "3.1"
@@ -3801,7 +3801,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1.1/ht/genomes/gnomad.genomes.v3.1.1.sites.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1.1/ht/genomes/gnomad.genomes.v3.1.1.sites.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1.1/ht/genomes/gnomad.genomes.v3.1.1.sites.ht"
           }
         },
         "version": "3.1.1"
@@ -3813,7 +3813,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.sites.ht"
           }
         },
         "version": "3.1.2"
@@ -3831,7 +3831,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset_dense.mt"
           }
         },
         "version": "3.1"
@@ -3843,7 +3843,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_dense.mt"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_dense.mt"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_dense.mt"
           }
         },
         "version": "3.1.2"
@@ -3861,7 +3861,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sparse.mt"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sparse.mt"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1.2/mt/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sparse.mt"
           }
         },
         "version": "3.1.2"
@@ -3879,7 +3879,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sample_meta.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sample_meta.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sample_meta.ht"
           }
         },
         "version": "3.1.2"
@@ -3902,7 +3902,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_variant_annotations.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_variant_annotations.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1.2/ht/genomes/gnomad.genomes.v3.1.2.hgdp_1kg_subset_variant_annotations.ht"
           }
         },
         "version": "3.1.2"
@@ -3920,7 +3920,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -3938,7 +3938,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -3956,7 +3956,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -3974,7 +3974,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -3992,7 +3992,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -4010,7 +4010,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -4028,7 +4028,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -4046,7 +4046,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -4064,7 +4064,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.bm"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.bm"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.bm"
           }
         },
         "version": "2.1.1"
@@ -4087,7 +4087,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.afr.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.afr.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.afr.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4110,7 +4110,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.amr.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.amr.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.amr.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4133,7 +4133,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.asj.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.asj.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.asj.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4156,7 +4156,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.eas.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.eas.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.eas.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4179,7 +4179,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.est.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.est.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.est.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4202,7 +4202,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.fin.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.fin.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.fin.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4225,7 +4225,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nfe.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nfe.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nfe.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4248,7 +4248,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nwe.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nwe.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nwe.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4271,7 +4271,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.seu.adj.ld_scores.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.seu.adj.ld_scores.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.seu.adj.ld_scores.ht"
           }
         },
         "version": "2.1.1"
@@ -4294,7 +4294,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4317,7 +4317,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4340,7 +4340,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4363,7 +4363,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4386,7 +4386,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4409,7 +4409,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4432,7 +4432,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4455,7 +4455,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4478,7 +4478,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.variant_indices.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.variant_indices.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.variant_indices.ht"
           }
         },
         "version": "2.1.1"
@@ -4501,7 +4501,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d1.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d1.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d1.ht"
           }
         },
         "version": "2.1"
@@ -4524,7 +4524,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d2.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d2.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d2.ht"
           }
         },
         "version": "2.1"
@@ -4547,7 +4547,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d3.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d3.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d3.ht"
           }
         },
         "version": "2.1"
@@ -4570,7 +4570,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d4.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d4.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d4.ht"
           }
         },
         "version": "2.1"
@@ -4593,7 +4593,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d5.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d5.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d5.ht"
           }
         },
         "version": "2.1"
@@ -4616,7 +4616,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d6.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d6.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d6.ht"
           }
         },
         "version": "2.1"
@@ -4639,7 +4639,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d7.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d7.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d7.ht"
           }
         },
         "version": "2.1"
@@ -4662,7 +4662,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d8.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d8.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d8.ht"
           }
         },
         "version": "2.1"
@@ -4685,7 +4685,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d9.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d9.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d9.ht"
           }
         },
         "version": "2.1"
@@ -4708,7 +4708,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d10.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d10.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d10.ht"
           }
         },
         "version": "2.1"
@@ -4726,7 +4726,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/ht/exomes_phased_counts_0.05_3_prime_UTR_variant_vp.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ht/exomes_phased_counts_0.05_3_prime_UTR_variant_vp.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/ht/exomes_phased_counts_0.05_3_prime_UTR_variant_vp.ht"
           }
         },
         "version": "2.1.1"
@@ -4749,7 +4749,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1/pca/gnomad.r2.1.pca_loadings.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1/pca/gnomad.r2.1.pca_loadings.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1/pca/gnomad.r2.1.pca_loadings.ht"
           }
         },
         "version": "2.1"
@@ -4761,7 +4761,7 @@
             "us": "s3://gnomad-public-us-east-1/release/3.1/pca/gnomad.v3.1.pca_loadings.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/pca/gnomad.v3.1.pca_loadings.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/3.1/pca/gnomad.v3.1.pca_loadings.ht"
           }
         },
         "version": "3.1"
@@ -4784,8 +4784,8 @@
             "us": "s3://hail-datasets-us-east-1/gnomAD/v2.1.1/lof_metrics_by_gene.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/gnomAD/v2.1.1/lof_metrics_by_gene.ht",
-            "us": "gs://hail-datasets-us/gnomAD/v2.1.1/lof_metrics_by_gene.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/gnomAD/v2.1.1/lof_metrics_by_gene.ht",
+            "us-central1": "gs://hail-datasets-us-central1/gnomAD/v2.1.1/lof_metrics_by_gene.ht"
           }
         },
         "version": "2.1.1"
@@ -4808,7 +4808,7 @@
             "us": "s3://gnomad-public-us-east-1/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_transcript.ht"
           },
           "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_transcript.ht"
+            "us-central1": "gs://gcp-public-data--gnomad/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_transcript.ht"
           }
         },
         "version": "2.1.1"
@@ -4831,8 +4831,8 @@
             "us": "s3://hail-datasets-us-east-1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht",
-            "us": "gs://hail-datasets-us/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht"
+            "europe-west1": "gs://hail-datasets-europe-west1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht",
+            "us-central1": "gs://hail-datasets-us-central1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.ht"
           }
         },
         "version": "2.2"
@@ -4850,8 +4850,8 @@
             "us": "s3://hail-datasets-us-east-1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt",
-            "us": "gs://hail-datasets-us/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt",
+            "us-central1": "gs://hail-datasets-us-central1/LDSC/baseline-LD_v2.2/GRCh37/ld_scores.mt"
           }
         },
         "version": "2.2"
@@ -4863,8 +4863,8 @@
             "us": "s3://hail-datasets-us-east-1/LDSC/baseline_v1.1/GRCh37/ld_scores.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/LDSC/baseline_v1.1/GRCh37/ld_scores.mt",
-            "us": "gs://hail-datasets-us/LDSC/baseline_v1.1/GRCh37/ld_scores.mt"
+            "europe-west1": "gs://hail-datasets-europe-west1/LDSC/baseline_v1.1/GRCh37/ld_scores.mt",
+            "us-central1": "gs://hail-datasets-us-central1/LDSC/baseline_v1.1/GRCh37/ld_scores.mt"
           }
         },
         "version": "1.1"
@@ -4882,7 +4882,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.bm"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/AFR/UKBB.AFR.ldadj.bm"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/AFR/UKBB.AFR.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4900,7 +4900,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.bm"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/AMR/UKBB.AMR.ldadj.bm"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/AMR/UKBB.AMR.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4918,7 +4918,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.bm"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/CSA/UKBB.CSA.ldadj.bm"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/CSA/UKBB.CSA.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4936,7 +4936,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.bm"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/EAS/UKBB.EAS.ldadj.bm"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/EAS/UKBB.EAS.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4954,7 +4954,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.bm"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/EUR/UKBB.EUR.ldadj.bm"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/EUR/UKBB.EUR.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4972,7 +4972,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.bm"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/MID/UKBB.MID.ldadj.bm"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/MID/UKBB.MID.ldadj.bm"
           }
         },
         "version": "0.2"
@@ -4995,7 +4995,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldscore.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.AFR.ldscore.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld_release/UKBB.AFR.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5018,7 +5018,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldscore.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.AMR.ldscore.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld_release/UKBB.AMR.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5041,7 +5041,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldscore.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.CSA.ldscore.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld_release/UKBB.CSA.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5064,7 +5064,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldscore.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.EAS.ldscore.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld_release/UKBB.EAS.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5087,7 +5087,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldscore.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.EUR.ldscore.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld_release/UKBB.EUR.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5110,7 +5110,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldscore.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld_release/UKBB.MID.ldscore.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld_release/UKBB.MID.ldscore.ht"
           }
         },
         "version": "0.2"
@@ -5133,7 +5133,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.variant.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/AFR/UKBB.AFR.ldadj.variant.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/AFR/UKBB.AFR.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5156,7 +5156,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.variant.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/AMR/UKBB.AMR.ldadj.variant.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/AMR/UKBB.AMR.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5179,7 +5179,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.variant.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/CSA/UKBB.CSA.ldadj.variant.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/CSA/UKBB.CSA.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5202,7 +5202,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.variant.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/EAS/UKBB.EAS.ldadj.variant.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/EAS/UKBB.EAS.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5225,7 +5225,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.variant.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/EUR/UKBB.EUR.ldadj.variant.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/EUR/UKBB.EUR.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5248,7 +5248,7 @@
             "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.variant.ht"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/ld/MID/UKBB.MID.ldadj.variant.ht"
+            "us-central1": "gs://ukb-diverse-pops-public/ld/MID/UKBB.MID.ldadj.variant.ht"
           }
         },
         "version": "0.2"
@@ -5266,7 +5266,7 @@
             "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.h2_qc.mt"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.h2_qc.mt"
+            "us-central1": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.h2_qc.mt"
           }
         },
         "version": "0.3"
@@ -5284,7 +5284,7 @@
             "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.raw.mt"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.raw.mt"
+            "us-central1": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.raw.mt"
           }
         },
         "version": "0.3"
@@ -5302,7 +5302,7 @@
             "us": "s3://pan-ukb-us-east-1/sumstats_release/results_full.mt"
           },
           "gcp": {
-            "us": "gs://ukb-diverse-pops-public/sumstats_release/results_full.mt"
+            "us-central1": "gs://ukb-diverse-pops-public/sumstats_release/results_full.mt"
           }
         },
         "version": "0.3"

@@ -127,23 +127,9 @@ MACHINE_MEM = {
     'c2-standard-60': 240,
 }
 
-REGION_TO_REPLICATE_MAPPING = {
-    'us-central1': 'us',
-    'us-east1': 'us',
-    'us-east4': 'us',
-    'us-west1': 'us',
-    'us-west2': 'us',
-    'us-west3': 'us',
-    # Europe != EU
-    'europe-north1': 'eu',
-    'europe-west1': 'eu',
-    'europe-west2': 'uk',
-    'europe-west3': 'eu',
-    'europe-west4': 'eu',
-    'australia-southeast1': 'aus-sydney',
-}
+VEP_SUPPORTED_REGIONS = {'us-central1', 'europe-west1', 'europe-west2', 'australia-southeast1'}
 
-ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu"]
+ANNOTATION_DB_BUCKETS = ["hail-datasets-us-central1", "hail-datasets-europe-west1"]
 
 IMAGE_VERSION = '2.1.33-debian11'
 
@@ -267,17 +253,16 @@ def start(
 
     # add VEP init script
     if vep:
-        # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
-        replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
-        if replicate is None:
+        if project_region not in VEP_SUPPORTED_REGIONS:
+            # VEP is too expensive if you have to pay egress charges.
             raise RuntimeError(
                 f"The --vep argument is not currently provided in your region.\n"
                 f"  Please contact the Hail team on https://discuss.hail.is for support.\n"
                 f"  Your region: {project_region}\n"
-                f"  Supported regions: {', '.join(REGION_TO_REPLICATE_MAPPING.keys())}"
+                f"  Supported regions: {', '.join(VEP_SUPPORTED_REGIONS)}"
             )
-        print(f"Pulling VEP data from bucket in {replicate}.")
-        conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
+        print(f"Pulling VEP data from bucket in {project_region}.")
+        conf.extend_flag('metadata', {"VEP_REPLICATE": project_region})
         vep_config_path = "/vep_data/vep-gcloud.json"
         conf.extend_flag(
             'metadata', {"VEP_CONFIG_PATH": vep_config_path, "VEP_CONFIG_URI": f"file://{vep_config_path}"}
