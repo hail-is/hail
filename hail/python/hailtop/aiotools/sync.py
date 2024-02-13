@@ -78,7 +78,7 @@ async def _copy_part(
         import traceback
 
         traceback.format_exc()
-        print('error in copy part', exc)
+        print('error in copy part', repr(exc))
 
 
 async def _copy_file(
