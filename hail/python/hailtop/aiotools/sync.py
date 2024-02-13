@@ -114,9 +114,19 @@ async def _copy_file(
 
         async def f(i):
             this_part_size = rem if i == n_parts - 1 and rem else part_size
-            await retry_transient_errors(
-                _copy_part, fs, part_size, srcfile, i, this_part_size, part_creator, bytes_listener
-            )
+
+            async def wee():
+                try:
+                    await _copy_part(fs, part_size, srcfile, i, this_part_size, part_creator, bytes_listener)
+                except Exception as exc:
+                    print('wee saw error', repr(exc))
+                    raise exc
+
+            try:
+                await retry_transient_errors(wee)
+            except Exception as exc:
+                print('f saw error', repr(exc))
+                raise exc
 
         try:
             await bounded_gather2(transfer_sema, *[functools.partial(f, i) for i in range(n_parts)])
