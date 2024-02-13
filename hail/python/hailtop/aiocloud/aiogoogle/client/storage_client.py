@@ -90,7 +90,7 @@ class InsertObjectStream(WritableStream):
         async def cleanup_request_task():
             if not self._request_task.cancelled():
                 try:
-                    async with self._request_task as response:
+                    async with await self._request_task as response:
                         self._value = await response.json()
                 except AttributeError as err:
                     raise ValueError(repr(self._request_task)) from err
