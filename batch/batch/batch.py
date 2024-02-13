@@ -14,8 +14,8 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
-def _maybe_time_msecs_str(t):
-    if t:
+def _maybe_time_msecs_str(t: int):
+    if t is not None:
         return time_msecs_str(t)
     return None
 
@@ -51,7 +51,7 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    d = {
+    batch_record = {
         'id': record['id'],
         'user': record['user'],
         'billing_project': record['billing_project'],
@@ -76,9 +76,9 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
 
     attributes = json.loads(record['attributes'])
     if attributes:
-        d['attributes'] = attributes
+        batch_record['attributes'] = attributes
 
-    return d
+    return batch_record
 
 
 def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alpha:
@@ -103,7 +103,7 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alp
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    d = {
+    job_group_record = {
         'batch_id': record['batch_id'],
         'job_group_id': record['job_group_id'],
         'state': state,
@@ -122,9 +122,9 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alp
 
     attributes = json.loads(record['attributes'])
     if attributes:
-        d['attributes'] = attributes
+        job_group_record['attributes'] = attributes
 
-    return cast(GetJobGroupResponseV1Alpha, d)
+    return cast(GetJobGroupResponseV1Alpha, job_group_record)
 
 
 def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEntryV1Alpha:
@@ -141,7 +141,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    d = {
+    return cast(JobListEntryV1Alpha, {
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'name': name,
@@ -153,9 +153,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
         'cost': coalesce(record['cost'], 0),
         'msec_mcpu': record['msec_mcpu'],
         'cost_breakdown': record['cost_breakdown'],
-    }
-
-    return cast(JobListEntryV1Alpha, d)
+    })
 
 
 async def cancel_job_group_in_db(db, batch_id, job_group_id):

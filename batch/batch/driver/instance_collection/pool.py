@@ -327,7 +327,7 @@ WHERE removed = 0 AND inst_coll = %s;
     FROM (
       (
         SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, cores_mcpu, always_run, n_regions, regions_bits_rep
-        FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+        FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
         LEFT JOIN batches ON jobs.batch_id = batches.id
         WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND always_run AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_group_id ASC, jobs.job_id ASC
@@ -336,7 +336,7 @@ WHERE removed = 0 AND inst_coll = %s;
       UNION
       (
         SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, cores_mcpu, always_run, n_regions, regions_bits_rep
-        FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+        FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
         LEFT JOIN batches ON jobs.batch_id = batches.id
         LEFT JOIN LATERAL (
           SELECT 1 AS cancelled
@@ -634,7 +634,7 @@ ORDER BY job_groups.batch_id, job_groups.job_group_id;
                 async for record in self.db.select_and_fetchall(
                     """
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id
-FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 1
 ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
@@ -653,7 +653,7 @@ LIMIT 300;
                     async for record in self.db.select_and_fetchall(
                         """
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id
-FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
 ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id

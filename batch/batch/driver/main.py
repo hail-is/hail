@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import signal
+import traceback
 import warnings
 from collections import defaultdict, namedtuple
 from contextlib import AsyncExitStack
@@ -205,8 +206,8 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
     return json_response({
-        'check_incremental_error': str(incremental_result) if incremental_result else None,
-        'check_resource_aggregation_error': str(resource_agg_result) if resource_agg_result else None,
+        'check_incremental_error': traceback.format_exception(None, incremental_result, incremental_result.__traceback__) if incremental_result else None,
+        'check_resource_aggregation_error': traceback.format_exception(None, resource_agg_result, resource_agg_result.__traceback__) if resource_agg_result else None,
     })
 
 
@@ -1223,32 +1224,27 @@ LOCK IN SHARE MODE;
         agg_batch_resources_2 = {batch_id: resources for (batch_id, _), resources in agg_batch_resources.items()}
 
         assert attempt_by_batch_resources == agg_batch_resources_2, (
-            'attempt_by_batch_resources / agg_batch_resources_2',
             dictdiffer.diff(attempt_by_batch_resources, agg_batch_resources_2),
             attempt_by_batch_resources,
             agg_batch_resources_2,
         )
         assert attempt_by_job_resources == agg_job_resources, (
-            'attempt_by_job_resources / agg_job_resources',
             dictdiffer.diff(attempt_by_job_resources, agg_job_resources),
             attempt_by_job_resources,
             agg_job_resources,
         )
         assert job_by_batch_resources == agg_batch_resources_2, (
-            'job_by_batch_resources / agg_batch_resources_2',
             dictdiffer.diff(job_by_batch_resources, agg_batch_resources_2),
             job_by_batch_resources,
             agg_batch_resources_2,
         )
         assert batch_by_billing_project_resources == agg_billing_project_resources, (
-            'batch_by_billing_project_resources / agg_billing_project_resources',
             dictdiffer.diff(batch_by_billing_project_resources, agg_billing_project_resources),
             batch_by_billing_project_resources,
             agg_billing_project_resources,
         )
 
         assert attempt_by_job_group_resources == agg_job_group_resources, (
-            'attempt_by_job_group_resources / agg_job_group_resources',
             dictdiffer.diff(attempt_by_job_group_resources, agg_job_group_resources),
             attempt_by_job_group_resources,
             agg_job_group_resources,

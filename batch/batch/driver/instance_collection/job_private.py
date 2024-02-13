@@ -372,7 +372,7 @@ WHERE job_groups.user = %s AND job_groups.`state` = 'running';
                     """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id
-FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND jobs.state = 'Ready' AND always_run = 1 AND jobs.inst_coll = %s
@@ -391,8 +391,8 @@ LIMIT %s;
                     async for record in self.db.select_and_fetchall(
                         """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
-  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, job_group_id
-FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND jobs.job_group_id = %s AND jobs.state = 'Ready' AND always_run = 0 AND jobs.inst_coll = %s AND cancelled = 0
