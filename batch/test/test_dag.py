@@ -224,7 +224,6 @@ async def test_job_group_callback(async_client: aioclient.BatchClient):
         callback_body.pop('time_completed')
         callback_body.pop('duration')
         callback_body.pop('cost_breakdown')
-        callback_body['attributes'].pop('client_job')
         assert callback_body == {
             'batch_id': jg2.batch_id,
             'job_group_id': jg2.job_group_id,
@@ -249,7 +248,6 @@ async def test_job_group_callback(async_client: aioclient.BatchClient):
         callback_body.pop('time_completed')
         callback_body.pop('duration')
         callback_body.pop('cost_breakdown')
-        callback_body['attributes'].pop('client_job')
         assert callback_body == {
             'batch_id': jg.batch_id,
             'job_group_id': jg.job_group_id,
