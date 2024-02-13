@@ -25,7 +25,6 @@ class FeedableAsyncIterable(AsyncIterator[_T]):
         if isinstance(next, _StopFeedableAsyncIterator):
             print('FeedableAsyncIterable.__anext__', self.url, "STOP")
             raise StopAsyncIteration
-        print('FeedableAsyncIterable.__anext__', self.url, len(next))
         return next
 
     async def feed(self, next: _T) -> None:
