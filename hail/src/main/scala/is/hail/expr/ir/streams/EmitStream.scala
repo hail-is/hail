@@ -25,10 +25,11 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
 
-import java.util
-import org.objectweb.asm.Opcodes._
-
 import scala.annotation.nowarn
+
+import java.util
+
+import org.objectweb.asm.Opcodes._
 
 abstract class StreamProducer {
 
