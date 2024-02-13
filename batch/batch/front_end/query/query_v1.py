@@ -67,7 +67,7 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
             condition = "(batches.`state` = 'running')"
             args = []
         elif t == 'cancelled':
-            condition = '(cancelled_t.cancelled IS NOT NULL)'
+            condition = '(cancelled)'
             args = []
         elif t == 'failure':
             condition = '(n_failed > 0)'
@@ -88,7 +88,7 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
     sql = f"""
 WITH base_t AS (
   SELECT batches.*, job_groups.job_group_id,
-    cancelled_t.cancelled IS NOT NULL AS cancelled,
+    is_job_group_cancelled(job_groups.batch_id, job_groups.job_group_id) AS cancelled,
     job_groups_n_jobs_in_complete_states.n_completed,
     job_groups_n_jobs_in_complete_states.n_succeeded,
     job_groups_n_jobs_in_complete_states.n_failed,
@@ -98,15 +98,6 @@ WITH base_t AS (
   LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
   LEFT JOIN job_groups_n_jobs_in_complete_states
     ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-  LEFT JOIN LATERAL (
-    SELECT 1 AS cancelled
-    FROM job_group_self_and_ancestors
-    INNER JOIN job_groups_cancelled
-      ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-        job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-    WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-      job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
-  ) AS cancelled_t ON TRUE
   STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
   WHERE {' AND '.join(where_conditions)}
   ORDER BY job_groups.batch_id DESC
@@ -146,7 +137,7 @@ def parse_list_job_groups_query_v1(
 
     sql = f"""
 SELECT job_groups.*,
-  cancelled_t.cancelled IS NOT NULL AS cancelled,
+  is_job_group_cancelled(job_groups.batch_id, job_groups.job_group_id) AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
@@ -160,15 +151,6 @@ LEFT JOIN job_groups
 LEFT JOIN job_groups_n_jobs_in_complete_states
    ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
       job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-LEFT JOIN LATERAL (
-  SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
-) AS cancelled_t ON TRUE
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (

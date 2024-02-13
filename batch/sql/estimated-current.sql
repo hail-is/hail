@@ -543,6 +543,19 @@ CREATE TABLE IF NOT EXISTS `attempt_resources` (
 
 DELIMITER $$
 
+DROP FUNCTION IF EXISTS is_job_group_cancelled $$
+CREATE FUNCTION is_job_group_cancelled(in_batch_id BIGINT, in_job_group_id INT) RETURNS BOOLEAN DETERMINISTIC
+BEGIN
+  RETURN EXISTS (SELECT TRUE
+                 FROM job_group_self_and_ancestors
+                 INNER JOIN job_groups_cancelled
+                   ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+                 WHERE job_group_self_and_ancestors.batch_id = batch_id AND
+                       job_group_self_and_ancestors.job_group_id = in_job_group_id
+                 LOCK IN SHARE MODE);
+END $$
+
 DROP TRIGGER IF EXISTS instances_before_update $$
 CREATE TRIGGER instances_before_update BEFORE UPDATE on instances
 FOR EACH ROW
@@ -664,16 +677,7 @@ DROP TRIGGER IF EXISTS jobs_before_insert $$
 CREATE TRIGGER jobs_before_insert BEFORE INSERT ON jobs
 FOR EACH ROW
 BEGIN
-  DECLARE job_group_cancelled BOOLEAN;
-
-  SET job_group_cancelled = EXISTS (SELECT TRUE
-                                    FROM job_group_self_and_ancestors
-                                    INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-                                      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-                                    WHERE batch_id = NEW.batch_id AND job_group_self_and_ancestors.job_group_id = NEW.job_group_id
-                                    LOCK IN SHARE MODE);
-
-  IF job_group_cancelled THEN
+  IF is_job_group_cancelled(NEW.batch_id, NEW.job_group_id) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = "job group has already been cancelled";
   END IF;
 END $$
@@ -725,12 +729,7 @@ BEGIN
 
   SELECT user INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
-  SET cur_job_group_cancelled = EXISTS (SELECT TRUE
-                                        FROM job_group_self_and_ancestors
-                                        INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-                                          job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-                                        WHERE batch_id = OLD.batch_id AND job_group_self_and_ancestors.job_group_id = OLD.job_group_id
-                                        LOCK IN SHARE MODE);
+  SET cur_job_group_cancelled = is_job_group_cancelled(NEW.batch_id, NEW.job_group_id);
 
   SELECT n_tokens INTO cur_n_tokens FROM globals LOCK IN SHARE MODE;
   SET rand_token = FLOOR(RAND() * cur_n_tokens);
@@ -1252,14 +1251,7 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_group_id = in_job_group_id
   FOR UPDATE;
 
-  SET cur_cancelled = EXISTS (SELECT TRUE
-                              FROM job_group_self_and_ancestors
-                              INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-                                job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-                              WHERE batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
-                              FOR UPDATE);
-
-  IF NOT cur_cancelled THEN
+  IF NOT is_job_group_cancelled(in_batch_id, in_job_group_id) THEN
     INSERT INTO user_inst_coll_resources (user, inst_coll, token,
       n_ready_jobs, ready_cores_mcpu,
       n_running_jobs, running_cores_mcpu,
