@@ -141,19 +141,22 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    return cast(JobListEntryV1Alpha, {
-        'batch_id': record['batch_id'],
-        'job_id': record['job_id'],
-        'name': name,
-        'user': record['user'],
-        'billing_project': record['billing_project'],
-        'state': record['state'],
-        'exit_code': exit_code,
-        'duration': duration,
-        'cost': coalesce(record['cost'], 0),
-        'msec_mcpu': record['msec_mcpu'],
-        'cost_breakdown': record['cost_breakdown'],
-    })
+    return cast(
+        JobListEntryV1Alpha,
+        {
+            'batch_id': record['batch_id'],
+            'job_id': record['job_id'],
+            'name': name,
+            'user': record['user'],
+            'billing_project': record['billing_project'],
+            'state': record['state'],
+            'exit_code': exit_code,
+            'duration': duration,
+            'cost': coalesce(record['cost'], 0),
+            'msec_mcpu': record['msec_mcpu'],
+            'cost_breakdown': record['cost_breakdown'],
+        },
+    )
 
 
 async def cancel_job_group_in_db(db, batch_id, job_group_id):
