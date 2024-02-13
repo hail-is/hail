@@ -29,8 +29,8 @@ if TYPE_CHECKING:
 log = logging.getLogger('job')
 
 
-async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
-    record = await db.select_and_fetchone(
+async def notify_job_group_on_job_complete(db: Database, client_session: httpx.ClientSession, batch_id: int, job_group_id: int):
+    records = db.select_and_fetchall(
         """
 SELECT batches.*,
   cost_t.cost,
@@ -40,7 +40,9 @@ SELECT batches.*,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled
-FROM job_groups
+FROM job_group_self_and_ancestors
+LEFT JOIN job_groups ON job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+  job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
 LEFT JOIN batches ON job_groups.batch_id = batches.id
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
@@ -65,34 +67,32 @@ LEFT JOIN LATERAL (
   WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
     job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
 ) AS t ON TRUE
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND job_groups.callback IS NOT NULL AND
+WHERE job_group_self_and_ancestors.batch_id = %s AND job_group_self_and_ancestors.job_group_id = %s AND NOT deleted AND job_groups.callback IS NOT NULL AND
    job_groups.`state` = 'complete';
 """,
-        (batch_id, ROOT_JOB_GROUP_ID),
-        'notify_batch_job_complete',
+        (batch_id, job_group_id),
+        'notify_job_group_on_job_complete',
     )
 
-    if not record:
-        return
-    callback = record['callback']
+    async for record in records:
+        callback = record['callback']
+        log.info(f'making callback for batch {batch_id} job_group {job_group_id}: {callback}')
 
-    log.info(f'making callback for batch {batch_id}: {callback}')
+        async def request(session):
+            await session.post(callback, json=batch_record_to_dict(record))
+            log.info(f'callback for batch {batch_id} job_group {job_group_id} was successful')
 
-    async def request(session):
-        await session.post(callback, json=batch_record_to_dict(record))
-        log.info(f'callback for batch {batch_id} successful')
-
-    try:
-        if record['user'] == 'ci':
-            # only jobs from CI may use batch's TLS identity
-            await request(client_session)
-        else:
-            async with httpx.client_session() as session:
-                await request(session)
-    except asyncio.CancelledError:
-        raise
-    except Exception:
-        log.info(f'callback for batch {batch_id} failed, will not retry.')
+        try:
+            if record['user'] == 'ci':
+                # only jobs from CI may use batch's TLS identity
+                await request(client_session)
+            else:
+                async with httpx.client_session() as session:
+                    await request(session)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.info(f'callback for batch {batch_id} job_group {job_group_id} failed, will not retry.')
 
 
 async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources: List[QuantifiedResource]):
@@ -137,6 +137,7 @@ async def mark_job_complete(
     batch_id,
     job_id,
     attempt_id,
+    job_group_id,
     instance_name,
     new_state,
     status,
@@ -209,7 +210,7 @@ async def mark_job_complete(
         # already complete, do nothing
         return
 
-    await notify_batch_job_complete(db, client_session, batch_id)
+    await notify_job_group_on_job_complete(db, client_session, batch_id, job_group_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
         task_manager.ensure_future(instance.kill())
@@ -476,7 +477,7 @@ async def mark_job_errored(app, batch_id, job_group_id, job_id, attempt_id, user
 
     db_status = format_version.db_status(status)
 
-    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', [])
+    await mark_job_complete(app, batch_id, job_id, attempt_id, job_group_id, None, 'Error', db_status, None, None, 'error', [])
 
 
 async def schedule_job(app, record, instance):
