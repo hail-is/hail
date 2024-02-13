@@ -940,9 +940,7 @@ object Interpret {
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val res = genUID()
-
-        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
+        val extracted = agg.Extract(query, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) =
@@ -1080,7 +1078,7 @@ object Interpret {
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
               Let(
-                FastSeq(res -> extracted.results),
+                FastSeq(extracted.resultRef.name -> extracted.results),
                 MakeTuple.ordered(FastSeq(extracted.postAggIR)),
               ),
             )
