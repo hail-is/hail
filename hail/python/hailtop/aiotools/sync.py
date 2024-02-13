@@ -71,6 +71,9 @@ async def _copy_part(
                 total_written += written
                 print(f'{srcfile}, part {part_number}, {written}')
                 n -= len(b)
+            print(f'{srcfile}, part {part_number}, complete')
+        print(f'{srcfile}, part {part_number}, complete 2')
+    print(f'{srcfile}, part {part_number}, complete 3')
     bytes_listener(-total_written)
 
 
