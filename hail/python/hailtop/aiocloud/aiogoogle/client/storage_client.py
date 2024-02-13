@@ -88,7 +88,7 @@ class InsertObjectStream(WritableStream):
         self.url = url
 
         async def cleanup_request_task():
-            if self._request_task.done() and not self._request_task.cancelled():
+            if not self._request_task.cancelled():
                 async with self._request_task as response:
                     self._value = await response.json()
             await _cleanup_future(self._request_task)
