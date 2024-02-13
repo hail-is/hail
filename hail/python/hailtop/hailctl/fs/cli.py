@@ -4,7 +4,7 @@ import click
 import sys
 import typer
 
-from hailtop.utils import uvloopx
+from hailtop import uvloopx
 from hailtop.aiotools.plan import plan, PlanError
 from hailtop.aiotools.sync import sync as aiotools_sync, SyncError
 
