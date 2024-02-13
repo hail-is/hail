@@ -206,8 +206,12 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
     return json_response({
-        'check_incremental_error': traceback.format_exception(incremental_result) if incremental_result else None,
-        'check_resource_aggregation_error': traceback.format_exception(resource_agg_result) if resource_agg_result else None,
+        'check_incremental_error': '\n'.join(
+                traceback.format_exception(None, incremental_result, incremental_result.__traceback__)
+            ) if incremental_result else None,
+        'check_resource_aggregation_error': '\n'.join(
+                traceback.format_exception(None, resource_agg_result, resource_agg_result.__traceback__)
+            ) if resource_agg_result else None,
     })
 
 
