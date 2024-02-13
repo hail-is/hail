@@ -7,6 +7,7 @@ from typing import Tuple, Optional, List
 import typer
 from contextlib import AsyncExitStack
 import hailtop.batch as hb
+from hailtop import yamlx
 from hailtop.batch.job import BashJob
 from hailtop.aiotools.router_fs import RouterAsyncFS, AsyncFSURL
 from hailtop.aiotools.copy import copy_from_dict
@@ -97,8 +98,12 @@ async def submit(
 
         if wait:
             out = batch_handle.wait(disable_progress_bar=quiet)
+            try:
+                out['log'] = batch_handle.get_job_log(1)['main']
+            except:
+                out['log'] = 'Could not retrieve job log.'
             if output == 'text':
-                print(out)
+                print(yamlx.dump(out))
             else:
                 print(orjson.dumps(out))
             if out['state'] != 'success':
