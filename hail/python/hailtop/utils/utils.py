@@ -499,6 +499,7 @@ async def bounded_gather2_raise_exceptions(
     tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
 
     if not cancel_on_error:
+        raise ValueError('nope')
         try:
             async with WithoutSemaphore(sema):
                 try:
