@@ -146,7 +146,7 @@ LIMIT %s;
                 id = (batch_id, job_id)
                 log.info(f'cancelling job {id}')
 
-                async def cancel_with_error_handling(app, batch_id, job_id, id):
+                async def cancel_with_error_handling(app, batch_id, job_id, job_group_id, id):
                     try:
                         await mark_job_complete(
                             app,
@@ -165,7 +165,7 @@ LIMIT %s;
                     except Exception:
                         log.info(f'error while cancelling job {id}', exc_info=True)
 
-                await waitable_pool.call(cancel_with_error_handling, self.app, batch_id, job_id, id)
+                await waitable_pool.call(cancel_with_error_handling, self.app, batch_id, job_id, job_group_id, id)
 
                 remaining.value -= 1
                 if remaining.value <= 0:
@@ -242,7 +242,7 @@ LIMIT %s;
                 instance_name = record['instance_name']
                 id = (batch_id, job_id)
 
-                async def cancel_with_error_handling(app, batch_id, job_id, attempt_id, instance_name, id):
+                async def cancel_with_error_handling(app, batch_id, job_id, attempt_id, job_group_id, instance_name, id):
                     try:
                         end_time = time_msecs()
                         await mark_job_complete(
@@ -271,7 +271,7 @@ LIMIT %s;
                         log.info(f'cancelling creating job {id} on instance {instance_name}', exc_info=True)
 
                 await waitable_pool.call(
-                    cancel_with_error_handling, self.app, batch_id, job_id, attempt_id, instance_name, id
+                    cancel_with_error_handling, self.app, batch_id, job_id, attempt_id, job_group_id, instance_name, id
                 )
 
                 remaining.value -= 1
