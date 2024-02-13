@@ -1147,22 +1147,29 @@ LEFT JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.j
 LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
   jobs.job_group_id = job_group_self_and_ancestors.job_group_id
 WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
-GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id
 LOCK IN SHARE MODE;
 """)
 
         agg_job_resources = tx.execute_and_fetchall("""
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources_v3
-LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
+FROM (
+  SELECT batch_id, job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v3
+  GROUP BY batch_id, job_id, resource_id
+) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
 LOCK IN SHARE MODE;
 """)
 
         agg_job_group_resources = tx.execute_and_fetchall("""
 SELECT batch_id, job_group_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_group_resources_v3
-LEFT JOIN resources ON aggregated_job_group_resources_v3.resource_id = resources.resource_id
+FROM (
+  SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_group_resources_v3
+  GROUP BY batch_id, job_group_id, resource_id
+) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY batch_id, job_group_id
 LOCK IN SHARE MODE;
 """)
