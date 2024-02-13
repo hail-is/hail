@@ -139,13 +139,40 @@ async def test_callback(async_client: aioclient.BatchClient):
         callback_event.set()
         return web.Response()
 
-    app.add_routes([web.post('/test', callback)])
+    app.add_routes([web.post('/test', callback), web.post('/test-job-group', callback)])
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, '0.0.0.0', 5000)
     await site.start()
 
     try:
+        def verify_callback(callback_body):
+            # verify required fields present
+            callback_body.pop('cost')
+            callback_body.pop('msec_mcpu')
+            callback_body.pop('time_created')
+            callback_body.pop('time_closed')
+            callback_body.pop('time_completed')
+            callback_body.pop('duration')
+            callback_body.pop('duration_ms')
+            callback_body.pop('cost_breakdown')
+            callback_body['attributes'].pop('client_job')
+            assert callback_body == {
+                'id': b.id,
+                'user': 'test',
+                'billing_project': 'test',
+                'token': token,
+                'state': 'success',
+                'complete': True,
+                'closed': True,
+                'n_jobs': 2,
+                'n_completed': 2,
+                'n_succeeded': 2,
+                'n_failed': 0,
+                'n_cancelled': 0,
+                'attributes': {'foo': 'bar', 'name': 'test_callback'},
+            }, callback_body
+
         token = secrets.token_urlsafe(32)
         b = create_batch(
             async_client, callback=url_for('/test'), attributes={'foo': 'bar', 'name': 'test_callback'}, token=token
@@ -155,32 +182,16 @@ async def test_callback(async_client: aioclient.BatchClient):
         await b.submit()
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
         callback_body = callback_bodies[0]
+        verify_callback(callback_body)
 
-        # verify required fields present
-        callback_body.pop('cost')
-        callback_body.pop('msec_mcpu')
-        callback_body.pop('time_created')
-        callback_body.pop('time_closed')
-        callback_body.pop('time_completed')
-        callback_body.pop('duration')
-        callback_body.pop('duration_ms')
-        callback_body.pop('cost_breakdown')
-        callback_body['attributes'].pop('client_job')
-        assert callback_body == {
-            'id': b.id,
-            'user': 'test',
-            'billing_project': 'test',
-            'token': token,
-            'state': 'success',
-            'complete': True,
-            'closed': True,
-            'n_jobs': 2,
-            'n_completed': 2,
-            'n_succeeded': 2,
-            'n_failed': 0,
-            'n_cancelled': 0,
-            'attributes': {'foo': 'bar', 'name': 'test_callback'},
-        }, callback_body
+        jg = b.create_job_group(callback=url_for('/test-job-group'))
+        head = jg.create_job('alpine:3.8', command=['echo', 'head'])
+        jg.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
+        await b.submit()
+        await asyncio.wait_for(callback_event.wait(), 5 * 60)
+        callback_body = callback_bodies[0]
+        verify_callback(callback_body)
+
     finally:
         await runner.cleanup()
 
