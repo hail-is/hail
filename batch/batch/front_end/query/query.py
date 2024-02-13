@@ -373,7 +373,7 @@ class BatchStateQuery(Query):
             condition = "(batches.`state` = 'running')"
             args = []
         elif self.state == BatchState.CANCELLED:
-            condition = '(cancelled)'
+            condition = '(cancelled_t.cancelled IS NOT NULL)'
             args = []
         elif self.state == BatchState.FAILURE:
             condition = '(n_failed > 0)'

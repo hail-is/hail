@@ -338,7 +338,16 @@ WHERE removed = 0 AND inst_coll = %s;
         SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, cores_mcpu, always_run, n_regions, regions_bits_rep
         FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
         LEFT JOIN batches ON jobs.batch_id = batches.id
-        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND NOT is_job_group_cancelled(jobs.batch_id, jobs.job_group_id) AND inst_coll = %s
+        LEFT JOIN LATERAL (
+          SELECT 1 AS cancelled
+          FROM job_group_self_and_ancestors
+          INNER JOIN job_groups_cancelled
+          ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+             job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+          WHERE jobs.batch_id = job_group_self_and_ancestors.batch_id AND
+                jobs.job_group_id = job_group_self_and_ancestors.job_group_id
+        ) AS t ON TRUE
+        WHERE user = %s AND batches.`state` = 'running' AND jobs.state = 'Ready' AND NOT always_run AND t.cancelled IS NULL AND inst_coll = %s
         ORDER BY jobs.batch_id ASC, jobs.job_group_id ASC, jobs.job_id ASC
         LIMIT {share * self.job_queue_scheduling_window_secs}
       )
@@ -604,10 +613,18 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user):
             async for job_group in self.db.select_and_fetchall(
                 """
-SELECT job_groups.batch_id, job_groups.job_group_id, is_job_group_cancelled(job_groups.batch_id, job_groups.job_group_id) AS cancelled,
-  userdata, job_groups.user, format_version
+SELECT job_groups.batch_id, job_groups.job_group_id, t.cancelled IS NOT NULL AS cancelled, userdata, job_groups.user, format_version
 FROM job_groups
 LEFT JOIN batches ON job_groups.batch_id = batches.id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
 WHERE job_groups.user = %s AND job_groups.`state` = 'running'
 ORDER BY job_groups.batch_id, job_groups.job_group_id;
 """,

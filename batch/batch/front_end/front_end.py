@@ -873,9 +873,12 @@ async def _create_job_group(
 ):
     cancelled_parent = await tx.execute_and_fetchone(
         """
-SELECT is_job_group_cancelled(batch_id, job_group_id)
-FROM job_groups
-WHERE batch_id = %s AND job_group_id = %s;
+SELECT 1 AS cancelled
+FROM job_group_self_and_ancestors
+INNER JOIN job_groups_cancelled
+  ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+     job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+WHERE job_group_self_and_ancestors.batch_id = %s AND job_group_self_and_ancestors.job_group_id = %s;
 """,
         (batch_id, parent_job_group_id),
     )
@@ -1798,8 +1801,17 @@ WHERE batch_id = %s AND token = %s;
         # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
             """
-SELECT is_job_group_cancelled(batches.id, %s) AS cancelled
+SELECT cancelled_t.cancelled IS NOT NULL AS cancelled
 FROM batches
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE batches.id = job_group_self_and_ancestors.batch_id AND
+    job_group_self_and_ancestors.job_group_id = %s
+) AS cancelled_t ON TRUE
 WHERE batches.id = %s AND batches.user = %s AND NOT deleted
 FOR UPDATE;
 """,
@@ -1864,7 +1876,7 @@ async def _get_batch(app, batch_id):
     record = await db.select_and_fetchone(
         """
 SELECT batches.*,
-  is_job_group_cancelled(job_groups.batch_id, job_groups.job_group_id) AS cancelled,
+  cancelled_t.cancelled IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
@@ -1874,6 +1886,15 @@ FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS cancelled_t ON TRUE
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
@@ -1900,7 +1921,7 @@ async def _get_job_group(app, batch_id: int, job_group_id: int) -> GetJobGroupRe
     record = await db.select_and_fetchone(
         """
 SELECT job_groups.*,
-  is_job_group_cancelled(job_groups.batch_id, job_groups.job_group_id) IS NOT NULL AS cancelled,
+  cancelled_t.cancelled IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
@@ -1912,6 +1933,15 @@ LEFT JOIN batch_updates
   ON job_groups.batch_id = batch_updates.batch_id AND job_groups.update_id = batch_updates.update_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS cancelled_t ON TRUE
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
@@ -2003,9 +2033,18 @@ async def close_batch(request, userdata):
 
     record = await db.select_and_fetchone(
         """
-SELECT is_job_group_cancelled(batch_id, job_group_id) AS cancelled
+SELECT cancelled_t.cancelled IS NOT NULL AS cancelled
 FROM job_groups
-WHERE user = %s AND batch_id = %s AND job_group_id = %s AND NOT deleted;
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS cancelled_t ON TRUE
+WHERE user = %s AND job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
 """,
         (user, batch_id, ROOT_JOB_GROUP_ID),
     )
@@ -2039,9 +2078,18 @@ async def commit_update(request: web.Request, userdata):
 
     record = await db.select_and_fetchone(
         """
-SELECT start_job_id, start_job_group_id, is_job_group_cancelled(batches.id, %s) AS cancelled
+SELECT start_job_id, start_job_group_id, cancelled_t.cancelled IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE batches.id = job_group_self_and_ancestors.batch_id AND
+    job_group_self_and_ancestors.job_group_id = %s
+) AS cancelled_t ON TRUE
 WHERE batches.user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
 """,
         (ROOT_JOB_GROUP_ID, user, batch_id, update_id),

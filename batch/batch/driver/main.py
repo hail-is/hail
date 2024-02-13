@@ -1021,10 +1021,19 @@ FROM
   FROM
   (
     SELECT job_groups.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR is_job_group_cancelled(jobs.batch_id, jobs.job_group_id))) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR is_job_group_cancelled(jobs.batch_id, jobs.job_group_id))) AS cancelled
+      (jobs.always_run OR NOT (jobs.cancelled OR t.cancelled IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR t.cancelled IS NOT NULL)) AS cancelled
     FROM job_groups
     LEFT JOIN jobs ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
+    LEFT JOIN LATERAL (
+      SELECT 1 AS cancelled
+      FROM job_group_self_and_ancestors
+      INNER JOIN job_groups_cancelled
+        ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+           job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+      WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+            job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+    ) AS t ON TRUE
     WHERE job_groups.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
@@ -1293,11 +1302,19 @@ async def cancel_fast_failing_job_groups(app):
         """
 SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_n_jobs_in_complete_states.n_failed
 FROM job_groups
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t_cancelled ON TRUE
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
      job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-WHERE NOT is_job_group_cancelled(job_groups.batch_id, job_groups.job_group_id) AND
-  state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
+WHERE t_cancelled.cancelled IS NULL AND state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
 """,
     )
     async for job_group in records:
@@ -1438,10 +1455,21 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
 async def delete_prev_cancelled_job_group_cancellable_resources_records(db: Database):
     targets = db.execute_and_fetchall(
         """
-SELECT batch_id, update_id, job_group_id
+SELECT job_group_inst_coll_cancellable_resources.batch_id,
+  job_group_inst_coll_cancellable_resources.update_id,
+  job_group_inst_coll_cancellable_resources.job_group_id
 FROM job_group_inst_coll_cancellable_resources
-WHERE is_job_group_cancelled(batch_id, job_group_id)
-GROUP BY batch_id, update_id, job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t ON TRUE
+WHERE t.cancelled IS NOT NULL
+GROUP BY job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, job_group_inst_coll_cancellable_resources.job_group_id
 LIMIT 1000;
 """,
         query_name='find_cancelled_cancellable_resources_records_to_delete',
