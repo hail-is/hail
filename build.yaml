@@ -1019,6 +1019,8 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/gsa-key/key.json
 
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}  # hailctl batch submit tests should speak to namespaced batch
+
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
       export OPENBLAS_NUM_THREADS=2
