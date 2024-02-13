@@ -4,9 +4,9 @@ import click
 import sys
 import typer
 
+from hailtop.utils import uvloopx
 from hailtop.aiotools.plan import plan, PlanError
 from hailtop.aiotools.sync import sync as aiotools_sync, SyncError
-
 
 app_without_click = typer.Typer(
     name='fs',
@@ -159,6 +159,8 @@ def sync(
 
     $ less plan1/plan
     """
+    uvloopx.install()
+
     if (make_plan is None and use_plan is None) or (make_plan is not None and use_plan is not None):
         print('Must specify one of --make-plan or --use-plan. See hailctl fs sync --help.')
         raise typer.Exit(1)

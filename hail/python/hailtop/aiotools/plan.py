@@ -1,21 +1,12 @@
 from typing import List, Tuple, Optional
 import asyncio
 import os
-import sys
 from contextlib import AsyncExitStack
 from hailtop.aiotools import FileAndDirectoryError
 
 from .router_fs import RouterAsyncFS
 from .fs import FileListEntry, FileStatus, AsyncFS, WritableStream
 from ..utils.rich_progress_bar import CopyToolProgressBar, Progress
-
-try:
-    import uvloop
-
-    uvloop.install()
-except ImportError as e:
-    if not sys.platform.startswith('win32'):
-        raise e
 
 
 class PlanError(ValueError):

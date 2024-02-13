@@ -1,7 +1,6 @@
 from typing import Optional
 import asyncio
 import os
-import sys
 import functools
 
 from .copy import GrowingSempahore
@@ -11,14 +10,6 @@ from .fs.exceptions import UnexpectedEOFError
 from .router_fs import RouterAsyncFS, AsyncFS
 from ..utils import retry_transient_errors, bounded_gather2
 from ..utils.rich_progress_bar import make_listener, CopyToolProgressBar
-
-try:
-    import uvloop
-
-    uvloop.install()
-except ImportError as e:
-    if not sys.platform.startswith('win32'):
-        raise e
 
 
 class SyncError(ValueError):
