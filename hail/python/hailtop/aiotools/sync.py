@@ -157,8 +157,8 @@ async def sync(
             )
             file_parallelism_tid = progress.add_task(
                 description='file parallelism',
-                completed=initial_parallelism,
-                total=max_parallelism,
+                completed=initial_file_parallelism,
+                total=max_file_parallelism,
                 visible=verbose,
             )
 
