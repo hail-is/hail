@@ -79,6 +79,7 @@ async def _copy_part(
 
         traceback.print_exc()
         print('error in copy part', repr(exc))
+        raise exc
 
 
 async def _copy_file(
@@ -121,6 +122,7 @@ async def _copy_file(
             await bounded_gather2(transfer_sema, *[functools.partial(f, i) for i in range(n_parts)])
         except Exception as exc:
             print('_copy_file saw error', repr(exc))
+            raise exc
         files_listener(-1)
 
 
