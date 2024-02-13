@@ -551,7 +551,7 @@ BEGIN
                  INNER JOIN job_groups_cancelled
                    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
                       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-                 WHERE job_group_self_and_ancestors.batch_id = in_batch_id AND
+                 WHERE job_group_self_and_ancestors.batch_id = batch_id AND
                        job_group_self_and_ancestors.job_group_id = in_job_group_id
                  LOCK IN SHARE MODE);
 END $$
