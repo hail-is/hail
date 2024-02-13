@@ -90,7 +90,7 @@ class InsertObjectStream(WritableStream):
             if self._request_task.done() and not self._request_task.cancelled():
                 async with await self._request_task as response:
                     self._value = await response.json()
-            _cleanup_future(self._request_task)
+            await _cleanup_future(self._request_task)
 
         self._exit_stack.push_async_callback(cleanup_request_task)
 
