@@ -322,6 +322,7 @@ async def job_complete_1(request, instance):
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
+    job_group_id = job_status.get('job_group_id', ROOT_JOB_GROUP_ID)
 
     request['batch_telemetry']['batch_id'] = str(batch_id)
     request['batch_telemetry']['job_id'] = str(job_id)
@@ -345,6 +346,7 @@ async def job_complete_1(request, instance):
         batch_id,
         job_id,
         attempt_id,
+        job_group_id,
         instance.name,
         new_state,
         status,

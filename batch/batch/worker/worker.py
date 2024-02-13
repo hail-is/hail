@@ -1661,6 +1661,7 @@ class Job(abc.ABC):
     #   batch_id: int,
     #   job_id: int,
     #   attempt_id: int,
+    #   job_group_id: int,
     #   user: str,
     #   state: str, (pending, initializing, running, succeeded, error, failed)
     #   format_version: int
@@ -1678,6 +1679,7 @@ class Job(abc.ABC):
             'batch_id': self.batch_id,
             'job_id': self.job_spec['job_id'],
             'attempt_id': self.job_spec['attempt_id'],
+            'job_group_id': self.job_spec['job_group_id'],
             'user': self.user,
             'state': self.state,
             'format_version': self.format_version.format_version,
@@ -3052,6 +3054,7 @@ class Worker:
         job_spec = json.loads(job_spec)
 
         job_spec['attempt_id'] = addtl_spec['attempt_id']
+        job_spec['job_group_id'] = addtl_spec['job_group_id']
         job_spec['secrets'] = addtl_spec['secrets']
 
         addtl_env = addtl_spec.get('env')
@@ -3255,6 +3258,7 @@ class Worker:
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
+            'job_group_id': full_status['job_group_id'],
             'state': full_status['state'],
             'start_time': full_status['start_time'],
             'end_time': full_status['end_time'],
