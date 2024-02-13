@@ -6,6 +6,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.concrete.SRNGStateValue
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
+import is.hail.types.virtual.Type
 
 object SCode {
   def add(cb: EmitCodeBuilder, left: SValue, right: SValue, required: Boolean): SValue = {
@@ -114,6 +115,9 @@ trait SValue {
     throw new UnsupportedOperationException(s"Stype $st has no hashcode")
 
   def sizeToStoreInBytes(cb: EmitCodeBuilder): SInt64Value
+
+  def castRename(t: Type): SValue =
+    st.castRename(t).fromValues(valueTuple)
 }
 
 trait SSettable extends SValue {

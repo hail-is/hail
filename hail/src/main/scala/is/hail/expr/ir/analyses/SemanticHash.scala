@@ -301,7 +301,6 @@ case object SemanticHash extends Logging {
           _: ArraySlice |
           _: ArraySort |
           _: ArrayZeros |
-          _: Begin |
           _: BlockMatrixCollect |
           _: CastToArray |
           _: Coalesce |

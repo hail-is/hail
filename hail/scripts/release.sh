@@ -134,11 +134,6 @@ wheel_for_azure_url=gs://hail-common/azure-hdinsight-wheels/$(basename $WHEEL_FO
 gcloud storage cp $WHEEL_FOR_AZURE $wheel_for_azure_url
 gcloud storage objects update $wheel_for_azure_url --temporary-hold
 
-# update docs sha
-cloud_sha_location=gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
-printf "$GIT_VERSION" | gcloud storage cp  - $cloud_sha_location
-gcloud storage objects update -r $cloud_sha_location --add-acl-grant=entity=AllUsers,role=READER
-
 # deploy datasets (annotation db) json
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
 gcloud storage cp python/hail/experimental/datasets.json $datasets_json_url

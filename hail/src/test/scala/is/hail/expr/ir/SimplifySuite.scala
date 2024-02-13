@@ -747,4 +747,61 @@ class SimplifySuite extends HailSuite {
   def testTestSwitchSimplification(x: IR, default: IR, cases: IndexedSeq[IR], expected: Any): Unit =
     assert(Simplify(ctx, Switch(x, default, cases)) == expected)
 
+  @DataProvider(name = "IfRules")
+  def ifRules: Array[Array[Any]] = {
+    val x = Ref(genUID(), TInt32)
+    val y = Ref(genUID(), TInt32)
+    val c = Ref(genUID(), TBoolean)
+
+    Array(
+      Array(True(), x, Die("Failure", x.typ), x),
+      Array(False(), Die("Failure", x.typ), x, x),
+      Array(IsNA(x), NA(x.typ), x, x),
+      Array(ApplyUnaryPrimOp(Bang, c), x, y, If(c, y, x)),
+      Array(c, If(c, x, y), y, If(c, x, y)),
+      Array(c, x, If(c, x, y), If(c, x, y)),
+      Array(c, x, x, If(IsNA(c), NA(x.typ), x)),
+    )
+  }
+
+  @Test(dataProvider = "IfRules")
+  def testIfSimplification(pred: IR, cnsq: IR, altr: IR, expected: Any): Unit =
+    assert(Simplify(ctx, If(pred, cnsq, altr)) == expected)
+
+  @DataProvider(name = "MakeStructRules")
+  def makeStructRules: Array[Array[Any]] = {
+    val s = ref(TStruct(
+      "a" -> TInt32,
+      "b" -> TInt64,
+      "c" -> TFloat32,
+    ))
+
+    def get(name: String) = GetField(s, name)
+
+    Array(
+      Array(
+        FastSeq("x" -> get("a")),
+        CastRename(SelectFields(s, FastSeq("a")), TStruct("x" -> TInt32)),
+      ),
+      Array(
+        FastSeq("x" -> get("a"), "y" -> get("b")),
+        CastRename(SelectFields(s, FastSeq("a", "b")), TStruct("x" -> TInt32, "y" -> TInt64)),
+      ),
+      Array(
+        FastSeq("a" -> get("a"), "b" -> get("b")),
+        SelectFields(s, FastSeq("a", "b")),
+      ),
+      Array(
+        FastSeq("a" -> get("a"), "b" -> get("b"), "c" -> get("c")),
+        s,
+      ),
+    )
+  }
+
+  @Test(dataProvider = "MakeStructRules")
+  def testMakeStruct(fields: IndexedSeq[(String, IR)], expected: IR): Unit = {
+    val x = Simplify(ctx, MakeStruct(fields))
+    assert(x == expected)
+  }
+
 }

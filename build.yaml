@@ -3935,6 +3935,7 @@ steps:
     scopes:
       - deploy
     script: |
+      gcloud auth activate-service-account --key-file=/gsa-key/key.json
       gcloud artifacts repositories set-cleanup-policies hail \
         --project={{ global.gcp_project }} \
         --location=us \
