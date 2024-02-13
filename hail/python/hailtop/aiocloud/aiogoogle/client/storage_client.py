@@ -109,13 +109,9 @@ class InsertObjectStream(WritableStream):
 
     async def _wait_closed(self):
         try:
-            print('_wait_closed', self.url, self._request_task)
             fut = asyncio.ensure_future(self._it.stop())
-            print('_wait_closed ensure_future', self.url, fut, self._request_task)
             self._exit_stack.push_async_callback(_cleanup_future, fut)
-            print('_wait_closed async_callback', self.url, fut, self._request_task)
             await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
-            print('_wait_closed async_callback', self.url, fut, self._request_task)
         finally:
             await self._exit_stack.aclose()
 
@@ -545,11 +541,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     async def __aexit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
-        print('aexit 1', repr(exc_val))
         async with OnlineBoundedGather2(self._sema) as pool:
-            print('aexit 2', repr(exc_val))
             try:
-                print('aexit 3', repr(exc_val))
                 if exc_val is not None:
                     return
 

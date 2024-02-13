@@ -56,30 +56,20 @@ async def _copy_part(
     bytes_listener,
 ) -> None:
     total_written = 0
-    try:
-        async with await fs.open_from(srcfile, part_number * part_size, length=this_part_size) as srcf:
-            async with await part_creator.create_part(
-                part_number, part_number * part_size, size_hint=this_part_size
-            ) as destf:
-                n = this_part_size
-                while n > 0:
-                    b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                    if len(b) == 0:
-                        raise UnexpectedEOFError()
-                    written = await destf.write(b)
-                    assert written == len(b)
-                    total_written += written
-                    n -= len(b)
-                print(f'{srcfile}, part {part_number}, complete')
-            print(f'{srcfile}, part {part_number}, complete 2')
-        print(f'{srcfile}, part {part_number}, complete 3')
-        bytes_listener(-total_written)
-    except Exception as exc:
-        import traceback
-
-        traceback.print_exc()
-        print('error in copy part', repr(exc))
-        raise exc
+    async with await fs.open_from(srcfile, part_number * part_size, length=this_part_size) as srcf:
+        async with await part_creator.create_part(
+            part_number, part_number * part_size, size_hint=this_part_size
+        ) as destf:
+            n = this_part_size
+            while n > 0:
+                b = await srcf.read(min(Copier.BUFFER_SIZE, n))
+                if len(b) == 0:
+                    raise UnexpectedEOFError()
+                written = await destf.write(b)
+                assert written == len(b)
+                total_written += written
+                n -= len(b)
+    bytes_listener(-total_written)
 
 
 async def _copy_file(
@@ -114,29 +104,15 @@ async def _copy_file(
 
         async def f(i):
             this_part_size = rem if i == n_parts - 1 and rem else part_size
-
-            async def wee():
-                try:
-                    await _copy_part(fs, part_size, srcfile, i, this_part_size, part_creator, bytes_listener)
-                except Exception as exc:
-                    print('wee saw error', repr(exc))
-                    raise exc
-
-            try:
-                await retry_transient_errors(wee)
-            except Exception as exc:
-                print('f saw error', repr(exc))
-                raise exc
-
-        try:
-            await bounded_gather2(
-                transfer_sema,
-                *[functools.partial(f, i) for i in range(n_parts)],
-                cancel_on_error=True,
+            await retry_transient_errors(
+                _copy_part, fs, part_size, srcfile, i, this_part_size, part_creator, bytes_listener
             )
-        except Exception as exc:
-            print('_copy_file saw error', repr(exc))
-            raise exc
+
+        await bounded_gather2(
+            transfer_sema,
+            *[functools.partial(f, i) for i in range(n_parts)],
+            cancel_on_error=True,
+        )
         files_listener(-1)
 
 

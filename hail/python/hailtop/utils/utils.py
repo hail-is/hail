@@ -485,43 +485,18 @@ async def bounded_gather2_raise_exceptions(
     """
 
     async def run_with_sema(pf: Callable[[], Awaitable[T]]):
-        try:
-            async with sema:
-                try:
-                    return await pf()
-                except Exception as exc:
-                    print('run with sema inner saw error', repr(exc))
-                    raise exc
-        except Exception as exc:
-            print('run with sema outer saw error', repr(exc))
-            raise exc
+        async with sema:
+            return await pf()
 
     tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
 
     if not cancel_on_error:
-        raise ValueError('nope')
-        try:
-            async with WithoutSemaphore(sema):
-                try:
-                    return await asyncio.gather(*tasks)
-                except Exception as exc:
-                    print('bounded gather inner saw error', repr(exc))
-                    raise exc
-        except Exception as exc:
-            print('bounded gather outer saw error', repr(exc))
-            raise exc
+        async with WithoutSemaphore(sema):
+            return await asyncio.gather(*tasks)
 
     try:
-        try:
-            async with WithoutSemaphore(sema):
-                try:
-                    return await asyncio.gather(*tasks)
-                except Exception as exc:
-                    print('bounded gather inner saw error', repr(exc))
-                    raise exc
-        except Exception as exc:
-            print('bounded gather outer saw error', repr(exc))
-            raise exc
+        async with WithoutSemaphore(sema):
+            return await asyncio.gather(*tasks)
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
