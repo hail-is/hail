@@ -259,7 +259,7 @@ class AsyncFS(abc.ABC):
     def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
         """Part size when copying using multi-part uploads.  The part size of
         the destination filesystem is used."""
-        return 128 * 1024 * 1024
+        return 16 * 1024 * 1024
 
     @staticmethod
     @abc.abstractmethod
