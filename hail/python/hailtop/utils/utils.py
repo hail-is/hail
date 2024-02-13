@@ -511,8 +511,16 @@ async def bounded_gather2_raise_exceptions(
             raise exc
 
     try:
-        async with WithoutSemaphore(sema):
-            return await asyncio.gather(*tasks)
+        try:
+            async with WithoutSemaphore(sema):
+                try:
+                    return await asyncio.gather(*tasks)
+                except Exception as exc:
+                    print('bounded gather inner saw error', repr(exc))
+                    raise exc
+        except Exception as exc:
+            print('bounded gather outer saw error', repr(exc))
+            raise exc
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
@@ -534,8 +542,6 @@ async def bounded_gather2(
     return_exceptions: bool = False,
     cancel_on_error: bool = False,
 ) -> List[T]:
-    if not cancel_on_error:
-        raise ValueError('nope')
     if return_exceptions:
         if cancel_on_error:
             raise ValueError('cannot request return_exceptions and cancel_on_error')
