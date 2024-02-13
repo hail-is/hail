@@ -23,8 +23,9 @@ annotation database instance and annotating a :class:`.MatrixTable` or a
 
 Note that these annotations are stored in :ref:`Requester Pays<GCP Requester
 Pays>` buckets on Google Cloud Storage. Buckets are now available in both the
-US and EU regions, so egress charges may apply if your cluster is outside of
-the region specified when creating an annotation database instance.
+US-CENTRAL1 and EUROPE-WEST1 regions, so egress charges may apply if your
+cluster is outside of the region specified when creating an annotation database
+instance.
 
 To access these buckets on a cluster started with ``hailctl dataproc``, you
 can use the additional argument ``--requester-pays-annotation-db`` as follows:

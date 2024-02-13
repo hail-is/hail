@@ -31,7 +31,7 @@ sleep 60
 sudo service docker restart
 
 # Get VEP cache and LOFTEE data
-gcloud storage cp --billing-project $PROJECT gs://hail-us-vep/vep85-loftee-gcloud.json /vep_data/vep85-gcloud.json
+gcloud storage cp --billing-project $PROJECT gs://hail-us-central1-vep/vep85-loftee-gcloud.json /vep_data/vep85-gcloud.json
 ln -s /vep_data/vep85-gcloud.json $VEP_CONFIG_PATH
 
 gcloud storage cat --billing-project $PROJECT gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data &
