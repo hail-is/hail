@@ -545,8 +545,11 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     async def __aexit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
+        print('aexit 1', repr(exc_val))
         async with OnlineBoundedGather2(self._sema) as pool:
+            print('aexit 2', repr(exc_val))
             try:
+                print('aexit 3', repr(exc_val))
                 if exc_val is not None:
                     return
 
