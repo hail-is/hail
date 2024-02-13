@@ -76,7 +76,7 @@ async def _copy_part(
 
 async def _copy_file(
     fs: RouterAsyncFS,
-    sema: asyncio.Semaphore,
+    transfer_sema: asyncio.Semaphore,
     srcfile: str,
     destfile: str,
     files_listener,
@@ -97,10 +97,10 @@ async def _copy_file(
         n_parts += 1
 
     try:
-        part_creator = await fs.multi_part_create(sema, destfile, n_parts)
+        part_creator = await fs.multi_part_create(transfer_sema, destfile, n_parts)
     except FileNotFoundError:
         await fs.makedirs(os.path.dirname(destfile), exist_ok=True)
-        part_creator = await fs.multi_part_create(sema, destfile, n_parts)
+        part_creator = await fs.multi_part_create(transfer_sema, destfile, n_parts)
 
     async with part_creator:
 
@@ -110,7 +110,7 @@ async def _copy_file(
                 _copy_part, fs, part_size, srcfile, i, this_part_size, part_creator, bytes_listener
             )
 
-        await bounded_gather2(sema, *[functools.partial(f, i) for i in range(n_parts)])
+        await bounded_gather2(transfer_sema, *[functools.partial(f, i) for i in range(n_parts)])
         files_listener(-1)
 
 
@@ -142,18 +142,33 @@ async def sync(
             files_listener = make_listener(progress, files_tid)
             bytes_listener = make_listener(progress, bytes_tid)
 
+            max_file_parallelism = max(1, max_parallelism // 10)
+
             initial_parallelism = min(10, max_parallelism)
+            initial_file_parallelism = min(10, max_file_parallelism)
+
             parallelism_tid = progress.add_task(
-                description='parallelism',
+                description='transfer parallelism',
                 completed=initial_parallelism,
                 total=max_parallelism,
                 visible=verbose,
             )
-            async with GrowingSempahore(initial_parallelism, max_parallelism, (progress, parallelism_tid)) as sema:
+            file_parallelism_tid = progress.add_task(
+                description='file parallelism',
+                completed=initial_parallelism,
+                total=max_parallelism,
+                visible=verbose,
+            )
+
+            async with GrowingSempahore(
+                initial_parallelism, max_parallelism, (progress, parallelism_tid)
+            ) as file_sema, GrowingSempahore(
+                initial_file_parallelism, max_file_parallelism, (progress, file_parallelism_tid)
+            ) as transfer_sema:
                 await bounded_gather2(
-                    sema,
+                    file_sema,
                     *[
-                        functools.partial(_copy_file, fs, sema, src, dst, files_listener, bytes_listener)
+                        functools.partial(_copy_file, fs, transfer_sema, src, dst, files_listener, bytes_listener)
                         async for src, dst in iterate_plan_file(plan_folder, fs)
                     ],
                 )
