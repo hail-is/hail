@@ -13,7 +13,7 @@ from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
 
-from ..batch import job_group_record_to_dict
+from ..batch import batch_record_to_dict, job_group_record_to_dict
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..file_store import FileStore
@@ -26,6 +26,63 @@ if TYPE_CHECKING:
     from .instance_collection import InstanceCollectionManager  # pylint: disable=cyclic-import
 
 log = logging.getLogger('job')
+
+
+async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
+    record = await db.select_and_fetchone(
+        """
+SELECT batches.*,
+  cost_t.cost,
+  cost_t.cost_breakdown,
+  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  job_groups_n_jobs_in_complete_states.n_completed,
+  job_groups_n_jobs_in_complete_states.n_succeeded,
+  job_groups_n_jobs_in_complete_states.n_failed,
+  job_groups_n_jobs_in_complete_states.n_cancelled
+FROM batches
+LEFT JOIN job_groups_n_jobs_in_complete_states
+  ON batches.id = job_groups_n_jobs_in_complete_states.id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+  FROM (
+    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_job_group_resources_v3
+    WHERE batches.id = aggregated_job_group_resources_v3.batch_id
+    GROUP BY batch_id, resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+  GROUP BY batch_id
+) AS cost_t ON TRUE
+LEFT JOIN job_groups_cancelled
+  ON batches.id = job_groups_cancelled.id
+WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
+   batches.`state` = 'complete';
+""",
+        (batch_id,),
+        'notify_batch_job_complete',
+    )
+
+    if not record:
+        return
+    callback = record['callback']
+
+    log.info(f'making callback for batch {batch_id}: {callback}')
+
+    async def request(session):
+        await session.post(callback, json=batch_record_to_dict(record))
+        log.info(f'callback for batch {batch_id} successful')
+
+    try:
+        if record['user'] == 'ci':
+            # only jobs from CI may use batch's TLS identity
+            await request(client_session)
+        else:
+            async with httpx.client_session() as session:
+                await request(session)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
 async def notify_job_group_on_job_complete(db: Database, client_session: httpx.ClientSession, batch_id: int, job_group_id: int):
@@ -215,6 +272,7 @@ async def mark_job_complete(
         # already complete, do nothing
         return
 
+    await notify_batch_job_complete(db, client_session, batch_id)
     await notify_job_group_on_job_complete(db, client_session, batch_id, job_group_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
