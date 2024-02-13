@@ -129,7 +129,7 @@ LEFT JOIN LATERAL (
 ) AS t ON TRUE
 WHERE job_group_self_and_ancestors.batch_id = %s AND
   job_group_self_and_ancestors.job_group_id = %s AND
-  job_group_self_and_ancestors.job_group_id != %s
+  job_group_self_and_ancestors.job_group_id != %s AND
   NOT deleted AND
   job_groups.callback IS NOT NULL AND
   job_groups.`state` = 'complete';
