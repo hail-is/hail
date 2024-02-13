@@ -77,7 +77,7 @@ async def _copy_part(
     except Exception as exc:
         import traceback
 
-        traceback.format_exc()
+        traceback.print_exc()
         print('error in copy part', repr(exc))
 
 
