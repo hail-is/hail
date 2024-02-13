@@ -129,7 +129,11 @@ async def _copy_file(
                 raise exc
 
         try:
-            await bounded_gather2(transfer_sema, *[functools.partial(f, i) for i in range(n_parts)])
+            await bounded_gather2(
+                transfer_sema,
+                *[functools.partial(f, i) for i in range(n_parts)],
+                cancel_on_error=True,
+            )
         except Exception as exc:
             print('_copy_file saw error', repr(exc))
             raise exc
@@ -191,6 +195,7 @@ async def sync(
                         functools.partial(_copy_file, fs, transfer_sema, src, dst, files_listener, bytes_listener)
                         async for src, dst in iterate_plan_file(plan_folder, fs)
                     ],
+                    cancel_on_error=True,
                 )
 
 
