@@ -1231,6 +1231,7 @@ LOCK IN SHARE MODE;
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
+        attempt_by_job_group_resources = fold(attempt_by_job_group_resources, lambda k: (k[0], k[1]))
         job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
         batch_by_billing_project_resources = fold(agg_batch_resources, lambda k: k[1])
 
