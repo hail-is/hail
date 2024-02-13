@@ -16,6 +16,7 @@ from hailtop.utils import Notice, retry_transient_errors, time_msecs
 from ..batch import batch_record_to_dict, job_group_record_to_dict
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
+from ..constants import ROOT_JOB_GROUP_ID
 from ..file_store import FileStore
 from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 log = logging.getLogger('job')
 
 
-async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
+async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id: int):
     record = await db.select_and_fetchone(
         """
 SELECT batches.*,
@@ -126,11 +127,12 @@ LEFT JOIN LATERAL (
 ) AS t ON TRUE
 WHERE job_group_self_and_ancestors.batch_id = %s AND
   job_group_self_and_ancestors.job_group_id = %s AND
+  job_group_self_and_ancestors.job_group_id != %s
   NOT deleted AND
   job_groups.callback IS NOT NULL AND
   job_groups.`state` = 'complete';
 """,
-        (batch_id, job_group_id),
+        (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
         'notify_job_group_on_job_complete',
     )
 
