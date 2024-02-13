@@ -114,7 +114,7 @@ WHERE user = %s AND `state` = 'running';
                 if job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         """
-SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id
+SELECT jobs.batch_id, jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
@@ -125,7 +125,7 @@ LIMIT %s;
                 else:
                     async for record in self.db.select_and_fetchall(
                         """
-SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id
+SELECT jobs.batch_id, jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND job_group_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
@@ -142,14 +142,13 @@ LIMIT %s;
             async for record in user_cancelled_ready_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
-                job_group_id = record['job_group_id']
                 id = (batch_id, job_id)
                 log.info(f'cancelling job {id}')
 
                 async def cancel_with_error_handling(app, batch_id, job_id, id):
                     try:
                         await mark_job_complete(
-                            app, batch_id, job_id, None, job_group_id, None, 'Cancelled', None, None, None, 'cancelled', []
+                            app, batch_id, job_id, None, None, 'Cancelled', None, None, None, 'cancelled', []
                         )
                     except Exception:
                         log.info(f'error while cancelling job {id}', exc_info=True)
@@ -207,7 +206,7 @@ WHERE user = %s AND `state` = 'running';
             ):
                 async for record in self.db.select_and_fetchall(
                     """
-SELECT jobs.batch_id, jobs.job_id, jobs.job_group_id, attempts.attempt_id, attempts.instance_name
+SELECT jobs.batch_id, jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
@@ -227,7 +226,6 @@ LIMIT %s;
                 batch_id = record['batch_id']
                 job_id = record['job_id']
                 attempt_id = record['attempt_id']
-                job_group_id = record['job_group_id']
                 instance_name = record['instance_name']
                 id = (batch_id, job_id)
 
@@ -239,7 +237,6 @@ LIMIT %s;
                             batch_id,
                             job_id,
                             attempt_id,
-                            job_group_id,
                             instance_name,
                             'Cancelled',
                             None,

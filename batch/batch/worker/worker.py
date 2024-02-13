@@ -3254,7 +3254,6 @@ class Worker:
             'version': full_status['version'],
             'batch_id': full_status['batch_id'],
             'job_id': full_status['job_id'],
-            'job_group_id': full_status['job_group_id'],
             'attempt_id': full_status['attempt_id'],
             'state': full_status['state'],
             'start_time': full_status['start_time'],
