@@ -18,17 +18,18 @@ import org.apache.spark.TaskContext
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
+// --- AggStateSig --
+
 object AggStateSig {
-  def apply(op: AggOp, initOpArgs: Seq[IR], seqOpArgs: Seq[IR], r: RequirednessAnalysis)
+  def apply(op: AggOp, seqOpArgs: Seq[IR], r: RequirednessAnalysis)
     : AggStateSig = {
-    val inits = initOpArgs.map(i => i -> (if (i.typ == TVoid) null else r(i)))
     val seqs = seqOpArgs.map(s => s -> (if (s.typ == TVoid) null else r(s)))
-    apply(op, inits, seqs)
+    apply(op, seqs)
   }
 
+  // FIXME: factor out requiredness inference part
   def apply(
     op: AggOp,
-    initOpArgs: Seq[(IR, TypeWithRequiredness)],
     seqOpArgs: Seq[(IR, TypeWithRequiredness)],
   ): AggStateSig = {
     val seqVTypes = seqOpArgs.map { case (a, r) => VirtualTypeWithReq(a.typ, r) }
@@ -63,9 +64,6 @@ object AggStateSig {
 
   def grouped(k: IR, aggs: Seq[AggStateSig], r: RequirednessAnalysis): GroupedStateSig =
     GroupedStateSig(VirtualTypeWithReq(k.typ, r(k)), aggs)
-
-  def arrayelements(aggs: Seq[AggStateSig]): ArrayAggStateSig =
-    ArrayAggStateSig(aggs)
 
   def getState(sig: AggStateSig, cb: EmitClassBuilder[_]): AggregatorState = sig match {
     case TypedStateSig(vt) if vt.t.isPrimitive => new PrimitiveRVAState(Array(vt), cb)
@@ -140,6 +138,8 @@ case class FoldStateSig(
   combOpIR: IR,
 ) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
 
+// --- PhysicalAggSig --
+
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
 
@@ -147,6 +147,7 @@ object PhysicalAggSig {
     if (v.nestedOps.isEmpty) Some(v.op -> v.state) else None
 }
 
+// A pair of an agg state and an op. If the state is compound, also encodes ops for nested states.
 class PhysicalAggSig(val op: AggOp, val state: AggStateSig, val nestedOps: Array[AggOp]) {
   val allOps: Array[AggOp] = nestedOps :+ op
   def initOpTypes: IndexedSeq[Type] = Extract.getAgg(this).initOpTypes.toFastSeq
@@ -177,13 +178,16 @@ case class ArrayLenAggSig(knownLength: Boolean, nested: Seq[PhysicalAggSig]) ext
       nested.flatMap(sig => sig.allOps).toArray,
     )
 
+// --- Aggs --
+
+// The result of Extract
 class Aggs(
-  original: IR,
+  original: IR, // The pre-extract IR
   rewriteMap: Memo[IR],
   bindingNodesReferenced: Memo[Unit],
-  val init: IR,
-  val seqPerElt: IR,
-  val aggs: Array[PhysicalAggSig],
+  val init: IR, // The extracted void-typed initialization ir
+  val seqPerElt: IR, // The extracted void-typed update ir
+  val aggs: Array[PhysicalAggSig], // All (top-level) aggregators used
 ) {
   val states: Array[AggStateSig] = aggs.map(_.state)
   val nAggs: Int = aggs.length
@@ -391,9 +395,13 @@ class Aggs(
     ResultOp.makeTuple(aggs)
 }
 
+// --- Extract --
+
 object Extract {
 
-  def partitionDependentLets(lets: Array[AggLet], name: String): (Array[AggLet], Array[AggLet]) = {
+  // All lets whose value depends on `name` (either directly or transitively through previous lets)
+  // are returned in the first array, the rest are in the second.
+  private def partitionDependentLets(lets: Array[AggLet], name: String): (Array[AggLet], Array[AggLet]) = {
     val depBindings = mutable.HashSet.empty[String]
     depBindings += name
 
@@ -411,35 +419,12 @@ object Extract {
     (dep.result(), indep.result())
   }
 
-  def addLets(ir: IR, lets: Array[AggLet]): IR = {
+  private def addLets(ir: IR, lets: Array[AggLet]): IR = {
     assert(lets.areDistinct())
     Let(lets.map(al => al.name -> al.value), ir)
   }
 
-  def getResultType(aggSig: AggSignature): Type = aggSig match {
-    case AggSignature(Sum(), _, Seq(t)) => t
-    case AggSignature(Product(), _, Seq(t)) => t
-    case AggSignature(Min(), _, Seq(t)) => t
-    case AggSignature(Max(), _, Seq(t)) => t
-    case AggSignature(Count(), _, _) => TInt64
-    case AggSignature(Take(), _, Seq(t)) => TArray(t)
-    case AggSignature(ReservoirSample(), _, Seq(t)) => TArray(t)
-    case AggSignature(CallStats(), _, _) => CallStatsState.resultPType.virtualType
-    case AggSignature(TakeBy(_), _, Seq(value, _)) => TArray(value)
-    case AggSignature(PrevNonnull(), _, Seq(t)) => t
-    case AggSignature(CollectAsSet(), _, Seq(t)) => TSet(t)
-    case AggSignature(Collect(), _, Seq(t)) => TArray(t)
-    case AggSignature(Densify(), _, Seq(t)) => t
-    case AggSignature(ImputeType(), _, _) => ImputeTypeState.resultEmitType.virtualType
-    case AggSignature(LinearRegression(), _, _) =>
-      LinearRegressionAggregator.resultPType.virtualType
-    case AggSignature(ApproxCDF(), _, _) => QuantilesAggregator.resultPType.virtualType
-    case AggSignature(Downsample(), _, Seq(_, _, _)) => DownsampleAggregator.resultType
-    case AggSignature(NDArraySum(), _, Seq(t)) => t
-    case AggSignature(NDArrayMultiplyAdd(), _, Seq(a: TNDArray, _)) => a
-    case _ => throw new UnsupportedExtraction(aggSig.toString)
-  }
-
+  // FIXME: move this to StagedAggregator?
   def getAgg(sig: PhysicalAggSig): StagedAggregator = sig match {
     case PhysicalAggSig(Sum(), TypedStateSig(t)) => new SumAggregator(t.t)
     case PhysicalAggSig(Product(), TypedStateSig(t)) => new ProductAggregator(t.t)
@@ -501,21 +486,20 @@ object Extract {
 
   private def extract(
     ir: IR,
-    env: Env[RefEquality[IR]],
-    bindingNodesReferenced: Memo[Unit],
+    env: Env[RefEquality[IR]], // bindings in scope for init op arguments
+    bindingNodesReferenced: Memo[Unit], // nodes which bind variables which are referenced in init op arguments
     rewriteMap: Memo[IR],
-    ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)],
-    seqBuilder: BoxedArrayBuilder[IR],
-    letBuilder: BoxedArrayBuilder[AggLet],
-    memo: mutable.Map[IR, Int],
-    result: IR,
+    ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)], // set of contained aggs, and the init op for each
+    seqBuilder: BoxedArrayBuilder[IR], // set of updates for contained aggs
+    letBuilder: BoxedArrayBuilder[AggLet], // set of AggLets which need to be in scope in the extracted updates
+    memo: mutable.Map[IR, Int], // Map each contained ApplyAggOp, ApplyScanOp, or AggFold, to the index of the corresponding agg state
+    result: IR, // a reference to the tuple of results of contained aggs
     r: RequirednessAnalysis,
     isScan: Boolean,
   ): IR = {
-    // the env argument here tracks variable bindings that are accessible to init op arguments
-
     def newMemo: mutable.Map[IR, Int] = mutable.Map.empty[IR, Int]
 
+    // For each free variable in each init op arg, add the binding site to bindingNodesReferenced
     def bindInitArgRefs(initArgs: IndexedSeq[IR]): Unit = {
       initArgs.foreach { arg =>
         val fv = FreeVariables(arg, false, false).eval
@@ -536,7 +520,7 @@ object Extract {
             val i = ab.length
             val op = x.aggSig.op
             bindInitArgRefs(x.initOpArgs)
-            val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
+            val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
             seqBuilder += SeqOp(i, x.seqOpArgs, state)
             i
@@ -549,7 +533,7 @@ object Extract {
             val i = ab.length
             val op = x.aggSig.op
             bindInitArgRefs(x.initOpArgs)
-            val state = PhysicalAggSig(op, AggStateSig(op, x.initOpArgs, x.seqOpArgs, r))
+            val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
             seqBuilder += SeqOp(i, x.seqOpArgs, state)
             i
