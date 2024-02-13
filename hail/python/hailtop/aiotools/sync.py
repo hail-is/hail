@@ -113,7 +113,8 @@ async def _copy_file(
             *[functools.partial(f, i) for i in range(n_parts)],
             cancel_on_error=True,
         )
-        files_listener(-1)
+    print(f'file complete: {srcfile}')
+    files_listener(-1)
 
 
 async def sync(
