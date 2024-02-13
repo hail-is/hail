@@ -88,7 +88,7 @@ class InsertObjectStream(WritableStream):
 
         async def cleanup_request_task():
             if self._request_task.done() and not self._request_task.cancelled():
-                async with await self._request_task as response:
+                async with self._request_task as response:
                     self._value = await response.json()
             await _cleanup_future(self._request_task)
 
@@ -171,7 +171,7 @@ class ResumableInsertObjectStream(WritableStream):
             # https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
 
             # note: this retries
-            async with await self._session.put(
+            async with self._session.put(
                 self._session_url,
                 headers={'Content-Length': '0', 'Content-Range': f'bytes */{total_size_str}'},
                 raise_for_status=False,
@@ -367,7 +367,7 @@ class GoogleStorageClient(GoogleBaseClient):
         assert upload_type == 'resumable'
         chunk_size = kwargs.get('bufsize', 8 * 1024 * 1024)
 
-        async with await self._session.post(
+        async with self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', **kwargs
         ) as resp:
             session_url = resp.headers['Location']
