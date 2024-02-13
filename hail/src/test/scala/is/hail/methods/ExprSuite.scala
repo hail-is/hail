@@ -9,10 +9,10 @@ import is.hail.expr.ir.IRParser
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 
+import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.testng.annotations.Test
-import org.apache.spark.sql.Row
 
 class ExprSuite extends HailSuite {
 

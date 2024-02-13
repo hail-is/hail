@@ -20,4 +20,7 @@ case object TVoid extends Type {
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Unit]
 
   override def isRealizable = false
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }

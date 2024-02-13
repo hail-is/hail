@@ -1,8 +1,7 @@
-package is.hail.expr.ir
+package is.hail.types.physical
 
 import is.hail.HailSuite
 import is.hail.rvd.AbstractRVDSpec
-import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome

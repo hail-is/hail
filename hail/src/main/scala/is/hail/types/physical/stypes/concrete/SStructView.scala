@@ -33,7 +33,7 @@ final class SStructView(
 ) extends SBaseStruct {
 
   assert(
-    parent.virtualType.asInstanceOf[TStruct].typeAfterSelectNames(restrict) canCastTo rename,
+    parent.virtualType.asInstanceOf[TStruct].typeAfterSelectNames(restrict) isIsomorphicTo rename,
     s"""Renamed type is not isomorphic to subsetted type
        |   parent: '${parent.virtualType._toPretty}'
        | restrict: '${restrict.mkString("[", ",", "]")}'
@@ -126,7 +126,7 @@ final class SStructView(
       case s: SStructView =>
         rename == s.rename &&
         newToOldFieldMapping == s.newToOldFieldMapping &&
-        parent == s.parent // todo test isIsomorphicTo
+        parent == s.parent
       case _ =>
         false
     }

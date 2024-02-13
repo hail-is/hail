@@ -66,14 +66,23 @@ abstract class TBaseStruct extends Type {
     case _ => false
   }
 
-  def isIsomorphicTo(other: TBaseStruct): Boolean =
+  def isJoinableWith(other: TBaseStruct): Boolean =
     size == other.size && isCompatibleWith(other)
 
   def isPrefixOf(other: TBaseStruct): Boolean =
     size <= other.size && isCompatibleWith(other)
 
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case s: TBaseStruct => size == s.size && forallZippedFields(s)(_.typ isIsomorphicTo _.typ)
+      case _ => false
+    }
+
   def isCompatibleWith(other: TBaseStruct): Boolean =
-    fields.zip(other.fields).forall { case (l, r) => l.typ == r.typ }
+    forallZippedFields(other)(_.typ == _.typ)
+
+  private def forallZippedFields(s: TBaseStruct)(p: (Field, Field) => Boolean): Boolean =
+    (fields, s.fields).zipped.forall(p)
 
   def truncate(newSize: Int): TBaseStruct
 

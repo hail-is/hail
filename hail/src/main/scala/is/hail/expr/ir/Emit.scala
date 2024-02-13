@@ -13,7 +13,7 @@ import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq, tcoerce}
+import is.hail.types.{tcoerce, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
@@ -23,10 +23,11 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import scala.annotation.{nowarn, tailrec}
 import scala.collection.mutable
 import scala.language.existentials
+
 import java.io._
-import scala.annotation.{nowarn, tailrec}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
