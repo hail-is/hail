@@ -44,6 +44,7 @@ async def _copy_file_one_part(
                 written = await destf.write(b)
                 assert written == len(b)
                 total_written += written
+                print(f'{srcfile}, {written}')
 
 
 async def _copy_part(
@@ -68,7 +69,7 @@ async def _copy_part(
                 written = await destf.write(b)
                 assert written == len(b)
                 total_written += written
-
+                print(f'{srcfile}, part {part_number}, {written}')
                 n -= len(b)
     bytes_listener(-total_written)
 
