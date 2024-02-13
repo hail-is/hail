@@ -79,12 +79,13 @@ async def _cleanup_future(fut: asyncio.Future):
 
 
 class InsertObjectStream(WritableStream):
-    def __init__(self, it: FeedableAsyncIterable[bytes], request_task: asyncio.Task[aiohttp.ClientResponse]):
+    def __init__(self, it: FeedableAsyncIterable[bytes], request_task: asyncio.Task[aiohttp.ClientResponse], url: str):
         super().__init__()
         self._it = it
         self._request_task = request_task
         self._value = None
         self._exit_stack = AsyncExitStack()
+        self.url = url
 
         async def cleanup_request_task():
             if self._request_task.done() and not self._request_task.cancelled():
@@ -108,9 +109,13 @@ class InsertObjectStream(WritableStream):
 
     async def _wait_closed(self):
         try:
+            print('_wait_closed', self.url, self._request_task)
             fut = asyncio.ensure_future(self._it.stop())
+            print('_wait_closed ensure_future', self.url, fut, self._request_task)
             self._exit_stack.push_async_callback(_cleanup_future, fut)
+            print('_wait_closed async_callback', self.url, fut, self._request_task)
             await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
+            print('_wait_closed async_callback', self.url, fut, self._request_task)
         finally:
             await self._exit_stack.aclose()
 
@@ -360,7 +365,7 @@ class GoogleStorageClient(GoogleBaseClient):
                     f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', retry=False, **kwargs
                 )
             )
-            return InsertObjectStream(it, request_task)
+            return InsertObjectStream(it, request_task, 'gs://' + bucket + '/' + name)
 
         # Write using resumable uploads.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads
