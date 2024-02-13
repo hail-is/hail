@@ -23,7 +23,6 @@ class FeedableAsyncIterable(AsyncIterator[_T]):
     async def __anext__(self) -> _T:
         next = await self._queue.get()
         if isinstance(next, _StopFeedableAsyncIterator):
-            print('FeedableAsyncIterable.__anext__', self.url, "STOP")
             raise StopAsyncIteration
         return next
 
