@@ -534,6 +534,8 @@ async def bounded_gather2(
     return_exceptions: bool = False,
     cancel_on_error: bool = False,
 ) -> List[T]:
+    if not cancel_on_error:
+        raise ValueError('nope')
     if return_exceptions:
         if cancel_on_error:
             raise ValueError('cannot request return_exceptions and cancel_on_error')
