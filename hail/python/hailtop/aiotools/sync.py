@@ -117,7 +117,10 @@ async def _copy_file(
                 _copy_part, fs, part_size, srcfile, i, this_part_size, part_creator, bytes_listener
             )
 
-        await bounded_gather2(transfer_sema, *[functools.partial(f, i) for i in range(n_parts)])
+        try:
+            await bounded_gather2(transfer_sema, *[functools.partial(f, i) for i in range(n_parts)])
+        except Exception as exc:
+            print('_copy_file saw error', repr(exc))
         files_listener(-1)
 
 
