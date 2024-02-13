@@ -56,23 +56,29 @@ async def _copy_part(
     bytes_listener,
 ) -> None:
     total_written = 0
-    async with await fs.open_from(srcfile, part_number * part_size, length=this_part_size) as srcf:
-        async with await part_creator.create_part(
-            part_number, part_number * part_size, size_hint=this_part_size
-        ) as destf:
-            n = this_part_size
-            while n > 0:
-                b = await srcf.read(min(Copier.BUFFER_SIZE, n))
-                if len(b) == 0:
-                    raise UnexpectedEOFError()
-                written = await destf.write(b)
-                assert written == len(b)
-                total_written += written
-                n -= len(b)
-            print(f'{srcfile}, part {part_number}, complete')
-        print(f'{srcfile}, part {part_number}, complete 2')
-    print(f'{srcfile}, part {part_number}, complete 3')
-    bytes_listener(-total_written)
+    try:
+        async with await fs.open_from(srcfile, part_number * part_size, length=this_part_size) as srcf:
+            async with await part_creator.create_part(
+                part_number, part_number * part_size, size_hint=this_part_size
+            ) as destf:
+                n = this_part_size
+                while n > 0:
+                    b = await srcf.read(min(Copier.BUFFER_SIZE, n))
+                    if len(b) == 0:
+                        raise UnexpectedEOFError()
+                    written = await destf.write(b)
+                    assert written == len(b)
+                    total_written += written
+                    n -= len(b)
+                print(f'{srcfile}, part {part_number}, complete')
+            print(f'{srcfile}, part {part_number}, complete 2')
+        print(f'{srcfile}, part {part_number}, complete 3')
+        bytes_listener(-total_written)
+    except Exception as exc:
+        import traceback
+
+        traceback.format_exc()
+        print('error in copy part', exc)
 
 
 async def _copy_file(
