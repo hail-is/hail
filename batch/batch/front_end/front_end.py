@@ -920,7 +920,7 @@ WHERE batch_id = %s AND job_group_id = %s;
             query_name='insert_job_group_ancestors',
         )
 
-        if n_rows_inserted >= MAX_JOB_GROUPS_DEPTH:
+        if n_rows_inserted > MAX_JOB_GROUPS_DEPTH:
             raise web.HTTPBadRequest(reason='job group exceeded the maximum level of nesting')
 
     await tx.execute_insertone(
