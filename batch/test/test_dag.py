@@ -240,6 +240,7 @@ async def test_job_group_callback(async_client: aioclient.BatchClient):
         await b.cancel()
 
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
+        print(callback_bodies)
         callback_body = callback_bodies[1]
 
         # verify required fields present

@@ -102,7 +102,7 @@ SELECT job_groups.*,
   job_groups_n_jobs_in_complete_states.n_cancelled
 FROM job_group_self_and_ancestors
 LEFT JOIN job_groups ON job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-  job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+  job_groups.job_group_id = job_group_self_and_ancestors.ancestor_id
 LEFT JOIN batches ON job_groups.batch_id = batches.id
 LEFT JOIN job_groups_n_jobs_in_complete_states
   ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
