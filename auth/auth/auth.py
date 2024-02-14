@@ -827,7 +827,7 @@ async def on_startup(app):
     app[AppKeys.DB] = db
 
     app[AppKeys.CLIENT_SESSION] = httpx.client_session()
-    exit_stack.push_async_callback(app[AppKeys.CLIENT_SESSION])
+    exit_stack.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
 
     credentials_file = '/auth-oauth2-client-secret/client_secret.json'
     if CLOUD == 'gcp':
