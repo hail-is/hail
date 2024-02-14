@@ -49,7 +49,7 @@ resource "azurerm_role_assignment" "ci_test_container_contributor" {
 module "k8s_resources" {
   source = "../../../k8s/ci"
 
-  storage_uri                             = "hail-az://${azurerm_storage_account.ci.name}/${azurerm_storage_container.ci_artifacts.name}"
+  storage_uri                             = "https://${azurerm_storage_account.ci.name}.blob.core.windows.net/${azurerm_storage_container.ci_artifacts.name}"
   deploy_steps                            = var.deploy_steps
   watched_branches                        = var.watched_branches
   github_context                          = var.github_context
