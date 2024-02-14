@@ -7,6 +7,7 @@ from .config import cli as config_cli
 from .describe import describe
 from .dataproc import cli as dataproc_cli
 from .dev import cli as dev_cli
+from .fs import cli as fs_cli
 from .hdinsight import cli as hdinsight_cli
 
 
@@ -22,6 +23,7 @@ for cli in (
     config_cli.app,
     dataproc_cli.app,
     dev_cli.app,
+    fs_cli.app,
     hdinsight_cli.app,
 ):
     app.add_typer(cli)
