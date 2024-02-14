@@ -53,6 +53,57 @@ policy. Their functionality or even existence may change without notice. Please 
 critically depend on experimental functionality.**
 
 
+## Version 0.2.128
+
+Released 2024-02-14
+
+In GCP, the Hail Annotation DB and Datasets API have moved from multi-regional US and EU buckets to
+regional US-CENTRAL1 and EUROPE-WEST1 buckets. These buckets are requester pays which means unless
+your cluster is in the US-CENTRAL1 or EUROPE-WEST1 region, you will pay a per-gigabyte rate to read
+from the Annotation DB or Datasets API. We must make this change because [reading from a
+multi-regional bucket into a regional VM is no longer
+free](https://cloud.google.com/storage/pricing-announce#network). Unfortunately, cost constraints
+require us to choose only one region per continent and we have chosen US-CENTRAL1 and EUROPE-WEST1.
+
+### Documentation
+
+- (hail#14113) Add examples to `Table.parallelize`, `Table.key_by`, `Table.annotate_globals`,
+  `Table.select_globals`, `Table.transmute_globals`, `Table.transmute`, `Table.annotate`, and
+  `Table.filter`.
+- (hail#14242) Add examples to `Table.sample`, `Table.head`, and `Table.semi`_join.
+
+### New Features
+
+- (hail#14206) Introduce `hailctl config set http/timeout_in_seconds` which Batch and QoB users can
+  use to increase the timeout on their laptops. Laptops tend to have flaky internet connections and
+  a timeout of 300 seconds produces a more robust experience.
+- (hail#14178) Reduce VDS Combiner runtime slightly by computing the maximum ref block length
+  without executing the combination pipeline twice.
+- (hail#14207) VDS Combiner now verifies that every GVCF path and sample name is unique.
+
+
+### Bug Fixes
+
+- (hail#14071) Use indexed VEP cache files for GRCh38 on both dataproc and QoB.
+- (hail#14232) Allow use of large numbers of fields on a table without triggering
+  `ClassTooLargeException: Class too large:`.
+- (hail#14246)(hail#14245) Fix a bug, introduced in 0.2.114, in which `Table.multi_way_zip_join` and
+  `Table.aggregate_by_key` could throw "NoSuchElementException: Ref with name `__iruid_...`" when
+  one or more of the tables had a number of partitions substantially different from the desired
+  number of output partitions.
+- (hail#14202) Support coercing `{}` (the empty dictionary) into any Struct type (with all missing
+  fields).
+- (hail#14239) Remove an erroneous statement from the MatrixTable tutorial.
+- (hail#14176) `hailtop.fs.ls` can now list a bucket, e.g. `hailtop.fs.ls("gs://my-bucket")`.
+- (hail#14258) Fix `import_avro` to not raise `NullPointerException` in certain rare cases
+  (e.g. when using `_key_by_assert_sorted`).
+- (hail#14285) Fix a broken link in the MatrixTable tutorial.
+
+### Deprecations
+
+- (hail#14293) Support for the `hail-az://` scheme, deprecated in 0.2.116, is now gone. Please use
+  the standard `https://ACCOUNT.blob.core.windows.net/CONTAINER/PATH`.
+
 ## Version 0.2.127
 
 Released 2024-01-12
