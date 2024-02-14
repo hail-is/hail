@@ -2134,6 +2134,61 @@ def test_cancel_job_group_with_different_inst_colls(client: BatchClient):
     assert j2.status()['state'] == 'Cancelled', str(j2.status())
 
 
+def test_cancel_job_group_with_different_nested_updates(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    b.submit()
+
+    jg2 = jg.create_job_group()
+    j2 = jg2.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'standard'})
+    b.submit()
+
+    j1._wait_for_states('Running')
+    j2._wait_for_states('Running')
+
+    jg.cancel()
+    b_status = b.wait()
+    jg_status = jg.status()
+    jg2_status = jg2.status()
+
+    assert b_status['state'] == 'cancelled', str(b_status)
+    assert jg_status['state'] == 'cancelled', str(jg_status)
+    assert jg2_status['state'] == 'cancelled', str(jg2_status)
+
+    assert j1.status()['state'] == 'Cancelled', str(j1.status())
+    assert j2.status()['state'] == 'Cancelled', str(j2.status())
+
+
+def test_cancel_job_group_with_unsubmitted_job_group_updates(client: BatchClient):
+    b = create_batch(client)
+    jg = b.create_job_group()
+    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    b.submit()
+
+    update_id = await b._create_update()
+    with BatchProgressBar() as pbar:
+        with pbar.with_task('submitting job groups', total=1) as pbar_task:
+            spec = {'job_group_id': 1}
+            spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB_GROUP)
+            await b._submit_job_groups(update_id, [spec_bytes], pbar_task)
+        with pbar.with_task('submitting jobs', total=1) as pbar_task:
+            process = {
+                'type': 'docker',
+                'command': ['sleep', '30'],
+                'image': DOCKER_ROOT_IMAGE,
+            }
+            spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process, 'in_update_job_group_id': 1}
+            spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB)
+            await b._submit_jobs(update_id, [spec_bytes], pbar_task)
+
+    # do not commit update
+    assert len(list(jg.jobs())) == 1, str(jg.debug_info())
+    assert len(list(jg.job_groups())) == 0, str(jg.debug_info())
+
+    jg.cancel()
+
+
 def test_billing_propogates_upwards(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
