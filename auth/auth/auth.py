@@ -814,13 +814,20 @@ class AppKeys:
     HAILCTL_CLIENT_CONFIG = web.AppKey('hailctl_client_config', dict)
     K8S_CLIENT = web.AppKey('k8s_client', kubernetes_asyncio.client.CoreV1Api)
     K8S_CACHE = web.AppKey('k8s_cache', K8sCache)
+    EXIT_STACK = web.AppKey('exit_stack', AsyncExitStack)
 
 
 async def on_startup(app):
+    exit_stack = AsyncExitStack()
+    app[AppKeys.EXIT_STACK] = exit_stack
+
     db = Database()
     await db.async_init(maxsize=50)
+    exit_stack.push_async_callback(db.async_close)
     app[AppKeys.DB] = db
+
     app[AppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
 
     credentials_file = '/auth-oauth2-client-secret/client_secret.json'
     if CLOUD == 'gcp':
@@ -834,14 +841,12 @@ async def on_startup(app):
 
     kubernetes_asyncio.config.load_incluster_config()
     app[AppKeys.K8S_CLIENT] = kubernetes_asyncio.client.CoreV1Api()
+    exit_stack.push_async_callback(app[AppKeys.K8S_CLIENT].api_client.rest_client.pool_manager.close)
     app[AppKeys.K8S_CACHE] = K8sCache(app[AppKeys.K8S_CLIENT])
 
 
 async def on_cleanup(app):
-    async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app[AppKeys.K8S_CLIENT].api_client.rest_client.pool_manager.close)
-        cleanup.push_async_callback(app[AppKeys.DB].async_close)
-        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
+    await app[AppKeys.EXIT_STACK].aclose()
 
 
 class AuthAccessLogger(AccessLogger):
