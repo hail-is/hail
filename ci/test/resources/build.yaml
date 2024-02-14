@@ -290,6 +290,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     dependsOn:
       - default_ns
       - hello_database

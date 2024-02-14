@@ -412,6 +412,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -584,6 +585,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     secrets:
       - name:
           valueFrom: auth_database.user_secret_name
@@ -1762,6 +1764,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -1986,6 +1989,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -2014,6 +2018,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
