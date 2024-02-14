@@ -2160,11 +2160,11 @@ def test_cancel_job_group_with_different_nested_updates(client: BatchClient):
     assert j2.status()['state'] == 'Cancelled', str(j2.status())
 
 
-def test_cancel_job_group_with_unsubmitted_job_group_updates(client: BatchClient):
-    b = create_batch(client)
+async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(client: BatchClient):
+    b = create_batch(client)._async_batch
     jg = b.create_job_group()
-    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
-    b.submit()
+    jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    await b.submit()
 
     update_id = await b._create_update()
     with BatchProgressBar() as pbar:
@@ -2183,10 +2183,12 @@ def test_cancel_job_group_with_unsubmitted_job_group_updates(client: BatchClient
             await b._submit_jobs(update_id, [spec_bytes], pbar_task)
 
     # do not commit update
-    assert len(list(jg.jobs())) == 1, str(jg.debug_info())
-    assert len(list(jg.job_groups())) == 0, str(jg.debug_info())
+    jobs = [j async for j in jg.jobs()]
+    job_groups = [jg async for jg in jg.job_groups()]
+    assert len(jobs) == 1, str(jg.debug_info())
+    assert len(job_groups) == 0, str(jg.debug_info())
 
-    jg.cancel()
+    await jg.cancel()
 
 
 def test_billing_propogates_upwards(client: BatchClient):
