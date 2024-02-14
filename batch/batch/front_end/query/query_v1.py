@@ -137,8 +137,9 @@ def parse_list_job_groups_query_v1(
         '(job_groups.batch_id = %s)',
         '(NOT deleted)',
         '(job_group_self_and_ancestors.ancestor_id = %s AND job_group_self_and_ancestors.level = 1)',
+        '(batch_updates.committed OR job_groups.job_group_id = %s)',
     ]
-    sql_args = [batch_id, job_group_id]
+    sql_args = [batch_id, job_group_id, ROOT_JOB_GROUP_ID]
 
     if last_child_job_group_id is not None:
         where_conds.append('(job_groups.job_group_id > %s)')
@@ -157,6 +158,8 @@ LEFT JOIN batches ON batches.id = job_group_self_and_ancestors.batch_id
 LEFT JOIN job_groups
   ON job_group_self_and_ancestors.batch_id = job_groups.batch_id AND
      job_group_self_and_ancestors.job_group_id = job_groups.job_group_id
+LEFT JOIN batch_updates ON batch_updates.batch_id = job_groups.batch_id AND
+  batch_updates.update_id = job_groups.update_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
    ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
       job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
