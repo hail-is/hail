@@ -39,7 +39,6 @@ steps:
     namespaceName: default
     secrets:
       - name: auth-oauth2-client-secret
-      - name: registry-push-credentials
       - name: hail-ci-0-1-github-oauth-token
       - name: testns-test-gsa-key
       - name: testns-test-dev-gsa-key
@@ -79,11 +78,11 @@ steps:
       REGISTRY={{ global.docker_prefix.split('/')[0] }}
 
       {% if global.cloud == "gcp" %}
-      cat /registry-push-credentials/credentials.json | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      cat $GOOGLE_APPLICATION_CREDENTIALS | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
       {% elif global.cloud == "azure" %}
       dnf install -y jq
-      USERNAME=$(cat /registry-push-credentials/credentials.json | jq -jr '.appId')
-      cat /registry-push-credentials/credentials.json | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
+      USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.appId')
+      cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
@@ -94,11 +93,6 @@ steps:
     inputs:
       - from: /repo/docker
         to: /io/docker
-    secrets:
-      - name: registry-push-credentials
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /registry-push-credentials
     scopes:
       - deploy
     dependsOn:
@@ -3437,11 +3431,11 @@ steps:
 
       set +x
       {% if global.cloud == "gcp" %}
-      cat /registry-push-credentials/credentials.json | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      cat $GOOGLE_APPLICATION_CREDENTIALS | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
       {% elif global.cloud == "azure" %}
       dnf install -y jq
-      USERNAME=$(cat /registry-push-credentials/credentials.json | jq -jr '.appId')
-      cat /registry-push-credentials/credentials.json | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
+      USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.appId')
+      cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
@@ -3459,11 +3453,6 @@ steps:
         to: /io/docker/hailgenetics/mirror_images.sh
       - from: /repo/docker/copy_image.sh
         to: /io/docker/copy_image.sh
-    secrets:
-      - name: registry-push-credentials
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /registry-push-credentials
     scopes:
       - deploy
       - dev
