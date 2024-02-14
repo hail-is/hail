@@ -242,7 +242,9 @@ LIMIT %s;
                 instance_name = record['instance_name']
                 id = (batch_id, job_id)
 
-                async def cancel_with_error_handling(app, batch_id, job_id, attempt_id, job_group_id, instance_name, id):
+                async def cancel_with_error_handling(
+                    app, batch_id, job_id, attempt_id, job_group_id, instance_name, id
+                ):
                     try:
                         end_time = time_msecs()
                         await mark_job_complete(

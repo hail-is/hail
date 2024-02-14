@@ -51,7 +51,7 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    batch_record = {
+    batch_response = {
         'id': record['id'],
         'user': record['user'],
         'billing_project': record['billing_project'],
@@ -76,9 +76,9 @@ def batch_record_to_dict(record: Dict[str, Any]) -> Dict[str, Any]:
 
     attributes = json.loads(record['attributes'])
     if attributes:
-        batch_record['attributes'] = attributes
+        batch_response['attributes'] = attributes
 
-    return batch_record
+    return batch_response
 
 
 def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alpha:
@@ -103,7 +103,7 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alp
     if record['cost_breakdown'] is not None:
         record['cost_breakdown'] = cost_breakdown_to_dict(json.loads(record['cost_breakdown']))
 
-    job_group_record = {
+    job_group_response = {
         'batch_id': record['batch_id'],
         'job_group_id': record['job_group_id'],
         'state': state,
@@ -122,9 +122,9 @@ def job_group_record_to_dict(record: Dict[str, Any]) -> GetJobGroupResponseV1Alp
 
     attributes = json.loads(record['attributes'])
     if attributes:
-        job_group_record['attributes'] = attributes
+        job_group_response['attributes'] = attributes
 
-    return cast(GetJobGroupResponseV1Alpha, job_group_record)
+    return cast(GetJobGroupResponseV1Alpha, job_group_response)
 
 
 def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEntryV1Alpha:
