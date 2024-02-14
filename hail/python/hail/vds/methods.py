@@ -467,7 +467,6 @@ def vmt_sample_qc(
     dp: Optional['Expression'] = None,
     gq_bins: 'Sequence[int]' = (0, 20, 60),
     dp_bins: 'Sequence[int]' = (0, 1, 10, 20, 30),
-    dp_field: Optional[str] = None,
 ) -> 'Expression':
     """"""
     from hail.expr.functions import _allele_types
