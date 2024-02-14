@@ -55,7 +55,7 @@ critically depend on experimental functionality.**
 
 ## Version 0.2.128
 
-Released 2024-02-15
+Released 2024-02-14
 
 In GCP, the Hail Annotation DB and Datasets API have moved from multi-regional US and EU buckets to
 regional US-CENTRAL1 and EUROPE-WEST1 buckets. These buckets are requester pays which means unless
@@ -98,6 +98,11 @@ require us to choose only one region per continent and we have chosen US-CENTRAL
 - (hail#14258) Fix `import_avro` to not raise `NullPointerException` in certain rare cases
   (e.g. when using `_key_by_assert_sorted`).
 - (hail#14285) Fix a broken link in the MatrixTable tutorial.
+
+### Deprecations
+
+- (hail#14293) Support for the `hail-az://` scheme, deprecated in 0.2.116, is now gone. Please use
+  the standard `https://ACCOUNT.blob.core.windows.net/CONTAINER/PATH`.
 
 ## Version 0.2.127
 
