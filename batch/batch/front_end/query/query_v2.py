@@ -184,7 +184,7 @@ LIMIT 51;
 # <unquoted-partial-match-query> ::= <str>
 
 
-def parse_batch_jobs_query_v2(
+def parse_job_group_jobs_query_v2(
     batch_id: int, job_group_id: int, q: str, last_job_id: Optional[int], recursive: bool
 ) -> Tuple[str, List[Any]]:
     queries: List[Query] = []

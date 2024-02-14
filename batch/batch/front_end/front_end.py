@@ -111,7 +111,7 @@ from ..utils import (
 )
 from .query import (
     CURRENT_QUERY_VERSION,
-    parse_batch_jobs_query_v2,
+    parse_job_group_jobs_query_v2,
     parse_job_group_jobs_query_v1,
     parse_list_batches_query_v1,
     parse_list_batches_query_v2,
@@ -284,7 +284,7 @@ async def _query_job_group_jobs(
         sql, sql_args = parse_job_group_jobs_query_v1(batch_id, job_group_id, q, last_job_id, recursive)
     else:
         assert version == 2, version
-        sql, sql_args = parse_batch_jobs_query_v2(batch_id, job_group_id, q, last_job_id, recursive)
+        sql, sql_args = parse_job_group_jobs_query_v2(batch_id, job_group_id, q, last_job_id, recursive)
 
     jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
 

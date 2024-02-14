@@ -951,7 +951,7 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0/job-groups/0/job-groups', 401),
         (session.post, '/api/v1alpha/batches/0/updates/0/job-groups/create', 401),
         (session.post, '/api/v1alpha/batches/0/updates/0/jobs/create', 401),
-        (session.post, '/api/v1alpha/batches/0/job-groups/1/cancel', 401),
+        (session.patch, '/api/v1alpha/batches/0/job-groups/1/cancel', 401),
         (session.patch, '/api/v1alpha/batches/0/updates/1/commit', 401),
         (session.post, '/api/v1alpha/batches/0/update-fast', 401),
         # redirect to auth/login
@@ -2018,7 +2018,7 @@ def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
     job_groups = [jg]
-    for _ in range(2):
+    for _ in range(4):
         jg = jg.create_job_group()
         job_groups.append(jg)
     b.submit()
@@ -2032,7 +2032,7 @@ def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
 def test_create_job_in_nested_job_group(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
-    for _ in range(2):
+    for _ in range(4):
         jg = jg.create_job_group()
     jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
@@ -2044,7 +2044,7 @@ def test_cancellation_does_not_propogate_up(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
     job_groups = [jg]
-    for _ in range(2):
+    for _ in range(4):
         jg = jg.create_job_group()
         job_groups.append(jg)
     b.submit()
@@ -2072,7 +2072,7 @@ def test_all_nested_job_groups_end_up_with_correct_number_of_job_states(client: 
     jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
 
     job_groups = [jg]
-    for _ in range(2):
+    for _ in range(4):
         jg = jg.create_job_group()
         job_groups.append(jg)
         jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
@@ -2195,7 +2195,7 @@ def test_billing_propogates_upwards(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
     job_groups = [jg]
-    for _ in range(2):
+    for _ in range(4):
         jg = jg.create_job_group()
         job_groups.append(jg)
     j = jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
