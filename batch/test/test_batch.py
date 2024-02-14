@@ -2166,21 +2166,19 @@ async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(clien
     jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
     await b.submit()
 
+    jg.create_job_group()
+    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+
     update_id = await b._create_update()
+
+    byte_specs_bunches = b._create_bunches(
+        b._job_group_specs, b._job_specs, b.MAX_BUNCH_BYTESIZE, b.MAX_BUNCH_SIZE
+    )
     with BatchProgressBar() as pbar:
         with pbar.with_task('submitting job groups', total=1) as pbar_task:
-            spec = {'job_group_id': 1}
-            spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB_GROUP)
-            await b._submit_job_groups(update_id, [spec_bytes], pbar_task)
+            await b._submit_job_group_bunches(update_id, byte_specs_bunches, pbar_task)
         with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            process = {
-                'type': 'docker',
-                'command': ['sleep', '30'],
-                'image': DOCKER_ROOT_IMAGE,
-            }
-            spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process, 'in_update_job_group_id': 1}
-            spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB)
-            await b._submit_jobs(update_id, [spec_bytes], pbar_task)
+            await b._submit_job_bunches(update_id, byte_specs_bunches, pbar_task)
 
     # do not commit update
     jobs = [j async for j in jg.jobs()]
