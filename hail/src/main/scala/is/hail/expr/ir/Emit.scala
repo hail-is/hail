@@ -852,7 +852,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
       case SeqOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-        assert(sig.state == aggs(i))
+        assert(sig.state == aggs(i), s"SeqOp state: ${sig}, expected state: ${aggs(i)}")
         val rvAgg = agg.Extract.getAgg(sig)
 
         val argVars = args

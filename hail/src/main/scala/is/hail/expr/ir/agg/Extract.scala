@@ -195,6 +195,9 @@ class Aggs(
   // All (top-level) aggregators used
   val aggs: Array[PhysicalAggSig],
 ) {
+
+  println(s"extracting ir:\n${Pretty.sexprStyle(original)}\n\nstates: ${aggs.mkString(", ")}\n\ninitOp:\n${Pretty.sexprStyle(init)}\n\nseqOp:\n${Pretty.sexprStyle(seqPerElt)}")
+
   val states: Array[AggStateSig] = aggs.map(_.state)
   val nAggs: Int = aggs.length
 
