@@ -158,9 +158,11 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
 
 
 class AzureReadableStream(ReadableStream):
-    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None, length: Optional[int] = None):
+    def __init__(
+        self, fs: 'AzureAsyncFS', url: 'AzureAsyncFSURL', offset: Optional[int] = None, length: Optional[int] = None
+    ):
         super().__init__()
-        self._client = client
+        self._fs = fs
         self._buffer = bytearray()
         self._url = url
 
@@ -173,24 +175,27 @@ class AzureReadableStream(ReadableStream):
         self._downloader: Optional[StorageStreamDownloader] = None
         self._chunk_it: Optional[AsyncIterator[bytes]] = None
 
+    def _get_client(self) -> BlobClient:
+        return self._fs.get_blob_client(self._url)
+
     async def read(self, n: int = -1) -> bytes:
         if self._eof:
             return b''
 
         if n == -1:
             try:
-                downloader = await self._client.download_blob(offset=self._offset, length=self._length)  # type: ignore
+                downloader = await self._get_client().download_blob(offset=self._offset, length=self._length)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError(self._url) from e
+                raise FileNotFoundError(self._url.base) from e
             data = await downloader.readall()
             self._eof = True
             return data
 
         if self._downloader is None:
             try:
-                self._downloader = await self._client.download_blob(offset=self._offset)  # type: ignore
+                self._downloader = await self._get_client().download_blob(offset=self._offset)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError(self._url) from e
+                raise FileNotFoundError(self._url.base) from e
             except azure.core.exceptions.HttpResponseError as e:
                 if e.status_code == 416:
                     raise UnexpectedEOFError from e
@@ -530,16 +535,15 @@ class AzureAsyncFS(AsyncFS):
         parsed_url = self.parse_url(url, error_if_bucket=True)
         if not await self.exists(url):
             raise FileNotFoundError
-        client = self.get_blob_client(parsed_url)
-        return AzureReadableStream(client, url)
+        return AzureReadableStream(self, parsed_url)
 
     @handle_public_access_error
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         assert length is None or length >= 1
         if not await self.exists(url):
             raise FileNotFoundError
-        client = self.get_blob_client(self.parse_url(url, error_if_bucket=True))
-        return AzureReadableStream(client, url, offset=start, length=length)
+        parsed_url = self.parse_url(url, error_if_bucket=True)
+        return AzureReadableStream(self, parsed_url, offset=start, length=length)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         parsed_url = self.parse_url(url, error_if_bucket=True)

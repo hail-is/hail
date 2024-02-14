@@ -695,6 +695,7 @@ class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithRe
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: TakeByRVAS,
     other: TakeByRVAS,
   ): Unit = state.combine(cb, other)

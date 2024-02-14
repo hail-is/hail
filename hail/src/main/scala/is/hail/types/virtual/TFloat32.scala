@@ -43,4 +43,7 @@ case object TFloat32 extends TNumeric {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Float]], missingEqual)
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }

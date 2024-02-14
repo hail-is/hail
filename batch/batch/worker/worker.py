@@ -1878,8 +1878,9 @@ class DockerJob(Job):
             raise
         except ContainerDeletedError as exc:
             log.info(f'Container {container} was deleted while running.', exc)
-        except Exception:
-            log.exception(f'While running container: {container}')
+        except Exception as e:
+            if not user_error(e):
+                log.exception(f'While running container: {container}')
 
     async def run(self):
         async with self.worker.cpu_sem(self.cpu_in_mcpu):

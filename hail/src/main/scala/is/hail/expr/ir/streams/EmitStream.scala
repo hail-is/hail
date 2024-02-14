@@ -25,6 +25,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
 
+import scala.annotation.nowarn
+
 import java.util
 
 import org.objectweb.asm.Opcodes._
@@ -144,12 +146,13 @@ object EmitStream {
     container: Option[AggContainer],
   ): IEmitCode = {
 
+    @nowarn("cat=unused-locals&msg=local default argument")
     def emitVoid(
       ir: IR,
       cb: EmitCodeBuilder,
       region: Value[Region] = outerRegion,
       env: EmitEnv = env,
-      container: Option[AggContainer],
+      container: Option[AggContainer] = container,
     ): Unit =
       emitter.emitVoid(cb, ir, region, env, container, None)
 
@@ -364,14 +367,8 @@ object EmitStream {
           }
 
       case let: Let =>
-        emitter.emitLet(
-          emitI = (ir, cb, env) => emit(ir, cb, env = env),
-          emitBody = (ir, cb, env) => produce(ir, cb, env = env),
-        )(
-          let,
-          cb,
-          env,
-        )
+        val newEnv = emitter.emitLetBindings(let, cb, env, outerRegion, container, None)
+        produce(let.body, cb, env = newEnv)
 
       case In(n, _) =>
         // this, Code[Region], ...

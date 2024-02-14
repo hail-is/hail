@@ -39,7 +39,7 @@ object TypeCheck {
 
   private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type])
     : Unit = ir match {
-    case l: Let if i == l.bindings.length =>
+    case l: Let if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
     case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
@@ -48,7 +48,6 @@ object TypeCheck {
     case _: InitOp => // let initop checking below catch bad void arguments
     case _: If if i != 0 =>
     case _: RelationalLet if i == 1 =>
-    case _: Begin =>
     case _: WriteMetadata =>
     case _ =>
       throw new RuntimeException(
@@ -75,7 +74,7 @@ object TypeCheck {
             s"child type: ${v.typ.parsableString()}\n  " +
             s"cast type:  ${typ.parsableString()}")
       case CastRename(v, typ) =>
-        if (!v.typ.canCastTo(typ))
+        if (!v.typ.isIsomorphicTo(typ))
           throw new RuntimeException(s"invalid cast:\n  " +
             s"child type: ${v.typ.parsableString()}\n  " +
             s"cast type:  ${typ.parsableString()}")
@@ -494,8 +493,6 @@ object TypeCheck {
       case InitFromSerializedValue(_, value, _) => assert(value.typ == TBinary)
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
-      case Begin(xs) =>
-        xs.foreach(x => assert(x.typ == TVoid))
       case x @ ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
         assert(x.typ == aggSig.returnType)
         assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })

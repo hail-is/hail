@@ -59,4 +59,10 @@ final case class TSet(elementType: Type) extends TContainer {
   }
 
   override def arrayElementsRepr: TArray = TArray(elementType)
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case s: TSet => elementType isIsomorphicTo s.elementType
+      case _ => false
+    }
 }

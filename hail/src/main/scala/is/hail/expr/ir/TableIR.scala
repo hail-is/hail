@@ -2593,7 +2593,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   override def typecheck(): Unit = {
     assert(left.typ.key.length >= joinKey)
     assert(right.typ.key.length >= joinKey)
-    assert(left.typ.keyType.truncate(joinKey) isIsomorphicTo right.typ.keyType.truncate(joinKey))
+    assert(left.typ.keyType.truncate(joinKey) isJoinableWith right.typ.keyType.truncate(joinKey))
     assert(
       left.typ.globalType.fieldNames.toSet
         .intersect(right.typ.globalType.fieldNames.toSet)

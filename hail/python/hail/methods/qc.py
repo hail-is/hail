@@ -1181,8 +1181,8 @@ def vep(
 
     The configuration files used by``hailctl dataproc`` can be found at the following locations:
 
-     - ``GRCh37``: ``gs://hail-us-vep/vep85-loftee-gcloud.json``
-     - ``GRCh38``: ``gs://hail-us-vep/vep95-GRCh38-loftee-gcloud.json``
+     - ``GRCh37``: ``gs://hail-us-central1-vep/vep85-loftee-gcloud.json``
+     - ``GRCh38``: ``gs://hail-us-central1-vep/vep95-GRCh38-loftee-gcloud.json``
 
     If no config file is specified, this function will check to see if environment variable `VEP_CONFIG_URI` is set with a path to a config file.
 

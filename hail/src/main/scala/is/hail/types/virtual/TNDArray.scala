@@ -122,4 +122,13 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case nda: TNDArray =>
+        (elementType isIsomorphicTo nda.elementType) &&
+        nDimsBase == nda.nDimsBase
+      case _ =>
+        false
+    }
 }

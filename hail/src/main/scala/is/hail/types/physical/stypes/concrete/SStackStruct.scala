@@ -178,7 +178,7 @@ class SStackStructValue(val st: SStackStruct, val values: IndexedSeq[EmitValue])
   override def isFieldMissing(cb: EmitCodeBuilder, fieldIdx: Int): Value[Boolean] =
     values(fieldIdx).m
 
-  override def subset(fieldNames: String*): SStackStructValue = {
+  override def subset(fieldNames: String*): SBaseStructValue = {
     val newToOld = fieldNames.map(st.fieldIdx).toArray
     val oldVType = st.virtualType.asInstanceOf[TStruct]
     val newVirtualType = TStruct(newToOld.map(i => (oldVType.fieldNames(i), oldVType.types(i))): _*)

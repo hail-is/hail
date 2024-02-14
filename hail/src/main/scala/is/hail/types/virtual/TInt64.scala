@@ -21,4 +21,7 @@ case object TInt64 extends TIntegral {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Long]], missingEqual)
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }
