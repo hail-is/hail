@@ -257,11 +257,6 @@ object main extends RootModule with HailScalaModule { outer =>
     override def sources: T[Seq[PathRef]] = T.sources {
       Seq(PathRef(this.millSourcePath / os.up / "src" / debugOrRelease() / "java"))
     }
-
-    override def compileIvyDeps: T[Agg[Dep]] = Agg(
-      Deps.hadoopClient,
-      Deps.samtools.excludeOrg("*"),
-    )
   }
 
   object test extends HailTests {

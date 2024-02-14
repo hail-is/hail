@@ -183,7 +183,7 @@ case class ArrayLenAggSig(knownLength: Boolean, nested: Seq[PhysicalAggSig]) ext
 class Aggs(
   // The pre-extract IR
   original: IR,
-  /* map each desendant of the original ir to its extract result (all contained aggs replaced with
+  /* map each descendant of the original ir to its extract result (all contained aggs replaced with
    * their results) */
   rewriteMap: Memo[IR],
   // nodes which bind variables which are referenced in init op arguments
@@ -196,7 +196,9 @@ class Aggs(
   val aggs: Array[PhysicalAggSig],
 ) {
 
-  println(s"extracting ir:\n${Pretty.sexprStyle(original)}\n\nstates: ${aggs.mkString(", ")}\n\ninitOp:\n${Pretty.sexprStyle(init)}\n\nseqOp:\n${Pretty.sexprStyle(seqPerElt)}")
+  println(s"extracting ir:\n${Pretty.sexprStyle(original)}\n\nstates: ${aggs.mkString(
+      ", "
+    )}\n\ninitOp:\n${Pretty.sexprStyle(init)}\n\nseqOp:\n${Pretty.sexprStyle(seqPerElt)}")
 
   val states: Array[AggStateSig] = aggs.map(_.state)
   val nAggs: Int = aggs.length
@@ -421,7 +423,9 @@ object Extract {
     val indep = new BoxedArrayBuilder[(String, IR)]
 
     lets.foreach { case x @ (name, value) =>
-      if (value.typ == TVoid) {
+      if (value.typ == TVoid || value.isInstanceOf[ResultOp] || value.isInstanceOf[AggStateValue]) {
+        /* if the value is side effecting, or implicitly reads the aggregator state, we can't lift
+         * it */
         dep += x
       } else {
         val fv = FreeVariables(value, supportsAgg = false, supportsScan = false)
@@ -484,15 +488,13 @@ object Extract {
     val (initOps, pAggSigs) = ab.result().unzip
     val rt = TTuple(initOps.map(_.aggSig.resultType): _*)
     ref._typ = rt
-    val seqRes = seq.result()
-    assert(seqRes.last._2.typ == TVoid)
 
     new Aggs(
       ir,
       rewriteMap,
       bindingNodesReferenced,
       Begin(initOps),
-      Let(seqRes.init, seqRes.last._2),
+      Let.void(seq.result()),
       pAggSigs,
     )
   }
@@ -511,7 +513,7 @@ object Extract {
     // set of updates for contained aggs
     seqBuilder: BoxedArrayBuilder[(String, IR)],
     /* Map each contained ApplyAggOp, ApplyScanOp, or AggFold, to the index of the corresponding agg
-     * state */
+     * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],
     // a reference to the tuple of results of contained aggs
     result: IR,
@@ -584,9 +586,8 @@ object Extract {
         val newSeq = new BoxedArrayBuilder[(String, IR)]()
         val transformed = this.extract(aggIR, env, bindingNodesReferenced, rewriteMap, ab, newSeq,
           newMemo, result, r, isScan)
-        val newSeqRes = newSeq.result()
 
-        seqBuilder += "__void" -> If(cond, Let(newSeqRes.init, newSeqRes.last._2), Void())
+        seqBuilder += "__void" -> If(cond, Let.void(newSeq.result()), Void())
         transformed
 
       case AggExplode(array, name, aggBody, _) =>
@@ -596,8 +597,7 @@ object Extract {
 
         val (dependent, independent) = partitionDependentLets(newSeq.result(), name)
         seqBuilder ++= independent
-        val body = Let(dependent.init, dependent.last._2)
-        seqBuilder += "__void" -> StreamFor(array, name, body)
+        seqBuilder += "__void" -> StreamFor(array, name, Let.void(dependent))
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
@@ -622,14 +622,13 @@ object Extract {
 
         val rt = TDict(key.typ, TTuple(initOps.map(_.aggSig.resultType): _*))
         newRef._typ = rt.elementType
-        val newSeqRes = newSeq.result()
 
         val groupState = AggStateSig.grouped(key, pAggSigs.map(_.state), r)
         val groupSig = GroupedAggSig(groupState.kt, pAggSigs.toFastSeq)
         ab += InitOp(i, FastSeq(Begin(initOps)), groupSig) -> groupSig
         seqBuilder += "__void" -> SeqOp(
           i,
-          FastSeq(key, Let(newSeqRes.init, newSeqRes.last._2)),
+          FastSeq(key, Let.void(newSeq.result())),
           groupSig,
         )
 
@@ -665,8 +664,6 @@ object Extract {
           checkSig,
         ) -> checkSig
 
-        val newSeqRes = newSeq.result()
-
         seqBuilder ++= independent
         seqBuilder += aRef.name -> a
         seqBuilder += "__void" -> SeqOp(i, FastSeq(ArrayLen(aRef)), checkSig)
@@ -674,13 +671,13 @@ object Extract {
           "__void" -> StreamFor(
             StreamRange(I32(0), ArrayLen(aRef), I32(1)),
             indexName,
-            Let(
-              (elementName, ArrayRef(aRef, Ref(indexName, TInt32))) +: dependent,
-              SeqOp(
-                i,
-                FastSeq(Ref(indexName, TInt32), Let(newSeqRes.init, newSeqRes.last._2)),
-                eltSig,
+            SeqOp(
+              i,
+              FastSeq(
+                Ref(indexName, TInt32),
+                Let.void((elementName, ArrayRef(aRef, Ref(indexName, TInt32))) +: dependent),
               ),
+              eltSig,
             ),
           )
 
