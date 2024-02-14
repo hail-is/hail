@@ -125,7 +125,7 @@ LEFT JOIN LATERAL (
     ON self_and_ancestors.batch_id = job_groups_cancelled.id AND
        self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
   WHERE self_and_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
-    self_and_ancestors.ancestor_id = job_group_self_and_ancestors.ancestor_id
+    self_and_ancestors.job_group_id = job_group_self_and_ancestors.ancestor_id
 ) AS t ON TRUE
 WHERE job_group_self_and_ancestors.batch_id = %s AND
   job_group_self_and_ancestors.job_group_id = %s AND
