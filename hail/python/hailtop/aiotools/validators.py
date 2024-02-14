@@ -8,8 +8,8 @@ from urllib.parse import urlparse
 
 def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False) -> None:
     """
-    Validates a URI's scheme if a file scheme cache was provided, and its cloud location's default storage policy if
-    the URI points to a cloud with an ``AsyncFS`` implementation that supports checking that policy.
+    Validates a URI's scheme if the ``validate_scheme`` flag was provided, and its cloud location's default storage
+    policy if the URI points to a cloud with an ``AsyncFS`` implementation that supports checking that policy.
 
     Raises
     ------
@@ -35,7 +35,7 @@ async def _async_validate_file(
     if isinstance(fs, GoogleStorageAsyncFS):
         location = fs.storage_location(uri)
         if location not in fs.allowed_storage_locations:
-            if not await fs.is_hot_storage(location):
+            if not await fs.is_hot_storage(location, uri):
                 raise ValueError(
                     dedent(f"""\
                         GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob

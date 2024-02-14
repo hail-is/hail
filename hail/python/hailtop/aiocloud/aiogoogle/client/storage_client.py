@@ -332,6 +332,11 @@ class GoogleStorageClient(GoogleBaseClient):
         self._update_params_with_user_project(kwargs, bucket)
         return await self.get(f'/b/{bucket}', **kwargs)
 
+    async def object_info(self, bucket: str, name: str) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {}
+        self._update_params_with_user_project(kwargs, bucket)
+        return await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
+
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
 
@@ -638,7 +643,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
 
-    async def is_hot_storage(self, location: str) -> bool:
+    async def is_hot_storage(self, location: str, uri: str) -> bool:
         """
         See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
         classes.
@@ -646,14 +651,20 @@ class GoogleStorageAsyncFS(AsyncFS):
         Raises
         ------
         :class:`aiohttp.ClientResponseError`
-            If the specified bucket does not exist, or if the account being used to access GCS does not have permission
-            to read the bucket's default storage policy.
+            If the specified object does not exist, or if the account being used to access GCS does not have permission
+            to read the bucket's default storage policy and it is not a public access bucket.
         """
-        return (await self._storage_client.bucket_info(location))["storageClass"].lower() in (
-            "standard",
-            "regional",
-            "multi_regional",
-        )
+        hot_storage_classes = {"standard", "regional", "multi_regional"}
+        try:
+            return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
+        except aiohttp.ClientResponseError as e1:
+            fsurl = self.parse_url(uri, error_if_bucket=True)
+            try:
+                return (await self._storage_client.object_info(fsurl._bucket, fsurl._path))[
+                    "storageClass"
+                ].lower() in hot_storage_classes
+            except aiohttp.ClientResponseError as e2:
+                raise e1 from e2
 
     @staticmethod
     def valid_url(url: str) -> bool:
