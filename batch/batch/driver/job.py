@@ -103,33 +103,33 @@ SELECT job_groups.*,
 FROM job_group_self_and_ancestors
 LEFT JOIN job_groups ON job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
   job_groups.job_group_id = job_group_self_and_ancestors.ancestor_id
-LEFT JOIN batches ON job_groups.batch_id = batches.id
+LEFT JOIN batches ON job_group_self_and_ancestors.batch_id = batches.id
 LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
-     job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+  ON job_group_self_and_ancestors.batch_id = job_groups_n_jobs_in_complete_states.id AND
+     job_group_self_and_ancestors.ancestor_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
     SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
-    WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND
-          job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
+    WHERE job_group_self_and_ancestors.batch_id = aggregated_job_group_resources_v3.batch_id AND
+          job_group_self_and_ancestors.ancestor_id = aggregated_job_group_resources_v3.job_group_id
     GROUP BY resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 ) AS cost_t ON TRUE
 LEFT JOIN LATERAL (
   SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
+  FROM job_group_self_and_ancestors AS self_and_ancestors
   INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+    ON self_and_ancestors.batch_id = job_groups_cancelled.id AND
+       self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE self_and_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
+    self_and_ancestors.ancestor_id = job_group_self_and_ancestors.ancestor_id
 ) AS t ON TRUE
 WHERE job_group_self_and_ancestors.batch_id = %s AND
   job_group_self_and_ancestors.job_group_id = %s AND
-  job_group_self_and_ancestors.job_group_id != %s AND
+  job_group_self_and_ancestors.ancestor_id != %s AND
   NOT deleted AND
   job_groups.callback IS NOT NULL AND
   job_groups.`state` = 'complete';
