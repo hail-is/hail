@@ -216,6 +216,7 @@ async def test_job_group_callback(async_client: aioclient.BatchClient):
         jg2.create_job('alpine:3.8', command=['true'])
         await b.submit()
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
+        callback_event.clear()
         callback_body = callback_bodies[0]
 
         # verify required fields present
@@ -240,6 +241,7 @@ async def test_job_group_callback(async_client: aioclient.BatchClient):
         await b.cancel()
 
         await asyncio.wait_for(callback_event.wait(), 5 * 60)
+
         callback_body = callback_bodies[1]
 
         # verify required fields present

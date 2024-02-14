@@ -2171,9 +2171,7 @@ async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(clien
 
     update_id = await b._create_update()
 
-    byte_specs_bunches = b._create_bunches(
-        b._job_group_specs, b._job_specs, b.MAX_BUNCH_BYTESIZE, b.MAX_BUNCH_SIZE
-    )
+    byte_specs_bunches = b._create_bunches(b._job_group_specs, b._job_specs, b.MAX_BUNCH_BYTESIZE, b.MAX_BUNCH_SIZE)
     with BatchProgressBar() as pbar:
         with pbar.with_task('submitting job groups', total=1) as pbar_task:
             await b._submit_job_group_bunches(update_id, byte_specs_bunches, pbar_task)
