@@ -1151,7 +1151,7 @@ FROM (
   LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
     jobs.job_group_id = job_group_self_and_ancestors.job_group_id
   WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
-  GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id
+  GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, resource
   LOCK IN SHARE MODE
 ) AS t
 GROUP BY t.batch_id, t.ancestor_id;
