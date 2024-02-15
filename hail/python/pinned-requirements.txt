@@ -187,7 +187,7 @@ oauthlib==3.2.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   requests-oauthlib
-orjson==3.9.12
+orjson==3.9.11
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
