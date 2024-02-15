@@ -388,12 +388,12 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
-  role = "roles/artifactregistry.reader"
+  role = "roles/artifactregistry.admin"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
@@ -519,15 +519,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_tes
   location = var.gcp_location
   role = "roles/artifactregistry.reader"
   member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
-  provider = google-beta
-  project = var.gcp_project
-  repository = google_artifact_registry_repository.repository.name
-  location = var.gcp_location
-  role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
 module "monitoring_gsa_secret" {
