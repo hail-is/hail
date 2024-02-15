@@ -41,12 +41,70 @@ def get_output_dir(config: CheckpointConfigMixin, temp_dir: str, checkpoint_dir:
 
 @dataclass
 class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
-    relatedness_cutoff: float = ...
-    num_markers: int = ...
-    cpu: Union[str, float, int] = 1
+    """Define how the createSparseGRM.R step is executed in a SAIGE pipeline.
+
+    This class is used as an input to :class:`.SaigeConfig` in order to specify
+    how the Sparse GRM step is executed in SAIGE.
+
+    Examples
+    --------
+
+    Use 16 cores when running the sparse GRM step:
+
+    >>> sparse_grm_step = SparseGRMStep(cpu=16)
+
+    Set the relatedness cutoff to 0.05:
+
+    >>> sparse_grm_step = SparseGRMStep(relatedness_cutoff=0.05)
+
+    Notes
+    -----
+
+    You can also create a subclass of this class and redefine the
+    job name, job attributes, and output file root name.
+
+    >>> class CustomSparseGRMStep(SparseGRMStep):
+    ...     def name(self):
+    ...         return 'my_sparse_grm'
+    ...
+    ...     def attributes(self):
+    ...         return {'sparse_grm': '1'}
+    ...
+    ...     def output_root(self, temp_dir: str, checkpoint_dir: Optional[str]) -> str:
+    ...         return f'{temp_dir}/my-custom-path'
+
+    Parameters
+    ----------
+    cpu:
+        The amount of CPU to give the sparse GRM job. This value will be used for
+        the number of threads option "--nThreads".
+    memory:
+        The amount of memory to give the sparse GRM job. This value can be one of
+        "lowmem", "highmem", "standard", or a numeric value. "lowmem" is approximately
+        1 Gi per core, "highmem" is approximately 8 Gi per core, and "standard" is approximately
+        4 Gi per core.
+    storage:
+        The amount of storage space to give the sparse GRM job.
+    spot:
+        Whether this job can be run on spot instances.
+    memory_chunk_gib:
+        Pass-through option for "--memoryChunk". Value is in Gi.
+    num_random_markers_for_sparse_kin:
+
+
+
+
+    """
+    cpu: Union[str, float, int] = 4
     memory: str = 'highmem'
     storage: str = '10Gi'
     spot: bool = True
+    memory_chunk_gib: int = 2
+    num_random_markers_for_sparse_kin: int = 200
+    relatedness_cutoff: float = 0.125
+    is_diag_of_kin_set_as_one: bool = False
+    min_maf_for_grm: float = 0.01
+    max_missing_rate_for_grm: Optional[float] = None
 
     def name(self) -> str:
         return 'sparse-grm'
@@ -58,7 +116,7 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     def attributes(self) -> Optional[Dict]:
         return None
 
-    async def call(self, fs: AsyncFS, b: hb.Batch, input_bfile: PlinkResourceGroup, temp_dir: str, checkpoint_dir: str):
+    async def _call(self, fs: AsyncFS, b: hb.Batch, input_bfile: PlinkResourceGroup, temp_dir: str, checkpoint_dir: str):
         output_prefix = self.output_root(temp_dir, checkpoint_dir)
         sparse_grm = await load_saige_sparse_grm_file(fs, b, self, output_prefix)
         if sparse_grm is not None:
@@ -68,15 +126,26 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
 
         (create_sparse_grm_j.cpu(self.cpu).storage(self.storage).image(self.image).spot(self.spot))
 
-        sparse_grm = new_saige_sparse_grm_file(create_sparse_grm_j, self.relatedness_cutoff, self.num_markers)
+        sparse_grm = new_saige_sparse_grm_file(create_sparse_grm_j, self.relatedness_cutoff, self.num_random_markers_for_sparse_kin)
+
+        optional_options = []
+
+        if self.max_missing_rate_for_grm is not None:
+            optional_options.append(f'--maxMissingRateforGRM={self.max_missing_rate_for_grm}')
+
+        optional_options_str = '    \\\n'.join(optional_options)
 
         command = f'''
-createSparseGRM.R \
-    --plinkFile={input_bfile} \
-    --nThreads={self.cpu} \
-    --outputPrefix={sparse_grm} \
-    --numRandomMarkerforSparseKin={self.num_markers} \
-    --relatednessCutoff={self.relatedness_cutoff}
+createSparseGRM.R \\
+    --plinkFile={input_bfile} \\
+    --nThreads={self.cpu} \\
+    --memoryChunk={self.memory_chunk_gib} \\
+    --outputPrefix={sparse_grm} \\
+    --numRandomMarkerforSparseKin={self.num_random_markers_for_sparse_kin} \\
+    --relatednessCutoff={self.relatedness_cutoff} \\
+    --isDiagofKinSetAsOne={self.is_diag_of_kin_set_as_one} \\
+    --minMAFforGRM={self.min_maf_for_grm} \\
+    {optional_options_str}
 '''
 
         create_sparse_grm_j.command(command)
