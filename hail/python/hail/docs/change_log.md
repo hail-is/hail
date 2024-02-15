@@ -55,7 +55,7 @@ critically depend on experimental functionality.**
 
 ## Version 0.2.128
 
-Released 2024-02-14
+Released 2024-02-15
 
 In GCP, the Hail Annotation DB and Datasets API have moved from multi-regional US and EU buckets to
 regional US-CENTRAL1 and EUROPE-WEST1 buckets. These buckets are requester pays which means unless
@@ -84,6 +84,7 @@ require us to choose only one region per continent and we have chosen US-CENTRAL
 
 ### Bug Fixes
 
+- (hail#14300) Require orjson<3.9.12 to avoid a segfault introduced in orjson 3.9.12
 - (hail#14071) Use indexed VEP cache files for GRCh38 on both dataproc and QoB.
 - (hail#14232) Allow use of large numbers of fields on a table without triggering
   `ClassTooLargeException: Class too large:`.
