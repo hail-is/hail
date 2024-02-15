@@ -4,7 +4,6 @@ from .methods import (
     filter_intervals,
     filter_samples,
     filter_variants,
-    sample_qc,
     split_multi,
     to_dense_mt,
     to_merged_sparse_mt,
@@ -17,6 +16,7 @@ from .methods import (
     truncate_reference_blocks,
     merge_reference_blocks,
 )
+from .sample_qc import sample_qc
 from .variant_dataset import VariantDataset, read_vds, store_ref_block_max_length
 from .combiner import load_combiner, new_combiner
 
