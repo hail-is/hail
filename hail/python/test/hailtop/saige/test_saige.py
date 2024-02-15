@@ -72,7 +72,7 @@ def test_saige_categorical():
                     saige(mt_path=mt_path,
                           null_model_plink_path=null_model_plink_path,
                           phenotypes_path=phenotypes_file,
-                          phenotype_information=phenotype_information,
+                          phenotype_config=phenotype_information,
                           variant_chunks=variant_chunks,
                           output_path=output_path,
                           config=SaigeConfig(step1_null_glmm=Step1NullGlmmStep(min_covariate_count=1, skip_model_fitting=False)))

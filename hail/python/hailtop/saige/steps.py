@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from typing import Dict, List, Optional, Union
 
@@ -27,7 +27,7 @@ from .io import (
     new_saige_sparse_grm_file,
     new_text_file,
 )
-from .phenotype import Phenotype, PhenotypeInformation
+from .phenotype import Phenotype, PhenotypeConfig
 from .variant_chunk import VariantChunk
 
 
@@ -37,6 +37,10 @@ def get_output_dir(config: CheckpointConfigMixin, temp_dir: str, checkpoint_dir:
             raise ValueError('must specify a checkpoint directory to use checkpoints and/or checkpoint output')
         return checkpoint_dir
     return temp_dir
+
+
+def bool_upper_str(val: bool) -> str:
+    return str(val).upper()
 
 
 @dataclass
@@ -115,7 +119,7 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
         """Attributes to specify for the sparse GRM job in Hail Batch."""
         return None
 
-    async def _call(self, fs: AsyncFS, b: hb.Batch, input_bfile: PlinkResourceGroup, temp_dir: str, checkpoint_dir: str):
+    async def _call(self, fs: AsyncFS, b: hb.Batch, input_bfile: PlinkResourceGroup, temp_dir: str, checkpoint_dir: str) -> SaigeSparseGRMResourceGroup:
         output_prefix = self.output_root(temp_dir, checkpoint_dir)
         sparse_grm = await load_saige_sparse_grm_file(fs, b, self, output_prefix)
         if sparse_grm is not None:
@@ -156,102 +160,100 @@ createSparseGRM.R \\
 
 @dataclass
 class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
-    inv_normalize: Optional[bool] = None
+    inv_normalize: Optional[bool] = False
     """Pass-through argument for "--invNormalize". Only for quantitative. Whether to perform the inverse normalization for the phenotype"""
 
-    tol: Optional[float] = None
+    tol: Optional[float] = 0.02
     """Pass-through argument for "--tol". Tolerance for fitting the null GLMM to converge."""
 
-    max_iter: Optional[int] = None
+    max_iter: Optional[int] = 20
     """Pass-through argument for "--maxiter". Maximum number of iterations used to fit the null GLMM."""
 
-    tol_pcg: Optional[float] = None
+    tol_pcg: Optional[float] = 1E-5
     """Pass-through argument for "--tolPCG". Tolerance for PCG to converge."""
 
-    max_iter_pcg: Optional[int] = None
+    max_iter_pcg: Optional[int] = 500
     """Pass-through argument for "--maxiterPCG". Maximum number of iterations for PCG."""
 
-    spa_cutoff: Optional[float] = None
+    spa_cutoff: Optional[float] = 2
     """Pass-through argument for "--SPAcutoff". Cutoff for the deviation of score test statistics from mean in the unit of sd to perform SPA."""
 
-    num_random_markers_for_variance_ratio: Optional[int] = None
+    num_random_markers_for_variance_ratio: Optional[int] = 30
     """Pass-through argument for "--numRandomMarkerforVarianceRatio". An integer greater than 0. Number of markers to be randomly selected for 
     estimating the variance ratio. The number will be automatically added by 10 until the coefficient of variantion (CV) for the variance ratio 
     estimate is below ratioCVcutoff"""
 
-    skip_model_fitting: Optional[bool] = None
+    skip_model_fitting: Optional[bool] = False
     """Pass-through argument for "--skipModelFitting". Whether to skip model fitting and only to estimate the variance ratio."""  # FIXME: If TRUE, the file outputPrefix.rda is required
 
-    skip_variance_ratio_estimation: Optional[bool] = None
+    skip_variance_ratio_estimation: Optional[bool] = False
     """Pass-through argument for "--skipVarianceRatioEstimation". Whether to skip model fitting and only to estimate the variance ratio."""  # FIXME: documentation is wrong. If TRUE, the file outputPrefix.rda is required
 
-    memory_chunk_gib: Optional[int] = None
+    memory_chunk_gib: Optional[int] = 2
     """Pass-through argument for "--memoryChunk". Value is in Gi."""
 
-    tau_init: Optional[str] = None
+    tau_init: Optional[List[float]] = field(default_factory=lambda: [0, 0])
     """Pass-through argument for "--tauInit". Initial values for tau."""
 
-    loco: Optional[bool] = None
+    loco: Optional[bool] = True
     """Pass-through argument for "--LOCO". Whether to apply the leave-one-chromosome-out (LOCO) approach when fitting the null model using the full GRM."""
 
-    is_low_mem_loco: Optional[bool] = None
+    is_low_mem_loco: Optional[bool] = False
     """Pass-through argument for "--isLowMemLOCO". Whether to output the model file by chromosome when "--LOCO=TRUE". If True, the memory usage will be lower."""
 
-    trace_cv_cutoff: Optional[float] = None
+    trace_cv_cutoff: Optional[float] = 0.0025
     """Pass-through argument for "--traceCVcutoff". Threshold for coefficient of variation (CV) for the trace estimator. Number of runs for trace estimation will be increased until the CV is below the threshold."""
 
-    n_run: Optional[int] = None
+    n_run: Optional[int] = 30
     """Pass-through argument for "--nrun". Number of runs in trace estimation."""
 
-    ratio_cv_cutoff: Optional[float] = None
+    ratio_cv_cutoff: Optional[float] = 0.001
     """Pass-through argument for "--ratioCVcutoff". Threshold for coefficient of variation (CV) for estimating the variance ratio. The number of randomly selected markers will be increased until the CV is below the threshold"""
 
-    is_cate_variance_ratio: Optional[bool] = None
+    is_cate_variance_ratio: Optional[bool] = False
     """Pass-through argument for "--isCateVarianceRatio". Whether to estimate variance ratio based on different MAC categories. If yes, variance ratio will be estimated for multiple MAC categories corresponding to cateVarRatioMinMACVecExclude and cateVarRatioMaxMACVecInclude. Currently, if isCateVarianceRatio=TRUE, then LOCO=FALSE"""
 
-    relatedness_cutoff: Optional[float] = None
+    relatedness_cutoff: Optional[float] = 0
     """Pass-through argument for "--relatednessCutoff". Threshold (minimum relatedness coefficient) to treat two samples as unrelated when the sparse GRM is used."""
 
-    cate_var_ratio_min_mac_vec_exclude: Optional[str] = None
+    cate_var_ratio_min_mac_vec_exclude: Optional[List[float]] = field(default_factory=lambda: [10, 20.5])
     """Pass-through argument for "--cateVarRatioMinMACVecExclude". Lower bound for MAC categories. The length equals to the number of MAC categories for variance ratio estimation."""
 
-    cate_var_ratio_min_mac_vec_include: Optional[str] = None
+    cate_var_ratio_min_mac_vec_include: Optional[List[float]] = field(default_factory=lambda: [20.5])
     """Pass-through argument for "--cateVarRatioMinMACVecInclude". Higher bound for MAC categories. The length equals to the number of MAC categories for variance ratio estimation minus 1."""
 
-    is_covariate_transform: Optional[bool] = None
+    is_covariate_transform: Optional[bool] = True
     """Pass-through argument for "--isCovariateTransform". Whether use qr transformation on covariates."""
 
-    is_diag_of_kin_set_as_one: Optional[bool] = None
+    is_diag_of_kin_set_as_one: Optional[bool] = False
     """Pass-through argument for "--isDiagofKinSetAsOne". Whether to set the diagnal elements in GRM to be 1."""
 
-    use_sparse_grm_to_fit_null: Optional[bool] = None
+    use_sparse_grm_to_fit_null: Optional[bool] = False
     """Pass-through argument for "--useSparseGRMtoFitNULL". Whether to use sparse GRM to fit the null model."""
 
-    use_sparse_grm_for_var_ratio: Optional[bool] = None
+    use_sparse_grm_for_var_ratio: Optional[bool] = False
     """Pass-through argument for "--useSparseGRMforVarRatio". Whether to use sparse GRM to estimate the variance Ratios. If TRUE, the variance ratios will be estimated using the full GRM (numerator) and the sparse GRM (denominator)."""
 
-    min_maf_for_grm: Optional[bool] = None
+    min_maf_for_grm: Optional[float] = None
     """Pass-through argument for "--minMAFforGRM". Minimum MAF of markers used for GRM."""
 
-    max_missing_rate_for_grm: Optional[bool] = None
+    max_missing_rate_for_grm: Optional[float] = None
     """Pass-through argument for "--maxMissingRateforGRM". Maximum missing rate of markers used for GRM."""
 
     min_covariate_count: Optional[int] = None
     """Pass-through argument for "--minCovariateCount". Binary covariates with a count less than minCovariateCount will be excluded from the model to avoid convergence issues."""
 
-    include_non_autosomal_markers_for_var_ratio: Optional[bool] = None
+    include_non_autosomal_markers_for_var_ratio: Optional[bool] = False
     """Pass-through argument for "--includeNonautoMarkersforVarRatio". Whether to allow for non-autosomal markers for variance ratio."""
 
     female_only: Optional[bool] = None
-    """Pass-through argument for "--FemaleOnly". Whether to run null model for females only"""  # FIXME: if TRUE, --sexCol and --FemaleCode need to be specified
+    """Pass-through argument for "--FemaleOnly". Whether to run null model for females only"""
 
     male_only: Optional[bool] = None
     """Pass-through argument for "--MaleOnly". Whether to run null model for males only."""
 
-    is_covariate_offset: Optional[bool] = None
+    is_covariate_offset: Optional[bool] = True
     """Pass-through argument for "--isCovariateOffset". Whether to estimate fixed effect coefficients."""
-
-    # FIXME: SampleIDIncludeFile expose in phenotype information
 
     def output_root(self, output_dir: str, phenotype: Phenotype) -> str:
         """Prefix of output files generated by the null model job in Hail Batch.
@@ -292,9 +294,11 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         *,
         input_bfile: PlinkResourceGroup,
         input_phenotypes: TextResourceFile,
+        keep_samples_list: Optional[TextResourceFile],
         phenotype: Phenotype,
         analysis_type: SaigeAnalysisType,
-        phenotype_information: PhenotypeInformation,
+        phenotype_config: PhenotypeConfig,
+        sparse_grm: Optional[SaigeSparseGRMResourceGroup],
         temp_dir: str,
         checkpoint_dir: Optional[str],
     ) -> SaigeGLMMResourceGroup:
@@ -322,9 +326,11 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         command = self._command(
             input_bfile,
             input_phenotypes,
-            phenotype_information,
+            keep_samples_list,
+            phenotype_config,
             phenotype,
             null_glmm,
+            sparse_grm,
         )
 
         j.command(command)
@@ -334,48 +340,129 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         return null_glmm
 
     def _command(
-        self,  # FIXME: What about sparse GRM file
+        self,
         input_bfile: PlinkResourceGroup,
         phenotypes_file: TextResourceFile,
-        phenotype_information: PhenotypeInformation,
+        keep_samples_list: Optional[TextResourceFile],
+        phenotype_config: PhenotypeConfig,
         phenotype: Phenotype,
         null_glmm: SaigeGLMMResourceGroup,
+        sparse_grm: Optional[SaigeSparseGRMResourceGroup],
     ) -> str:
         test_type = saige_phenotype_to_test_type[phenotype.phenotype_type]
 
-        if self.inv_normalize:
-            inv_normalize_flag = '--invNormalize=TRUE'
-        else:
-            inv_normalize_flag = ''
+        covariates = [cov.name for cov in phenotype_config.covariates]
 
-        skip_model_fitting_str = str(self.skip_model_fitting).upper()
+        options = [
+            f'--plinkFile={input_bfile}',
+            f'--phenoFile={phenotypes_file}',
+            f'--covarColList={",".join(covariates)}',
+            f'--phenoCol={phenotype.name}',
+            f'--sampleIDColinphenoFile={phenotype_config.sample_id_col}',
+            f'--traitType={test_type.value}',
+            f'--outputPrefix={null_glmm}',
+            f'--outputPrefix_varRatio={null_glmm}',
+            f'--nThreads={self.cpu}',
+        ]
 
-        covariates = [cov.name for cov in phenotype_information.covariates]
+        if sparse_grm is not None:
+            options.append(f'--sparseGRMFile={sparse_grm.grm}')
+            options.append(f'--sparseGRMSampleIDFile={sparse_grm.sample_ids}')
 
-        # FIXME: this is used somewhere and make sure q means continuous and not categorical
-        q_covariates = [cov.name for cov in phenotype_information.covariates if saige_phenotype_to_test_type[cov.phenotype_type] == SaigeTestType.QUANTITATIVE]
-        """--qCovarColList"""
-        """List of categorical covariates (comma separated). All categorical covariates must also be in covarColList"""  # FIXME: Is this correct?
+        # FIXME: is this really binary or should it be quantitative?
+        q_covariates = [cov.name for cov in phenotype_config.covariates if saige_phenotype_to_test_type[cov.phenotype_type] == SaigeTestType.BINARY]
+        if len(q_covariates) > 0:
+            options.append(f'--qCovarColList={",".join(q_covariates)}')
+
+        if keep_samples_list is not None:
+            options.append(f'--SampleIDIncludeFile={keep_samples_list}')
+        if self.inv_normalize is not None:
+            options.append(f'--invNormalize={bool_upper_str(self.inv_normalize)}')
+        if self.tol is not None:
+            options.append(f'--tol={self.tol}')
+        if self.max_iter is not None:
+            options.append(f'--maxiter={self.max_iter}')
+        if self.tol_pcg is not None:
+            options.append(f'--tolPCG={self.tol_pcg}')
+        if self.max_iter_pcg is not None:
+            options.append(f'--maxiterPCG={self.max_iter_pcg}')
+        if self.spa_cutoff is not None:
+            options.append(f'--SPAcutoff={self.spa_cutoff}')
+        if self.num_random_markers_for_variance_ratio is not None:
+            options.append(f'--numRandomMarkerforVarianceRatio={self.num_random_markers_for_variance_ratio}')
+        if self.skip_model_fitting is not None:
+            options.append(f'--skipModelFitting={bool_upper_str(self.skip_model_fitting)}')
+        if self.skip_variance_ratio_estimation is not None:
+            options.append(f'--skipVarianceRatioEstimation={bool_upper_str(self.skip_variance_ratio_estimation)}')
+        if self.memory_chunk_gib is not None:
+            options.append(f'--memoryChunk={self.memory_chunk_gib}')
+        if self.tau_init is not None:
+            tau_init = ','.join(str(tau) for tau in self.tau_init)
+            options.append(f'--tauInit={tau_init}')
+        if self.loco is not None:
+            options.append(f'--LOCO={bool_upper_str(self.loco)}')
+        if self.is_low_mem_loco is not None:
+            options.append(f'--isLowMemLOCO={bool_upper_str(self.is_low_mem_loco)}')
+        if self.trace_cv_cutoff is not None:
+            options.append(f'--traceCVcutoff={self.trace_cv_cutoff}')
+        if self.n_run is not None:
+            options.append(f'--nrun={self.n_run}')
+        if self.ratio_cv_cutoff is not None:
+            options.append(f'--ratioCVcutoff={self.ratio_cv_cutoff}')
+        if self.is_cate_variance_ratio is not None:
+            options.append(f'--isCateVarianceRatio={bool_upper_str(self.is_cate_variance_ratio)}')
+        if self.relatedness_cutoff is not None:
+            options.append(f'--relatednessCutoff={self.relatedness_cutoff}')
+        if self.cate_var_ratio_min_mac_vec_exclude is not None:
+            exclude_str = ','.join(str(item) for item in self.cate_var_ratio_min_mac_vec_exclude)
+            options.append(f'--cateVarRatioMinMACVecExclude={exclude_str}')
+        if self.cate_var_ratio_min_mac_vec_include is not None:
+            include_str = ','.join(str(item) for item in self.cate_var_ratio_min_mac_vec_include)
+            options.append(f'--cateVarRatioMinMACVecInclude={include_str}')
+        if self.is_covariate_transform is not None:
+            options.append(f'--isCovariateTransform={bool_upper_str(self.is_covariate_transform)}')
+        if self.is_diag_of_kin_set_as_one is not None:
+            options.append(f'--isDiagofKinSetAsOne={bool_upper_str(self.is_diag_of_kin_set_as_one)}')
+        if self.use_sparse_grm_to_fit_null is not None:
+            options.append(f'--useSparseGRMtoFitNULL={bool_upper_str(self.use_sparse_grm_to_fit_null)}')
+        if self.use_sparse_grm_for_var_ratio is not None:
+            options.append(f'--useSparseGRMforVarRatio={bool_upper_str(self.use_sparse_grm_for_var_ratio)}')
+        if self.min_maf_for_grm is not None:
+            options.append(f'--minMAFforGRM={self.min_maf_for_grm}')
+        if self.max_missing_rate_for_grm is not None:
+            options.append(f'--maxMissingRateforGRM={self.max_missing_rate_for_grm}')
+        if self.min_covariate_count is not None:
+            options.append(f'--minCovariateCount={self.min_covariate_count}')
+        if self.include_non_autosomal_markers_for_var_ratio is not None:
+            options.append(f'--includeNonautoMarkersforVarRatio={bool_upper_str(self.include_non_autosomal_markers_for_var_ratio)}')
+        if self.female_only is not None:
+            if phenotype_config.sex_col is None:
+                raise ValueError('Cannot specify female only. No sex column specified.')
+            if phenotype_config.female_code is None:
+                raise ValueError('Cannot specify female only. No code specified for females.')
+            options.append(f'--FemaleOnly={bool_upper_str(self.female_only)}')
+            options.append(f'--sexCol={phenotype_config.sex_col}')
+            options.append(f'--FemaleCode={phenotype_config.female_code}')
+        if self.male_only is not None:
+            if phenotype_config.sex_col is None:
+                raise ValueError('Cannot specify male only. No sex column specified.')
+            if phenotype_config.male_code is None:
+                raise ValueError('Cannot specify male only. No code specified for males.')
+            options.append(f'--MaleOnly={bool_upper_str(self.male_only)}')
+            options.append(f'--sexCol={phenotype_config.sex_col}')
+            options.append(f'--MaleCode={phenotype_config.male_code}')
+        if self.is_covariate_offset is not None:
+            options.append(f'--isCovariateOffset={bool_upper_str(self.is_covariate_offset)}')
+
+        options_str = '  \\\n'.join(options)
 
         command = f'''
 set -o pipefail;
 
 perl -pi -e s/^chr// {input_bfile.bim};
 
-step1_fitNULLGLMM.R \
-    --plinkFile={input_bfile} \
-    --phenoFile={phenotypes_file} \
-    --covarColList={','.join(covariates)} \
-    --minCovariateCount={self.min_covariate_count} \
-    --phenoCol={phenotype.name} \
-    --sampleIDColinphenoFile={phenotype_information.sample_id_col} \
-    --traitType={test_type.value} \
-    --outputPrefix={null_glmm} \
-    --outputPrefix_varRatio={null_glmm} \
-    --skipModelFitting={skip_model_fitting_str} \
-    {inv_normalize_flag} \
-    --nThreads={self.cpu} \
-    --LOCO=FALSE 2>&1
+step1_fitNULLGLMM.R \\
+    {options_str}
 '''
         return command
 

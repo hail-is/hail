@@ -12,7 +12,7 @@ from hailtop.utils import async_to_blocking, bounded_gather
 
 from .constants import SaigeAnalysisType, SaigeInputDataType
 from .io import load_plink_file, load_text_file
-from .phenotype import Phenotype, PhenotypeInformation, SaigePhenotype
+from .phenotype import Phenotype, PhenotypeConfig, SaigePhenotype
 from .steps import CompileAllResultsStep, CompilePhenotypeResultsStep, SparseGRMStep, Step1NullGlmmStep, Step2SPAStep
 from .variant_chunk import VariantChunk
 
@@ -39,10 +39,10 @@ class SaigeConfig:
     sparse_grm: SparseGRMStep = field(default_factory=SparseGRMStep, kw_only=True)
     """Configuration for running the Sparse GRM job."""
 
-    # step1_null_glmm: Step1NullGlmmStep = field(default_factory=Step1NullGlmmStep, kw_only=True)
-    # step2_spa: Step2SPAStep = field(default_factory=Step2SPAStep, kw_only=True)
-    # compile_phenotype_results: CompilePhenotypeResultsStep = field(default_factory=CompilePhenotypeResultsStep, kw_only=True)
-    # compile_all_results: CompileAllResultsStep = field(default_factory=CompileAllResultsStep, kw_only=True)
+    step1_null_glmm: Step1NullGlmmStep = field(default_factory=Step1NullGlmmStep, kw_only=True)
+    step2_spa: Step2SPAStep = field(default_factory=Step2SPAStep, kw_only=True)
+    compile_phenotype_results: CompilePhenotypeResultsStep = field(default_factory=CompilePhenotypeResultsStep, kw_only=True)
+    compile_all_results: CompileAllResultsStep = field(default_factory=CompileAllResultsStep, kw_only=True)
 
 
 async def async_saige(
@@ -51,9 +51,10 @@ async def async_saige(
         null_model_plink_path: str,
         phenotypes_path: str,
         output_path: str,
-        phenotype_information: PhenotypeInformation,
+        phenotype_config: PhenotypeConfig,
         variant_chunks: List[VariantChunk],
         group_annotations_file: Optional[str] = None,
+        null_model_sample_list: Optional[str] = None,
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
@@ -102,13 +103,23 @@ async def async_saige(
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
-                    for phenotype in phenotype_information.phenotypes
+                    for phenotype in phenotype_config.phenotypes
                 ]
             )
 
             existing_phenotype_results = {phenotype.name: result
-                                          for phenotype, result in zip(phenotype_information.phenotypes, maybe_phenotype_results)
+                                          for phenotype, result in zip(phenotype_config.phenotypes, maybe_phenotype_results)
                                           if result is not None}
+
+            if analysis_type == SaigeAnalysisType.GENE:
+                sparse_grm = config.sparse_grm._call(fs, b, input_null_model_plink_data, temp_dir, checkpoint_dir)
+            else:
+                sparse_grm = None
+
+            if null_model_sample_list is not None:
+                null_model_samples = await load_text_file(fs, b, None, null_model_sample_list)
+            else:
+                null_model_samples = None
 
             null_glmms = await bounded_gather(
                 *[
@@ -118,13 +129,15 @@ async def async_saige(
                         b,
                         input_bfile=input_null_model_plink_data,
                         input_phenotypes_file=input_phenotypes_file,
-                        phenotype_information=phenotype_information,
+                        keep_sample_list=null_model_samples,
+                        phenotype_information=phenotype_config,
                         phenotype=phenotype,
+                        sparse_grm=sparse_grm,
                         analysis_type=analysis_type,
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir,
                     )
-                    for phenotype in phenotype_information.phenotypes
+                    for phenotype in phenotype_config.phenotypes
                     if phenotype.name not in existing_phenotype_results
                 ],
                 parallelism=parallelism,
@@ -142,7 +155,7 @@ async def async_saige(
                                                                  chunk=chunk,
                                                                  phenotype=phenotype,
                                                                  group_annotations=group_annotations))
-                            for phenotype, null_glmm in zip(phenotype_information.phenotypes, null_glmms)
+                            for phenotype, null_glmm in zip(phenotype_config.phenotypes, null_glmms)
                             for chunk in variant_chunks
                             if phenotype.name not in existing_phenotype_results
                             ]
@@ -166,7 +179,7 @@ async def async_saige(
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
-                    for phenotype in phenotype_information.phenotypes
+                    for phenotype in phenotype_config.phenotypes
                 ],
                 parallelism=parallelism,
             )
@@ -190,21 +203,23 @@ def saige(
         null_model_plink_path: str,
         phenotypes_path: str,
         output_path: str,
-        phenotype_information: PhenotypeInformation,
+        phenotype_config: PhenotypeConfig,
         variant_chunks: List[VariantChunk],
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
         router_fs_args: Optional[dict] = None,
         parallelism: int = 10,
-        config: Optional[SaigeConfig] = None
+        config: Optional[SaigeConfig] = None,
+        null_model_sample_list: Optional[str] = None,
 ):
     return async_to_blocking(async_saige(
         mt_path=mt_path,
         null_model_plink_path=null_model_plink_path,
+        null_model_sample_list=null_model_sample_list,
         phenotypes_path=phenotypes_path,
         output_path=output_path,
-        phenotype_information=phenotype_information,
+        phenotype_config=phenotype_config,
         variant_chunks=variant_chunks,
         b=b,
         checkpoint_dir=checkpoint_dir,
@@ -323,7 +338,7 @@ def prepare_variant_chunks_by_group(
 def extract_phenotypes(mt: hl.MatrixTable,
                        phenotypes: Dict[str, List[Union[str, hl.NumericExpression, hl.BooleanExpression]]],
                        covariates: Dict[str, List[Union[str, hl.NumericExpression, hl.BooleanExpression]]],
-                       output_file: str) -> PhenotypeInformation:
+                       output_file: str) -> PhenotypeConfig:
     require_col_key_str(mt, 'saige')
 
     sample_id_col = list(mt.col_key)[0]
@@ -353,4 +368,4 @@ def extract_phenotypes(mt: hl.MatrixTable,
             assert phenotype_name in covariates.keys()
             saige_covariates.append(phenotype)
 
-    return PhenotypeInformation(saige_phenotypes, saige_covariates, sample_id_col)
+    return PhenotypeConfig(saige_phenotypes, saige_covariates, sample_id_col)
