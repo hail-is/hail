@@ -192,6 +192,8 @@ class Aggs(
   val init: IR,
   // The extracted void-typed update ir
   val seqPerElt: IR,
+  // Must be bound to raw aggregators results in postAggIR
+  val resultRef: Ref,
   // All (top-level) aggregators used
   val aggs: Array[PhysicalAggSig],
 ) {
@@ -207,18 +209,17 @@ class Aggs(
     rewriteMap.lookup(original)
 
   def rewriteFromInitBindingRoot(f: IR => IR): IR = {
-    val irNumberMemo = Memo.empty[Int]
-    var i = 0
-    // depth first search -- either DFS or BFS should work here given IR assumptions
-    VisitIR(original) { x =>
-      irNumberMemo.bind(x, i)
-      i += 1
-    }
-
     if (bindingNodesReferenced.m.isEmpty) {
       f(rewriteMap.lookup(original))
-      // find deepest binding node referenced
     } else {
+      val irNumberMemo = Memo.empty[Int]
+      var i = 0
+      // find deepest binding node referenced
+      // depth first search -- either DFS or BFS should work here given IR assumptions
+      VisitIR(original) { x =>
+        irNumberMemo.bind(x, i)
+        i += 1
+      }
       val rewriteRoot = bindingNodesReferenced.m.keys.maxBy(irNumberMemo.lookup)
       // only support let nodes here -- other binders like stream operators are undefined behavior
       RewriteTopDown.rewriteTopDown(
@@ -254,8 +255,6 @@ class Aggs(
     }
     aggs.exists(containsBigAggregator)
   }
-
-  def eltOp(ctx: ExecuteContext): IR = seqPerElt
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec)
     : ((HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long) = {
@@ -476,10 +475,10 @@ object Extract {
       new FoldAggregator(res, accumName, otherAccumName, combOpIR)
   }
 
-  def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
+  def apply(ir: IR, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
     val ab = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
     val seq = new BoxedArrayBuilder[(String, IR)]()
-    val ref = Ref(resultName, null)
+    val ref = Ref(genUID(), null)
     val memo = mutable.Map.empty[IR, Int]
 
     val bindingNodesReferenced = Memo.empty[Unit]
@@ -495,6 +494,7 @@ object Extract {
       bindingNodesReferenced,
       Begin(initOps),
       Let.void(seq.result()),
+      ref,
       pAggSigs,
     )
   }

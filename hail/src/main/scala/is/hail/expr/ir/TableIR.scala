@@ -3061,8 +3061,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     : TableExecuteIntermediate = {
     val tv = child.execute(ctx, r).asTableValue(ctx)
     val fsBc = ctx.fsBc
-    val scanRef = genUID()
-    val extracted = agg.Extract.apply(newRow, scanRef, Requiredness(this, ctx), isScan = true)
+    val extracted = agg.Extract.apply(newRow, Requiredness(this, ctx), isScan = true)
 
     if (extracted.aggs.isEmpty) {
       val (Some(PTypeReferenceSingleCodeType(rTyp)), f) =
@@ -3149,7 +3148,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
-      extracted.eltOp(ctx),
+      extracted.seqPerElt,
     )
 
     val read = extracted.deserialize(ctx, spec)
@@ -3167,7 +3166,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
         Let(
-          FastSeq(scanRef -> extracted.results),
+          FastSeq(extracted.resultRef.name -> extracted.results),
           Coalesce(FastSeq(
             extracted.postAggIR,
             Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ),
@@ -3720,9 +3719,8 @@ case class TableKeyByAndAggregate(
     val globalsBc = prev.globals.broadcast(ctx.theHailClassLoader)
 
     val spec = BufferSpec.blockedUncompressed
-    val res = genUID()
 
-    val extracted = agg.Extract(expr, res, Requiredness(this, ctx))
+    val extracted = agg.Extract(expr, Requiredness(this, ctx))
 
     val (_, makeInit) = ir.CompileWithAggregators[AsmFunction2RegionLongUnit](
       ctx,
@@ -3758,7 +3756,7 @@ case class TableKeyByAndAggregate(
         )),
         FastSeq(classInfo[Region], LongInfo),
         LongInfo,
-        Let(FastSeq(res -> extracted.results), extracted.postAggIR),
+        Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR),
       )
     assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${typ.valueType}")
 
@@ -3889,8 +3887,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val fsBc = ctx.fsBc
     val sm = ctx.stateManager
 
-    val res = genUID()
-    val extracted = agg.Extract(expr, res, Requiredness(this, ctx))
+    val extracted = agg.Extract(expr, Requiredness(this, ctx))
 
     val (_, makeInit) = ir.CompileWithAggregators[AsmFunction2RegionLongUnit](
       ctx,
@@ -3916,7 +3913,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       extracted.seqPerElt,
     )
 
-    val valueIR = Let(FastSeq(res -> extracted.results), extracted.postAggIR)
+    val valueIR = Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR)
     val keyType = prevRVD.typ.kType
 
     val key = Ref(genUID(), keyType.virtualType)
