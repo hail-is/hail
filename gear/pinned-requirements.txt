@@ -98,7 +98,7 @@ multidict==6.0.4
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   yarl
-orjson==3.9.12
+orjson==3.9.11
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
