@@ -10,7 +10,7 @@ SERVICES_MODULES := $(SERVICES) gear web_common
 CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
 SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
-HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
+HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95 saige,hailgenetics-$(img))
 CI_IMAGES = ci-utils ci-buildkit base hail-run
 PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
@@ -168,6 +168,12 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
 	$(MAKE) -C hail wheel
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
+
+hailgenetics-saige-image: hail-ubuntu-image docker/hailgenetics/saige/Dockerfile $(shell git ls-files hail/src/main hail/python)
+	$(MAKE) -C hail wheel
+	./docker-build.sh . docker/hailgenetics/saige/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 

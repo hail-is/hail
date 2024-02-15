@@ -251,20 +251,35 @@ class WaitableSharedPool:
         self._n_complete = 0
         self._waiting = False
         self._done = asyncio.Event()
+        self._task_idx = 0
+        self._results = []
 
-    async def call(self, f, *args, **kwargs):
+    def results(self):
+        assert self._n_complete == self._n_submitted
+        return self._results
+
+    def result(self, idx):
+        return self.results()[idx]
+
+    async def call(self, f, *args, **kwargs) -> int:
         assert not self._waiting
         self._n_submitted += 1
+        task_idx = self._task_idx
+        self._results.append(None)
+        self._task_idx += 1
 
         async def invoke():
+            nonlocal task_idx
             try:
-                await f(*args, **kwargs)
+                result = await f(*args, **kwargs)
+                self._results[task_idx] = result
             finally:
                 self._n_complete += 1
                 if self._waiting and (self._n_complete == self._n_submitted):
                     self._done.set()
 
         await self._worker_pool.call(invoke)
+        return task_idx
 
     async def wait(self):
         assert not self._waiting

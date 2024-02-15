@@ -2,11 +2,13 @@ import warnings
 
 from .batch import Batch
 from .batch_pool_executor import BatchPoolExecutor
-from .backend import LocalBackend, ServiceBackend, Backend
+from .backend import Backend, LocalBackend, ServiceBackend
 from .docker import build_python_image
 from .exceptions import BatchException
+from .job import BashJob, Job, PythonJob
 from .utils import concatenate, plink_merge
 from .resource import Resource, ResourceFile, ResourceGroup, PythonResult
+
 
 __all__ = [
     'Batch',
@@ -23,6 +25,7 @@ __all__ = [
     'ResourceFile',
     'ResourceGroup',
 ]
+
 
 warnings.filterwarnings('once', append=True)
 del warnings

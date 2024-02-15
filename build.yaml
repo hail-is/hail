@@ -1374,6 +1374,32 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
+    name: hailgenetics_saige_image
+    dockerFile: /io/repo/docker/hailgenetics/saige/Dockerfile
+    contextPath: /io/repo
+    publishAs: hailgenetics/saige
+    buildArgs:
+      - name: BASE_IMAGE
+        value:
+          valueFrom: hail_ubuntu_image.image    
+      - name: HAIL_WHEEL_DIR
+        value: /wheel
+    inputs:
+      - from: /repo/docker/hailgenetics/saige
+        to: /io/repo/docker/hailgenetics/saige
+      - from: /repo/hail/python/pinned-requirements.txt
+        to: /io/repo/hail/python/pinned-requirements.txt
+      - from: /wheel
+        to: /io/repo/wheel
+    dependsOn:
+      - merge_code
+      - build_hail_jar_and_wheel
+      - hail_ubuntu_image
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: standard
+  - kind: buildImage2
     name: hail-benchmark-image
     dockerFile: /io/repo/benchmark/Dockerfile
     contextPath: /io/repo
