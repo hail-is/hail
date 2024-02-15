@@ -156,7 +156,7 @@ createSparseGRM.R \\
 
 @dataclass
 class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
-    inv_normalize: bool = False
+    inv_normalize: Optional[bool] = None
     """Pass-through argument for "--invNormalize". Only for quantitative. Whether to perform the inverse normalization for the phenotype"""
 
     tol: Optional[float] = None
@@ -185,25 +185,25 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     skip_variance_ratio_estimation: Optional[bool] = None
     """Pass-through argument for "--skipVarianceRatioEstimation". Whether to skip model fitting and only to estimate the variance ratio."""  # FIXME: documentation is wrong. If TRUE, the file outputPrefix.rda is required
 
-    memory_chunk_gib: Optional[int] = 2
+    memory_chunk_gib: Optional[int] = None
     """Pass-through argument for "--memoryChunk". Value is in Gi."""
 
-    tau_init: Optional[str] = '0,0'
+    tau_init: Optional[str] = None
     """Pass-through argument for "--tauInit". Initial values for tau."""
 
-    loco: Optional[bool] = True
+    loco: Optional[bool] = None
     """Pass-through argument for "--LOCO". Whether to apply the leave-one-chromosome-out (LOCO) approach when fitting the null model using the full GRM."""
 
-    is_low_mem_loco: Optional[bool] = False
-    """Pass-through argument for "--isLowMemLOCO". Whether to output the model file by chromosome when "--LOCO=TRUE". If True, the memory usage in Step 1 and Step 2 will be lower."""
+    is_low_mem_loco: Optional[bool] = None
+    """Pass-through argument for "--isLowMemLOCO". Whether to output the model file by chromosome when "--LOCO=TRUE". If True, the memory usage will be lower."""
 
-    trace_cv_cutoff: Optional[float] = 0.0025
+    trace_cv_cutoff: Optional[float] = None
     """Pass-through argument for "--traceCVcutoff". Threshold for coefficient of variation (CV) for the trace estimator. Number of runs for trace estimation will be increased until the CV is below the threshold."""
 
-    n_run: Optional[int] = 30
+    n_run: Optional[int] = None
     """Pass-through argument for "--nrun". Number of runs in trace estimation."""
 
-    ratio_cv_cutoff: Optional[float] = 0.001
+    ratio_cv_cutoff: Optional[float] = None
     """Pass-through argument for "--ratioCVcutoff". Threshold for coefficient of variation (CV) for estimating the variance ratio. The number of randomly selected markers will be increased until the CV is below the threshold"""
 
     is_cate_variance_ratio: Optional[bool] = None
@@ -243,10 +243,10 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     """Pass-through argument for "--includeNonautoMarkersforVarRatio". Whether to allow for non-autosomal markers for variance ratio."""
 
     female_only: Optional[bool] = None
-    """Pass-through argument for "--FemaleOnly". Whether to run Step 1 for females only"""  # FIXME: if TRUE, --sexCol and --FemaleCode need to be specified
+    """Pass-through argument for "--FemaleOnly". Whether to run null model for females only"""  # FIXME: if TRUE, --sexCol and --FemaleCode need to be specified
 
     male_only: Optional[bool] = None
-    """Pass-through argument for "--MaleOnly". Whether to run Step 1 for males only."""
+    """Pass-through argument for "--MaleOnly". Whether to run null model for males only."""
 
     is_covariate_offset: Optional[bool] = None
     """Pass-through argument for "--isCovariateOffset". Whether to estimate fixed effect coefficients."""
@@ -355,6 +355,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         # FIXME: this is used somewhere and make sure q means continuous and not categorical
         q_covariates = [cov.name for cov in phenotype_information.covariates if saige_phenotype_to_test_type[cov.phenotype_type] == SaigeTestType.QUANTITATIVE]
         """--qCovarColList"""
+        """List of categorical covariates (comma separated). All categorical covariates must also be in covarColList"""  # FIXME: Is this correct?
 
         command = f'''
 set -o pipefail;
