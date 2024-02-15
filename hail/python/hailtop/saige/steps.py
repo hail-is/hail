@@ -147,8 +147,62 @@ createSparseGRM.R \\
 
 @dataclass
 class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
-    inv_normalize: bool = True
-    skip_model_fitting: bool = True
+    inv_normalize: bool = False
+    """Pass-through argument for "--invNormalize". Only for quantitative. Whether to perform the inverse normalization for the phenotype"""
+
+    tol: Optional[float] = None
+    """Pass-through argument for "--tol". Tolerance for fitting the null GLMM to converge."""
+
+    max_iter: Optional[int] = None
+    """Pass-through argument for "--maxiter". Maximum number of iterations used to fit the null GLMM."""
+
+    tol_pcg: Optional[float] = None
+    """Pass-through argument for "--tolPCG". Tolerance for PCG to converge."""
+
+    max_iter_pcg: Optional[int] = None
+    """Pass-through argument for "--maxiterPCG". Maximum number of iterations for PCG."""
+
+    spa_cutoff: Optional[float] = None
+    """Pass-through argument for "--SPAcutoff". Cutoff for the deviation of score test statistics from mean in the unit of sd to perform SPA."""
+
+    num_random_markers_for_variance_ratio: Optional[int] = None
+    """Pass-through argument for "--numRandomMarkerforVarianceRatio". An integer greater than 0. Number of markers to be randomly selected for 
+    estimating the variance ratio. The number will be automatically added by 10 until the coefficient of variantion (CV) for the variance ratio 
+    estimate is below ratioCVcutoff"""
+
+    skip_model_fitting: Optional[bool] = None
+    """Pass-through argument for "--skipModelFitting". Whether to skip model fitting and only to estimate the variance ratio."""  # FIXME: If TRUE, the file outputPrefix.rda is required
+
+    skip_variance_ratio_estimation: Optional[bool] = None
+    """Pass-through argument for "--skipVarianceRatioEstimation". Whether to skip model fitting and only to estimate the variance ratio."""  # FIXME: documentation is wrong. If TRUE, the file outputPrefix.rda is required
+
+    memory_chunk_gib: Optional[int] = 2
+    """Pass-through argument for "--memoryChunk". Value is in Gi."""
+
+    tau_init: Optional[str] = '0,0'
+    """Pass-through argument for "--tauInit". Initial values for tau."""
+
+    loco: Optional[bool] = True
+    """Pass-through argument for "--LOCO". Whether to apply the leave-one-chromosome-out (LOCO) approach when fitting the null model using the full GRM."""
+
+    is_low_mem_loco: Optional[bool] = False
+    """Pass-through argument for "--isLowMemLOCO". Whether to output the model file by chromosome when "--LOCO=TRUE". If True, the memory usage in Step 1 and Step 2 will be lower."""
+
+    trace_cv_cutoff: Optional[float] = 0.0025
+    """Pass-through argument for "--traceCVcutoff". Threshold for coefficient of variation (CV) for the trace estimator. Number of runs for trace estimation will be increased until the CV is below the threshold."""
+
+    n_run: Optional[int] = 30
+    """Pass-through argument for "--nrun". Number of runs in trace estimation."""
+
+    ratio_cv_cutoff: Optional[float] = 0.001
+    """Pass-through argument for "--ratioCVcutoff". Threshold for coefficient of variation (CV) for estimating the variance ratio. The number of randomly selected markers will be increased until the CV is below the threshold"""
+
+    is_cate_variance_ratio: Optional[bool] = None
+    """Pass-through argument for "--isCateVarianceRatio". Whether to estimate variance ratio based on different MAC categories. If yes, variance ratio will be estimated for multiple MAC categories corresponding to cateVarRatioMinMACVecExclude and cateVarRatioMaxMACVecInclude. Currently, if isCateVarianceRatio=TRUE, then LOCO=FALSE"""
+
+    relatedness_cutoff: Optional[float] = None
+    """Pass-through argument for "--relatednessCutoff". Threshold (minimum relatedness coefficient) to treat two samples as unrelated when the sparse GRM is used."""
+
     min_covariate_count: int = 5
     save_stdout: bool = True
 
@@ -195,7 +249,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
 
         null_glmm = new_saige_glmm_file(j, analysis_type)
 
-        command = self.command(
+        command = self._command(
             input_bfile,
             input_phenotypes,
             phenotype_information,
@@ -213,8 +267,8 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
 
         return null_glmm
 
-    def command(
-        self,
+    def _command(
+        self,  # FIXME: What about sparse GRM file
         input_bfile: PlinkResourceGroup,
         phenotypes_file: TextResourceFile,
         phenotype_information: PhenotypeInformation,
@@ -235,6 +289,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
 
         # FIXME: this is used somewhere and make sure q means continuous and not categorical
         q_covariates = [cov.name for cov in phenotype_information.covariates if saige_phenotype_to_test_type[cov.phenotype_type] == SaigeTestType.QUANTITATIVE]
+        """--qCovarColList"""
 
         command = f'''
 set -o pipefail;
@@ -637,7 +692,6 @@ ht = ht.annotate(locus=hl.locus(hl.str(ht.CHR), ht.POS, reference_genome=referen
 ht = ht.key_by(ht.locus, ht.alleles, ht.phenotype)
 ht = ht.drop('CHR', 'POS', 'Allele1', 'Allele2')
 ht.write("{results_ht}")
-ht.describe()
 EOF
 python3 compile_results.py
 '''
