@@ -1887,7 +1887,7 @@ LEFT JOIN job_groups_n_jobs_in_complete_states
 LEFT JOIN (
   SELECT id, 1 AS cancelled
   FROM job_groups_cancelled
-  WHERE batch_id = %s AND job_group_id = %s
+  WHERE id = %s AND job_group_id = %s
 ) AS cancelled_t ON batches.id = cancelled_t.id
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
