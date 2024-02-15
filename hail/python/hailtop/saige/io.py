@@ -27,7 +27,7 @@ def checkpoint_if_requested(resource: hb.Resource, b: hb.Batch, config: Checkpoi
 async def use_checkpoints_if_exist_and_requested(
     typ: Type[RG], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, **inputs: str
 ) -> Optional[RG]:
-    if config.use_checkpoints and not config.overwrite:
+    if config.use_checkpoints:
         await load_files(typ, fs, b, **inputs)
     return None
 
@@ -42,7 +42,7 @@ async def load_files(typ: Type[RG], fs: AsyncFS, b: hb.Batch, **inputs: str) -> 
 async def use_checkpoint_if_exists_and_requested(
     typ: Type[RF], fs: AsyncFS, b: hb.Batch, config: CheckpointConfigMixin, input: str
 ) -> Optional[RF]:
-    if config.use_checkpoints and not config.overwrite:
+    if config.use_checkpoints:
         await load_file(typ, fs, b, input)
     return None
 

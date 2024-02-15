@@ -43,7 +43,7 @@ def get_output_dir(config: CheckpointConfigMixin, temp_dir: str, checkpoint_dir:
 class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     """Define how the createSparseGRM.R step is executed in a SAIGE pipeline.
 
-    This class is used as an input to :class:`.SaigeConfig` in order to specify
+    This class is used as an input to SaigeConfig in order to specify
     how the Sparse GRM step is executed in SAIGE.
 
     Examples
@@ -68,43 +68,30 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     ...         return 'my_sparse_grm'
     ...
     ...     def attributes(self):
-    ...         return {'sparse_grm': '1'}
+    ...         return {'my_attribute': '1'}
     ...
     ...     def output_root(self, temp_dir: str, checkpoint_dir: Optional[str]) -> str:
     ...         return f'{temp_dir}/my-custom-path'
-
-    Parameters
-    ----------
-    cpu:
-        The amount of CPU to give the sparse GRM job. This value will be used for
-        the number of threads option "--nThreads".
-    memory:
-        The amount of memory to give the sparse GRM job. This value can be one of
-        "lowmem", "highmem", "standard", or a numeric value. "lowmem" is approximately
-        1 Gi per core, "highmem" is approximately 8 Gi per core, and "standard" is approximately
-        4 Gi per core.
-    storage:
-        The amount of storage space to give the sparse GRM job.
-    spot:
-        Whether this job can be run on spot instances.
-    memory_chunk_gib:
-        Pass-through option for "--memoryChunk". Value is in Gi.
-    num_random_markers_for_sparse_kin:
-
-
-
-
     """
-    cpu: Union[str, float, int] = 4
-    memory: str = 'highmem'
-    storage: str = '10Gi'
-    spot: bool = True
+
     memory_chunk_gib: int = 2
+    """Pass-through option for "--memoryChunk". Value is in Gi."""
+
     num_random_markers_for_sparse_kin: int = 200
+    """Pass-through option for "--numRandomMarkerforSparseKin". Number of randomly selected markers to be used to identify
+        related samples for sparse GRM."""
+
     relatedness_cutoff: float = 0.125
+    """Pass-through option for "--relatednessCutoff". The threshold to treat two samples as unrelated if IsSparseKin is True."""  # FIXME: what is sparse kin
+
     is_diag_of_kin_set_as_one: bool = False
+    """Pass-through option for "--isDiagofKinSetAsOne". Whether to set the diagnal elements in GRM to be 1."""
+
     min_maf_for_grm: float = 0.01
+    """Pass-through option for "--minMAFforGRM". Minimum MAF of markers used for GRM."""
+
     max_missing_rate_for_grm: Optional[float] = None
+    """Pass-through option for "--maxMissingRateforGRM". Maximum missing rate of markers used for GRM."""
 
     def name(self) -> str:
         return 'sparse-grm'
@@ -631,6 +618,8 @@ python3 compile_results.py
 
 @dataclass
 class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
+    overwrite: bool = True
+
     def name(self) -> str:
         return 'compile-all-results'
 
