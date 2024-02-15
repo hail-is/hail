@@ -318,6 +318,8 @@ WHERE removed = 0 AND inst_coll = %s;
         jobs_query_args = []
 
         for user_idx, (user, share) in enumerate(user_share.items(), start=1):
+            # job_group_id must be part of the ordering when selecting records
+            # because the scheduler selects records by job group in order
             user_job_query = f"""
 (
   SELECT scheduling_iteration, user_idx, n_regions, regions_bits_rep, CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu

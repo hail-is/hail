@@ -14,7 +14,7 @@ from .utils import coalesce
 log = logging.getLogger('batch')
 
 
-def _maybe_time_msecs_str(t: Optional[int]):
+def _maybe_time_msecs_str(t: Optional[int]) -> Optional[str]:
     if t is not None:
         return time_msecs_str(t)
     return None

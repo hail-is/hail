@@ -250,13 +250,14 @@ def parse_job_group_jobs_query_v2(
         jg_cond = """
 ((jobs.batch_id, jobs.job_group_id) IN
  (SELECT batch_id, job_group_id FROM job_group_self_and_ancestors
-  WHERE ancestor_id = %s))
+  WHERE batch_id = %s AND ancestor_id = %s))
 """
+        where_args.extend([batch_id, job_group_id])
     else:
         jg_cond = '(jobs.job_group_id = %s)'
+        where_args.append(job_group_id)
 
     where_conditions.append(jg_cond)
-    where_args.append(job_group_id)
 
     if last_job_id is not None:
         where_conditions.append('(jobs.job_id > %s)')

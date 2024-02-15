@@ -2018,7 +2018,7 @@ def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
     job_groups = [jg]
-    for _ in range(4):
+    for _ in range(2):
         jg = jg.create_job_group()
         job_groups.append(jg)
     b.submit()
@@ -2032,7 +2032,7 @@ def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
 def test_create_job_in_nested_job_group(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
-    for _ in range(4):
+    for _ in range(2):
         jg = jg.create_job_group()
     jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
@@ -2044,7 +2044,7 @@ def test_cancellation_does_not_propogate_up(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
     job_groups = [jg]
-    for _ in range(4):
+    for _ in range(2):
         jg = jg.create_job_group()
         job_groups.append(jg)
     b.submit()
@@ -2058,7 +2058,7 @@ def test_cancellation_does_not_propogate_up(client: BatchClient):
 def test_maximum_nesting_level(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
-    for _ in range(10):
+    for _ in range(3):
         jg = jg.create_job_group()
     with pytest.raises(httpx.ClientResponseError, match='job group exceeded the maximum level of nesting'):
         b.submit()
@@ -2072,7 +2072,7 @@ def test_all_nested_job_groups_end_up_with_correct_number_of_job_states(client: 
     jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
 
     job_groups = [jg]
-    for _ in range(4):
+    for _ in range(2):
         jg = jg.create_job_group()
         job_groups.append(jg)
         jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
@@ -2191,7 +2191,7 @@ def test_billing_propogates_upwards(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
     job_groups = [jg]
-    for _ in range(4):
+    for _ in range(2):
         jg = jg.create_job_group()
         job_groups.append(jg)
     j = jg.create_job(DOCKER_ROOT_IMAGE, ['true'])

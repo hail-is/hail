@@ -307,6 +307,8 @@ async def _get_job_group_jobs(
 ) -> GetJobsResponseV1Alpha:
     db = request.app['db']
 
+    is_root_job_group = job_group_id == ROOT_JOB_GROUP_ID
+
     record = await db.select_and_fetchone(
         """
 SELECT * FROM job_groups
@@ -317,9 +319,9 @@ LEFT JOIN batch_updates
 WHERE job_groups.batch_id = %s AND
       job_groups.job_group_id = %s AND
       NOT deleted AND
-      (batch_updates.committed OR job_groups.job_group_id = %s);
+      (batch_updates.committed OR %s);
 """,
-        (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
+        (batch_id, job_group_id, is_root_job_group),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -739,6 +741,7 @@ async def _query_job_groups(
 
     @transaction(db)
     async def _query(tx):
+        is_root_job_group = job_group_id == ROOT_JOB_GROUP_ID
         record = await tx.execute_and_fetchone(
             """
 SELECT 1
@@ -746,9 +749,9 @@ FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN batch_updates
   ON job_groups.batch_id = batch_updates.batch_id AND job_groups.update_id = batch_updates.update_id
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s);
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR %s);
 """,
-            (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
+            (batch_id, job_group_id, is_root_job_group),
         )
         if not record:
             raise NonExistentJobGroupError(batch_id, job_group_id)
@@ -1050,8 +1053,7 @@ async def _create_jobs(
 SELECT `state`, format_version, `committed`, start_job_id, start_job_group_id
 FROM batch_updates
 INNER JOIN batches ON batch_updates.batch_id = batches.id
-WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted
-LOCK IN SHARE MODE;
+WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s AND NOT deleted;
 """,
         (batch_id, update_id, user),
     )
@@ -1786,7 +1788,8 @@ async def _create_batch_update(
         assert n_jobs > 0 or n_job_groups > 0
         record = await tx.execute_and_fetchone(
             """
-SELECT update_id, start_job_id, start_job_group_id FROM batch_updates
+SELECT update_id, start_job_id, start_job_group_id
+FROM batch_updates
 WHERE batch_id = %s AND token = %s;
 """,
             (batch_id, update_token),
@@ -1796,26 +1799,22 @@ WHERE batch_id = %s AND token = %s;
             return (record['update_id'], record['start_job_id'], record['start_job_group_id'])
 
         # We use FOR UPDATE so that we serialize batch update insertions
-        # This is necessary to reserve job id ranges.
+        # This is necessary to reserve job id and job group id ranges.
         # We don't allow updates to batches that have been cancelled
         # but do allow updates to batches with jobs that have been cancelled.
         record = await tx.execute_and_fetchone(
             """
 SELECT cancelled_t.cancelled IS NOT NULL AS cancelled
 FROM batches
-LEFT JOIN LATERAL (
+LEFT JOIN (
   SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE batches.id = job_group_self_and_ancestors.batch_id AND
-    job_group_self_and_ancestors.job_group_id = %s
-) AS cancelled_t ON TRUE
+  FROM job_groups_cancelled
+  WHERE batch_id = %s AND job_group_id = %s
+) AS cancelled_t
 WHERE batches.id = %s AND batches.user = %s AND NOT deleted
 FOR UPDATE;
 """,
-            (ROOT_JOB_GROUP_ID, batch_id, user),
+            (batch_id, ROOT_JOB_GROUP_ID, batch_id, user),
         )
         if not record:
             raise web.HTTPNotFound()
@@ -1830,8 +1829,7 @@ SELECT update_id, start_job_id, n_jobs, start_job_group_id, n_job_groups
 FROM batch_updates
 WHERE batch_id = %s
 ORDER BY update_id DESC
-LIMIT 1
-FOR UPDATE;
+LIMIT 1;
 """,
             (batch_id,),
         )
@@ -1886,15 +1884,11 @@ FROM job_groups
 LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-LEFT JOIN LATERAL (
+LEFT JOIN (
   SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
-    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
-) AS cancelled_t ON TRUE
+  FROM job_groups_cancelled
+  WHERE batch_id = %s AND job_group_id = %s
+) AS cancelled_t
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
@@ -1907,7 +1901,7 @@ LEFT JOIN LATERAL (
 ) AS cost_t ON TRUE
 WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
 """,
-        (batch_id, ROOT_JOB_GROUP_ID),
+        (batch_id, ROOT_JOB_GROUP_ID, batch_id, ROOT_JOB_GROUP_ID),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -1917,6 +1911,8 @@ WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted;
 
 async def _get_job_group(app, batch_id: int, job_group_id: int) -> GetJobGroupResponseV1Alpha:
     db: Database = app['db']
+
+    is_root_job_group = job_group_id == ROOT_JOB_GROUP_ID
 
     record = await db.select_and_fetchone(
         """
@@ -1952,9 +1948,9 @@ LEFT JOIN LATERAL (
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 ) AS cost_t ON TRUE
-WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR job_groups.job_group_id = %s);
+WHERE job_groups.batch_id = %s AND job_groups.job_group_id = %s AND NOT deleted AND (batch_updates.committed OR %s);
 """,
-        (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
+        (batch_id, job_group_id, is_root_job_group),
     )
     if not record:
         raise web.HTTPNotFound()
@@ -2081,18 +2077,14 @@ async def commit_update(request: web.Request, userdata):
 SELECT start_job_id, start_job_group_id, cancelled_t.cancelled IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN batch_updates ON batches.id = batch_updates.batch_id
-LEFT JOIN LATERAL (
+LEFT JOIN (
   SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE batches.id = job_group_self_and_ancestors.batch_id AND
-    job_group_self_and_ancestors.job_group_id = %s
-) AS cancelled_t ON TRUE
+  FROM job_groups_cancelled
+  WHERE batch_id = %s AND job_group_id = %s
+) AS cancelled_t
 WHERE batches.user = %s AND batches.id = %s AND batch_updates.update_id = %s AND NOT deleted;
 """,
-        (ROOT_JOB_GROUP_ID, user, batch_id, update_id),
+        (batch_id, ROOT_JOB_GROUP_ID, user, batch_id, update_id),
     )
     if not record:
         raise web.HTTPNotFound()
