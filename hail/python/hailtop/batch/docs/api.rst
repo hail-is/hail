@@ -127,3 +127,4 @@ SAIGE
     config.CheckpointConfigMixin
     config.JobConfigMixin
     steps.SparseGRMStep
+    saige.SaigeConfig

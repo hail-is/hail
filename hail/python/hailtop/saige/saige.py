@@ -19,14 +19,30 @@ from .variant_chunk import VariantChunk
 
 @dataclass
 class SaigeConfig:
-    version: int = 1
+    """Class for specifying the configuration properties for all SAIGE jobs.
+
+    Examples
+    --------
+
+    Create a custom SaigeConfig that sets the configuration properties for the Sparse GRM step.
+
+    >>> saige_config = SaigeConfig(name='my-saige-analysis', attributes={'pop': 'eur'},
+    ...                            sparse_grm=SparseGRMStep(cpu=4, memory='highmem', relatedness_cutoff=0.05))
+    """
+
     name: Optional[str] = 'saige'
+    """Name to give to the batch if it is not already created by the user."""
+
     attributes: Optional[Dict[str, str]] = field(default_factory=collections.defaultdict, kw_only=True)
+    """Attributes to give to the batch if it is not already created by the user."""
+
     sparse_grm: SparseGRMStep = field(default_factory=SparseGRMStep, kw_only=True)
-    step1_null_glmm: Step1NullGlmmStep = field(default_factory=Step1NullGlmmStep, kw_only=True)
-    step2_spa: Step2SPAStep = field(default_factory=Step2SPAStep, kw_only=True)
-    compile_phenotype_results: CompilePhenotypeResultsStep = field(default_factory=CompilePhenotypeResultsStep, kw_only=True)
-    compile_all_results: CompileAllResultsStep = field(default_factory=CompileAllResultsStep, kw_only=True)
+    """Configuration for running the Sparse GRM job."""
+
+    # step1_null_glmm: Step1NullGlmmStep = field(default_factory=Step1NullGlmmStep, kw_only=True)
+    # step2_spa: Step2SPAStep = field(default_factory=Step2SPAStep, kw_only=True)
+    # compile_phenotype_results: CompilePhenotypeResultsStep = field(default_factory=CompilePhenotypeResultsStep, kw_only=True)
+    # compile_all_results: CompileAllResultsStep = field(default_factory=CompileAllResultsStep, kw_only=True)
 
 
 async def async_saige(
