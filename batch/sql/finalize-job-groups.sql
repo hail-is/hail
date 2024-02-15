@@ -727,10 +727,6 @@ ALTER TABLE job_group_inst_coll_cancellable_resources MODIFY COLUMN `job_group_i
 ALTER TABLE job_group_inst_coll_cancellable_resources ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
 ALTER TABLE job_group_inst_coll_cancellable_resources DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
 
-ALTER TABLE aggregated_job_group_resources_v2 MODIFY COLUMN `job_group_id` INT NOT NULL;
-ALTER TABLE aggregated_job_group_resources_v2 ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
-ALTER TABLE aggregated_job_group_resources_v2 DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
-
 ALTER TABLE aggregated_job_group_resources_v3 MODIFY COLUMN `job_group_id` INT NOT NULL;
 ALTER TABLE aggregated_job_group_resources_v3 ADD FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE, ALGORITHM=INPLACE;
 ALTER TABLE aggregated_job_group_resources_v3 DROP PRIMARY KEY, ADD PRIMARY KEY (`batch_id`, `job_group_id`, `resource_id`, `token`), ALGORITHM=INPLACE, LOCK=NONE;
