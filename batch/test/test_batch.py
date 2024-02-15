@@ -2060,7 +2060,7 @@ def test_cancellation_does_not_propogate_up(client: BatchClient):
 def test_maximum_nesting_level(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
-    for _ in range(MAX_JOB_GROUP_NESTING_DEPTH - 1):
+    for _ in range(MAX_JOB_GROUP_NESTING_DEPTH + 1):
         jg = jg.create_job_group()
     with pytest.raises(httpx.ClientResponseError, match='job group exceeded the maximum level of nesting'):
         b.submit()
