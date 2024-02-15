@@ -392,10 +392,11 @@ BEGIN
       n_running_cancellable_jobs = n_running_cancellable_jobs - @jg_n_running_cancellable_jobs,
       running_cancellable_cores_mcpu = running_cancellable_cores_mcpu - @jg_running_cancellable_cores_mcpu;
 
-    # deleting all children rows from job_group_inst_coll_cancellable_resources is not performant with many children job groups
-    # we use a deletion loop on the driver instead to clean up the table
+    # Group cancellation, like any operation, must be O(1) time. The number of descendant groups is unbounded,
+    # so we neither delete rows from job_group_inst_coll_cancellable_resources nor update job_groups_cancelled.
+    # The former is handled by main.py. In the latter case, group cancellation state is implicitly defined by an
+    # upwards traversal on the ancestor tree.
 
-    # inserting all cancelled job groups is not performant with many children job groups
     INSERT INTO job_groups_cancelled (id, job_group_id)
     VALUES (in_batch_id, in_job_group_id);
   END IF;
@@ -465,7 +466,8 @@ BEGIN
           n_ready_jobs = n_ready_jobs + @n_ready_jobs,
           ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
 
-        # deletion of the staging table is slow with lots of job groups - cleanup will happen on the driver in a loop
+        # Committing a batch update, like any operation, must be O(1) time. The number of descendant groups is unbounded,
+        # so we do not delete rows from job_groups_inst_coll_staging. Instead, the deletion of rows is handled by main.py.
 
         IF in_update_id != 1 THEN
           SELECT start_job_id INTO cur_update_start_job_id FROM batch_updates WHERE batch_id = in_batch_id AND update_id = in_update_id;
@@ -576,20 +578,6 @@ BEGIN
     SET state = new_state, status = new_status, attempt_id = in_attempt_id
     WHERE batch_id = in_batch_id AND job_id = in_job_id;
 
-    SELECT n_completed INTO cur_batch_n_completed
-    FROM job_groups_n_jobs_in_complete_states
-    WHERE id = in_batch_id AND job_group_id = 0
-    FOR UPDATE;
-
-    # Grabbing an exclusive lock on batches here could deadlock,
-    # but this IF should only execute for the last job
-    IF cur_batch_n_completed + 1 = total_jobs_in_batch THEN
-      UPDATE batches
-      SET time_completed = new_timestamp,
-          `state` = 'complete'
-      WHERE id = in_batch_id;
-    END IF;
-
     UPDATE job_groups_n_jobs_in_complete_states
     INNER JOIN (
       SELECT batch_id, ancestor_id
@@ -601,6 +589,19 @@ BEGIN
         n_cancelled = n_cancelled + (new_state = 'Cancelled'),
         n_failed = n_failed + (new_state = 'Error' OR new_state = 'Failed'),
         n_succeeded = n_succeeded + (new_state != 'Cancelled' AND new_state != 'Error' AND new_state != 'Failed');
+
+    SELECT n_completed INTO cur_batch_n_completed
+    FROM job_groups_n_jobs_in_complete_states
+    WHERE id = in_batch_id AND job_group_id = 0;
+
+    # Grabbing an exclusive lock on batches here could deadlock,
+    # but this IF should only execute for the last job
+    IF cur_batch_n_completed = total_jobs_in_batch THEN
+      UPDATE batches
+      SET time_completed = new_timestamp,
+          `state` = 'complete'
+      WHERE id = in_batch_id;
+    END IF;
 
     CALL mark_job_group_complete(in_batch_id, cur_job_group_id, new_timestamp);
 
