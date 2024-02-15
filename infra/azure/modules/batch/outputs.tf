@@ -1,9 +1,9 @@
 output batch_logs_storage_uri {
-  value = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.batch_logs.name}"
+  value = "https://${azurerm_storage_account.batch.name}.blob.core.windows.net/${azurerm_storage_container.batch_logs.name}"
 }
 
 output query_storage_uri {
-  value = "hail-az://${azurerm_storage_account.batch.name}/${azurerm_storage_container.query.name}"
+  value = "https://${azurerm_storage_account.batch.name}.blob.core.windows.net/${azurerm_storage_container.query.name}"
 }
 
 output test_storage_container {
@@ -11,7 +11,7 @@ output test_storage_container {
 }
 
 output test_storage_uri {
-  value = "hail-az://${azurerm_storage_account.test.name}/${azurerm_storage_container.test.name}"
+  value = "https://${azurerm_storage_account.test.name}.blob.core.windows.net/${azurerm_storage_container.test.name}"
 }
 
 output ci_principal_id {

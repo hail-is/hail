@@ -25,7 +25,10 @@ class TestAnnotationDB:
                 'annotation_db': {'key_properties': ['unique']},
                 'versions': [
                     {
-                        'url': {"aws": {"eu": fname, "us": fname}, "gcp": {"eu": fname, "us": fname}},
+                        'url': {
+                            "aws": {"eu": fname, "us": fname},
+                            "gcp": {"europe-west1": fname, "us-central1": fname},
+                        },
                         'version': 'v1',
                         'reference_genome': 'GRCh37',
                     }
@@ -37,7 +40,10 @@ class TestAnnotationDB:
                 'annotation_db': {'key_properties': []},
                 'versions': [
                     {
-                        'url': {"aws": {"eu": fname, "us": fname}, "gcp": {"eu": fname, "us": fname}},
+                        'url': {
+                            "aws": {"eu": fname, "us": fname},
+                            "gcp": {"europe-west1": fname, "us-central1": fname},
+                        },
                         'version': 'v1',
                         'reference_genome': 'GRCh37',
                     }
@@ -50,7 +56,7 @@ class TestAnnotationDB:
         tempdir_manager.__exit__(None, None, None)
 
     def test_uniqueness(self, db_json):
-        db = hl.experimental.DB(region='us', cloud='gcp', config=db_json)
+        db = hl.experimental.DB(region='us-central1', cloud='gcp', config=db_json)
         t = hl.utils.genomic_range_table(10)
         t = db.annotate_rows_db(t, 'unique_dataset', 'nonunique_dataset')
         assert t.unique_dataset.dtype == hl.dtype('struct{annotation: str}')

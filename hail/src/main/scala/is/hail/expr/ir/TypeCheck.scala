@@ -74,7 +74,7 @@ object TypeCheck {
             s"child type: ${v.typ.parsableString()}\n  " +
             s"cast type:  ${typ.parsableString()}")
       case CastRename(v, typ) =>
-        if (!v.typ.canCastTo(typ))
+        if (!v.typ.isIsomorphicTo(typ))
           throw new RuntimeException(s"invalid cast:\n  " +
             s"child type: ${v.typ.parsableString()}\n  " +
             s"cast type:  ${typ.parsableString()}")

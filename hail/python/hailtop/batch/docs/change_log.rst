@@ -15,6 +15,11 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.128**
+
+- (`#14224 <https://github.com/hail-is/hail/pull/14224>`__) `hb.Batch` now accepts a
+  `default_regions` argument which is the default for all jobs in the Batch.
+
 **Version 0.2.124**
 
 - (`#13681 <https://github.com/hail-is/hail/pull/13681>`__) Fix `hailctl batch init` and `hailctl auth login` for
