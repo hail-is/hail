@@ -97,7 +97,7 @@ async def async_saige(
             null_glmms = await bounded_gather(
                 *[
                     functools.partial(
-                        config.step1_null_glmm.call,
+                        config.step1_null_glmm._call,
                         fs,
                         b,
                         input_bfile=input_null_model_plink_data,
@@ -114,7 +114,7 @@ async def async_saige(
                 parallelism=parallelism,
             )
 
-            step2_spa_fs = [(phenotype, chunk, functools.partial(config.step2_spa.call,
+            step2_spa_fs = [(phenotype, chunk, functools.partial(config.step2_spa._call,
                                                                  fs,
                                                                  b,
                                                                  mt_path=mt_path,
@@ -141,7 +141,7 @@ async def async_saige(
             compiled_results = await bounded_gather(
                 *[
                     functools.partial(
-                        config.compile_phenotype_results.call,
+                        config.compile_phenotype_results._call,
                         fs=fs,
                         b=b,
                         phenotype=phenotype,
@@ -155,7 +155,7 @@ async def async_saige(
                 parallelism=parallelism,
             )
 
-            await config.compile_all_results.call(
+            await config.compile_all_results._call(
                 fs,
                 b,
                 results_path=config.compile_phenotype_results.results_path_glob(temp_dir, checkpoint_dir),

@@ -158,7 +158,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     def attributes(self, analysis_type: SaigeAnalysisType, phenotype: Phenotype) -> Optional[Dict]:
         return {'analysis_type': analysis_type.value, 'trait_type': phenotype.phenotype_type.value}
 
-    async def call(
+    async def _call(
         self,
         fs: AsyncFS,
         b: hb.Batch,
@@ -482,7 +482,7 @@ step2_SPAtests.R \\
 
         return command
 
-    async def call(
+    async def _call(
         self,
         fs: AsyncFS,
         b: hb.Batch,
@@ -582,7 +582,7 @@ EOF
 python3 compile_results.py
 '''
 
-    async def call(
+    async def _call(
         self,
         fs: AsyncFS,
         b: hb.Batch,
@@ -639,7 +639,7 @@ EOF
 python3 compile_results.py
 '''
 
-    async def call(
+    async def _call(
         self,
         fs: AsyncFS,
         b: hb.Batch,
