@@ -11,7 +11,7 @@ CHECK_SERVICES_MODULES := $(patsubst %, check-%, $(SERVICES_MODULES))
 SPECIAL_IMAGES := hail-ubuntu batch-worker letsencrypt
 
 HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetics-$(img))
-CI_IMAGES = ci-utils ci-buildkit base hail-run
+CI_IMAGES = ci-utils hail-buildkit base hail-run
 PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
 HAILTOP_VERSION := hail/python/hailtop/hail_version
