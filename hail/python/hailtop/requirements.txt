@@ -12,8 +12,8 @@ google-auth-oauthlib>=0.5.2,<1
 humanize>=1.0.0,<2
 janus>=0.6,<1.1
 nest_asyncio>=1.5.8,<2
-# <3.9.12: https://github.com/hail-is/hail/issues/14299
-orjson>=3.6.4,<3.9.12
+# <3.9.11: https://github.com/hail-is/hail/issues/14299
+orjson>=3.6.4,<3.9.11
 protobuf==3.20.2
 rich>=12.6.0,<13
 typer>=0.9.0,<1
