@@ -11,10 +11,48 @@ def _partition_samples(
     relatedness_threshold: Union[int, float, NumericExpression] = 0.025,
     divergence_threshold: Union[int, float, NumericExpression] = 0.025,
 ):
-    # https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4836868/#APP2title
-    # Returns the KING-robust, between-family kinship estimates for all sample pairs
+    """
+    Identify a diverse subset of unrelated individuals that is representative
+    of all ancestries in the sample using the PC-AiR algorithm for partitioning.
+
+    Notes
+    -----
+    We say that two samples are **related** if their kinship coefficient is greater than the relatedness threshold.
+    Otherwise, they are **unrelated**.
+
+    This method estimates the kinship coefficient between all samples
+    using the `KING-robust, between-family kinship coefficient <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3025716/>`_
+    estimator.
+
+    This method returns an unrelated set and a related set.
+    The intersection of these sets is empty, and the union of these sets is the set of all samples.
+    Thus, the unrelated set and the related set are a **partition** of the set of all samples.
+
+    No two samples in the unrelated set are related.
+
+    The partitioning algorithm is documented in the
+    `PC-AiR paper <https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4836868/#APP2title>`_.
+
+    Parameters
+    ----------
+    genotypes : :class:`.CallExpression`
+        A call expression representing the genotype calls.
+    relatedness_threshold : :obj:`int` or :obj:`float` or :class:`.NumericExpression`
+        The relatedness threshold. The default is 0.025.
+    divergence_threshold : :obj:`int` or :obj:`float` or :class:`.NumericExpression`
+        The divergence threshold. The default is 0.025.
+
+    Returns
+    -------
+    :obj:`set` of :class:`.Struct`
+        The keys of the samples in the unrelated set.
+    :obj:`set` of :class:`.Struct`
+        The keys of the samples in the related set.
+    """
+    # The variable names in this method are based on the notation in the PC-AiR paper.
     # TODO: The paper uses the within-family estimate for ancestral divergence
     # TODO: The paper suggests using the within-family estimate for relatedness as well
+    # king returns the KING-robust, between-family kinship estimates for all sample pairs
     pairs: MatrixTable = king(genotypes)
     pairs = pairs.cache()
 
