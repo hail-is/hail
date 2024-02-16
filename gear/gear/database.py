@@ -129,7 +129,6 @@ def get_database_ssl_context(sql_config: SQLConfig) -> ssl.SSLContext:
     return database_ssl_context
 
 
-@retry_transient_mysql_errors
 async def create_database_pool(
     config_file: Optional[str] = None, autocommit: bool = True, maxsize: int = 10
 ) -> aiomysql.utils._PoolContextManager:
@@ -304,6 +303,7 @@ class Database:
         self.connection_release_task_manager: Optional[BackgroundTaskManager] = None
         self.async_exit_stack = contextlib.AsyncExitStack()
 
+    @retry_transient_mysql_errors
     async def async_init(self, config_file=None, maxsize=10):
         x = await create_database_pool(config_file=config_file, autocommit=False, maxsize=maxsize)
         self.pool = await self.async_exit_stack.enter_async_context(x)
