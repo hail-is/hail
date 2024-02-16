@@ -112,19 +112,3 @@ Utilities
     docker.build_python_image
     utils.concatenate
     utils.plink_merge
-
-
-SAIGE
-~~~~~
-
-.. currentmodule:: hailtop.saige
-
-.. autosummary::
-    :toctree: api/saige/
-    :nosignatures:
-    :template: class.rst
-
-    config.CheckpointConfigMixin
-    config.JobConfigMixin
-    steps.SparseGRMStep
-    saige.SaigeConfig

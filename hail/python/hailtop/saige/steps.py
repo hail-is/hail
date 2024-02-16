@@ -45,7 +45,10 @@ def bool_upper_str(val: bool) -> str:
 
 @dataclass
 class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
-    """Define how the createSparseGRM.R step is executed in a SAIGE pipeline.
+    """Step for computing the Sparse GRM in a SAIGE pipeline.
+
+    Configures a Hail Batch job to run the SAIGE binary `createSparseGRM.R`
+    where the input is a binary PLINK file..
 
     This class is used as an input to SaigeConfig in order to specify
     how the Sparse GRM step is executed in SAIGE.
@@ -160,6 +163,8 @@ createSparseGRM.R \\
 
 @dataclass
 class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
+    """Step for computing the null model with SAIGE Step 1."""
+
     inv_normalize: Optional[bool] = False
     """Pass-through argument for "--invNormalize". Only for quantitative. Whether to perform the inverse normalization for the phenotype"""
 
@@ -469,41 +474,147 @@ step1_fitNULLGLMM.R \\
 
 @dataclass
 class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
+    """Step for running SAIGE Step 2 Saddle Point Approximation."""
+
+    is_imputed: Optional[bool] = False
+    """Pass-through argument for "--is_imputed_data". Whether the dosages/genotypes imputed 
+    are imputed. If True, the program will output the imputed info score."""
+
     min_maf: Optional[float] = 0.0
+    """Pass-through argument for "--minMAF". Minimum minor allele frequency for markers to be 
+    tested. The higher threshold between minMAC and minMAF will be used."""
+
     min_mac: Optional[int] = 5
+    """Pass-through argument for "--minMAC". Minimum minor allele count for markers to be tested. 
+    The higher threshold between minMAC and minMAF will be used."""
+
     min_group_mac_in_burden_test: Optional[int] = 5
+    """Pass-through argument for "--minGroupMAC_in_BurdenTest". Only applied when only Burden 
+    tests are performed (r.corr=1). Minimum minor allele count in the Burden test for the 
+    pseudo marker."""
+
     min_info: Optional[float] = 0.0
+    """Pass-through argument for "--minInfo". Minimum Info for markers to be tested if 
+    is_imputed_data=True."""
+
     max_missing: Optional[float] = 0.15
+    """Pass-through argument for "--maxMissing". Maximum missing rate for markers 
+    to be tested."""
+
     impute_method: Optional[str] = 'minor'
-    loco: Optional[bool] = False
+    """Pass-through argument for "--impute_method". Imputation method for missing dosages.
+     best_guess, mean or minor. best_guess: missing dosages imputed as best guessed genotyes 
+     round(2*allele frequency). mean: missing dosages are imputed as mean (2*allele frequency). 
+     minor: missing dosages are imputed as minor allele homozygotes."""
+
+    loco: Optional[bool] = False  # FIXME: do we want this?
+    """Pass-through argument for "--LOCO". Whether to apply the leave-one-chromosome-out option. 
+    If TRUE, --chrom is required."""
+
+    chrom: Optional[str] = None
+    """Pass-through argument for "--chrom". If `loco` is specified, `chrom` is required. Also required 
+    for VCF/BCF/SAV input."""
+
     markers_per_chunk: Optional[int] = 10000
+    """Pass-through argument for "--markers_per_chunk". Number of markers to be tested 
+    and output in each chunk in the single-variant assoc tests."""
+
     groups_per_chunk: Optional[int] = 100
+    """Pass-through argument for "--groups_per_chunk". Number of groups/sets to be read in 
+    and tested in each chunk in the set-based assoc tests."""
+
     output_more_details: Optional[bool] = False
+    """Pass-through argument for "--is_output_moreDetails". Whether to output heterozygous 
+    and homozygous counts in cases and controls. By default, FALSE. If True, the columns 
+    homN_Allele2_cases, hetN_Allelelogical2_cases, homN_Allele2_ctrls, hetN_Allele2_ctrls 
+    will be output."""
+
     max_maf_in_group_test: Optional[List[float]] = field(default_factory=lambda: [0.0001, 0.001, 0.01])
+    """Pass-through argument for "--maxMAF_in_groupTest". Max MAF for markers tested in 
+    group test."""
+
     max_mac_in_group_test: Optional[List[int]] = field(default_factory=lambda: [0])
+    """Pass-through argument for "--maxMAC_in_groupTest". Max MAC for markers tested 
+    in group test."""
+
     annotation_in_group_test: Optional[str] = 'lof,missense;lof,missense;lof;synonymous'
+    """Pass-through argument for "--annotation_in_groupTest". Annotations of markers to be
+    tested in the set-based tests seperated by comma. using ; to combine multiple annotations
+    in the same test, e.g. lof,missense;lof,missense;lof;synonymous will test lof variants 
+    only, missense+lof variants, and missense+lof+synonymous variants."""
+
     relatedness_cutoff: Optional[float] = 0.0
+    """Pass-through argument for "--relatednessCutoff". Threshold (minimum relatedness coefficient)
+     to treat two samples as unrelated when the sparse GRM is used."""
+
     x_par_region: Optional[List[str]] = None
+    """Pass-through argument for "--X_PARregion". Ranges of (pseudoautosomal) PAR region 
+    on chromosome X, which are seperated by comma and in the format start:end. By default: 
+    '60001-2699520,154931044-155260560' in the UCSC build hg19. For males, there are two 
+    X alleles in the PAR region, so PAR regions are treated the same as autosomes. In the 
+    NON-PAR regions (outside the specified PAR regions on chromosome X), for males, there 
+    is only one X allele. If is_rewrite_XnonPAR_forMales=TRUE, genotypes/dosages of all 
+    variants in the NON-PAR regions on chromosome X will be mutliplied by 2."""
+
     is_rewrite_x_nonpar_for_males: Optional[bool] = False
+    """Pass-through argument for "--is_rewrite_XnonPAR_forMales". Whether to rewrite gentoypes or dosages of variants in the NON-PAR regions on chromosome X for males (multiply by 2). Note, only use is_rewrite_XnonPAR_forMales=TRUE when the specified VCF or Bgen file only has variants on chromosome X. When is_rewrite_XnonPAR_forMales=TRUE, the program does not check the chromosome value by assuming all variants are on chromosome X."""
+
     mac_cutoff_to_collapse_ultra_rare: Optional[int] = 10
+    """Pass-through argument for "--MACCutoff_to_CollapseUltraRare". MAC cutoff to collpase the ultra rare variants (<= MACCutoff_to_CollapseUltraRare) in the set-based association tests."""
+
     cate_var_ratio_min_mac_vec_exclude: Optional[List[float]] = field(default_factory=lambda: [10, 20.5])
+    """Pass-through argument for "--cateVarRatioMinMACVecExclude". Lower bound for MAC categories. The length equals to the number of MAC categories for variance ratio estimation."""
+
     cate_var_ratio_max_mac_vec_include: Optional[List[float]] = field(default_factory=lambda: [20.5])
+    """Pass-through argument for "--cateVarRatioMaxMACVecInclude". Higher bound for MAC categories. The length equals to the number of MAC categories for variance ratio estimation minus 1."""
+
     weights_beta: Optional[List[float]] = field(default_factory=lambda: [1, 25])
+    """Pass-through argument for "--weights.beta". Parameters for the beta distribution to weight genetic markers in gene-based tests."""
+
     r_corr: Optional[float] = 0.0
+    """Pass-through argument for "--r.corr". If r.corr = 1, only Burden tests will be performed. If r.corr = 0, SKAT-O tests will be performed and results for Burden tests and SKAT tests will be output too."""
+
     markers_per_chunk_in_group_test: Optional[int] = 100
+    """Pass-through argument for "--markers_per_chunk_in_groupTest". Number of markers in each chunk when calculating the variance covariance matrix in the set/group-based tests."""
+
     condition: Optional[List[str]] = None
+    """Pass-through argument for "--condition". For conditional analysis. Variant ids are in the format chr:pos_ref/alt and seperated by by comma. e.g.chr3:101651171_C/T,chr3:101651186_G/A."""
+
     weights_for_condition: Optional[List[float]] = None
+    """Pass-through argument for "--weights_for_condition". weights for conditioning markers for gene- or region-based tests. The length equals to the number of conditioning markers, delimited by comma. e.g. '1,2,3. If not specified, the default weights will be generated based on beta(MAF, 1, 25). Use `weights_beta` to change the parameters for the Beta distribution."""
+
     spa_cutoff: Optional[float] = 2.0
+    """Pass-through argument for "--SPAcutoff". If the test statistic lies within the standard deviation cutoff of the mean, p-value based on traditional score test is returned."""
+
     dosage_zerod_cutoff: Optional[float] = 0.2
+    """Pass-through argument for "--dosage_zerod_cutoff". If `is_imputed_data` = True, for variants with MAC <= dosage_zerod_MAC_cutoff, dosages <= dosageZerodCutoff with be set to 0."""
+
     dosage_zerod_mac_cutoff: Optional[int] = 10
+    """Pass-through argument for "--dosage_zerod_MAC_cutoff". If `is_imputed_data` = True, For variants with MAC <= dosage_zerod_MAC_cutoff, dosages <= dosageZerodCutoff with be set to 0."""
+
     is_single_in_group_test: Optional[bool] = True
+    """Pass-through argument for "--is_single_in_groupTest". Whether to output single-variant assoc test results when perform group tests. Note, single-variant assoc test results will always be output when SKAT and SKAT-O tests are conducted with --r.corr=0. This parameter should only be used when only Burden tests are condcuted with --r.corr=1."""
+
     is_no_weight_in_group_test: Optional[bool] = False
+    """Pass-through argument for "--is_no_weight_in_groupTest". Whether no weights are used in group test. If False, weights will be calculated based on MAF from the Beta distribution with parameters `weights_beta` or weights will be extracted from the group file if available"""
+
     is_output_marker_list_in_group_test: Optional[bool] = True
+    """Pass-through argument for "--is_output_markerList_in_groupTest". Whether to output the marker lists included in the set-based tests for each mask."""
+
     is_firth_beta: Optional[bool] = False
+    """Pass-through argument for "--is_Firth_beta". Whether to estimate effect sizes using approx Firth, only for binary traits."""
+
     p_cutoff_for_firth: Optional[float] = 0.01
+    """Pass-through argument for "--pCutoffforFirth". p-value cutoff to use approx Firth to estiamte the effect sizes. Only for binary traits. The effect sizes of markers with p-value <= pCutoffforFirth will be estimated using approx Firth."""
+
     is_fast_test: Optional[bool] = None
+    """Pass-through argument for "--is_fastTest". Whether to use the fast mode for tests."""
+
     max_mac_for_er: Optional[int] = 4
+    """Pass-through argument for "--max_MAC_for_ER". p-values of genetic variants with MAC <= max_MAC_for_ER will be calculated via efficient resampling."""
+
     mkl_off: bool = False
+    """Turn off MKL."""
 
     def name(self, phenotype: Phenotype, chunk: VariantChunk) -> str:
         return f'step2-spa-{phenotype.name}-{chunk.idx}'
@@ -568,6 +679,12 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             ]
             index_cmd = ''
 
+        # FIXME
+        """
+        --sampleFile_male=SAMPLEFILE_MALE
+		Path to the file containing one column for IDs of MALE samples in the bgen or vcf file with NO header.Order does not matter
+		"""
+
         if analysis_type == SaigeAnalysisType.GENE:
             assert sparse_grm is not None and group_annotations is not None
             assert chunk.groups is not None
@@ -616,6 +733,8 @@ python3 read_from_mt.py
             saige_options.append(f'--impute_method={self.impute_method}')
         if self.loco is not None:
             saige_options.append(f'--LOCO={bool_upper_str(self.loco)}')
+        if self.chrom is not None:
+            saige_options.append(f'--chrom={self.chrom}')
         if self.markers_per_chunk is not None:
             saige_options.append(f'--markers_per_chunk={self.markers_per_chunk}')
         if self.groups_per_chunk is not None:
@@ -767,6 +886,8 @@ step2_SPAtests.R \\
 
 @dataclass
 class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
+    """Step for compiling the results for a single phenotype."""
+
     def name(self, phenotype: Phenotype) -> str:
         return f'compile-results-{phenotype.name}'
 
@@ -837,7 +958,10 @@ python3 compile_results.py
 
 @dataclass
 class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
+    """Step for compiling the results across multiple phenotypes into a Hail Table."""
+
     overwrite: bool = True
+    """Overwrite any existing files at the output path."""
 
     def name(self) -> str:
         return 'compile-all-results'
