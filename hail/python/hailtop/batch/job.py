@@ -1145,21 +1145,22 @@ class PythonJob(Job):
         except TypeError as e:
             raise BatchException(f'Cannot call {unapplied.__name__} with the supplied arguments') from e
 
-        def handle_arg(r):
-            if r._source != self:
+        def handle_arg(r: _resource.Resource) -> None:
+            source = r.source()
+            if source != self:
                 self._add_inputs(r)
-                if r._source is not None:
-                    if r not in r._source._valid:
-                        name = r._source._resources_inverse[r]
+                if source is not None:
+                    if r not in source._valid:
+                        name = source._resources_inverse[r]
                         raise BatchException(f"undefined resource '{name}'\n")
-                    self._dependencies.add(r._source)
-                    r._source._add_internal_outputs(r)
+                    self._dependencies.add(source)
+                    source._add_internal_outputs(r)
             else:
                 _add_resource_to_set(self._valid, r)
 
             self._mentioned.add(r)
 
-        def handle_args(r):
+        def handle_args(r: Union[UnpreparedArg, List[UnpreparedArg], Dict[Any, UnpreparedArg]]) -> None:
             if isinstance(r, _resource.Resource):
                 handle_arg(r)
             elif isinstance(r, (list, tuple)):

@@ -65,7 +65,7 @@ U = TypeVar('U')  # pylint: disable=invalid-name
 P = ParamSpec("P")
 
 
-async def the_empty_async_generator() -> AsyncGenerator[T, None]:
+async def the_empty_async_generator() -> AsyncGenerator[Any, None]:
     if False:  # pylint: disable=using-constant-test
         yield  # The appearance of the keyword `yield` forces Python to make this function into a generator
 
