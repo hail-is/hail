@@ -3380,9 +3380,7 @@ steps:
                               docker://{{ hailgenetics_vep_grch37_85_image.image }} \
                               docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                               /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                              /io/www.tar.gz \
-                              {{ global.gcp_project }} \
-                              /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
+                              /io/www.tar.gz
     inputs:
       - from: /hail_version
         to: /io/hail_version
