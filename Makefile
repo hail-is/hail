@@ -44,6 +44,9 @@ check-hail-fast:
 	ruff format hail --diff
 	$(PYTHON) -m pyright hail/python/hailtop
 
+	ruff check hail/python/test/hailtop/batch
+	$(PYTHON) -m pyright hail/python/test/hailtop/batch
+
 .PHONY: pylint-hailtop
 pylint-hailtop:
 	# pylint on hail is still a work in progress
