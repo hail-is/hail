@@ -42,7 +42,9 @@ def sparkVersion: T[String] = T.input {
 }
 
 def debugMode: T[Boolean] = T.input {
-  !T.ctx().env.contains("HAIL_RELEASE_MODE")
+  val isDebug = !T.ctx().env.contains("HAIL_RELEASE_MODE")
+  T.log.info(s"Building in ${if (isDebug) "debug" else "release"} mode")
+  isDebug
 }
 
 def debugOrRelease: Task[String] = T.task {
