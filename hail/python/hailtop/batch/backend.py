@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any, TypeVar, Generic, List, Union, ClassVar
+from typing import Optional, Dict, Any, TypeVar, Generic, List, ClassVar
 import abc
 import asyncio
 import collections
@@ -265,7 +265,7 @@ class LocalBackend(Backend[None]):
             return symlinks
 
         def transfer_dicts_for_resource_file(
-            res_file: Union[resource.ResourceFile, resource.PythonResult],
+            res_file: resource.SingleResource,
         ) -> List[dict]:
             if isinstance(res_file, resource.InputResourceFile):
                 source = res_file._input_path

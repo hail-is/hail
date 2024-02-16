@@ -1,5 +1,5 @@
 import abc
-from typing import Optional, Set, cast, Union
+from typing import Optional, Set, cast, Dict, Iterable
 
 from . import job  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -7,7 +7,10 @@ from .exceptions import BatchException
 
 class Resource:
     """
-    Abstract class for resources.
+    One or more abstract data which are transmitted, via a filesystem, between two jobs.
+
+    A :class:`.SingleResource` is realized as a single file in the filesystem whereas a :class:`.ResourceGroup` is
+    realized as one or more files.
     """
 
     _uid: str
@@ -24,8 +27,46 @@ class Resource:
     def _add_output_path(self, path: str) -> None:
         pass
 
+    @abc.abstractmethod
+    def get_resource_group(self) -> Optional['ResourceGroup']:
+        """If this resource is a group or is a member thereof, return that group."""
+        return None
 
-class ResourceFile(Resource, str):
+    @abc.abstractmethod
+    def component_resources(self) -> Iterable['SingleResource']:
+        """A list of the :class:`.SingleResource`s which comprise this possible composite resource.
+
+        A :class:`.JobResourceFile`'s `component_resources` is just itself. In contrast, a :class:`.ResourceGroup`'s
+        `component_resources` contains one resource for each group element.
+        """
+        pass
+
+    @abc.abstractmethod
+    def bonded_resources(self) -> Iterable['SingleResource']:
+        """Return the minimum set of resources that necessarily are transmitted with this resource.
+
+        For example, a :class:`.JobResourceFile` created by:
+
+            j.command(f'echo "hello" > {j.ofile}')  # doctest: +SKIP
+
+        can be transmitted alone and therefore its :meth:`.bonded_resources` is a size one list containing itself.
+
+        In contrast, a resouce which is a component of a group of resources must be transmitted with the group. This resource's
+        :meth:`.bonded_resources` includes itself and all other resources in the group.
+
+        As a special case, a :class:`.ResourceGroup`'s :meth:`.bonded_resources` is the same as its :meth:`.component_resources`.
+        """
+        pass
+
+
+class SingleResource(Resource):
+    """A Resource that is not a group, i.e., actual transmissible data."""
+
+    def component_resources(self) -> Iterable['SingleResource']:
+        return [self]
+
+
+class ResourceFile(SingleResource, str):
     """
     Class representing a single file resource. There exist two subclasses:
     :class:`.InputResourceFile` and :class:`.JobResourceFile`.
@@ -66,11 +107,13 @@ class ResourceFile(Resource, str):
     def _add_resource_group(self, rg: 'ResourceGroup') -> None:
         self._resource_group = rg
 
-    def _has_resource_group(self) -> bool:
-        return self._resource_group is not None
-
-    def _get_resource_group(self) -> Optional['ResourceGroup']:
+    def get_resource_group(self) -> Optional['ResourceGroup']:
         return self._resource_group
+
+    def bonded_resources(self) -> Iterable['SingleResource']:
+        if group := self.get_resource_group():
+            return group.component_resources()
+        return [self]
 
     def __str__(self):
         return f'{self._uid}'  # pylint: disable=no-member
@@ -236,7 +279,7 @@ class ResourceGroup(Resource):
 
     def __init__(self, source: Optional[job.Job], root: str, **values: ResourceFile):
         self._source = source
-        self._resources = {}  # dict of name to resource uid
+        self._resources: Dict[str, ResourceFile] = {}
         self._root = root
         self._uid = ResourceGroup._new_uid()
 
@@ -264,6 +307,15 @@ class ResourceGroup(Resource):
             )
         return self._resources[item]
 
+    def get_resource_group(self) -> Optional['ResourceGroup']:
+        return self
+
+    def component_resources(self) -> Iterable['SingleResource']:
+        return self._resources.values()
+
+    def bonded_resources(self) -> Iterable['SingleResource']:
+        return self.component_resources()
+
     def __getitem__(self, item: str) -> ResourceFile:
         return self._get_resource(item)
 
@@ -282,7 +334,7 @@ class ResourceGroup(Resource):
         return f'{self._uid}'
 
 
-class PythonResult(Resource, str):
+class PythonResult(SingleResource, str):
     """
     Class representing a result from a Python job.
 
@@ -457,11 +509,17 @@ class PythonResult(Resource, str):
             self._repr = jrf
         return cast(JobResourceFile, self._repr)
 
+    def get_resource_group(self) -> Optional['ResourceGroup']:
+        return None
+
+    def component_resources(self) -> Iterable['SingleResource']:
+        return [self]
+
+    def bonded_resources(self) -> Iterable['SingleResource']:
+        return [self]
+
     def __str__(self):
         return f'{self._uid}'  # pylint: disable=no-member
 
     def __repr__(self):
         return self._uid  # pylint: disable=no-member
-
-
-ResourceType = Union[PythonResult, ResourceFile, ResourceGroup]
