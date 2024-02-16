@@ -539,12 +539,12 @@ resource "google_storage_bucket_iam_member" "testns_ci_bucket_admin" {
   member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_ci_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_ci_repo_admin" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.artifact_registry_location
-  role = "roles/artifactregistry.reader"
+  role = "roles/artifactregistry.repoAdmin"
   member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
 
