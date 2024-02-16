@@ -1,68 +1,8 @@
 from typing import Union
 
-import pandas as pd
-
 import hail as hl
 from hail import CallExpression, expr_call, king, NumericExpression, MatrixTable, expr_numeric, Struct
 from hail.typecheck import typecheck
-
-
-def _partition_samples_pandas(
-    genotype: CallExpression, relatedness_threshold: float = 0.025, divergence_threshold: float = 0.025
-):
-    matrix_table = king(genotype)
-    pair_df = matrix_table.entries().to_pandas()
-    # Rename column "s_1" to "o"
-    pair_df.rename(columns={'s_1': 'o'}, inplace=True)
-    # Reorder columns
-    pair_df = pair_df[['s', 'o', 'phi']]
-    # Drop rows where "s" and "o" are the same
-    pair_df = pair_df[pair_df['s'] != pair_df['o']]
-    samples_index = pd.Index(pair_df['s'].unique(), name='s')
-
-    eta = pair_df[pair_df['phi'] > relatedness_threshold].groupby('s', sort=False)['phi'].count()
-    eta = eta.reindex(samples_index, fill_value=0)
-
-    delta = (
-        pair_df[(pair_df['phi'] < relatedness_threshold) & (pair_df['phi'] < -divergence_threshold)]
-        .groupby('s', sort=False)['phi']
-        .count()
-    )
-    delta.reindex(samples_index, fill_value=0)
-
-    gamma = pair_df[pair_df['phi'] > relatedness_threshold].groupby('s', sort=False)['phi'].sum()
-    gamma = gamma.reindex(samples_index, fill_value=0)
-
-    unrelated = set(pair_df['s'])
-    related = set()
-
-    while True:
-        max_eta = eta.max()
-
-        if max_eta == 0:
-            return unrelated, related
-
-        fraktur_T_star = eta[eta == max_eta].index
-
-        if len(fraktur_T_star) > 1:
-            min_delta = delta[delta.index.isin(fraktur_T_star)].min()
-            fraktur_T_star = delta[(delta.index.isin(fraktur_T_star)) & (delta == min_delta)].index
-
-            if len(fraktur_T_star) > 1:
-                min_gamma = gamma[gamma.index.isin(fraktur_T_star)].min()
-                fraktur_T_star = gamma[(gamma.index.isin(fraktur_T_star)) & (gamma == min_gamma)].index[0:1]
-
-        assert len(fraktur_T_star) == 1
-        unrelated -= set(fraktur_T_star)
-        related |= set(fraktur_T_star)
-
-        selected_sample = fraktur_T_star[0]
-        affected_samples = pd.Index(
-            pair_df[(pair_df['o'] == selected_sample) & (pair_df['phi'] > relatedness_threshold)]['s']
-        )
-        eta[affected_samples] -= 1
-        eta[selected_sample] = 0
-        pass
 
 
 @typecheck(genotypes=expr_call, relatedness_threshold=expr_numeric, divergence_threshold=expr_numeric)
