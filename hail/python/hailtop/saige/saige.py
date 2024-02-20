@@ -161,6 +161,7 @@ async def async_saige(
                                                                  input_data_type=input_data_type,
                                                                  chunk=chunk,
                                                                  phenotype=phenotype,
+                                                                 phenotype_config=phenotype_config,
                                                                  group_annotations=group_annotations))
                             for phenotype, null_glmm in zip(phenotype_config.phenotypes, null_glmms)
                             for chunk in variant_chunks

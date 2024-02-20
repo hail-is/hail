@@ -908,6 +908,7 @@ step2_SPAtests.R \\
         input_data_type: SaigeInputDataType,
         chunk: VariantChunk,
         phenotype: Phenotype,
+        phenotype_config: PhenotypeConfig,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None,
         group_annotations: Optional[TextResourceFile] = None,
     ) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
@@ -944,6 +945,7 @@ step2_SPAtests.R \\
             result=results,
             sparse_grm=sparse_grm,
             group_annotations=group_annotations,
+            phenotype_config=phenotype_config,
         )
 
         j.command(command)
