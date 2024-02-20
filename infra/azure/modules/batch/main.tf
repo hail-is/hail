@@ -319,16 +319,6 @@ resource "azurerm_role_assignment" "ci_acr_role" {
   principal_id         = module.ci_sp.principal_id
 }
 
-resource "kubernetes_secret" "registry_push_credentials" {
-  metadata {
-    name = "registry-push-credentials"
-  }
-
-  data = {
-    "credentials.json" = jsonencode(module.ci_sp.credentials)
-  }
-}
-
 resource "azuread_application" "testns_ci" {
   display_name = "${var.resource_group.name}-testns-ci"
 }

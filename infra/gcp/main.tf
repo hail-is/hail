@@ -412,19 +412,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
-# This is intended to match the secret name also used for azure credentials
-# This should ultimately be replaced by using CI's own batch-managed credentials
-# in BuildImage jobs
-resource "kubernetes_secret" "registry_push_credentials" {
-  metadata {
-    name = "registry-push-credentials"
-  }
-
-  data = {
-    "credentials.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
-  }
-}
-
 module "ukbb" {
   count = var.deploy_ukbb ? 1 : 0
   source = "../k8s/ukbb"
