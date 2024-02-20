@@ -47,8 +47,7 @@ def bool_upper_str(val: bool) -> str:
 class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     """Step for computing the Sparse GRM in a SAIGE pipeline.
 
-    Configures a Hail Batch job to run the SAIGE binary `createSparseGRM.R`
-    where the input is a binary PLINK file..
+    Configures a Hail Batch job to run the SAIGE binary ``createSparseGRM.R``.
 
     This class is used as an input to SaigeConfig in order to specify
     how the Sparse GRM step is executed in SAIGE.
@@ -163,7 +162,40 @@ createSparseGRM.R \\
 
 @dataclass
 class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
-    """Step for computing the null model with SAIGE Step 1."""
+    """Step for computing the null model with SAIGE Step 1.
+
+    Configures a Hail Batch job to run the SAIGE binary ``step1_fitNULLGLMM.R``.
+
+    This class is used as an input to SaigeConfig in order to specify
+    how the Null GLMM step is executed in SAIGE.
+
+    Examples
+    --------
+
+    Use 16 cores when running the step 1 null GLMM step:
+
+    >>> null_glmm_step = Step1NullGlmmStep(cpu=16)
+
+    Set the relatedness cutoff to 0.05:
+
+    >>> null_glmm_step = Step1NullGlmmStep(relatedness_cutoff=0.05)
+
+    Notes
+    -----
+
+    You can also create a subclass of this class and redefine the
+    job name, job attributes, and output file root name.
+
+    >>> class CustomStep1NullGlmmStep(Step1NullGlmmStep):
+    ...     def name(self, phenotype: Phenotype):
+    ...         return f'my_null_glmm-{phenotype.name}'
+    ...
+    ...     def attributes(self, analysis_type: SaigeAnalysisType, phenotype: Phenotype):
+    ...         return {'my_attribute': '1', 'phenotype': phenotype.name, 'analysis_type': analysis_type.name}
+    ...
+    ...     def output_root(self, output_dir: str, phenotype: Phenotype) -> str:
+    ...         return f'{output_dir}/my-custom-path/{phenotype.name}'
+    """
 
     inv_normalize: Optional[bool] = False
     """Pass-through argument for "--invNormalize". Only for quantitative. Whether to perform the inverse normalization for the phenotype"""
@@ -474,7 +506,34 @@ step1_fitNULLGLMM.R \\
 
 @dataclass
 class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
-    """Step for running SAIGE Step 2 Saddle Point Approximation."""
+    """Step for running SAIGE Step 2 Saddle Point Approximation.
+
+    Configures a Hail Batch job to run the SAIGE binary ``step2_SPAtests.R``.
+
+    This class is used as an input to SaigeConfig in order to specify
+    how the saddle point approximation step is executed in SAIGE.
+
+    Examples
+    --------
+
+    Use 16 cores when running the step 2 SPA step:
+
+    >>> spa_step = Step2SPAStep(cpu=16)
+
+    Set the relatedness cutoff to 0.05:
+
+    >>> spa_step = Step2SPAStep(relatedness_cutoff=0.05)
+
+    Notes
+    -----
+
+    You can also create a subclass of this class and redefine the
+    job name, job attributes, and output file root name.
+
+    >>> class CustomStep2SPAStep(Step2SPAStep):  # FIXME
+    ...     def name(self, phenotype: Phenotype, chunk: VariantChunk) -> str:
+    ...         return f'step2-spa-{phenotype.name}-{chunk.idx}'
+    """
 
     is_imputed: Optional[bool] = False
     """Pass-through argument for "--is_imputed_data". Whether the dosages/genotypes imputed 
@@ -613,6 +672,9 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
     max_mac_for_er: Optional[int] = 4
     """Pass-through argument for "--max_MAC_for_ER". p-values of genetic variants with MAC <= max_MAC_for_ER will be calculated via efficient resampling."""
 
+    specify_males: Optional[bool] = False
+    """If True, specify a list of male samples using the flag "--sampleFile_male". The PhenotypeConfig must have the sex column specified along with the code for males."""
+
     mkl_off: bool = False
     """Turn off MKL."""
 
@@ -628,12 +690,6 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             'phenotype': phenotype.name,
             'chunk': chunk.name,
         }
-
-    def log_file_prefix(
-        self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk
-    ) -> str:
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
-        return f'{working_dir}/logs/{phenotype_name}/{chunk.idx}'
 
     def output_file_prefix(
         self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk
@@ -656,6 +712,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
         result: SaigeResultResourceGroup,
         sparse_grm: Optional[SaigeSparseGRMResourceGroup],
         group_annotations: Optional[TextResourceFile],
+        phenotype_config: PhenotypeConfig,
     ):
         if self.mkl_off:
             mkl_off = 'export MKL_NUM_THREADS=1; export MKL_DYNAMIC=false; export OMP_NUM_THREADS=1; export OMP_DYNAMIC=false; '
@@ -678,12 +735,6 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
                 f'--sampleFile=/data.sample',
             ]
             index_cmd = ''
-
-        # FIXME
-        """
-        --sampleFile_male=SAMPLEFILE_MALE
-		Path to the file containing one column for IDs of MALE samples in the bgen or vcf file with NO header.Order does not matter
-		"""
 
         if analysis_type == SaigeAnalysisType.GENE:
             assert sparse_grm is not None and group_annotations is not None
@@ -795,6 +846,23 @@ python3 read_from_mt.py
             saige_options.append(f'--is_fastTest={bool_upper_str(self.is_fast_test)}')
         if self.max_mac_for_er is not None:
             saige_options.append(f'--max_MAC_for_ER={self.max_mac_for_er}')
+        if self.specify_males:
+            if phenotype_config.sex_col is None or phenotype_config.male_code is None:
+                raise ValueError(
+                    'cannot specify males for analyses without setting the sex column and male code in the PhenotypeConfig.'
+                )
+            saige_options.append(f'--sampleFile_male=/males')
+            create_males_file = f'''
+cat > filter_males.py <<EOF
+import hail as hl
+ht = hl.import_table("{phenotype_config.phenotypes_file}")
+ht = ht.key_by("{phenotype_config.sample_id_col}")
+ht = ht.filter(ht["{phenotype_config.sex_col}"] == "{phenotype_config.male_code}")
+ht.select().export('/males', header=False)
+EOF
+'''
+        else:
+            create_males_file = ''
 
         if analysis_type == SaigeAnalysisType.GENE:
             gene_options = [
@@ -817,6 +885,7 @@ set -o pipefail;
 
 {hail_io_cmd}
 {group_ann_filter_cmd}
+{create_males_file}
 
 step2_SPAtests.R \\
 {input_flags} \\
