@@ -2,16 +2,16 @@ package is.hail.io.fs
 
 import scala.collection.mutable
 
-import is.hail.shadedazure.com.azure.core.credential.{AzureSasCredential, TokenCredential, TokenRequestContext}
-import is.hail.shadedazure.com.azure.identity.{DefaultAzureCredential, DefaultAzureCredentialBuilder}
+import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
+import is.hail.shadedazure.com.azure.identity.{
+  DefaultAzureCredential,
+  DefaultAzureCredentialBuilder,
+}
 import is.hail.utils._
 
 import org.apache.http.client.utils.URIBuilder
-import org.apache.http.HttpEntity
 import org.apache.http.client.methods.HttpPost
-import org.apache.http.entity.{ContentType, StringEntity}
 import org.apache.http.impl.client.HttpClients
-import org.apache.http.params.HttpParams
 import org.apache.http.util.EntityUtils
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
@@ -34,6 +34,8 @@ class TerraAzureStorageFS extends AzureStorageFS() {
   private[this] val containerResourceId = sys.env("WORKSPACE_STORAGE_CONTAINER_ID")
   private[this] val storageContainerUrl = sys.env("WORKSPACE_STORAGE_CONTAINER_URL")
 
+  private[this] val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
+
   override def parseUrl(filename: String): AzureStorageFSURL = {
     val urlStr =
       if (filename.startsWith(storageContainerUrl)) {
@@ -49,7 +51,7 @@ class TerraAzureStorageFS extends AzureStorageFS() {
         filename
       }
 
-    azureFS.parseUrl(urlStr)
+    parseUrl(urlStr)
   }
 
   private def getTerraSasToken(filename: String): (String, Long) = {
