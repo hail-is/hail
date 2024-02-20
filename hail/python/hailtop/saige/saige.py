@@ -343,9 +343,38 @@ def prepare_variant_chunks_by_group(
 
 
 def extract_phenotypes(mt: hl.MatrixTable,
-                       phenotypes: Dict[str, List[Union[str, hl.NumericExpression, hl.BooleanExpression]]],
-                       covariates: Dict[str, List[Union[str, hl.NumericExpression, hl.BooleanExpression]]],
+                       phenotypes: Dict[str, Union[str, hl.NumericExpression, hl.BooleanExpression]],
+                       covariates: Dict[str, Union[str, hl.NumericExpression, hl.BooleanExpression]],
                        output_file: str) -> PhenotypeConfig:
+    """Extract the phenotype information from an existing Hail Matrix Table.
+
+    Examples
+    --------
+
+    Extract data from a Matrix Table stored in cloud storage:
+
+    >>> phenotype_config = extract_phenotypes(mt,
+    ...                                       {'is_case': mt.phenotypes.is_case},
+    ...                                       {'pc1': mt.covariates.pc1, 'pc2': mt.covariates.pc2},
+    ...                                       'gs://my-bucket/phenotypes.tsv')
+
+    Parameters
+    ----------
+    mt:
+        Hail Matrix Table object to extract phenotype data from.
+    phenotypes:
+        Mapping between the new phenotype name that will appear in the phenotypes file and either a Matrix Table
+        column name or expression.
+    covariates:
+        Mapping between the new covariate name that will appear in the phenotypes file and either a Matrix Table
+        column name or expression.
+    output_file:
+        Path to cloud storage location to write the phenotypes file to.
+
+    Returns
+    -------
+    A :cls:`phenotype.PhenotypeConfig` object that can be used as an input to SAIGE.
+    """
     require_col_key_str(mt, 'saige')
 
     sample_id_col = list(mt.col_key)[0]
@@ -361,7 +390,7 @@ def extract_phenotypes(mt: hl.MatrixTable,
     saige_covariates = []
     for phenotype_name, typ in row_schema.items():
         if typ == hl.tbool:
-            phenotype_type = SaigePhenotype.CATEGORICAL
+            phenotype_type = SaigePhenotype.BINARY
         elif typ in (hl.tint, hl.tfloat):
             phenotype_type = SaigePhenotype.CONTINUOUS
         else:
@@ -375,4 +404,7 @@ def extract_phenotypes(mt: hl.MatrixTable,
             assert phenotype_name in covariates.keys()
             saige_covariates.append(phenotype)
 
-    return PhenotypeConfig(saige_phenotypes, saige_covariates, sample_id_col)
+    return PhenotypeConfig(phenotypes_file=output_file,
+                           sample_id_col=sample_id_col,
+                           phenotypes=saige_phenotypes,
+                           covariates=saige_covariates)

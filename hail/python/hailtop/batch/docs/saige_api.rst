@@ -15,9 +15,6 @@ Use ``import hailtop.saige`` to access this functionality.
 saige
 ~~~~~
 
-Classes
----------
-
 .. autosummary::
     :toctree: saige-api/saige/
     :nosignatures:
@@ -25,15 +22,12 @@ Classes
 
     saige.SaigeConfig
 
-Functions
----------
 
 .. autosummary::
     :toctree: saige-api/saige/
+    :nosignatures:
 
     saige.extract_phenotypes
-
-
 
 
 config

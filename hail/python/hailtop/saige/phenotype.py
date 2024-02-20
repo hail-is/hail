@@ -97,11 +97,11 @@ class PhenotypeConfig:
     covariates: List[Phenotype]
     """List of covariate definitions to use as covariates for analyses."""
 
-    sex_col: Optional[str]
+    sex_col: Optional[str] = None
     """The name of a column that defines sex for use in analyses such as accounting for pseudo-autosomal regions."""
 
-    female_code: Optional[str]
+    female_code: Optional[str] = None
     """If the ``sex_col`` is defined, use this code to define females."""
 
-    male_code: Optional[str]
+    male_code: Optional[str] = None
     """If the ``sex_col`` is defined, use this code to define males."""
