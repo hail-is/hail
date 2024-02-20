@@ -12,7 +12,7 @@ import is.hail.utils.{FastSeq, HailException, Interval}
 
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
-import org.scalatest.Matchers._
+import org.scalatest.matchers.should.Matchers._
 import org.testng.annotations.Test
 
 class TableGenSuite extends HailSuite {

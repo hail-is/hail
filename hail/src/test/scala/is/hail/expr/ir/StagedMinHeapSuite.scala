@@ -14,7 +14,7 @@ import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.{using, FastSeq}
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
+import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 
 sealed trait StagedCoercions[A] {

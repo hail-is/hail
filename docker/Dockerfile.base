@@ -8,7 +8,7 @@ RUN hail-apt-get-install \
     rsync \
     emacs-nox \
     xsltproc pandoc \
-    openjdk-8-jdk-headless \
+    openjdk-11-jdk-headless \
     liblapack3 \
     liblz4-dev \
     g++-10 \

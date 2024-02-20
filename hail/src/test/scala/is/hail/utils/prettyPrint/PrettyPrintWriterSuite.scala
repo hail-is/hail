@@ -4,7 +4,7 @@ import is.hail.utils.toRichIterator
 
 import scala.collection.JavaConverters._
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class PrettyPrintWriterSuite extends TestNGSuite {
