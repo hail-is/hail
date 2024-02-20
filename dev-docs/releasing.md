@@ -25,6 +25,10 @@ Checkout this commit locally. Then find the corresponding release batch by searc
 
     sha = THE_FULL_SHA
 
+Change directories into the hail directory:
+
+    cd /PATH/TO/REPO/hail
+
 You can download all the necessary files to execute release.sh by downloading them from the
 hail-ci-bpk3h bucket. The necessary files are listed under "Sources: " in the "Inputs" log of the
 "release" build step. They should look something like:

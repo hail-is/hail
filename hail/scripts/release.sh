@@ -67,6 +67,21 @@ then
     exit 1
 fi
 
+if [ ! -f $WHEEL_FOR_AZURE ]
+then
+    echo "wheel for azure not found $WHEEL_FOR_AZURE"
+fi
+
+if [ ! -f python/hail/experimental/datasets.json ]
+then
+    echo "datasets.json not found at python/hail/experimental/datasets.json"
+fi
+
+if [ ! -f $WEBSITE_TAR ]
+then
+    echo "website tar not found at $WEBSITE_TAR"
+fi
+
 pip_versions_file=$(mktemp)
 pip install hail== 2>&1 \
     | head -n 1 \
