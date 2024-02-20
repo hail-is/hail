@@ -3373,7 +3373,7 @@ steps:
                               docker://{{ hailgenetics_hail_image_python_3_11.image }} \
                               docker://{{ hailgenetics_vep_grch37_85_image.image }} \
                               docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
+                              /io/azure-wheel/hail-*-py3-none-any.whl \
                               /io/www.tar.gz
     inputs:
       - from: /hail_version
@@ -3385,7 +3385,7 @@ steps:
       - from: /repo
         to: /io/repo
       - from: /azure-wheel
-        to: /io/wheel-for-azure
+        to: /io/azure-wheel
       - from: /www.tar.gz
         to: /io/www.tar.gz
     secrets:
