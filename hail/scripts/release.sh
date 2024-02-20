@@ -31,7 +31,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $# -eq 14 ]] || usage; exit 1
+[[ $# -eq 14 ]] || (usage; exit 1)
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
