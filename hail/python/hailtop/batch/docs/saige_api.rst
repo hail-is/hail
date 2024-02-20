@@ -42,17 +42,28 @@ config
     config.JobConfigMixin
 
 
-phenotypes
-~~~~~~~~~~
+phenotype
+~~~~~~~~~
 
 .. autosummary::
-    :toctree: saige-api/config/
+    :toctree: saige-api/phenotype/
     :nosignatures:
     :template: class.rst
 
     phenotype.Phenotype
     phenotype.PhenotypeConfig
     phenotype.SaigePhenotype
+
+
+variant_chunk
+~~~~~~~~~~~~~
+
+.. autosummary::
+    :toctree: saige-api/variant_chunk/
+    :nosignatures:
+    :template: class.rst
+
+    variant_chunk.VariantChunk
 
 
 steps

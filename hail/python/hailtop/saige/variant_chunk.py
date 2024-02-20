@@ -4,11 +4,15 @@ import hail as hl
 
 
 class VariantChunk:
-    idx: int = 1
+    """Docstring
+
+    # FIXME: what about multiallelic?
+    """
+    _idx: int = 1
 
     def __init__(self, interval: hl.Interval, groups: Optional[List[str]] = None):
-        idx = VariantChunk.idx
-        VariantChunk.idx += 1
+        idx = VariantChunk._idx
+        VariantChunk._idx += 1
         self.idx = idx
         self.interval = interval
         self.groups = groups
@@ -21,6 +25,3 @@ class VariantChunk:
 
     def to_interval_str(self) -> str:
         return str(self.interval)
-
-    def to_dict(self):
-        return {'idx': self.idx, 'interval': self.to_interval_str(), 'groups': self.groups}
