@@ -429,7 +429,7 @@ test-dataproc-38: install-hailctl
 # Create a hail docs www.tar.gz file (see build.yaml "make_docs" rule) and set WEBSITE_TAR to the path to www.tar.gz
 #
 .PHONY: release
-release: # test-dataproc $(WHEEL)
+release: test-dataproc $(WHEEL)
 	HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) \
           HAIL_VERSION=$(HAIL_VERSION) \
           GIT_VERSION=$(REVISION) \
