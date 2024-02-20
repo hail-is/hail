@@ -351,12 +351,18 @@ def extract_phenotypes(mt: hl.MatrixTable,
     Examples
     --------
 
-    Extract data from a Matrix Table stored in cloud storage:
+    Extract data from a Matrix Table:
 
     >>> phenotype_config = extract_phenotypes(mt,
     ...                                       {'is_case': mt.phenotypes.is_case},
     ...                                       {'pc1': mt.covariates.pc1, 'pc2': mt.covariates.pc2},
     ...                                       'gs://my-bucket/phenotypes.tsv')
+
+    Notes
+    -----
+
+    Columns that have a BooleanExpression type are treated as binary variables and columns that
+    have a NumericExpression type are treated as continuous variables.
 
     Parameters
     ----------
@@ -373,7 +379,7 @@ def extract_phenotypes(mt: hl.MatrixTable,
 
     Returns
     -------
-    A :cls:`phenotype.PhenotypeConfig` object that can be used as an input to SAIGE.
+    A PhenotypeConfig object that can be used as an input to SAIGE.
     """
     require_col_key_str(mt, 'saige')
 

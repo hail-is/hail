@@ -33,6 +33,9 @@ nitpick_ignore = [
     ('py:class', 'hailtop.batch_client.client.Batch'),
     ('py:class', 'hailtop.aiotools.router_fs.RouterAsyncFS'),
     ('py:class', 'typing.Self'),
+    ('py:class', 'hail.matrixtable.MatrixTable'),
+    ('py:class', 'hail.expr.expressions.typed_expressions.NumericExpression'),
+    ('py:class', 'hail.expr.expressions.typed_expressions.BooleanExpression'),
 ]
 
 # -- General configuration ---------------------------------------------------
