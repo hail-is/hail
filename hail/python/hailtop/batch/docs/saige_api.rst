@@ -1,8 +1,8 @@
 .. _sec-saige_api:
 
-================
-SAIGE Python API
-================
+==========
+Python API
+==========
 
 This is the API documentation for the Hail Batch implementation of SAIGE.
 
@@ -12,8 +12,11 @@ Use ``import hailtop.saige`` to access this functionality.
 .. currentmodule:: hailtop.saige
 
 
-SAIGE
+saige
 ~~~~~
+
+Classes
+---------
 
 .. autosummary::
     :toctree: saige-api/saige/
@@ -22,7 +25,18 @@ SAIGE
 
     saige.SaigeConfig
 
-Config
+Functions
+---------
+
+.. autosummary::
+    :toctree: saige-api/saige/
+
+    saige.extract_phenotypes
+
+
+
+
+config
 ~~~~~~
 
 .. autosummary::
@@ -34,7 +48,20 @@ Config
     config.JobConfigMixin
 
 
-Steps
+phenotypes
+~~~~~~~~~~
+
+.. autosummary::
+    :toctree: saige-api/config/
+    :nosignatures:
+    :template: class.rst
+
+    phenotype.Phenotype
+    phenotype.PhenotypeConfig
+    phenotype.SaigePhenotype
+
+
+steps
 ~~~~~
 
 .. autosummary::
@@ -49,9 +76,12 @@ Steps
     steps.Step2SPAStep
 
 
-Phenotypes
-~~~~~~~~~~
+constants
+~~~~~~~~~
 
+.. autosummary::
+    :toctree: saige-api/constants/
+    :nosignatures:
+    :template: class.rst
 
-Variant Chunks
-~~~~~~~~~~~~~~
+    constants.SaigeAnalysisType

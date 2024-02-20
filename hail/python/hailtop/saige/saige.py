@@ -40,9 +40,16 @@ class SaigeConfig:
     """Configuration for running the Sparse GRM job."""
 
     step1_null_glmm: Step1NullGlmmStep = field(default_factory=Step1NullGlmmStep, kw_only=True)
+    """Configuration for running the SAIGE Step1 Null GLMM job."""
+
     step2_spa: Step2SPAStep = field(default_factory=Step2SPAStep, kw_only=True)
+    """Configuration for running the SAIGE Step2 saddle point approximation job."""
+
     compile_phenotype_results: CompilePhenotypeResultsStep = field(default_factory=CompilePhenotypeResultsStep, kw_only=True)
+    """Configuration for jobs that compile SAIGE results by phenotype."""
+
     compile_all_results: CompileAllResultsStep = field(default_factory=CompileAllResultsStep, kw_only=True)
+    """Configuration for running the final job that concatenates all results together into a single Hail Table."""
 
 
 async def async_saige(

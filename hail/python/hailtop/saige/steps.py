@@ -6,7 +6,7 @@ from hailtop.aiotools.fs import AsyncFS
 import hailtop.batch as hb
 
 from .config import CheckpointConfigMixin, JobConfigMixin
-from .constants import SaigeAnalysisType, SaigeInputDataType, SaigeTestType, saige_phenotype_to_test_type
+from .constants import SaigeAnalysisType, SaigeInputDataType
 from .io import (
     HailTableResourceFile,
     PlinkResourceGroup,
@@ -27,7 +27,7 @@ from .io import (
     new_saige_sparse_grm_file,
     new_text_file,
 )
-from .phenotype import Phenotype, PhenotypeConfig
+from .phenotype import Phenotype, PhenotypeConfig, SaigeTestType, saige_phenotype_to_test_type
 from .variant_chunk import VariantChunk
 
 
@@ -578,7 +578,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
     """Pass-through argument for "--markers_per_chunk_in_groupTest". Number of markers in each chunk when calculating the variance covariance matrix in the set/group-based tests."""
 
     condition: Optional[List[str]] = None
-    """Pass-through argument for "--condition". For conditional analysis. Variant ids are in the format chr:pos_ref/alt and seperated by by comma. e.g.chr3:101651171_C/T,chr3:101651186_G/A."""
+    """Pass-through argument for "--condition". For conditional analysis. Variant ids are in the format ``chr:pos_ref/alt`` and seperated by by comma. e.g. ``chr:3101651171_C/T``, ``chr:3101651186_G/A``."""
 
     weights_for_condition: Optional[List[float]] = None
     """Pass-through argument for "--weights_for_condition". weights for conditioning markers for gene- or region-based tests. The length equals to the number of conditioning markers, delimited by comma. e.g. '1,2,3. If not specified, the default weights will be generated based on beta(MAF, 1, 25). Use `weights_beta` to change the parameters for the Beta distribution."""
@@ -645,7 +645,7 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
         working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/results/{phenotype_name}/*'
 
-    def command(
+    def _command(
         self,
         *,
         mt_path: str,
@@ -866,7 +866,7 @@ step2_SPAtests.R \\
 
         results = new_saige_result_file(j, analysis_type)
 
-        command = self.command(
+        command = self._command(
             mt_path=mt_path,
             analysis_type=analysis_type,
             null_model=null_model,
@@ -911,7 +911,7 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
         output_file = self.output_file(temp_dir, checkpoint_dir, phenotype.name)
         return await load_text_file(fs, b, self, output_file)
 
-    def command(self, results_path: str, phenotype_name: str, output_file: str) -> str:
+    def _command(self, results_path: str, phenotype_name: str, output_file: str) -> str:
         return f'''
 cat > compile_results.py <<EOF
 import hail as hl
@@ -947,7 +947,7 @@ python3 compile_results.py
 
         compiled_results = new_text_file(j)
 
-        cmd = self.command(results_path, phenotype.name, compiled_results)
+        cmd = self._command(results_path, phenotype.name, compiled_results)
 
         j.command(cmd)
 
@@ -966,7 +966,7 @@ class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def name(self) -> str:
         return 'compile-all-results'
 
-    def command(self, mt_path: str, results_path: str, results_ht: HailTableResourceFile) -> str:
+    def _command(self, mt_path: str, results_path: str, results_ht: HailTableResourceFile) -> str:
         return f'''
 cat > compile_results.py <<EOF
 import hail as hl
@@ -1003,7 +1003,7 @@ python3 compile_results.py
 
         results_ht = new_hail_table(j)
 
-        cmd = self.command(mt_path, results_path, results_ht)
+        cmd = self._command(mt_path, results_path, results_ht)
 
         j.command(cmd)
 

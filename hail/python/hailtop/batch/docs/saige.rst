@@ -4,9 +4,6 @@
 SAIGE
 =====
 
-Contents
-========
-
 .. toctree::
    :maxdepth: 2
 

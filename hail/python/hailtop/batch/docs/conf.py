@@ -58,7 +58,7 @@ automodapi_inheritance_diagram = False
 
 numpydoc_show_class_members = False
 
-autosummary_generate = ['api.rst']
+autosummary_generate = ['api.rst', 'saige_api.rst']
 autosummary_generate_overwrite = True
 
 napoleon_use_rtype = False
