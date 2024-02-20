@@ -3368,9 +3368,9 @@ steps:
                               /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                               /io/github-oauth \
                               docker://{{ hailgenetics_hail_image.image }} \
-                              docker://{{ hailgenetics_hailtop_image.image }} \
                               docker://{{ hailgenetics_hail_image_python_3_10.image }} \
                               docker://{{ hailgenetics_hail_image_python_3_11.image }} \
+                              docker://{{ hailgenetics_hailtop_image.image }} \
                               docker://{{ hailgenetics_vep_grch37_85_image.image }} \
                               docker://{{ hailgenetics_vep_grch38_95_image.image }} \
                               /io/wheel-for-azure/hail-*-py3-none-any.whl \
