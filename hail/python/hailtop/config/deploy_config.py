@@ -181,7 +181,7 @@ def get_deploy_config() -> DeployConfig:
     global deploy_config
 
     if not deploy_config:
-        if os.environ['HAIL_TERRA']:
+        if os.environ.get('HAIL_TERRA'):
             deploy_config = TerraDeployConfig.from_config_file()
         else:
             deploy_config = DeployConfig.from_config_file()
