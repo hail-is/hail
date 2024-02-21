@@ -23,7 +23,8 @@ RUN hail-apt-get-install \
     libtiff5-dev \
     libxml2-dev \
     openjdk-8-jre-headless \
-    r-base-dev && \
+    r-base-dev \
+    wget && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1
 
 RUN hail-pip-install cget==0.2.0 pycairo==1.25.1
@@ -52,8 +53,7 @@ RUN createSparseGRM.R  --help && \
 
 WORKDIR /
 
-RUN hail-apt-get-install wget && \
-    wget https://github.com/samtools/htslib/releases/download/1.19.1/htslib-1.19.1.tar.bz2 && \
+RUN wget https://github.com/samtools/htslib/releases/download/1.19.1/htslib-1.19.1.tar.bz2 && \
     bzip2 -d htslib-1.19.1.tar.bz2 && \
     tar -xf htslib-1.19.1.tar && \
     cd htslib-1.19.1 && \
@@ -78,6 +78,3 @@ RUN export SPARK_HOME=$(find_spark_home.py) && \
 ARG HAIL_WHEEL_DIR=hail/build/deploy/dist
 RUN --mount=src=${HAIL_WHEEL_DIR},target=/wheel \
     hail-pip-install --no-deps /wheel/hail-*-py3-none-any.whl
-
-#RUN --mount=src=/wheel,target=/wheel \
-#    hail-pip-install --no-deps /wheel/hail-*-py3-none-any.whl

@@ -46,7 +46,7 @@ class Phenotype:
     """The name of the phenotype. This should match a column header name in an input phenotypes file."""
 
     phenotype_type: SaigePhenotype
-    """The type of the phenotype. Used to determine what type of SAIGE test to run for either binary or 
+    """The type of the phenotype. Used to determine what type of SAIGE test to run for either binary or
     quantitative phenotypes."""
 
 

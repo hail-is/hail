@@ -1385,7 +1385,7 @@ steps:
     buildArgs:
       - name: BASE_IMAGE
         value:
-          valueFrom: hail_ubuntu_image.image    
+          valueFrom: hail_ubuntu_image.image
       - name: HAIL_WHEEL_DIR
         value: /wheel
     inputs:
