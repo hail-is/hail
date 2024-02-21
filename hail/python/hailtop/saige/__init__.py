@@ -1,3 +1,4 @@
+from .phenotype import PhenotypeConfig, Phenotype, SaigePhenotype
 from .saige import (
     SaigeConfig,
     extract_phenotypes,
@@ -16,7 +17,10 @@ from .steps import (
 __all__ = [
     'CompileAllResultsStep',
     'CompilePhenotypeResultsStep',
+    'Phenotype',
+    'PhenotypeConfig',
     'SaigeConfig',
+    'SaigePhenotype',
     'SparseGRMStep',
     'Step1NullGlmmStep',
     'Step2SPAStep',

@@ -215,6 +215,9 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     ratio_cv_cutoff: Optional[float] = 0.001
     """Pass-through argument for "--ratioCVcutoff". Threshold for coefficient of variation (CV) for estimating the variance ratio. The number of randomly selected markers will be increased until the CV is below the threshold"""
 
+    is_overwrite_variance_ratio_file: Optional[bool] = False
+    """Pass-through argument for "--IsOverwriteVarianceRatioFile". Whether to overwrite the variance ratio file if the file exist."""
+
     is_cate_variance_ratio: Optional[bool] = False
     """Pass-through argument for "--isCateVarianceRatio". Whether to estimate variance ratio based on different MAC categories. If yes, variance ratio will be estimated for multiple MAC categories corresponding to cateVarRatioMinMACVecExclude and cateVarRatioMaxMACVecInclude. Currently, if isCateVarianceRatio=TRUE, then LOCO=FALSE"""
 
@@ -416,6 +419,8 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             options.append(f'--nrun={self.n_run}')
         if self.ratio_cv_cutoff is not None:
             options.append(f'--ratioCVcutoff={self.ratio_cv_cutoff}')
+        if self.is_overwrite_variance_ratio_file is not None:
+            options.append(f'--IsOverwriteVarianceRatioFile={bool_upper_str(self.is_overwrite_variance_ratio_file)}')
         if self.is_cate_variance_ratio is not None:
             options.append(f'--isCateVarianceRatio={bool_upper_str(self.is_cate_variance_ratio)}')
         if self.relatedness_cutoff is not None:

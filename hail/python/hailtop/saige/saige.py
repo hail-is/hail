@@ -67,10 +67,10 @@ async def async_saige(
         run_kwargs: Optional[dict] = None,
         router_fs_args: Optional[dict] = None,
         parallelism: int = 10,
-        config: Optional[SaigeConfig] = None
+        saige_config: Optional[SaigeConfig] = None
 ):
-    if config is None:
-        config = SaigeConfig()
+    if saige_config is None:
+        saige_config = SaigeConfig()
 
     if router_fs_args is None:
         router_fs_args = {}
@@ -78,7 +78,7 @@ async def async_saige(
     async with RouterAsyncFS(**router_fs_args) as fs:
         with hl.TemporaryDirectory() as temp_dir:
             if b is None:
-                b = hb.Batch(name=config.name, attributes=config.attributes)
+                b = hb.Batch(name=saige_config.name, attributes=saige_config.attributes)
 
             if group_annotations_file is not None:
                 analysis_type = SaigeAnalysisType.GENE
@@ -112,7 +112,7 @@ async def async_saige(
             maybe_phenotype_results = await bounded_gather(
                 *[
                     functools.partial(
-                        config.compile_phenotype_results.check_if_output_exists,
+                        saige_config.compile_phenotype_results.check_if_output_exists,
                         fs,
                         b,
                         phenotype=phenotype,
@@ -127,8 +127,8 @@ async def async_saige(
                                           for phenotype, result in zip(phenotype_config.phenotypes, maybe_phenotype_results)
                                           if result is not None}
 
-            if analysis_type == SaigeAnalysisType.GENE or config.step1_null_glmm.use_sparse_grm_to_fit_null:
-                sparse_grm = config.sparse_grm._call(fs, b, input_null_model_plink_data, temp_dir, checkpoint_dir)
+            if analysis_type == SaigeAnalysisType.GENE or saige_config.step1_null_glmm.use_sparse_grm_to_fit_null:
+                sparse_grm = saige_config.sparse_grm._call(fs, b, input_null_model_plink_data, temp_dir, checkpoint_dir)
             else:
                 sparse_grm = None
 
@@ -140,7 +140,7 @@ async def async_saige(
             null_glmms = await bounded_gather(
                 *[
                     functools.partial(
-                        config.step1_null_glmm._call,
+                        saige_config.step1_null_glmm._call,
                         fs,
                         b,
                         input_bfile=input_null_model_plink_data,
@@ -159,7 +159,7 @@ async def async_saige(
                 parallelism=parallelism,
             )
 
-            step2_spa_fs = [(phenotype, chunk, functools.partial(config.step2_spa._call,
+            step2_spa_fs = [(phenotype, chunk, functools.partial(saige_config.step2_spa._call,
                                                                  fs,
                                                                  b,
                                                                  mt_path=mt_path,
@@ -187,11 +187,11 @@ async def async_saige(
             compiled_results = await bounded_gather(
                 *[
                     functools.partial(
-                        config.compile_phenotype_results._call,
+                        saige_config.compile_phenotype_results._call,
                         fs=fs,
                         b=b,
                         phenotype=phenotype,
-                        results_path=config.step2_spa._output_glob(temp_dir, checkpoint_dir, phenotype.name),
+                        results_path=saige_config.step2_spa._output_glob(temp_dir, checkpoint_dir, phenotype.name),
                         dependencies=step2_spa_jobs_by_phenotype[phenotype.name],
                         temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
@@ -201,10 +201,10 @@ async def async_saige(
                 parallelism=parallelism,
             )
 
-            await config.compile_all_results._call(
+            await saige_config.compile_all_results._call(
                 fs,
                 b,
-                results_path=config.compile_phenotype_results._results_path_glob(temp_dir, checkpoint_dir),
+                results_path=saige_config.compile_phenotype_results._results_path_glob(temp_dir, checkpoint_dir),
                 output_ht_path=output_path,
                 dependencies=[result.source() for result in compiled_results],
                 mt_path=mt_path,
@@ -227,7 +227,7 @@ def saige(
         run_kwargs: Optional[dict] = None,
         router_fs_args: Optional[dict] = None,
         parallelism: int = 10,
-        config: Optional[SaigeConfig] = None,
+        saige_config: Optional[SaigeConfig] = None,
         null_model_sample_list: Optional[str] = None,
 ):
     return async_to_blocking(async_saige(
@@ -243,7 +243,7 @@ def saige(
         run_kwargs=run_kwargs,
         router_fs_args=router_fs_args,
         parallelism=parallelism,
-        config=config
+        saige_config=saige_config
     ))
 
 

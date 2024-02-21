@@ -2,8 +2,12 @@ import pytest
 import hail as hl
 import hailtop.fs as hfs
 from hailtop.saige import (
+    Phenotype,
+    PhenotypeConfig,
     SaigeConfig,
+    SaigePhenotype,
     Step1NullGlmmStep,
+    Step2SPAStep,
     extract_phenotypes,
     compute_variant_chunks_by_contig,
     saige
@@ -47,6 +51,35 @@ def test_variant_chunking(ds):
 
 
 def test_variant_group_chunking(ds):
+    pass
+
+
+def test_single_variant_example1():
+    """https://saigegit.github.io/SAIGE-doc/docs/single_example.html#example-1"""
+
+    step1_null_glmm = Step1NullGlmmStep(cpu=2, is_overwrite_variance_ratio_file=True)
+    step2_spa = Step2SPAStep(chrom='1',
+                             min_maf=0,
+                             min_mac=20,
+                             is_firth_beta=True,
+                             p_cutoff_for_firth=0.05,
+                             output_more_details=True,
+                             loco=True)
+    phenotype_config = PhenotypeConfig(resource(...),
+                                       sample_id_col='IID',
+                                       phenotypes=[Phenotype('y_binary', SaigePhenotype.BINARY)],
+                                       covariates=[Phenotype('x1', SaigePhenotype.CONTINUOUS),
+                                                   Phenotype('x2', SaigePhenotype.BINARY)])
+    saige_config = SaigeConfig(step1_null_glmm=step1_null_glmm, step2_spa=step2_spa)
+    saige(mt_path, null_model_plink_path, phenotypes_path, output_path, phenotype_config=phenotype_config,
+          saige_config=saige_config)
+
+
+def test_single_variant_example2():
+    pass
+
+
+def test_single_variant_example3():
     pass
 
 
