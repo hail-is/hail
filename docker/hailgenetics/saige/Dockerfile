@@ -53,15 +53,15 @@ RUN createSparseGRM.R  --help && \
 
 WORKDIR /
 
-#RUN wget https://github.com/samtools/htslib/releases/download/1.19.1/htslib-1.19.1.tar.bz2 && \
-#    bzip2 -d htslib-1.19.1.tar.bz2 && \
-#    tar -xf htslib-1.19.1.tar && \
-#    cd htslib-1.19.1 && \
-#    ./configure && \
-#    make && \
-#    make install && \
-#    mv tabix /usr/local/bin/ && \
-#    chmod a+x /usr/local/bin/tabix
+RUN wget https://github.com/samtools/htslib/releases/download/1.19.1/htslib-1.19.1.tar.bz2 && \
+    bzip2 -d htslib-1.19.1.tar.bz2 && \
+    tar -xf htslib-1.19.1.tar && \
+    cd htslib-1.19.1 && \
+    ./configure && \
+    make && \
+    make install && \
+    mv tabix /usr/local/bin/ && \
+    chmod a+x /usr/local/bin/tabix
 
 #COPY hail/python/pinned-requirements.txt requirements.txt
 #RUN hail-pip-install -r requirements.txt scikit-learn ipython
