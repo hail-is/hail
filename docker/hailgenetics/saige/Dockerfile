@@ -29,7 +29,7 @@ RUN hail-apt-get-install \
 
 RUN hail-pip-install cget==0.2.0 pycairo==1.25.1
 
-RUN git clone --depth 1 -b main https://github.com/saigegit/SAIGE
+RUN git clone --depth 1 -b v1.3.3 https://github.com/saigegit/SAIGE
 
 WORKDIR /SAIGE/
 
