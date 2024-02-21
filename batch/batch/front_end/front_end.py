@@ -428,8 +428,14 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
+async def _get_job_resource_usage(app, batch_id: int, job_id: int) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
+    return await _get_job_resource_usage_from_record(app, record, batch_id=batch_id, job_id=job_id)
+
+
+async def _get_job_resource_usage_from_record(
+    app, record, batch_id: int, job_id: int
+) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
 
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
@@ -1887,6 +1893,59 @@ async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
     return json_response(status)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage')
+@billing_project_users_only()
+async def get_job_resource_usage(request, _, batch_id):
+    """
+    Get the resource_usage data for a job. The data is returned as a JSON object
+    transformed from a pandas DataFrame using the 'split' orientation.
+
+    Returns
+    -------
+    Example response:
+    {
+        // eg: input, main, output
+        "[job_stage]": {
+            "columns":[
+                "time_msecs",
+                "memory_in_bytes",
+                "cpu_usage",
+                "non_io_storage_in_bytes",
+                "io_storage_in_bytes",
+                "network_bandwidth_upload_in_bytes_per_second",
+                "network_bandwidth_download_in_bytes_per_second"
+            ],
+            "index":[0, 1, ...],
+            "data": [[<records>]],
+        }
+    }
+    """
+
+    # pull this out separately as billing_project_users_only() does a permission
+    # check for us, but has a fixed signature
+    job_id = int(request.match_info['job_id'])
+
+    job_record = await _get_job_record(request.app, batch_id, job_id)
+
+    # effectively the auth check
+    if not job_record:
+        raise web.HTTPNotFound()
+
+    resources: Optional[Dict[str, Optional[pd.DataFrame]]] = await _get_job_resource_usage_from_record(
+        app=request.app, record=job_record, batch_id=batch_id, job_id=job_id
+    )
+
+    if not resources:
+        # empty response if not available yet
+        return web.json_response({})
+
+    return web.json_response({
+        stage: stage_resource.to_dict(orient='split')
+        for stage, stage_resource in resources.items()
+        if stage_resource is not None
+    })
 
 
 def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
