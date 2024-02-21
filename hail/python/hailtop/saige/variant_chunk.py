@@ -4,10 +4,6 @@ import hail as hl
 
 
 class VariantChunk:
-    """Docstring
-
-    # FIXME: what about multiallelic?
-    """
     _idx: int = 1
 
     def __init__(self, interval: hl.Interval, groups: Optional[List[str]] = None):

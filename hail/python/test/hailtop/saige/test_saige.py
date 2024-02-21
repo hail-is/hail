@@ -67,7 +67,7 @@ def test_single_variant_example1():
         ht = hl.import_table(phenotypes_path, impute=False)
         ht.export(remote_phenotypes_path)
 
-        
+
 
         step1_null_glmm = Step1NullGlmmStep(cpu=2, is_overwrite_variance_ratio_file=True)
         step2_spa = Step2SPAStep(chrom='1',

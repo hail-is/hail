@@ -36,6 +36,7 @@ nitpick_ignore = [
     ('py:class', 'hail.matrixtable.MatrixTable'),
     ('py:class', 'hail.expr.expressions.typed_expressions.NumericExpression'),
     ('py:class', 'hail.expr.expressions.typed_expressions.BooleanExpression'),
+    ('py:class', 'hail.utils.interval.Interval'),
 ]
 
 # -- General configuration ---------------------------------------------------
