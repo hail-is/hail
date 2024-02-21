@@ -27,7 +27,7 @@ from .io import (
     new_saige_sparse_grm_file,
     new_text_file,
 )
-from .phenotype import Phenotype, PhenotypeConfig, SaigeTestType, saige_phenotype_to_test_type
+from .phenotype import Phenotype, PhenotypeConfig, SaigePhenotype, saige_phenotype_to_test_type
 from .variant_chunk import VariantChunk
 
 
@@ -406,8 +406,8 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             options.append(f'--sparseGRMFile={sparse_grm.grm}')
             options.append(f'--sparseGRMSampleIDFile={sparse_grm.sample_ids}')
 
-        # FIXME: is this really binary or should it be quantitative?
-        q_covariates = [cov.name for cov in phenotype_config.covariates if saige_phenotype_to_test_type[cov.phenotype_type] == SaigeTestType.BINARY]
+        q_covariates = [cov.name for cov in phenotype_config.covariates
+                        if cov.phenotype_type == SaigePhenotype.BINARY]
         if len(q_covariates) > 0:
             options.append(f'--qCovarColList={",".join(q_covariates)}')
 

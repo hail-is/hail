@@ -27,15 +27,15 @@ class Phenotype:
     -----
 
     A phenotype can either be a phenotype to test or a covariate. There are
-    two attributes. The name of the phenotype must match the name of a column
+    two attributes. The name of the phenotype must match the name of the column
     header in a corresponding phenotypes file.
 
     Examples
     --------
 
-    Specify a binary phenotype ``has_schizophrenia``:
+    Specify a binary phenotype ``is_case``:
 
-    >>> has_schizophrenia = Phenotype('has_schizophrenia', SaigePhenotype.BINARY)
+    >>> is_case = Phenotype('is_case', SaigePhenotype.BINARY)
 
     Specify a continuous phenotype ``height``:
 
@@ -53,6 +53,12 @@ class Phenotype:
 @dataclass
 class PhenotypeConfig:
     """Class used for configuring phenotype information.
+
+    Notes
+    -----
+
+    The helper function saige.extract_phenotypes can be used to convert a Hail Matrix Table into a
+    :class:`.PhenotypeConfig`.
 
     Examples
     --------
@@ -81,8 +87,6 @@ class PhenotypeConfig:
     ...                                    covariates=[Phenotype("x1", SaigePhenotype.CONTINUOUS),
     ...                                                Phenotype("x2", SaigePhenotype.BINARY)])
 
-    The helper function saige.extract_phenotypes can be used to convert a Hail Matrix Table into a
-    :class:`.PhenotypeConfig`.
     """
     phenotypes_file: str
     """Path to cloud storage containing a phenotypes file. The file should contain a header with the names
