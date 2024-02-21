@@ -38,7 +38,7 @@ cachetools==5.3.2
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   google-auth
-certifi==2023.11.17
+certifi==2024.2.2
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -58,11 +58,11 @@ frozenlist==1.4.1
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.16.1
+google-api-core==2.17.1
     # via google-api-python-client
-google-api-python-client==2.116.0
+google-api-python-client==2.118.0
     # via google-cloud-profiler
-google-auth==2.27.0
+google-auth==2.28.1
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c hail/gear/../hail/python/pinned-requirements.txt
@@ -91,7 +91,7 @@ idna==3.6
     #   yarl
 kubernetes-asyncio==19.15.1
     # via -r hail/gear/requirements.txt
-multidict==6.0.4
+multidict==6.0.5
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt
@@ -105,7 +105,7 @@ orjson==3.9.10
     #   -r hail/gear/requirements.txt
 prometheus-async==19.2.0
     # via -r hail/gear/requirements.txt
-prometheus-client==0.19.0
+prometheus-client==0.20.0
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -r hail/gear/requirements.txt
@@ -116,6 +116,7 @@ protobuf==3.20.2
     #   -c hail/gear/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-profiler
+    #   googleapis-common-protos
 pyasn1==0.5.1
     # via
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt

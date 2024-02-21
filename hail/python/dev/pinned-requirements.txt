@@ -16,8 +16,9 @@ aiosignal==1.3.1
     #   aiohttp
 alabaster==0.7.16
     # via sphinx
-anyio==4.2.0
+anyio==4.3.0
     # via
+    #   httpx
     #   jupyter-server
     #   watchfiles
 argon2-cffi==23.1.0
@@ -53,9 +54,11 @@ beautifulsoup4==4.12.3
     # via nbconvert
 bleach==6.1.0
     # via nbconvert
-certifi==2023.11.17
+certifi==2024.2.2
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
+    #   httpcore
+    #   httpx
     #   requests
 cffi==1.16.0
     # via
@@ -79,7 +82,7 @@ comm==0.2.1
     #   ipywidgets
 curlylint==0.13.1
     # via -r hail/hail/python/dev/requirements.txt
-debugpy==1.8.0
+debugpy==1.8.1
     # via ipykernel
 decorator==4.4.2
     # via
@@ -124,12 +127,19 @@ frozenlist==1.4.1
     #   aiosignal
 fswatch==0.1.1
     # via -r hail/hail/python/dev/requirements.txt
-identify==2.5.33
+h11==0.14.0
+    # via httpcore
+httpcore==1.0.4
+    # via httpx
+httpx==0.27.0
+    # via jupyterlab
+identify==2.5.35
     # via pre-commit
 idna==3.6
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   anyio
+    #   httpx
     #   jsonschema
     #   requests
     #   yarl
@@ -145,7 +155,7 @@ importlib-metadata==7.0.1
     #   sphinx
 iniconfig==2.0.0
     # via pytest
-ipykernel==6.29.0
+ipykernel==6.29.2
     # via
     #   jupyter
     #   jupyter-console
@@ -156,7 +166,7 @@ ipython==8.18.1
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipywidgets==8.1.1
+ipywidgets==8.1.2
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
@@ -173,7 +183,7 @@ jinja2==3.1.3
     #   nbconvert
     #   nbsphinx
     #   sphinx
-json5==0.9.14
+json5==0.9.17
     # via jupyterlab-server
 jsonpointer==2.4
     # via jsonschema
@@ -219,19 +229,19 @@ jupyter-server==2.12.5
     #   notebook-shim
 jupyter-server-terminals==0.5.2
     # via jupyter-server
-jupyterlab==4.0.12
+jupyterlab==4.1.2
     # via notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
-jupyterlab-server==2.25.2
+jupyterlab-server==2.25.3
     # via
     #   jupyterlab
     #   notebook
-jupyterlab-widgets==3.0.9
+jupyterlab-widgets==3.0.10
     # via ipywidgets
 lazy-object-proxy==1.10.0
     # via astroid
-markupsafe==2.1.4
+markupsafe==2.1.5
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   jinja2
@@ -244,7 +254,7 @@ mccabe==0.7.0
     # via pylint
 mistune==3.0.2
     # via nbconvert
-multidict==6.0.4
+multidict==6.0.5
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   aiohttp
@@ -273,9 +283,9 @@ nodeenv==1.8.0
     # via
     #   pre-commit
     #   pyright
-notebook==7.0.7
+notebook==7.1.0
     # via jupyter
-notebook-shim==0.2.3
+notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
@@ -314,9 +324,9 @@ platformdirs==4.2.0
     #   virtualenv
 pluggy==1.4.0
     # via pytest
-pre-commit==3.6.0
+pre-commit==3.6.2
     # via -r hail/hail/python/dev/requirements.txt
-prometheus-client==0.19.0
+prometheus-client==0.20.0
     # via jupyter-server
 prompt-toolkit==3.0.43
     # via
@@ -348,7 +358,7 @@ pygments==2.17.2
     #   sphinx
 pylint==2.17.7
     # via -r hail/hail/python/dev/requirements.txt
-pyright==1.1.349
+pyright==1.1.351
     # via -r hail/hail/python/dev/requirements.txt
 pytest==7.4.4
     # via
@@ -368,7 +378,7 @@ pytest-html==1.22.1
     # via -r hail/hail/python/dev/requirements.txt
 pytest-instafail==0.5.0
     # via -r hail/hail/python/dev/requirements.txt
-pytest-metadata==3.1.0
+pytest-metadata==3.1.1
     # via pytest-html
 pytest-timeout==2.2.0
     # via -r hail/hail/python/dev/requirements.txt
@@ -419,7 +429,7 @@ rfc3986-validator==0.1.1
     # via
     #   jsonschema
     #   jupyter-events
-rpds-py==0.17.1
+rpds-py==0.18.0
     # via
     #   jsonschema
     #   referencing
@@ -435,7 +445,9 @@ six==1.16.0
     #   python-dateutil
     #   rfc3339-validator
 sniffio==1.3.0
-    # via anyio
+    # via
+    #   anyio
+    #   httpx
 snowballstemmer==2.2.0
     # via sphinx
 soupsieve==2.5
@@ -528,7 +540,7 @@ types-pyyaml==6.0.12.12
     # via -r hail/hail/python/dev/requirements.txt
 types-requests==2.31.0.6
     # via -r hail/hail/python/dev/requirements.txt
-types-setuptools==69.0.0.20240125
+types-setuptools==69.1.0.20240217
     # via -r hail/hail/python/dev/requirements.txt
 types-six==1.16.21.20240106
     # via -r hail/hail/python/dev/requirements.txt
@@ -568,7 +580,7 @@ websocket-client==1.7.0
     # via jupyter-server
 wheel==0.41.3
     # via -r hail/hail/python/dev/requirements.txt
-widgetsnbextension==4.0.9
+widgetsnbextension==4.0.10
     # via ipywidgets
 wrapt==1.16.0
     # via
