@@ -430,21 +430,21 @@ test-dataproc-38: install-hailctl
 #
 .PHONY: release
 release: test-dataproc $(WHEEL)
-	bash scripts/release.sh \
-		$(HAIL_PIP_VERSION) \
-		$(HAIL_VERSION) \
-		$(REVISION) \
-		$(DEPLOY_REMOTE) \
-		$(WHEEL) \
-		$(GITHUB_OAUTH_HEADER_FILE) \
-		$(HAIL_GENETICS_HAIL_IMAGE) \
-		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
-		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
-		$(HAIL_GENETICS_HAILTOP_IMAGE) \
-		$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
-		$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
-		$(WHEEL_FOR_AZURE) \
-		$(WEBSITE_TAR)
+	HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) \
+          HAIL_VERSION=$(HAIL_VERSION) \
+          GIT_VERSION=$(REVISION) \
+          REMOTE=$(DEPLOY_REMOTE) \
+          WHEEL=$(WHEEL) \
+          GITHUB_OAUTH_HEADER_FILE=$(GITHUB_OAUTH_HEADER_FILE) \
+          HAIL_GENETICS_HAIL_IMAGE=$(HAIL_GENETICS_HAIL_IMAGE) \
+          HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
+          HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
+          HAIL_GENETICS_HAILTOP_IMAGE=$(HAIL_GENETICS_HAILTOP_IMAGE) \
+          HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
+          HAIL_GENETICS_VEP_GRCH38_95_IMAGE=$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
+          WHEEL_FOR_AZURE=$(WHEEL_FOR_AZURE) \
+          WEBSITE_TAR=$(WEBSITE_TAR) \
+          bash scripts/release.sh
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \

@@ -3361,20 +3361,24 @@ steps:
       time retry sh millw --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
 
-      bash scripts/release.sh $(cat /io/hail_pip_version) \
-                              $(cat /io/hail_version) \
-                              $(cat /io/git_version) \
-                              origin \
-                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                              /io/github-oauth \
-                              docker://{{ hailgenetics_hail_image.image }} \
-                              docker://{{ hailgenetics_hailtop_image.image }} \
-                              docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-                              docker://{{ hailgenetics_hail_image_python_3_11.image }} \
-                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
-                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                              /io/www.tar.gz
+      echo Setting arguments and invoking release.sh.
+
+      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      HAIL_VERSION=$(cat /io/hail_version)
+      GIT_VERSION=$(cat /io/git_version)
+      REMOTE=origin
+      WHEEL=/io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl
+      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
+      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }}
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }}
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }}
+      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }}
+      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }}
+      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }}
+      WHEEL_FOR_AZURE=/io/wheel-for-azure/hail-*-py3-none-any.whl
+      WEBSITE_TAR=/io/www.tar.gz
+
+      bash scripts/release.sh
     inputs:
       - from: /hail_version
         to: /io/hail_version
