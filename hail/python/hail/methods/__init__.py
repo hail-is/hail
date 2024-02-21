@@ -69,7 +69,7 @@ from .qc import (
     vep_json_typ,
 )
 from .misc import rename_duplicates, maximal_independent_set, segment_intervals, filter_intervals
-from .relatedness import identity_by_descent, king, pc_relate, simulate_random_mating
+from .relatedness import identity_by_descent, king, pc_air, pc_relate, simulate_random_mating
 
 __all__ = [
     'trio_matrix',
@@ -96,6 +96,7 @@ __all__ = [
     '_hwe_normalized_blanczos',
     '_spectral_moments',
     '_pca_and_moments',
+    'pc_air',
     'pc_relate',
     'simulate_random_mating',
     'rename_duplicates',

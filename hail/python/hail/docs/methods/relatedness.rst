@@ -40,11 +40,13 @@ identity by descent [1]_, KING [2]_, and PC-Relate [3]_.
 
     identity_by_descent
     king
+    pc_air
     pc_relate
     simulate_random_mating
 
 .. autofunction:: identity_by_descent
 .. autofunction:: king
+.. autofunction:: pc_air
 .. autofunction:: pc_relate
 .. autofunction:: simulate_random_mating
 

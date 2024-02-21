@@ -1,12 +1,12 @@
+import hail as hl
 from typing import Union
+from .king import king
 
 import numpy as np
 
-import hail as hl
 from hail import (
     CallExpression,
     expr_call,
-    king,
     NumericExpression,
     MatrixTable,
     expr_numeric,
