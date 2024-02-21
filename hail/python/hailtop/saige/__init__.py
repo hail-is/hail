@@ -2,7 +2,7 @@ from .phenotype import PhenotypeConfig, Phenotype, SaigePhenotype
 from .saige import (
     SaigeConfig,
     extract_phenotypes,
-    compute_variant_chunks_by_contig,
+    compute_variant_intervals_by_contig,
     saige
 )
 from .steps import (
@@ -25,6 +25,6 @@ __all__ = [
     'Step1NullGlmmStep',
     'Step2SPAStep',
     'extract_phenotypes',
-    'compute_variant_chunks_by_contig',
+    'compute_variant_intervals_by_contig',
     'saige',
 ]

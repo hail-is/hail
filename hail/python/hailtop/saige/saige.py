@@ -56,10 +56,9 @@ async def async_saige(
         *,
         mt_path: str,
         null_model_plink_path: str,
-        phenotypes_path: str,
         output_path: str,
         phenotype_config: PhenotypeConfig,
-        variant_chunks: Optional[List[VariantChunk]],
+        variant_intervals: Optional[List[hl.Interval]],
         group_annotations_file: Optional[str] = None,
         null_model_sample_list: Optional[str] = None,
         b: Optional[hb.Batch] = None,
@@ -91,16 +90,18 @@ async def async_saige(
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
 
-            if variant_chunks is None:
+            if variant_intervals is None:
                 first_row = mt.rows().select().head(1).collect()[0]
                 last_row = mt.rows().select().tail(1).collect()[0]
                 reference_genome = mt.locus.dtype.reference_genome
-                variant_chunks = [hl.Interval(hl.Locus(first_row.contig, first_row.position, reference_genome=reference_genome),
-                                              hl.Locus(last_row.contig, last_row.position, reference_genome=reference_genome),
-                                              includes_start=True,
-                                              includes_end=True)]
+                variant_intervals = [hl.Interval(hl.Locus(first_row.contig, first_row.position, reference_genome=reference_genome),
+                                                 hl.Locus(last_row.contig, last_row.position, reference_genome=reference_genome),
+                                                 includes_start=True,
+                                                 includes_end=True)]
 
-            input_phenotypes_file = await load_text_file(fs, b, None, phenotypes_path)
+            variant_chunks = [VariantChunk(interval) for interval in variant_intervals]
+
+            input_phenotypes_file = await load_text_file(fs, b, None, phenotype_config.phenotypes_file)
             input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
 
             if 'GP' in list(mt.entry):
@@ -218,10 +219,9 @@ def saige(
         *,
         mt_path: str,
         null_model_plink_path: str,
-        phenotypes_path: str,
         output_path: str,
         phenotype_config: PhenotypeConfig,
-        variant_chunks: Optional[List[VariantChunk]] = None,
+        variant_intervals: Optional[List[hl.Interval]] = None,
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
@@ -234,10 +234,9 @@ def saige(
         mt_path=mt_path,
         null_model_plink_path=null_model_plink_path,
         null_model_sample_list=null_model_sample_list,
-        phenotypes_path=phenotypes_path,
         output_path=output_path,
         phenotype_config=phenotype_config,
-        variant_chunks=variant_chunks,
+        variant_intervals=variant_intervals,
         b=b,
         checkpoint_dir=checkpoint_dir,
         run_kwargs=run_kwargs,
@@ -247,9 +246,20 @@ def saige(
     ))
 
 
-def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
-                                     max_count_per_chunk: int = 5000,
-                                     max_span_per_chunk: int = 5_000_000) -> List[VariantChunk]:
+def compute_variant_intervals_by_contig(mt: hl.MatrixTable,
+                                        max_count_per_chunk: int = 5000,
+                                        max_span_per_chunk: int = 5_000_000) -> List[hl.Interval]:
+    """Break up a dataset stored as a Hail Matrix Table into chunks.
+
+    Parameters
+    ----------
+    mt:
+        Input Hail MatrixTable object.
+    max_count_per_chunk:
+        Maximum number of variants in each chunk.
+    max_span_per_chunk:
+        Maximum number of base pairs a chunk spans.
+    """
     require_row_key_variant(mt, 'saige')
 
     reference_genome = mt.locus.dtype.reference_genome
@@ -277,7 +287,7 @@ def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
                                        hl.Locus(contig, cur_position, reference_genome=reference_genome),
                                        includes_start=True,
                                        includes_end=False)
-                chunks.append(VariantChunk(interval))
+                chunks.append(interval)
                 first_rank = cur_rank
                 first_position = cur_position
 
@@ -287,7 +297,7 @@ def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
             includes_start=True,
             includes_end=True,
         )
-        chunks.append(VariantChunk(interval))
+        chunks.append(interval)
 
     return chunks
 

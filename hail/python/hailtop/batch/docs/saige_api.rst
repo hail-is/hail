@@ -27,6 +27,7 @@ saige
     :toctree: saige-api/saige/
     :nosignatures:
 
+    saige.compute_variant_intervals_by_contig
     saige.extract_phenotypes
 
 
@@ -53,17 +54,6 @@ phenotype
     phenotype.Phenotype
     phenotype.PhenotypeConfig
     phenotype.SaigePhenotype
-
-
-variant_chunk
-~~~~~~~~~~~~~
-
-.. autosummary::
-    :toctree: saige-api/variant_chunk/
-    :nosignatures:
-    :template: class.rst
-
-    variant_chunk.VariantChunk
 
 
 steps
