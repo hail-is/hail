@@ -59,7 +59,7 @@ async def async_saige(
         phenotypes_path: str,
         output_path: str,
         phenotype_config: PhenotypeConfig,
-        variant_chunks: List[VariantChunk],
+        variant_chunks: Optional[List[VariantChunk]],
         group_annotations_file: Optional[str] = None,
         null_model_sample_list: Optional[str] = None,
         b: Optional[hb.Batch] = None,
@@ -90,6 +90,15 @@ async def async_saige(
             mt = hl.read_matrix_table(mt_path)
             require_col_key_str(mt, 'saige')
             require_row_key_variant(mt, 'saige')
+
+            if variant_chunks is None:
+                first_row = mt.rows().select().head(1).collect()[0]
+                last_row = mt.rows().select().tail(1).collect()[0]
+                reference_genome = mt.locus.dtype.reference_genome
+                variant_chunks = [hl.Interval(hl.Locus(first_row.contig, first_row.position, reference_genome=reference_genome),
+                                              hl.Locus(last_row.contig, last_row.position, reference_genome=reference_genome),
+                                              includes_start=True,
+                                              includes_end=True)]
 
             input_phenotypes_file = await load_text_file(fs, b, None, phenotypes_path)
             input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
@@ -212,7 +221,7 @@ def saige(
         phenotypes_path: str,
         output_path: str,
         phenotype_config: PhenotypeConfig,
-        variant_chunks: List[VariantChunk],
+        variant_chunks: Optional[List[VariantChunk]] = None,
         b: Optional[hb.Batch] = None,
         checkpoint_dir: Optional[str] = None,
         run_kwargs: Optional[dict] = None,
@@ -243,6 +252,7 @@ def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
                                      max_span_per_chunk: int = 5_000_000) -> List[VariantChunk]:
     require_row_key_variant(mt, 'saige')
 
+    reference_genome = mt.locus.dtype.reference_genome
     variants = mt.rows()
 
     group_metadata = variants.aggregate(
@@ -263,14 +273,17 @@ def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
             chunk_size = cur_rank - first_rank  # approximately how many rows are in interval [ first_position, cur_position )
             chunk_span = cur_position - first_position
             if chunk_size > max_count_per_chunk or chunk_span > max_span_per_chunk:
-                interval = hl.Interval(hl.Locus(contig, first_position), hl.Locus(contig, cur_position), includes_start=True, includes_end=False)
+                interval = hl.Interval(hl.Locus(contig, first_position, reference_genome=reference_genome),
+                                       hl.Locus(contig, cur_position, reference_genome=reference_genome),
+                                       includes_start=True,
+                                       includes_end=False)
                 chunks.append(VariantChunk(interval))
                 first_rank = cur_rank
                 first_position = cur_position
 
         interval = hl.Interval(
-            hl.Locus(contig, first_position),
-            hl.Locus(contig, cur_position),
+            hl.Locus(contig, first_position, reference_genome=reference_genome),
+            hl.Locus(contig, cur_position, reference_genome=reference_genome),
             includes_start=True,
             includes_end=True,
         )
@@ -279,68 +292,68 @@ def compute_variant_chunks_by_contig(mt: hl.MatrixTable,
     return chunks
 
 
-# FIXME: what is the group type?
-# FIXME: this should output the groups annotation file as well
-def prepare_variant_chunks_by_group(
-    mt: hl.MatrixTable, group: hl.ArrayExpression, max_count_per_chunk: int = 5000, max_span_per_chunk: int = 5_000_000
-) -> List[VariantChunk]:
-    require_row_key_variant(mt, 'saige')
-
-    variants = mt.rows()
-
-    rg = variants.locus.dtype.reference_genome
-
-    variants = variants.select(group=group).explode('group')
-
-    group_metadata = variants.aggregate(
-        hl.agg.group_by(
-            variants.group.group,
-            hl.struct(
-                contig=hl.array(hl.agg.collect_as_set(variants.locus.contig)),
-                start=hl.agg.min(variants.locus.position),
-                end=hl.agg.max(variants.locus.position),
-                count=hl.agg.count(variants.locus),
-            ),
-        )
-    )
-
-    group_metadata = sorted(list(group_metadata.items()), key=lambda x: (x.contig, x.start))
-
-    def variant_chunk_from_groups(groups: List[hl.Struct]) -> VariantChunk:
-        contig = groups[0].contig
-        start = min(g.start for g in groups)
-        end = max(g.end for g in groups)
-        return VariantChunk(
-            hl.Interval(
-                hl.Locus(contig, start, reference_genome=rg),
-                hl.Locus(contig, end, reference_genome=rg),
-                includes_start=True,
-                includes_end=True,
-            ),
-            [g.group for g in groups],
-        )
-
-    chunks = []
-
-    groups = [group_metadata[0]]
-    current_count = 0
-
-    for group, metadata in group_metadata[1:]:
-        first_group = groups[0]
-        if (
-            (current_count + group.count > max_count_per_chunk)
-            or (group.contig != first_group.contig)
-            or (group.end - first_group.end > max_span_per_chunk)
-        ):
-            chunks.append(variant_chunk_from_groups(groups))
-            current_count = 0
-
-        groups.append(group)
-        current_count += group.count
-
-    chunks.append(variant_chunk_from_groups(groups))
-
-    return chunks
+# # FIXME: what is the group type?
+# # FIXME: this should output the groups annotation file as well
+# def prepare_variant_chunks_by_group(
+#     mt: hl.MatrixTable, group: hl.ArrayExpression, max_count_per_chunk: int = 5000, max_span_per_chunk: int = 5_000_000
+# ) -> List[VariantChunk]:
+#     require_row_key_variant(mt, 'saige')
+#
+#     variants = mt.rows()
+#
+#     rg = variants.locus.dtype.reference_genome
+#
+#     variants = variants.select(group=group).explode('group')
+#
+#     group_metadata = variants.aggregate(
+#         hl.agg.group_by(
+#             variants.group.group,
+#             hl.struct(
+#                 contig=hl.array(hl.agg.collect_as_set(variants.locus.contig)),
+#                 start=hl.agg.min(variants.locus.position),
+#                 end=hl.agg.max(variants.locus.position),
+#                 count=hl.agg.count(variants.locus),
+#             ),
+#         )
+#     )
+#
+#     group_metadata = sorted(list(group_metadata.items()), key=lambda x: (x.contig, x.start))
+#
+#     def variant_chunk_from_groups(groups: List[hl.Struct]) -> VariantChunk:
+#         contig = groups[0].contig
+#         start = min(g.start for g in groups)
+#         end = max(g.end for g in groups)
+#         return VariantChunk(
+#             hl.Interval(
+#                 hl.Locus(contig, start, reference_genome=rg),
+#                 hl.Locus(contig, end, reference_genome=rg),
+#                 includes_start=True,
+#                 includes_end=True,
+#             ),
+#             [g.group for g in groups],
+#         )
+#
+#     chunks = []
+#
+#     groups = [group_metadata[0]]
+#     current_count = 0
+#
+#     for group, metadata in group_metadata[1:]:
+#         first_group = groups[0]
+#         if (
+#             (current_count + group.count > max_count_per_chunk)
+#             or (group.contig != first_group.contig)
+#             or (group.end - first_group.end > max_span_per_chunk)
+#         ):
+#             chunks.append(variant_chunk_from_groups(groups))
+#             current_count = 0
+#
+#         groups.append(group)
+#         current_count += group.count
+#
+#     chunks.append(variant_chunk_from_groups(groups))
+#
+#     return chunks
 
 
 def extract_phenotypes(mt: hl.MatrixTable,
