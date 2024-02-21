@@ -118,7 +118,7 @@ async def async_saige(
                                           for phenotype, result in zip(phenotype_config.phenotypes, maybe_phenotype_results)
                                           if result is not None}
 
-            if analysis_type == SaigeAnalysisType.GENE:
+            if analysis_type == SaigeAnalysisType.GENE or config.step1_null_glmm.use_sparse_grm_to_fit_null:
                 sparse_grm = config.sparse_grm._call(fs, b, input_null_model_plink_data, temp_dir, checkpoint_dir)
             else:
                 sparse_grm = None

@@ -405,6 +405,8 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         if sparse_grm is not None:
             options.append(f'--sparseGRMFile={sparse_grm.grm}')
             options.append(f'--sparseGRMSampleIDFile={sparse_grm.sample_ids}')
+            if self.use_sparse_grm_to_fit_null is not None:
+                options.append(f'--useSparseGRMtoFitNULL={bool_upper_str(self.use_sparse_grm_to_fit_null)}')
 
         q_covariates = [cov.name for cov in phenotype_config.covariates
                         if cov.phenotype_type == SaigePhenotype.BINARY]
@@ -460,8 +462,6 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             options.append(f'--isCovariateTransform={bool_upper_str(self.is_covariate_transform)}')
         if self.is_diag_of_kin_set_as_one is not None:
             options.append(f'--isDiagofKinSetAsOne={bool_upper_str(self.is_diag_of_kin_set_as_one)}')
-        if self.use_sparse_grm_to_fit_null is not None:
-            options.append(f'--useSparseGRMtoFitNULL={bool_upper_str(self.use_sparse_grm_to_fit_null)}')
         if self.use_sparse_grm_for_var_ratio is not None:
             options.append(f'--useSparseGRMforVarRatio={bool_upper_str(self.use_sparse_grm_for_var_ratio)}')
         if self.min_maf_for_grm is not None:
