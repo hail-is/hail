@@ -57,22 +57,34 @@ def test_variant_group_chunking(ds):
 def test_single_variant_example1():
     """https://saigegit.github.io/SAIGE-doc/docs/single_example.html#example-1"""
 
-    step1_null_glmm = Step1NullGlmmStep(cpu=2, is_overwrite_variance_ratio_file=True)
-    step2_spa = Step2SPAStep(chrom='1',
-                             min_maf=0,
-                             min_mac=20,
-                             is_firth_beta=True,
-                             p_cutoff_for_firth=0.05,
-                             output_more_details=True,
-                             loco=True)
-    phenotype_config = PhenotypeConfig(resource(...),
-                                       sample_id_col='IID',
-                                       phenotypes=[Phenotype('y_binary', SaigePhenotype.BINARY)],
-                                       covariates=[Phenotype('x1', SaigePhenotype.CONTINUOUS),
-                                                   Phenotype('x2', SaigePhenotype.BINARY)])
-    saige_config = SaigeConfig(step1_null_glmm=step1_null_glmm, step2_spa=step2_spa)
-    saige(mt_path, null_model_plink_path, phenotypes_path, output_path, phenotype_config=phenotype_config,
-          saige_config=saige_config)
+    with hl.TemporaryDirectory() as output:
+        mt_path = f'{output}/genotype_100markers.mt'
+        mt = hl.import_vcf(resource('saige/genotype_100markers.vcf.gz'))
+        mt.write(mt_path)
+
+        phenotypes_path = resource('pheno_1000samples.txt_withdosages_withBothTraitTypes.txt')
+        remote_phenotypes_path = f'{output}/phenotypes.tsv'
+        ht = hl.import_table(phenotypes_path, impute=False)
+        ht.export(remote_phenotypes_path)
+
+        
+
+        step1_null_glmm = Step1NullGlmmStep(cpu=2, is_overwrite_variance_ratio_file=True)
+        step2_spa = Step2SPAStep(chrom='1',
+                                 min_maf=0,
+                                 min_mac=20,
+                                 is_firth_beta=True,
+                                 p_cutoff_for_firth=0.05,
+                                 output_more_details=True,
+                                 loco=True)
+        phenotype_config = PhenotypeConfig(resource(...),
+                                           sample_id_col='IID',
+                                           phenotypes=[Phenotype('y_binary', SaigePhenotype.BINARY)],
+                                           covariates=[Phenotype('x1', SaigePhenotype.CONTINUOUS),
+                                                       Phenotype('x2', SaigePhenotype.BINARY)])
+        saige_config = SaigeConfig(step1_null_glmm=step1_null_glmm, step2_spa=step2_spa)
+        saige(mt_path, null_model_plink_path, remote_phenotypes_path, output_path, phenotype_config=phenotype_config,
+              saige_config=saige_config)`
 
 
 def test_single_variant_example2():
