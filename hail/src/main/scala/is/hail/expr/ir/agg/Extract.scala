@@ -227,7 +227,7 @@ class Aggs(
         {
           case ir if RefEquality(ir) == rewriteRoot =>
             val Let(bindings, body) = ir
-            Let(bindings, f(rewriteMap.lookup(body)))
+            Let.withAgg(bindings, f(rewriteMap.lookup(body)))
         },
       ).asInstanceOf[IR]
     }
@@ -533,10 +533,22 @@ object Extract {
     }
 
     val newNode = ir match {
-      case AggLet(name, value, body, _) =>
-        seqBuilder += name -> value
-        this.extract(body, env, bindingNodesReferenced, rewriteMap, ab, seqBuilder, memo, result, r,
-          isScan)
+      case x @ Let(bindings, body) =>
+        var newEnv = env
+        val newBindings = Array.newBuilder[Binding]
+        newBindings.sizeHint(bindings)
+        for (binding <- bindings) binding match {
+          case Binding(name, value, Scope.EVAL) =>
+            val newValue = this.extract(value, newEnv, bindingNodesReferenced, rewriteMap, ab,
+              seqBuilder, memo, result, r, isScan)
+            newBindings += Binding(name, newValue)
+            newEnv = env.bind(name, RefEquality(x))
+          case Binding(name, value, _) =>
+            seqBuilder += name -> value
+        }
+        val newBody = this.extract(body, newEnv, bindingNodesReferenced, rewriteMap, ab, seqBuilder,
+          memo, result, r, isScan)
+        Let.withAgg(newBindings.result(), newBody)
       case x: ApplyAggOp if !isScan =>
         val idx = memo.getOrElseUpdate(
           x, {
@@ -701,7 +713,7 @@ object Extract {
         assert(!ContainsAgg(x))
         x
       case x =>
-        ir.mapChildrenWithIndex { case (child: IR, i) =>
+        x.mapChildrenWithIndex { case (child: IR, i) =>
           val nb = Bindings(x, i)
           val newEnv = if (nb.nonEmpty) {
             val re = RefEquality(x)

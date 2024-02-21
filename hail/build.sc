@@ -125,7 +125,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
     Seq(
       "-explaintypes",
       "-unchecked",
-      "-Xsource:2.13",
+      "-Xsource:2.12",
       "-Xno-patmat-analysis",
       "-Ypartial-unification",
       "-Yno-adapted-args", // will be removed in 2.13

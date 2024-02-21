@@ -3641,9 +3641,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     /* Emit a sequence of bindings into a code builder. Each is added to the environment of all
      * following bindings. Any bindings which is unused and has no side effects is skipped (this is
      * mostly an optimization, but it is important not to emit unused streams). */
-    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[(String, IR)], env: EmitEnv, r: Value[Region])
+    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[Binding], env: EmitEnv, r: Value[Region])
       : EmitEnv =
-      bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+      bindings.foldLeft(env) { case (newEnv, Binding(name, ir, Scope.EVAL)) =>
         if (ir.typ == TVoid) {
           emitVoid(ir, cb, newEnv, r)
           newEnv
@@ -3693,7 +3693,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           return env
       }
 
-      val (curName, curIR) = let.bindings(pos)
+      val Binding(curName, curIR, Scope.EVAL) = let.bindings(pos)
 
       // skip over unused streams
       if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {

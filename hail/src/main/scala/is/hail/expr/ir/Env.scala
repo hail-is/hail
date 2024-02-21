@@ -30,6 +30,12 @@ case class BindingEnv[V](
 
   def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
 
+  def promoteScope(scope: Int): BindingEnv[V] = scope match {
+    case Scope.EVAL => this
+    case Scope.AGG => promoteAgg
+    case Scope.SCAN => promoteScan
+  }
+
   def noAgg: BindingEnv[V] = copy(agg = None)
 
   def noScan: BindingEnv[V] = copy(scan = None)
@@ -64,6 +70,12 @@ case class BindingEnv[V](
 
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
+
+  def bindInScope(name: String, v: V, scope: Int): BindingEnv[V] = scope match {
+    case Scope.EVAL => bindEval(name, v)
+    case Scope.AGG => bindAgg(name, v)
+    case Scope.SCAN => bindScan(name, v)
+  }
 
   def bindRelational(name: String, v: V): BindingEnv[V] =
     copy(relational = relational.bind(name, v))

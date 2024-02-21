@@ -47,11 +47,8 @@ object Copy {
         val newBindings =
           (bindings, newChildren.init)
             .zipped
-            .map { case ((name, _), ir: IR) => name -> ir }
-        Let(newBindings, newChildren.last.asInstanceOf[IR])
-      case AggLet(name, _, _, isScan) =>
-        assert(newChildren.length == 2)
-        AggLet(name, newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], isScan)
+            .map { case (binding, ir: IR) => binding.copy(value = ir) }
+        Let.withAgg(newBindings, newChildren.last.asInstanceOf[IR])
       case TailLoop(name, params, resultType, _) =>
         assert(newChildren.length == params.length + 1)
         TailLoop(
