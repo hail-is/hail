@@ -59,10 +59,7 @@ def vmt_sample_qc_variant_annotations(
             _num_allele_type(ref, alt),
         )
 
-    return (
-        hl.agg.call_stats(global_gt, alleles).AC,
-        alleles[1:].map(lambda alt: allele_type(alleles[0], alt))
-    )
+    return (hl.agg.call_stats(global_gt, alleles).AC, alleles[1:].map(lambda alt: allele_type(alleles[0], alt)))
 
 
 @typecheck(
@@ -199,9 +196,9 @@ def vmt_sample_qc(
 
     dp_exprs = {}
     if dp is not None:
-        dp_exprs['bases_over_gq_threshold'] = hl.tuple(hl.agg.count_where(dp >= x) for x in dp_bins)
+        dp_exprs['bases_over_dp_threshold'] = hl.tuple(hl.agg.count_where(dp >= x) for x in dp_bins)
 
-    gq_dp_exprs = {'bases_over_dp_threshold': hl.tuple(hl.agg.count_where(gq >= x) for x in gq_bins), **dp_exprs}
+    gq_dp_exprs = {'bases_over_gq_threshold': hl.tuple(hl.agg.count_where(gq >= x) for x in gq_bins), **dp_exprs}
 
     return hl.rbind(
         hl.struct(**bound_exprs),
@@ -325,13 +322,15 @@ def combine_sample_qc(
     if 'bases_over_gq_threshold' not in vmt_sample_qc:
         raise ValueError("Expect 'bases_over_gq_threshold' field in 'vmt_sample_qc' expression")
     if sum('bases_over_dp_threshold' in expr for expr in (rmt_sample_qc, vmt_sample_qc)) % 2 == 1:
-        raise ValueError("Expect 'bases_over_dp_threshold' field in both or neither of "
-                         "'rmt_sample_qc' and 'vmt_sample_qc'")
+        raise ValueError(
+            "Expect 'bases_over_dp_threshold' field in both or neither of " "'rmt_sample_qc' and 'vmt_sample_qc'"
+        )
     if len(rmt_sample_qc.bases_over_gq_threshold) != len(vmt_sample_qc.bases_over_gq_threshold):
         raise ValueError("Expect same number of GQ bins for both variant and reference qc results")
-    if 'bases_over_dp_threshold' in rmt_sample_qc and \
-        len(rmt_sample_qc.bases_over_dp_threshold) != len(vmt_sample_qc.bases_over_dp_threshold):
-            raise ValueError("Expect same number of DP bins for both variant and reference qc results")
+    if 'bases_over_dp_threshold' in rmt_sample_qc and len(rmt_sample_qc.bases_over_dp_threshold) != len(
+        vmt_sample_qc.bases_over_dp_threshold
+    ):
+        raise ValueError("Expect same number of DP bins for both variant and reference qc results")
 
     joined_dp_expr = {}
     if 'bases_over_dp_threshold' in vmt_sample_qc:
@@ -427,6 +426,6 @@ def sample_qc(
     dp_bins_field = {}
     if ref_dp_field_to_use is not None:
         dp_bins_field['dp_bins'] = hl.tuple(dp_bins)
-    joined_results = variant_results.transmute(**combine_sample_qc(joined.row, variant_results.row))
+    joined_results = variant_results.transmute(**combine_sample_qc(joined, variant_results.row))
     joined_results = joined_results.annotate_globals(gq_bins=hl.tuple(gq_bins), **dp_bins_field)
     return joined_results
