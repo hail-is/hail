@@ -4,8 +4,7 @@ import scala.collection.mutable
 
 import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
 import is.hail.shadedazure.com.azure.identity.{
-  DefaultAzureCredential,
-  DefaultAzureCredentialBuilder,
+  DefaultAzureCredential, DefaultAzureCredentialBuilder,
 }
 import is.hail.utils._
 
@@ -16,7 +15,6 @@ import org.apache.http.util.EntityUtils
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods
-
 
 object TerraAzureStorageFS {
   private val log = Logger.getLogger(getClass.getName)
@@ -40,12 +38,12 @@ class TerraAzureStorageFS extends AzureStorageFS() {
     val urlStr =
       if (filename.startsWith(storageContainerUrl)) {
         sasTokenCache.get(filename) match {
-          case Some((sasTokenUrl, expiration)) if expiration > System.currentTimeMillis + TEN_MINUTES_IN_MS => sasTokenUrl
-          case None => {
+          case Some((sasTokenUrl, expiration))
+              if expiration > System.currentTimeMillis + TEN_MINUTES_IN_MS => sasTokenUrl
+          case None =>
             val (sasTokenUrl, expiration) = getTerraSasToken(filename)
             sasTokenCache += (filename -> (sasTokenUrl -> expiration))
             sasTokenUrl
-          }
         }
       } else {
         filename
@@ -61,7 +59,8 @@ class TerraAzureStorageFS extends AzureStorageFS() {
     context.addScopes("https://management.azure.com/.default")
     val token = credential.getToken(context).block().getToken()
 
-    val url = s"${workspaceManagerUrl}/api/workspaces/v1/${workspaceId}/resources/controlled/azure/storageContainer/${containerResourceId}/getSasToken"
+    val url =
+      s"$workspaceManagerUrl/api/workspaces/v1/$workspaceId/resources/controlled/azure/storageContainer/$containerResourceId/getSasToken"
     val req = new HttpPost(url)
     req.addHeader("Authorization", s"Bearer $token")
 

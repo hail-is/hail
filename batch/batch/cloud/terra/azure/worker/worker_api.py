@@ -2,6 +2,7 @@ import os
 from typing import Dict, List
 
 import orjson
+from aiohttp import web
 
 from hailtop import httpx
 from hailtop.aiocloud.aioazure import AzureCredentials
@@ -63,6 +64,9 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
 
     async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:
         return {}
+
+    def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
+        raise NotImplementedError
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> TerraAzureSlimInstanceConfig:
         return TerraAzureSlimInstanceConfig.from_dict(config_dict)
