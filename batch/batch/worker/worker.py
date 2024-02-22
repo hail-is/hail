@@ -86,11 +86,6 @@ from ..semaphore import FIFOWeightedSemaphore
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
-# import uvloop
-
-
-# uvloop.install()
-
 with open('/subdomains.txt', 'r', encoding='utf-8') as subdomains_file:
     HAIL_SERVICES = [line.rstrip() for line in subdomains_file.readlines()]
 
