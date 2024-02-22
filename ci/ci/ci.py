@@ -11,6 +11,7 @@ import aiohttp_session  # type: ignore
 import kubernetes_asyncio
 import kubernetes_asyncio.client
 import kubernetes_asyncio.config
+import uvloop  # type: ignore
 import yaml
 from aiohttp import web
 from gidgethub import aiohttp as gh_aiohttp
@@ -30,7 +31,7 @@ from gear import (
     setup_aiohttp_session,
 )
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, httpx, uvloopx
+from hailtop import aiotools, httpx
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
@@ -49,6 +50,8 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r',
     oauth_token = f.read().strip()
 
 log = logging.getLogger('ci')
+
+uvloop.install()
 
 deploy_config = get_deploy_config()
 
@@ -818,8 +821,6 @@ async def on_cleanup(app: web.Application):
 
 
 def run():
-    uvloopx.install()
-
     install_profiler_if_requested('ci')
 
     app = web.Application(middlewares=[check_csrf_token, monitor_endpoints_middleware])

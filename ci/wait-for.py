@@ -4,9 +4,10 @@ import concurrent.futures
 import sys
 import traceback
 
+import uvloop
 from kubernetes_asyncio import client, config
 
-from hailtop import uvloopx
+uvloop.install()
 
 
 async def timeout(timeout_seconds):
@@ -69,6 +70,5 @@ async def main():
         await v1.api_client.rest_client.pool_manager.close()
 
 
-if __name__ == '__main__':
-    uvloopx.install()
-    asyncio.run(main())
+loop = asyncio.get_event_loop()
+loop.run_until_complete(main())

@@ -11,6 +11,7 @@ import aiohttp_session
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
 import kubernetes_asyncio.config
+import uvloop
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
@@ -32,7 +33,7 @@ from gear import (
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
-from hailtop import httpx, uvloopx
+from hailtop import httpx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -54,6 +55,8 @@ from .exceptions import (
 )
 
 log = logging.getLogger('auth')
+
+uvloop.install()
 
 CLOUD = get_global_config()['cloud']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
@@ -884,8 +887,6 @@ async def auth_check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
 
 
 def run():
-    uvloopx.install()
-
     install_profiler_if_requested('auth')
 
     app = web.Application(middlewares=[auth_check_csrf_token, monitor_endpoints_middleware])

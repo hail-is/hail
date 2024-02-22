@@ -20,6 +20,7 @@ import pandas as pd
 import plotly
 import plotly.graph_objects as go
 import prometheus_client as pc  # type: ignore
+import uvloop
 from aiohttp import web
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
@@ -80,7 +81,7 @@ from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 
-uvloopx.install()
+uvloop.install()
 
 log = logging.getLogger('batch')
 

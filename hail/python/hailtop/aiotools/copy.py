@@ -8,11 +8,21 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from rich.progress import Progress, TaskID
 
-from .. import uvloopx
 from ..utils.utils import sleep_before_try
 from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from . import Transfer, Copier
 from .router_fs import RouterAsyncFS
+
+try:
+    import uvloop
+
+    uvloop_install = uvloop.install
+except ImportError as e:
+    if not sys.platform.startswith('win32'):
+        raise e
+
+    def uvloop_install():
+        pass
 
 
 class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
@@ -212,5 +222,5 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    uvloopx.install()
+    uvloop_install()
     asyncio.run(main())
