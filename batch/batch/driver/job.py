@@ -11,12 +11,12 @@ import aiohttp
 from gear import CommonAiohttpAppKeys, Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
 
 from ..batch import batch_record_to_dict, job_group_record_to_dict
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
-from ..constants import ROOT_JOB_GROUP_ID
 from ..file_store import FileStore
 from ..globals import STATUS_FORMAT_VERSION, complete_states, tasks
 from ..instance_config import QuantifiedResource

@@ -1,3 +1,4 @@
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import (
     CPU_REGEX,
     CPU_REGEXPAT,
@@ -24,7 +25,6 @@ from hailtop.utils.validate import (
     switch,
 )
 
-from ..constants import ROOT_JOB_GROUP_ID
 from ..globals import memory_types
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)

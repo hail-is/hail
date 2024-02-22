@@ -48,6 +48,7 @@ from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, version
 from hailtop.auth import hail_credentials
+from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch_client.types import (
     GetJobGroupResponseV1Alpha,
@@ -81,7 +82,6 @@ from ..cloud.resource_utils import (
     valid_machine_types,
 )
 from ..cloud.utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..constants import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from ..exceptions import (
     BatchOperationAlreadyCompletedError,
     BatchUserError,

@@ -1,6 +1,7 @@
 from typing import Any, List, Optional, Tuple
 
-from ...constants import ROOT_JOB_GROUP_ID
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
+
 from ...exceptions import QueryError
 from .query import job_state_search_term_to_states
 

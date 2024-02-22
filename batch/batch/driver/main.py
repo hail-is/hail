@@ -42,6 +42,7 @@ from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import (
@@ -64,7 +65,6 @@ from ..batch_configuration import (
 )
 from ..cloud.driver import get_cloud_driver
 from ..cloud.resource_utils import local_ssd_size, possible_cores_from_worker_type, unreserved_worker_data_disk_size_gib
-from ..constants import ROOT_JOB_GROUP_ID
 from ..exceptions import BatchUserError
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE
