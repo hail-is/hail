@@ -219,7 +219,7 @@ class ResumableInsertObjectStream(WritableStream):
 
         # Upload a single chunk.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
-        it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable(self._session_url)
+        it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
         async with _TaskManager(
             self._session.put(
                 self._session_url,
@@ -357,7 +357,7 @@ class GoogleStorageClient(GoogleBaseClient):
             params['uploadType'] = upload_type
 
         if upload_type == 'media':
-            it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable('gs://' + bucket + '/' + name)
+            it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
             kwargs['data'] = aiohttp.AsyncIterablePayload(it)
             request_task = asyncio.create_task(
                 self._session.post(

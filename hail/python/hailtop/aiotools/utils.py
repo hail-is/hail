@@ -12,10 +12,9 @@ class _StopFeedableAsyncIterator:
 
 
 class FeedableAsyncIterable(AsyncIterator[_T]):
-    def __init__(self, url: str, maxsize: int = 1):
+    def __init__(self, maxsize: int = 1):
         self._queue: asyncio.Queue = asyncio.Queue(maxsize=maxsize)
         self._stopped = False
-        self.url = url
 
     def __aiter__(self) -> 'FeedableAsyncIterable[_T]':
         return self
