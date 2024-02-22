@@ -1,5 +1,12 @@
-import pytest
-import hail as hl
+from typing import AsyncIterator, Tuple
+import asyncio
+
+from hailtop import pip_version
+from hailtop.batch import ServiceBackend
+from hailtop.utils import secret_alnum_string
+from hailtop.config import get_remote_tmpdir
+from hailtop.aiotools.router_fs import RouterAsyncFS
+
 import hailtop.fs as hfs
 from hailtop.saige import (
     Phenotype,
@@ -46,6 +53,29 @@ from ...hail.helpers import *
 #     return hl.utils.new_temp_file('saige_output')
 
 
+HAIL_SAIGE_IMAGE = os.environ.get('HAIL_SAIGE_IMAGE', f'hailgenetics/saige:{pip_version()}')
+
+
+@pytest.fixture(scope="session")
+def tmpdir() -> str:
+    return os.path.join(
+        get_remote_tmpdir('test_saige.py::tmpdir'),
+        secret_alnum_string(5),  # create a unique URL for each split of the tests
+    )
+
+
+@pytest.fixture
+def output_tmpdir(tmpdir: str) -> str:
+    return os.path.join(tmpdir, 'output', secret_alnum_string(5))
+
+
+@pytest.fixture(scope="session")
+async def upload_test_files(tmpdir: str):
+    print('uploading test files')
+    hfs.copy(resource('saige/'), f'{tmpdir}/')
+    print(f'uploaded test files to {tmpdir}')
+
+
 def test_variant_chunking(ds):
     pass
 
@@ -54,42 +84,40 @@ def test_variant_group_chunking(ds):
     pass
 
 
-def test_single_variant_example1():
+# FIXME: add appropriate flags for QoB
+def test_single_variant_example1(tmpdir, output_tmpdir, upload_test_files):
     """https://saigegit.github.io/SAIGE-doc/docs/single_example.html#example-1"""
 
-    with hl.TemporaryDirectory() as output:
-        hfs.copy(resource('saige/'), f'{output}/')
+    mt_path = f'{tmpdir}/saige/genotype_100markers_thinned.mt'
+    phenotypes_path = f'{tmpdir}/saige/pheno_1000samples.txt_withdosages_withBothTraitTypes_thinned.txt'
+    null_model_plink_path = f'{tmpdir}/saige/nfam_100_nindep_0_step1_includeMoreRareVariants_poly_22chr_thinned'
+    output_path = f'{output_tmpdir}/saige/results.ht'
 
-        mt_path = f'{output}/genotype_100markers.mt'
-        phenotypes_path = f'{output}/pheno_1000samples.txt_withdosages_withBothTraitTypes.txt'
-        null_model_plink_path = f'{output}/nfam_100_nindep_0_step1_includeMoreRareVariants_poly_22chr'
-        output_path = f'{output}/results.ht'
+    step1_null_glmm = Step1NullGlmmStep(cpu=2, is_overwrite_variance_ratio_file=True)
 
-        step1_null_glmm = Step1NullGlmmStep(cpu=2, is_overwrite_variance_ratio_file=True)
+    step2_spa = Step2SPAStep(chrom='1',
+                             min_maf=0,
+                             min_mac=20,
+                             is_firth_beta=True,
+                             p_cutoff_for_firth=0.05,
+                             output_more_details=True,
+                             loco=True)
 
-        step2_spa = Step2SPAStep(chrom='1',
-                                 min_maf=0,
-                                 min_mac=20,
-                                 is_firth_beta=True,
-                                 p_cutoff_for_firth=0.05,
-                                 output_more_details=True,
-                                 loco=True)
+    phenotype_config = PhenotypeConfig(phenotypes_path,
+                                       sample_id_col='IID',
+                                       phenotypes=[Phenotype('y_binary', SaigePhenotype.BINARY)],
+                                       covariates=[Phenotype('x1', SaigePhenotype.CONTINUOUS),
+                                                   Phenotype('x2', SaigePhenotype.BINARY)])
 
-        phenotype_config = PhenotypeConfig(phenotypes_path,
-                                           sample_id_col='IID',
-                                           phenotypes=[Phenotype('y_binary', SaigePhenotype.BINARY)],
-                                           covariates=[Phenotype('x1', SaigePhenotype.CONTINUOUS),
-                                                       Phenotype('x2', SaigePhenotype.BINARY)])
+    saige_config = SaigeConfig(step1_null_glmm=step1_null_glmm, step2_spa=step2_spa)
 
-        saige_config = SaigeConfig(step1_null_glmm=step1_null_glmm, step2_spa=step2_spa)
+    saige(mt_path=mt_path,
+          null_model_plink_path=null_model_plink_path,
+          output_path=output_path,
+          phenotype_config=phenotype_config,
+          saige_config=saige_config)
 
-        saige(mt_path=mt_path,
-              null_model_plink_path=null_model_plink_path,
-              output_path=output_path,
-              phenotype_config=phenotype_config,
-              saige_config=saige_config)
-
-        assert hfs.exists(output_path)
+    assert hfs.exists(output_path)
 
 
 def test_single_variant_example2():

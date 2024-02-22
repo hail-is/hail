@@ -93,15 +93,11 @@ async def async_saige(
             if variant_intervals is None:
                 first_row = mt.rows().select().head(1).collect()[0]
                 last_row = mt.rows().select().tail(1).collect()[0]
-                reference_genome = mt.locus.dtype.reference_genome
-                variant_intervals = [hl.Interval(hl.Locus(first_row.contig, first_row.position, reference_genome=reference_genome),
-                                                 hl.Locus(last_row.contig, last_row.position, reference_genome=reference_genome),
-                                                 includes_start=True,
-                                                 includes_end=True)]
+                variant_intervals = [hl.Interval(first_row.locus, last_row.locus, includes_start=True, includes_end=True)]
 
             variant_chunks = [VariantChunk(interval) for interval in variant_intervals]
 
-            input_phenotypes_file = await load_text_file(fs, b, None, phenotype_config.phenotypes_file)
+            input_phenotypes = await load_text_file(fs, b, None, phenotype_config.phenotypes_file)
             input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
 
             if 'GP' in list(mt.entry):
@@ -145,9 +141,9 @@ async def async_saige(
                         fs,
                         b,
                         input_bfile=input_null_model_plink_data,
-                        input_phenotypes_file=input_phenotypes_file,
-                        keep_sample_list=null_model_samples,
-                        phenotype_information=phenotype_config,
+                        input_phenotypes=input_phenotypes,
+                        keep_samples_list=null_model_samples,
+                        phenotype_config=phenotype_config,
                         phenotype=phenotype,
                         sparse_grm=sparse_grm,
                         analysis_type=analysis_type,
