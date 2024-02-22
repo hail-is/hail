@@ -6,22 +6,25 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 usage() {
 cat << EOF
-USAGE:
-$(basename "$0") \\
-  HAIL_PIP_VERSION \\
-  HAIL_VERSION \\
-  GIT_VERSION \\
-  REMOTE \\
-  WHEEL \\
-  GITHUB_OAUTH_HEADER_FILE \\
-  HAIL_GENETICS_HAIL_IMAGE \\
-  HAIL_GENETICS_HAIL_IMAGE_PY_3_10 \\
-  HAIL_GENETICS_HAIL_IMAGE_PY_3_11 \\
-  HAIL_GENETICS_HAILTOP_IMAGE \\
-  HAIL_GENETICS_VEP_GRCH37_85_IMAGE \\
-  HAIL_GENETICS_VEP_GRCH38_95_IMAGE \\
-  AZURE_WHEEL \\
-  WEBSITE_TAR
+usage: $(basename "$0")
+
+    All arguments are specified by environment variables. For example:
+
+        HAIL_PIP_VERSION=0.2.123
+        HAIL_VERSION=0.2.123-abcdef123
+        GIT_VERSION=abcdef123
+        REMOTE=origin
+        WHEEL=/path/to/the.whl
+        GITHUB_OAUTH_HEADER_FILE=/path/to/github/oauth/header/file
+        HAIL_GENETICS_HAIL_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-123abc
+        HAIL_GENETICS_HAILTOP_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:deploy-123abc
+        HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:deploy-123abc
+        HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch38-95:deploy-123abc
+        AZURE_WHEEL=/path/to/wheel/for/azure
+        WEBSITE_TAR=/path/to/www.tar.gz
+        $(basename "$0")
 EOF
 }
 
@@ -31,22 +34,25 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $# -eq 14 ]] || usage; exit 1
+arguments="HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE \
+           HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAIL_IMAGE_PY_3_10 \
+           HAIL_GENETICS_HAIL_IMAGE_PY_3_11 HAIL_GENETICS_HAILTOP_IMAGE \
+           HAIL_GENETICS_VEP_GRCH37_85_IMAGE HAIL_GENETICS_VEP_GRCH38_95_IMAGE AZURE_WHEEL \
+           WEBSITE_TAR"
 
-HAIL_PIP_VERSION=$1
-HAIL_VERSION=$2
-GIT_VERSION=$3
-REMOTE=$4
-WHEEL=$5
-GITHUB_OAUTH_HEADER_FILE=$6
-HAIL_GENETICS_HAIL_IMAGE=$7
-HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$8
-HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$9
-HAIL_GENETICS_HAILTOP_IMAGE=${10}
-HAIL_GENETICS_VEP_GRCH37_85_IMAGE=${11}
-HAIL_GENETICS_VEP_GRCH38_95_IMAGE=${12}
-AZURE_WHEEL=${13}
-WEBSITE_TAR=${14}
+for varname in $arguments
+do
+    if [ -z "${!varname}" ]  # A bash-ism, but we are #!/bin/bash
+    then
+	echo
+        usage
+        echo
+        echo "$varname is unset or empty"
+	exit 1
+    else
+	echo "$varname=${!varname}"
+    fi
+done
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_10 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_10" ; exit 1)
