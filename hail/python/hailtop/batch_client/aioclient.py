@@ -470,7 +470,6 @@ class JobGroup:
             cancel_after_n_failures=cancel_after_n_failures,
         )
 
-    # FIXME Error if this is called while in a job within the same job group
     async def _wait(
         self,
         description: str,
@@ -500,7 +499,6 @@ class JobGroup:
                 if i < 64:
                     i = i + 1
 
-    # FIXME Error if this is called while in a job within the same job group
     async def wait(
         self, *, disable_progress_bar: bool = False, description: str = '', progress: Optional[BatchProgressBar] = None
     ) -> GetJobGroupResponseV1Alpha:
@@ -670,7 +668,6 @@ class Batch:
             return await self.status()  # updates _last_known_status
         return self._last_known_status
 
-    # FIXME Error if this is called while within a job of the same Batch
     async def _wait(
         self, description: str, progress: BatchProgressBar, disable_progress_bar: bool, starting_job: int
     ) -> Dict[str, Any]:
@@ -699,7 +696,6 @@ class Batch:
                 if i < 64:
                     i = i + 1
 
-    # FIXME Error if this is called while in a job within the same Batch
     async def wait(
         self,
         *,
