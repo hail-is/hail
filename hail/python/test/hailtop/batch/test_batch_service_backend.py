@@ -75,7 +75,7 @@ def test_single_task_input_resource_group(
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
 
-def test_single_task_output(backend: ServiceBackend):
+def test_single_task_output(service_backend: ServiceBackend):
     b = batch(service_backend)
     j = b.new_job(attributes={'a': 'bar', 'b': 'foo'})
     j.command(f'echo hello > {j.ofile}')
@@ -96,7 +96,7 @@ def test_single_task_write_output(service_backend: ServiceBackend, output_tmpdir
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
 
-def test_single_task_resource_group(backend: ServiceBackend):
+def test_single_task_resource_group(service_backend: ServiceBackend):
     b = batch(service_backend)
     j = b.new_job()
     j.declare_resource_group(output={'foo': '{root}.foo'})
