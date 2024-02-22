@@ -163,7 +163,7 @@ LOCK IN SHARE MODE;
 """
 
     billing_projects = []
-    async for record in db.execute_and_fetchall(sql, tuple(args)):
+    async for record in db.select_and_fetchall(sql, tuple(args)):
         record['users'] = json.loads(record['users']) if record['users'] is not None else []
         billing_projects.append(record)
 
@@ -206,7 +206,7 @@ LOCK IN SHARE MODE;
 """
 
     billing_projects = []
-    async for record in db.execute_and_fetchall(sql, tuple(args)):
+    async for record in db.select_and_fetchall(sql, tuple(args)):
         record['users'] = json.loads(record['users']) if record['users'] is not None else []
         billing_projects.append(record)
 
