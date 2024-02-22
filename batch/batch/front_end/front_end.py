@@ -23,7 +23,6 @@ import plotly
 import plotly.express as px
 import plotly.graph_objects as go
 import pymysql
-import uvloop
 from aiohttp import web
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -46,7 +45,7 @@ from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, dictfix, httpx, version
+from hailtop import aiotools, dictfix, httpx, uvloopx, version
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch_client.types import GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
@@ -112,7 +111,7 @@ from .query import (
 )
 from .validate import ValidationError, validate_and_clean_jobs, validate_batch, validate_batch_update
 
-uvloop.install()
+uvloopx.install()
 
 log = logging.getLogger('batch.front_end')
 
