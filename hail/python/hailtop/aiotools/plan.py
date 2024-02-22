@@ -225,76 +225,48 @@ async def find_all_copy_pairs(
         n_files = 0
         n_bytes = 0
 
-        async def process_child_directory(new_srcurl: str, new_dsturl: str) -> Tuple[int, int]:
-            return await find_all_copy_pairs(
-                fs,
-                matches,
-                differs,
-                srconly,
-                dstonly,
-                plan,
-                new_srcurl,
-                new_dsturl,
-                progress,
-                sema,
-                source_must_exist=False,
-            )
-
-        async def retrieve_child_directory_results(child_directory_task):
-            nonlocal n_files
-            nonlocal n_bytes
-            dir_n_files, dir_n_bytes = await child_directory_task
-            n_files += dir_n_files
-            n_bytes += dir_n_bytes
-
-        async with AsyncExitStack() as child_directory_callbacks:
-
-            def background_process_child_dir(new_srcurl: str, new_dsturl: str):
-                t = asyncio.create_task(process_child_directory(new_srcurl, new_dsturl))
-                child_directory_callbacks.push_async_callback(retrieve_child_directory_results, t)
-
-            while srcidx < len(srcfiles) and dstidx < len(dstfiles):
-                srcf = srcfiles[srcidx]
-                dstf = dstfiles[dstidx]
-                relsrcf = relativize_url(folder=src, file=srcf.url)
-                reldstf = relativize_url(folder=dst, file=dstf.url)
-                if relsrcf == reldstf:
-                    if srcf.size == dstf.size:
-                        await writeline(matches, srcf.url, dstf.url)
-                    else:
-                        await writeline(differs, srcf.url, dstf.url, str(srcf.size), str(dstf.size))
-                    dstidx += 1
-                    srcidx += 1
-                    progress.update(tid, advance=2)
-                elif relsrcf < reldstf:
-                    await writeline(srconly, srcf.url)
-                    await writeline(plan, srcf.url, os.path.join(dst, relativize_url(folder=src, file=srcf.url)))
-                    n_files += 1
-                    n_bytes += srcf.size
-                    srcidx += 1
-                    progress.update(tid, advance=1)
+        while srcidx < len(srcfiles) and dstidx < len(dstfiles):
+            srcf = srcfiles[srcidx]
+            dstf = dstfiles[dstidx]
+            relsrcf = relativize_url(folder=src, file=srcf.url)
+            reldstf = relativize_url(folder=dst, file=dstf.url)
+            if relsrcf == reldstf:
+                if srcf.size == dstf.size:
+                    await writeline(matches, srcf.url, dstf.url)
                 else:
-                    assert relsrcf >= reldstf
-                    dstidx += 1
-                    progress.update(tid, advance=1)
-                    await writeline(dstonly, dstf.url)
-
-            while srcidx < len(srcfiles):
-                srcf = srcfiles[srcidx]
-
+                    await writeline(differs, srcf.url, dstf.url, str(srcf.size), str(dstf.size))
+                dstidx += 1
+                srcidx += 1
+                progress.update(tid, advance=2)
+            elif relsrcf < reldstf:
                 await writeline(srconly, srcf.url)
                 await writeline(plan, srcf.url, os.path.join(dst, relativize_url(folder=src, file=srcf.url)))
                 n_files += 1
                 n_bytes += srcf.size
                 srcidx += 1
                 progress.update(tid, advance=1)
-
-            while dstidx < len(dstfiles):
-                dstf = dstfiles[dstidx]
-
-                await writeline(dstonly, dstf.url)
+            else:
+                assert relsrcf >= reldstf
                 dstidx += 1
                 progress.update(tid, advance=1)
+                await writeline(dstonly, dstf.url)
+
+        while srcidx < len(srcfiles):
+            srcf = srcfiles[srcidx]
+
+            await writeline(srconly, srcf.url)
+            await writeline(plan, srcf.url, os.path.join(dst, relativize_url(folder=src, file=srcf.url)))
+            n_files += 1
+            n_bytes += srcf.size
+            srcidx += 1
+            progress.update(tid, advance=1)
+
+        while dstidx < len(dstfiles):
+            dstf = dstfiles[dstidx]
+
+            await writeline(dstonly, dstf.url)
+            dstidx += 1
+            progress.update(tid, advance=1)
 
         # a short sleep ensures the progress bar is visible for a moment to the user
         await asyncio.sleep(0.150)
