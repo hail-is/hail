@@ -2065,15 +2065,16 @@ def test_cannot_create_job_in_job_group_where_batch_has_been_cancelled(client: B
 def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
     parent = b = create_batch(client)
     job_groups = []
-    for level in range(MAX_JOB_GROUPS_DEPTH - 1):
-        parent = jg = parent.create_job_group(attributes={'level': level})
+    for level in range(MAX_JOB_GROUPS_DEPTH):
+        parent = jg = parent.create_job_group(attributes={'level': str(level)})
         job_groups.append(jg)
     b.submit()
     job_groups[0].cancel()
 
-    for jg in job_groups:
+    for level, jg in enumerate(job_groups):
         status = jg.status()
         assert status['state'] == 'cancelled', str(b.debug_info())
+        assert jg.attributes()['level'] == str(level), str(b.debug_info())
 
 
 def test_create_job_in_nested_job_group(client: BatchClient):
