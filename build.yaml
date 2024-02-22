@@ -828,7 +828,7 @@ steps:
       - base_image
       - merge_code
   - kind: runImage
-    name: build_wheel_for_azure
+    name: build_azure_wheel
     image:
       valueFrom: base_image.image
     resources:
@@ -3420,7 +3420,7 @@ steps:
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
-      - build_wheel_for_azure
+      - build_azure_wheel
       - make_docs
     clouds:
       - gcp

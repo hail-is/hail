@@ -20,7 +20,7 @@ $(basename "$0") \\
   HAIL_GENETICS_HAILTOP_IMAGE \\
   HAIL_GENETICS_VEP_GRCH37_85_IMAGE \\
   HAIL_GENETICS_VEP_GRCH38_95_IMAGE \\
-  WHEEL_FOR_AZURE \\
+  AZURE_WHEEL \\
   WEBSITE_TAR
 EOF
 }
@@ -45,7 +45,7 @@ HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$9
 HAIL_GENETICS_HAILTOP_IMAGE=${10}
 HAIL_GENETICS_VEP_GRCH37_85_IMAGE=${11}
 HAIL_GENETICS_VEP_GRCH38_95_IMAGE=${12}
-WHEEL_FOR_AZURE=${13}
+AZURE_WHEEL=${13}
 WEBSITE_TAR=${14}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
@@ -130,9 +130,9 @@ retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/
 twine upload $WHEEL
 
 # deploy wheel for Azure HDInsight
-wheel_for_azure_url=gs://hail-common/azure-hdinsight-wheels/$(basename $WHEEL_FOR_AZURE)
-gcloud storage cp $WHEEL_FOR_AZURE $wheel_for_azure_url
-gcloud storage objects update $wheel_for_azure_url --temporary-hold
+azure_wheel_url=gs://hail-common/azure-hdinsight-wheels/$(basename $AZURE_WHEEL)
+gcloud storage cp $AZURE_WHEEL $azure_wheel_url
+gcloud storage objects update $azure_wheel_url --temporary-hold
 
 # deploy datasets (annotation db) json
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json

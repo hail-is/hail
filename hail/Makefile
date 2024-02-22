@@ -424,7 +424,7 @@ test-dataproc-38: install-hailctl
 #
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
-# set WHEEL_FOR_AZURE to the path to that wheel file
+# set AZURE_WHEEL to the path to that wheel file
 #
 # Create a hail docs www.tar.gz file (see build.yaml "make_docs" rule) and set WEBSITE_TAR to the path to www.tar.gz
 #
@@ -443,7 +443,7 @@ release: test-dataproc $(WHEEL)
 		$(HAIL_GENETICS_HAILTOP_IMAGE) \
 		$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
 		$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
-		$(WHEEL_FOR_AZURE) \
+		$(AZURE_WHEEL) \
 		$(WEBSITE_TAR)
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
