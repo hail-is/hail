@@ -123,9 +123,17 @@ async def copy(
 
 def make_transfer(json_object: Dict[str, str]) -> Transfer:
     if 'to' in json_object:
-        return Transfer(os.path.expandvars(json_object['from']), os.path.expandvars(json_object['to']), treat_dest_as=Transfer.DEST_IS_TARGET)
+        return Transfer(
+            os.path.expandvars(json_object['from']),
+            os.path.expandvars(json_object['to']),
+            treat_dest_as=Transfer.DEST_IS_TARGET,
+        )
     assert 'into' in json_object
-    return Transfer(os.path.expandvars(json_object['from']), os.path.expandvars(json_object['into']), treat_dest_as=Transfer.DEST_DIR)
+    return Transfer(
+        os.path.expandvars(json_object['from']),
+        os.path.expandvars(json_object['into']),
+        treat_dest_as=Transfer.DEST_DIR,
+    )
 
 
 async def copy_from_dict(
