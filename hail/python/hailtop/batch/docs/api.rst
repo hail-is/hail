@@ -58,6 +58,7 @@ A :class:`.PythonResult` stores the output from running a :class:`.PythonJob`.
     :template: class.rst
 
     resource.Resource
+    resource.SingleResource
     resource.ResourceFile
     resource.InputResourceFile
     resource.JobResourceFile

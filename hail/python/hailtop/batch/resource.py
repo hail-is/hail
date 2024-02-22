@@ -17,6 +17,7 @@ class Resource(abc.ABC):
 
     @abc.abstractmethod
     def source(self) -> Optional[job.Job]:
+        """The job which produces this resource, or ``None``, if this is an external resource."""
         pass
 
     @abc.abstractmethod
@@ -34,11 +35,11 @@ class Resource(abc.ABC):
 
     @abc.abstractmethod
     def component_resources(self) -> Iterable['SingleResource']:
-        """A list of the :class:`.SingleResource`s which comprise this possible composite resource.
+        """A list of the :class:`.SingleResource` s which comprise this possible composite resource.
 
-        For :class:`.JobResourceFile`, :meth:`component_resources` just returns itself. In contrast,
-        for :class:`.ResourceGroup`, :meth:`component_resources` contains one resource for each
-        group element.
+        For :class:`JobResourceFile`, :meth:`component_resources` just returns itself.  In contrast,
+        for :class:`.ResourceGroup`, :meth:`component_resources` contains one resource for each group
+        element.
         """
 
     @abc.abstractmethod
@@ -54,7 +55,7 @@ class Resource(abc.ABC):
         In contrast, a resouce which is a component of a group of resources must be transmitted with the group. This resource's
         :meth:`.bonded_resources` includes itself and all other resources in the group.
 
-        As a special case, a :class:`.ResourceGroup`'s :meth:`.bonded_resources` is the same as its :meth:`.component_resources`.
+        As a special case, a :class:`.ResourceGroup`'s :meth:`.bonded_resources` is the same as its :meth:`.Resource.component_resources`.
         """
 
 
