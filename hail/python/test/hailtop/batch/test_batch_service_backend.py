@@ -27,15 +27,8 @@ from hailtop.config import get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
 
 
-from .service_backend_fixtures import (
-    tmpdir,
-    backend,
-    fs,
-    output_tmpdir,
-    output_bucket_path,
-    upload_test_files,
+from .utils import (
     batch,
-    DOCKER_ROOT_IMAGE,
     PYTHON_DILL_IMAGE,
     HAIL_GENETICS_HAIL_IMAGE,
     REQUESTER_PAYS_PROJECT,

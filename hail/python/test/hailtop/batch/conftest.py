@@ -1,25 +1,17 @@
 from typing import AsyncIterator, Tuple
 import asyncio
-import inspect
 
 import pytest
 import os
 
-from hailtop import pip_version
-from hailtop.batch import Batch, ServiceBackend
+from hailtop.batch import ServiceBackend
 from hailtop.utils import secret_alnum_string
 from hailtop.config import get_remote_tmpdir
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
-DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
-HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}')
-REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
-
-
 @pytest.fixture(scope="session")
-async def backend() -> AsyncIterator[ServiceBackend]:
+async def service_backend() -> AsyncIterator[ServiceBackend]:
     sb = ServiceBackend()
     try:
         yield sb
@@ -69,14 +61,3 @@ async def upload_test_files(
     )
     await asyncio.gather(*(fs.write(url, data) for url, data in test_files))
     return test_files
-
-
-def batch(backend, **kwargs):
-    name_of_test_method = inspect.stack()[1][3]
-    return Batch(
-        name=name_of_test_method,
-        backend=backend,
-        default_image=DOCKER_ROOT_IMAGE,
-        attributes={'foo': 'a', 'bar': 'b'},
-        **kwargs,
-    )
