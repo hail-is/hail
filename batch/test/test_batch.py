@@ -1866,7 +1866,7 @@ def test_job_group_attributes(client: BatchClient):
 
 def test_job_groups_with_slow_create(client: BatchClient):
     b = create_batch(client)
-    jg = b.create_job_group(attributes={'name': 'foo'})
+    b.create_job_group(attributes={'name': 'foo'})
     for _ in range(4):
         b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
     b.submit()
@@ -1972,7 +1972,7 @@ def test_submit_new_job_groups_after_a_group_was_cancelled(client: BatchClient):
     g2 = b.create_job_group()
     g2.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
-    assert g2.wait()['state'] == 'Success', str(g2.debug_info())
+    assert g2.wait()['state'] == 'success', str(g2.debug_info())
 
 
 def test_get_job_group_from_client_batch(client: BatchClient):
