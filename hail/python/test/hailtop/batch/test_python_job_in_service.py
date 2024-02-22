@@ -81,7 +81,7 @@ async def test_python_job_input(
 
     assert isinstance(res, bc.Batch)
     assert res.status()['state'] == 'success', str((res, res.debug_info()))
-    assert orjson.loads(await fs.read(out)) == data1
+    assert orjson.loads(await fs.read(out)).encode('utf8') == data1
 
 
 async def test_python_job_input_in_list(
@@ -108,7 +108,7 @@ async def test_python_job_input_in_list(
 
     assert isinstance(res, bc.Batch)
     assert res.status()['state'] == 'success', str((res, res.debug_info()))
-    assert orjson.loads(await fs.read(out)) == data1
+    assert orjson.loads(await fs.read(out)).encode('utf8') == data1
 
 
 async def test_python_job_input_in_dict(
@@ -134,7 +134,7 @@ async def test_python_job_input_in_dict(
 
     assert isinstance(res, bc.Batch)
     assert res.status()['state'] == 'success', str((res, res.debug_info()))
-    assert orjson.loads(await fs.read(out)) == data1
+    assert orjson.loads(await fs.read(out)).encode('utf8') == data1
 
 
 def test_python_job_w_resource_group_unpack_individually(service_backend: ServiceBackend):
