@@ -5,7 +5,7 @@ from . import job  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 
 
-class Resource:
+class Resource(abc.ABC):
     """
     One or more abstract data which are transmitted, via a filesystem, between two jobs.
 
@@ -36,10 +36,10 @@ class Resource:
     def component_resources(self) -> Iterable['SingleResource']:
         """A list of the :class:`.SingleResource`s which comprise this possible composite resource.
 
-        A :class:`.JobResourceFile`'s `component_resources` is just itself. In contrast, a :class:`.ResourceGroup`'s
-        `component_resources` contains one resource for each group element.
+        For :class:`.JobResourceFile`, :meth:`component_resources` just returns itself. In contrast,
+        for :class:`.ResourceGroup`, :meth:`component_resources` contains one resource for each
+        group element.
         """
-        pass
 
     @abc.abstractmethod
     def bonded_resources(self) -> Iterable['SingleResource']:
@@ -56,10 +56,9 @@ class Resource:
 
         As a special case, a :class:`.ResourceGroup`'s :meth:`.bonded_resources` is the same as its :meth:`.component_resources`.
         """
-        pass
 
 
-class SingleResource(Resource):
+class SingleResource(Resource, abc.ABC):
     """A Resource that is not a group, i.e., actual transmissible data."""
 
     def component_resources(self) -> Iterable['SingleResource']:
