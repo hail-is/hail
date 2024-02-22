@@ -1876,7 +1876,6 @@ def test_job_groups_with_slow_create(client: BatchClient):
     assert len(jobs) == 4, str(jobs)
 
 
-
 def test_job_groups_with_slow_update(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group(attributes={'name': 'foo'})
@@ -1927,10 +1926,12 @@ def test_job_group_cancel_after_n_failures(client: BatchClient):
     j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     b.submit()
 
-    jg_status = jg.wait()
-
-    assert j2.status()['state'] == 'Cancelled', str((j2.status(), jg.debug_info()))
-    assert jg_status['state'] == 'failure', str(jg.debug_info())
+    try:
+        jg_status = jg.wait()
+        assert j2.status()['state'] == 'Cancelled', str((j2.status(), jg.debug_info()))
+        assert jg_status['state'] == 'failure', str(jg.debug_info())
+    finally:
+        b.cancel()
 
 
 def test_cancel_job_group(client: BatchClient):
@@ -1940,23 +1941,26 @@ def test_cancel_job_group(client: BatchClient):
     tail = jg.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[head])
     b.submit()
 
-    head._wait_for_states('Running')
+    try:
+        head._wait_for_states('Running')
 
-    jg.cancel()
-    b_status = b.wait()
-    jg_status = jg.status()
+        jg.cancel()
+        b_status = b.wait()
+        jg_status = jg.status()
 
-    assert b_status['state'] == 'cancelled', str(b_status)
-    assert jg_status['state'] == 'cancelled', str(jg_status)
+        assert b_status['state'] == 'cancelled', str(b_status)
+        assert jg_status['state'] == 'cancelled', str(jg_status)
 
-    assert head.status()['state'] == 'Cancelled', str(head.status())
-    assert tail.status()['state'] == 'Cancelled', str(tail.status())
+        assert head.status()['state'] == 'Cancelled', str(head.status())
+        assert tail.status()['state'] == 'Cancelled', str(tail.status())
 
-    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    with pytest.raises(
-        httpx.ClientResponseError, match='bunch contains job where the job group has already been cancelled'
-    ):
-        b.submit()
+        jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+        with pytest.raises(
+            httpx.ClientResponseError, match='bunch contains job where the job group has already been cancelled'
+        ):
+            b.submit()
+    finally:
+        b.cancel()
 
 
 def test_submit_new_job_groups_after_a_group_was_cancelled(client: BatchClient):
@@ -1991,18 +1995,20 @@ def test_cancellation_doesnt_cancel_other_job_groups(client: BatchClient):
     jg2 = b.create_job_group()
     j2 = jg2.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     b.submit()
+    try:
+        j1._wait_for_states('Running')
 
-    j1._wait_for_states('Running')
+        jg1.cancel()
+        jg1_status = jg1.wait()
+        jg2_status = jg2.status()
 
-    jg1.cancel()
-    jg1_status = jg1.wait()
-    jg2_status = jg2.status()
+        assert jg1_status['state'] == 'cancelled', str(jg1.debug_info())
+        assert jg2_status['state'] != 'cancelled', str(jg2.debug_info())
 
-    assert jg1_status['state'] == 'cancelled', str(jg1.debug_info())
-    assert jg2_status['state'] != 'cancelled', str(jg2.debug_info())
-
-    assert j1.status()['state'] == 'Cancelled', str(j1.status())
-    assert j2.status()['state'] != 'Cancelled', str(j2.status())
+        assert j1.status()['state'] == 'Cancelled', str(j1.status())
+        assert j2.status()['state'] != 'Cancelled', str(j2.status())
+    finally:
+        b.cancel()
 
 
 def test_dependencies_across_job_groups(client: BatchClient):
@@ -2052,72 +2058,64 @@ def test_cannot_create_job_in_job_group_where_batch_has_been_cancelled(client: B
     b.submit()
     b.cancel()
     jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    with pytest.raises(
-        httpx.ClientResponseError, match='bunch contains job where the job group has already been cancelled'
-    ):
+    with pytest.raises(httpx.ClientResponseError, match='Cannot submit new jobs or job groups to a cancelled batch'):
         b.submit()
 
 
 def test_cancellation_propogates_multiple_levels_top_down(client: BatchClient):
-    b = create_batch(client)
-    jg = b.create_job_group()
-    job_groups = [jg]
-    for _ in range(MAX_JOB_GROUPS_DEPTH - 1):
-        jg = jg.create_job_group()
+    parent = b = create_batch(client)
+    job_groups = []
+    for level in range(MAX_JOB_GROUPS_DEPTH - 1):
+        parent = jg = parent.create_job_group(attributes={'level': level})
         job_groups.append(jg)
     b.submit()
     job_groups[0].cancel()
 
     for jg in job_groups:
         status = jg.status()
-        assert status['state'] == 'cancelled', str(status)
+        assert status['state'] == 'cancelled', str(b.debug_info())
 
 
 def test_create_job_in_nested_job_group(client: BatchClient):
-    b = create_batch(client)
-    jg = b.create_job_group()
-    for _ in range(MAX_JOB_GROUPS_DEPTH - 1):
-        jg = jg.create_job_group()
-    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    parent = b = create_batch(client)
+    for _ in range(MAX_JOB_GROUPS_DEPTH):
+        parent = parent.create_job_group()
+    parent.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
     status = b.wait()
     assert status['state'] == 'success', str(b.debug_info())
 
 
 def test_cancellation_does_not_propogate_up(client: BatchClient):
-    b = create_batch(client)
-    jg = b.create_job_group()
-    job_groups = [jg]
-    for _ in range(MAX_JOB_GROUPS_DEPTH - 1):
-        jg = jg.create_job_group()
+    parent = b = create_batch(client)
+    job_groups = []
+    for _ in range(MAX_JOB_GROUPS_DEPTH):
+        jg = parent.create_job_group()
         job_groups.append(jg)
     b.submit()
-    job_groups[-1].cancel()
+    last_jg = job_groups[-1]
+    last_jg.cancel()
 
     for jg in job_groups[:-1]:
         status = jg.status()
         assert status['state'] != 'cancelled', str(jg.debug_info())
 
+    assert last_jg.status()['state'] == 'cancelled', str(last_jg.debug_info())
+
 
 def test_maximum_nesting_level(client: BatchClient):
-    b = create_batch(client)
-    jg = b.create_job_group()
+    parent = b = create_batch(client)
     for _ in range(MAX_JOB_GROUPS_DEPTH + 1):
-        jg = jg.create_job_group()
+        parent = parent.create_job_group()
     with pytest.raises(httpx.ClientResponseError, match='job group exceeded the maximum level of nesting'):
         b.submit()
 
 
 def test_all_nested_job_groups_end_up_with_correct_number_of_job_states(client: BatchClient):
-    b = create_batch(client)
-
-    jg = b.create_job_group()
-    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
-
-    job_groups = [jg]
-    for _ in range(MAX_JOB_GROUPS_DEPTH - 1):
-        jg = jg.create_job_group()
+    parent = b = create_batch(client)
+    job_groups = []
+    for _ in range(MAX_JOB_GROUPS_DEPTH):
+        parent = jg = parent.create_job_group()
         job_groups.append(jg)
         jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
         jg.create_job(DOCKER_ROOT_IMAGE, ['false'])
@@ -2138,97 +2136,107 @@ def test_cancel_job_group_with_different_updates(client: BatchClient):
     j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     b.submit()
 
-    j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
-    b.submit()
+    try:
+        j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
+        b.submit()
 
-    j1._wait_for_states('Running')
-    j2._wait_for_states('Running')
+        j1._wait_for_states('Running')
+        j2._wait_for_states('Running')
 
-    jg.cancel()
-    b_status = b.wait()
-    jg_status = jg.status()
+        jg.cancel()
+        b_status = b.wait()
+        jg_status = jg.status()
 
-    assert b_status['state'] == 'cancelled', str(b_status)
-    assert jg_status['state'] == 'cancelled', str(jg_status)
+        assert b_status['state'] == 'cancelled', str(b_status)
+        assert jg_status['state'] == 'cancelled', str(jg_status)
 
-    assert j1.status()['state'] == 'Cancelled', str(j1.status())
-    assert j2.status()['state'] == 'Cancelled', str(j2.status())
+        assert j1.status()['state'] == 'Cancelled', str(j1.status())
+        assert j2.status()['state'] == 'Cancelled', str(j2.status())
+    finally:
+        b.cancel()
 
 
 def test_cancel_job_group_with_different_inst_colls(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
-    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'], resources={'memory': 'lowmem'})
     b.submit()
 
-    j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'standard'})
-    b.submit()
+    try:
+        j2 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'], resources={'memory': 'standard'})
+        b.submit()
 
-    j1._wait_for_states('Running')
-    j2._wait_for_states('Running')
+        j1._wait_for_states('Running')
+        j2._wait_for_states('Running')
 
-    jg.cancel()
-    b_status = b.wait()
-    jg_status = jg.status()
+        jg.cancel()
+        b_status = b.wait()
+        jg_status = jg.status()
 
-    assert b_status['state'] == 'cancelled', str(b_status)
-    assert jg_status['state'] == 'cancelled', str(jg_status)
+        assert b_status['state'] == 'cancelled', str(b_status)
+        assert jg_status['state'] == 'cancelled', str(jg_status)
 
-    assert j1.status()['state'] == 'Cancelled', str(j1.status())
-    assert j2.status()['state'] == 'Cancelled', str(j2.status())
+        assert j1.status()['state'] == 'Cancelled', str(j1.status())
+        assert j2.status()['state'] == 'Cancelled', str(j2.status())
+    finally:
+        b.cancel()
 
 
 def test_cancel_job_group_with_different_nested_updates(client: BatchClient):
     b = create_batch(client)
     jg = b.create_job_group()
-    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    j1 = jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'], resources={'memory': 'lowmem'})
     b.submit()
 
-    jg2 = jg.create_job_group()
-    j2 = jg2.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'standard'})
-    b.submit()
+    try:
+        jg2 = jg.create_job_group()
+        j2 = jg2.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'], resources={'memory': 'standard'})
+        b.submit()
 
-    j1._wait_for_states('Running')
-    j2._wait_for_states('Running')
+        j1._wait_for_states('Running')
+        j2._wait_for_states('Running')
 
-    jg.cancel()
-    b_status = b.wait()
-    jg_status = jg.status()
-    jg2_status = jg2.status()
+        jg.cancel()
+        b_status = b.wait()
+        jg_status = jg.status()
+        jg2_status = jg2.status()
 
-    assert b_status['state'] == 'cancelled', str(b_status)
-    assert jg_status['state'] == 'cancelled', str(jg_status)
-    assert jg2_status['state'] == 'cancelled', str(jg2_status)
+        assert b_status['state'] == 'cancelled', str(b_status)
+        assert jg_status['state'] == 'cancelled', str(jg_status)
+        assert jg2_status['state'] == 'cancelled', str(jg2_status)
 
-    assert j1.status()['state'] == 'Cancelled', str(j1.status())
-    assert j2.status()['state'] == 'Cancelled', str(j2.status())
+        assert j1.status()['state'] == 'Cancelled', str(j1.status())
+        assert j2.status()['state'] == 'Cancelled', str(j2.status())
+    finally:
+        b.cancel()
 
 
 async def test_get_and_cancel_job_group_with_unsubmitted_job_group_updates(client: BatchClient):
     b = create_batch(client)._async_batch
     jg = b.create_job_group()
-    jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'], resources={'memory': 'lowmem'})
+    jg.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     await b.submit()
 
-    jg.create_job_group()
-    jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    try:
+        jg.create_job_group()
+        jg.create_job(DOCKER_ROOT_IMAGE, ['true'])
 
-    update_id = await b._create_update()
+        update_id = await b._create_update()
 
-    byte_specs_bunches = b._create_bunches(b._job_group_specs, b._job_specs, b.MAX_BUNCH_BYTESIZE, b.MAX_BUNCH_SIZE)
-    with BatchProgressBar() as pbar:
-        with pbar.with_task('submitting job groups', total=1) as pbar_task:
-            await b._submit_job_group_bunches(update_id, byte_specs_bunches, pbar_task)
-        with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            await b._submit_job_bunches(update_id, byte_specs_bunches, pbar_task)
+        byte_specs_bunches = b._create_bunches(b._job_group_specs, b._job_specs, b.MAX_BUNCH_BYTESIZE, b.MAX_BUNCH_SIZE)
+        with BatchProgressBar() as pbar:
+            with pbar.with_task('submitting job groups', total=1) as pbar_task:
+                await b._submit_job_group_bunches(update_id, byte_specs_bunches, pbar_task)
+            with pbar.with_task('submitting jobs', total=1) as pbar_task:
+                await b._submit_job_bunches(update_id, byte_specs_bunches, pbar_task)
 
-    # do not commit update
-    jobs = [j async for j in jg.jobs()]
-    job_groups = [jg async for jg in jg.job_groups()]
-    assert len(jobs) == 1, str(jg.debug_info())
-    assert len(job_groups) == 0, str(jg.debug_info())
-
-    await jg.cancel()
+        # do not commit update
+        jobs = [j async for j in jg.jobs()]
+        job_groups = [jg async for jg in jg.job_groups()]
+        assert len(jobs) == 1, str(jg.debug_info())
+        assert len(job_groups) == 0, str(jg.debug_info())
+    finally:
+        await b.cancel()
 
 
 def test_billing_propogates_upwards(client: BatchClient):
