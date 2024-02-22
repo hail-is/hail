@@ -7,20 +7,10 @@ import sys
 
 from concurrent.futures import ThreadPoolExecutor
 
+from .. import uvloopx
 from ..utils.rich_progress_bar import SimpleCopyToolProgressBar, SimpleCopyToolProgressBarTask
 from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
-
-try:
-    import uvloop
-
-    uvloop_install = uvloop.install
-except ImportError as e:
-    if not sys.platform.startswith('win32'):
-        raise e
-
-    def uvloop_install():
-        pass
 
 
 async def diff(
@@ -185,5 +175,5 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    uvloop_install()
+    uvloopx.install()
     asyncio.run(main())
