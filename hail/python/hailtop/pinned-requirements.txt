@@ -53,7 +53,7 @@ click==8.1.7
     # via typer
 commonmark==0.9.1
     # via rich
-cryptography==42.0.2
+cryptography==42.0.4
     # via
     #   azure-identity
     #   azure-storage-blob
