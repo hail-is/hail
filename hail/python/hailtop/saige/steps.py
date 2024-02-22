@@ -31,12 +31,12 @@ from .phenotype import Phenotype, PhenotypeConfig, SaigePhenotype, saige_phenoty
 from .variant_chunk import VariantChunk
 
 
-def get_output_dir(config: CheckpointConfigMixin, temp_dir: str, checkpoint_dir: Optional[str]) -> str:
+def get_checkpoint_dir(config: CheckpointConfigMixin, checkpoint_dir: Optional[str]) -> Optional[str]:
     if config.use_checkpoints or config.checkpoint_output:
         if checkpoint_dir is None:
             raise ValueError('must specify a checkpoint directory to use checkpoints and/or checkpoint output')
         return checkpoint_dir
-    return temp_dir
+    return None
 
 
 def bool_upper_str(val: bool) -> str:
@@ -98,7 +98,7 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
         checkpoint_dir:
             URL to directory to write checkpointed files to. Example: gs://my-bucket/checkpoints/
         """
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        working_dir = get_checkpoint_dir(self, temp_dir, checkpoint_dir)
         return f'{working_dir}/sparse-grm'
 
     def _attributes(self) -> Optional[Dict]:
@@ -310,7 +310,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         temp_dir: str,
         checkpoint_dir: Optional[str],
     ) -> SaigeGLMMResourceGroup:
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+        working_dir = get_checkpoint_dir(self, temp_dir, checkpoint_dir)
         output_root = self._output_root(working_dir, phenotype)
 
         glmm_resource_output = await load_saige_glmm_file(fs, b, self, output_root, analysis_type)
@@ -654,14 +654,14 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             'chunk': chunk.name,
         }
 
-    def _output_file_prefix(
-        self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk
-    ) -> str:
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+    def _output_file_prefix(self, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk) -> str:
+        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
         return f'{working_dir}/results/{phenotype_name}/{chunk.idx}'
 
-    def _output_glob(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+    def _output_glob(self, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
+        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
         return f'{working_dir}/results/{phenotype_name}/*'
 
     def _command(
@@ -864,7 +864,6 @@ step2_SPAtests.R \\
         b: hb.Batch,
         *,
         mt_path: str,
-        temp_dir: str,
         checkpoint_dir: Optional[str],
         analysis_type: SaigeAnalysisType,
         null_model: Union[SaigeGeneGLMMResourceGroup, SaigeGLMMResourceGroup],
@@ -875,7 +874,7 @@ step2_SPAtests.R \\
         sparse_grm: Optional[SaigeSparseGRMResourceGroup] = None,
         group_annotations: Optional[TextResourceFile] = None,
     ) -> Union[SaigeGeneResultResourceGroup, SaigeResultResourceGroup]:
-        output_root = self._output_file_prefix(temp_dir, checkpoint_dir, phenotype.name, chunk)
+        output_root = self._output_file_prefix(checkpoint_dir, phenotype.name, chunk)
 
         results = await load_saige_result_file(fs, b, self, output_root, analysis_type)
         if results is not None:
@@ -928,22 +927,26 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def _attributes(self, *, phenotype: Phenotype) -> Optional[Dict]:
         return {'phenotype': phenotype.name}
 
-    def _results_path_glob(self, temp_dir: str, checkpoint_dir: Optional[str]):
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+    def _results_path_glob(self, checkpoint_dir: Optional[str]) -> str:
+        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
         return f'{working_dir}/compiled-results/*.tsv'
 
-    def _output_file(self, temp_dir: str, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
-        working_dir = get_output_dir(self, temp_dir, checkpoint_dir)
+    def _output_file(self, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
+        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
         return f'{working_dir}/compiled-results/{phenotype_name}.tsv'  # FIXME: compress this
 
     async def check_if_output_exists(self,
                                      fs: AsyncFS,
                                      b: hb.Batch,
                                      phenotype: Phenotype,
-                                     temp_dir: str,
                                      checkpoint_dir: Optional[str]) -> Optional[TextResourceFile]:
-        output_file = self._output_file(temp_dir, checkpoint_dir, phenotype.name)
-        return await load_text_file(fs, b, self, output_file)
+        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        if checkpoint_dir is not None:
+            output_file = self._output_file(checkpoint_dir, phenotype.name)
+            return await load_text_file(fs, b, self, output_file)
+        return None
 
     def _command(self, results_path: str, phenotype_name: str, output_file: str) -> str:
         return f'''
@@ -963,13 +966,14 @@ python3 compile_results.py
         phenotype: Phenotype,
         results_path: str,
         dependencies: List[hb.Job],
-        temp_dir: str,
         checkpoint_dir: Optional[str],
     ) -> TextResourceFile:
-        output_file = self._output_file(temp_dir, checkpoint_dir, phenotype.name)
-        results = await load_text_file(fs, b, self, output_file)
-        if results is not None:
-            return results
+        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        if checkpoint_dir is not None:
+            output_file = self._output_file(checkpoint_dir, phenotype.name)
+            results = await load_text_file(fs, b, self, output_file)
+            if results is not None:
+                return results
 
         j = (b
              .new_job(name=self._name(phenotype), attributes=self._attributes(phenotype=phenotype))
@@ -984,8 +988,6 @@ python3 compile_results.py
         cmd = self._command(results_path, phenotype.name, compiled_results)
 
         j.command(cmd)
-
-        b.write_output(compiled_results, output_file)
 
         return compiled_results
 

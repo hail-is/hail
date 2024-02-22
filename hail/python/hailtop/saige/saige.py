@@ -188,9 +188,8 @@ async def async_saige(
                         fs=fs,
                         b=b,
                         phenotype=phenotype,
-                        results_path=saige_config.step2_spa._output_glob(temp_dir, checkpoint_dir, phenotype.name),
+                        results_path=saige_config.step2_spa._output_glob(checkpoint_dir, phenotype.name),
                         dependencies=step2_spa_jobs_by_phenotype[phenotype.name],
-                        temp_dir=temp_dir,
                         checkpoint_dir=checkpoint_dir
                     )
                     for phenotype in phenotype_config.phenotypes
@@ -201,7 +200,7 @@ async def async_saige(
             await saige_config.compile_all_results._call(
                 fs,
                 b,
-                results_path=saige_config.compile_phenotype_results._results_path_glob(temp_dir, checkpoint_dir),
+                results_path=saige_config.compile_phenotype_results._results_path_glob(checkpoint_dir),
                 output_ht_path=output_path,
                 dependencies=[result.source() for result in compiled_results],
                 mt_path=mt_path,
