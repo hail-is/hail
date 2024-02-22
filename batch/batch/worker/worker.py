@@ -1434,6 +1434,7 @@ def copy_container(
     scratch: str,
     requester_pays_project: Optional[str],
     client_session: httpx.ClientSession,
+    env: Optional[List[str]],
 ) -> Container:
     assert files
     assert job.worker.fs is not None
@@ -1459,6 +1460,7 @@ def copy_container(
         volume_mounts=volume_mounts,
         user_credentials=job.credentials,
         stdin=json.dumps(files),
+        env=env,
     )
 
 
@@ -1756,6 +1758,8 @@ class DockerJob(Job):
                     self.input_volume_mounts.append(volume_mount)
                     self.output_volume_mounts.append(volume_mount)
 
+        env = [f'{var["name"]}={var["value"]}' for var in self.env]
+
         # create containers
         containers: Dict[str, Container] = {}
 
@@ -1770,6 +1774,7 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
+                env=env,
             )
 
         assert self.worker.fs
@@ -1788,7 +1793,7 @@ class DockerJob(Job):
             timeout=job_spec.get('timeout'),
             unconfined=job_spec.get('unconfined'),
             volume_mounts=self.main_volume_mounts,
-            env=[f'{var["name"]}={var["value"]}' for var in self.env],
+            env=env,
         )
 
         if output_files:
@@ -1802,6 +1807,7 @@ class DockerJob(Job):
                 self.scratch,
                 requester_pays_project,
                 client_session,
+                env=env,
             )
 
         self.containers = containers
