@@ -388,12 +388,12 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_bat
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_admin" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
-  role = "roles/artifactregistry.reader"
+  role = "roles/artifactregistry.admin"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
@@ -410,19 +410,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   location = var.gcp_location
   role = "roles/artifactregistry.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
-}
-
-# This is intended to match the secret name also used for azure credentials
-# This should ultimately be replaced by using CI's own batch-managed credentials
-# in BuildImage jobs
-resource "kubernetes_secret" "registry_push_credentials" {
-  metadata {
-    name = "registry-push-credentials"
-  }
-
-  data = {
-    "credentials.json" = base64decode(google_service_account_key.gcr_push_key.private_key)
-  }
 }
 
 module "ukbb" {
@@ -512,22 +499,13 @@ resource "google_storage_bucket_iam_member" "testns_ci_bucket_admin" {
   member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
 }
 
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_ci_viewer" {
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_testns_ci_repo_admin" {
   provider = google-beta
   project = var.gcp_project
   repository = google_artifact_registry_repository.repository.name
   location = var.gcp_location
-  role = "roles/artifactregistry.reader"
+  role = "roles/artifactregistry.repoAdmin"
   member = "serviceAccount:${module.testns_ci_gsa_secret.email}"
-}
-
-resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
-  provider = google-beta
-  project = var.gcp_project
-  repository = google_artifact_registry_repository.repository.name
-  location = var.gcp_location
-  role = "roles/artifactregistry.reader"
-  member = "serviceAccount:${module.ci_gsa_secret.email}"
 }
 
 module "monitoring_gsa_secret" {

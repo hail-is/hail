@@ -138,7 +138,7 @@ def get_remote_tmpdir(
             )
         remote_tmpdir = f'gs://{bucket}/batch'
     else:
-        schemes = {'gs', 'hail-az', 'https'}
+        schemes = {'gs', 'https'}
         found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
         if not found_scheme:
             raise ValueError(

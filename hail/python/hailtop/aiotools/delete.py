@@ -18,8 +18,17 @@ async def delete(paths: Iterator[str]) -> None:
             async with sema:
                 with SimpleCopyToolProgressBar(description='files', transient=True, total=0) as file_pbar:
                     listener = file_pbar.make_listener()
+
+                    async def remove(path):
+                        try:
+                            await fs.remove(path)
+                        except FileNotFoundError:
+                            await fs.rmtree(sema, path, listener=listener)
+                        file_pbar.update(1)  # only advance if file or directory removal was successful, not on error
+
                     for grouped_paths in grouped(5_000, paths):
-                        await asyncio.gather(*[fs.rmtree(sema, path, listener=listener) for path in grouped_paths])
+                        file_pbar.update(0, total=file_pbar.total() + len(grouped_paths))
+                        await asyncio.gather(*[remove(path) for path in grouped_paths])
 
 
 async def main() -> None:

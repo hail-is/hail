@@ -39,7 +39,6 @@ steps:
     namespaceName: default
     secrets:
       - name: auth-oauth2-client-secret
-      - name: registry-push-credentials
       - name: hail-ci-0-1-github-oauth-token
       - name: testns-test-gsa-key
       - name: testns-test-dev-gsa-key
@@ -79,11 +78,11 @@ steps:
       REGISTRY={{ global.docker_prefix.split('/')[0] }}
 
       {% if global.cloud == "gcp" %}
-      cat /registry-push-credentials/credentials.json | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      cat $GOOGLE_APPLICATION_CREDENTIALS | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
       {% elif global.cloud == "azure" %}
       dnf install -y jq
-      USERNAME=$(cat /registry-push-credentials/credentials.json | jq -jr '.appId')
-      cat /registry-push-credentials/credentials.json | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
+      USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.appId')
+      cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
@@ -94,11 +93,6 @@ steps:
     inputs:
       - from: /repo/docker
         to: /io/docker
-    secrets:
-      - name: registry-push-credentials
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /registry-push-credentials
     scopes:
       - deploy
     dependsOn:
@@ -197,7 +191,7 @@ steps:
       valueFrom: hail_ubuntu_image.image
     script: |
       set -ex
-      pip install pip-tools==6.13.0
+      pip install pip-tools==7.4.0
       cd /io/repo
       chmod 755 ./check_pip_requirements.sh
       ./check_pip_requirements.sh \
@@ -412,6 +406,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -584,6 +579,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     secrets:
       - name:
           valueFrom: auth_database.user_secret_name
@@ -1762,6 +1758,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -1986,6 +1983,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -2014,6 +2012,7 @@ steps:
       name: admin
       namespace:
         valueFrom: default_ns.name
+    network: private
     runIfRequested: true
     scopes:
       - dev
@@ -2359,6 +2358,9 @@ steps:
         online: true
       - name: update-ip-fee-resource
         script: /io/sql/update-ip-fee-resource.py
+        online: true
+      - name: remove-v2-billing-tables
+        script: /io/sql/remove-v2-billing-tables.sql
         online: true
     inputs:
       - from: /repo/batch/sql
@@ -3359,22 +3361,24 @@ steps:
       time retry sh millw --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
 
-      bash scripts/release.sh $(cat /io/hail_pip_version) \
-                              $(cat /io/hail_version) \
-                              $(cat /io/git_version) \
-                              origin \
-                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                              /io/github-oauth \
-                              docker://{{ hailgenetics_hail_image.image }} \
-                              docker://{{ hailgenetics_hailtop_image.image }} \
-                              docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-                              docker://{{ hailgenetics_hail_image_python_3_11.image }} \
-                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
-                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                              /io/www.tar.gz \
-                              {{ global.gcp_project }} \
-                              /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
+      echo Setting arguments and invoking release.sh.
+
+      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      HAIL_VERSION=$(cat /io/hail_version)
+      GIT_VERSION=$(cat /io/git_version)
+      REMOTE=origin
+      WHEEL=/io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl
+      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
+      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }}
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }}
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }}
+      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }}
+      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }}
+      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }}
+      WHEEL_FOR_AZURE=/io/wheel-for-azure/hail-*-py3-none-any.whl
+      WEBSITE_TAR=/io/www.tar.gz
+
+      bash scripts/release.sh
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3434,11 +3438,11 @@ steps:
 
       set +x
       {% if global.cloud == "gcp" %}
-      cat /registry-push-credentials/credentials.json | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
+      cat $GOOGLE_APPLICATION_CREDENTIALS | base64 -w 0 | skopeo login -u _json_key_base64 --password-stdin $REGISTRY
       {% elif global.cloud == "azure" %}
       dnf install -y jq
-      USERNAME=$(cat /registry-push-credentials/credentials.json | jq -jr '.appId')
-      cat /registry-push-credentials/credentials.json | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
+      USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.appId')
+      cat $AZURE_APPLICATION_CREDENTIALS | jq -jr '.password' | skopeo login -u $USERNAME --password-stdin $REGISTRY
       {% else %}
       echo "unknown cloud {{ global.cloud }}"
       exit 1
@@ -3456,11 +3460,6 @@ steps:
         to: /io/docker/hailgenetics/mirror_images.sh
       - from: /repo/docker/copy_image.sh
         to: /io/docker/copy_image.sh
-    secrets:
-      - name: registry-push-credentials
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /registry-push-credentials
     scopes:
       - deploy
       - dev
@@ -3937,7 +3936,6 @@ steps:
     scopes:
       - deploy
     script: |
-      gcloud auth activate-service-account --key-file=/gsa-key/key.json
       gcloud artifacts repositories set-cleanup-policies hail \
         --project={{ global.gcp_project }} \
         --location=us \
