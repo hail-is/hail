@@ -174,8 +174,7 @@ async def async_saige(
 
         step2_spa_jobs_by_phenotype = collections.defaultdict(list)
         for ((phenotype, _, _), result) in zip(step2_spa_fs, step2_spa_results):
-            if result.source() is not None:
-                step2_spa_jobs_by_phenotype[phenotype.name].append(result.source())
+            step2_spa_jobs_by_phenotype[phenotype.name].append(result)
 
         compiled_results = await bounded_gather(
             *[
@@ -184,8 +183,7 @@ async def async_saige(
                     fs=fs,
                     b=b,
                     phenotype=phenotype,
-                    results_path=saige_config.step2_spa._output_glob(checkpoint_dir, phenotype.name),
-                    dependencies=step2_spa_jobs_by_phenotype[phenotype.name],
+                    input_files=step2_spa_jobs_by_phenotype[phenotype.name],
                     checkpoint_dir=checkpoint_dir
                 )
                 for phenotype in phenotype_config.phenotypes
@@ -196,9 +194,8 @@ async def async_saige(
         await saige_config.compile_all_results._call(
             fs,
             b,
-            results_path=saige_config.compile_phenotype_results._results_path_glob(checkpoint_dir),
             output_ht_path=output_path,
-            dependencies=[result.source() for result in compiled_results],
+            input_files=compiled_results,
             mt_path=mt_path,
         )
 

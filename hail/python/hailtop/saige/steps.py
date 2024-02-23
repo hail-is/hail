@@ -86,9 +86,10 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     def _name(self) -> str:
         return 'sparse-grm'
 
-    def _output_root(self, checkpoint_dir: Optional[str]) -> str:
-        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
-        return f'{working_dir}/sparse-grm'
+    def _output_root(self, checkpoint_dir: Optional[str]) -> Optional[str]:
+        if checkpoint_dir is None:
+            return None
+        return f'{checkpoint_dir}/sparse-grm'
 
     def _attributes(self) -> Optional[Dict]:
         return None
@@ -96,7 +97,9 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
     async def _call(self, fs: AsyncFS, b: hb.Batch, input_bfile: PlinkResourceGroup, checkpoint_dir: str) -> SaigeSparseGRMResourceGroup:
         checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
         output_prefix = self._output_root(checkpoint_dir)
+
         if checkpoint_dir is not None:
+            assert output_prefix is not None
             sparse_grm = await load_saige_sparse_grm_file(fs, b, self, output_prefix)
             if sparse_grm is not None:
                 return sparse_grm
@@ -253,9 +256,10 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
     is_covariate_offset: Optional[bool] = True
     """Pass-through argument for "--isCovariateOffset". Whether to estimate fixed effect coefficients."""
 
-    def _output_root(self, checkpoint_dir: Optional[str], phenotype: Phenotype) -> str:
-        output_dir = checkpoint_dir or '${BATCH_TMPDIR}'
-        return f'{output_dir}/null-model-{phenotype.name}'
+    def _output_root(self, checkpoint_dir: Optional[str], phenotype: Phenotype) -> Optional[str]:
+        if checkpoint_dir is None:
+            return None
+        return f'{checkpoint_dir}/null-model-{phenotype.name}'
 
     def _name(self, phenotype: Phenotype) -> str:
         return f'null-model-{phenotype.name}'
@@ -281,6 +285,7 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
         output_root = self._output_root(checkpoint_dir, phenotype)
 
         if checkpoint_dir is not None:
+            assert output_root is not None
             glmm_resource_output = await load_saige_glmm_file(fs, b, self, output_root, analysis_type)
             if glmm_resource_output:
                 return glmm_resource_output
@@ -622,14 +627,10 @@ class Step2SPAStep(CheckpointConfigMixin, JobConfigMixin):
             'chunk': chunk.name,
         }
 
-    def _output_file_prefix(self, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk) -> str:
-        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
-        return f'{working_dir}/results/{phenotype_name}/{chunk.idx}'
-
-    def _output_glob(self, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
-        checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
-        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
-        return f'{working_dir}/results/{phenotype_name}/*'
+    def _output_file_prefix(self, checkpoint_dir: Optional[str], phenotype_name: str, chunk: VariantChunk) -> Optional[str]:
+        if checkpoint_dir is None:
+            return None
+        return f'{checkpoint_dir}/results/{phenotype_name}/{chunk.idx}'
 
     def _command(
         self,
@@ -845,6 +846,7 @@ step2_SPAtests.R \\
         output_root = self._output_file_prefix(checkpoint_dir, phenotype.name, chunk)
 
         if checkpoint_dir is not None:
+            assert output_root is not None
             results = await load_saige_result_file(fs, b, self, output_root, analysis_type)
             if results is not None:
                 return results
@@ -881,8 +883,7 @@ step2_SPAtests.R \\
 
         j.command(command)
 
-        # the output file must always be written as the resource files in this step are not used in downstream steps
-        b.write_output(results, output_root)
+        checkpoint_if_requested(results, b, self, output_root)
 
         return results
 
@@ -897,13 +898,10 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def _attributes(self, *, phenotype: Phenotype) -> Optional[Dict]:
         return {'phenotype': phenotype.name}
 
-    def _results_path_glob(self, checkpoint_dir: Optional[str]) -> str:
-        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
-        return f'{working_dir}/compiled-results/*.tsv'
-
-    def _output_file(self, checkpoint_dir: Optional[str], phenotype_name: str) -> str:
-        working_dir = checkpoint_dir or '${BATCH_TMPDIR}'
-        return f'{working_dir}/compiled-results/{phenotype_name}.tsv'  # FIXME: compress this
+    def _output_file(self, checkpoint_dir: Optional[str], phenotype_name: str) -> Optional[str]:
+        if checkpoint_dir is None:
+            return None
+        return f'{checkpoint_dir}/compiled-results/{phenotype_name}.tsv'  # FIXME: compress this
 
     async def check_if_output_exists(self,
                                      fs: AsyncFS,
@@ -916,46 +914,41 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
             return await load_text_file(fs, b, self, output_file)
         return None
 
-    def _command(self, results_path: str, phenotype_name: str, output_file: str) -> str:
-        return f'''
-cat > compile_results.py <<EOF
-import hail as hl
-ht = hl.import_table("{results_path}", impute=True)
-ht = ht.annotate(phenotype="{phenotype_name}")
-ht.export("{output_file}")
-EOF
-python3 compile_results.py
-'''
-
     async def _call(
         self,
         fs: AsyncFS,
         b: hb.Batch,
         phenotype: Phenotype,
-        results_path: str,
-        dependencies: List[hb.Job],
+        input_files: List[TextResourceFile],
         checkpoint_dir: Optional[str],
     ) -> TextResourceFile:
         checkpoint_dir = get_checkpoint_dir(self, checkpoint_dir)
+        output_file = self._output_file(checkpoint_dir, phenotype.name)
+
         if checkpoint_dir is not None:
-            output_file = self._output_file(checkpoint_dir, phenotype.name)
+            assert output_file is not None
             results = await load_text_file(fs, b, self, output_file)
             if results is not None:
                 return results
 
         j = (b
-             .new_job(name=self._name(phenotype), attributes=self._attributes(phenotype=phenotype))
+             .new_python_job(name=self._name(phenotype), attributes=self._attributes(phenotype=phenotype))
              .image(self.image)
              .cpu(self.cpu)
              .memory(self.memory)
-             .depends_on(*dependencies)
         )
 
         compiled_results = new_text_file(j)
 
-        cmd = self._command(results_path, phenotype.name, compiled_results)
+        def combine_with_hail(phenotype_name: str, output_file: str, files: List[TextResourceFile]):
+            import hail as hl
+            ht = hl.import_table(files, impute=True)
+            ht = ht.annotate(phenotype=phenotype_name)
+            ht.export(output_file)
 
-        j.command(cmd)
+        j.call(combine_with_hail, phenotype.name, compiled_results, input_files)
+
+        checkpoint_if_requested(compiled_results, b, self, output_file)
 
         return compiled_results
 
@@ -970,44 +963,38 @@ class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
     def _name(self) -> str:
         return 'compile-all-results'
 
-    def _command(self, mt_path: str, results_path: str, results_ht: HailTableResourceFile) -> str:
-        return f'''
-cat > compile_results.py <<EOF
-import hail as hl
-mt = hl.read_matrix_table("{mt_path}")
-reference_genome=mt.locus.dtype.reference_genome
-ht = hl.import_table("{results_path}", impute=True)
-ht = ht.annotate(locus=hl.locus(hl.str(ht.CHR), ht.POS, reference_genome=reference_genome), alleles=hl.array([ht.Allele1, ht.Allele2]))
-ht = ht.key_by(ht.locus, ht.alleles, ht.phenotype)
-ht = ht.drop('CHR', 'POS', 'Allele1', 'Allele2')
-ht.write("{results_ht}")
-EOF
-python3 compile_results.py
-'''
-
     async def _call(
         self,
         fs: AsyncFS,
         b: hb.Batch,
-        results_path: str,
         output_ht_path: str,
-        dependencies: List[hb.Job],
+        input_files: List[TextResourceFile],
         mt_path: str,
     ):
         if fs.isdir(output_ht_path) and not self.overwrite:
             return
 
         j = (b
-             .new_job(name=self._name())
+             .new_python_job(name=self._name())
              .image(self.image)
              .cpu(self.cpu)
              .memory(self.memory)
-             .depends_on(*dependencies)
         )
 
         results_ht = new_hail_table(j)
 
-        cmd = self._command(mt_path, results_path, results_ht)
+        def combine_with_hail(mt_path: str, results_ht: str, files: List[TextResourceFile]):
+            import hail as hl
+            mt = hl.read_matrix_table(mt_path)
+            reference_genome = mt.locus.dtype.reference_genome
+            ht = hl.import_table(files, impute=True)
+            ht = ht.annotate(locus=hl.locus(hl.str(ht.CHR), ht.POS, reference_genome=reference_genome),
+                             alleles=hl.array([ht.Allele1, ht.Allele2]))
+            ht = ht.key_by(ht.locus, ht.alleles, ht.phenotype)
+            ht = ht.drop('CHR', 'POS', 'Allele1', 'Allele2')
+            ht.write(results_ht)
+
+        cmd = j.call(combine_with_hail, mt_path, results_ht, input_files)
 
         j.command(cmd)
 
