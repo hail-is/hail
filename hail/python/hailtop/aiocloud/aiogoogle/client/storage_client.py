@@ -29,6 +29,7 @@ from .base_client import GoogleBaseClient
 from ..credentials import GoogleCredentials
 from ..user_config import get_gcs_requester_pays_configuration, GCSRequesterPaysConfiguration
 from ...common.session import BaseSession
+from textwrap import dedent
 
 
 log = logging.getLogger(__name__)
@@ -331,11 +332,6 @@ class GoogleStorageClient(GoogleBaseClient):
         kwargs: Dict[str, Any] = {}
         self._update_params_with_user_project(kwargs, bucket)
         return await self.get(f'/b/{bucket}', **kwargs)
-
-    async def object_info(self, bucket: str, name: str) -> Dict[str, Any]:
-        kwargs: Dict[str, Any] = {}
-        self._update_params_with_user_project(kwargs, bucket)
-        return await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
 
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
@@ -643,7 +639,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
 
-    async def is_hot_storage(self, location: str, uri: str) -> bool:
+    async def check_hot_storage(self, uri: str) -> None:
         """
         See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
         classes.
@@ -654,17 +650,34 @@ class GoogleStorageAsyncFS(AsyncFS):
             If the specified object does not exist, or if the account being used to access GCS does not have permission
             to read the bucket's default storage policy and it is not a public access bucket.
         """
+        is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
-        try:
-            return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
-        except aiohttp.ClientResponseError as e1:
-            fsurl = self.parse_url(uri, error_if_bucket=True)
+        location = self.storage_location(uri)
+        if location not in self.allowed_storage_locations:
             try:
-                return (await self._storage_client.object_info(fsurl._bucket, fsurl._path))[
+                is_hot_storage = (await self._storage_client.bucket_info(location))[
                     "storageClass"
                 ].lower() in hot_storage_classes
-            except aiohttp.ClientResponseError as e2:
-                raise e1 from e2
+            except aiohttp.ClientResponseError as e1:
+                try:
+                    is_hot_storage = (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+                except (aiohttp.ClientResponseError, FileNotFoundError) as e2:
+                    raise e1 from e2
+            if not is_hot_storage:
+                raise ValueError(
+                    dedent(f"""\
+                        GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
+                        '{uri}' would incur egress charges. Either
+
+                        * avoid the increased cost by changing the default storage policy for the bucket
+                          (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
+                          blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
+
+                        * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
+                          variable (https://hail.is/docs/0.2/configuration_reference.html).
+                        """)
+                )
+            self.allowed_storage_locations.append(location)
 
     @staticmethod
     def valid_url(url: str) -> bool:

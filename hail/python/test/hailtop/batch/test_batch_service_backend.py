@@ -757,6 +757,7 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     # no configuration, public access bucket doesn't error unless the object doesn't exist
     _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri2, fs))
     validate_file(public_access_uri1, fs)
+    fs.close()
 
     # no configuration, no perms bucket errors
     _test_raises(ClientResponseError, no_perms_error, lambda: ServiceBackend(remote_tmpdir=no_perms_uri))
