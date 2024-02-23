@@ -406,28 +406,15 @@ cat /home/user/trace
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
         job_env = {'REGISTRY': docker_registry}
-        if CLOUD == 'gcp':
-            credentials_name = 'GOOGLE_APPLICATION_CREDENTIALS'
-        else:
-            assert CLOUD == 'azure'
-            credentials_name = 'AZURE_APPLICATION_CREDENTIALS'
-        credentials_secret = {
-            'namespace': DEFAULT_NAMESPACE,
-            'name': 'registry-push-credentials',
-            'mount_path': '/secrets/registry-push-credentials',
-        }
-        job_env[credentials_name] = '/secrets/registry-push-credentials/credentials.json'
 
         self.job = batch.create_job(
             BUILDKIT_IMAGE,
             command=['/bin/sh', '-c', script],
-            secrets=[credentials_secret],
             env=job_env,
             attributes={'name': self.name},
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
-            network='private',
             unconfined=True,
             regions=[REGION],
         )
@@ -445,9 +432,9 @@ set -x
 date
 
 set +x
-USERNAME=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.appId')
-PASSWORD=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.password')
-TENANT=$(cat /secrets/registry-push-credentials/credentials.json | jq -j '.tenant')
+USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.appId')
+PASSWORD=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.password')
+TENANT=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.tenant')
 az login --service-principal -u $USERNAME -p $PASSWORD --tenant $TENANT
 set -x
 
@@ -467,9 +454,6 @@ true
 set -x
 date
 
-gcloud -q auth activate-service-account \
-  --key-file=/secrets/registry-push-credentials/credentials.json
-
 until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
 do
     echo 'failed, will sleep 2 and retry'
@@ -484,17 +468,9 @@ true
             image,
             command=['bash', '-c', script],
             attributes={'name': f'cleanup_{self.name}'},
-            secrets=[
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'registry-push-credentials',
-                    'mount_path': '/secrets/registry-push-credentials',
-                }
-            ],
             resources={'cpu': '0.25'},
             parents=parents,
             always_run=True,
-            network='private',
             timeout=5 * 60,
             regions=[REGION],
         )
@@ -515,6 +491,7 @@ class RunImageStep(Step):
         always_run,
         timeout,
         num_splits,
+        network,
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
@@ -536,6 +513,7 @@ class RunImageStep(Step):
         self.timeout = timeout
         self.jobs = []
         self.num_splits = num_splits
+        self.network = network
 
     def wrapped_job(self):
         return self.jobs
@@ -556,6 +534,7 @@ class RunImageStep(Step):
             json.get('alwaysRun', False),
             json.get('timeout', 3600),
             json.get('numSplits', 1),
+            json.get('network', 'public'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -619,7 +598,7 @@ class RunImageStep(Step):
             parents=self.deps_parents(),
             always_run=self.always_run,
             timeout=self.timeout,
-            network='private',
+            network=self.network,
             env=env,
             regions=[REGION],
         )
@@ -629,11 +608,12 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, params, namespace_name, secrets):
+    def __init__(self, params, namespace_name, secrets, network):
         super().__init__(params)
         self.namespace_name = namespace_name
         self.secrets = secrets
         self.job = None
+        self.network = network
 
         if is_test_deployment:
             assert self.namespace_name == 'default'
@@ -661,6 +641,7 @@ class CreateNamespaceStep(Step):
             params,
             json['namespaceName'],
             json.get('secrets'),
+            json.get('network', 'private'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -765,7 +746,7 @@ date
             # FIXME configuration
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=self.deps_parents(),
-            network='private',
+            network=self.network,
             regions=[REGION],
         )
 
@@ -794,7 +775,7 @@ true
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             parents=parents,
             always_run=True,
-            network='private',
+            network=self.network,
             regions=[REGION],
         )
 
@@ -927,7 +908,6 @@ date
             service_account={'namespace': DEFAULT_NAMESPACE, 'name': 'ci-agent'},
             resources={'cpu': '0.25'},
             parents=self.deps_parents(),
-            network='private',
             regions=[REGION],
         )
 
@@ -954,7 +934,6 @@ date
                 resources={'cpu': '0.25'},
                 parents=parents,
                 always_run=True,
-                network='private',
                 regions=[REGION],
             )
 

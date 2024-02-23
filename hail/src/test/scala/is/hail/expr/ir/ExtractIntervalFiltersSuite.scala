@@ -497,6 +497,10 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
     checkAll(ir1, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
     checkAll(ir2, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
+
+    val ir3 = neq(Str("chr2"), invoke("contig", TString, k))
+    checkAll(ir3, ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
+    checkAll(not(ir1), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
   }
 
   @Test def testLocusPositionComparison(): Unit = {
