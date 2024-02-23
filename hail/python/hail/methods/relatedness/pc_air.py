@@ -1,16 +1,14 @@
-import hail as hl
 from typing import Union
-from .king import king
 
 import numpy as np
 
+import hail as hl
 from hail import (
     CallExpression,
     expr_call,
     NumericExpression,
     MatrixTable,
     expr_numeric,
-    Struct,
     matrix_table_source,
     SetExpression,
     expr_any,
@@ -69,7 +67,7 @@ def _partition_samples(
     # TODO: The paper uses the within-family estimate for ancestral divergence
     # TODO: The paper suggests using the within-family estimate for relatedness as well
     # king returns the KING-robust, between-family kinship estimates for all sample pairs
-    pairs: MatrixTable = king(genotypes)
+    pairs: MatrixTable = hl.king(genotypes)
     pairs = pairs.cache()
 
     assert len(pairs.row_key) == len(pairs.col_key)
@@ -93,23 +91,37 @@ def _partition_samples(
     pairs = pairs.annotate_cols(
         gamma=hl.agg.sum(hl.if_else(keys_are_different() & (pairs.phi > relatedness_threshold), pairs.phi, 0))
     )
-
-    unrelated = pairs.aggregate_cols(hl.agg.collect_as_set(pairs.col_key))
-    related = set()
     samples = pairs.cols()
+    samples = samples.annotate(is_in_unrelated=True)
     samples_key = samples.key
 
     while True:
-        samples = samples.order_by(hl.desc(samples.eta), samples.delta, samples.gamma)
         samples = samples.cache()
-        selected_sample = samples.head(1).collect()[0]
+        max_eta = samples.aggregate(hl.agg.max(samples.eta))
 
-        if selected_sample.eta <= 0:
-            return hl.set(unrelated), hl.set(related)
+        if max_eta == 0:
+            unrelated = samples.filter(samples.is_in_unrelated)
+            unrelated = unrelated.aggregate(hl.agg.collect_as_set(unrelated.key))
+            unrelated = hl.set(unrelated)
 
-        selected_sample = Struct(**{field: selected_sample[field] for field in samples_key.dtype})
-        unrelated -= {selected_sample}
-        related |= {selected_sample}
+            related = samples.filter(~samples.is_in_unrelated)
+            related = related.aggregate(hl.agg.collect_as_set(related.key))
+            related = hl.set(related)
+
+            return unrelated, related
+
+        t_1 = samples.filter(samples.is_in_unrelated & (samples.eta == max_eta))
+        min_delta = t_1.aggregate(hl.agg.min(t_1.delta), _localize=False)
+        t_2 = t_1.filter(t_1.delta == min_delta)
+        min_gamma = t_2.aggregate(hl.agg.min(t_2.gamma), _localize=False)
+        t_3 = t_2.filter(t_2.gamma == min_gamma).head(1)
+
+        selected_sample = t_3.collect()
+        selected_sample = selected_sample[0]
+
+        # Set is_in_unrelated to false for the selected sample
+        are_keys_equal = hl.all(list(samples[field] == selected_sample[field] for field in samples_key.dtype))
+        samples = samples.annotate(is_in_unrelated=hl.if_else(are_keys_equal, False, samples.is_in_unrelated))
 
         # A sample is "affected" if the associated value of eta will change
         # due to the removal of the selected sample from the unrelated set
@@ -124,15 +136,13 @@ def _partition_samples(
         affected_samples = affected_samples.annotate_cols(
             is_affected=hl.agg.any(affected_samples.phi > relatedness_threshold)
         )
-        affected_samples = affected_samples.filter_cols(affected_samples.is_affected)
-        affected_samples = affected_samples.aggregate_cols(
-            hl.agg.collect_as_set(list(affected_samples[field] for field in affected_samples.col_key.dtype)),
-            _localize=False,
-        )
+        affected_samples = affected_samples.cols()
+
         # Subtract 1 from eta for the affected samples
+        samples = samples.annotate(is_affected=affected_samples[samples.key].is_affected)
         samples = samples.annotate(
             eta=hl.if_else(
-                affected_samples.contains(list(samples[field] for field in samples_key.dtype)),
+                samples.is_affected,
                 samples.eta - 1,
                 samples.eta,
             )
