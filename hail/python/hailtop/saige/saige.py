@@ -75,139 +75,135 @@ async def async_saige(
         router_fs_args = {}
 
     async with RouterAsyncFS(**router_fs_args) as fs:
-        with hl.TemporaryDirectory() as temp_dir:
-            if b is None:
-                b = hb.Batch(name=saige_config.name, attributes=saige_config.attributes)
+        if b is None:
+            b = hb.Batch(name=saige_config.name, attributes=saige_config.attributes)
 
-            if group_annotations_file is not None:
-                analysis_type = SaigeAnalysisType.GENE
-                group_annotations = await load_text_file(fs, b, None, group_annotations_file)
-            else:
-                analysis_type = SaigeAnalysisType.VARIANT
-                group_annotations = None
+        if group_annotations_file is not None:
+            analysis_type = SaigeAnalysisType.GENE
+            group_annotations = await load_text_file(fs, b, None, group_annotations_file)
+        else:
+            analysis_type = SaigeAnalysisType.VARIANT
+            group_annotations = None
 
-            mt = hl.read_matrix_table(mt_path)
-            require_col_key_str(mt, 'saige')
-            require_row_key_variant(mt, 'saige')
+        mt = hl.read_matrix_table(mt_path)
+        require_col_key_str(mt, 'saige')
+        require_row_key_variant(mt, 'saige')
 
-            if variant_intervals is None:
-                first_row = mt.rows().select().head(1).collect()[0]
-                last_row = mt.rows().select().tail(1).collect()[0]
-                variant_intervals = [hl.Interval(first_row.locus, last_row.locus, includes_start=True, includes_end=True)]
+        if variant_intervals is None:
+            first_row = mt.rows().select().head(1).collect()[0]
+            last_row = mt.rows().select().tail(1).collect()[0]
+            variant_intervals = [hl.Interval(first_row.locus, last_row.locus, includes_start=True, includes_end=True)]
 
-            variant_chunks = [VariantChunk(interval) for interval in variant_intervals]
+        variant_chunks = [VariantChunk(interval) for interval in variant_intervals]
 
-            input_phenotypes = await load_text_file(fs, b, None, phenotype_config.phenotypes_file)
-            input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
+        input_phenotypes = await load_text_file(fs, b, None, phenotype_config.phenotypes_file)
+        input_null_model_plink_data = await load_plink_file(fs, b, None, null_model_plink_path)
 
-            if 'GP' in list(mt.entry):
-                input_data_type = SaigeInputDataType.BGEN
-            else:
-                assert 'GT' in list(mt.entry)
-                input_data_type = SaigeInputDataType.VCF
+        if 'GP' in list(mt.entry):
+            input_data_type = SaigeInputDataType.BGEN
+        else:
+            assert 'GT' in list(mt.entry)
+            input_data_type = SaigeInputDataType.VCF
 
-            maybe_phenotype_results = await bounded_gather(
-                *[
-                    functools.partial(
-                        saige_config.compile_phenotype_results.check_if_output_exists,
-                        fs,
-                        b,
-                        phenotype=phenotype,
-                        temp_dir=temp_dir,
-                        checkpoint_dir=checkpoint_dir
-                    )
-                    for phenotype in phenotype_config.phenotypes
-                ]
-            )
+        maybe_phenotype_results = await bounded_gather(
+            *[
+                functools.partial(
+                    saige_config.compile_phenotype_results.check_if_output_exists,
+                    fs,
+                    b,
+                    phenotype=phenotype,
+                    checkpoint_dir=checkpoint_dir
+                )
+                for phenotype in phenotype_config.phenotypes
+            ]
+        )
 
-            existing_phenotype_results = {phenotype.name: result
-                                          for phenotype, result in zip(phenotype_config.phenotypes, maybe_phenotype_results)
-                                          if result is not None}
+        existing_phenotype_results = {phenotype.name: result
+                                      for phenotype, result in zip(phenotype_config.phenotypes, maybe_phenotype_results)
+                                      if result is not None}
 
-            if analysis_type == SaigeAnalysisType.GENE or saige_config.step1_null_glmm.use_sparse_grm_to_fit_null:
-                sparse_grm = saige_config.sparse_grm._call(fs, b, input_null_model_plink_data, temp_dir, checkpoint_dir)
-            else:
-                sparse_grm = None
+        if analysis_type == SaigeAnalysisType.GENE or saige_config.step1_null_glmm.use_sparse_grm_to_fit_null:
+            sparse_grm = saige_config.sparse_grm._call(fs, b, input_null_model_plink_data, checkpoint_dir)
+        else:
+            sparse_grm = None
 
-            if null_model_sample_list is not None:
-                null_model_samples = await load_text_file(fs, b, None, null_model_sample_list)
-            else:
-                null_model_samples = None
+        if null_model_sample_list is not None:
+            null_model_samples = await load_text_file(fs, b, None, null_model_sample_list)
+        else:
+            null_model_samples = None
 
-            null_glmms = await bounded_gather(
-                *[
-                    functools.partial(
-                        saige_config.step1_null_glmm._call,
-                        fs,
-                        b,
-                        input_bfile=input_null_model_plink_data,
-                        input_phenotypes=input_phenotypes,
-                        keep_samples_list=null_model_samples,
-                        phenotype_config=phenotype_config,
-                        phenotype=phenotype,
-                        sparse_grm=sparse_grm,
-                        analysis_type=analysis_type,
-                        temp_dir=temp_dir,
-                        checkpoint_dir=checkpoint_dir,
-                    )
-                    for phenotype in phenotype_config.phenotypes
-                    if phenotype.name not in existing_phenotype_results
-                ],
-                parallelism=parallelism,
-            )
+        null_glmms = await bounded_gather(
+            *[
+                functools.partial(
+                    saige_config.step1_null_glmm._call,
+                    fs,
+                    b,
+                    input_bfile=input_null_model_plink_data,
+                    input_phenotypes=input_phenotypes,
+                    keep_samples_list=null_model_samples,
+                    phenotype_config=phenotype_config,
+                    phenotype=phenotype,
+                    sparse_grm=sparse_grm,
+                    analysis_type=analysis_type,
+                    checkpoint_dir=checkpoint_dir,
+                )
+                for phenotype in phenotype_config.phenotypes
+                if phenotype.name not in existing_phenotype_results
+            ],
+            parallelism=parallelism,
+        )
 
-            step2_spa_fs = [(phenotype, chunk, functools.partial(saige_config.step2_spa._call,
-                                                                 fs,
-                                                                 b,
-                                                                 mt_path=mt_path,
-                                                                 temp_dir=temp_dir,
-                                                                 checkpoint_dir=checkpoint_dir,
-                                                                 analysis_type=analysis_type,
-                                                                 null_model=null_glmm,
-                                                                 input_data_type=input_data_type,
-                                                                 chunk=chunk,
-                                                                 phenotype=phenotype,
-                                                                 phenotype_config=phenotype_config,
-                                                                 group_annotations=group_annotations))
-                            for phenotype, null_glmm in zip(phenotype_config.phenotypes, null_glmms)
-                            for chunk in variant_chunks
-                            if phenotype.name not in existing_phenotype_results
-                            ]
+        step2_spa_fs = [(phenotype, chunk, functools.partial(saige_config.step2_spa._call,
+                                                             fs,
+                                                             b,
+                                                             mt_path=mt_path,
+                                                             checkpoint_dir=checkpoint_dir,
+                                                             analysis_type=analysis_type,
+                                                             null_model=null_glmm,
+                                                             input_data_type=input_data_type,
+                                                             chunk=chunk,
+                                                             phenotype=phenotype,
+                                                             phenotype_config=phenotype_config,
+                                                             group_annotations=group_annotations))
+                        for phenotype, null_glmm in zip(phenotype_config.phenotypes, null_glmms)
+                        for chunk in variant_chunks
+                        if phenotype.name not in existing_phenotype_results
+                        ]
 
-            step2_spa_results = await bounded_gather(*[f for _, _, f in step2_spa_fs], parallelism=parallelism)
+        step2_spa_results = await bounded_gather(*[f for _, _, f in step2_spa_fs], parallelism=parallelism)
 
-            step2_spa_jobs_by_phenotype = collections.defaultdict(list)
-            for ((phenotype, _, _), result) in zip(step2_spa_fs, step2_spa_results):
-                if result.source() is not None:
-                    step2_spa_jobs_by_phenotype[phenotype.name].append(result.source())
+        step2_spa_jobs_by_phenotype = collections.defaultdict(list)
+        for ((phenotype, _, _), result) in zip(step2_spa_fs, step2_spa_results):
+            if result.source() is not None:
+                step2_spa_jobs_by_phenotype[phenotype.name].append(result.source())
 
-            compiled_results = await bounded_gather(
-                *[
-                    functools.partial(
-                        saige_config.compile_phenotype_results._call,
-                        fs=fs,
-                        b=b,
-                        phenotype=phenotype,
-                        results_path=saige_config.step2_spa._output_glob(checkpoint_dir, phenotype.name),
-                        dependencies=step2_spa_jobs_by_phenotype[phenotype.name],
-                        checkpoint_dir=checkpoint_dir
-                    )
-                    for phenotype in phenotype_config.phenotypes
-                ],
-                parallelism=parallelism,
-            )
+        compiled_results = await bounded_gather(
+            *[
+                functools.partial(
+                    saige_config.compile_phenotype_results._call,
+                    fs=fs,
+                    b=b,
+                    phenotype=phenotype,
+                    results_path=saige_config.step2_spa._output_glob(checkpoint_dir, phenotype.name),
+                    dependencies=step2_spa_jobs_by_phenotype[phenotype.name],
+                    checkpoint_dir=checkpoint_dir
+                )
+                for phenotype in phenotype_config.phenotypes
+            ],
+            parallelism=parallelism,
+        )
 
-            await saige_config.compile_all_results._call(
-                fs,
-                b,
-                results_path=saige_config.compile_phenotype_results._results_path_glob(checkpoint_dir),
-                output_ht_path=output_path,
-                dependencies=[result.source() for result in compiled_results],
-                mt_path=mt_path,
-            )
+        await saige_config.compile_all_results._call(
+            fs,
+            b,
+            results_path=saige_config.compile_phenotype_results._results_path_glob(checkpoint_dir),
+            output_ht_path=output_path,
+            dependencies=[result.source() for result in compiled_results],
+            mt_path=mt_path,
+        )
 
-            run_kwargs = run_kwargs or {}
-            b.run(**run_kwargs)
+        run_kwargs = run_kwargs or {}
+        b.run(**run_kwargs)
 
 
 def saige(
