@@ -283,8 +283,9 @@ class WaitableSharedPool:
 
 
 class WithoutSemaphore:
-    def __init__(self, sema):
+    def __init__(self, sema, *, acquire_on_error: bool = False):
         self._sema = sema
+        self._acquire_on_error = acquire_on_error
 
     async def __aenter__(self) -> 'WithoutSemaphore':
         self._sema.release()
@@ -293,7 +294,8 @@ class WithoutSemaphore:
     async def __aexit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
-        await self._sema.acquire()
+        if exc_val is None or self._acquire_on_error:
+            await self._sema.acquire()
 
 
 class PoolShutdownError(Exception):
