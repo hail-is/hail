@@ -5,9 +5,10 @@ from typing import Dict, List, Optional, Union
 from hailtop.aiotools.fs import AsyncFS
 import hailtop.batch as hb
 
-from .config import CheckpointConfigMixin, HAIL_IMAGE, JobConfigMixin, SAIGE_IMAGE
+from .config import CheckpointConfigMixin, JobConfigMixin
 from .constants import SaigeAnalysisType, SaigeInputDataType
 from .io import (
+    HailTableResourceFile,
     PlinkResourceGroup,
     SaigeGeneGLMMResourceGroup,
     SaigeGLMMResourceGroup,
@@ -105,14 +106,7 @@ class SparseGRMStep(CheckpointConfigMixin, JobConfigMixin):
 
         create_sparse_grm_j = b.new_job(name=self._name(), attributes=self._attributes())
 
-        image = self.image or SAIGE_IMAGE
-
-        (create_sparse_grm_j
-         .cpu(self.cpu)
-         .storage(self.storage)
-         .image(image)
-         .spot(self.spot)
-         )
+        (create_sparse_grm_j.cpu(self.cpu).storage(self.storage).image(self.image).spot(self.spot))
 
         sparse_grm = new_saige_sparse_grm_file(create_sparse_grm_j, self.relatedness_cutoff, self.num_random_markers_for_sparse_kin)
 
@@ -296,15 +290,13 @@ class Step1NullGlmmStep(CheckpointConfigMixin, JobConfigMixin):
             if glmm_resource_output:
                 return glmm_resource_output
 
-        image = self.image or SAIGE_IMAGE
-
         j = (
             b.new_job(
                 name=self._name(phenotype=phenotype),
                 attributes=self._attributes(analysis_type, phenotype),
             )
             .storage(self.storage)
-            .image(image)
+            .image(self.image)
             .cpu(self.cpu)
             .memory(self.memory)
             .spot(self.spot)
@@ -859,8 +851,6 @@ step2_SPAtests.R \\
             if results is not None:
                 return results
 
-        image = self.image or SAIGE_IMAGE
-
         j = (
             b.new_job(
                 name=self._name(phenotype=phenotype, chunk=chunk),
@@ -871,7 +861,7 @@ step2_SPAtests.R \\
                 ),
             )
             .storage(self.storage)
-            .image(image)
+            .image(self.image)
             .cpu(self.cpu)
             .memory(self.memory)
             .spot(self.spot)
@@ -941,11 +931,9 @@ class CompilePhenotypeResultsStep(CheckpointConfigMixin, JobConfigMixin):
             if results is not None:
                 return results
 
-        image = self.image or HAIL_IMAGE
-
         j = (b
              .new_python_job(name=self._name(phenotype), attributes=self._attributes(phenotype=phenotype))
-             .image(image)
+             .image(self.image)
              .cpu(self.cpu)
              .memory(self.memory)
         )
@@ -986,11 +974,9 @@ class CompileAllResultsStep(CheckpointConfigMixin, JobConfigMixin):
         if fs.isdir(output_ht_path) and not self.overwrite:
             return
 
-        image = self.image or HAIL_IMAGE
-
         j = (b
              .new_python_job(name=self._name())
-             .image(image)
+             .image(self.image)
              .cpu(self.cpu)
              .memory(self.memory)
         )

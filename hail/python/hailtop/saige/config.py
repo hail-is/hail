@@ -1,16 +1,9 @@
 import abc
 import os
-import sys
 from dataclasses import dataclass
 from typing import Optional, Union
 
 from hailtop import pip_version
-
-
-SAIGE_IMAGE = os.environ.get('HAIL_GENETICS_SAIGE_IMAGE', 'us-docker.pkg.dev/hail-vdc/hail/hailgenetics/saige:dev-c6k0x2y4mrkc')    # f'hailgenetics/vep-grch37-85:{pip_version()}'  # FIXME: before releasing make sure Wei makes a tag for the github branch
-
-python_version = '.'.join(sys.version_info[:2])
-HAIL_IMAGE = os.environ.get('HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}-py{python_version}')
 
 
 @dataclass
@@ -28,8 +21,8 @@ class CheckpointConfigMixin(abc.ABC):
 class JobConfigMixin(abc.ABC):
     """Mixin class for specifying job resources for SAIGE jobs."""
 
-    image: Optional[str] = None
-    """Docker image to use. Defaults are a Hail maintained Docker image with SAIGE v1.3.3 installed."""
+    image: Optional[str] = os.environ.get('HAIL_GENETICS_SAIGE_IMAGE', 'us-docker.pkg.dev/hail-vdc/hail/hailgenetics/saige:dev-c6k0x2y4mrkc')  # f'hailgenetics/vep-grch37-85:{pip_version()}'  # FIXME: before releasing make sure Wei makes a tag for the github branch
+    """Docker image that has both Hail and SAIGE installed. The version of SAIGE installed is v1.3.3."""
 
     cpu: Optional[Union[str, int]] = 1
     """The amount of CPU to give the job. This value will be used for the number of threads option "--nThreads"."""
