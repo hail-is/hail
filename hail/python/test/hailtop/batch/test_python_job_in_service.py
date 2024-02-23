@@ -96,7 +96,9 @@ async def test_python_job_input_in_list(
     input_file = b.read_input(url1)
 
     def readall(paths: List[str]) -> str:
-        assert len(paths) == 1
+        if len(paths) != 1:
+            # cannot use `assert` because it causes pytest to be serialized with this function
+            raise AssertionError(f'unexpected number of paths: {len(paths)}')
         return open(paths[0]).read()
 
     j = b.new_python_job()
