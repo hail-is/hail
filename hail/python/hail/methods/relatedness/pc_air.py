@@ -63,7 +63,7 @@ def _partition_samples(
     :obj:`set` of :class:`.Struct`
         The keys of the samples in the related set.
     """
-    # The variable names in this method are based on the notation in the PC-AiR paper.
+    # The Greek-letter variable names in this method are based on the notation in the PC-AiR paper.
     # TODO: The paper uses the within-family estimate for ancestral divergence
     # TODO: The paper suggests using the within-family estimate for relatedness as well
     # king returns the KING-robust, between-family kinship estimates for all sample pairs
@@ -93,7 +93,6 @@ def _partition_samples(
     )
     samples = pairs.cols()
     samples = samples.annotate(is_in_unrelated=True)
-    samples_key = samples.key
 
     while True:
         samples = samples.cache()
@@ -110,46 +109,32 @@ def _partition_samples(
 
             return unrelated, related
 
-        t_1 = samples.filter(samples.is_in_unrelated & (samples.eta == max_eta))
-        min_delta = t_1.aggregate(hl.agg.min(t_1.delta), _localize=False)
-        t_2 = t_1.filter(t_1.delta == min_delta)
-        min_gamma = t_2.aggregate(hl.agg.min(t_2.gamma), _localize=False)
-        t_3 = t_2.filter(t_2.gamma == min_gamma).head(1)
-
-        selected_sample = t_3.collect()
-        selected_sample = selected_sample[0]
+        selected_sample = samples.filter(samples.is_in_unrelated & (samples.eta == max_eta))
+        min_delta = selected_sample.aggregate(hl.agg.min(selected_sample.delta), _localize=False)
+        selected_sample = selected_sample.filter(selected_sample.delta == min_delta)
+        min_gamma = selected_sample.aggregate(hl.agg.min(selected_sample.gamma), _localize=False)
+        selected_sample = selected_sample.filter(selected_sample.gamma == min_gamma).head(1)
+        selected_sample = selected_sample.cache()
 
         # Set is_in_unrelated to false for the selected sample
-        are_keys_equal = hl.all(list(samples[field] == selected_sample[field] for field in samples_key.dtype))
-        samples = samples.annotate(is_in_unrelated=hl.if_else(are_keys_equal, False, samples.is_in_unrelated))
+        selected_sample = selected_sample.annotate(is_in_unrelated=False)
+        samples = samples.annotate(
+            is_in_unrelated=hl.or_else(selected_sample[samples.key].is_in_unrelated, samples.is_in_unrelated)
+        )
 
         # A sample is "affected" if the associated value of eta will change
         # due to the removal of the selected sample from the unrelated set
-        assert len(pairs.row_key.dtype) == len(samples_key.dtype)
-        are_keys_equal = hl.all(
-            list(
-                pairs[left_field] == selected_sample[right_field]
-                for left_field, right_field in zip(pairs.row_key.dtype, samples_key.dtype)
-            )
-        )
-        affected_samples = pairs.filter_rows(are_keys_equal)
+        affected_samples = pairs.semi_join_rows(selected_sample)
         affected_samples = affected_samples.annotate_cols(
-            is_affected=hl.agg.any(affected_samples.phi > relatedness_threshold)
+            eta_change=hl.if_else(hl.agg.any(affected_samples.phi > relatedness_threshold), -1, 0)
         )
         affected_samples = affected_samples.cols()
 
         # Subtract 1 from eta for the affected samples
-        samples = samples.annotate(is_affected=affected_samples[samples.key].is_affected)
-        samples = samples.annotate(
-            eta=hl.if_else(
-                samples.is_affected,
-                samples.eta - 1,
-                samples.eta,
-            )
-        )
+        samples = samples.annotate(eta=samples.eta + affected_samples[samples.key].eta_change)
         # Set eta to 0 for the selected sample
-        are_keys_equal = hl.all(list(samples[field] == selected_sample[field] for field in samples_key.dtype))
-        samples = samples.annotate(eta=hl.if_else(are_keys_equal, 0, samples.eta))
+        selected_sample = selected_sample.annotate(eta=0)
+        samples = samples.annotate(eta=hl.or_else(selected_sample[samples.key].eta, samples.eta))
 
 
 @typecheck(genotypes=expr_call, unrelated=expr_any)
