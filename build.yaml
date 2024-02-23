@@ -1870,7 +1870,7 @@ steps:
       COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
                          auth /api/v1alpha/copy-paste-token \
                          -fsSL \
-                         --retry 3 \
+                         --retry 10 \
                          --retry-delay 5 \
                          -XPOST)
       hailctl auth copy-paste-login "$COPY_PASTE_TOKEN"
@@ -1932,7 +1932,7 @@ steps:
       COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
                          auth /api/v1alpha/copy-paste-token \
                          -fsSL \
-                         --retry 3 \
+                         --retry 10 \
                          --retry-delay 5 \
                          -XPOST)
       sleep $(( 5 * 60 + 1))
