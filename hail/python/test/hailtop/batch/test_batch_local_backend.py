@@ -202,9 +202,6 @@ def test_resource_group_get_all_inputs(batch):
     assert input.idx in j._inputs
 
 
-
-
-
 def test_resource_group_get_all_outputs(batch):
     b = batch
     j1 = b.new_job()
