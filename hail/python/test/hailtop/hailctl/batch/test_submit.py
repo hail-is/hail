@@ -15,8 +15,9 @@ def runner():
 
 def write_script(dir: str, filename: str):
     with open(f'{dir}/test_job.py', 'w') as f:
+        file, _ = real_absolute_expanded_path(filename)
         f.write(f"""
-print(open("{real_absolute_expanded_path(filename)}").read())
+print(open("{file}").read())
 """)
 
 
