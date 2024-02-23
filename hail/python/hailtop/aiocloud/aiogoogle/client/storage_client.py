@@ -559,10 +559,14 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
-                    chunk_tasks = [pool.call(tree_compose, c, n) for c, n in zip(chunks, chunk_names)]
+                    async with AsyncExitStack() as stack:
+                        chunk_tasks = []
+                        for chunk, name in zip(chunks, chunk_names):
+                            fut = pool.call(tree_compose, chunk, name)
+                            stack.push_async_callback(_cleanup_future, fut)
+                            chunk_tasks.append(fut)
 
-                    await pool.wait(chunk_tasks)
-                    await asyncio.gather(*chunk_tasks)  # retrieve exceptions
+                        await pool.wait(chunk_tasks)
 
                     await self._compose(chunk_names, dest_name)
 
