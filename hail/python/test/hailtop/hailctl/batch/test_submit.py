@@ -148,7 +148,7 @@ def test_mounting_dir_to_root_dir_fails(runner: CliRunner):
 
         write_script(dir, '/hello1.txt')
 
-        res = runner.invoke(
-            cli.app, ['submit', '--wait', '--files', f'{dir}/:/', '../test_job.py'], catch_exceptions=False
-        )
-        assert isinstance(res.exception, ValueError) and 'cannot mount a directory to "/"' in res.stderr
+        with pytest.raises(ValueError, match='cannot mount a directory to "/"'):
+            runner.invoke(
+                cli.app, ['submit', '--wait', '--files', f'{dir}/:/', '../test_job.py'], catch_exceptions=False
+            )

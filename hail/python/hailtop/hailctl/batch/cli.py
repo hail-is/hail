@@ -216,6 +216,12 @@ def submit(
 
 
     $ hailctl batch submit --image-name docker.io/image my_script.py --files a-file:/foo/bar -- some-argument --animal dog
+
+
+    Notes
+    -----
+
+    Copying a local directory to the root directory in the job is not supported (example: ``--files my-local-dir/:/``).
     """
     from .submit import submit as _submit, HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
 
