@@ -131,9 +131,23 @@ def test_dir_outside_curdir(runner: CliRunner):
         write_hello(f'{dir}/hello1.txt')
         write_hello(f'{dir}/hello2.txt')
 
-        dir_basename = os.path.basename(dir)
-        write_script(dir, f'/{dir_basename}/hello1.txt')
+        write_script(dir, f'/foo/hello1.txt')
+
+        res = runner.invoke(
+            cli.app, ['submit', '--wait', '--files', f'{dir}/:/foo/', '../test_job.py'], catch_exceptions=False
+        )
+        assert res.exit_code == 0, repr((res.output, res.stdout, res.stderr, res.exception))
+
+
+@pytest.mark.timeout(5 * 60)  # image pulling is very slow
+def test_mounting_dir_to_root_dir_fails(runner: CliRunner):
+    with tempfile.TemporaryDirectory() as dir:
+        write_hello(f'{dir}/hello1.txt')
+        write_hello(f'{dir}/hello2.txt')
+
+        write_script(dir, '/hello1.txt')
+
         res = runner.invoke(
             cli.app, ['submit', '--wait', '--files', f'{dir}/:/', '../test_job.py'], catch_exceptions=False
         )
-        assert res.exit_code == 0, repr((res.exit_code, res.stdout, res.stderr, res.exception))
+        assert isinstance(res.exception, ValueError) and 'cannot mount a directory to "/"' in res.stderr

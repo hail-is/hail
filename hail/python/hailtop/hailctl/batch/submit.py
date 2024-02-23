@@ -134,6 +134,10 @@ def parse_files_option_to_src_dest_and_cloud_intermediate(remote_tmpdir: AsyncFS
         dest = os.path.join(real_absolute_cwd(), os.path.basename(src))
     else:
         dest, dest_looks_like_directory = real_absolute_expanded_path(dest)
+
+        if src_looks_like_directory and dest == '/':
+            raise ValueError(f'cannot mount a directory to "/"')
+
         if not src_looks_like_directory and dest_looks_like_directory:
             dest = os.path.join(dest, os.path.basename(src))
 
