@@ -18,7 +18,6 @@ class Resource(abc.ABC):
     @abc.abstractmethod
     def source(self) -> Optional[job.Job]:
         """The job which produces this resource, or ``None``, if this is an external resource."""
-        pass
 
     @abc.abstractmethod
     def _get_path(self, directory: str) -> str:
