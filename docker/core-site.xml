@@ -4,12 +4,12 @@
 <configuration>
 
   <property>
-    <name>spark.hadoop.fs.gs.auth.type</name>
+    <name>google.cloud.auth.type</name>
     <value>SERVICE_ACCOUNT_JSON_KEYFILE</value>
   </property>
 
   <property>
-    <name>spark.hadoop.fs.gs.auth.service.account.json.keyfile</name>
+    <name>google.cloud.auth.service.account.json.keyfile</name>
     <value>/gsa-key/key.json</value>
   </property>
 
