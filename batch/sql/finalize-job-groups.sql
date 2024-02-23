@@ -1,5 +1,3 @@
-START TRANSACTION;
-
 DROP TRIGGER IF EXISTS batches_after_update;
 
 DELIMITER $$
@@ -736,5 +734,3 @@ ALTER TABLE job_groups_n_jobs_in_complete_states ADD FOREIGN KEY (`id`, `job_gro
 ALTER TABLE job_groups_n_jobs_in_complete_states DROP PRIMARY KEY, ADD PRIMARY KEY (`id`, `job_group_id`), ALGORITHM=INPLACE, LOCK=NONE;
 
 SET foreign_key_checks = 1;
-
-COMMIT;
