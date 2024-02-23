@@ -881,7 +881,7 @@ step2_SPAtests.R \\
 
         j.command(command)
 
-        # the output file must always be written as the resource files in this step are not tracked through Batch
+        # the output file must always be written as the resource files in this step are not used in downstream steps
         b.write_output(results, output_root)
 
         return results

@@ -242,6 +242,14 @@ def compute_variant_intervals_by_contig(mt: hl.MatrixTable,
                                         max_span_per_chunk: int = 5_000_000) -> List[hl.Interval]:
     """Break up a dataset stored as a Hail Matrix Table into chunks.
 
+    Examples
+    --------
+
+    Get a list of intervals that contain approximately 10K variants per chunk and each chunk spans one
+    chromosome with a max span of 10MB:
+
+    >>> intervals = compute_variant_intervals_by_contig(mt, max_count_per_chunk=10000, max_span_per_chunk=10_000_000)
+
     Parameters
     ----------
     mt:
