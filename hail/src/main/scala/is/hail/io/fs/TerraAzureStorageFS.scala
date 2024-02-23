@@ -16,6 +16,8 @@ import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods
 
+import is.hail.shadedazure.com.azure.storage.blob.BlobServiceClient
+
 object TerraAzureStorageFS {
   private val log = Logger.getLogger(getClass.getName)
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
@@ -25,34 +27,37 @@ class TerraAzureStorageFS extends AzureStorageFS() {
   import TerraAzureStorageFS.{log, TEN_MINUTES_IN_MS}
 
   private[this] val httpClient = HttpClients.custom().build()
-  private[this] val sasTokenCache = mutable.Map[String, (String, Long)]()
+  private[this] val sasTokenCache = mutable.Map[String, (URL, Long)]()
 
   private[this] val workspaceManagerUrl = sys.env("WORKSPACE_MANAGER_URL")
   private[this] val workspaceId = sys.env("WORKSPACE_ID")
   private[this] val containerResourceId = sys.env("WORKSPACE_STORAGE_CONTAINER_ID")
-  private[this] val storageContainerUrl = sys.env("WORKSPACE_STORAGE_CONTAINER_URL")
+  private[this] val storageContainerUrl = parseUrl(sys.env("WORKSPACE_STORAGE_CONTAINER_URL"))
 
   private[this] val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
 
-  override def parseUrl(filename: String): AzureStorageFSURL = {
-    val urlStr =
-      if (filename.startsWith(storageContainerUrl)) {
-        sasTokenCache.get(filename) match {
-          case Some((sasTokenUrl, expiration))
-              if expiration > System.currentTimeMillis + TEN_MINUTES_IN_MS => sasTokenUrl
-          case None =>
-            val (sasTokenUrl, expiration) = getTerraSasToken(filename)
-            sasTokenCache += (filename -> (sasTokenUrl -> expiration))
-            sasTokenUrl
-        }
-      } else {
-        filename
-      }
+  override def getServiceClient(url: URL): BlobServiceClient =
+    if (blobInWorkspaceStorageContainer(url)) {
+      super.getServiceClient(getTerraSasToken(url))
+    } else {
+      super.getServiceClient(url)
+    }
 
-    parseUrl(urlStr)
+  def getTerraSasToken(url: URL): URL = {
+    sasTokenCache.get(url.base) match {
+      case Some((sasTokenUrl, expiration))
+          if expiration > System.currentTimeMillis + TEN_MINUTES_IN_MS => sasTokenUrl
+      case None =>
+        val (sasTokenUrl, expiration) = createTerraSasToken()
+        sasTokenCache += (url.base -> (sasTokenUrl -> expiration))
+        sasTokenUrl
+    }
   }
 
-  private def getTerraSasToken(filename: String): (String, Long) = {
+  private def blobInWorkspaceStorageContainer(url: URL): Boolean =
+    storageContainerUrl.account == url.account && storageContainerUrl.container == url.container
+
+  private def createTerraSasToken(): (URL, Long) = {
     implicit val formats: Formats = DefaultFormats
 
     val context = new TokenRequestContext()
@@ -78,6 +83,6 @@ class TerraAzureStorageFS extends AzureStorageFS() {
       (json \ "url").extract[String]
     }
 
-    (sasTokenUrl, expiration)
+    (parseUrl(sasTokenUrl), expiration)
   }
 }
