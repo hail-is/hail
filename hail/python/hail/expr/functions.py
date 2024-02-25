@@ -841,7 +841,7 @@ def cochran_mantel_haenszel_test(
     >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
     Struct(test_statistic=5.0496881823306765, p_value=0.024630370456863417)
 
-    >>> mt = ds.filter_rows(mt.locus == Locus(20, 10633237))
+    >>> mt = ds.filter_rows(mt.locus == hl.Locus(20, 10633237))
     >>> mt.count_rows()
     1
     >>> a, b, c, d = mt.aggregate_entries(
