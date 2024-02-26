@@ -56,7 +56,7 @@ class I32(IR):
     @typecheck_method(x=int)
     def __init__(self, x):
         super().__init__()
-        self.x = x
+        self.x = int(x)
 
     def _eq(self, other):
         return self.x == other.x
@@ -75,7 +75,7 @@ class I64(IR):
     @typecheck_method(x=int)
     def __init__(self, x):
         super().__init__()
-        self.x = x
+        self.x = int(x)
 
     def _eq(self, other):
         return self.x == other.x
@@ -94,7 +94,7 @@ class F32(IR):
     @typecheck_method(x=numeric)
     def __init__(self, x):
         super().__init__()
-        self.x = x
+        self.x = float(x)
 
     def _eq(self, other):
         return self.x == other.x
@@ -113,7 +113,7 @@ class F64(IR):
     @typecheck_method(x=numeric)
     def __init__(self, x):
         super().__init__()
-        self.x = x
+        self.x = float(x)
 
     def _eq(self, other):
         return self.x == other.x
@@ -2958,7 +2958,7 @@ class GetTupleElement(IR):
     def __init__(self, o, idx):
         super().__init__(o)
         self.o = o
-        self.idx = idx
+        self.idx = int(idx)
 
     @typecheck_method(o=IR)
     def copy(self, o):

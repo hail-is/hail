@@ -14,6 +14,7 @@ genetics
     :toctree: ./
     :template: class.rst
 
+    AlleleType
     Call
     Locus
     Pedigree

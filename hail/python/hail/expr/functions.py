@@ -85,6 +85,7 @@ from hail.expr.types import (
     is_float32,
     is_float64,
 )
+from hail.genetics.allele_type import AlleleType
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
 from hail.typecheck import (
@@ -3278,16 +3279,26 @@ def corr(x, y) -> Float64Expression:
     return _func("corr", tfloat64, x, y)
 
 
-_base_regex = "^([ACGTNM])+$"
-_symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
-_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
-_allele_enum = {i: v for i, v in builtins.enumerate(_allele_types)}
-_allele_ints = {v: k for k, v in _allele_enum.items()}
-
-
 @typecheck(ref=expr_str, alt=expr_str)
 @ir.udf(tstr, tstr)
-def _num_allele_type(ref, alt) -> Int32Expression:
+def numeric_allele_type(ref, alt) -> Int32Expression:
+    """Returns the type of the polymorphism as an integer. The value returned
+    is the integer value of :class:`.AlleleType` representing that kind of
+    polymorphism.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.numeric_allele_type('A', 'T')) == AlleleType.SNP
+    True
+
+    Notes
+    -----
+    The values of :class:`.AlleleType` are not stable and thus should not be
+    relied upon across hail versions.
+    """
+    _base_regex = "^([ACGTNM])+$"
+    _symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
     return hl.bind(
         lambda r, a: hl.if_else(
             r.matches(_base_regex),
@@ -3299,22 +3310,31 @@ def _num_allele_type(ref, alt) -> Int32Expression:
                     r.length() == a.length(),
                     hl.if_else(
                         r.length() == 1,
-                        hl.if_else(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
-                        hl.if_else(hamming(r, a) == 1, _allele_ints['SNP'], _allele_ints['MNP']),
+                        hl.if_else(r != a, AlleleType.SNP, AlleleType.UNKNOWN),
+                        hl.if_else(hamming(r, a) == 1, AlleleType.SNP, AlleleType.MNP),
                     ),
                 )
-                .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]), _allele_ints["Insertion"])
-                .when((r[0] == a[0]) & r.endswith(a[1:]), _allele_ints["Deletion"])
-                .default(_allele_ints['Complex']),
+                .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]), AlleleType.INSERTION)
+                .when((r[0] == a[0]) & r.endswith(a[1:]), AlleleType.DELETION)
+                .default(AlleleType.COMPLEX),
             )
-            .when(a == '*', _allele_ints['Star'])
-            .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-            .default(_allele_ints['Unknown']),
-            _allele_ints['Unknown'],
+            .when(a == '*', AlleleType.STAR)
+            .when(a.matches(_symbolic_regex), AlleleType.SYMBOLIC)
+            .default(AlleleType.UNKNOWN),
+            AlleleType.UNKNOWN,
         ),
         ref,
         alt,
     )
+
+
+@deprecated(version='0.2.129', reason="Replaced by the public numeric_allele_type")
+@typecheck(ref=expr_str, alt=expr_str)
+def _num_allele_type(ref, alt) -> Int32Expression:
+    """Provided for backwards compatibility, don't use it in new code, or
+    within the hail library itself
+    """
+    return numeric_allele_type(ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3338,7 +3358,7 @@ def is_snp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["SNP"]
+    return numeric_allele_type(ref, alt) == AlleleType.SNP
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3362,7 +3382,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["MNP"]
+    return numeric_allele_type(ref, alt) == AlleleType.MNP
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3458,7 +3478,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Insertion"]
+    return numeric_allele_type(ref, alt) == AlleleType.INSERTION
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3482,7 +3502,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Deletion"]
+    return numeric_allele_type(ref, alt) == AlleleType.DELETION
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3506,9 +3526,7 @@ def is_indel(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return hl.bind(
-        lambda t: (t == _allele_ints["Insertion"]) | (t == _allele_ints["Deletion"]), _num_allele_type(ref, alt)
-    )
+    return hl.bind(lambda t: (t == AlleleType.INSERTION) | (t == AlleleType.DELETION), numeric_allele_type(ref, alt))
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3532,7 +3550,7 @@ def is_star(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Star"]
+    return numeric_allele_type(ref, alt) == AlleleType.STAR
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3556,7 +3574,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Complex"]
+    return numeric_allele_type(ref, alt) == AlleleType.COMPLEX
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3624,7 +3642,7 @@ def allele_type(ref, alt) -> StringExpression:
     -------
     :class:`.StringExpression`
     """
-    return hl.literal(_allele_types)[_num_allele_type(ref, alt)]
+    return hl.literal(AlleleType.strings())[numeric_allele_type(ref, alt)]
 
 
 @typecheck(s1=expr_str, s2=expr_str)
