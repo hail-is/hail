@@ -5,8 +5,7 @@ import is.hail.services.retryTransientErrors
 import is.hail.shadedazure.com.azure.core.credential.AzureSasCredential
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
 import is.hail.shadedazure.com.azure.identity.{
-  ClientSecretCredentialBuilder,
-  DefaultAzureCredentialBuilder
+  ClientSecretCredentialBuilder, DefaultAzureCredentialBuilder,
 }
 import is.hail.shadedazure.com.azure.storage.blob.{
   BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,

@@ -183,7 +183,8 @@ class AzureReadableStream(ReadableStream):
 
         if n == -1:
             try:
-                downloader = await self._get_client().download_blob(offset=self._offset, length=self._length)  # type: ignore
+                client = await self._get_client()
+                downloader = await client.download_blob(offset=self._offset, length=self._length)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url.base) from e
             data = await downloader.readall()
@@ -192,7 +193,8 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             try:
-                self._downloader = await self._get_client().download_blob(offset=self._offset)  # type: ignore
+                client = await self._get_client()
+                self._downloader = await client.download_blob(offset=self._offset)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url.base) from e
             except azure.core.exceptions.HttpResponseError as e:
