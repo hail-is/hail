@@ -151,6 +151,13 @@ def test_invalid_resource_requests(client: BatchClient):
         b.submit()
 
 
+def test_invalid_job_group_attributes(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'foo': 1})
+    with pytest.raises(httpx.ClientResponseError, match=".*foo.* is not <class 'str'>"):
+        b.submit()
+
+
 def test_out_of_memory(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}

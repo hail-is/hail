@@ -956,7 +956,10 @@ VALUES (%s, %s, %s, %s);
 async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: str, job_group_specs: List[dict]):
     assert len(job_group_specs) > 0
 
-    validate_job_groups(job_group_specs)
+    try:
+        validate_job_groups(job_group_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
 
     @transaction(db)
     async def insert(tx):
