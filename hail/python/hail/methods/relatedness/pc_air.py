@@ -74,22 +74,31 @@ def _partition_samples(
     assert isinstance(pairs.row_key.dtype, hl.tstruct) and isinstance(pairs.col_key.dtype, hl.tstruct)
     assert pairs.row_key.dtype.types == pairs.col_key.dtype.types
 
-    def keys_are_different():
-        return hl.any(
-            list(
-                pairs[left_field] != pairs[right_field]
-                for left_field, right_field in zip(pairs.row_key.dtype, pairs.col_key.dtype)
-            )
-        )
-
-    pairs = pairs.annotate_cols(eta=hl.agg.count_where(keys_are_different() & (pairs.phi > relatedness_threshold)))
-    pairs = pairs.annotate_cols(
-        delta=hl.agg.count_where(
-            keys_are_different() & (pairs.phi < relatedness_threshold) & (pairs.phi < -divergence_threshold)
+    keys_are_different = hl.any(
+        list(
+            pairs[left_field] != pairs[right_field]
+            for left_field, right_field in zip(pairs.row_key.dtype, pairs.col_key.dtype)
         )
     )
+
+    divergence_threshold = hl.min(relatedness_threshold, -divergence_threshold)
+    agg_expr = hl.agg.filter(
+        keys_are_different,
+        hl.struct(
+            eta_gamma=hl.agg.filter(
+                pairs.phi > relatedness_threshold,
+                hl.struct(
+                    eta=hl.agg.count(),
+                    gamma=hl.agg.sum(pairs.phi),
+                ),
+            ),
+            delta=hl.agg.count_where(pairs.phi < divergence_threshold),
+        ),
+    )
     pairs = pairs.annotate_cols(
-        gamma=hl.agg.sum(hl.if_else(keys_are_different() & (pairs.phi > relatedness_threshold), pairs.phi, 0))
+        eta=agg_expr.eta_gamma.eta,
+        delta=agg_expr.delta,
+        gamma=agg_expr.eta_gamma.gamma,
     )
     samples = pairs.cols()
     samples = samples.annotate(is_in_unrelated=True)
