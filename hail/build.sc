@@ -59,6 +59,7 @@ def buildInfo: T[PathRef] = T {
        |revision=$revision
        |sparkVersion=${sparkVersion()}
        |hailPipVersion=${Settings.hailMajorMinorVersion}.${Settings.hailPatchVersion}
+       |hailBuildConfiguration=${debugOrRelease()}
        |""".stripMargin,
   )
   PathRef(T.dest)

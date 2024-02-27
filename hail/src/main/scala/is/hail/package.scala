@@ -14,8 +14,9 @@ package object hail {
       hail_revision: String,
       hail_spark_version: String,
       hail_pip_version: String,
+      hail_build_configuration: BuildConfiguration,
     ) =
-      loadFromResource[(String, String, String)]("build-info.properties") {
+      loadFromResource[(String, String, String, BuildConfiguration)]("build-info.properties") {
         (is: InputStream) =>
           val unknownProp = "<unknown>"
           val props = new Properties()
@@ -23,7 +24,14 @@ package object hail {
           (
             props.getProperty("revision", unknownProp),
             props.getProperty("sparkVersion", unknownProp),
-            props.getProperty("hailPipVersion", unknownProp),
+            props.getProperty("hailPipVersion", unknownProp), {
+              val c = props.getProperty("hailBuildConfiguration", "debug")
+              BuildConfiguration.parseString(c).getOrElse(
+                throw new IllegalArgumentException(
+                  s"Illegal 'hailBuildConfiguration' entry in 'build-info.properties': '$c'."
+                )
+              )
+            },
           )
       }
   }
@@ -35,4 +43,26 @@ package object hail {
   // FIXME: probably should use tags or something to choose English name
   val HAIL_PRETTY_VERSION = HAIL_PIP_VERSION + "-" + HAIL_REVISION.substring(0, 12)
 
+  val HAIL_BUILD_CONFIGURATION = HailBuildInfo.hail_build_configuration
+}
+
+sealed trait BuildConfiguration extends Product with Serializable {
+  def isDebug: Boolean
+}
+
+object BuildConfiguration {
+  case object Release extends BuildConfiguration {
+    override def isDebug: Boolean = false
+  }
+
+  case object Debug extends BuildConfiguration {
+    override def isDebug: Boolean = true
+  }
+
+  def parseString(c: String): Option[BuildConfiguration] =
+    c match {
+      case "release" => Some(BuildConfiguration.Release)
+      case "debug" => Some(BuildConfiguration.Debug)
+      case _ => None
+    }
 }

@@ -456,7 +456,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     errorMsg: Code[String] = s"expected non-missing",
     errorID: Code[Int] = const(ErrorIDs.NO_ERROR),
   ): A =
-    handle(cb, cb._fatalWithError(errorID, errorMsg))
+    handle(cb, cb._assert(false, errorMsg))
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
