@@ -58,10 +58,9 @@ def _partition_samples(
 
     Returns
     -------
-    :obj:`set` of :class:`.Struct`
-        The keys of the samples in the unrelated set.
-    :obj:`set` of :class:`.Struct`
-        The keys of the samples in the related set.
+    :class:`.Table`
+        A table with a field `is_in_unrelated` that is true if the sample is in the unrelated set and false otherwise.
+        The table shares the same key as the columns of the source matrix table of the genotypes.
     """
     # The Greek-letter variable names in this method are based on the notation in the PC-AiR paper.
     # TODO: The paper uses the within-family estimate for ancestral divergence
@@ -85,65 +84,57 @@ def _partition_samples(
     agg_expr = hl.agg.filter(
         keys_are_different,
         hl.struct(
-            eta_gamma=hl.agg.filter(
+            gamma_relatives=hl.agg.filter(
                 pairs.phi > relatedness_threshold,
                 hl.struct(
-                    eta=hl.agg.count(),
                     gamma=hl.agg.sum(pairs.phi),
+                    relatives=hl.agg.collect(pairs.row_key),
                 ),
             ),
             delta=hl.agg.count_where(pairs.phi < divergence_threshold),
         ),
     )
     pairs = pairs.annotate_cols(
-        eta=agg_expr.eta_gamma.eta,
         delta=agg_expr.delta,
-        gamma=agg_expr.eta_gamma.gamma,
+        gamma=agg_expr.gamma_relatives.gamma,
+        relatives=agg_expr.gamma_relatives.relatives,
     )
     samples = pairs.cols()
     samples = samples.annotate(is_in_unrelated=True)
+    index_names = list(samples.key.dtype)
+    samples = samples.to_pandas().set_index(index_names, drop=False)
+    samples['eta'] = samples['relatives'].apply(len)
 
     while True:
-        samples = samples.cache()
-        max_eta = samples.aggregate(hl.agg.max(samples.eta))
+        max_eta = samples['eta'].max()
 
         if max_eta == 0:
-            unrelated = samples.filter(samples.is_in_unrelated)
-            unrelated = unrelated.aggregate(hl.agg.collect_as_set(unrelated.key))
-            unrelated = hl.set(unrelated)
+            return hl.Table.from_pandas(samples[index_names + ['is_in_unrelated']], key=index_names)
 
-            related = samples.filter(~samples.is_in_unrelated)
-            related = related.aggregate(hl.agg.collect_as_set(related.key))
-            related = hl.set(related)
+        selected_sample = samples[samples['eta'] == max_eta]
 
-            return unrelated, related
+        if len(selected_sample) > 1:
+            min_delta = selected_sample['delta'].min()
+            selected_sample = selected_sample[selected_sample['delta'] == min_delta]
 
-        selected_sample = samples.filter(samples.is_in_unrelated & (samples.eta == max_eta))
-        min_delta = selected_sample.aggregate(hl.agg.min(selected_sample.delta), _localize=False)
-        selected_sample = selected_sample.filter(selected_sample.delta == min_delta)
-        min_gamma = selected_sample.aggregate(hl.agg.min(selected_sample.gamma), _localize=False)
-        selected_sample = selected_sample.filter(selected_sample.gamma == min_gamma).head(1)
-        selected_sample = selected_sample.cache()
+            if len(selected_sample) > 1:
+                min_gamma = selected_sample['gamma'].min()
+                selected_sample = selected_sample[selected_sample['gamma'] == min_gamma]
 
-        # Set is_in_unrelated to false for the selected sample
-        selected_sample = selected_sample.annotate(is_in_unrelated=False)
-        samples = samples.annotate(
-            is_in_unrelated=hl.or_else(selected_sample[samples.key].is_in_unrelated, samples.is_in_unrelated)
-        )
+        # Select first index in selected samples
+        selected_sample = selected_sample.index[0]
 
-        # A sample is "affected" if the associated value of eta will change
-        # due to the removal of the selected sample from the unrelated set
-        affected_samples = pairs.semi_join_rows(selected_sample)
-        affected_samples = affected_samples.annotate_cols(
-            eta_change=hl.if_else(hl.agg.any(affected_samples.phi > relatedness_threshold), -1, 0)
-        )
-        affected_samples = affected_samples.cols()
+        # Remove the selected sample from the unrelated set
+        samples.at[selected_sample, 'is_in_unrelated'] = False
 
-        # Subtract 1 from eta for the affected samples
-        samples = samples.annotate(eta=samples.eta + affected_samples[samples.key].eta_change)
+        # Subtract 1 from eta for the relatives
+        relatives = samples.at[selected_sample, 'relatives']
+        relatives = list(map(lambda index_struct: tuple(index_struct.values()), relatives))
+        relatives = [index_values[0] if len(index_values) == 1 else index_values for index_values in relatives]
+        samples.loc[relatives, 'eta'] -= 1
+
         # Set eta to 0 for the selected sample
-        selected_sample = selected_sample.annotate(eta=0)
-        samples = samples.annotate(eta=hl.or_else(selected_sample[samples.key].eta, samples.eta))
+        samples.at[selected_sample, 'eta'] = 0
 
 
 @typecheck(genotypes=expr_call, unrelated=expr_any)

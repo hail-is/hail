@@ -16,10 +16,9 @@ class Tests(unittest.TestCase):
         mt = hl.import_plink(
             bed=f'{plink_path}.bed', bim=f'{plink_path}.bim', fam=f'{plink_path}.fam', reference_genome=None
         )
-        unrelated, related = _partition_samples(mt.GT, 0.05)
-        unrelated, related = unrelated.collect()[0], related.collect()[0]
-        unrelated = set(map(lambda x: x.s, unrelated))
-        related = set(map(lambda x: x.s, related))
+        table = _partition_samples(mt.GT, 0.05)
+        unrelated = set(table.filter(table.is_in_unrelated).s.collect())
+        related = set(table.filter(~table.is_in_unrelated).s.collect())
         expected_related = {
             'cid93P0',
             'cid389P1',
