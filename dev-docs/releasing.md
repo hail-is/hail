@@ -25,7 +25,7 @@ Checkout this commit locally. Then find the corresponding release batch by searc
 
     sha = THE_FULL_SHA
 
-Change directories into the hail directory:
+Change directories into the Hail directory:
 
     cd /PATH/TO/REPO/hail
 
@@ -45,6 +45,7 @@ Download all these files except the repo (which you do not need, because you che
 
     BUILD_TOKEN=9cabeeb4ba047d1722e6f8da0383ab97
     mkdir $BUILD_TOKEN
+	RELEASE_ARTIFACTS_DIR=$(realpath $BUILD_TOKEN)
     gcloud storage cp -r \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_version \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_pip_version \
@@ -60,23 +61,29 @@ it. `download-secret` is a function stored in `devbin/functions.sh`.
 
     download-secret docker-hub-hailgenetics
     cat contents/password | skopeo login --username hailgenetics --password-stdin docker.io
+	popd
 
-Next we need to cook up a valid pypirc:
+Next we need a valid pypirc:
+
+    download-secret pypi-credentials
+    cp contents/pypirc $HOME/.pypirc
+	popd
+
+Next we need a valid github-oauth token (for creating GitHub releases):
 
     download-secret hail-ci-0-1-github-oauth-token
-    cp contents/pypirc $HOME/.pypirc
-
-Next we need to cook up a valid github-oauth token (for creating GitHub releases):
-
-    printf 'Authorization: token ' > /PATH/TO/WORKING_DIR/$BUILD_TOKEN/github-oauth
-    cat contents/oauth-token >>/PATH/TO/WORKING_DIR/$BUILD_TOKEN/github-oauth
+    printf 'Authorization: token ' > $RELEASE_ARTIFACTS_DIR/github-oauth
+    cat contents/oauth-token >>$RELEASE_ARTIFACTS_DIR/github-oauth
 
 We use those same credentials to automatically create releases against DSP's repositories:
 
-    printf '#!/bin/bash\necho ' > git-askpass
-    cat contents/oauth-token >>git-askpass
+    printf '#!/bin/bash\necho ' > $RELEASE_ARTIFACTS_DIR/git-askpass
+    cat contents/oauth-token >>$RELEASE_ARTIFACTS_DIR/git-askpass
     chmod 755 git-askpass
-    export GIT_ASKPASS=$(pwd)/git-askpass
+    export GIT_ASKPASS=$RELEASE_ARTIFACTS_DIR/git-askpass
+	popd
+
+Ensure you have returned to the `hail` sub-folder of the Hail git repository.
 
 Now we can construct a `release.sh` invocation. Find the invocation in the "command" part of the
 "Job Specification" table. It should look like:
@@ -100,25 +107,39 @@ We need to make two replacements:
 
 1. Replace the path to the wheel with the path to the wheel we downloaded from hail-common.
 
-2. Replace `/io` with `$BUILD_TOKEN`.
+2. Replace `/io` with `$RELEASE_ARTIFACTS_DIR`.
 
 It should look something like this:
 
-    bash /PATH/TO/YOUR/HAIL/REPOSITORY/hail/scripts/release.sh \
-        $(cat $BUILD_TOKEN/hail_pip_version) \
-        $(cat $BUILD_TOKEN/hail_version) \
-        $(cat $BUILD_TOKEN/git_version) \
+    bash scripts/release.sh \
+        $(cat $RELEASE_ARTIFACTS_DIR/hail_pip_version) \
+        $(cat $RELEASE_ARTIFACTS_DIR/hail_version) \
+        $(cat $RELEASE_ARTIFACTS_DIR/git_version) \
         origin \
         /PATH/TO/DOWNLOADED/HAIL-COMMON/WHEEL/hail-0.2.XXX-py3-none-any.whl \
-        $BUILD_TOKEN/github-oauth \
+        $RELEASE_ARTIFACTS_DIR/github-oauth \
         docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-syrodsx1m9j7 \
         docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:deploy-a3opsijrtgir \
         docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-tmdcpjx6zbvh \
         docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:deploy-w1ehxyfzy2jl \
         docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:deploy-f51bxmvgmwsb \
         docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch38-95:deploy-dv77x7gtm8ns \
-        $BUILD_TOKEN/azure-wheel/hail-*-py3-none-any.whl \
-        $BUILD_TOKEN/www.tar.gz'
+        $RELEASE_ARTIFACTS_DIR/azure-wheel/hail-*-py3-none-any.whl \
+        $RELEASE_ARTIFACTS_DIR/www.tar.gz'
+
+When you are complete, delete all the credentials:
+
+    rm $RELEASE_ARTIFACTS_DIR/git-askpass
+    rm $RELEASE_ARTIFACTS_DIR/github-oauth
+    rm $HOME/.pypirc
+	skopeo logout docker.io
+
+You should also delete the temporary directories used to download the credentials. On Mac OS X,
+those directories are all under $TMPDIR which looks like
+`/var/folders/x1/601098gx0v11qjx2l_7qfw2c0000gq/T/`. If you're comfortable deleting all of $TMPDIR,
+just run:
+
+    rm -rf $TMPDIR
 
 ## Failure due to a tag or a release already existing
 
