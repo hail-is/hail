@@ -417,6 +417,7 @@ class ServiceBackend(Backend):
                         iodir + '/in',
                         iodir + '/out',
                     ],
+                    job_group=self._batch.create_job_group(),
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,

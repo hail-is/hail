@@ -58,6 +58,7 @@ object ServiceBackend {
     theHailClassLoader: HailClassLoader,
     batchClient: BatchClient,
     batchId: Option[Long],
+    jobGroupId: Option[Long],
     scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
     rpcConfig: ServiceBackendRPCPayload,
   ): ServiceBackend = {
@@ -84,6 +85,7 @@ object ServiceBackend {
       new HailClassLoader(getClass().getClassLoader()),
       batchClient,
       batchId,
+      jobGroupId,
       flags,
       rpcConfig.tmp_dir,
       fs,
@@ -112,6 +114,7 @@ class ServiceBackend(
   val theHailClassLoader: HailClassLoader,
   val batchClient: BatchClient,
   val curBatchId: Option[Long],
+  val curJobGroupId: Option[Long],
   val flags: HailFeatureFlags,
   val tmpdir: String,
   val fs: FS,
@@ -190,6 +193,15 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
+    val parentJobGroup = curJobGroupId.getOrElse(0L)
+    val jobGroupIdInUpdate = 1 // QoB creates an update for every new stage
+    val workerJobGroup = JObject(
+      "job_group_id" -> JInt(jobGroupIdInUpdate),
+      "absolute_parent_id" -> JInt(parentJobGroup),
+      "attributes" -> JObject("name" -> JString(stageIdentifier)),
+    )
+    log.info(s"worker job group spec: $workerJobGroup")
+
     val jobs = collection.zipWithIndex.map { case (_, i) =>
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
@@ -206,6 +218,7 @@ class ServiceBackend(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
         "in_update_parent_ids" -> JArray(List()),
+        "in_update_job_group_id" -> JInt(jobGroupIdInUpdate),
         "process" -> JObject(
           "jar_spec" -> JObject(
             "type" -> JString("jar_url"),
@@ -237,9 +250,9 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val (batchId, updateId) = curBatchId match {
+    val (batchId, (updateId, jobGroupId)) = curBatchId match {
       case Some(id) =>
-        (id, batchClient.update(id, token, jobs))
+        (id, batchClient.update(id, token, workerJobGroup, jobs))
       case None =>
         val batchId = batchClient.create(
           JObject(
@@ -250,10 +263,10 @@ class ServiceBackend(
           ),
           jobs,
         )
-        (batchId, 1L)
+        (batchId, (1L, 1L))
     }
 
-    val batch = batchClient.waitForBatch(batchId, true)
+    val batch = batchClient.waitForJobGroup(batchId, jobGroupId)
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
@@ -464,8 +477,9 @@ object ServiceBackendAPI {
     val batchClient = new BatchClient(s"$scratchDir/secrets/gsa-key/key.json")
     log.info("BatchClient allocated.")
 
-    val batchId =
-      BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
+    val batchConfig = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json")
+    val batchId = batchConfig.map(_.batchId)
+    val jobGroupId = batchConfig.map(_.jobGroupId)
     log.info("BatchConfig parsed.")
 
     implicit val formats: Formats = DefaultFormats
@@ -479,6 +493,7 @@ object ServiceBackendAPI {
       new HailClassLoader(getClass().getClassLoader()),
       batchClient,
       batchId,
+      jobGroupId,
       scratchDir,
       rpcConfig,
     )
