@@ -1362,138 +1362,127 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
     async def insert_jobs_into_db(tx):
         try:
-            try:
-                await tx.execute_many(
-                    """
+            await tx.execute_many(
+                """
 INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
-                    jobs_args,
-                    query_name='insert_jobs',
+                jobs_args,
+                query_name='insert_jobs',
+            )
+        except pymysql.err.IntegrityError as err:
+            # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+            if err.args[0] == 1062:
+                log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted')
+                return
+            raise
+        except pymysql.err.OperationalError as err:
+            if err.args[0] == 1644 and err.args[1] == 'job group has already been cancelled':
+                raise web.HTTPBadRequest(
+                    text=f'bunch contains job where the job group has already been cancelled ({(batch_id, jobs_args[0][1])})'
                 )
-            except pymysql.err.IntegrityError as err:
-                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                if err.args[0] == 1062:
-                    log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted')
-                    return
-                raise
-            except pymysql.err.OperationalError as err:
-                if err.args[0] == 1644 and err.args[1] == 'job group has already been cancelled':
-                    raise web.HTTPBadRequest(
-                        text=f'bunch contains job where the job group has already been cancelled ({(batch_id, jobs_args[0][1])})'
-                    )
-                raise
+            raise
 
-            try:
-                await tx.execute_many(
-                    """
+        try:
+            await tx.execute_many(
+                """
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 """,
-                    job_parents_args,
-                    query_name='insert_job_parents',
-                )
-            except pymysql.err.IntegrityError as err:
-                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                if err.args[0] == 1062:
-                    raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({job_parents_args})')
-                raise
+                job_parents_args,
+                query_name='insert_job_parents',
+            )
+        except pymysql.err.IntegrityError as err:
+            # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+            if err.args[0] == 1062:
+                raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({job_parents_args})')
+            raise
 
-            await tx.execute_many(
-                """
+        await tx.execute_many(
+            """
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 """,
-                job_attributes_args,
-                query_name='insert_job_attributes',
-            )
+            job_attributes_args,
+            query_name='insert_job_attributes',
+        )
 
-            await tx.execute_many(
-                """
+        await tx.execute_many(
+            """
 INSERT INTO jobs_telemetry (batch_id, job_id, time_ready)
 VALUES (%s, %s, %s);
 """,
-                jobs_telemetry_args,
-                query_name='insert_jobs_telemetry',
-            )
+            jobs_telemetry_args,
+            query_name='insert_jobs_telemetry',
+        )
 
-            job_groups_inst_coll_staging_args = [
-                (
-                    batch_id,
-                    update_id,
-                    inst_coll,
-                    rand_token,
-                    resources['n_jobs'],
-                    resources['n_ready_jobs'],
-                    resources['ready_cores_mcpu'],
-                    batch_id,
-                    icr_job_group_id,
-                )
-                for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
-            ]
-            #  job_groups_inst_coll_staging tracks the num of resources recursively for all children job groups
-            await tx.execute_many(
-                """
+        job_groups_inst_coll_staging_args = [
+            (
+                batch_id,
+                update_id,
+                inst_coll,
+                rand_token,
+                resources['n_jobs'],
+                resources['n_ready_jobs'],
+                resources['ready_cores_mcpu'],
+                batch_id,
+                icr_job_group_id,
+            )
+            for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
+        ]
+        #  job_groups_inst_coll_staging tracks the num of resources recursively for all children job groups
+        await tx.execute_many(
+            """
 INSERT INTO job_groups_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 SELECT %s, %s, ancestor_id, %s, %s, %s, %s, %s
 FROM job_group_self_and_ancestors
 WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE
-  n_jobs = n_jobs + VALUES(n_jobs),
-  n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
-  ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
+n_jobs = n_jobs + VALUES(n_jobs),
+n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
+ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 """,
-                job_groups_inst_coll_staging_args,
-                query_name='insert_job_groups_inst_coll_staging',
-            )
+            job_groups_inst_coll_staging_args,
+            query_name='insert_job_groups_inst_coll_staging',
+        )
 
-            job_group_inst_coll_cancellable_resources_args = [
-                (
-                    batch_id,
-                    update_id,
-                    inst_coll,
-                    rand_token,
-                    resources['n_ready_cancellable_jobs'],
-                    resources['ready_cancellable_cores_mcpu'],
-                    batch_id,
-                    icr_job_group_id,
-                )
-                for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
-            ]
-            #  job_group_inst_coll_cancellable_resources tracks the num of resources recursively for all children job groups
-            await tx.execute_many(
-                """
+        job_group_inst_coll_cancellable_resources_args = [
+            (
+                batch_id,
+                update_id,
+                inst_coll,
+                rand_token,
+                resources['n_ready_cancellable_jobs'],
+                resources['ready_cancellable_cores_mcpu'],
+                batch_id,
+                icr_job_group_id,
+            )
+            for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
+        ]
+        #  job_group_inst_coll_cancellable_resources tracks the num of resources recursively for all children job groups
+        await tx.execute_many(
+            """
 INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 SELECT %s, %s, ancestor_id, %s, %s, %s, %s
 FROM job_group_self_and_ancestors
 WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE
-  n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
-  ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
+n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
+ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 """,
-                job_group_inst_coll_cancellable_resources_args,
-                query_name='insert_inst_coll_cancellable_resources',
-            )
+            job_group_inst_coll_cancellable_resources_args,
+            query_name='insert_inst_coll_cancellable_resources',
+        )
 
-            if batch_format_version.has_full_spec_in_cloud():
-                await tx.execute_update(
-                    """
+        if batch_format_version.has_full_spec_in_cloud():
+            await tx.execute_update(
+                """
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 """,
-                    (batch_id, spec_writer.token, bunch_start_job_id),
-                    query_name='insert_batch_bunches',
-                )
-        except asyncio.CancelledError:
-            raise
-        except web.HTTPException:
-            raise
-        except Exception as err:
-            raise ValueError(
-                f'encountered exception while inserting a bunch'
-                f'jobs_args={json.dumps(jobs_args)}'
-                f'job_parents_args={json.dumps(job_parents_args)}'
-            ) from err
+                (batch_id, spec_writer.token, bunch_start_job_id),
+                query_name='insert_batch_bunches',
+            )
 
     @transaction(db)
     async def write_and_insert(tx):
@@ -1501,7 +1490,18 @@ VALUES (%s, %s, %s);
         # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
         await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
-    await write_and_insert()
+    try:
+        await write_and_insert()
+    except asyncio.CancelledError:
+        raise
+    except web.HTTPException:
+        raise
+    except Exception as err:
+        raise ValueError(
+            f'encountered exception while inserting a bunch'
+            f'jobs_args={json.dumps(jobs_args)}'
+            f'job_parents_args={json.dumps(job_parents_args)}'
+        ) from err
 
     return web.Response()
 
