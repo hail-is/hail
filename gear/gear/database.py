@@ -37,6 +37,14 @@ T = TypeVar("T")
 P = ParamSpec('P')
 
 
+def is_retryable_database_exception(exc: BaseException) -> bool:
+    if isinstance(exc, pymysql.err.InternalError):
+        return exc.args[0] in internal_error_retry_codes
+    if isinstance(exc, pymysql.err.OperationalError):
+        return exc.args[0] in operational_error_retry_codes
+    return False
+
+
 def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
     @functools.wraps(f)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -44,25 +52,14 @@ def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Aw
         while True:
             try:
                 return await f(*args, **kwargs)
-            except pymysql.err.InternalError as e:
-                if e.args[0] in internal_error_retry_codes:
-                    log.warning(
-                        f'encountered pymysql error, retrying {e}',
-                        exc_info=True,
-                        extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
-                    )
-                else:
+            except Exception as exc:
+                if not is_retryable_database_exception(exc):
                     raise
-            except pymysql.err.OperationalError as e:
-                if e.args[0] in operational_error_retry_codes:
-                    log.log(
-                        operational_error_log_level.get(e.args[0], logging.WARNING),
-                        f'encountered pymysql error, retrying {e}',
-                        exc_info=True,
-                        extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
-                    )
-                else:
-                    raise
+                log.warning(
+                    f'encountered pymysql error, retrying {exc}',
+                    exc_info=True,
+                    extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
+                )
             tries += 1
             await sleep_before_try(tries)
 

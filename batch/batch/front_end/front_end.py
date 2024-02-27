@@ -43,7 +43,7 @@ from gear import (
 )
 from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
-from gear.database import CallError
+from gear.database import CallError, is_retryable_database_exception
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, dictfix, httpx, uvloopx, version
 from hailtop.auth import hail_credentials
@@ -1489,8 +1489,11 @@ VALUES (%s, %s, %s);
         except web.HTTPException:
             raise
         except Exception as err:
+            if is_retryable_database_exception(err):
+                raise err
+
             raise ValueError(
-                f'encountered exception while inserting a bunch'
+                f'encountered exception while inserting a bunch '
                 f'jobs_args={json.dumps(jobs_args)}'
                 f'job_parents_args={json.dumps(job_parents_args)}'
             ) from err
