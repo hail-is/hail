@@ -18,7 +18,6 @@ from types import TracebackType
 import abc
 import asyncio
 import datetime
-from typing_extensions import Self
 from hailtop.utils import retry_transient_errors, OnlineBoundedGather2
 from .stream import EmptyReadableStream, ReadableStream, WritableStream
 from .exceptions import FileAndDirectoryError

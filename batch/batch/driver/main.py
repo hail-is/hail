@@ -41,7 +41,7 @@ from gear import (
 from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, httpx, uvloopx
+from hailtop import aiotools, httpx
 from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
