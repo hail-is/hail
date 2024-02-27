@@ -1461,21 +1461,22 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
 async def delete_prev_cancelled_job_group_cancellable_resources_records(db: Database):
     targets = db.execute_and_fetchall(
         """
-SELECT job_group_inst_coll_cancellable_resources.batch_id,
-  job_group_inst_coll_cancellable_resources.update_id,
-  job_group_inst_coll_cancellable_resources.job_group_id
-FROM job_group_inst_coll_cancellable_resources
-LEFT JOIN LATERAL (
-  SELECT 1 AS cancelled
-  FROM job_group_self_and_ancestors
-  INNER JOIN job_groups_cancelled
-    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
-      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
-  WHERE job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
-    job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
+SELECT DISTINCT
+  group_resources.batch_id,
+  group_resources.update_id,
+  group_resources.job_group_id
+FROM job_group_inst_coll_cancellable_resources AS group_resources
+INNER JOIN LATERAL (
+  SELECT
+    1
+  FROM job_group_self_and_ancestors AS descendant
+  INNER JOIN job_groups_cancelled AS cancelled
+     ON descendant.batch_id = cancelled.id
+    AND descendant.ancestor_id = cancelled.job_group_id
+  WHERE descendant.batch_id = group_resources.batch_id
+    AND descendant.job_group_id = group_resources.job_group_id
 ) AS t ON TRUE
-WHERE t.cancelled IS NOT NULL
-GROUP BY job_group_inst_coll_cancellable_resources.batch_id, job_group_inst_coll_cancellable_resources.update_id, job_group_inst_coll_cancellable_resources.job_group_id
+ORDER BY group_resources.batch_id desc, group_resources.update_id desc, group_resources.job_group_id desc
 LIMIT 1000;
 """,
         query_name='find_cancelled_cancellable_resources_records_to_delete',
