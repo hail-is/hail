@@ -2,7 +2,7 @@
 
 ## Commits were merged after a broken release
 
-If the release process broken and new commits have merged since we modified the change log, which
+If the release process broke and new commits have merged since we modified the change log, which
 commit should we release?
 
 If a commit has been tagged, release that commit. If fixes are necessary, create a branch from the
@@ -13,7 +13,7 @@ tagged commit, add commits as necessary, modify the tag, and hand release that.
 The release build.yaml job fails due to "'hail-common/dataproc/0.2.XXX/vep-GRCh37.sh' is under
 active Temporary Hold". What do I do?
 
-There are four files uploaded by Hail for use by Dataproc clusters (a wheel, to VEP scripts, and a
+There are four files uploaded by Hail for use by Dataproc clusters (a wheel, two VEP scripts, and a
 notebook initialization script). We place a temporary hold on these files to prevent them from being
 inadvertently deleted. If all four files were successfully uploaded, you can continue the release
 from this point by directly executing release.sh for the particular commit used to generate the
@@ -43,19 +43,20 @@ hail-ci-bpk3h bucket. The necessary files are listed under "Sources: " in the "I
 
 Download all these files except the repo (which you do not need, because you checked out the commit):
 
-	BUILD_TOKEN=9cabeeb4ba047d1722e6f8da0383ab97
+    BUILD_TOKEN=9cabeeb4ba047d1722e6f8da0383ab97
     mkdir $BUILD_TOKEN
     gcloud storage cp -r \
-	  gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_version \
+      gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_version \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_pip_version \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/git_version \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/azure-wheel \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/www.tar.gz \
-	  $BUILD_TOKEN
+      $BUILD_TOKEN
 
-Note that the `-r` is necessary because some of these things like, `azure-wheel` are folder.
+Note that the `-r` is necessary because some of these things like `azure-wheel` are folders.
 
-Next we need to authenticate with DockerHub. Download the secret and authenticate skopeo with it.
+Next we need to authenticate with DockerHub. Download the secret and authenticate skopeo with
+it. `download-secret` is a function stored in `devbin/functions.sh`.
 
     download-secret docker-hub-hailgenetics
     cat contents/password | skopeo login --username hailgenetics --password-stdin docker.io
@@ -104,7 +105,7 @@ We need to make two replacements:
 It should look something like this:
 
     bash /PATH/TO/YOUR/HAIL/REPOSITORY/hail/scripts/release.sh \
-	    $(cat $BUILD_TOKEN/hail_pip_version) \
+        $(cat $BUILD_TOKEN/hail_pip_version) \
         $(cat $BUILD_TOKEN/hail_version) \
         $(cat $BUILD_TOKEN/git_version) \
         origin \
