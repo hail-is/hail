@@ -44,13 +44,13 @@ for varname in $arguments
 do
     if [ -z "${!varname}" ]  # A bash-ism, but we are #!/bin/bash
     then
-	echo
+        echo
         usage
         echo
         echo "$varname is unset or empty"
-	exit 1
+        exit 1
     else
-	echo "$varname=${!varname}"
+        echo "$varname=${!varname}"
     fi
 done
 
