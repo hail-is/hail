@@ -2339,3 +2339,10 @@ def test_upcast_tuples():
     t = t.annotate_cols(x=t.foo[1])
     t = t.drop('foo')
     t.cols().collect()
+
+
+def test_sample_entries():
+    mt = hl.utils.range_matrix_table(10, 10)
+    ht = mt.entries()
+    ht = ht.sample(0.5)
+    ht._force_count()
