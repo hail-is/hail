@@ -1,29 +1,17 @@
-from typing import AsyncIterator, List, Tuple
+from typing import List, Tuple, Dict
 import asyncio
-import inspect
 import secrets
 
 import pytest
 import os
-from shlex import quote as shq
-import uuid
-import re
 import orjson
 
-import hailtop.fs as hfs
 import hailtop.batch_client.client as bc
-from hailtop import pip_version
 from hailtop.batch import Batch, ServiceBackend, ResourceGroup
 from hailtop.batch.exceptions import BatchException
-from hailtop.batch.globals import arg_max
-from hailtop.utils import grouped, async_to_blocking, secret_alnum_string
-from hailtop.config import get_remote_tmpdir, configuration_of
+from hailtop.config import configuration_of
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.test_utils import skip_in_azure
-from hailtop.httpx import ClientResponseError
 
-from configparser import ConfigParser
-from hailtop.config import get_user_config, user_config
 from hailtop.config.variables import ConfigVariable
 
 
@@ -68,6 +56,87 @@ def test_python_job(service_backend: ServiceBackend):
     res_status = res.status()
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
     assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", str(res.debug_info())
+
+
+async def test_python_job_input(
+    service_backend: ServiceBackend,
+    fs: RouterAsyncFS,
+    upload_test_files: Tuple[Tuple[str, bytes], Tuple[str, bytes], Tuple[str, bytes]],
+    output_tmpdir: str,
+):
+    (url1, data1), _, _ = upload_test_files
+
+    b = batch(service_backend)
+    input_file = b.read_input(url1)
+
+    def readall(path: str) -> str:
+        return open(path).read()
+
+    j = b.new_python_job()
+    r = j.call(readall, input_file)
+
+    out = os.path.join(output_tmpdir, secrets.token_urlsafe(5))
+    b.write_output(r.as_json(), out)
+    res = b.run()
+
+    assert isinstance(res, bc.Batch)
+    assert res.status()['state'] == 'success', str((res, res.debug_info()))
+    assert orjson.loads(await fs.read(out)).encode('utf8') == data1
+
+
+async def test_python_job_input_in_list(
+    service_backend: ServiceBackend,
+    fs: RouterAsyncFS,
+    upload_test_files: Tuple[Tuple[str, bytes], Tuple[str, bytes], Tuple[str, bytes]],
+    output_tmpdir: str,
+):
+    (url1, data1), _, _ = upload_test_files
+
+    b = batch(service_backend)
+    input_file = b.read_input(url1)
+
+    def readall(paths: List[str]) -> str:
+        if len(paths) != 1:
+            # cannot use `assert` because it causes pytest to be serialized with this function
+            raise AssertionError(f'unexpected number of paths: {len(paths)}')
+        return open(paths[0]).read()
+
+    j = b.new_python_job()
+    r = j.call(readall, [input_file])
+
+    out = os.path.join(output_tmpdir, secrets.token_urlsafe(5))
+    b.write_output(r.as_json(), out)
+    res = b.run()
+
+    assert isinstance(res, bc.Batch)
+    assert res.status()['state'] == 'success', str((res, res.debug_info()))
+    assert orjson.loads(await fs.read(out)).encode('utf8') == data1
+
+
+async def test_python_job_input_in_dict(
+    service_backend: ServiceBackend,
+    fs: RouterAsyncFS,
+    upload_test_files: Tuple[Tuple[str, bytes], Tuple[str, bytes], Tuple[str, bytes]],
+    output_tmpdir: str,
+):
+    (url1, data1), _, _ = upload_test_files
+
+    b = batch(service_backend)
+    input_file = b.read_input(url1)
+
+    def readall(paths: Dict[str, str]) -> str:
+        return open(paths['hello!!!']).read()
+
+    j = b.new_python_job()
+    r = j.call(readall, {'hello!!!': input_file})
+
+    out = os.path.join(output_tmpdir, secrets.token_urlsafe(5))
+    b.write_output(r.as_json(), out)
+    res = b.run()
+
+    assert isinstance(res, bc.Batch)
+    assert res.status()['state'] == 'success', str((res, res.debug_info()))
+    assert orjson.loads(await fs.read(out)).encode('utf8') == data1
 
 
 def test_python_job_w_resource_group_unpack_individually(service_backend: ServiceBackend):
