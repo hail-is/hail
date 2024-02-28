@@ -158,7 +158,7 @@ LEFT JOIN LATERAL (
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 ) AS cost_t ON TRUE
 WHERE {' AND '.join(where_conditions)}
-ORDER BY job_groups.batch_id DESC, job_groups.job_group_id DESC
+ORDER BY job_groups.batch_id DESC
 LIMIT 51;
 """
 
