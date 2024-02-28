@@ -11,9 +11,10 @@ import aiohttp
 from gear import CommonAiohttpAppKeys, Database, K8sCache
 from hailtop import httpx
 from hailtop.aiotools import BackgroundTaskManager
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.utils import Notice, retry_transient_errors, time_msecs
 
-from ..batch import batch_record_to_dict
+from ..batch import batch_record_to_dict, job_group_record_to_dict
 from ..batch_configuration import KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..file_store import FileStore
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
 log = logging.getLogger('job')
 
 
-async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id):
+async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSession, batch_id: int):
     record = await db.select_and_fetchone(
         """
 SELECT batches.*,
@@ -85,6 +86,81 @@ WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
         log.info(f'callback for batch {batch_id} failed, will not retry.')
 
 
+async def notify_job_group_on_job_complete(
+    db: Database, client_session: httpx.ClientSession, batch_id: int, job_group_id: int
+):
+    records = db.select_and_fetchall(
+        """
+SELECT job_groups.*,
+  ancestor_id,
+  cost_t.cost,
+  cost_t.cost_breakdown,
+  t.cancelled IS NOT NULL AS cancelled,
+  job_groups_n_jobs_in_complete_states.n_completed,
+  job_groups_n_jobs_in_complete_states.n_succeeded,
+  job_groups_n_jobs_in_complete_states.n_failed,
+  job_groups_n_jobs_in_complete_states.n_cancelled
+FROM job_group_self_and_ancestors
+LEFT JOIN job_groups ON job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+  job_groups.job_group_id = job_group_self_and_ancestors.ancestor_id
+LEFT JOIN batches ON job_group_self_and_ancestors.batch_id = batches.id
+LEFT JOIN job_groups_n_jobs_in_complete_states
+  ON job_group_self_and_ancestors.batch_id = job_groups_n_jobs_in_complete_states.id AND
+     job_group_self_and_ancestors.ancestor_id = job_groups_n_jobs_in_complete_states.job_group_id
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+  FROM (
+    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_job_group_resources_v3
+    WHERE job_group_self_and_ancestors.batch_id = aggregated_job_group_resources_v3.batch_id AND
+          job_group_self_and_ancestors.ancestor_id = aggregated_job_group_resources_v3.job_group_id
+    GROUP BY resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+) AS cost_t ON TRUE
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors AS self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON self_and_ancestors.batch_id = job_groups_cancelled.id AND
+       self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE self_and_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
+    self_and_ancestors.job_group_id = job_group_self_and_ancestors.ancestor_id
+) AS t ON TRUE
+WHERE job_group_self_and_ancestors.batch_id = %s AND
+  job_group_self_and_ancestors.job_group_id = %s AND
+  job_group_self_and_ancestors.ancestor_id != %s AND
+  NOT deleted AND
+  job_groups.callback IS NOT NULL AND
+  job_groups.`state` = 'complete';
+""",
+        (batch_id, job_group_id, ROOT_JOB_GROUP_ID),
+        'notify_job_group_on_job_complete',
+    )
+
+    async for record in records:
+        ancestor_job_group_id = record['ancestor_id']
+        callback = record['callback']
+
+        log.info(f'making callback for batch {batch_id} job group {ancestor_job_group_id}: {callback}')
+
+        async def request(session, record, callback, batch_id, ancestor_job_group_id):
+            await session.post(callback, json=job_group_record_to_dict(record))
+            log.info(f'callback for batch {batch_id} job group {ancestor_job_group_id} successful')
+
+        try:
+            if record['user'] == 'ci':
+                # only jobs from CI may use batch's TLS identity
+                await request(client_session, record, callback, batch_id, ancestor_job_group_id)
+            else:
+                async with httpx.client_session() as session:
+                    await request(session, record, callback, batch_id, ancestor_job_group_id)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.info(f'callback for batch {batch_id} job group {ancestor_job_group_id} failed, will not retry.')
+
+
 async def add_attempt_resources(app, db, batch_id, job_id, attempt_id, resources: List[QuantifiedResource]):
     resource_name_to_id = app['resource_name_to_id']
     if attempt_id and len(resources) > 0:
@@ -127,6 +203,7 @@ async def mark_job_complete(
     batch_id,
     job_id,
     attempt_id,
+    job_group_id,
     instance_name,
     new_state,
     status,
@@ -200,6 +277,7 @@ async def mark_job_complete(
         return
 
     await notify_batch_job_complete(db, client_session, batch_id)
+    await notify_job_group_on_job_complete(db, client_session, batch_id, job_group_id)
 
     if instance and not instance.inst_coll.is_pool and instance.state == 'active':
         task_manager.ensure_future(instance.kill())
@@ -333,13 +411,15 @@ async def unschedule_job(app, record):
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 
 
-async def job_config(app, record, attempt_id):
+async def job_config(app, record):
     k8s_cache: K8sCache = app['k8s_cache']
     db: Database = app['db']
 
     format_version = BatchFormatVersion(record['format_version'])
     batch_id = record['batch_id']
     job_id = record['job_id']
+    attempt_id = record['attempt_id']
+    job_group_id = record['job_group_id']
 
     db_spec = json.loads(record['spec'])
 
@@ -352,6 +432,7 @@ async def job_config(app, record, attempt_id):
         job_spec = db_spec
 
     job_spec['attempt_id'] = attempt_id
+    job_spec['job_group_id'] = job_group_id
 
     userdata = json.loads(record['userdata'])
 
@@ -444,7 +525,7 @@ users:
     }
 
 
-async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_version, error_msg):
+async def mark_job_errored(app, batch_id, job_group_id, job_id, attempt_id, user, format_version, error_msg):
     file_store: FileStore = app['file_store']
 
     status = {
@@ -452,6 +533,7 @@ async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_versi
         'worker': None,
         'batch_id': batch_id,
         'job_id': job_id,
+        'job_group_id': job_group_id,
         'attempt_id': attempt_id,
         'user': user,
         'state': 'error',
@@ -464,7 +546,9 @@ async def mark_job_errored(app, batch_id, job_id, attempt_id, user, format_versi
 
     db_status = format_version.db_status(status)
 
-    await mark_job_complete(app, batch_id, job_id, attempt_id, None, 'Error', db_status, None, None, 'error', [])
+    await mark_job_complete(
+        app, batch_id, job_id, attempt_id, job_group_id, None, 'Error', db_status, None, None, 'error', []
+    )
 
 
 async def schedule_job(app, record, instance):
@@ -476,17 +560,18 @@ async def schedule_job(app, record, instance):
     batch_id = record['batch_id']
     job_id = record['job_id']
     attempt_id = record['attempt_id']
+    job_group_id = record['job_group_id']
     format_version = BatchFormatVersion(record['format_version'])
 
     id = (batch_id, job_id)
 
     try:
-        body = await job_config(app, record, attempt_id)
+        body = await job_config(app, record)
     except Exception:
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
 
         await mark_job_errored(
-            app, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
+            app, batch_id, job_group_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 

@@ -91,8 +91,7 @@ class KubeSecretManager:
                 GSAKeySecret(s, 'test-dataproc-service-account-key.json')
                 for s in secrets
                 if s.metadata.name == 'test-dataproc-service-account-key'
-            ]
-            + [GSAKeySecret(s, 'credentials.json') for s in secrets if s.metadata.name == 'registry-push-credentials'],
+            ],
         )
 
     async def update_gsa_key_secret(self, secret: GSAKeySecret, key_data: str) -> GSAKeySecret:

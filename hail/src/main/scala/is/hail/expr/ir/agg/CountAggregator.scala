@@ -33,6 +33,7 @@ object CountAggregator extends StagedAggregator {
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: PrimitiveRVAState,
     other: PrimitiveRVAState,
   ): Unit = {

@@ -52,4 +52,10 @@ case class TInterval(pointType: Type) extends Type {
   }
 
   override def subst() = TInterval(pointType.subst())
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case i: TInterval => pointType isIsomorphicTo i.pointType
+      case _ => false
+    }
 }

@@ -197,6 +197,7 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: AppendOnlySetState,
     other: AppendOnlySetState,
   ): Unit =

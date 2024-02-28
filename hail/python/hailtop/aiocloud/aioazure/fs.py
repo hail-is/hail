@@ -2,7 +2,6 @@ from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional
 from types import TracebackType
 
 import aiohttp
-import abc
 import re
 import os
 import asyncio
@@ -158,9 +157,11 @@ class AzureCreateManager(AsyncContextManager[WritableStream]):
 
 
 class AzureReadableStream(ReadableStream):
-    def __init__(self, client: BlobClient, url: str, offset: Optional[int] = None, length: Optional[int] = None):
+    def __init__(
+        self, fs: 'AzureAsyncFS', url: 'AzureAsyncFSURL', offset: Optional[int] = None, length: Optional[int] = None
+    ):
         super().__init__()
-        self._client = client
+        self._fs = fs
         self._buffer = bytearray()
         self._url = url
 
@@ -173,24 +174,27 @@ class AzureReadableStream(ReadableStream):
         self._downloader: Optional[StorageStreamDownloader] = None
         self._chunk_it: Optional[AsyncIterator[bytes]] = None
 
+    def _get_client(self) -> BlobClient:
+        return self._fs.get_blob_client(self._url)
+
     async def read(self, n: int = -1) -> bytes:
         if self._eof:
             return b''
 
         if n == -1:
             try:
-                downloader = await self._client.download_blob(offset=self._offset, length=self._length)  # type: ignore
+                downloader = await self._get_client().download_blob(offset=self._offset, length=self._length)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError(self._url) from e
+                raise FileNotFoundError(self._url.base) from e
             data = await downloader.readall()
             self._eof = True
             return data
 
         if self._downloader is None:
             try:
-                self._downloader = await self._client.download_blob(offset=self._offset)  # type: ignore
+                self._downloader = await self._get_client().download_blob(offset=self._offset)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
-                raise FileNotFoundError(self._url) from e
+                raise FileNotFoundError(self._url.base) from e
             except azure.core.exceptions.HttpResponseError as e:
                 if e.status_code == 416:
                     raise UnexpectedEOFError from e
@@ -299,6 +303,10 @@ class AzureAsyncFSURL(AsyncFSURL):
         self._path = path
         self._query = query
 
+    @property
+    def scheme(self) -> str:
+        return 'https'
+
     def __repr__(self):
         return f'AzureAsyncFSURL({self._account}, {self._container}, {self._path}, {self._query})'
 
@@ -323,9 +331,8 @@ class AzureAsyncFSURL(AsyncFSURL):
         return self._query
 
     @property
-    @abc.abstractmethod
     def base(self) -> str:
-        pass
+        return f'https://{self._account}.blob.core.windows.net/{self._container}/{self._path}'
 
     def with_path(self, path) -> 'AzureAsyncFSURL':
         return self.__class__(self._account, self._container, path, self._query)
@@ -335,26 +342,6 @@ class AzureAsyncFSURL(AsyncFSURL):
 
     def __str__(self) -> str:
         return self.base if not self._query else f'{self.base}?{self._query}'
-
-
-class AzureAsyncFSHailAzURL(AzureAsyncFSURL):
-    @property
-    def scheme(self) -> str:
-        return 'hail-az'
-
-    @property
-    def base(self) -> str:
-        return f'hail-az://{self._account}/{self._container}/{self._path}'
-
-
-class AzureAsyncFSHttpsURL(AzureAsyncFSURL):
-    @property
-    def scheme(self) -> str:
-        return 'https'
-
-    @property
-    def base(self) -> str:
-        return f'https://{self._account}.blob.core.windows.net/{self._container}/{self._path}'
 
 
 # ABS errors if you attempt credentialed access for a public container,
@@ -411,7 +398,7 @@ class AzureAsyncFS(AsyncFS):
 
     @staticmethod
     def schemes() -> Set[str]:
-        return {'hail-az', 'https'}
+        return {'https'}
 
     @staticmethod
     def valid_url(url: str) -> bool:
@@ -422,7 +409,7 @@ class AzureAsyncFS(AsyncFS):
                 return False
             _, suffix = authority.split('.', maxsplit=1)
             return suffix == 'blob.core.windows.net'
-        return url.startswith('hail-az://')
+        return False
 
     async def generate_sas_token(
         self,
@@ -461,7 +448,7 @@ class AzureAsyncFS(AsyncFS):
 
         scheme = url[:colon_index]
         if scheme not in AzureAsyncFS.schemes():
-            raise ValueError(f'invalid scheme, expected hail-az or https: {scheme}')
+            raise ValueError(f'invalid scheme, expected https: {scheme}')
 
         rest = url[(colon_index + 1) :]
         if not rest.startswith('//'):
@@ -473,7 +460,9 @@ class AzureAsyncFS(AsyncFS):
 
         match = AzureAsyncFS.PATH_REGEX.fullmatch(container_and_name)
         if match is None:
-            raise ValueError(f'invalid path name, expected hail-az://account/container/blob_name: {container_and_name}')
+            raise ValueError(
+                f'invalid path name, expected https://account.blob.core.windows.net/container/blob_name: {container_and_name}'
+            )
 
         container = match.groupdict()['container']
 
@@ -484,14 +473,10 @@ class AzureAsyncFS(AsyncFS):
 
         name, token = AzureAsyncFS.get_name_parts(name)
 
-        if scheme == 'hail-az':
-            account = authority
-            return AzureAsyncFSHailAzURL(account, container, name, token)
-
         assert scheme == 'https'
         assert len(authority) > len('.blob.core.windows.net')
         account = authority[: -len('.blob.core.windows.net')]
-        return AzureAsyncFSHttpsURL(account, container, name, token)
+        return AzureAsyncFSURL(account, container, name, token)
 
     @staticmethod
     def get_name_parts(name: str) -> Tuple[str, str]:
@@ -530,16 +515,15 @@ class AzureAsyncFS(AsyncFS):
         parsed_url = self.parse_url(url, error_if_bucket=True)
         if not await self.exists(url):
             raise FileNotFoundError
-        client = self.get_blob_client(parsed_url)
-        return AzureReadableStream(client, url)
+        return AzureReadableStream(self, parsed_url)
 
     @handle_public_access_error
     async def _open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         assert length is None or length >= 1
         if not await self.exists(url):
             raise FileNotFoundError
-        client = self.get_blob_client(self.parse_url(url, error_if_bucket=True))
-        return AzureReadableStream(client, url, offset=start, length=length)
+        parsed_url = self.parse_url(url, error_if_bucket=True)
+        return AzureReadableStream(self, parsed_url, offset=start, length=length)
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         parsed_url = self.parse_url(url, error_if_bucket=True)

@@ -109,7 +109,8 @@ object Type {
     v <- t.genValue(sm).resize(y)
   } yield (t, v)
 
-  implicit def arbType = Arbitrary(genArb)
+  implicit def arbType: Arbitrary[Type] =
+    Arbitrary(genArb)
 }
 
 abstract class Type extends BaseType with Serializable {
@@ -205,13 +206,11 @@ abstract class Type extends BaseType with Serializable {
     ord
   }
 
-  def jsonReader: JSONReader[Annotation] = new JSONReader[Annotation] {
-    def fromJSON(a: JValue): Annotation = JSONAnnotationImpex.importAnnotation(a, self)
-  }
+  def jsonReader: JSONReader[Annotation] =
+    (a: JValue) => JSONAnnotationImpex.importAnnotation(a, self)
 
-  def jsonWriter: JSONWriter[Annotation] = new JSONWriter[Annotation] {
-    def toJSON(pk: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(pk, self)
-  }
+  def jsonWriter: JSONWriter[Annotation] =
+    (pk: Annotation) => JSONAnnotationImpex.exportAnnotation(pk, self)
 
   def _typeCheck(a: Any): Boolean
 
@@ -222,33 +221,5 @@ abstract class Type extends BaseType with Serializable {
     identity
   }
 
-  def canCastTo(t: Type): Boolean = this match {
-    case TInterval(tt1) => t match {
-        case TInterval(tt2) => tt1.canCastTo(tt2)
-        case _ => false
-      }
-    case TStruct(f1) => t match {
-        case TStruct(f2) =>
-          f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
-        case _ => false
-      }
-    case TTuple(f1) => t match {
-        case TTuple(f2) =>
-          f1.size == f2.size && f1.indices.forall(i => f1(i).typ.canCastTo(f2(i).typ))
-        case _ => false
-      }
-    case TArray(t1) => t match {
-        case TArray(t2) => t1.canCastTo(t2)
-        case _ => false
-      }
-    case TSet(t1) => t match {
-        case TSet(t2) => t1.canCastTo(t2)
-        case _ => false
-      }
-    case TDict(k1, v1) => t match {
-        case TDict(k2, v2) => k1.canCastTo(k2) && v1.canCastTo(v2)
-        case _ => false
-      }
-    case _ => this == t
-  }
+  def isIsomorphicTo(t: Type): Boolean
 }

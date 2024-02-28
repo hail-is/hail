@@ -47,4 +47,10 @@ final case class TStream(elementType: Type) extends TIterable {
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 
   override def scalaClassTag: ClassTag[Iterator[AnyRef]] = classTag[Iterator[AnyRef]]
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case s: TStream => elementType isIsomorphicTo s.elementType
+      case _ => false
+    }
 }

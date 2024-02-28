@@ -12,7 +12,7 @@ import mill.util.Jvm
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
-  val hailPatchVersion = "127"
+  val hailPatchVersion = "128"
 }
 
 /** Update the millw script. */
@@ -42,7 +42,9 @@ def sparkVersion: T[String] = T.input {
 }
 
 def debugMode: T[Boolean] = T.input {
-  !T.ctx().env.contains("HAIL_RELEASE_MODE")
+  val isDebug = !T.ctx().env.contains("HAIL_RELEASE_MODE")
+  T.log.info(s"Building in ${if (isDebug) "debug" else "release"} mode")
+  isDebug
 }
 
 def debugOrRelease: Task[String] = T.task {
@@ -197,13 +199,11 @@ object main extends RootModule with HailScalaModule { outer =>
     Deps.Breeze.natives.excludeOrg("org.apache.commons.math3"),
     Deps.Commons.io,
     Deps.Commons.lang3,
-    //    ivy"org.apache.commons:commons-math3:3.6.1",
     Deps.Commons.codec,
     Deps.lz4,
     Deps.netlib,
     Deps.avro.excludeOrg("com.fasterxml.jackson.core"),
     Deps.junixsocket,
-//    Deps.zstd
   )
 
   override def compileIvyDeps: T[Agg[Dep]] = Agg(
@@ -212,7 +212,6 @@ object main extends RootModule with HailScalaModule { outer =>
     Deps.Spark.core(),
     Deps.Spark.mllib(),
     Deps.Breeze.core,
-    //      ivy"org.scalanlp::breeze-natives:1.1",
   )
 
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
@@ -257,11 +256,6 @@ object main extends RootModule with HailScalaModule { outer =>
     override def sources: T[Seq[PathRef]] = T.sources {
       Seq(PathRef(this.millSourcePath / os.up / "src" / debugOrRelease() / "java"))
     }
-
-    override def compileIvyDeps: T[Agg[Dep]] = Agg(
-      Deps.hadoopClient,
-      Deps.samtools.excludeOrg("*"),
-    )
   }
 
   object test extends HailTests {
@@ -269,7 +263,6 @@ object main extends RootModule with HailScalaModule { outer =>
 
     override def assemblyRules: Seq[Rule] = outer.assemblyRules ++ Seq(
       Rule.Relocate("org.codehaus.jackson.**", "is.hail.relocated.@0")
-//      Rule.Relocate("org.codehaus.stax2.**", "is.hail.relocated.@0"),
     )
 
     override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Seq(

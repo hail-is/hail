@@ -9,7 +9,7 @@ import pytest
 
 from hailtop import httpx
 from hailtop.auth import async_get_user, session_id_encode_to_str
-from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.batch_client.aioclient import Batch, BatchClient, SpecBytes, SpecType
 from hailtop.utils import secret_alnum_string
 from hailtop.utils.rich_progress_bar import BatchProgressBar
 
@@ -192,7 +192,8 @@ async def test_close_billing_project_with_pending_batch_update_does_not_error(
         }
         spec = {'always_run': False, 'job_id': 1, 'parent_ids': [], 'process': process}
         with pbar.with_task('submitting jobs', total=1) as pbar_task:
-            await b._submit_jobs(update_id, [orjson.dumps(spec)], 1, pbar_task)
+            spec_bytes = SpecBytes(orjson.dumps(spec), SpecType.JOB)
+            await b._submit_jobs(update_id, [spec_bytes], pbar_task)
     try:
         await dev_client.close_billing_project(project)
     except httpx.ClientResponseError as e:

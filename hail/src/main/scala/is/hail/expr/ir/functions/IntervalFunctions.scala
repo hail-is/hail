@@ -126,7 +126,7 @@ object IntervalFunctions extends RegistryFunctions {
     rSign: Value[Int],
   ): Value[Int] = {
     val structType = lStruct.st
-    assert(rStruct.st.virtualType.isIsomorphicTo(structType.virtualType))
+    assert(rStruct.st.virtualType.isJoinableWith(structType.virtualType))
     val prefixLength = cb.memoize(lLength.min(rLength))
 
     val result = cb.newLocal[Int]("partitionIntervalEndpointCompare")

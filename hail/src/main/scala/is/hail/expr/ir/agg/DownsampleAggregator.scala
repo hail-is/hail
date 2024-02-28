@@ -740,6 +740,7 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: DownsampleState,
     other: DownsampleState,
   ): Unit = state.merge(cb, other)

@@ -206,6 +206,7 @@ class CallStatsAggregator extends StagedAggregator {
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: CallStatsState,
     other: CallStatsState,
   ): Unit = {

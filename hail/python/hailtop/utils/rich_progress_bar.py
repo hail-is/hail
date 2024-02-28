@@ -104,9 +104,8 @@ class RateColumn(ProgressColumn):
         if speed is None:
             return Text("?", style="progress.data.speed")
 
-        speed = int(speed)
-        unit, suffix = filesize.pick_unit_and_suffix(speed, *units(task))
-        precision = 0 if unit == 1 else 1
+        unit, suffix = filesize.pick_unit_and_suffix(int(speed), *units(task))
+        precision = 2 if unit == 1 else 1
         return Text(f"{speed / unit:,.{precision}f} {suffix}/s", style="progress.data.speed")
 
 

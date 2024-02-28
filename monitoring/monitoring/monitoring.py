@@ -333,13 +333,20 @@ class AppKeys(CommonAiohttpAppKeys):
     QUERY_BILLING_EVENT = web.AppKey('query_billing_event', asyncio.Event)
     ZONES = web.AppKey('zones', List[str])
     TASK_MANAGER = web.AppKey('task_manager', aiotools.BackgroundTaskManager)
+    EXIT_STACK = web.AppKey('exit_stack', AsyncExitStack)
 
 
 async def on_startup(app):
+    exit_stack = AsyncExitStack()
+    app[AppKeys.EXIT_STACK] = exit_stack
+
     db = Database()
     await db.async_init()
     app[AppKeys.DB] = db
+    exit_stack.push_async_callback(db.async_close)
+
     app[AppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
 
     aiogoogle_credentials = aiogoogle.GoogleCredentials.from_file('/billing-monitoring-gsa-key/key.json')
 
@@ -356,6 +363,7 @@ async def on_startup(app):
     app[AppKeys.ZONES] = zones
 
     task_manager = aiotools.BackgroundTaskManager()
+    exit_stack.callback(task_manager.shutdown)
     app[AppKeys.TASK_MANAGER] = task_manager
 
     task_manager.ensure_future(retry_long_running('polling_loop', polling_loop, app))
@@ -371,10 +379,7 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app[AppKeys.DB].async_close)
-        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
-        cleanup.callback(app[AppKeys.TASK_MANAGER].shutdown)
+    await app[AppKeys.EXIT_STACK].aclose()
 
 
 def run():

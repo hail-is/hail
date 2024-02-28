@@ -25,4 +25,7 @@ case object TBoolean extends Type {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]], missingEqual)
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }

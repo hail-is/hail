@@ -28,7 +28,7 @@ import java.time.Duration
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
-abstract class AzureStorageFSURL(
+class AzureStorageFSURL(
   val account: String,
   val container: String,
   val path: String,
@@ -41,10 +41,13 @@ abstract class AzureStorageFSURL(
     else
       withPath(s"$path/$c")
 
-  def withPath(newPath: String): AzureStorageFSURL
   def fromString(s: String): AzureStorageFSURL = AzureStorageFS.parseUrl(s)
 
-  def prefix: String
+  def withPath(newPath: String): AzureStorageFSURL =
+    new AzureStorageFSURL(account, container, newPath, sasToken)
+
+  def prefix: String = s"https://$account.blob.core.windows.net/$container"
+
   def getPath: String = path
 
   override def toString(): String = {
@@ -55,70 +58,19 @@ abstract class AzureStorageFSURL(
   }
 }
 
-class AzureStorageFSHailAzURL(
-  account: String,
-  container: String,
-  path: String,
-  sasToken: Option[String],
-) extends AzureStorageFSURL(account, container, path, sasToken) {
-
-  override def withPath(newPath: String): AzureStorageFSHailAzURL =
-    new AzureStorageFSHailAzURL(account, container, newPath, sasToken)
-
-  override def prefix: String = s"hail-az://$account/$container"
-}
-
-class AzureStorageFSHttpsURL(
-  account: String,
-  container: String,
-  path: String,
-  sasToken: Option[String],
-) extends AzureStorageFSURL(account, container, path, sasToken) {
-
-  override def withPath(newPath: String): AzureStorageFSHttpsURL =
-    new AzureStorageFSHttpsURL(account, container, newPath, sasToken)
-
-  override def prefix: String = s"https://$account.blob.core.windows.net/$container"
-}
-
 object AzureStorageFS {
-  private val HAIL_AZ_URI_REGEX = "^hail-az:\\/\\/([a-z0-9_\\-\\.]+)\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
-
   private val AZURE_HTTPS_URI_REGEX =
     "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def parseUrl(filename: String): AzureStorageFSURL = {
-    val scheme = filename.split(":")(0)
-    if (scheme == "hail-az") {
-      parseHailAzUrl(filename)
-    } else if (scheme == "https") {
-      parseHttpsUrl(filename)
-    } else {
-      throw new IllegalArgumentException(s"Invalid scheme, expected hail-az or https: $scheme")
-    }
-  }
-
-  private[this] def parseHttpsUrl(filename: String): AzureStorageFSHttpsURL = {
     AZURE_HTTPS_URI_REGEX
       .findFirstMatchIn(filename)
       .map { m =>
         val (path, sasToken) = parsePathAndQuery(m.group(3))
-        new AzureStorageFSHttpsURL(m.group(1), m.group(2), path, sasToken)
+        new AzureStorageFSURL(m.group(1), m.group(2), path, sasToken)
       }
       .getOrElse(throw new IllegalArgumentException(
         "ABS URI must be of the form https://<ACCOUNT>.blob.core.windows.net/<CONTAINER>/<PATH>"
-      ))
-  }
-
-  private[this] def parseHailAzUrl(filename: String): AzureStorageFSHailAzURL = {
-    HAIL_AZ_URI_REGEX
-      .findFirstMatchIn(filename)
-      .map { m =>
-        val (path, sasToken) = parsePathAndQuery(m.group(3))
-        new AzureStorageFSHailAzURL(m.group(1), m.group(2), path, sasToken)
-      }
-      .getOrElse(throw new IllegalArgumentException(
-        "hail-az URI must be of the form hail-az://<ACCOUNT>/<CONTAINER>/<PATH>"
       ))
   }
 
@@ -273,12 +225,9 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
   }
 
   def openNoCompression(url: URL): SeekableDataInputStream = handlePublicAccessError(url) {
-    val blobClient: BlobClient = getBlobClient(url)
-    val blobSize = blobClient.getProperties.getBlobSize
+    val blobSize = getBlobClient(url).getProperties.getBlobSize
 
     val is: SeekableInputStream = new FSSeekableInputStream {
-      private[this] val client: BlobClient = blobClient
-
       val bbOS = new OutputStream {
         override def write(b: Array[Byte]): Unit = bb.put(b)
         override def write(b: Int): Unit = bb.put(b.toByte)
@@ -296,7 +245,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
 
         val response = retryTransientErrors {
           bb.clear()
-          client.downloadStreamWithResponse(
+          getBlobClient(url).downloadStreamWithResponse(
             bbOS,
             new BlobRange(pos, count),
             null,

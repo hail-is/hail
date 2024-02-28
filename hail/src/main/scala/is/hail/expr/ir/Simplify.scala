@@ -7,6 +7,8 @@ import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import scala.collection.mutable
+
 object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply. */
@@ -248,6 +250,8 @@ object Simplify {
       else
         If(IsNA(c), NA(cnsq.typ), cnsq)
 
+    case If(IsNA(a), NA(_), b) if a == b => b
+
     case If(ApplyUnaryPrimOp(Bang, c), cnsq, altr) => If(c, altr, cnsq)
 
     case If(c1, If(c2, cnsq2, _), altr1) if c1 == c2 => If(c1, cnsq2, altr1)
@@ -316,7 +320,7 @@ object Simplify {
 
     case StreamFilter(a, _, True()) => a
 
-    case StreamFor(_, _, Begin(Seq())) => Begin(FastSeq())
+    case StreamFor(_, _, Void()) => Void()
 
     // FIXME: Unqualify when StreamFold supports folding over stream of streams
     case StreamFold(StreamMap(a, n1, b), zero, accumName, valueName, body)
@@ -545,6 +549,10 @@ object Simplify {
       val preservedFields =
         selectFields.filter(f => !insertNames.contains(f)) ++ oldFields.map(_._1)
       InsertFields(SelectFields(struct, preservedFields), newFields, Some(fields.toFastSeq))
+
+    case MakeStructOfGetField(o, newNames) =>
+      val select = SelectFields(o, newNames.map(_._1))
+      CastRename(select, select.typ.asInstanceOf[TStruct].rename(newNames.toMap))
 
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
@@ -1349,5 +1357,30 @@ object Simplify {
         typ.shape,
         typ.blockSize,
       )
+  }
+
+  // Match on expressions of the form
+  //  MakeStruct(IndexedSeq(a -> GetField(o, x) [, b -> GetField(o, y), ...]))
+  // where
+  //  - all fields are extracted from the same object, `o`
+  //  - all references to the fields in o are unique
+  private object MakeStructOfGetField {
+    def unapply(ir: IR): Option[(IR, IndexedSeq[(String, String)])] =
+      ir match {
+        case MakeStruct(fields) if fields.nonEmpty =>
+          val names = mutable.HashSet.empty[String]
+          val rewrites = new BoxedArrayBuilder[(String, String)](fields.length)
+
+          fields.view.map {
+            case (a, GetField(o, b)) if names.add(b) =>
+              rewrites += (b -> a)
+              Some(o)
+            case _ => None
+          }
+            .reduce((a, b) => if (a == b) a else None)
+            .map(_ -> rewrites.underlying().toFastSeq)
+        case _ =>
+          None
+      }
   }
 }

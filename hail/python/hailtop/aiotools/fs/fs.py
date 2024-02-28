@@ -13,7 +13,7 @@ from typing import (
     Union,
     Tuple,
 )
-from typing_extensions import ParamSpec
+from typing_extensions import ParamSpec, Self
 from types import TracebackType
 import abc
 import asyncio
@@ -426,7 +426,7 @@ class AsyncFS(abc.ABC):
     async def close(self) -> None:
         pass
 
-    async def __aenter__(self) -> "AsyncFS":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(
