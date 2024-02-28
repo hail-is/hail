@@ -15,10 +15,8 @@ from hail.utils.jsonx import dump_json
 
 def unpack_uid(new_row_type, uid_field_name):
     new_row = ir.Ref('row', new_row_type)
-    if uid_field_name in new_row_type.fields:
-        uid = ir.GetField(new_row, uid_field_name)
-    else:
-        uid = ir.NA(tint64)
+    assert uid_field_name in new_row_type.fields
+    uid = ir.GetField(new_row, uid_field_name)
     return uid, ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
 
 
@@ -463,7 +461,7 @@ class MatrixEntriesTable(TableIR):
                 ir.Ref('va', child.typ.row_type), [field for field in child.typ.row_type if field != temp_row_uid]
             ),
         )
-        return TableRename(MatrixEntriesTable(child), {'__entry_uid': default_row_uid}, {})
+        return TableRename(MatrixEntriesTable(child), {'__entry_uid': uid_field_name}, {})
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)
