@@ -1,7 +1,7 @@
 from enum import IntEnum, auto
 
 
-_ALLELE_STRS = [
+_ALLELE_STRS = (
     "Unknown",
     "SNP",
     "MNP",
@@ -12,7 +12,7 @@ _ALLELE_STRS = [
     "Symbolic",
     "Transition",
     "Transversion",
-]
+)
 
 
 class AlleleType(IntEnum):
@@ -65,7 +65,22 @@ class AlleleType(IntEnum):
     """
 
     def __str__(self):
-        return _ALLELE_STRS[self.value]
+        return str(self.value)
+
+    @property
+    def pretty_name(self):
+        """A formatted (as opposed to uppercase) version of the member's name,
+        to match :func:`~hail.expr.functions.allele_type`
+
+        Examples
+        --------
+        >>> AlleleType.INSERTION.pretty_name
+        'Insertion'
+        >>> at = AlleleType(hl.eval(hl.numeric_allele_type('a', 'att')))
+        >>> at.pretty_name == hl.eval(hl.allele_type('a', 'att'))
+        True
+        """
+        return _ALLELE_STRS[self]
 
     @classmethod
     def _missing_(cls, value):
@@ -78,4 +93,4 @@ class AlleleType(IntEnum):
         """Returns the names of the allele types, for use with
         :func:`~hail.expr.functions.literal`
         """
-        return _ALLELE_STRS[:]
+        return list(_ALLELE_STRS)
