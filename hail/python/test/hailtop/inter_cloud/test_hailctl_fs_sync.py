@@ -10,7 +10,8 @@ from hailtop.aiotools import Transfer, FileAndDirectoryError, Copier, AsyncFS, F
 
 
 from .generate_copy_test_specs import run_test_spec, create_test_file, create_test_dir
-from .test_copy import cloud_scheme, router_filesystem, fresh_dir
+from .test_copy import cloud_scheme
+from .utils import fresh_dir
 
 
 @pytest.mark.asyncio
