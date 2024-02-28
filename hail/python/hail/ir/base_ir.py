@@ -434,7 +434,10 @@ class TableIR(BaseIR):
         """
         if uid_field_name is None and not self.uses_randomness:
             return self
-        return self._handle_randomness(uid_field_name)
+
+        new_self = self._handle_randomness(uid_field_name)
+        assert uid_field_name is None or uid_field_name in new_self.typ.row_type.fields
+        return new_self
 
     def renderable_new_block(self, i: int) -> bool:
         return True
