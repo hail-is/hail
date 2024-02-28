@@ -571,7 +571,7 @@ async def schedule_job(app, record, instance):
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
 
         await mark_job_errored(
-            app, job_group_id, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
+            app, batch_id, job_group_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 
