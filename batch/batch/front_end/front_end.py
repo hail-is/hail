@@ -1789,7 +1789,8 @@ async def _create_batch_update(
             """
 SELECT update_id, start_job_id, start_job_group_id
 FROM batch_updates
-WHERE batch_id = %s AND token = %s;
+WHERE batch_id = %s AND token = %s
+FOR UPDATE;
 """,
             (batch_id, update_token),
         )
@@ -1828,7 +1829,8 @@ SELECT update_id, start_job_id, n_jobs, start_job_group_id, n_job_groups
 FROM batch_updates
 WHERE batch_id = %s
 ORDER BY update_id DESC
-LIMIT 1;
+LIMIT 1
+FOR UPDATE;
 """,
             (batch_id,),
         )
