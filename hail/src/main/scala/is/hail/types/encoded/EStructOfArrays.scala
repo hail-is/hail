@@ -29,7 +29,7 @@ object EStructOfArrays {
 }
 
 final case class EStructOfArrays(
-  override val elementType: EBaseStruct,
+  override val elementType: EBaseStruct, // TODO: add some kind of enum for supported per-field layout
   val required: Boolean = false,
 ) extends EContainer {
   elementType.fields.foreach(fld => EStructOfArrays.supportsFieldType(fld.typ))
@@ -78,30 +78,19 @@ final case class EStructOfArrays(
     val structPtr = cb.newLocal[Long]("element_out") // pointer to struct we're constructing
     val elementPtr = cb.newLocal[Long]("element_in") // pointer to element we're reading
     elementType.fields.foreach { field =>
-      val fieldIdx = ept.fieldIdx(field.name)
       cb += scratchRegion.clearRegion()
       if (!ept.hasField(field.name)) {
         skipField(cb, field, length, nMissingBytes, in)
       } else {
-        // TODO, pseudocode
-        // in <- passed in input buffer
-        // array <- already allocated output array
-        // size <- elementSize(field.typ)
-        // mbits <- allocate(n=nMissingBytes, a=1)  // if necessary
-        // elements <- allocate(n=length * size, a=size)
-        // in.read(to=mbits, amt=nMissingBytes)
-        // in.read(to=elements, amt=length * size)
-        // for i in range(length):
-        //   if array.isElementMissing(i) || mbits.isMissing(i):
-        //     array[i].setFieldMissing(field.name)
-        //   else:
-        //     array[i].setFieldPresent(field.name)
-        //     array[i].setField(field.name, elements[i])
+        // XXX: this only works if we're not using some kind of per-field compression
+        val fieldIdx = ept.fieldIdx(field.name)
+        val fieldType = ept.types(fieldIdx)
         val elementSize = const(EStructOfArrays.elementSize(field.typ))
         val arraySize = cb.memoize(elementSize * length.toL)
-        val mbytes = scratchRegion.allocate(1L, nMissingBytes.toL)
+        val mbytes =
+          if (field.typ.required) None else Some(scratchRegion.allocate(1L, nMissingBytes.toL))
         val elements = scratchRegion.allocate(elementSize, arraySize)
-        cb += in.readBytes(scratchRegion, mbytes, nMissingBytes)
+        mbytes.foreach(mbytes => cb += in.readBytes(scratchRegion, mbytes, nMissingBytes))
         cb += in.readBytes(scratchRegion, elements, arraySize.toI)
         cb.for_(
           {
@@ -115,10 +104,18 @@ final case class EStructOfArrays(
             cb.assign(elementPtr, elementPtr + elementSize)
           }, {
             cb.if_(
-              pt.isElementMissing(arrayPtr, i) || Region.loadBit(mbytes, i.toL),
-              ept.setFieldMissing(cb, structPtr, fieldIdx),
-              // TODO set the struct value
-              ept.setFieldPresent(cb, structPtr, fieldIdx),
+              pt.isElementMissing(arrayPtr, i), {
+                mbytes.foreach { mbytes =>
+                  cb.if_(
+                    Region.loadBit(mbytes, i.toL),
+                    ept.setFieldMissing(cb, structPtr, fieldIdx),
+                  )
+                }
+              }, {
+                ept.setFieldPresent(cb, structPtr, fieldIdx)
+                val fieldPtr = ept.fieldOffset(structPtr, fieldIdx)
+                val element = fieldType.loadCheapSCode(cb, elementPtr)
+              },
             )
           },
         )
@@ -159,6 +156,9 @@ final case class EStructOfArrays(
       cb += r.invalidate()
   }
 
+  /** XXX: this is a very basic output that does not apply any transformation to the values, just
+    * places them into a scratch array and dumps the bytes of said array
+    */
   private[this] def transposeAndWriteField(
     cb: EmitCodeBuilder,
     field: EField,
@@ -216,6 +216,7 @@ final case class EStructOfArrays(
   ): Unit = {
     if (!field.typ.required)
       cb += in.skipBytes(nMissingBytes)
+    // XXX: possible alternate layouts in the future
     in.skipBytes(length * EStructOfArrays.elementSize(field.typ).toInt)
   }
 
