@@ -57,14 +57,6 @@ class GrowingSempahore(AsyncContextManager[asyncio.Semaphore]):
                     self.task.cancel()
 
 
-def only_update_completions(progress: Progress, tid):
-    def listen(delta: int):
-        if delta < 0:
-            progress.update(tid, advance=-delta)
-
-    return listen
-
-
 async def copy(
     *,
     max_simultaneous_transfers: Optional[int] = None,
@@ -74,7 +66,6 @@ async def copy(
     s3_kwargs: Optional[dict] = None,
     transfers: List[Transfer],
     verbose: bool = False,
-    totals: Optional[Tuple[int, int]] = None,
 ) -> None:
     with ThreadPoolExecutor() as thread_pool:
         if max_simultaneous_transfers is None:
@@ -95,7 +86,7 @@ async def copy(
             local_kwargs=local_kwargs, gcs_kwargs=gcs_kwargs, azure_kwargs=azure_kwargs, s3_kwargs=s3_kwargs
         ) as fs:
             with CopyToolProgressBar(transient=True, disable=not verbose) as progress:
-                initial_simultaneous_transfers = min(10, max_simultaneous_transfers)
+                initial_simultaneous_transfers = 10
                 parallelism_tid = progress.add_task(
                     description='parallelism',
                     completed=initial_simultaneous_transfers,
@@ -107,22 +98,15 @@ async def copy(
                 ) as sema:
                     file_tid = progress.add_task(description='files', total=0, visible=verbose)
                     bytes_tid = progress.add_task(description='bytes', total=0, visible=verbose)
-
-                    if totals:
-                        n_files, n_bytes = totals
-                        progress.update(file_tid, total=n_files)
-                        progress.update(bytes_tid, total=n_bytes)
-                        file_listener = only_update_completions(progress, file_tid)
-                        bytes_listener = only_update_completions(progress, bytes_tid)
-                    else:
-                        file_listener = make_listener(progress, file_tid)
-                        bytes_listener = make_listener(progress, bytes_tid)
-
                     copy_report = await Copier.copy(
-                        fs, sema, transfers, files_listener=file_listener, bytes_listener=bytes_listener
+                        fs,
+                        sema,
+                        transfers,
+                        files_listener=make_listener(progress, file_tid),
+                        bytes_listener=make_listener(progress, bytes_tid),
                     )
                 if verbose:
-                    copy_report.summarize(include_sources=totals is None)
+                    copy_report.summarize()
 
 
 def make_transfer(json_object: Dict[str, str]) -> Transfer:
@@ -175,7 +159,7 @@ async def main() -> None:
     parser.add_argument(
         '-v', '--verbose', action='store_const', const=True, default=False, help='show logging information'
     )
-    parser.add_argument('--timeout', type=str, default=None, help='Set the total timeout for HTTP requests.')
+    parser.add_argument('--timeout', type=str, default=None, help='show logging information')
     args = parser.parse_args()
 
     if args.verbose:
