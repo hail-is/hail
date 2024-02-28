@@ -91,7 +91,6 @@ WITH base_t AS (
   SELECT
     batches.*,
     job_groups.batch_id as batch_id,
-    job_groups.job_group_id as job_group_id,
     cancelled_t.cancelled IS NOT NULL AS cancelled,
     job_groups_n_jobs_in_complete_states.n_completed,
     job_groups_n_jobs_in_complete_states.n_succeeded,
