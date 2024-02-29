@@ -537,6 +537,7 @@ FOR EACH ROW
 BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
+  DECLARE cur_user VARCHAR(100);
   DECLARE msec_diff_rollup BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
@@ -549,6 +550,7 @@ BEGIN
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
   SELECT billing_project INTO cur_billing_project FROM batches WHERE id = NEW.batch_id;
+  SELECT `user` INTO cur_user FROM batches WHERE id = NEW.batch_id;
 
   SET msec_diff_rollup = (GREATEST(COALESCE(NEW.rollup_time - NEW.start_time, 0), 0) -
                           GREATEST(COALESCE(OLD.rollup_time - OLD.start_time, 0), 0));
@@ -557,12 +559,11 @@ BEGIN
 
   IF msec_diff_rollup != 0 THEN
     INSERT INTO aggregated_billing_project_user_resources_v3 (billing_project, user, resource_id, token, `usage`)
-    SELECT batches.billing_project, batches.`user`,
+    SELECT cur_billing_project, cur_user,
       attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
-    JOIN batches ON batches.id = attempt_resources.batch_id
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     FOR UPDATE
     ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_v3.`usage` + msec_diff_rollup * quantity;
@@ -591,13 +592,12 @@ BEGIN
 
     INSERT INTO aggregated_billing_project_user_resources_by_date_v3 (billing_date, billing_project, user, resource_id, token, `usage`)
     SELECT cur_billing_date,
-      batches.billing_project,
-      batches.`user`,
+      cur_billing_project,
+      cur_user,
       attempt_resources.deduped_resource_id,
       rand_token,
       msec_diff_rollup * quantity
     FROM attempt_resources
-    JOIN batches ON batches.id = attempt_resources.batch_id
     WHERE attempt_resources.batch_id = NEW.batch_id AND attempt_resources.job_id = NEW.job_id AND attempt_id = NEW.attempt_id
     FOR UPDATE
     ON DUPLICATE KEY UPDATE `usage` = aggregated_billing_project_user_resources_by_date_v3.`usage` + msec_diff_rollup * quantity;
