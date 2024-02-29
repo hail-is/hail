@@ -159,7 +159,7 @@ write_files:
       export HOME=/root
 
       UNRESERVED_WORKER_DATA_DISK_SIZE_GB=50
-      ACCEPTABLE_QUERY_JAR_URL_PREFIX={ ACCEPTABLE_QUERY_JAR_URL_PREFIX }
+      ACCEPTABLE_QUERY_JAR_URL_PREFIX={ shq(ACCEPTABLE_QUERY_JAR_URL_PREFIX) }
 
       sudo mkdir -p /host/batch
       sudo mkdir -p /host/logs
@@ -168,7 +168,7 @@ write_files:
       sudo mkdir -p /etc/netns
 
       sudo mkdir /deploy-config
-      sudo cat >/deploy-config/deploy-config.json <<EOF
+      sudo cat >/deploy-config/deploy-config.json <<'EOF'
       { json.dumps(get_deploy_config().with_location('external').get_config()) }
       EOF
 
