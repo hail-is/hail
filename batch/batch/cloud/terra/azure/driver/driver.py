@@ -5,7 +5,7 @@ import logging
 import os
 import uuid
 from shlex import quote as shq
-from typing import Any, Dict, List, Tuple
+from typing import List, Tuple
 
 import aiohttp
 
@@ -64,28 +64,6 @@ class SingleRegionMonitor(CloudLocationMonitor):
         machine_type: str,
     ) -> str:
         return self._default_region
-
-
-def create_disk_config(
-    disk_name: str,
-    disk_resource_id: str,
-    disk_size_gb: int,
-) -> Dict[str, Any]:
-    return {
-        'common': {
-            'name': disk_name,
-            'description': disk_name,
-            'cloningInstructions': 'COPY_NOTHING',
-            'accessScope': 'PRIVATE_ACCESS',
-            'managedBy': 'USER',
-            'resourceId': disk_resource_id,
-            'properties': [],
-        },
-        'azureDisk': {
-            'name': disk_name,
-            'size': disk_size_gb,
-        },
-    }
 
 
 def create_vm_config(
@@ -172,7 +150,6 @@ write_files:
       # avoid "unable to get current user home directory: os/user lookup failed"
       export HOME=/root
 
-      # A safe hunch based on what was available on the ubuntu vm
       UNRESERVED_WORKER_DATA_DISK_SIZE_GB=50
       ACCEPTABLE_QUERY_JAR_URL_PREFIX={ ACCEPTABLE_QUERY_JAR_URL_PREFIX }
 
@@ -312,9 +289,6 @@ runcmd:
         },
     }
 
-    if not instance_config.local_ssd_data_disk:
-        config['azureVm']['diskId'] = instance_config._disk_resource_id
-
     return config
 
 
@@ -330,15 +304,6 @@ class TerraAzureResourceManager(CloudResourceManager):
         config = instance.instance_config
         assert isinstance(config, TerraAzureSlimInstanceConfig)
         terra_vm_resource_id = config._resource_id
-
-        if not config.local_ssd_data_disk:
-            terra_disk_resource_id = config._disk_resource_id
-            await self.terra_client.post(
-                f'/disks/{terra_disk_resource_id}',
-                json={
-                    'jobControl': {'id': str(uuid.uuid4())},
-                },
-            )
 
         try:
             await self.terra_client.post(
@@ -418,14 +383,7 @@ class TerraAzureResourceManager(CloudResourceManager):
         )
 
         if not local_ssd_data_disk:
-            disk_name = f'{machine_name}-data'
-            disk_config = create_disk_config(disk_name, instance_config._disk_resource_id, data_disk_size_gb)
-            try:
-                res = await self.terra_client.post('/disks', json=disk_config)
-                log.info(f'Terra response creating disk {disk_name}: {res}')
-            except Exception:
-                log.exception(f'error while creating disk {disk_name}')
-                return total_resources_on_instance
+            raise ValueError('VMs without a local ssd data disk are not yet supported')
 
         assert location == 'eastus'
         vm_config = create_vm_config(

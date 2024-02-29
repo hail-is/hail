@@ -21,7 +21,6 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
         location: str,
     ) -> 'TerraAzureSlimInstanceConfig':
         resource_id = str(uuid.uuid4())
-        disk_resource_id = str(uuid.uuid4())
 
         resources: List[AzureResource] = filter_none([
             AzureVMResource.create(product_versions, machine_type, preemptible, location),
@@ -37,7 +36,6 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
             job_private=job_private,
             resources=resources,
             resource_id=resource_id,
-            disk_resource_id=disk_resource_id,
         )
 
     def __init__(
@@ -50,7 +48,6 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
         job_private: bool,
         resources: List[AzureResource],
         resource_id: str,
-        disk_resource_id: str,
     ):
         super().__init__(
             machine_type=machine_type,
@@ -62,7 +59,6 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
             resources=resources,
         )
         self._resource_id = resource_id
-        self._disk_resource_id = disk_resource_id
 
     @staticmethod
     def from_dict(data: dict) -> 'TerraAzureSlimInstanceConfig':
@@ -77,13 +73,11 @@ class TerraAzureSlimInstanceConfig(AzureSlimInstanceConfig):
             data['job_private'],
             resources,
             data['resource_id'],
-            data['disk_resource_id'],
         )
 
     def to_dict(self) -> dict:
         azure_dict = super().to_dict()
         azure_dict.update({
             'resource_id': self._resource_id,
-            'disk_resource_id': self._disk_resource_id,
         })
         return azure_dict
