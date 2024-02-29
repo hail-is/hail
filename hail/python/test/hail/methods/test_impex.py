@@ -432,6 +432,12 @@ class VCFTests(unittest.TestCase):
 """
         assert msg in str(exp.value)
 
+    def test_export_vcf_haploid(self):
+        ds = hl.import_vcf(resource("sample.vcf"))
+        ds = ds.select_entries(GT=hl.call(0))
+        with TemporaryFilename(suffix='.vcf') as export_path:
+            hl.export_vcf(ds, export_path)
+
     def import_gvcfs_sample_vcf(self, path):
         parts_type = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus('GRCh37'))))
         parts = [
