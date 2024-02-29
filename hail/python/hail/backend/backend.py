@@ -161,6 +161,7 @@ class Backend(abc.ABC):
         "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
         "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
         "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),
+        "use_unstable_encodings": ("HAIL_DEV_USE_UNSTABLE_ENCODINGS", None),
         "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
         "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
         "cachedir": ("HAIL_CACHE_DIR", None),
