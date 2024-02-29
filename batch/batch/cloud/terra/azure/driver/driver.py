@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import uuid
+from shlex import quote as shq
 from typing import Any, Dict, List, Tuple
 
 import aiohttp
@@ -127,8 +128,8 @@ write_files:
           sleep 1000
           token=$(az account get-access-token --query accessToken --output tsv)
 
-          VM_RESOURCE_ID={ instance_config._resource_id }
-          curl -X POST "{ WORKSPACE_MANAGER_URL }/api/workspaces/v1/$WORKSPACE_ID/resources/controlled/azure/vm/$VM_RESOURCE_ID" \
+          VM_RESOURCE_ID={ shq(instance_config._resource_id) }
+          curl -X POST "{ shq(WORKSPACE_MANAGER_URL) }/api/workspaces/v1/$WORKSPACE_ID/resources/controlled/azure/vm/$VM_RESOURCE_ID" \
               -H  "accept: */*" \
               -H  "Authorization: Bearer $token" \
               -H  "Content-Type: application/json" \
@@ -137,7 +138,6 @@ write_files:
 
       trap cleanup EXIT
 
-      # Install things
       apt-get update
       apt-get -o DPkg::Lock::Timeout=60 install -y \
           apt-transport-https \
@@ -196,21 +196,21 @@ write_files:
 
       CORES=$(nproc)
       NAMESPACE=default
-      ACTIVATION_TOKEN={ activation_token }
-      BATCH_LOGS_STORAGE_URI={ file_store.batch_logs_storage_uri }
-      INSTANCE_ID={ file_store.instance_id }
+      ACTIVATION_TOKEN={ shq(activation_token) }
+      BATCH_LOGS_STORAGE_URI={ shq(file_store.batch_logs_storage_uri) }
+      INSTANCE_ID={ shq(file_store.instance_id) }
       INSTANCE_CONFIG="{ instance_config_base64 }"
       MAX_IDLE_TIME_MSECS={ max_idle_time_msecs }
-      BATCH_WORKER_IMAGE={ BATCH_WORKER_IMAGE }
+      BATCH_WORKER_IMAGE={ shq(BATCH_WORKER_IMAGE) }
       INTERNET_INTERFACE=eth0
-      WORKSPACE_STORAGE_CONTAINER_ID={ WORKSPACE_STORAGE_CONTAINER_ID }
-      TERRA_STORAGE_ACCOUNT={ TERRA_STORAGE_ACCOUNT }
-      WORKSPACE_STORAGE_CONTAINER_URL={ WORKSPACE_STORAGE_CONTAINER_URL }
-      WORKSPACE_MANAGER_URL={ WORKSPACE_MANAGER_URL }
-      WORKSPACE_ID={ WORKSPACE_ID }
-      REGION={ instance_config.region_for(location) }
-      INTERNAL_GATEWAY_IP={ INTERNAL_GATEWAY_IP }
-      DOCKER_PREFIX={ DOCKER_PREFIX }
+      WORKSPACE_STORAGE_CONTAINER_ID={ shq(WORKSPACE_STORAGE_CONTAINER_ID) }
+      TERRA_STORAGE_ACCOUNT={ shq(TERRA_STORAGE_ACCOUNT) }
+      WORKSPACE_STORAGE_CONTAINER_URL={ shq(WORKSPACE_STORAGE_CONTAINER_URL) }
+      WORKSPACE_MANAGER_URL={ shq(WORKSPACE_MANAGER_URL) }
+      WORKSPACE_ID={ shq(WORKSPACE_ID) }
+      REGION={ shq(instance_config.region_for(location)) }
+      INTERNAL_GATEWAY_IP={ shq(INTERNAL_GATEWAY_IP) }
+      DOCKER_PREFIX={ shq(DOCKER_PREFIX) }
 
       # private job network = 172.20.0.0/16
       # public job network = 172.21.0.0/16
