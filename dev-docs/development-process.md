@@ -8,17 +8,15 @@ making periodic releases for users.
 
 ## Design
 
-New features can either be bug fixes that users run into, small feature
-improvements, or larger, more complicated features. For larger projects, we have
-found having the developer write a formal proposal in a Google Doc or Dev
-Discuss (dev.hail.is) post is very helpful. We use this process as a chance to
-refine the design as well as educate the rest of the team on proposed
-changes. It helps to have multiple eyes thinking about what the implications of
-the changes are to the rest of the system. In addition, we use this time to
-think about how to break down the feature into smaller, more manageable
-chunks. Ideally, branches should contain up to 200 lines of changes to make the
-process easier on the reviewer. It may not always be possible to break up a
-feature into smaller components.
+New features can either be bug fixes that users run into, small feature improvements, or larger,
+more complicated features. For larger projects, write an
+[RFC](https://github.com/hail-is/hail-rfcs), get a review, and merge it into the hail-rfcs
+repository before working on a PR to the main Hail repository. We use this process as a chance to
+refine the design as well as educate the rest of the team on proposed changes. It helps to have
+multiple eyes thinking about what the implications of the changes are to the rest of the system. In
+addition, we use this time to think about how to break down the feature into smaller, more
+manageable chunks. Ideally, branches should contain up to 200 lines of changes to make the process
+easier on the reviewer. It may not always be possible to break up a feature into smaller components.
 
 
 ## Implementation
@@ -29,22 +27,21 @@ develop effectively.
 
 Hail currently supports Python version 3.9 or greater.
 
+Install the python dependencies of every Hail sub-project (e.g. ci, batch, hail/python/hailtop):
+
 ```bash
 make install-dev-requirements
 ```
 
-to install the full set of python dependencies across the Hail repo.
-
-To make sure that certain formatting requirements are caught early, run
+Install the pre-commit hooks:
 
 ```bash
 pre-commit install --install-hooks
 ```
 
-This creates git hooks that run certain linting checks and auto-formatting on
-changed files every commit. For example, services code uses the
-[Black python formatter](https://black.readthedocs.io/en/stable/)
-to enforce PEP8 compliance.
+This creates git hooks that run certain linting checks, pyright on some sub-projects, and
+auto-formatting on changed files every commit. For example, services code uses the [Black python
+formatter](https://black.readthedocs.io/en/stable/) to enforce PEP8 compliance.
 
 Sometimes large formatting or refactoring commits can muddle the git history
 for a file. If your change is one of these, follow up by adding the commit SHA to
@@ -69,12 +66,15 @@ gcloud container clusters get-credentials vdc --zone=us-central1-a
 gcloud auth -q configure-docker us-docker.pkg.dev
 ```
 
-5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:
+5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for
+   Hail. `functions.sh` contains shell commands for working with the Kubernetes cluster.
+
 ```
+export HAIL=/path/to/hail-repository
 # BuildKit, a fast docker backend
 export DOCKER_BUILDKIT=1
 # Shell utilities for managing the Hail kubernetes cluster
-source /path/to/hail-repository/devbin/functions.sh
+source $HAIL/devbin/functions.sh
 ```
 
 6. Run `brew install fswatch`
@@ -87,15 +87,70 @@ working on a compiler project or a services project.
 
 For a compiler project, you can build and run the tests locally on your
 computer. To build hail for development purposes, you should run the following
-command in the hail/hail directory:
+command from the repository root.
 
 ```bash
-make install-editable
+make -C hail install-editable
 ```
 
-There are tests written in Python and tests written in Scala. For the python
-tests, we use pytest.
+Run the Scala query compiler tests:
 
+```bash
+make -C hail jvm-test
+```
+
+Run the Scala file system tests:
+
+```bash
+make -C hail fs-jvm-test
+```
+
+Note that the file system tests depend on remote test resources which are automatically cleaned up
+after 1 day. To force re-upload of these remote test resources delete
+`hail/upload-remote-test-resources`.
+
+Run the Python query tests using the Spark backend in local mode:
+
+```bash
+make -C hail pytest
+```
+
+Run the Python query tests [matching a pattern](https://docs.pytest.org/en/7.1.x/reference/reference.html#command-line-flags):
+
+```bash
+make -C hail pytest PYTEST_ARGS='-k service_backend'
+```
+
+Run the Python query tests [in a particular
+file](https://docs.pytest.org/en/7.1.x/reference/reference.html#command-line-flags) (relative to the
+`hail/python` directory):
+
+```bash
+make -C hail pytest PYTEST_TARGET=test/hail/table/test_table.py
+```
+
+Run the Python copy tool and sync tool tests which test transfers of data between GCS, S3, ABS, and
+your laptop's filesystem:
+
+```bash
+make -C hail pytest-inter-cloud
+```
+
+Again, note that these depend on remote resources that are auto-cleaned up. See the above comment
+about deleting `hail/upload-remote-test-resources`.
+
+Run the Python query tests using the Batch backend and a production instance of Hail Batch
+(https://batch.hail.is or https://batch.azure.hail.is depending on your dev config):
+
+```bash
+make -C hail pytest-qob NAMESPACE=default
+```
+
+Run the Python query documentation tests:
+
+```bash
+make -C hail doctest-query
+```
 
 #### Services
 
@@ -104,7 +159,7 @@ cluster, but are able to coexist without interference because they are isolated
 in different [namespaces](https://kubernetes.io/docs/tasks/administer-cluster/namespaces-walkthrough/).
 The different kinds of namespaces are:
 
-- The `default` namespace. This is where Production lives.
+- The `default` or production namespace.
 - Test namespaces. These are ephemeral namespaces used to test PRs. Every CI
   pipeline for a PR creates a namespace and deletes it when the tests finish.
 - Dev namespaces. These are long-lived namespaces for developing new features.
@@ -213,26 +268,17 @@ that Batch Workers are not running as pods in Kubernetes, and are immutable. So
 if you want to update code running on a Batch Worker, you will need to `make`
 deploy and then delete existing workers in your namespace.
 
-##### Migration testing
-
-If your change involves adding migrations, you can spin up a database locally
-and run those migrations by running `make batch-db` (or sub any service for `batch`)
-in the root of the repository. Multiple invocations of `make batch-db` will run
-any new migrations since the previous run. Note that migrations are immutable!
-So if you *alter* your migration, you need to first drop the database with
-`make batch-db DROP=1` before you run the migrations again.
-
 ## PR
 
 Once you have a branch that you are happy with, then you create a Pull Request
 on the GitHub UI. For an overview of our practices around git and pull requests,
 see [this doc](git-practices.md)
 
-You’ll want to add an appropriate reviewer in the "Reviewers" box on the
-right hand side of the page. If you are an outside contributor and cannot
-request reviews, you can have CI automatically assign a reviewer. By writing
-`#assign services` or `#assign compiler` in the PR body, CI will randomly select
-a collaborator on the relevant team and assign them for you.
+Set a reviewer in the "Assignees" box. Do *not* use the "Reviewers" box. Our CI system specifically
+uses the "Assignees" box to list a developer's pending reviews at https://ci.hail.is/me. If you are
+an outside contributor and cannot request reviews, you can have CI automatically assign a
+reviewer. By writing `#assign services` or `#assign compiler` in the PR body, CI will randomly
+select a collaborator on the relevant team and assign them for you.
 
 You can also give the PR a set of labels. The important ones are “WIP” to make
 sure the pull request doesn’t get merged accidentally until you are ready,
@@ -314,34 +360,53 @@ Docker images, redeploy the running services in the default namespace with the
 latest changes, and rerun all of the tests with the new version of main
 incorporating your changes.
 
-If this batch fails, a Zulip message will be sent to the entire team linking to
-the UI for the failing batch. We should never ignore this message and figure out
-what component broke. If it’s a transient error, then we need to harden our
-retry strategy.
+If this batch fails, a Zulip message will be sent to the entire team linking to the UI for the
+failing batch. We should never ignore this message. We should figure out what component broke. If
+it’s a transient error, then we need to harden our retry strategy.
 
-If a Batch database migration is involved in the PR, then we’ll need to wait for
-the database to be migrated and then redeploy the Batch service by hand using
+The `build.yaml` file describes how to build and deploy each commit of Hail. Steps with kind
+`createDatabase2` create or migrate databases. A database is a collection of tables. A migration can
+be "offline," the default, or "online". For the last couple years, we have not used offline
+migrations because Batch must be available 24/7 for the scientists.
+
+When CI runs an offline migration, it shuts down the services listed in "shutdowns" before running
+the migration. You can check which migrations have complete by connecting to the admin-pod:
+
+```bash
+kssh admin-pod
+```
+
+Starting mysql and looking at the `NAME_migration_version` and `NAME_migrations` tables:
+
+```bash
+mysql
+use NAME
+select * from NAME_migrations
+select * from NAME_migration_version
+```
+
+When the migration is complete **you must manually** deploy the service:
 
 ```bash
 make -c batch deploy
 ```
 
-Be aware that the deploy process impacts all running services immediately, but
-the changes to the documentation, website, and the Spark version of Hail Query
-are not user-visible.
-
-
 ## Release
 
-To actually expose changes to our users for the hailctl, hailtop, and hail
-Python libraries and create a new JAR file and Wheel to the cloud, we create a
-PR that bumps up the version number of the PIP package and adds the changes in
-the CHANGELOG to the appropriate places. Once this PR merges, then CI will
-redeploy and test everything as above, but it will also update the website,
-documentation, and release a new version of the Hail Python library on
-PyPi. Once this is successful, then we make an announcement post on Zulip and
-the Discuss Forum.
+Changes to the services are immediately deployed to the production cluster. Changes to the Hail
+Python library are disseminated via PyPI. When a main commit changes the Hail "Python version", CI
+will run the release steps. Changes to the Python version should be done by a PR whose title is
+"[release] 0.2.XXX", which changes the Python version in both `hail/version.mk` and `hail/build.sc`,
+and which updates the Batch and Query change logs: `hail/python/hail/docs/change_log.md`
+`hail/python/hailtop/batch/docs/change_log.rst`. The change logs should comprise all the
+`CHANGELOG:` lines from commits between the last release and the new release, for example:
 
-It is relatively easy for us to make a new release. We try and do this at least
-once every other week, but can also do it for bug fixes and user-facing changes
-that people have requested immediate access to.
+```
+git log 0.2.127..HEAD
+```
+
+CI will create a git tag, a GitHub release, a PyPI package version, update the public Hail docs. We
+aim to release once per month. Note that our wheels are limited to 200 MiB and the sum total size of
+all published PyPI wheels must be less than 20 GiB. Check [the current limits at
+PyPI](https://pypi.org/manage/project/hail/settings/). We had to [request a size
+increase](https://github.com/pypi/support/issues/2857) in 2023.
