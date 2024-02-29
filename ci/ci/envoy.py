@@ -173,7 +173,7 @@ def auth_check_exemption() -> dict:
 
 
 def rate_limit_config(service: str) -> dict:
-    max_rps = 10 if service == 'batch-driver' else 200
+    max_rps = 60 if service == 'batch-driver' else 200
 
     return {
         '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
