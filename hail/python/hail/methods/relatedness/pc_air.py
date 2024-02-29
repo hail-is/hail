@@ -1,6 +1,5 @@
 from typing import Union
 
-import numpy as np
 
 import hail as hl
 from hail import (
@@ -9,10 +8,7 @@ from hail import (
     NumericExpression,
     MatrixTable,
     expr_numeric,
-    matrix_table_source,
 )
-from hail.linalg import BlockMatrix
-from hail.methods.pca import hwe_normalize
 from hail.typecheck import typecheck
 
 
@@ -172,19 +168,10 @@ def pc_air(
     -------
     eigenvalues : :obj:`list` of :obj:`float`
         The eigenvalues of the principal components.
-    scores : :class:`.BlockMatrix`
+    scores : :class:`.Table`
         The principal component scores.
     loadings : :class:`.Table`
         The principal component loadings.
     """
     partition_table = _partition_samples(genotypes, relatedness_threshold, divergence_threshold)
-    unrelated_table = partition_table.filter(partition_table.is_in_unrelated)
-    matrix_table = matrix_table_source('pc_air/genotypes', genotypes)
-    field_name = matrix_table._fields_inverse[genotypes]
-    unrelated_genotypes = matrix_table.semi_join_cols(unrelated_table)[field_name]
-    eigenvalues, _, loadings = hl._hwe_normalized_blanczos(unrelated_genotypes, compute_loadings=True)
-    _loadings = np.array(loadings.loadings.collect())
-    standardized_genotypes = hwe_normalize(genotypes)
-    standardized_genotypes = BlockMatrix.from_entry_expr(standardized_genotypes).T
-    scores = standardized_genotypes @ _loadings
-    return eigenvalues, scores, loadings
+    return hl._hwe_normalized_blanczos(genotypes, _partition_table=partition_table, compute_loadings=True)
