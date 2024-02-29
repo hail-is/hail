@@ -44,6 +44,7 @@ async def _copy_file_one_part(
                 written = await destf.write(b)
                 assert written == len(b)
                 total_written += written
+            assert total_written == size
 
 
 async def _copy_part(
