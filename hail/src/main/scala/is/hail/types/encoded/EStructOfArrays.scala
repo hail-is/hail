@@ -84,12 +84,14 @@ final case class EStructOfArrays(
       } else {
         // XXX: this only works if we're not using some kind of per-field compression
         val fieldIdx = ept.fieldIdx(field.name)
-        val fieldType = ept.types(fieldIdx)
-        val elementSize = const(EStructOfArrays.elementSize(field.typ))
-        val arraySize = cb.memoize(elementSize * length.toL)
+        val fieldType: PPrimitive = tcoerce(ept.types(fieldIdx))
+        val elementSize = EStructOfArrays.elementSize(field.typ)
+        assert(elementSize == fieldType.byteSize)
+
+        val arraySize = cb.memoize(const(elementSize) * length.toL)
         val mbytes =
           if (field.typ.required) None else Some(scratchRegion.allocate(1L, nMissingBytes.toL))
-        val elements = scratchRegion.allocate(elementSize, arraySize)
+        val elements = scratchRegion.allocate(const(elementSize), arraySize)
         mbytes.foreach(mbytes => cb += in.readBytes(scratchRegion, mbytes, nMissingBytes))
         cb += in.readBytes(scratchRegion, elements, arraySize.toI)
         cb.for_(
@@ -104,18 +106,18 @@ final case class EStructOfArrays(
             cb.assign(elementPtr, elementPtr + elementSize)
           }, {
             cb.if_(
-              pt.isElementMissing(arrayPtr, i), {
-                mbytes.foreach { mbytes =>
-                  cb.if_(
-                    Region.loadBit(mbytes, i.toL),
-                    ept.setFieldMissing(cb, structPtr, fieldIdx),
-                  )
-                }
-              }, {
-                ept.setFieldPresent(cb, structPtr, fieldIdx)
-                val fieldPtr = ept.fieldOffset(structPtr, fieldIdx)
-                val element = fieldType.loadCheapSCode(cb, elementPtr)
-              },
+              pt.isElementMissing(arrayPtr, i),
+              ept.setFieldMissing(cb, structPtr, fieldIdx),
+              cb.if_(
+                mbytes.map(mbytes => Region.loadBit(mbytes, i.toL)).getOrElse[Code[Boolean]](const(
+                  false
+                )),
+                ept.setFieldMissing(cb, structPtr, fieldIdx), {
+                  ept.setFieldPresent(cb, structPtr, fieldIdx)
+                  val fieldPtr = ept.fieldOffset(structPtr, fieldIdx)
+                  cb += Region.copyFrom(elementPtr, fieldPtr, elementSize)
+                },
+              ),
             )
           },
         )
@@ -156,9 +158,8 @@ final case class EStructOfArrays(
       cb += r.invalidate()
   }
 
-  /** XXX: this is a very basic output that does not apply any transformation to the values, just
-    * places them into a scratch array and dumps the bytes of said array
-    */
+  // XXX: this is a very basic output that does not apply any transformation to the values, just
+  // places them into a scratch array and dumps the bytes of said array
   private[this] def transposeAndWriteField(
     cb: EmitCodeBuilder,
     field: EField,
