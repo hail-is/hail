@@ -152,6 +152,7 @@ class Backend(abc.ABC):
         "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
         "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
         "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),
+        "use_unstable_encodings": ("HAIL_DEV_USE_UNSTABLE_ENCODINGS", None),
         "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
     }
 
