@@ -1012,7 +1012,10 @@ case class VCFPartitionWriter(
       case v: SCallValue =>
         val ploidy = v.ploidy(cb)
         cb.if_(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
-        cb.if_(ploidy.ceq(1), cb._fatal("VCF spec does not support phased haploid calls."))
+        cb.if_(
+          ploidy.ceq(1) && v.isPhased(cb),
+          cb._fatal("VCF spec does not support phased haploid calls."),
+        )
         val c = v.canonicalCall(cb)
         _writeB(cb, Code.invokeScalaObject1[Int, Array[Byte]](Call.getClass, "toUTF8", c))
     }
