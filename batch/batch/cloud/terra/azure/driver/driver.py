@@ -16,14 +16,22 @@ from hailtop.aiocloud.aioazure import AzurePricingClient
 from hailtop.aiocloud.aioterra.azure import TerraClient
 from hailtop.config import get_deploy_config
 from hailtop.config.deploy_config import TerraDeployConfig
-from hailtop.utils import periodically_call, secret_alnum_string
+from hailtop.utils import parse_timestamp_msecs, periodically_call, secret_alnum_string
 
 from .....batch_configuration import DOCKER_PREFIX, INTERNAL_GATEWAY_IP
 from .....driver.driver import CloudDriver
 from .....driver.instance import Instance
 from .....driver.instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .....driver.location import CloudLocationMonitor
-from .....driver.resource_manager import CloudResourceManager, VMDoesNotExist, VMState, VMStateCreating
+from .....driver.resource_manager import (
+    CloudResourceManager,
+    UnknownVMState,
+    VMDoesNotExist,
+    VMState,
+    VMStateCreating,
+    VMStateRunning,
+    VMStateTerminated,
+)
 from .....file_store import FileStore
 from .....inst_coll_config import InstanceCollectionConfigs
 from .....instance_config import InstanceConfig, QuantifiedResource
@@ -318,10 +326,18 @@ class TerraAzureResourceManager(CloudResourceManager):
             raise
 
     async def get_vm_state(self, instance: Instance) -> VMState:
-        # TODO This should look at the response and use all applicable lifecycle types
         try:
             spec = await self.terra_client.get(f'/vm/create-result/{instance.name[32:]}')
-            return VMStateCreating(spec, instance.time_created)
+            state = spec['metadata']['state']
+            if state == 'CREATING':
+                return VMStateCreating(spec, instance.time_created)
+            if state == 'READY':
+                last_start_timestamp_msecs = parse_timestamp_msecs(spec['metadata'].get('lastUpdatedDate'))
+                assert last_start_timestamp_msecs is not None
+                return VMStateRunning(spec, last_start_timestamp_msecs)
+            if state == 'DELETING':
+                return VMStateTerminated(spec)
+            return UnknownVMState(spec)
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 raise VMDoesNotExist() from e
