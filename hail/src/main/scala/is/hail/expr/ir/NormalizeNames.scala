@@ -33,7 +33,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       call(normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]])
 
     ir match {
-      case Let(bindings, body) =>
+      case Block(bindings, body) =>
         val newBindings: Array[Binding] = Array.ofDim(bindings.length)
 
         for {
@@ -49,7 +49,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
               }
           }
           newBody <- normalize(body, env)
-        } yield Let.withAgg(newBindings, newBody)
+        } yield Block(newBindings, newBody)
 
       case Ref(name, typ) =>
         val newName = env.eval.lookupOption(name) match {

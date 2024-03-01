@@ -14,7 +14,8 @@ object ForwardLets {
 
     def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR = {
 
-      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Let, scope: Int): Boolean = {
+      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Block, scope: Int)
+        : Boolean = {
         IsPure(value) && (
           value.isInstanceOf[Ref] ||
             value.isInstanceOf[In] ||
@@ -29,7 +30,7 @@ object ForwardLets {
       }
 
       ir match {
-        case l: Let =>
+        case l: Block =>
           val keep = new BoxedArrayBuilder[Binding]
           val refs = uses(l)
           val newEnv = l.bindings.foldLeft(env) {
@@ -52,7 +53,7 @@ object ForwardLets {
 
           val newBody = rewrite(l.body, newEnv).asInstanceOf[IR]
           if (keep.isEmpty) newBody
-          else Let.withAgg(keep.result(), newBody)
+          else Block(keep.result(), newBody)
 
         case x @ Ref(name, _) =>
           env.eval

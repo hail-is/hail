@@ -61,7 +61,7 @@ object InferType {
         cnsq.typ
       case Switch(_, default, _) =>
         default.typ
-      case Let(_, body) =>
+      case Block(_, body) =>
         body.typ
       case TailLoop(_, _, resultType, _) =>
         resultType

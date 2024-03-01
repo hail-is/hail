@@ -169,7 +169,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
     }
     node match {
-      case Let(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
+      case Block(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
       case RelationalLet(name, value, _) => addBinding(name, value)
       case RelationalLetTable(name, value, _) => addBinding(name, value)
       case TailLoop(loopName, params, _, body) =>
@@ -597,7 +597,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(x).required)
         requiredness.unionFrom(lookup(default))
         requiredness.unionFrom(cases.map(lookup))
-      case Let(_, body) =>
+      case Block(_, body) =>
         requiredness.unionFrom(lookup(body))
       case RelationalLet(_, _, body) =>
         requiredness.unionFrom(lookup(body))

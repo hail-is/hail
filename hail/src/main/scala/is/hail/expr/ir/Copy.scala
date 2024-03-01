@@ -42,13 +42,13 @@ object Copy {
           newChildren(1).asInstanceOf[IR],
           newChildren.drop(2).asInstanceOf[IndexedSeq[IR]],
         )
-      case Let(bindings, _) =>
+      case Block(bindings, _) =>
         assert(newChildren.length == x.size)
         val newBindings =
           (bindings, newChildren.init)
             .zipped
             .map { case (binding, ir: IR) => binding.copy(value = ir) }
-        Let.withAgg(newBindings, newChildren.last.asInstanceOf[IR])
+        Block(newBindings, newChildren.last.asInstanceOf[IR])
       case TailLoop(name, params, resultType, _) =>
         assert(newChildren.length == params.length + 1)
         TailLoop(

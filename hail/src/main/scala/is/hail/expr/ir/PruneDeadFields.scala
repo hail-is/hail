@@ -1314,7 +1314,7 @@ object PruneDeadFields {
         )
       case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(ctx, _, requestedType, memo)))
       case Consume(value) => memoizeValueIR(ctx, value, value.typ, memo)
-      case Let(bindings, body) =>
+      case Block(bindings, body) =>
         val bodyEnv = memoizeValueIR(ctx, body, requestedType, memo)
         bindings.foldRight(bodyEnv) {
           case (Binding(name, value, Scope.EVAL), bodyEnv) =>
@@ -2377,7 +2377,7 @@ object PruneDeadFields {
       case Consume(value) =>
         val value2 = rebuildIR(ctx, value, env, memo)
         Consume(value2)
-      case Let(bindings, body) =>
+      case Block(bindings, body) =>
         val newBindings = new Array[Binding](bindings.length)
         val (_, newEnv) = bindings.foldLeft((0, env)) {
           case ((idx, env), Binding(name, value, scope)) =>
@@ -2385,7 +2385,7 @@ object PruneDeadFields {
             newBindings(idx) = Binding(name, newValue, scope)
             (idx + 1, env.bindInScope(name, newValue.typ, scope))
         }
-        Let.withAgg(newBindings, rebuildIR(ctx, body, newEnv, memo))
+        Block(newBindings, rebuildIR(ctx, body, newEnv, memo))
       case Ref(name, t) =>
         Ref(name, env.eval.lookupOption(name).getOrElse(t))
       case RelationalLet(name, value, body) =>

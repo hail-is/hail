@@ -291,7 +291,7 @@ object Simplify {
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
     case StreamLen(MakeStream(args, _, _)) => I32(args.length)
-    case StreamLen(Let(bindings, body)) => Let.withAgg(bindings, StreamLen(body))
+    case StreamLen(Block(bindings, body)) => Block(bindings, StreamLen(body))
     case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
     case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
     case StreamLen(StreamGrouped(a, groupSize)) =>
@@ -355,8 +355,8 @@ object Simplify {
 
     case ToStream(ToArray(s), false) if s.typ.isInstanceOf[TStream] => s
 
-    case ToStream(Let(bindings, ToArray(x)), false) if x.typ.isInstanceOf[TStream] =>
-      Let.withAgg(bindings, x)
+    case ToStream(Block(bindings, ToArray(x)), false) if x.typ.isInstanceOf[TStream] =>
+      Block(bindings, x)
 
     case MakeNDArray(ToArray(someStream), shape, rowMajor, errorId) =>
       MakeNDArray(someStream, shape, rowMajor, errorId)
@@ -416,17 +416,17 @@ object Simplify {
     case InsertFields(SelectFields(old, _), Seq(), Some(insertFieldOrder)) =>
       SelectFields(old, insertFieldOrder)
 
-    case Let(Seq(), body) =>
+    case Block(Seq(), body) =>
       body
 
-    case Let(xs, Let(ys, body)) =>
-      Let.withAgg(xs ++ ys, body)
+    case Block(xs, Block(ys, body)) =>
+      Block(xs ++ ys, body)
 
     // assumes `NormalizeNames` has been run before this.
-    case Let(bindings, body) if bindings.exists(_.value.isInstanceOf[Let]) =>
+    case Block(bindings, body) if bindings.exists(_.value.isInstanceOf[Block]) =>
       def numBindings(b: Binding): Int =
         b.value match {
-          case let: Let => 1 + let.bindings.length
+          case let: Block => 1 + let.bindings.length
           case _ => 1
         }
 
@@ -436,19 +436,27 @@ object Simplify {
         )
 
       bindings.foreach {
-        case Binding(name, ir: Let, scope) =>
-          newBindings ++= (if (scope == Scope.EVAL) ir.bindings else ir.bindings.map {
-            case Binding(name, value, Scope.EVAL) => Binding(name, value, scope)
-            case _ => fatal("Simplify: found nested Agg bindings")
-          })
+        case Binding(name, ir: Block, scope) =>
+          newBindings ++= (if (scope == Scope.EVAL) ir.bindings
+                           else ir.bindings.map {
+                             case Binding(name, value, Scope.EVAL) => Binding(name, value, scope)
+                             case _ => fatal("Simplify: found nested Agg bindings")
+                           })
           newBindings += Binding(name, ir.body, scope)
         case Binding(name, value, scope) =>
           newBindings += Binding(name, value, scope)
       }
 
-      Let.withAgg(newBindings.underlying(), body)
+      Block(newBindings.underlying(), body)
 
-    case Let(Let.Insert(before, Binding(name, x @ InsertFields(old, newFields, _), Scope.EVAL), after), body)
+    case Block(
+          Block.Insert(
+            before,
+            Binding(name, x @ InsertFields(old, newFields, _), Scope.EVAL),
+            after,
+          ),
+          body,
+        )
         if x.typ.size < 500 && {
           val r = Ref(name, x.typ)
           val nfSet = newFields.map(_._1).toSet
@@ -469,7 +477,7 @@ object Simplify {
                 }
           }
 
-          allRefsCanBePassedThrough(Let.withAgg(after.toFastSeq, body))
+          allRefsCanBePassedThrough(Block(after.toFastSeq, body))
         } =>
       val fieldNames = newFields.map(_._1).toArray
       val newFieldMap = newFields.toMap
@@ -511,11 +519,13 @@ object Simplify {
           }
       }
 
-      Let.withAgg(
-        before.toFastSeq ++ fieldNames.map(f => Binding(newFieldRefs(f).name, newFieldMap(f))) ++ FastSeq(
+      Block(
+        before.toFastSeq ++ fieldNames.map(f =>
+          Binding(newFieldRefs(f).name, newFieldMap(f))
+        ) ++ FastSeq(
           Binding(name, old)
         ),
-        rewrite(Let.withAgg(after.toFastSeq, body)),
+        rewrite(Block(after.toFastSeq, body)),
       )
 
     case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
@@ -750,10 +760,10 @@ object Simplify {
           def canBeLifted(x: IR): Boolean = x match {
             case _: TableAggregate => true
             case _: MatrixAggregate => true
-            case Let(bindings, _) if bindings.exists {
-              case Binding(_, _, Scope.AGG) => true
-              case _ => false
-            } => false
+            case Block(bindings, _) if bindings.exists {
+                  case Binding(_, _, Scope.AGG) => true
+                  case _ => false
+                } => false
             case x if IsAggResult(x) => false
             case other => other.children.forall {
                 case child: IR => canBeLifted(child)
@@ -767,10 +777,10 @@ object Simplify {
           def canBeLifted(x: IR): Boolean = x match {
             case _: TableAggregate => true
             case _: MatrixAggregate => true
-            case Let(bindings, _) if bindings.exists {
-              case Binding(_, _, Scope.SCAN) => true
-              case _ => false
-            } => false
+            case Block(bindings, _) if bindings.exists {
+                  case Binding(_, _, Scope.SCAN) => true
+                  case _ => false
+                } => false
             case x if IsScanResult(x) => false
             case other => other.children.forall {
                 case child: IR => canBeLifted(child)

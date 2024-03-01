@@ -192,26 +192,16 @@ final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
 object AggLet {
   def apply(name: String, value: IR, body: IR, isScan: Boolean): IR = {
     val scope = if (isScan) Scope.SCAN else Scope.AGG
-    Let.withAgg(FastSeq(Binding(name, value, scope)), body)
+    Block(FastSeq(Binding(name, value, scope)), body)
   }
 }
 
-case class Binding(name: String, value: IR, scope: Int = Scope.EVAL)
-
-final class Let(val bindings: IndexedSeq[Binding], val body: IR) extends IR {
-  override lazy val size: Int =
-    bindings.length + 1
-}
-
 object Let {
-  def apply(bindings: IndexedSeq[(String, IR)], body: IR): Let =
-    new Let(
+  def apply(bindings: IndexedSeq[(String, IR)], body: IR): Block =
+    Block(
       bindings.map { case (name, value) => Binding(name, value) },
       body,
     )
-
-  def withAgg(bindings: IndexedSeq[Binding], body: IR): Let =
-    new Let(bindings, body)
 
   def void(bindings: IndexedSeq[(String, IR)]): IR = {
     if (bindings.isEmpty) {
@@ -222,11 +212,16 @@ object Let {
     }
   }
 
-  def unapply(x: IR): Option[(IndexedSeq[Binding], IR)] = x match {
-    case x: Let => Some((x.bindings, x.body))
-    case _ => None
-  }
+}
 
+case class Binding(name: String, value: IR, scope: Int = Scope.EVAL)
+
+final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
+  override lazy val size: Int =
+    bindings.length + 1
+}
+
+object Block {
   case class Extract(p: IR => Boolean) {
     def unapply(bindings: IndexedSeq[Binding])
       : Option[(IndexedSeq[Binding], Binding, IndexedSeq[Binding])] = {
@@ -236,7 +231,6 @@ object Let {
   }
 
   object Insert extends Extract(_.isInstanceOf[InsertFields])
-
 }
 
 sealed abstract class BaseRef extends IR with TrivialIR {
