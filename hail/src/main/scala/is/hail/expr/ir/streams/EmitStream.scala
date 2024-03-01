@@ -366,7 +366,7 @@ object EmitStream {
             SStreamValue(producer)
           }
 
-      case let: Let =>
+      case let: Block =>
         val newEnv = emitter.emitLetBindings(let, cb, env, outerRegion, container, None)
         produce(let.body, cb, env = newEnv)
 

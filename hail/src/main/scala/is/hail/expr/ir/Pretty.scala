@@ -25,9 +25,11 @@ object Pretty {
     elideLiterals: Boolean = true,
     maxLen: Int = -1,
     allowUnboundRefs: Boolean = false,
+    preserveNames: Boolean = false,
   ): String = {
     val useSSA = ctx != null && ctx.getFlag("use_ssa_logs") != null
-    val pretty = new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA)
+    val pretty =
+      new Pretty(width, ribbonWidth, elideLiterals, maxLen, allowUnboundRefs, useSSA, preserveNames)
     pretty(ir)
   }
 
@@ -74,6 +76,7 @@ class Pretty(
   maxLen: Int,
   allowUnboundRefs: Boolean,
   useSSA: Boolean,
+  preserveNames: Boolean = false,
 ) {
   def short(ir: BaseIR): String = {
     val s = apply(ir)
@@ -234,7 +237,7 @@ class Pretty(
           "<literal value>",
       )
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
-    case Let(bindings, _) if !elideBindings =>
+    case Block(bindings, _) if !elideBindings =>
       bindings.flatMap { b =>
         val bindType = b.scope match {
           case Scope.EVAL => "eval"
@@ -822,25 +825,35 @@ class Pretty(
       case _ => ""
     }
 
-    def uniqueify(base: String): String = {
-      if (base.isEmpty) {
-        identCounter += 1
-        identCounter.toString
-      } else if (idents.contains(base)) {
-        idents(base) += 1
-        if (base.last.isDigit)
-          s"${base}_${idents(base)}"
-        else
-          s"$base${idents(base)}"
+    def uniqueify(base: String, origName: Option[String]): String = {
+      if (preserveNames && origName.nonEmpty) {
+        origName.get
       } else {
-        idents(base) = 1
-        base
+        if (base.isEmpty) {
+          identCounter += 1
+          identCounter.toString
+        } else if (idents.contains(base)) {
+          idents(base) += 1
+          if (base.last.isDigit)
+            s"${base}_${idents(base)}"
+          else
+            s"$base${idents(base)}"
+        } else {
+          idents(base) = 1
+          base
+        }
       }
     }
 
-    def prettyWithIdent(ir: BaseIR, bindings: Env[String], prefix: String, scope: Int = Scope.EVAL): (Doc, String) = {
+    def prettyWithIdent(
+      ir: BaseIR,
+      bindings: Env[String],
+      prefix: String,
+      origName: Option[String],
+      scope: Int = Scope.EVAL,
+    ): (Doc, String) = {
       val (pre, body) = pretty(ir, bindings)
-      val ident = prefix + uniqueify(getIdentBase(ir))
+      val ident = prefix + uniqueify(getIdentBase(ir), origName)
       val assignmentSymbol = scope match {
         case Scope.EVAL => "="
         case Scope.AGG => "=(agg)"
@@ -852,7 +865,7 @@ class Pretty(
 
     def prettyBlock(ir: BaseIR, newBindings: IndexedSeq[(String, String)], bindings: Env[String])
       : Doc = {
-      val args = newBindings.map { case (name, base) => name -> s"%${uniqueify(base)}" }
+      val args = newBindings.map { case (name, base) => name -> s"%${uniqueify(base, Some(name))}" }
       val blockBindings = bindings.bindIterable(args)
       val openBlock = if (args.isEmpty)
         text("{")
@@ -860,11 +873,15 @@ class Pretty(
         concat("{", softline, args.map(_._2).mkString("(", ", ", ") =>"))
       ir match {
         case Ref(name, _) =>
-          val body = blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
+          val body =
+            blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref", Some(name)))
           concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
         case RelationalRef(name, _) =>
           val body =
-            blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
+            blockBindings.lookupOption(name).getOrElse(uniqueify(
+              "%undefined_relational_ref",
+              Some(name),
+            ))
           concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
         case _ =>
           val (pre, body) = pretty(ir, blockBindings)
@@ -873,28 +890,29 @@ class Pretty(
     }
 
     def pretty(ir: BaseIR, bindings: Env[String]): (Doc, Doc) = ir match {
-      case Let(binds, body) =>
+      case Block(binds, body) =>
         val (valueDoc, newBindings) =
           binds.foldLeft((empty, bindings)) { case ((valueDoc, bindings), binding) =>
-            val (doc, ident) = prettyWithIdent(binding.value, bindings, "%", binding.scope)
+            val (doc, ident) =
+              prettyWithIdent(binding.value, bindings, "%", Some(binding.name), binding.scope)
             (concat(valueDoc, doc), bindings.bind(binding.name, ident))
           }
         val (bodyPre, bodyHead) = pretty(body, newBindings)
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLet(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
+        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetTable(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
+        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetMatrixTable(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
+        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
       case RelationalLetBlockMatrix(name, value, body) =>
-        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%")
+        val (valueDoc, valueIdent) = prettyWithIdent(value, bindings, "%", Some(name))
         val (bodyPre, bodyHead) = pretty(body, bindings.bind(name, valueIdent))
         (concat(valueDoc, bodyPre), bodyHead)
       case _ =>
@@ -905,11 +923,14 @@ class Pretty(
         } yield {
           child match {
             case Ref(name, _) =>
-              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref"))
+              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref", Some(name)))
             case RelationalRef(name, _) =>
-              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_relational_ref"))
+              bindings.lookupOption(name).getOrElse(uniqueify(
+                "%undefined_relational_ref",
+                Some(name),
+              ))
             case _ =>
-              val (body, ident) = prettyWithIdent(child, bindings, "!")
+              val (body, ident) = prettyWithIdent(child, bindings, "!", None)
               strictChildBodies += body
               ident
           }

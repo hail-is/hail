@@ -125,6 +125,17 @@ class ForwardLetsSuite extends HailSuite {
     forwardingAggOps()
   }
 
+  @Test def testBlock(): Unit = {
+    val ir = Block(
+      FastSeq(Binding("x", I32(1), Scope.AGG), Binding("y", Ref("x", TInt32), Scope.AGG)),
+      ApplyAggOp(Sum())(Ref("y", TInt32)),
+    )
+    val after: IR = ForwardLets(ctx)(ir)
+    val expected = ApplyAggOp(Sum())(I32(1))
+    val normalize = new NormalizeNames(_.toString)
+    assert(normalize(ctx, after) == normalize(ctx, expected))
+  }
+
   @Test(dataProvider = "nonForwardingOps")
   def testNonForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
@@ -136,26 +147,26 @@ class ForwardLetsSuite extends HailSuite {
   @Test(dataProvider = "nonForwardingNonEvalOps")
   def testNonForwardingNonEvalOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    assert(after.isInstanceOf[Let])
+    assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "nonForwardingAggOps")
   def testNonForwardingAggOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    assert(after.isInstanceOf[Let])
+    assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "forwardingOps")
   def testForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    assert(!after.isInstanceOf[Let])
+    assert(!after.isInstanceOf[Block])
     assertEvalSame(ir, args = Array(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")
   def testForwardingAggOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    assert(!after.isInstanceOf[Let])
+    assert(!after.isInstanceOf[Block])
   }
 
   @DataProvider(name = "TrivialIRCases")
@@ -241,7 +252,10 @@ class ForwardLetsSuite extends HailSuite {
   @Test(dataProvider = "TrivialIRCases")
   def testTrivialCases(input: IR, expected: IR, reason: String): Unit = {
     val result = ForwardLets(ctx)(input)
-    assert(result == expected, s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}")
+    assert(
+      result == expected,
+      s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}",
+    )
   }
 
   @Test def testAggregators(): Unit = {
@@ -252,7 +266,7 @@ class ForwardLetsSuite extends HailSuite {
     val ir0 = ApplyAggOp(
       FastSeq(),
       FastSeq(Let(FastSeq("x" -> (GetField(row, "idx") - 1)), Cast(x, TFloat64))),
-      AggSignature(Sum(), FastSeq(), FastSeq(TFloat64))
+      AggSignature(Sum(), FastSeq(), FastSeq(TFloat64)),
     )
 
     TypeCheck(ctx, ForwardLets(ctx)(ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
@@ -264,10 +278,13 @@ class ForwardLetsSuite extends HailSuite {
     def xCast = Cast(xInt, TFloat64)
     def xFloat = Ref("x", TFloat64)
     def y = Ref("y", TFloat64)
-    val ir = Let(FastSeq(
-      "y" -> xCast,
-      "x" -> xCast
-    ), xFloat + xFloat + y)
+    val ir = Let(
+      FastSeq(
+        "y" -> xCast,
+        "x" -> xCast,
+      ),
+      xFloat + xFloat + y,
+    )
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx)(ir), BindingEnv(env))

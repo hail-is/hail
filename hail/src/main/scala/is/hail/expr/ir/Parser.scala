@@ -851,8 +851,9 @@ object IRParser {
           default <- ir_value_expr(env)(it)
           cases <- ir_value_children(env)(it)
         } yield Switch(x, default, cases)
-      case "Let" =>
-        val names = repUntilNonStackSafe(it, it => (identifier(it), identifier(it)), PunctuationToken("("))
+      case "Let" | "Block" =>
+        val names =
+          repUntilNonStackSafe(it, it => (identifier(it), identifier(it)), PunctuationToken("("))
         val values = new Array[IR](names.length)
         for {
           _ <- names.indices.foldLeft(done(())) { case (update, i) =>
@@ -871,7 +872,7 @@ object IRParser {
             }
             Binding(name, value, scope)
           }
-          Let.withAgg(bindings, body)
+          Block(bindings, body)
         }
       case "AggLet" =>
         val name = identifier(it)
@@ -879,7 +880,7 @@ object IRParser {
         for {
           value <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield Let.withAgg(FastSeq(Binding(name, value, if (isScan) Scope.SCAN else Scope.AGG)), body)
+        } yield AggLet(name, value, body, isScan)
       case "TailLoop" =>
         val name = identifier(it)
         val paramNames = identifiers(it)

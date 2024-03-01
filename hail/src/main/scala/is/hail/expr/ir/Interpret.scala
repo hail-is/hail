@@ -139,7 +139,7 @@ object Interpret {
           case null =>
             null
         }
-      case Let(bindings, body) =>
+      case Block(bindings, body) =>
         val newEnv = bindings.foldLeft(env) { case (env, Binding(name, value, Scope.EVAL)) =>
           env.bind(name -> interpret(value, env, args))
         }

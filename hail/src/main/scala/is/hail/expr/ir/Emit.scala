@@ -823,7 +823,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
-      case let: Let =>
+      case let: Block =>
         val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
         emitVoid(let.body, env = newEnv)
 
@@ -1107,7 +1107,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
 
-      case let: Let =>
+      case let: Block =>
         val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
         emitI(let.body, env = newEnv)
 
@@ -3622,7 +3622,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     */
   // TODO: splitting logic should get lifted into ComputeMethodSplits
   def emitLetBindings(
-    let: Let,
+    let: Block,
     cb: EmitCodeBuilder,
     env: EmitEnv,
     r: Value[Region],

@@ -221,8 +221,8 @@ class Aggs(
         original,
         {
           case ir if RefEquality(ir) == rewriteRoot =>
-            val Let(bindings, body) = ir
-            Let.withAgg(bindings, f(rewriteMap.lookup(body)))
+            val Block(bindings, body) = ir
+            Block(bindings, f(rewriteMap.lookup(body)))
         },
       ).asInstanceOf[IR]
     }
@@ -539,7 +539,7 @@ object Extract {
     }
 
     val newNode = ir match {
-      case x @ Let(bindings, body) =>
+      case x @ Block(bindings, body) =>
         var newEnv = env
         val newBindings = Array.newBuilder[Binding]
         newBindings.sizeHint(bindings)
@@ -554,7 +554,7 @@ object Extract {
         }
         val newBody = this.extract(body, newEnv, bindingNodesReferenced, rewriteMap, ab, seqBuilder,
           memo, result, r, isScan)
-        Let.withAgg(newBindings.result(), newBody)
+        Block(newBindings.result(), newBody)
       case x: ApplyAggOp if !isScan =>
         val idx = memo.getOrElseUpdate(
           x, {

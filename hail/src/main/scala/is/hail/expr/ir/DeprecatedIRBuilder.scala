@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.types._
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, toRichIterable}
+import is.hail.utils.{toRichIterable, FastSeq}
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -380,14 +380,14 @@ object DeprecatedIRBuilder {
   case class BindingProxy(s: Symbol, value: IRProxy, scope: Int)
 
   private object LetProxy {
-    def bind(bindings: IndexedSeq[BindingProxy], body: IRProxy, env: E, scope: Int): IR = {
+    def bind(bindings: IndexedSeq[BindingProxy], body: IRProxy, env: E): IR = {
       var newEnv = env
       val resolvedBindings = bindings.map { case BindingProxy(sym, value, scope) =>
         val resolvedValue = value(newEnv)
-        newEnv = env.bind(sym.name -> resolvedValue.typ)
+        newEnv = newEnv.bind(sym.name -> resolvedValue.typ)
         Binding(sym.name, resolvedValue, scope)
       }
-      Let.withAgg(resolvedBindings, body(newEnv))
+      Block(resolvedBindings, body(newEnv))
     }
   }
 
@@ -396,21 +396,17 @@ object DeprecatedIRBuilder {
       assert(method == "apply")
       letDyn(args: _*)
     }
-
   }
 
   object letDyn {
-    def apply(args: (String, IRProxy)*): LetProxy = {
+    def apply(args: (String, IRProxy)*): LetProxy =
       new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.EVAL) }.toFastSeq)
-    }
   }
 
   class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
     def apply(body: IRProxy): IRProxy = in(body)
 
-    def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env, scope = Scope.EVAL)
-    }
+    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object aggLet extends Dynamic {
@@ -423,9 +419,7 @@ object DeprecatedIRBuilder {
   class AggLetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
     def apply(body: IRProxy): IRProxy = in(body)
 
-    def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env, scope = Scope.AGG)
-    }
+    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object MapIRProxy {

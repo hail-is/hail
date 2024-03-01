@@ -256,7 +256,7 @@ object Bindings {
 
   private def childEnvValue[E <: GenericBindingEnv[E, Type]](ir: IR, i: Int, baseEnv: E): E =
     ir match {
-      case Let(bindings, _) =>
+      case Block(bindings, _) =>
         var env = baseEnv
         for (k <- 0 until i) bindings(k) match {
           case Binding(name, value, scope) =>

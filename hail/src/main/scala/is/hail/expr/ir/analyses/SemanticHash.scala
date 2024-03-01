@@ -91,7 +91,7 @@ case object SemanticHash extends Logging {
       case a: AggGroupBy =>
         buffer += a.isScan.toByte
 
-      case Let(bindings, _) =>
+      case Block(bindings, _) =>
         // encode scopes
         for {
           group <- bindings.map(_.scope).grouped(4)
@@ -322,7 +322,7 @@ case object SemanticHash extends Logging {
           _: If |
           _: InsertFields |
           _: IsNA |
-          _: Let |
+          _: Block |
           _: LiftMeOut |
           _: MakeArray |
           _: MakeNDArray |
