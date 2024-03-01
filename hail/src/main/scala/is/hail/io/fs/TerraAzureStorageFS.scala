@@ -1,22 +1,21 @@
 package is.hail.io.fs
 
-import scala.collection.mutable
-
 import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
 import is.hail.shadedazure.com.azure.identity.{
   DefaultAzureCredential, DefaultAzureCredentialBuilder,
 }
+import is.hail.shadedazure.com.azure.storage.blob.BlobServiceClient
 import is.hail.utils._
 
-import org.apache.http.client.utils.URIBuilder
+import scala.collection.mutable
+
 import org.apache.http.client.methods.HttpPost
+import org.apache.http.client.utils.URIBuilder
 import org.apache.http.impl.client.HttpClients
 import org.apache.http.util.EntityUtils
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods
-
-import is.hail.shadedazure.com.azure.storage.blob.BlobServiceClient
 
 object TerraAzureStorageFS {
   private val log = Logger.getLogger(getClass.getName)
