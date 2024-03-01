@@ -9,8 +9,8 @@ import is.hail.types.virtual._
 import java.io._
 
 object TypedCodecSpec {
-  def apply(pt: PType, bufferSpec: BufferSpec): TypedCodecSpec = {
-    val eType = EType.defaultFromPType(pt)
+  def apply(ctx: ExecuteContext, pt: PType, bufferSpec: BufferSpec): TypedCodecSpec = {
+    val eType = EType.defaultFromPType(ctx, pt)
     TypedCodecSpec(eType, pt.virtualType, bufferSpec)
   }
 }

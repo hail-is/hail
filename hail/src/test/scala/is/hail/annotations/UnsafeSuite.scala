@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.check._
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
@@ -54,7 +55,11 @@ class UnsafeSuite extends HailSuite {
 
   @DataProvider(name = "codecs")
   def codecs(): Array[Array[Any]] =
+    withExecuteContext()(ctx => codecs(ctx))
+
+  def codecs(ctx: ExecuteContext): Array[Array[Any]] =
     (BufferSpec.specs ++ Array(TypedCodecSpec(
+      ctx,
       PCanonicalStruct("x" -> PInt64()),
       BufferSpec.default,
     )))
@@ -85,7 +90,7 @@ class UnsafeSuite extends HailSuite {
       assert(requestedType.typeCheck(a2))
 
       BufferSpec.specs.foreach { bufferSpec =>
-        val codec = TypedCodecSpec(pt, bufferSpec)
+        val codec = TypedCodecSpec(ctx, pt, bufferSpec)
         region.clear()
         val offset = pt.unstagedStoreJavaObject(sm, a, region)
 
@@ -110,7 +115,7 @@ class UnsafeSuite extends HailSuite {
         assert(requestedType.typeCheck(ur3))
         assert(requestedType.valuesSimilar(a2, ur3))
 
-        val codec2 = TypedCodecSpec(PType.canonical(requestedType), bufferSpec)
+        val codec2 = TypedCodecSpec(ctx, PType.canonical(requestedType), bufferSpec)
         val aos2 = new ByteArrayOutputStream()
         val en2 = codec2.buildEncoder(ctx, pt)(aos2, theHailClassLoader)
         en2.writeRegionValue(offset)
@@ -151,7 +156,7 @@ class UnsafeSuite extends HailSuite {
       pool.scopedRegion { region =>
         val off = ScalaToRegionValue(sm, region, t, v)
         BufferSpec.specs.foreach { spec =>
-          val cs2 = TypedCodecSpec(t, spec)
+          val cs2 = TypedCodecSpec(ctx, t, spec)
           val baos = new ByteArrayOutputStream()
           val enc = cs2.buildEncoder(ctx, t)(baos, theHailClassLoader)
           enc.writeRegionValue(off)

@@ -52,7 +52,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   type Node = Value[Long]
 
   val bufferType = PCanonicalArray(elemType, required = true)
-  val bufferEType = EArray(EType.defaultFromPType(elemType), required = true)
+  val bufferEType = EArray(EType.defaultFromPType(kb.ctx, elemType), required = true)
 
   val nodeType = PCanonicalStruct(
     "buf" -> bufferType,

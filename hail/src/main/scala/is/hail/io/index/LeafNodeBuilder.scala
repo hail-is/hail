@@ -92,7 +92,8 @@ class StagedLeafNodeBuilder(
   }
 
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
-    val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
+    val enc =
+      EType.defaultFromPType(cb.emb.ctx, pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
     enc(cb, node, ob)
   }

@@ -141,7 +141,7 @@ class DictState(
 
   val root: Settable[Long] = kb.genFieldThisRef[Long]("grouped_agg_root")
   val size: Settable[Int] = kb.genFieldThisRef[Int]("grouped_agg_size")
-  val keyEType = EType.defaultFromPType(keyType)
+  val keyEType = EType.defaultFromPType(kb.ctx, keyType)
 
   val typ: PStruct = PCanonicalStruct(
     required = true,

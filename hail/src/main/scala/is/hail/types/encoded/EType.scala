@@ -300,12 +300,12 @@ object EType {
     }
   }
 
-  def defaultFromPType(pt: PType): EType = {
+  def defaultFromPType(ctx: ExecuteContext, pt: PType): EType = {
     val r = VirtualTypeWithReq(pt)
-    fromTypeAndAnalysis(r.t, r.r)
+    fromTypeAndAnalysis(ctx, r.t, r.r)
   }
 
-  def fromTypeAndAnalysis(t: Type, r: TypeWithRequiredness): EType = t match {
+  def fromTypeAndAnalysis(ctx: ExecuteContext, t: Type, r: TypeWithRequiredness): EType = t match {
     case TInt32 => EInt32(r.required)
     case TInt64 => EInt64(r.required)
     case TFloat32 => EFloat32(r.required)
@@ -327,15 +327,15 @@ object EType {
       val rinterval = r.asInstanceOf[RInterval]
       EBaseStruct(
         Array(
-          EField("start", fromTypeAndAnalysis(t.pointType, rinterval.startType), 0),
-          EField("end", fromTypeAndAnalysis(t.pointType, rinterval.endType), 1),
+          EField("start", fromTypeAndAnalysis(ctx, t.pointType, rinterval.startType), 0),
+          EField("end", fromTypeAndAnalysis(ctx, t.pointType, rinterval.endType), 1),
           EField("includesStart", EBoolean(true), 2),
           EField("includesEnd", EBoolean(true), 3),
         ),
         required = rinterval.required,
       )
     case t: TIterable =>
-      EArray(fromTypeAndAnalysis(t.elementType, tcoerce[RIterable](r).elementType), r.required)
+      EArray(fromTypeAndAnalysis(ctx, t.elementType, tcoerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
       val rstruct = tcoerce[RBaseStruct](r)
       assert(t.size == rstruct.size, s"different number of fields: $t $r")
@@ -344,14 +344,14 @@ object EType {
           val f = rstruct.fields(i)
           if (f.index != i)
             throw new AssertionError(s"$t [$i]")
-          EField(f.name, fromTypeAndAnalysis(t.fields(i).typ, f.typ), f.index)
+          EField(f.name, fromTypeAndAnalysis(ctx, t.fields(i).typ, f.typ), f.index)
         },
         required = r.required,
       )
     case t: TNDArray =>
       val rndarray = r.asInstanceOf[RNDArray]
       ENDArrayColumnMajor(
-        fromTypeAndAnalysis(t.elementType, rndarray.elementType),
+        fromTypeAndAnalysis(ctx, t.elementType, rndarray.elementType),
         t.nDims,
         rndarray.required,
       )
