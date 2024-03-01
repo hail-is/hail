@@ -170,7 +170,7 @@ class RequirednessSuite extends HailSuite {
       "c" -> PCanonicalArray(pstruct(required, required, optional, required), required),
     )
 
-    val spec = TypedCodecSpec(pDisc, BufferSpec.default)
+    val spec = TypedCodecSpec(ctx, pDisc, BufferSpec.default)
     val vr = ETypeValueWriter(spec)
     val pr = PartitionNativeReader(spec, "rowUID")
     val contextType = pr.contextType

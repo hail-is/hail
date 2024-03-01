@@ -72,7 +72,7 @@ class StagedArrayBuilder(
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val codecSpec = TypedCodecSpec(eltArray, codec)
+    val codecSpec = TypedCodecSpec(kb.ctx, eltArray, codec)
     (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) => {
 
       cb += ob.writeInt(size)
@@ -84,7 +84,7 @@ class StagedArrayBuilder(
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val codecSpec = TypedCodecSpec(eltArray, codec)
+    val codecSpec = TypedCodecSpec(kb.ctx, eltArray, codec)
 
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) => {
       cb.assign(size, ib.readInt())

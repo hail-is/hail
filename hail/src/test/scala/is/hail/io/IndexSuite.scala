@@ -59,8 +59,8 @@ class IndexSuite extends HailSuite {
   def indexReader(file: String, annotationPType: PType, keyPType: PType): IndexReader = {
     val leafPType = LeafNodeBuilder.typ(keyPType, annotationPType)
     val intPType = InternalNodeBuilder.typ(keyPType, annotationPType)
-    val leafSpec = TypedCodecSpec(leafPType, BufferSpec.default)
-    val intSpec = TypedCodecSpec(intPType, BufferSpec.default)
+    val leafSpec = TypedCodecSpec(ctx, leafPType, BufferSpec.default)
+    val intSpec = TypedCodecSpec(ctx, intPType, BufferSpec.default)
 
     val (lrt, leafDec) = leafSpec.buildDecoder(ctx, leafPType.virtualType)
     assert(lrt == leafPType)
