@@ -1,6 +1,7 @@
 import itertools
 from typing import Iterable, Optional, Dict, Tuple, Any, List
 from collections import Counter
+from deprecated import deprecated
 import hail as hl
 from hail.expr.expressions import (
     Expression,
@@ -4411,13 +4412,40 @@ class MatrixTable(ExprContainer):
 
         return self.choose_cols(unique_cols)
 
+    @deprecated(version="0.2.129")
     @typecheck_method(separator=str)
     def make_table(self, separator='.') -> Table:
         """Make a table from a matrix table with one field per sample.
 
+        .. deprecated:: 0.2.129
+            use :meth:`.localize_entries` instead because it supports more
+            columns
+
+        Parameters
+        ----------
+        separator : :class:`str`
+            Separator between sample IDs and entry field names.
+
+        Returns
+        -------
+        :class:`.Table`
+
+        See Also
+        --------
+        :meth:`.localize_entries`
+
+        Notes
+        -----
+        The table has one row for each row of the input matrix.  The
+        per sample and entry fields are formed by concatenating the
+        sample ID with the entry field name using `separator`.  If the
+        entry field name is empty, the separator is omitted.
+
+        The table inherits the globals from the matrix table.
+
+
         Examples
         --------
-
         Consider a matrix table with the following schema:
 
         .. code-block:: text
@@ -4462,26 +4490,6 @@ class MatrixTable(ExprContainer):
           Key:
               'locus': locus<GRCh37>
               'alleles': array<str>
-
-        Notes
-        -----
-
-        The table has one row for each row of the input matrix.  The
-        per sample and entry fields are formed by concatenating the
-        sample ID with the entry field name using `separator`.  If the
-        entry field name is empty, the separator is omitted.
-
-        The table inherits the globals from the matrix table.
-
-        Parameters
-        ----------
-        separator : :class:`str`
-            Separator between sample IDs and entry field names.
-
-        Returns
-        -------
-        :class:`.Table`
-
         """
         if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
             raise ValueError("column key must be a single field of type str")
