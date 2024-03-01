@@ -15,25 +15,7 @@ from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 
 
-def _add_resource_to_set(resource_set, resource, include_rg=True):
-    rg: Optional[_resource.ResourceGroup]
-    if isinstance(resource, _resource.ResourceGroup):
-        rg = resource
-        if include_rg:
-            resource_set.add(resource)
-    else:
-        resource_set.add(resource)
-        if isinstance(resource, _resource.ResourceFile) and resource._has_resource_group():
-            rg = resource._get_resource_group()
-        else:
-            rg = None
-
-    if rg is not None:
-        for _, resource_file in rg._resources.items():
-            resource_set.add(resource_file)
-
-
-def opt_str(x):
+def opt_str(x: Optional[Any]) -> Optional[str]:
     if x is None:
         return x
     return str(x)
@@ -54,7 +36,7 @@ class Job:
     _regex_pattern = r"(?P<JOB>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
 
     @classmethod
-    def _new_uid(cls):
+    def _new_uid(cls) -> str:
         uid = cls._uid_prefix + str(cls._counter)
         cls._counter += 1
         return uid
@@ -95,16 +77,16 @@ class Job:
         self._uid = Job._new_uid()
         self._job_id: Optional[int] = None
 
-        self._inputs: Set[_resource.Resource] = set()
-        self._internal_outputs: Set[Union[_resource.ResourceFile, _resource.PythonResult]] = set()
-        self._external_outputs: Set[Union[_resource.ResourceFile, _resource.PythonResult]] = set()
+        self._inputs: Set[_resource.SingleResource] = set()
+        self._internal_outputs: Set[_resource.SingleResource] = set()
+        self._external_outputs: Set[_resource.SingleResource] = set()
         self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
         self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
         self._submitted: bool = False
         self._client_job: Optional[bc.Job] = None
 
-        def safe_str(s):
+        def safe_str(s: str) -> str:
             new_s = []
             for c in s:
                 if c.isalnum() or c == '-':
@@ -130,10 +112,10 @@ class Job:
         return self._get_resource(item)
 
     def _add_internal_outputs(self, resource: '_resource.Resource') -> None:
-        _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
+        self._internal_outputs.update(resource.bonded_resources())
 
     def _add_inputs(self, resource: '_resource.Resource') -> None:
-        _add_resource_to_set(self._inputs, resource, include_rg=False)
+        self._inputs.update(resource.bonded_resources())
 
     def depends_on(self, *jobs: 'Job') -> Self:
         """
@@ -451,7 +433,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, read_only=True) -> Self:
+    def gcsfuse(self, bucket: str, mount_point: str, read_only: bool = True) -> Self:
         """
         Add a bucket to mount with gcsfuse.
 
@@ -583,11 +565,11 @@ class Job:
         self._always_copy_output = always_copy_output
         return self
 
-    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
+    async def _compile(self, local_tmpdir: str, remote_tmpdir: str, *, dry_run: bool = False):
         raise NotImplementedError
 
-    def _interpolate_command(self, command, allow_python_results=False):
-        def handler(match_obj):
+    def _interpolate_command(self, command: str, allow_python_results: bool = False) -> str:
+        def handler(match_obj: re.Match[str]) -> str:
             groups = match_obj.groupdict()
 
             if groups['JOB']:
@@ -630,7 +612,9 @@ class Job:
                     self._dependencies.add(source)
                     source._add_internal_outputs(r)
             else:
-                _add_resource_to_set(self._valid, r)
+                self._valid.update(r.bonded_resources())
+                if group := r.get_resource_group():
+                    self._valid.add(group)
 
             self._mentioned.add(r)
             return '${BATCH_TMPDIR}' + shq(r._get_path(''))
@@ -647,7 +631,7 @@ class Job:
 
         return subst_command
 
-    def _pretty(self):
+    def _pretty(self) -> str:
         s = (
             f"Job '{self._uid}'"
             f"\tName:\t'{self.name}'"
@@ -660,7 +644,7 @@ class Job:
         )
         return s
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self._uid
 
 
@@ -751,7 +735,8 @@ class BashJob(Job):
                 raise BatchException(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
             rg = self._batch._new_resource_group(self, d, root=name)
             self._resources[name] = rg
-            _add_resource_to_set(self._valid, rg)
+            self._valid.add(rg)
+            self._valid.update(rg.component_resources())
         return self
 
     def image(self, image: str) -> 'BashJob':
@@ -894,7 +879,7 @@ source {code}
 
 
 UnpreparedArg = Union[
-    '_resource.ResourceType', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any
+    '_resource.Resource', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any
 ]
 
 PreparedArg = Union[
@@ -1156,7 +1141,9 @@ class PythonJob(Job):
                     self._dependencies.add(source)
                     source._add_internal_outputs(r)
             else:
-                _add_resource_to_set(self._valid, r)
+                self._valid.update(r.bonded_resources())
+                if group := r.get_resource_group():
+                    self._valid.add(group)
 
             self._mentioned.add(r)
 
@@ -1183,7 +1170,7 @@ class PythonJob(Job):
 
         return result
 
-    async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
+    async def _compile(self, local_tmpdir: str, remote_tmpdir: str, *, dry_run: bool = False) -> bool:
         def preserialize(arg: UnpreparedArg) -> PreparedArg:
             if isinstance(arg, _resource.PythonResult):
                 return ('py_path', arg._get_path(local_tmpdir))
