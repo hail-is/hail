@@ -1,0 +1,101 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: global-config
+data:
+  cloud: "azure"
+  default_namespace: "default"
+  docker_prefix: "us-docker.pkg.dev/hail-vdc/terra-dev-public"
+  docker_root_image: "ubuntu:22.04"
+  batch_logs_storage_uri: "{{ .Values.persistence.workspaceManager.storageContainerUrl }}/{{ .Values.persistence.leoAppName }}/hailbatch/logs"
+  query_storage_uri: "{{ .Values.persistence.workspaceManager.storageContainerUrl }}/{{ .Values.persistence.leoAppName }}/hailbatch/query"
+  internal_ip: "dummy"
+  azure_subscription_id: "dummy"
+  azure_resource_group: "dummy"
+  azure_location: "eastus"
+  kubernetes_server_url: "dummy"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: session-secret-key
+data:
+  session-secret-key: "somesupersecretsessionkey======="
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deploy-config
+data:
+  deploy-config.json: |
+    { "default_namespace": "default", "location": "k8s", "domain": "{{ .Values.relay.domain }}", "subpath": "{{ .Values.relay.subpath }}" }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: batch-load-balancer-config
+data:
+  envoy.yaml: |
+    static_resources:
+      listeners:
+      - address:
+          socket_address:
+            address: 0.0.0.0
+            port_value: 8080
+        filter_chains:
+        - filters:
+          - name: envoy.filters.network.http_connection_manager
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+              codec_type: AUTO
+              stat_prefix: ingress_http
+              route_config:
+                name: local_route
+                virtual_hosts:
+                  - name: batch
+                    domains: ["*"]
+                    routes:
+                      - match:
+                          path_separated_prefix: "{{ .Values.relay.subpath }}/batch"
+                        route:
+                          timeout: 0s
+                          cluster: batch
+                      - match:
+                          path_separated_prefix: "{{ .Values.relay.subpath }}/batch-driver"
+                        route:
+                          timeout: 0s
+                          cluster: batch-driver
+              http_filters:
+                - name: envoy.filters.http.router
+                  typed_config:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      clusters:
+      - name: batch
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: batch
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: 127.0.0.1
+                    port_value: 5001
+      - name: batch-driver
+        type: STRICT_DNS
+        lb_policy: ROUND_ROBIN
+        load_assignment:
+          cluster_name: batch-driver
+          endpoints:
+          - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: 127.0.0.1
+                    port_value: 5000
+    admin:
+      address:
+        socket_address:
+          address: 127.0.0.1
+          port_value: 8001

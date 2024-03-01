@@ -29,12 +29,12 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
 
 from gear import (
-    AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
     Transaction,
     UserData,
     check_csrf_token,
+    get_authenticator,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -57,7 +57,6 @@ from hailtop.batch_client.types import (
 )
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
     cost_str,
     dump_all_stacktraces,
@@ -132,7 +131,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthServiceAuthenticator()
+auth = get_authenticator()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -1254,24 +1253,24 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         spec['secrets'] = secrets
 
-        secrets.append({
-            'namespace': DEFAULT_NAMESPACE,
-            'name': userdata['hail_credentials_secret_name'],
-            'mount_path': '/gsa-key',
-            'mount_in_copy': True,
-        })
-
         env = spec.get('env')
         if not env:
             env = []
             spec['env'] = env
         assert isinstance(spec['env'], list)
 
-        if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-            spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+        if not os.environ.get('HAIL_TERRA'):
+            secrets.append({
+                'namespace': DEFAULT_NAMESPACE,
+                'name': userdata['hail_credentials_secret_name'],
+                'mount_path': '/gsa-key',
+                'mount_in_copy': True,
+            })
+            if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
-        if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-            spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+            if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
         cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
         if cloudfuse:
@@ -1284,6 +1283,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                     )
 
         if spec.get('mount_tokens', False):
+            # Clients stopped using `mount_tokens` prior to the introduction of terra deployments
+            assert not os.environ.get('HAIL_TERRA', False)
             secrets.append({
                 'namespace': DEFAULT_NAMESPACE,
                 'name': userdata['tokens_secret_name'],
@@ -3440,5 +3441,5 @@ def run():
         host='0.0.0.0',
         port=int(os.environ['PORT']),
         access_log_class=BatchFrontEndAccessLogger,
-        ssl_context=internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

@@ -3,6 +3,7 @@ import asyncio
 from contextlib import AsyncExitStack
 
 from ..aiocloud import aioaws, aioazure, aiogoogle
+from ..aiocloud.aioterra import azure as aioterra_azure
 from .fs import AsyncFS, MultiPartCreate, FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFSURL
 from .local_fs import LocalAsyncFS
 
@@ -13,6 +14,7 @@ class RouterAsyncFS(AsyncFS):
     FS_CLASSES: ClassVar[List[type[AsyncFS]]] = [
         LocalAsyncFS,
         aiogoogle.GoogleStorageAsyncFS,
+        aioterra_azure.TerraAzureAsyncFS,  # Must precede Azure since Terra URLs are also valid Azure URLs
         aioazure.AzureAsyncFS,
         aioaws.S3AsyncFS,
     ]
@@ -28,6 +30,7 @@ class RouterAsyncFS(AsyncFS):
     ):
         self._local_fs: Optional[LocalAsyncFS] = None
         self._google_fs: Optional[aiogoogle.GoogleStorageAsyncFS] = None
+        self._terra_azure_fs: Optional[aioterra_azure.TerraAzureAsyncFS] = None
         self._azure_fs: Optional[aioazure.AzureAsyncFS] = None
         self._s3_fs: Optional[aioaws.S3AsyncFS] = None
         self._exit_stack = AsyncExitStack()
@@ -68,6 +71,7 @@ class RouterAsyncFS(AsyncFS):
         return (
             LocalAsyncFS.valid_url(url)
             or aiogoogle.GoogleStorageAsyncFS.valid_url(url)
+            or aioterra_azure.TerraAzureAsyncFS.valid_url(url)
             or aioazure.AzureAsyncFS.valid_url(url)
             or aioaws.S3AsyncFS.valid_url(url)
         )
@@ -85,6 +89,11 @@ class RouterAsyncFS(AsyncFS):
                 )
                 self._exit_stack.push_async_callback(self._google_fs.close)
             return self._google_fs
+        if aioterra_azure.TerraAzureAsyncFS.enabled() and aioterra_azure.TerraAzureAsyncFS.valid_url(url):
+            if self._terra_azure_fs is None:
+                self._terra_azure_fs = aioterra_azure.TerraAzureAsyncFS(**self._azure_kwargs)
+                self._exit_stack.push_async_callback(self._terra_azure_fs.close)
+            return self._terra_azure_fs
         if aioazure.AzureAsyncFS.valid_url(url):
             if self._azure_fs is None:
                 self._azure_fs = aioazure.AzureAsyncFS(**self._azure_kwargs)

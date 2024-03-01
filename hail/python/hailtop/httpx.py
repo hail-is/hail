@@ -6,7 +6,6 @@ import aiohttp
 import aiohttp.abc
 import aiohttp.typedefs
 
-from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
 from .config import ConfigVariable, configuration_of
 
@@ -90,16 +89,7 @@ class ClientSession:
         timeout: Union[aiohttp.ClientTimeout, float, int, None] = None,
         **kwargs,
     ):
-        location = get_deploy_config().location()
-        if location == 'external':
-            tls = external_client_ssl_context()
-        elif location == 'k8s':
-            tls = internal_client_ssl_context()
-        else:
-            assert location in ('gce', 'azure')
-            # no encryption on the internal gateway
-            tls = external_client_ssl_context()
-
+        tls = get_deploy_config().client_ssl_context()
         assert 'connector' not in kwargs
 
         configuration_of_timeout = configuration_of(ConfigVariable.HTTP_TIMEOUT_IN_SECONDS, timeout, 5)
