@@ -22,7 +22,7 @@ usage: $(basename "$0")
         HAIL_GENETICS_HAILTOP_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:deploy-123abc
         HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch37-85:deploy-123abc
         HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch38-95:deploy-123abc
-        WHEEL_FOR_AZURE=/path/to/wheel/for/azure
+        AZURE_WHEEL=/path/to/wheel/for/azure
         WEBSITE_TAR=/path/to/www.tar.gz
         $(basename "$0")
 EOF
@@ -37,7 +37,7 @@ retry() {
 arguments="HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE \
            HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAIL_IMAGE_PY_3_10 \
            HAIL_GENETICS_HAIL_IMAGE_PY_3_11 HAIL_GENETICS_HAILTOP_IMAGE \
-           HAIL_GENETICS_VEP_GRCH37_85_IMAGE HAIL_GENETICS_VEP_GRCH38_95_IMAGE WHEEL_FOR_AZURE \
+           HAIL_GENETICS_VEP_GRCH37_85_IMAGE HAIL_GENETICS_VEP_GRCH38_95_IMAGE AZURE_WHEEL \
            WEBSITE_TAR"
 
 for varname in $arguments
@@ -136,9 +136,9 @@ retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/
 twine upload $WHEEL
 
 # deploy wheel for Azure HDInsight
-wheel_for_azure_url=gs://hail-common/azure-hdinsight-wheels/$(basename $WHEEL_FOR_AZURE)
-gcloud storage cp $WHEEL_FOR_AZURE $wheel_for_azure_url
-gcloud storage objects update $wheel_for_azure_url --temporary-hold
+azure_wheel_url=gs://hail-common/azure-hdinsight-wheels/$(basename $AZURE_WHEEL)
+gcloud storage cp $AZURE_WHEEL $azure_wheel_url
+gcloud storage objects update $azure_wheel_url --temporary-hold
 
 # deploy datasets (annotation db) json
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
