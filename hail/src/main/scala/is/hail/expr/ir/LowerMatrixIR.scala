@@ -107,7 +107,11 @@ object LowerMatrixIR {
   ): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
-        RelationalLetTable(name, lower(ctx, value, liftedRelationalLets), lower(ctx, body, liftedRelationalLets))
+        RelationalLetTable(
+          name,
+          lower(ctx, value, liftedRelationalLets),
+          lower(ctx, body, liftedRelationalLets),
+        )
 
       case CastTableToMatrix(child, entries, cols, _) =>
         val lc = lower(ctx, child, liftedRelationalLets)
@@ -194,9 +198,18 @@ object LowerMatrixIR {
       case MatrixAnnotateRowsTable(child, table, root, product) =>
         val kt = table.typ.keyType
         if (kt.size == 1 && kt.types(0) == TInterval(child.typ.rowKeyStruct.types(0)))
-          TableIntervalJoin(lower(ctx, child, liftedRelationalLets), lower(ctx, table, liftedRelationalLets), root, product)
+          TableIntervalJoin(
+            lower(ctx, child, liftedRelationalLets),
+            lower(ctx, table, liftedRelationalLets),
+            root,
+            product,
+          )
         else
-          TableLeftJoinRightDistinct(lower(ctx, child, liftedRelationalLets), lower(ctx, table, liftedRelationalLets), root)
+          TableLeftJoinRightDistinct(
+            lower(ctx, child, liftedRelationalLets),
+            lower(ctx, table, liftedRelationalLets),
+            root,
+          )
 
       case MatrixChooseCols(child, oldIndices) =>
         lower(ctx, child, liftedRelationalLets)
@@ -305,7 +318,7 @@ object LowerMatrixIR {
                 Let(aggs.map { case (name, _) => name -> GetField(eltUID, name) }, liftedBody)
               })
 
-            case Let(bindings, body) =>
+            case Block(bindings, body) =>
               val newBindings = new BoxedArrayBuilder[Binding]
               def go(i: Int, builder: BoxedArrayBuilder[(String, IR)]): IR = {
                 if (i == bindings.length) {
@@ -317,7 +330,10 @@ object LowerMatrixIR {
                     val aggs = ab.result()
                     val structResult = MakeStruct(aggs)
                     val uid = genUID()
-                    builder += (uid -> Let.withAgg(FastSeq(Binding(name, value, Scope.EVAL)), structResult))
+                    builder += (uid -> Block(
+                      FastSeq(Binding(name, value, Scope.EVAL)),
+                      structResult,
+                    ))
                     newBindings ++= aggs.map { case (name, _) =>
                       Binding(name, GetField(Ref(uid, structResult.typ), name), Scope.EVAL)
                     }
@@ -328,7 +344,7 @@ object LowerMatrixIR {
                 }
               }
               val newBody = go(0, builder)
-              Let.withAgg(newBindings.result(), newBody)
+              Block(newBindings.result(), newBody)
 
             case _ =>
               MapIR(lift(_, builder))(ir)
@@ -353,7 +369,9 @@ object LowerMatrixIR {
 
           letDyn(
             ((scanResultRef.name, irToProxy(scanStruct))
-              +: scans.map { case (name, _) => name -> irToProxy(GetField(scanResultRef, name))}): _*
+              +: scans.map { case (name, _) =>
+                name -> irToProxy(GetField(scanResultRef, name))
+              }): _*
           )(b1)
         }
 
@@ -458,34 +476,43 @@ object LowerMatrixIR {
               Let(aggs.map { case (name, _) => name -> GetField(eltUID, name) }, liftedBody)
             })
 
-          case Let(bindings, body) =>
-            val newBindings = new BoxedArrayBuilder[Binding]
-            def go(i: Int, scanBindings: BoxedArrayBuilder[(String, IR)], aggBindings: BoxedArrayBuilder[(String, IR)]): IR = {
+          case Block(bindings, body) =>
+            var newBindings = Seq[Binding]()
+            def go(
+              i: Int,
+              scanBindings: BoxedArrayBuilder[(String, IR)],
+              aggBindings: BoxedArrayBuilder[(String, IR)],
+            ): IR = {
               if (i == bindings.length) {
                 lift(body, scanBindings, aggBindings)
               } else bindings(i) match {
                 case Binding(name, value, Scope.EVAL) =>
-                  newBindings += Binding(name, lift(value, scanBindings, aggBindings), Scope.EVAL)
-                  go(i + 1, scanBindings, aggBindings)
+                  val lifted = lift(value, scanBindings, aggBindings)
+                  val liftedBody = go(i + 1, scanBindings, aggBindings)
+                  newBindings = Binding(name, lifted, Scope.EVAL) +: newBindings
+                  liftedBody
                 case Binding(name, value, scope) =>
                   val ab = new BoxedArrayBuilder[(String, IR)]
-                  val (liftedBody, builder) =
-                    if (scope == Scope.SCAN) (go(i + 1, ab, aggBindings), scanBindings)
-                    else (go(i + 1, scanBindings, ab), aggBindings)
+                  val liftedBody = if (scope == Scope.SCAN)
+                    go(i + 1, ab, aggBindings)
+                  else
+                    go(i + 1, scanBindings, ab)
+
+                  val builder = if (scope == Scope.SCAN) scanBindings else aggBindings
 
                   val aggs = ab.result()
                   val structResult = MakeStruct(aggs)
 
                   val uid = genUID()
-                  builder += (uid -> Let.withAgg(FastSeq(Binding(name, value, scope)), structResult))
-                  newBindings ++= aggs.map { case (name, _) =>
+                  builder += (uid -> Block(FastSeq(Binding(name, value, scope)), structResult))
+                  newBindings = aggs.map { case (name, _) =>
                     Binding(name, GetField(Ref(uid, structResult.typ), name), Scope.EVAL)
-                  }
+                  } ++ newBindings
                   liftedBody
               }
             }
             val newBody = go(0, scanBindings, aggBindings)
-            Let.withAgg(newBindings.result(), newBody)
+            Block(newBindings.toFastSeq, newBody)
 
           case x: StreamAgg => x
           case x: StreamAggScan => x
@@ -816,7 +843,8 @@ object LowerMatrixIR {
               })
             .dropFields('newColIdx))
 
-      case MatrixExplodeRows(child, path) => TableExplode(lower(ctx, child, liftedRelationalLets), path)
+      case MatrixExplodeRows(child, path) =>
+        TableExplode(lower(ctx, child, liftedRelationalLets), path)
 
       case mr: MatrixRead => mr.lower()
 
@@ -836,7 +864,8 @@ object LowerMatrixIR {
         )
         val e2 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
         val ceSub = subst(lower(ctx, colExpr, liftedRelationalLets), BindingEnv(e2, agg = Some(e1)))
-        val eeSub = subst(lower(ctx, entryExpr, liftedRelationalLets), BindingEnv(e1, agg = Some(e1)))
+        val eeSub =
+          subst(lower(ctx, entryExpr, liftedRelationalLets), BindingEnv(e1, agg = Some(e1)))
 
         lower(ctx, child, liftedRelationalLets)
           .mapGlobals('global.insertFields(keyMap ->

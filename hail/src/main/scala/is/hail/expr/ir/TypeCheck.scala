@@ -14,7 +14,7 @@ object TypeCheck {
     try
       check(ctx, ir, BindingEnv.empty).run()
     catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir)}", e)
+      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true)}", e)
     }
 
   def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit =
@@ -39,7 +39,7 @@ object TypeCheck {
 
   private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type])
     : Unit = ir match {
-    case l: Let if i == l.bindings.length || l.body.typ == TVoid =>
+    case l: Block if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
     case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
@@ -93,7 +93,7 @@ object TypeCheck {
       case Switch(x, default, cases) =>
         assert(x.typ == TInt32)
         assert(cases.forall(_.typ == default.typ))
-      case x @ Let(_, body) =>
+      case x @ Block(_, body) =>
         assert(x.typ == body.typ)
       case x @ Ref(name, _) =>
         env.eval.lookupOption(name) match {

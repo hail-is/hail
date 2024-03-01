@@ -327,7 +327,7 @@ class Let(IR):
         return Let(self.name, value, body)
 
     def head_str(self):
-        return escape_id(self.name)
+        return f'eval {escape_id(self.name)}'
 
     @property
     def bound_variables(self):

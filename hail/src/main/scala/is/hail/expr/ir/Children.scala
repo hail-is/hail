@@ -34,7 +34,7 @@ object Children {
       children(1) = default
       for (i <- cases.indices) children(2 + i) = cases(i)
       children
-    case Let(bindings, body) =>
+    case Block(bindings, body) =>
       val children = Array.ofDim[BaseIR](x.size)
       for (i <- bindings.indices) children(i) = bindings(i).value
       children(bindings.size) = body

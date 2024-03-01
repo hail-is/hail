@@ -15,11 +15,12 @@ object Bindings {
   // A call to Bindings(x, i) may only query the types of children with
   // index < i
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
-    case Let(bindings, _) =>
+    case Block(bindings, _) =>
       val result = Array.newBuilder[(String, Type)]
       result.sizeHint(i)
+      val scope = if (i < bindings.length) bindings(i).scope else Scope.EVAL
       for (k <- 0 until i) bindings(k) match {
-        case Binding(name, body, Scope.EVAL) =>
+        case Binding(name, body, `scope`) =>
           result += name -> body.typ
         case _ =>
       }
@@ -158,7 +159,7 @@ object AggBindings {
     def base: Option[Iterable[(String, Type)]] = parent.agg.map(_ => FastSeq())
 
     x match {
-      case Let(bindings, _) =>
+      case Block(bindings, _) =>
         if (i == bindings.length || bindings(i).scope == Scope.EVAL) {
           val builder = Array.newBuilder[(String, Type)]
           for (k <- 0 until i) bindings(k) match {
@@ -225,7 +226,7 @@ object ScanBindings {
     def base: Option[Iterable[(String, Type)]] = parent.scan.map(_ => FastSeq())
 
     x match {
-      case Let(bindings, _) =>
+      case Block(bindings, _) =>
         if (i == bindings.length || bindings(i).scope == Scope.EVAL) {
           val builder = Array.newBuilder[(String, Type)]
           for (k <- 0 until i) bindings(k) match {
