@@ -264,6 +264,10 @@ class ResourceGroup(Resource):
             )
         return self._resources[item]
 
+    def __iter__(self):
+        # TODO Iteration over the group's resources could perhaps be useful to implement
+        raise TypeError(f'{type(self).__name__!r} object is not iterable')
+
     def __getitem__(self, item: str) -> ResourceFile:
         return self._get_resource(item)
 

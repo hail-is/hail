@@ -123,6 +123,9 @@ class Job:
 
         return self._resources[item]
 
+    def __iter__(self):
+        raise TypeError(f'{type(self).__name__!r} object is not iterable')
+
     def __getitem__(self, item: str) -> '_resource.Resource':
         return self._get_resource(item)
 
