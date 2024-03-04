@@ -344,8 +344,12 @@ object IndexSpec {
   def emptyAnnotation(ctx: ExecuteContext, relPath: String, keyType: PStruct): AbstractIndexSpec =
     fromKeyAndValuePTypes(ctx, relPath, keyType, PCanonicalStruct(required = true), None)
 
-  def defaultAnnotation(ctx: ExecuteContext, relPath: String, keyType: PStruct, withOffsetField: Boolean = false)
-    : AbstractIndexSpec = {
+  def defaultAnnotation(
+    ctx: ExecuteContext,
+    relPath: String,
+    keyType: PStruct,
+    withOffsetField: Boolean = false,
+  ): AbstractIndexSpec = {
     val name = "entries_offset"
     fromKeyAndValuePTypes(
       ctx,
