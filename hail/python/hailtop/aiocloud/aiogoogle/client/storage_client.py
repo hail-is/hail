@@ -639,7 +639,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
 
-    async def check_hot_storage(self, uri: str) -> None:
+    async def is_hot_storage(self, uri: str) -> bool:
         """
         See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
         classes.
@@ -653,16 +653,31 @@ class GoogleStorageAsyncFS(AsyncFS):
         is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
         location = self.storage_location(uri)
-        if location not in self.allowed_storage_locations:
+
+        async def is_bucket_hot():
             try:
-                is_hot_storage = (await self._storage_client.bucket_info(location))[
-                    "storageClass"
-                ].lower() in hot_storage_classes
-            except aiohttp.ClientResponseError as e1:
-                try:
-                    is_hot_storage = (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-                except (aiohttp.ClientResponseError, FileNotFoundError) as e2:
-                    raise e1 from e2
+                return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
+            except aiohttp.ClientResponseError:
+                return False
+
+        async def is_object_hot():
+            try:
+                return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+            except (aiohttp.ClientResponseError, FileNotFoundError):
+                return False
+
+        async def is_dir_first_object_hot():
+            try:
+                files = await self.listfiles(uri, recursive=True)
+                next_file = await files.__anext__()
+                while await next_file.is_dir():
+                    next_file = await files.__anext__()
+                return await self.is_hot_storage(await next_file.url())
+            except (aiohttp.ClientResponseError, FileNotFoundError, StopAsyncIteration):
+                return False
+
+        if location not in self.allowed_storage_locations:
+            is_hot_storage = (await is_bucket_hot()) or (await is_object_hot()) or (await is_dir_first_object_hot())
             if not is_hot_storage:
                 raise ValueError(
                     dedent(f"""\
@@ -678,6 +693,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                         """)
                 )
             self.allowed_storage_locations.append(location)
+        return is_hot_storage
 
     @staticmethod
     def valid_url(url: str) -> bool:

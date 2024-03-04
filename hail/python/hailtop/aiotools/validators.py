@@ -32,4 +32,4 @@ async def _async_validate_file(
             )
     fs = await router_async_fs._get_fs(uri)
     if isinstance(fs, GoogleStorageAsyncFS):
-        await fs.check_hot_storage(uri)
+        await fs.is_hot_storage(uri)

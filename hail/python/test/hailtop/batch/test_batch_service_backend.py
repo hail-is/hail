@@ -8,7 +8,7 @@ from shlex import quote as shq
 from hailtop.batch import Batch, ServiceBackend, ResourceGroup
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
-from hailtop.utils import grouped
+from hailtop.utils import async_to_blocking, grouped
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.test_utils import skip_in_azure
 from hailtop.httpx import ClientResponseError
@@ -728,11 +728,12 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     # bucket exists and account has permissions, but is set to use cold storage by default
     cold_bucket = "hail-test-cold-storage"
     cold_error = "configured to use cold storage by default"
-    fake_uri1, fake_uri2, public_access_uri2, no_perms_uri, cold_uri = [
+    fake_uri1, fake_uri2, public_access_uri3, no_perms_uri, cold_uri = [
         f"gs://{bucket}/test"
         for bucket in [fake_bucket1, fake_bucket2, public_access_bucket, no_perms_bucket, cold_bucket]
     ]
-    public_access_uri1 = f"gs://{public_access_bucket}/references/human_g1k_v37.fasta.gz"
+    public_access_uri1 = f"gs://{public_access_bucket}/references"
+    public_access_uri2 = f"{public_access_uri1}/human_g1k_v37.fasta.gz"
     fs = RouterAsyncFS()
 
     def _test_raises(exception_type, exception_msg, func):
@@ -755,9 +756,10 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     _test_raises_no_bucket_error(fake_uri2)
 
     # no configuration, public access bucket doesn't error unless the object doesn't exist
-    _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri2, fs))
     validate_file(public_access_uri1, fs)
-    fs.close()
+    validate_file(public_access_uri2, fs)
+    _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri3, fs))
+    async_to_blocking(fs.close())
 
     # no configuration, no perms bucket errors
     _test_raises(ClientResponseError, no_perms_error, lambda: ServiceBackend(remote_tmpdir=no_perms_uri))
