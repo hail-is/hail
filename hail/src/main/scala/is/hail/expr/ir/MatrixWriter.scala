@@ -263,7 +263,12 @@ object MatrixNativeWriter {
 
         val rowsIndexSpec = IndexSpec.defaultAnnotation(ctx, "../../index", tcoerce[PStruct](pKey))
         val entriesIndexSpec =
-          IndexSpec.defaultAnnotation(ctx, "../../index", tcoerce[PStruct](pKey), withOffsetField = true)
+          IndexSpec.defaultAnnotation(
+            ctx,
+            "../../index",
+            tcoerce[PStruct](pKey),
+            withOffsetField = true,
+          )
 
         bindIR(writeCols) { colInfo =>
           bindIR(parts) { partInfo =>

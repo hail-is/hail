@@ -1,14 +1,14 @@
 package is.hail.types.encoded
 
-import is.hail.annotations.{UnsafeUtils, Region}
+import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.tcoerce
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
 
