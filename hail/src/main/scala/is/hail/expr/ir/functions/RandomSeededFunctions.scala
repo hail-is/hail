@@ -405,10 +405,7 @@ object RandomSeededFunctions extends RegistryFunctions {
         i < len, {
           cb.assign(
             s,
-            s + weights.loadElement(cb, i).get(
-              cb,
-              "rand_cat requires all elements of input array to be present",
-            ).asFloat64.value,
+            s + weights.loadElement(cb, i).getOrFatal(cb, "rand_cat requires all elements of input array to be present").asFloat64.value,
           )
           cb.assign(i, i + 1)
         },
@@ -419,10 +416,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       cb.loop { start =>
         cb.assign(
           elt,
-          weights.loadElement(cb, i).get(
-            cb,
-            "rand_cat requires all elements of input array to be present",
-          ).asFloat64.value,
+          weights.loadElement(cb, i).getOrFatal(cb, "rand_cat requires all elements of input array to be present").asFloat64.value,
         )
         cb.if_(
           r > elt && i < len, {
@@ -464,7 +458,7 @@ object RandomSeededFunctions extends RegistryFunctions {
           cb.assign(i, i + 1),
           cb.assign(
             totalNumberOfRecords,
-            totalNumberOfRecords + partitionCounts.loadElement(cb, i).get(cb).asInt32.value,
+            totalNumberOfRecords + partitionCounts.loadElement(cb, i).getOrAssert(cb).asInt32.value,
           ),
         )
 
@@ -500,12 +494,12 @@ object RandomSeededFunctions extends RegistryFunctions {
               "rhyper",
               successStatesRemaining.toD,
               failureStatesRemaining.toD,
-              partitionCounts.loadElement(cb, i).get(cb).asInt32.value.toD,
+              partitionCounts.loadElement(cb, i).getOrAssert(cb).asInt32.value.toD,
             ).toI)
             cb.assign(successStatesRemaining, successStatesRemaining - numSuccesses)
             cb.assign(
               failureStatesRemaining,
-              failureStatesRemaining - (partitionCounts.loadElement(cb, i).get(
+              failureStatesRemaining - (partitionCounts.loadElement(cb, i).getOrAssert(
                 cb
               ).asInt32.value - numSuccesses),
             )

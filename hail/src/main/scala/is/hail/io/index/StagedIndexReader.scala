@@ -128,14 +128,14 @@ class StagedIndexReader(
     )
 
     val rootChildren =
-      readInternalNode(cb, rootOffset).loadField(cb, "children").get(cb).asIndexable
-    val firstChild = rootChildren.loadElement(cb, 0).get(cb).asBaseStruct
-    val firstKey = firstChild.loadField(cb, "first_key").get(cb).asBaseStruct
+      readInternalNode(cb, rootOffset).loadField(cb, "children").getOrAssert(cb).asIndexable
+    val firstChild = rootChildren.loadElement(cb, 0).getOrAssert(cb).asBaseStruct
+    val firstKey = firstChild.loadField(cb, "first_key").getOrAssert(cb).asBaseStruct
     val compEndpointWithFirstKey =
       compareStructWithPartitionIntervalEndpoint(cb, firstKey, endpoint, leansRight)
     cb.if_(
       compEndpointWithFirstKey > 0, {
-        cb.assign(index, firstChild.loadField(cb, "first_idx").get(cb).asLong.value)
+        cb.assign(index, firstChild.loadField(cb, "first_idx").getOrAssert(cb).asLong.value)
         cb.assign(leaf, getFirstLeaf(cb, firstChild))
         cb.goto(LReturn)
       },
@@ -169,9 +169,9 @@ class StagedIndexReader(
     val startLeaf = cb.newSLocal(leafChildLocalType, "queryInterval_startOffset")
     val endIdx = cb.newLocal[Long]("queryInterval_endIdx")
 
-    val startKey = interval.loadStart(cb).get(cb).asBaseStruct
+    val startKey = interval.loadStart(cb).getOrAssert(cb).asBaseStruct
     val startLeansRight = cb.memoize(!interval.includesStart)
-    val endKey = interval.loadEnd(cb).get(cb).asBaseStruct
+    val endKey = interval.loadEnd(cb).getOrAssert(cb).asBaseStruct
     val endLeansRight = interval.includesEnd
 
     val LReturn = CodeLabel()
@@ -188,14 +188,14 @@ class StagedIndexReader(
     )
 
     val rootChildren =
-      readInternalNode(cb, rootOffset).loadField(cb, "children").get(cb).asIndexable
-    val firstChild = rootChildren.loadElement(cb, 0).get(cb).asBaseStruct
-    val firstKey = firstChild.loadField(cb, "first_key").get(cb).asBaseStruct
+      readInternalNode(cb, rootOffset).loadField(cb, "children").getOrAssert(cb).asIndexable
+    val firstChild = rootChildren.loadElement(cb, 0).getOrAssert(cb).asBaseStruct
+    val firstKey = firstChild.loadField(cb, "first_key").getOrAssert(cb).asBaseStruct
     val compStartWithFirstKey =
       compareStructWithPartitionIntervalEndpoint(cb, firstKey, startKey, startLeansRight)
     cb.if_(
       compStartWithFirstKey > 0, {
-        cb.assign(startIdx, firstChild.loadField(cb, "first_idx").get(cb).asLong.value)
+        cb.assign(startIdx, firstChild.loadField(cb, "first_idx").getOrAssert(cb).asLong.value)
         cb.assign(startLeaf, getFirstLeaf(cb, firstChild))
 
         val compEndWithFirstKey =
@@ -323,9 +323,9 @@ class StagedIndexReader(
     rootSuccessorLeaf: SValue,
     isPointQuery: Boolean,
   ): (Value[Long], SStackStructValue, Value[Long]) = {
-    val startKey = interval.loadStart(cb).get(cb).asBaseStruct
+    val startKey = interval.loadStart(cb).getOrAssert(cb).asBaseStruct
     val startLeansRight = cb.memoize(!interval.includesStart)
-    val endKey = interval.loadEnd(cb).get(cb).asBaseStruct
+    val endKey = interval.loadEnd(cb).getOrAssert(cb).asBaseStruct
     val endLeansRight = interval.includesEnd
 
     def searchChildren(children: SIndexableValue, isInternalNode: Boolean)
@@ -333,7 +333,7 @@ class StagedIndexReader(
       val keyFieldName = if (isInternalNode) "first_key" else "key"
       if (isPointQuery) {
         def ltNeedle(child: IEmitCode): Code[Boolean] = {
-          val key = child.get(cb).asBaseStruct.loadField(cb, keyFieldName).get(cb).asBaseStruct
+          val key = child.getOrAssert(cb).asBaseStruct.loadField(cb, keyFieldName).getOrAssert(cb).asBaseStruct
           val c = compareStructWithPartitionIntervalEndpoint(cb, key, startKey, startLeansRight)
           c < 0
         }
@@ -347,7 +347,7 @@ class StagedIndexReader(
           startLeansRight,
           endKey,
           endLeansRight,
-          _.get(cb).asBaseStruct.loadField(cb, keyFieldName),
+          _.getOrAssert(cb).asBaseStruct.loadField(cb, keyFieldName),
         )
       }
     }
@@ -376,8 +376,8 @@ class StagedIndexReader(
     def updateSuccessor(children: SIndexableValue, idx: Value[Int]): Unit =
       cb.if_(
         idx < children.loadLength(), {
-          val successorChild = children.loadElement(cb, idx).get(cb).asBaseStruct
-          cb.assign(successorIndex, successorChild.loadField(cb, "first_idx").get(cb).asLong.value)
+          val successorChild = children.loadElement(cb, idx).getOrAssert(cb).asBaseStruct
+          cb.assign(successorIndex, successorChild.loadField(cb, "first_idx").getOrAssert(cb).asLong.value)
           cb.assign(successorLeaf, getFirstLeaf(cb, successorChild))
         },
       )
@@ -388,7 +388,7 @@ class StagedIndexReader(
          * Long, first_idx: Long, first_key: Annotation, first_record_offset: Long,
          * first_annotation: Annotation) */
         val children =
-          readInternalNode(cb, nodeOffset).loadField(cb, "children").get(cb).asIndexable
+          readInternalNode(cb, nodeOffset).loadField(cb, "children").getOrAssert(cb).asIndexable
 
         val (start, end) = searchChildren(children, isInternalNode = true)
 
@@ -400,10 +400,10 @@ class StagedIndexReader(
             updateSuccessor(children, start)
             cb.assign(
               nodeOffset,
-              children.loadElement(cb, start - 1).get(cb).asBaseStruct.loadField(
+              children.loadElement(cb, start - 1).getOrAssert(cb).asBaseStruct.loadField(
                 cb,
                 "index_file_offset",
-              ).get(cb).asLong.value,
+              ).getOrAssert(cb).asLong.value,
             )
             cb.goto(Lstart)
           },
@@ -415,10 +415,10 @@ class StagedIndexReader(
         updateSuccessor(children, end)
         cb.assign(
           nodeOffset,
-          children.loadElement(cb, end - 1).get(cb).asBaseStruct.loadField(
+          children.loadElement(cb, end - 1).getOrAssert(cb).asBaseStruct.loadField(
             cb,
             "index_file_offset",
-          ).get(cb).asLong.value,
+          ).getOrAssert(cb).asLong.value,
         )
         queryBound(cb, endKey, endLeansRight, level, nodeOffset, successorIndex, successorLeaf)
         cb.assign(endIndex, queryResultStartIndex)
@@ -426,10 +426,10 @@ class StagedIndexReader(
         updateSuccessor(children, start)
         cb.assign(
           nodeOffset,
-          children.loadElement(cb, start - 1).get(cb).asBaseStruct.loadField(
+          children.loadElement(cb, start - 1).getOrAssert(cb).asBaseStruct.loadField(
             cb,
             "index_file_offset",
-          ).get(cb).asLong.value,
+          ).getOrAssert(cb).asLong.value,
         )
         queryBound(cb, startKey, startLeansRight, level, nodeOffset, successorIndex, successorLeaf)
         cb.assign(startIndex, queryResultStartIndex)
@@ -438,7 +438,7 @@ class StagedIndexReader(
         /* LeafNode( first_idx: Long, keys: IndexedSeq[LeafChild]) LeafChild( key: Annotation,
          * offset: Long, annotation: Annotation) */
         val node = readLeafNode(cb, nodeOffset).asBaseStruct
-        val children = node.asBaseStruct.loadField(cb, "keys").get(cb).asIndexable
+        val children = node.asBaseStruct.loadField(cb, "keys").getOrAssert(cb).asIndexable
 
         val (start, end) = searchChildren(children, isInternalNode = false)
 
@@ -449,7 +449,7 @@ class StagedIndexReader(
             cb.assign(startIndex, firstIndex + start.toL)
             cb.assign(
               startLeaf,
-              children.loadElement(cb, start).get(cb).asBaseStruct.toStackStruct(cb),
+              children.loadElement(cb, start).getOrAssert(cb).asBaseStruct.toStackStruct(cb),
             )
           }, {
             cb.if_(
@@ -471,9 +471,9 @@ class StagedIndexReader(
     new SStackStructValue(
       leafChildLocalType,
       Array(
-        EmitValue.present(internalChild.loadField(cb, "first_key").get(cb)),
-        EmitValue.present(internalChild.loadField(cb, "first_record_offset").get(cb)),
-        EmitValue.present(internalChild.loadField(cb, "first_annotation").get(cb)),
+        EmitValue.present(internalChild.loadField(cb, "first_key").getOrAssert(cb)),
+        EmitValue.present(internalChild.loadField(cb, "first_record_offset").getOrAssert(cb)),
+        EmitValue.present(internalChild.loadField(cb, "first_annotation").getOrAssert(cb)),
       ),
     )
 
@@ -594,19 +594,19 @@ class StagedIndexReader(
             level ceq 0, {
               val leafNode = readLeafNode(cb, offset)
               val localIdx = cb.memoize(
-                (absIndex - leafNode.loadField(cb, "first_idx").get(cb).asInt64.value.toL).toI
+                (absIndex - leafNode.loadField(cb, "first_idx").getOrAssert(cb).asInt64.value.toL).toI
               )
               cb.assign(
                 result,
-                leafNode.loadField(cb, "keys").get(cb).asIndexable.loadElement(cb, localIdx).get(cb),
+                leafNode.loadField(cb, "keys").getOrAssert(cb).asIndexable.loadElement(cb, localIdx).getOrAssert(cb),
               )
             }, {
               val internalNode = readInternalNode(cb, offset)
-              val children = internalNode.loadField(cb, "children").get(cb).asIndexable
-              val firstIdx = children.loadElement(cb, 0).get(cb).asBaseStruct.loadField(
+              val children = internalNode.loadField(cb, "children").getOrAssert(cb).asIndexable
+              val firstIdx = children.loadElement(cb, 0).getOrAssert(cb).asBaseStruct.loadField(
                 cb,
                 "first_idx",
-              ).get(cb).asInt64.value
+              ).getOrAssert(cb).asInt64.value
               val nKeysPerChild =
                 cb.memoize(Code.invokeStatic2[java.lang.Math, Double, Double, Double](
                   "pow",
@@ -617,10 +617,10 @@ class StagedIndexReader(
               cb.assign(level, level - 1)
               cb.assign(
                 offset,
-                children.loadElement(cb, localIdx.toI).get(cb).asBaseStruct.loadField(
+                children.loadElement(cb, localIdx.toI).getOrAssert(cb).asBaseStruct.loadField(
                   cb,
                   "index_file_offset",
-                ).get(cb).asInt64.value,
+                ).getOrAssert(cb).asInt64.value,
               )
               cb.goto(Lstart)
             },

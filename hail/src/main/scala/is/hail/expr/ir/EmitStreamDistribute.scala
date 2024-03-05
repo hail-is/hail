@@ -222,7 +222,7 @@ object EmitStreamDistribute {
               val elementLoaded = paddedSplitters.loadElement(
                 cb,
                 startingPoint + inner * (const(1) << (currentHeight + 1)),
-              ).get(cb)
+              ).getOrAssert(cb)
               keyPType.storeAtAddress(
                 cb,
                 treePType.loadElement(treeAddr, treeFillingIndex),
@@ -279,7 +279,7 @@ object EmitStreamDistribute {
             shouldUseIdentityBuckets, {
               cb.assign(
                 currentFileToMapTo,
-                currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).get(
+                currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).getOrAssert(
                   cb
                 ).asBoolean.value.toI,
               )
@@ -321,7 +321,7 @@ object EmitStreamDistribute {
       cb.assign(uniqueSplittersIdx, uniqueSplittersIdx + 1),
       cb.assign(
         numFilesToWrite,
-        numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(
+        numFilesToWrite + 1 + splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).getOrAssert(
           cb
         ).asBoolean.value.toI,
       ),
@@ -392,7 +392,7 @@ object EmitStreamDistribute {
       )
 
       val fileToUse =
-        cb.memoize[Int](fileMapping.loadElement(cb, b - numberOfBuckets).get(cb).asInt.value)
+        cb.memoize[Int](fileMapping.loadElement(cb, b - numberOfBuckets).getOrAssert(cb).asInt.value)
 
       val ob = cb.memoize[OutputBuffer](outputBuffers(fileToUse))
 
@@ -442,7 +442,7 @@ object EmitStreamDistribute {
       cb,
       min,
       firstSplitter,
-    ) && splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.value)
+    ) && splitterWasDuplicated.loadElement(cb, 0).getOrAssert(cb).asBoolean.value)
     val skipMaxInterval = cb.memoize(equal(cb, max, lastSplitter))
 
     val (pushElement, finisher) = returnType.constructFromFunctions(
@@ -470,7 +470,7 @@ object EmitStreamDistribute {
           min,
           firstSplitter,
           true,
-          cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).get(cb).asBoolean.value),
+          cb.memoize(!splitterWasDuplicated.loadElement(cb, 0).getOrAssert(cb).asBoolean.value),
         )
 
         pushElement(
@@ -504,7 +504,7 @@ object EmitStreamDistribute {
               EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
               false,
               cb.memoize(
-                !splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value
+                !splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).getOrAssert(cb).asBoolean.value
               ),
             )
 
@@ -530,7 +530,7 @@ object EmitStreamDistribute {
 
         // Now, maybe have to make an identity bucket.
         cb.if_(
-          splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).get(cb).asBoolean.value, {
+          splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).getOrAssert(cb).asBoolean.value, {
             val identityInterval = intervalType.constructFromCodes(
               cb,
               region,

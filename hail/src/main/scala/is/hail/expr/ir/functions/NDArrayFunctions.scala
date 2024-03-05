@@ -418,8 +418,8 @@ object NDArrayFunctions extends RegistryFunctions {
           cb.assign(row, 0L),
           row < nRows.get,
           cb.assign(row, row + 1L), {
-            val start = starts.loadElement(cb, row.toI).get(cb).asInt64.value
-            val stop = stops.loadElement(cb, row.toI).get(cb).asInt64.value
+            val start = starts.loadElement(cb, row.toI).getOrAssert(cb).asInt64.value
+            val stop = stops.loadElement(cb, row.toI).getOrAssert(cb).asInt64.value
             newBlock.slice(cb, row, (null, start)).coiterateMutate(cb, er.region) { _ =>
               primitive(0.0d)
             }
