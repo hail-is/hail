@@ -10,7 +10,9 @@ from hail.expr.expressions.typed_expressions import (
     NumericExpression,
     StructExpression,
 )
+from hail.genetics.allele_type import AlleleType
 from hail.methods.misc import require_first_key_field_locus
+from hail.methods.qc import _qc_allele_type
 from hail.table import Table
 from hail.typecheck import sequenceof, typecheck, nullable
 from hail.utils.java import Env
@@ -42,24 +44,8 @@ def vmt_sample_qc_variant_annotations(
         Tuple of expressions representing the AC (first element) and allele type
         (second element).
     """
-    from hail.expr.functions import _num_allele_type, _allele_types
 
-    allele_types = _allele_types[:]
-    allele_types.extend(['Transition', 'Transversion'])
-    allele_enum = dict(enumerate(allele_types))
-    allele_ints = {v: k for k, v in allele_enum.items()}
-
-    def allele_type(ref, alt):
-        return hl.bind(
-            lambda at: hl.if_else(
-                at == allele_ints['SNP'],
-                hl.if_else(hl.is_transition(ref, alt), allele_ints['Transition'], allele_ints['Transversion']),
-                at,
-            ),
-            _num_allele_type(ref, alt),
-        )
-
-    return (hl.agg.call_stats(global_gt, alleles).AC, alleles[1:].map(lambda alt: allele_type(alleles[0], alt)))
+    return (hl.agg.call_stats(global_gt, alleles).AC, alleles[1:].map(lambda alt: _qc_allele_type(alleles[0], alt)))
 
 
 @typecheck(
@@ -132,13 +118,6 @@ def vmt_sample_qc(
             }
 
     """
-    from hail.expr.functions import _allele_types
-
-    allele_types = _allele_types[:]
-    allele_types.extend(['Transition', 'Transversion'])
-    allele_enum = dict(enumerate(allele_types))
-    allele_ints = {v: k for k, v in allele_enum.items()}
-
     bound_exprs = {}
 
     bound_exprs['n_het'] = hl.agg.count_where(global_gt.is_het())
@@ -162,7 +141,7 @@ def vmt_sample_qc(
                         global_gt[i],
                         lambda gti: (gti != 0)
                         & (variant_ac[gti] == 1)
-                        & (variant_atypes[gti - 1] == allele_ints['Transition']),
+                        & (variant_atypes[gti - 1] == AlleleType.TRANSITION),
                     )
                 )
             ),
@@ -177,7 +156,7 @@ def vmt_sample_qc(
                         global_gt[i],
                         lambda gti: (gti != 0)
                         & (variant_ac[gti] == 1)
-                        & (variant_atypes[gti - 1] == allele_ints['Transversion']),
+                        & (variant_atypes[gti - 1] == AlleleType.TRANSVERSION),
                     )
                 )
             ),
@@ -185,7 +164,7 @@ def vmt_sample_qc(
     )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))),
+        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(AlleleType))),
         (
             hl.range(0, global_gt.ploidy)
             .map(lambda i: global_gt[i])
@@ -211,14 +190,12 @@ def vmt_sample_qc(
                 'n_singleton': x.n_singleton,
                 'n_singleton_ti': x.n_singleton_ti,
                 'n_singleton_tv': x.n_singleton_tv,
-                'n_snp': (
-                    x.allele_type_counts[allele_ints['Transition']] + x.allele_type_counts[allele_ints['Transversion']]
-                ),
-                'n_insertion': x.allele_type_counts[allele_ints['Insertion']],
-                'n_deletion': x.allele_type_counts[allele_ints['Deletion']],
-                'n_transition': x.allele_type_counts[allele_ints['Transition']],
-                'n_transversion': x.allele_type_counts[allele_ints['Transversion']],
-                'n_star': x.allele_type_counts[allele_ints['Star']],
+                'n_snp': x.allele_type_counts[AlleleType.TRANSITION] + x.allele_type_counts[AlleleType.TRANSVERSION],
+                'n_insertion': x.allele_type_counts[AlleleType.INSERTION],
+                'n_deletion': x.allele_type_counts[AlleleType.DELETION],
+                'n_transition': x.allele_type_counts[AlleleType.TRANSITION],
+                'n_transversion': x.allele_type_counts[AlleleType.TRANSVERSION],
+                'n_star': x.allele_type_counts[AlleleType.STAR],
             }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),

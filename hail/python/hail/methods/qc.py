@@ -15,8 +15,10 @@ from hailtop.config import get_deploy_config
 from hailtop import yamlx
 
 from hail.backend.service_backend import ServiceBackend
+from hail.genetics.allele_type import AlleleType
 from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
 from hail.expr.expressions.expression_typecheck import expr_float64
+from hail.expr.functions import numeric_allele_type
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_file
@@ -40,6 +42,17 @@ HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get(
 HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get(
     'HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep-grch38-95:{pip_version()}'
 )
+
+
+def _qc_allele_type(ref, alt):
+    return hl.bind(
+        lambda at: hl.if_else(
+            at == AlleleType.SNP,
+            hl.if_else(hl.is_transition(ref, alt), AlleleType.TRANSITION, AlleleType.TRANSVERSION),
+            at,
+        ),
+        numeric_allele_type(ref, alt),
+    )
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -115,28 +128,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     require_row_key_variant(mt, 'sample_qc')
 
-    from hail.expr.functions import _num_allele_type, _allele_types
-
-    allele_types = _allele_types[:]
-    allele_types.extend(['Transition', 'Transversion'])
-    allele_enum = {i: v for i, v in enumerate(allele_types)}
-    allele_ints = {v: k for k, v in allele_enum.items()}
-
-    def allele_type(ref, alt):
-        return hl.bind(
-            lambda at: hl.if_else(
-                at == allele_ints['SNP'],
-                hl.if_else(hl.is_transition(ref, alt), allele_ints['Transition'], allele_ints['Transversion']),
-                at,
-            ),
-            _num_allele_type(ref, alt),
-        )
-
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
     mt = mt.annotate_rows(**{
         variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
-        variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt)),
+        variant_atypes: mt.alleles[1:].map(lambda alt: _qc_allele_type(mt.alleles[0], alt)),
     })
 
     bound_exprs = {}
@@ -175,7 +171,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))),
+        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(AlleleType))),
         (
             hl.range(0, mt['GT'].ploidy)
             .map(lambda i: mt['GT'][i])
@@ -198,14 +194,12 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
                 'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
                 'n_non_ref': x.n_called - x.n_hom_ref,
                 'n_singleton': x.n_singleton,
-                'n_snp': (
-                    x.allele_type_counts[allele_ints["Transition"]] + x.allele_type_counts[allele_ints["Transversion"]]
-                ),
-                'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
-                'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
-                'n_transition': x.allele_type_counts[allele_ints["Transition"]],
-                'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
-                'n_star': x.allele_type_counts[allele_ints["Star"]],
+                'n_snp': x.allele_type_counts[AlleleType.TRANSITION] + x.allele_type_counts[AlleleType.TRANSVERSION],
+                'n_insertion': x.allele_type_counts[AlleleType.INSERTION],
+                'n_deletion': x.allele_type_counts[AlleleType.DELETION],
+                'n_transition': x.allele_type_counts[AlleleType.TRANSITION],
+                'n_transversion': x.allele_type_counts[AlleleType.TRANSVERSION],
+                'n_star': x.allele_type_counts[AlleleType.STAR],
             }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),

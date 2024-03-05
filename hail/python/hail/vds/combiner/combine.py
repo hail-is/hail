@@ -6,6 +6,8 @@ from hail import MatrixTable, Table
 from hail.experimental.function import Function
 from hail.expr import StructExpression, unify_all, construct_expr
 from hail.expr.expressions import expr_bool, expr_str
+from hail.expr.functions import numeric_allele_type
+from hail.genetics.allele_type import AlleleType
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows
 from hail.typecheck import oneof, sequenceof, typecheck
@@ -459,8 +461,6 @@ def unlocalize(mt):
 
 
 def merge_alleles(alleles):
-    from hail.expr.functions import _num_allele_type, _allele_ints
-
     return hl.rbind(
         alleles.map(lambda a: hl.or_else(a[0], '')).fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
         lambda ref: hl.rbind(
@@ -470,13 +470,13 @@ def merge_alleles(alleles):
                     lambda r: hl.array([ref]).extend(
                         al[1:].map(
                             lambda a: hl.rbind(
-                                _num_allele_type(r, a),
+                                numeric_allele_type(r, a),
                                 lambda at: hl.if_else(
-                                    (_allele_ints['SNP'] == at)
-                                    | (_allele_ints['Insertion'] == at)
-                                    | (_allele_ints['Deletion'] == at)
-                                    | (_allele_ints['MNP'] == at)
-                                    | (_allele_ints['Complex'] == at),
+                                    (at == AlleleType.SNP)
+                                    | (at == AlleleType.INSERTION)
+                                    | (at == AlleleType.DELETION)
+                                    | (at == AlleleType.MNP)
+                                    | (at == AlleleType.COMPLEX),
                                     a + ref[hl.len(r) :],
                                     a,
                                 ),
