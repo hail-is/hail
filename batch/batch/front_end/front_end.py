@@ -436,7 +436,6 @@ async def _get_job_resource_usage(app, batch_id: int, job_id: int) -> Optional[D
 async def _get_job_resource_usage_from_record(
     app, record, batch_id: int, job_id: int
 ) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
-
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
