@@ -406,7 +406,7 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     return KrylovFactorization(U, R, V, k)
 
 
-def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None):
+def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None, *, seed=None):
     # Set Parameters
     q = iterations
     if iteration_size is None:
@@ -417,7 +417,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
     n = A.ncols
 
     # Generate random matrix G
-    G = hl.rand_norm(0, 1, size=(n, L))
+    G = hl.rand_norm(0, 1, seed=seed, size=(n, L))
     G = hl.nd.qr(G)[0]._persist()
 
     fact = _krylov_factorization(A, G, q, compute_U)
@@ -539,6 +539,7 @@ def _pca_and_moments(
     block_size=int,
     compute_scores=bool,
     transpose=bool,
+    _seed=nullable(int),
     _unrelated_A=nullable(TallSkinnyMatrix),
 )
 def _blanczos_pca(
@@ -551,6 +552,7 @@ def _blanczos_pca(
     compute_scores=True,
     transpose=False,
     *,
+    _seed=None,
     _unrelated_A=None,
 ):
     r"""Run randomized principal component analysis approximation (PCA)
@@ -648,9 +650,9 @@ def _blanczos_pca(
 
     compute_U = (not transpose and compute_loadings) or (transpose and compute_scores)
     if _unrelated_A is not None:
-        U, S, V = _reduced_svd(_unrelated_A, k, compute_U, q_iterations, k + oversampling_param)
+        U, S, V = _reduced_svd(_unrelated_A, k, compute_U, q_iterations, k + oversampling_param, seed=_seed)
     else:
-        U, S, V = _reduced_svd(A, k, compute_U, q_iterations, k + oversampling_param)
+        U, S, V = _reduced_svd(A, k, compute_U, q_iterations, k + oversampling_param, seed=_seed)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
     def numpy_to_rows_table(X, field_name):
@@ -705,6 +707,7 @@ def _blanczos_pca(
     q_iterations=int,
     oversampling_param=nullable(int),
     block_size=int,
+    _seed=nullable(int),
     _partition_table=nullable(Table),
 )
 def _hwe_normalized_blanczos(
@@ -715,6 +718,7 @@ def _hwe_normalized_blanczos(
     oversampling_param=None,
     block_size=128,
     *,
+    _seed=None,
     _partition_table: Table = None,
 ):
     r"""Run randomized principal component analysis approximation (PCA) on the
@@ -773,5 +777,6 @@ def _hwe_normalized_blanczos(
         q_iterations=q_iterations,
         oversampling_param=oversampling_param,
         block_size=block_size,
+        _seed=_seed,
         _unrelated_A=_unrelated_A,
     )

@@ -9,7 +9,7 @@ from hail import (
     MatrixTable,
     expr_numeric,
 )
-from hail.typecheck import typecheck
+from hail.typecheck import typecheck, nullable
 
 
 @typecheck(genotypes=expr_call, relatedness_threshold=expr_numeric, divergence_threshold=expr_numeric)
@@ -132,12 +132,15 @@ def _partition_samples(
         samples.at[selected_sample, 'eta'] = 0
 
 
-@typecheck(genotypes=expr_call, relatedness_threshold=expr_numeric, divergence_threshold=expr_numeric)
+@typecheck(
+    genotypes=expr_call, relatedness_threshold=expr_numeric, divergence_threshold=expr_numeric, _seed=nullable(int)
+)
 def pc_air(
     genotypes: CallExpression,
     *,
     relatedness_threshold: Union[int, float, NumericExpression] = 0.025,
     divergence_threshold: Union[int, float, NumericExpression] = 0.025,
+    _seed=None,
 ):
     """
     Perform PC-AiR (principal components analysis in related samples) on the genotypes.
@@ -174,4 +177,4 @@ def pc_air(
         The principal component loadings.
     """
     partition_table = _partition_samples(genotypes, relatedness_threshold, divergence_threshold)
-    return hl._hwe_normalized_blanczos(genotypes, _partition_table=partition_table, compute_loadings=True)
+    return hl._hwe_normalized_blanczos(genotypes, _partition_table=partition_table, compute_loadings=True, _seed=_seed)

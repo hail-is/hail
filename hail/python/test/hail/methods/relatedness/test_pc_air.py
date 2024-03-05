@@ -47,12 +47,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(expected_related, related)
         self.assertEqual(expected_unrelated, unrelated)
 
+        pairs = hl.king(mt.GT).entries().to_pandas()
+
+        # Confirm that all pairs within the unrelated set are indeed unrelated
+        max_unrelated_phi = pairs[
+            (pairs['s'] != pairs['s_1']) & pairs['s'].isin(unrelated) & pairs['s_1'].isin(unrelated)
+        ]['phi'].max()
+        self.assertLess(max_unrelated_phi, 0.05)
+
     def test_pc_air(self):
         plink_path = resource('fastlmmTest')
         mt = hl.import_plink(
             bed=f'{plink_path}.bed', bim=f'{plink_path}.bim', fam=f'{plink_path}.fam', reference_genome=None
         )
-        eigenvalues, scores, loadings = hl.pc_air(mt.GT, relatedness_threshold=0.05)
+        eigenvalues, scores, loadings = hl.pc_air(mt.GT, relatedness_threshold=0.05, _seed=0)
         expected_eigenvalues = [
             28694.50283292,
             3436.72398636,
@@ -70,3 +78,19 @@ class Tests(unittest.TestCase):
         self.assertEqual(10, len(scores.scores.take(1)[0]))
         self.assertEqual(2000, loadings.count())
         self.assertEqual(10, len(loadings.loadings.take(1)[0]))
+
+        partition_table = _partition_samples(mt.GT, 0.05)
+        unrelated_table = partition_table.filter(partition_table.is_in_unrelated)
+        mt = mt.semi_join_cols(unrelated_table)
+        _, _, unrelated_loadings = hl._hwe_normalized_blanczos(mt.GT, compute_loadings=True, _seed=0)
+
+        # Confirm that the loadings are the same
+        loadings = np.array(loadings.loadings.collect())
+        unrelated_loadings = np.array(unrelated_loadings.loadings.collect())
+        self.assertTrue(np.allclose(loadings, unrelated_loadings))
+
+        # Read expected scores from file
+        expected_scores = hl.read_table(resource('pc-air-expected-scores.ht'))
+        expected_scores = np.array(expected_scores.scores.collect())
+        scores = np.array(scores.scores.collect())
+        self.assertTrue(np.allclose(expected_scores, scores))
