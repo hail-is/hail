@@ -265,7 +265,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
                 cb,
                 result.firstDataAddress + (loopCtr * elementType.byteSize),
                 region,
-                dataValue.loadElement(cb, loopCtr.toI).getOrFatal(cb, "NDArray elements cannot be missing"),
+                dataValue.loadElement(cb, loopCtr.toI).getOrFatal(
+                  cb,
+                  "NDArray elements cannot be missing",
+                ),
                 true,
               ),
             )
@@ -466,7 +469,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val a = cb.memoize(addr)
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(a, "shape"))
     val shape =
-      Array.tabulate(nDims)(i => SizeValueDyn(shapeTuple.loadField(cb, i).getOrAssert(cb).asLong.value))
+      Array.tabulate(nDims)(i =>
+        SizeValueDyn(shapeTuple.loadField(cb, i).getOrAssert(cb).asLong.value)
+      )
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(a, "strides"))
     val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).getOrAssert(cb).asLong.value)
     val firstDataAddress = cb.memoize(dataFirstElementPointer(a))

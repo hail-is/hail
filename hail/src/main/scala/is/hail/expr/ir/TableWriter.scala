@@ -503,14 +503,23 @@ case class TableSpecWriter(
     cb.while_(
       i < n, {
         val curElement =
-          a.loadElement(cb, i).getOrFatal(cb, "writeMetadata annotation can't be missing").asBaseStruct
-        val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").getOrFatal(cb, "part count can't be missing!").asLong.value
+          a.loadElement(cb, i).getOrFatal(
+            cb,
+            "writeMetadata annotation can't be missing",
+          ).asBaseStruct
+        val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").getOrFatal(
+          cb,
+          "part count can't be missing!",
+        ).asLong.value
 
         if (hasKey) {
           // Only nonempty partitions affect first, last, and distinctlyKeyed.
           cb.if_(
             count cne 0L, {
-              val curFirst = curElement.loadField(cb, "firstKey").getOrFatal(cb, const("firstKey of curElement can't be missing, part size was ") concat count.toS)
+              val curFirst = curElement.loadField(cb, "firstKey").getOrFatal(
+                cb,
+                const("firstKey of curElement can't be missing, part size was ") concat count.toS,
+              )
 
               val comparator = NEQ(lastSeenSettable.emitType.virtualType).codeOrdering(
                 cb.emb.ecb,

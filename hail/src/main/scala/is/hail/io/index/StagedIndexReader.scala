@@ -333,7 +333,9 @@ class StagedIndexReader(
       val keyFieldName = if (isInternalNode) "first_key" else "key"
       if (isPointQuery) {
         def ltNeedle(child: IEmitCode): Code[Boolean] = {
-          val key = child.getOrAssert(cb).asBaseStruct.loadField(cb, keyFieldName).getOrAssert(cb).asBaseStruct
+          val key = child.getOrAssert(cb).asBaseStruct.loadField(cb, keyFieldName).getOrAssert(
+            cb
+          ).asBaseStruct
           val c = compareStructWithPartitionIntervalEndpoint(cb, key, startKey, startLeansRight)
           c < 0
         }
@@ -377,7 +379,10 @@ class StagedIndexReader(
       cb.if_(
         idx < children.loadLength(), {
           val successorChild = children.loadElement(cb, idx).getOrAssert(cb).asBaseStruct
-          cb.assign(successorIndex, successorChild.loadField(cb, "first_idx").getOrAssert(cb).asLong.value)
+          cb.assign(
+            successorIndex,
+            successorChild.loadField(cb, "first_idx").getOrAssert(cb).asLong.value,
+          )
           cb.assign(successorLeaf, getFirstLeaf(cb, successorChild))
         },
       )
@@ -594,11 +599,16 @@ class StagedIndexReader(
             level ceq 0, {
               val leafNode = readLeafNode(cb, offset)
               val localIdx = cb.memoize(
-                (absIndex - leafNode.loadField(cb, "first_idx").getOrAssert(cb).asInt64.value.toL).toI
+                (absIndex - leafNode.loadField(cb, "first_idx").getOrAssert(
+                  cb
+                ).asInt64.value.toL).toI
               )
               cb.assign(
                 result,
-                leafNode.loadField(cb, "keys").getOrAssert(cb).asIndexable.loadElement(cb, localIdx).getOrAssert(cb),
+                leafNode.loadField(cb, "keys").getOrAssert(cb).asIndexable.loadElement(
+                  cb,
+                  localIdx,
+                ).getOrAssert(cb),
               )
             }, {
               val internalNode = readInternalNode(cb, offset)

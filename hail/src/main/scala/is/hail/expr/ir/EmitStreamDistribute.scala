@@ -279,7 +279,10 @@ object EmitStreamDistribute {
             shouldUseIdentityBuckets, {
               cb.assign(
                 currentFileToMapTo,
-                currentFileToMapTo + splitterWasDuplicated.loadElement(cb, bucketIdx / 2).getOrAssert(
+                currentFileToMapTo + splitterWasDuplicated.loadElement(
+                  cb,
+                  bucketIdx / 2,
+                ).getOrAssert(
                   cb
                 ).asBoolean.value.toI,
               )
@@ -392,7 +395,9 @@ object EmitStreamDistribute {
       )
 
       val fileToUse =
-        cb.memoize[Int](fileMapping.loadElement(cb, b - numberOfBuckets).getOrAssert(cb).asInt.value)
+        cb.memoize[Int](
+          fileMapping.loadElement(cb, b - numberOfBuckets).getOrAssert(cb).asInt.value
+        )
 
       val ob = cb.memoize[OutputBuffer](outputBuffers(fileToUse))
 
@@ -504,7 +509,9 @@ object EmitStreamDistribute {
               EmitCode.fromI(cb.emb)(cb => paddedSplitters.loadElement(cb, uniqueSplittersIdx)),
               false,
               cb.memoize(
-                !splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).getOrAssert(cb).asBoolean.value
+                !splitterWasDuplicated.loadElement(cb, uniqueSplittersIdx).getOrAssert(
+                  cb
+                ).asBoolean.value
               ),
             )
 

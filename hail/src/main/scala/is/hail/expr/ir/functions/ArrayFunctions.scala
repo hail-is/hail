@@ -542,7 +542,11 @@ object ArrayFunctions extends RegistryFunctions {
             val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
             cb.while_(
               i < laLen, {
-                val lai = localAlleles.loadElement(cb, i).getOrFatal(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+                val lai = localAlleles.loadElement(cb, i).getOrFatal(
+                  cb,
+                  "local_to_global: local alleles elements cannot be missing",
+                  err,
+                ).asInt32.value
                 cb.if_(
                   lai >= nTotalAlleles,
                   cb._fatalWithError(
@@ -557,7 +561,11 @@ object ArrayFunctions extends RegistryFunctions {
                 val j = cb.newLocal[Int]("la_j", 0)
                 cb.while_(
                   j <= i, {
-                    val laj = localAlleles.loadElement(cb, j).getOrFatal(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+                    val laj = localAlleles.loadElement(cb, j).getOrFatal(
+                      cb,
+                      "local_to_global: local alleles elements cannot be missing",
+                      err,
+                    ).asInt32.value
 
                     val dest = cb.newLocal[Int]("dest")
                     cb.if_(
@@ -669,7 +677,11 @@ object ArrayFunctions extends RegistryFunctions {
             val i = cb.newLocal[Int]("la_i", 0)
             cb.while_(
               i < localLen, {
-                val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).getOrFatal(cb, "local_to_global: local alleles elements cannot be missing", err).asInt32.value
+                val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).getOrFatal(
+                  cb,
+                  "local_to_global: local alleles elements cannot be missing",
+                  err,
+                ).asInt32.value
                 cb.if_(
                   lai >= nTotalAlleles,
                   cb._fatalWithError(

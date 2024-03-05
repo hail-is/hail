@@ -2211,8 +2211,10 @@ case class GVCFPartitionReader(
   ): IEmitCode = {
     context.toI(cb).map(cb) { case ctxValue: SBaseStructValue =>
       val fileNum = cb.memoizeField(ctxValue.loadField(cb, "fileNum").getOrAssert(cb).asInt32.value)
-      val filePath = cb.memoizeField(ctxValue.loadField(cb, "path").getOrAssert(cb).asString.loadString(cb))
-      val contig = cb.memoizeField(ctxValue.loadField(cb, "contig").getOrAssert(cb).asString.loadString(cb))
+      val filePath =
+        cb.memoizeField(ctxValue.loadField(cb, "path").getOrAssert(cb).asString.loadString(cb))
+      val contig =
+        cb.memoizeField(ctxValue.loadField(cb, "contig").getOrAssert(cb).asString.loadString(cb))
       val start = cb.memoizeField(ctxValue.loadField(cb, "start").getOrAssert(cb).asInt32.value)
       val end = cb.memoizeField(ctxValue.loadField(cb, "end").getOrAssert(cb).asInt32.value)
 

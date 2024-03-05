@@ -235,7 +235,10 @@ class LinearRegressionAggregator() extends StagedAggregator {
                     cb += Region.storeDouble(
                       sptr,
                       Region.loadDouble(sptr) +
-                        (x.loadElement(cb, i).getOrAssert(cb).asDouble.value * x.loadElement(cb, j).getOrAssert(
+                        (x.loadElement(cb, i).getOrAssert(cb).asDouble.value * x.loadElement(
+                          cb,
+                          j,
+                        ).getOrAssert(
                           cb
                         ).asDouble.value),
                     )

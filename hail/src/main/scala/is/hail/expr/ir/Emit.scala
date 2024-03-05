@@ -451,7 +451,11 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def getOrFatal(cb: EmitCodeBuilder, errorMsg: Code[String], errorID: Code[Int] = const(ErrorIDs.NO_ERROR)): A =
+  def getOrFatal(
+    cb: EmitCodeBuilder,
+    errorMsg: Code[String],
+    errorID: Code[Int] = const(ErrorIDs.NO_ERROR),
+  ): A =
     handle(cb, cb._fatalWithError(errorID, errorMsg))
 
   def getOrAssert(cb: EmitCodeBuilder, debugMsg: Code[String] = const("expected non-missing")): A =
@@ -1673,14 +1677,16 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             grpIdx < outerSize, {
               cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
               cb.assign(withinGrpIdx, 0)
-              val firstStruct = sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
+              val firstStruct =
+                sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
               val key = EmitCode.fromI(mb)(cb => firstStruct.loadField(cb, 0))
               val group = EmitCode.fromI(mb) { cb =>
                 val (addElt, finishInner) = innerType
                   .constructFromFunctions(cb, region, groupSize, deepCopy = false)
                 cb.while_(
                   withinGrpIdx < groupSize, {
-                    val struct = sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
+                    val struct =
+                      sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
                     addElt(cb, struct.loadField(cb, 1))
                     cb.assign(eltIdx, eltIdx + 1)
                     cb.assign(withinGrpIdx, withinGrpIdx + 1)

@@ -1536,14 +1536,20 @@ object EmitStream {
               cb.goto(blocksProducer.LproduceElement)
               cb.define(blocksProducer.LproduceElementDone)
               val row =
-                blocksProducer.element.toI(cb).getOrFatal(cb, "StreamWhiten: missing tuple").asBaseStruct
+                blocksProducer.element.toI(cb).getOrFatal(
+                  cb,
+                  "StreamWhiten: missing tuple",
+                ).asBaseStruct
               row.loadField(cb, prevWindowName).consume(
                 cb,
                 {},
                 prevWindow => state.initializeWindow(cb, prevWindow.asNDArray),
               )
               val block =
-                row.loadField(cb, newChunkName).getOrFatal(cb, "StreamWhiten: missing chunk").asNDArray
+                row.loadField(cb, newChunkName).getOrFatal(
+                  cb,
+                  "StreamWhiten: missing chunk",
+                ).asNDArray
               val whitenedBlock =
                 LinalgCodeUtils.checkColMajorAndCopyIfNeeded(block, cb, elementRegion)
               state.whitenBlock(cb, whitenedBlock)
@@ -3759,7 +3765,12 @@ object EmitStream {
 
                     cb.define(p.LproduceElementDone)
                     cb += (heads(idx) =
-                      unifiedType.store(cb, p.elementRegion, p.element.toI(cb).getOrAssert(cb), false)
+                      unifiedType.store(
+                        cb,
+                        p.elementRegion,
+                        p.element.toI(cb).getOrAssert(cb),
+                        false,
+                      )
                     )
                     cb.assign(matchIdx, (const(idx) + k) >>> 1)
                     cb.goto(LrunMatch)

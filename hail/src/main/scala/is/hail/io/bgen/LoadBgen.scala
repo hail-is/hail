@@ -878,7 +878,9 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
         override def method: EmitMethodBuilder[_] = mb
 
         override val length: Option[EmitCodeBuilder => Code[Int]] =
-          Some(cb => ctxField.asBaseStruct.loadField(cb, "n_variants").getOrAssert(cb).asLong.value.toI)
+          Some(cb =>
+            ctxField.asBaseStruct.loadField(cb, "n_variants").getOrAssert(cb).asLong.value.toI
+          )
 
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 

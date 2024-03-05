@@ -405,7 +405,10 @@ object RandomSeededFunctions extends RegistryFunctions {
         i < len, {
           cb.assign(
             s,
-            s + weights.loadElement(cb, i).getOrFatal(cb, "rand_cat requires all elements of input array to be present").asFloat64.value,
+            s + weights.loadElement(cb, i).getOrFatal(
+              cb,
+              "rand_cat requires all elements of input array to be present",
+            ).asFloat64.value,
           )
           cb.assign(i, i + 1)
         },
@@ -416,7 +419,10 @@ object RandomSeededFunctions extends RegistryFunctions {
       cb.loop { start =>
         cb.assign(
           elt,
-          weights.loadElement(cb, i).getOrFatal(cb, "rand_cat requires all elements of input array to be present").asFloat64.value,
+          weights.loadElement(cb, i).getOrFatal(
+            cb,
+            "rand_cat requires all elements of input array to be present",
+          ).asFloat64.value,
         )
         cb.if_(
           r > elt && i < len, {

@@ -881,7 +881,10 @@ case class VCFPartitionWriter(
     context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
       val formatFieldUTF8 = cb.memoize(const(formatFieldStr).invoke[Array[Byte]]("getBytes"))
       val filename =
-        ctx.loadField(cb, "partFile").getOrFatal(cb, "partFile can't be missing").asString.loadString(cb)
+        ctx.loadField(cb, "partFile").getOrFatal(
+          cb,
+          "partFile can't be missing",
+        ).asString.loadString(cb)
 
       val os = cb.memoize(cb.emb.create(filename))
       if (writeHeader) {
@@ -1700,7 +1703,10 @@ case class BGENPartitionWriter(
 
     context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
       val filename =
-        ctx.loadField(cb, "partFile").getOrFatal(cb, "partFile can't be missing").asString.loadString(cb)
+        ctx.loadField(cb, "partFile").getOrFatal(
+          cb,
+          "partFile can't be missing",
+        ).asString.loadString(cb)
 
       val os = cb.memoize(cb.emb.create(filename))
       val colValues = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
@@ -1729,7 +1735,8 @@ case class BGENPartitionWriter(
 
       val slowCount = if (writeHeader || stream.length.isDefined) None
       else Some(cb.newLocal[Long]("num_variants", 0))
-      val fastCount = if (writeHeader) Some(ctx.loadField(cb, "numVariants").getOrAssert(cb).asInt64.value)
+      val fastCount = if (writeHeader)
+        Some(ctx.loadField(cb, "numVariants").getOrAssert(cb).asInt64.value)
       else stream.length.map(len => cb.memoize(len(cb).toL))
       stream.memoryManagedConsume(region, cb) { cb =>
         slowCount.foreach(nv => cb.assign(nv, nv + 1L))
@@ -2066,22 +2073,23 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
       )
       cb += os.invoke[Array[Byte], Unit]("write", header)
 
-      annotations.loadField(cb, "results").getOrAssert(cb).asIndexable.forEachDefined(cb) { (cb, i, res) =>
-        res.asBaseStruct.loadField(cb, "partFile").consume(
-          cb,
-          { /* do nothing */ },
-          { case pf: SStringValue =>
-            val f = cb.memoize(cb.emb.open(pf.loadString(cb), false))
-            cb += Code.invokeStatic3[
-              org.apache.hadoop.io.IOUtils,
-              InputStream,
-              OutputStream,
-              Int,
-              Unit,
-            ]("copyBytes", f, os, 4096)
-            cb += f.invoke[Unit]("close")
-          },
-        )
+      annotations.loadField(cb, "results").getOrAssert(cb).asIndexable.forEachDefined(cb) {
+        (cb, i, res) =>
+          res.asBaseStruct.loadField(cb, "partFile").consume(
+            cb,
+            { /* do nothing */ },
+            { case pf: SStringValue =>
+              val f = cb.memoize(cb.emb.open(pf.loadString(cb), false))
+              cb += Code.invokeStatic3[
+                org.apache.hadoop.io.IOUtils,
+                InputStream,
+                OutputStream,
+                Int,
+                Unit,
+              ]("copyBytes", f, os, 4096)
+              cb += f.invoke[Unit]("close")
+            },
+          )
       }
 
       cb += os.invoke[Unit]("flush")
@@ -2221,7 +2229,10 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
       case locus: SLocusValue =>
         locus.contig(cb).loadString(cb) -> locus.position(cb)
       case locus: SBaseStructValue =>
-        locus.loadField(cb, 0).getOrAssert(cb).asString.loadString(cb) -> locus.loadField(cb, 1).getOrAssert(
+        locus.loadField(cb, 0).getOrAssert(cb).asString.loadString(cb) -> locus.loadField(
+          cb,
+          1,
+        ).getOrAssert(
           cb
         ).asInt.value
     }

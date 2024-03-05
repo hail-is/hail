@@ -284,7 +284,11 @@ object EmitNDArray {
                 (0 until outputNDims).foreach { i =>
                   cb.assign(
                     tempShapeElement,
-                    tupleValue.loadField(cb, i).getOrFatal(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.value,
+                    tupleValue.loadField(cb, i).getOrFatal(
+                      cb,
+                      "Can't reshape if elements of reshape tuple are missing.",
+                      errorID,
+                    ).asLong.value,
                   )
                   cb.if_(
                     tempShapeElement < 0L, {
@@ -326,7 +330,11 @@ object EmitNDArray {
                 (0 until outputNDims).foreach { i =>
                   cb.assign(
                     tempShapeElement,
-                    tupleValue.loadField(cb, i).getOrFatal(cb, "Can't reshape if elements of reshape tuple are missing.", errorID).asLong.value,
+                    tupleValue.loadField(cb, i).getOrFatal(
+                      cb,
+                      "Can't reshape if elements of reshape tuple are missing.",
+                      errorID,
+                    ).asLong.value,
                   )
                   cb.assign(
                     requestedShapeValues(i),
@@ -382,7 +390,9 @@ object EmitNDArray {
                   // compute index of first input which has non-zero concat axis size
                   val firstNonEmpty = cb.newLocal[Int]("ndarray_concat_first_nonempty", 0)
                   cb.while_(
-                    stagedArrayOfSizes.loadElement(cb, firstNonEmpty).getOrAssert(cb).asInt64.value.ceq(0L),
+                    stagedArrayOfSizes.loadElement(cb, firstNonEmpty).getOrAssert(
+                      cb
+                    ).asInt64.value.ceq(0L),
                     cb.assign(firstNonEmpty, firstNonEmpty + 1),
                   )
 
@@ -653,7 +663,10 @@ object EmitNDArray {
                         }, {
                           val startPoint = cb.newLocal[Long](
                             "ndarray_producer_filter_init_axis",
-                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.value,
+                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(
+                              cb,
+                              s"NDArrayFilter: can't filter on missing index (axis=$idx)",
+                            ).asLong.value,
                           )
                           childProducer.stepAxis(idx)(cb, startPoint)
                         },
@@ -668,9 +681,17 @@ object EmitNDArray {
                           childProducer.stepAxis(idx)(cb, step)
                           cb.assign(idxVars(idx), idxVars(idx) + step)
                         }, {
-                          val currentPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.value
+                          val currentPos =
+                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(
+                              cb,
+                              s"NDArrayFilter: can't filter on missing index (axis=$idx)",
+                            ).asLong.value
                           cb.assign(idxVars(idx), idxVars(idx) + step)
-                          val newPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(cb, s"NDArrayFilter: can't filter on missing index (axis=$idx)").asLong.value
+                          val newPos =
+                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(
+                              cb,
+                              s"NDArrayFilter: can't filter on missing index (axis=$idx)",
+                            ).asLong.value
                           val stepSize = cb.newLocal[Long](
                             "ndarray_producer_filter_step_size",
                             newPos - currentPos,

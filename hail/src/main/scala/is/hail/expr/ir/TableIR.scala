@@ -915,10 +915,13 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
       concreteSType
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb), "partIdx")
+      val partIdx =
+        cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb), "partIdx")
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val pathString =
-        cb.memoizeField(ctxStruct.loadField(cb, "partitionPath").getOrAssert(cb).asString.loadString(cb))
+        cb.memoizeField(
+          ctxStruct.loadField(cb, "partitionPath").getOrAssert(cb).asString.loadString(cb)
+        )
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
       val next = mb.newPSettable(mb.fieldBuilder, elementSType, "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
@@ -1153,9 +1156,10 @@ case class PartitionNativeIntervalReader(
                     cb.assign(indexInitialized, true),
                   )
                   cb.assign(indexCachedIndex, currPartitionIdx)
-                  val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).getOrAssert(
-                    cb
-                  ).asString.loadString(cb)
+                  val partPath =
+                    partitionPathsRuntime.loadElement(cb, currPartitionIdx).getOrAssert(
+                      cb
+                    ).asString.loadString(cb)
                   val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).getOrAssert(
                     cb
                   ).asString.loadString(cb)
@@ -1206,7 +1210,11 @@ case class PartitionNativeIntervalReader(
                       // read from start of partition to the end interval
 
                       val indexResult =
-                        index.queryBound(cb, ctx.loadEnd(cb).getOrAssert(cb).asBaseStruct, ctx.includesEnd)
+                        index.queryBound(
+                          cb,
+                          ctx.loadEnd(cb).getOrAssert(cb).asBaseStruct,
+                          ctx.includesEnd,
+                        )
                       val startIdx = indexResult.loadField(cb, 0).getOrAssert(cb).asInt64.value
                       cb.assign(currIdxInPartition, 0L)
                       cb.assign(stopIdxInPartition, startIdx)
@@ -1228,8 +1236,9 @@ case class PartitionNativeIntervalReader(
                       cb.assign(stopIdxInPartition, index.nKeys(cb))
                       cb.if_(
                         currIdxInPartition < stopIdxInPartition, {
-                          val firstOffset = indexResult.loadField(cb, 1).getOrAssert(cb).asBaseStruct
-                            .loadField(cb, "offset").getOrAssert(cb).asInt64.value
+                          val firstOffset =
+                            indexResult.loadField(cb, 1).getOrAssert(cb).asBaseStruct
+                              .loadField(cb, "offset").getOrAssert(cb).asInt64.value
 
                           cb += ib.seek(firstOffset)
                         },
@@ -1331,7 +1340,8 @@ case class PartitionNativeReaderIndexed(
     val index = new StagedIndexReader(cb.emb, indexSpec.leafCodec, indexSpec.internalNodeCodec)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb), "partIdx")
+      val partIdx =
+        cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb), "partIdx")
       val curIdx = mb.genFieldThisRef[Long]("cur_index")
       val endIdx = mb.genFieldThisRef[Long]("end_index")
       val ib = mb.genFieldThisRef[InputBuffer]("buffer")
@@ -1672,7 +1682,10 @@ case class PartitionZippedIndexedNativeReader(
           cb.assign(curIdx, startIndex)
           cb.assign(endIdx, endIndex)
 
-          cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb).asInt64.value)
+          cb.assign(
+            partIdx,
+            ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb).asInt64.value,
+          )
           cb.assign(
             leftBuffer,
             specLeft.buildCodeInputBuffer(
