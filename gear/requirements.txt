@@ -17,4 +17,4 @@ prometheus_client>=0.11.0,<1
 PyMySQL>=1,<2
 sortedcontainers>=2.4.0,<3
 # <3.9.11: https://github.com/hail-is/hail/issues/14299
-orjson>=3.6.4,<3.9.11
+orjson>=3.6.4,<3.9.16
