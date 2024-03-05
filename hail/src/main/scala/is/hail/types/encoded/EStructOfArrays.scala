@@ -90,35 +90,35 @@ final case class EStructOfArrays(
 
         val arraySize = cb.memoize(const(elementSize) * length.toL)
         val mbytes =
-          if (field.typ.required) None else Some(scratchRegion.allocate(1L, nMissingBytes.toL))
-        val elements = scratchRegion.allocate(const(elementSize), arraySize)
+          if (field.typ.required) None
+          else Some(cb.memoize(scratchRegion.allocate(1L, nMissingBytes.toL)))
+        val elements = cb.memoize(scratchRegion.allocate(const(elementSize), arraySize))
         mbytes.foreach(mbytes => cb += in.readBytes(scratchRegion, mbytes, nMissingBytes))
         cb += in.readBytes(scratchRegion, elements, arraySize.toI)
-        cb.for_(
-          {
-            cb.assign(i, 0)
-            cb.assign(structPtr, pt.firstElementOffset(arrayPtr))
-            cb.assign(elementPtr, elements)
-          },
+
+        cb.assign(i, 0)
+        cb.assign(structPtr, pt.firstElementOffset(arrayPtr))
+        cb.assign(elementPtr, elements)
+
+        cb.while_(
           i < length, {
-            cb.assign(i, i + 1)
-            cb.assign(structPtr, pt.nextElementAddress(structPtr))
-            cb.assign(elementPtr, elementPtr + elementSize)
-          }, {
             cb.if_(
               pt.isElementMissing(arrayPtr, i),
-              ept.setFieldMissing(cb, structPtr, fieldIdx),
+              if (!fieldType.required) ept.setFieldMissing(cb, structPtr, fieldIdx),
               cb.if_(
                 mbytes.map(mbytes => Region.loadBit(mbytes, i.toL)).getOrElse[Code[Boolean]](const(
                   false
                 )),
-                ept.setFieldMissing(cb, structPtr, fieldIdx), {
-                  ept.setFieldPresent(cb, structPtr, fieldIdx)
+                if (!fieldType.required) ept.setFieldMissing(cb, structPtr, fieldIdx), {
+                  // ept.setFieldPresent(cb, structPtr, fieldIdx)
                   val fieldPtr = ept.fieldOffset(structPtr, fieldIdx)
                   cb += Region.copyFrom(elementPtr, fieldPtr, elementSize)
                 },
               ),
             )
+            cb.assign(i, i + 1)
+            cb.assign(structPtr, pt.nextElementAddress(structPtr))
+            cb.assign(elementPtr, elementPtr + elementSize)
           },
         )
       }
@@ -172,11 +172,12 @@ final case class EStructOfArrays(
     val length = sv.length
     val arrayPtr = cb.memoize(arrayType.zeroes(cb, r, length))
     sv.forEachDefinedOrMissing(cb)(
-      (cb, idx) => PContainer.unsafeSetElementMissing(cb, arrayType, arrayPtr, idx),
+      (cb, idx) =>
+        if (!arrayType.elementType.required) arrayType.setElementMissing(cb, arrayPtr, idx),
       { case (cb, idx, sbsv: SBaseStructValue) =>
         sbsv.loadField(cb, field.name).consume(
           cb,
-          PContainer.unsafeSetElementMissing(cb, arrayType, arrayPtr, idx),
+          if (!arrayType.elementType.required) arrayType.setElementMissing(cb, arrayPtr, idx),
           { fieldValue =>
             arrayType.elementType.storeAtAddress(
               cb,
