@@ -196,7 +196,8 @@ final case class EStructOfArrays(
     }
 
     val writeFrom = cb.memoize(arrayType.firstElementOffset(arrayPtr, length))
-    cb += out.writeBytes(writeFrom, arrayType.contentsByteSize(length).toI)
+    val writeTo = cb.memoize(arrayType.pastLastElementOffset(arrayPtr, length))
+    cb += out.writeBytes(writeFrom, (writeTo - writeFrom).toI)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
