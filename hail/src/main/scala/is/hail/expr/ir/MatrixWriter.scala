@@ -529,7 +529,7 @@ case class SplitPartitionNativeWriter(
 
       val specs = FastSeq(spec1, spec2)
       stream.memoryManagedConsume(region, cb) { cb =>
-        val row = stream.element.toI(cb).get(cb, "row can't be missing").asBaseStruct
+        val row = stream.element.toI(cb).getOrFatal(cb, "row can't be missing").asBaseStruct
 
         writeIndexInfo.foreach { case (_, keyType, writer) =>
           writer.add(
@@ -706,16 +706,16 @@ case class MatrixSpecWriter(
     region: Value[Region],
   ): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val c = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
+    val c = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asBaseStruct
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
-    val a = c.loadField(cb, "rows").get(cb).asIndexable
+    val a = c.loadField(cb, "rows").getOrAssert(cb).asIndexable
 
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.while_(
       i < n, {
-        val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
+        val count = a.loadElement(cb, i).getOrFatal(cb, "part count can't be missing!")
         cb += partCounts.update(i, count.asInt64.value)
         cb.assign(i, i + 1)
       },
@@ -725,7 +725,7 @@ case class MatrixSpecWriter(
       .invoke[FS, Long, Array[Long], Unit](
         "write",
         cb.emb.getFS,
-        c.loadField(cb, "cols").get(cb).asInt64.value,
+        c.loadField(cb, "cols").getOrAssert(cb).asInt64.value,
         partCounts,
       )
   }
@@ -881,14 +881,17 @@ case class VCFPartitionWriter(
     context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
       val formatFieldUTF8 = cb.memoize(const(formatFieldStr).invoke[Array[Byte]]("getBytes"))
       val filename =
-        ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
+        ctx.loadField(cb, "partFile").getOrFatal(
+          cb,
+          "partFile can't be missing",
+        ).asString.loadString(cb)
 
       val os = cb.memoize(cb.emb.create(filename))
       if (writeHeader) {
-        val sampleIds = ctx.loadField(cb, "cols").get(cb).asIndexable
+        val sampleIds = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
         val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
         sampleIds.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
-          val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+          val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
           cb += (stringSampleIds(i) = s.loadString(cb))
         }
 
@@ -1083,8 +1086,8 @@ case class VCFPartitionWriter(
     def writeB(code: Code[Array[Byte]]) = _writeB(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
 
-    val elt = element.toI(cb).get(cb).asBaseStruct
-    val locus = elt.loadField(cb, locusIdx).get(cb).asLocus
+    val elt = element.toI(cb).getOrAssert(cb).asBaseStruct
+    val locus = elt.loadField(cb, locusIdx).getOrAssert(cb).asLocus
     // CHROM
     writeB(locus.contig(cb).toBytes(cb).loadBytes(cb))
     // POS
@@ -1106,8 +1109,8 @@ case class VCFPartitionWriter(
 
     // REF
     writeC('\t')
-    val alleles = elt.loadField(cb, allelesIdx).get(cb).asIndexable
-    writeB(alleles.loadElement(cb, 0).get(cb).asString.toBytes(cb).loadBytes(cb))
+    val alleles = elt.loadField(cb, allelesIdx).getOrAssert(cb).asIndexable
+    writeB(alleles.loadElement(cb, 0).getOrAssert(cb).asString.toBytes(cb).loadBytes(cb))
 
     // ALT
     writeC('\t')
@@ -1119,7 +1122,7 @@ case class VCFPartitionWriter(
           i < alleles.loadLength(),
           cb.assign(i, i + 1), {
             cb.if_(i.cne(1), writeC(','))
-            writeB(alleles.loadElement(cb, i).get(cb).asString.toBytes(cb).loadBytes(cb))
+            writeB(alleles.loadElement(cb, i).getOrAssert(cb).asString.toBytes(cb).loadBytes(cb))
           },
         )
       },
@@ -1214,7 +1217,7 @@ case class VCFPartitionWriter(
     }
 
     // FORMAT
-    val genotypes = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
+    val genotypes = elt.loadField(cb, entriesFieldName).getOrAssert(cb).asIndexable
     cb.if_(
       genotypes.loadLength() > 0, {
         writeC('\t')
@@ -1248,10 +1251,10 @@ case class VCFExportFinalizer(
 
   private def header(cb: EmitCodeBuilder, annotations: SBaseStructValue): Code[String] = {
     val mb = cb.emb
-    val sampleIds = annotations.loadField(cb, "cols").get(cb).asIndexable
+    val sampleIds = annotations.loadField(cb, "cols").getOrAssert(cb).asIndexable
     val stringSampleIds = cb.memoize(Code.newArray[String](sampleIds.loadLength()))
     sampleIds.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
-      val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+      val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
       cb += (stringSampleIds(i) = s.loadString(cb))
     }
     Code.invokeScalaObject6[
@@ -1279,9 +1282,9 @@ case class VCFExportFinalizer(
     val ctx: ExecuteContext = cb.emb.ctx
     val ext = ctx.fs.getCodecExtension(outputPath)
 
-    val annotations = writeAnnotations.get(cb).asBaseStruct
+    val annotations = writeAnnotations.getOrAssert(cb).asBaseStruct
 
-    val partPaths = annotations.loadField(cb, "partFiles").get(cb).asIndexable
+    val partPaths = annotations.loadField(cb, "partFiles").getOrAssert(cb).asIndexable
     val partFiles = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[
       SJavaArrayStringValue
     ].array
@@ -1477,13 +1480,13 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
       cb,
       cb._fatal("stream element cannot be missing!"),
       { case sv: SBaseStructValue =>
-        val locus = sv.loadField(cb, "locus").get(cb).asLocus
+        val locus = sv.loadField(cb, "locus").getOrAssert(cb).asLocus
         val contig = locus.contig(cb).loadString(cb)
-        val alleles = sv.loadField(cb, "alleles").get(cb).asIndexable
-        val rsid = sv.loadField(cb, "rsid").get(cb).asString.loadString(cb)
-        val varid = sv.loadField(cb, "varid").get(cb).asString.loadString(cb)
-        val a0 = alleles.loadElement(cb, 0).get(cb).asString.loadString(cb)
-        val a1 = alleles.loadElement(cb, 1).get(cb).asString.loadString(cb)
+        val alleles = sv.loadField(cb, "alleles").getOrAssert(cb).asIndexable
+        val rsid = sv.loadField(cb, "rsid").getOrAssert(cb).asString.loadString(cb)
+        val varid = sv.loadField(cb, "varid").getOrAssert(cb).asString.loadString(cb)
+        val a0 = alleles.loadElement(cb, 0).getOrAssert(cb).asString.loadString(cb)
+        val a1 = alleles.loadElement(cb, 1).getOrAssert(cb).asString.loadString(cb)
 
         cb += Code.invokeScalaObject6[String, Int, String, String, String, String, Unit](
           ExportGen.getClass,
@@ -1508,7 +1511,7 @@ final case class GenVariantWriter(typ: MatrixType, entriesFieldName: String, pre
         writeC(' ')
         writeS(a1)
 
-        sv.loadField(cb, entriesFieldName).get(cb).asIndexable.forEachDefinedOrMissing(cb)(
+        sv.loadField(cb, entriesFieldName).getOrAssert(cb).asIndexable.forEachDefinedOrMissing(cb)(
           (cb, i) => _writeS(cb, " 0 0 0"),
           { (cb, i, va) =>
             va.asBaseStruct.loadField(cb, "GP").consume(
@@ -1567,9 +1570,9 @@ final class GenSampleWriter extends SimplePartitionWriter {
       cb,
       cb._fatal("stream element cannot be missing!"),
       { case sv: SBaseStructValue =>
-        val id1 = sv.loadField(cb, 0).get(cb).asString.loadString(cb)
-        val id2 = sv.loadField(cb, 1).get(cb).asString.loadString(cb)
-        val missing = sv.loadField(cb, 2).get(cb).asDouble.value
+        val id1 = sv.loadField(cb, 0).getOrAssert(cb).asString.loadString(cb)
+        val id2 = sv.loadField(cb, 1).getOrAssert(cb).asString.loadString(cb)
+        val missing = sv.loadField(cb, 2).getOrAssert(cb).asDouble.value
 
         cb += Code.invokeScalaObject3[String, String, Double, Unit](
           ExportGen.getClass,
@@ -1700,19 +1703,22 @@ case class BGENPartitionWriter(
 
     context.toI(cb).map(cb) { case ctx: SBaseStructValue =>
       val filename =
-        ctx.loadField(cb, "partFile").get(cb, "partFile can't be missing").asString.loadString(cb)
+        ctx.loadField(cb, "partFile").getOrFatal(
+          cb,
+          "partFile can't be missing",
+        ).asString.loadString(cb)
 
       val os = cb.memoize(cb.emb.create(filename))
-      val colValues = ctx.loadField(cb, "cols").get(cb).asIndexable
+      val colValues = ctx.loadField(cb, "cols").getOrAssert(cb).asIndexable
       val nSamples = colValues.loadLength()
 
       if (writeHeader) {
         val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength()))
         colValues.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
-          val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+          val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
           cb += (sampleIds(i) = s.loadString(cb))
         }
-        val numVariants = ctx.loadField(cb, "numVariants").get(cb).asInt64.value
+        val numVariants = ctx.loadField(cb, "numVariants").getOrAssert(cb).asInt64.value
         val header = Code.invokeScalaObject3[Array[String], Long, Int, Array[Byte]](
           BgenWriter.getClass,
           "headerBlock",
@@ -1729,7 +1735,8 @@ case class BGENPartitionWriter(
 
       val slowCount = if (writeHeader || stream.length.isDefined) None
       else Some(cb.newLocal[Long]("num_variants", 0))
-      val fastCount = if (writeHeader) Some(ctx.loadField(cb, "numVariants").get(cb).asInt64.value)
+      val fastCount = if (writeHeader)
+        Some(ctx.loadField(cb, "numVariants").getOrAssert(cb).asInt64.value)
       else stream.length.map(len => cb.memoize(len(cb).toL))
       stream.memoryManagedConsume(region, cb) { cb =>
         slowCount.foreach(nv => cb.assign(nv, nv + 1L))
@@ -1824,13 +1831,13 @@ case class BGENPartitionWriter(
     def add(cb: EmitCodeBuilder, bb: Value[ByteArrayBuilder], i: Value[Int]) =
       cb += bb.invoke[Byte, Unit]("add", i.toB)
 
-    val elt = element.toI(cb).get(cb).asBaseStruct
-    val locus = elt.loadField(cb, "locus").get(cb).asLocus
+    val elt = element.toI(cb).getOrAssert(cb).asBaseStruct
+    val locus = elt.loadField(cb, "locus").getOrAssert(cb).asLocus
     val chr = locus.contig(cb).loadString(cb)
     val pos = locus.position(cb)
-    val varid = elt.loadField(cb, "varid").get(cb).asString.loadString(cb)
-    val rsid = elt.loadField(cb, "rsid").get(cb).asString.loadString(cb)
-    val alleles = elt.loadField(cb, "alleles").get(cb).asIndexable
+    val varid = elt.loadField(cb, "varid").getOrAssert(cb).asString.loadString(cb)
+    val rsid = elt.loadField(cb, "rsid").getOrAssert(cb).asString.loadString(cb)
+    val alleles = elt.loadField(cb, "alleles").getOrAssert(cb).asIndexable
 
     cb.if_(
       alleles.loadLength() >= 0xffff,
@@ -1879,7 +1886,7 @@ case class BGENPartitionWriter(
     def emitNullGP(cb: EmitCodeBuilder): Unit =
       cb.for_(cb.assign(i, 0), i < nGenotypes - 1, cb.assign(i, i + 1), add(cb, uncompBuf, 0))
 
-    val entries = elt.loadField(cb, entriesFieldName).get(cb).asIndexable
+    val entries = elt.loadField(cb, entriesFieldName).getOrAssert(cb).asIndexable
     entries.forEachDefinedOrMissing(cb)(
       (cb, j) => emitNullGP(cb),
       { case (cb, j, entry: SBaseStructValue) =>
@@ -1975,15 +1982,15 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
 
   def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region])
     : Unit = {
-    val annotations = writeAnnotations.get(cb).asBaseStruct
-    val colValues = annotations.loadField(cb, "cols").get(cb).asIndexable
+    val annotations = writeAnnotations.getOrAssert(cb).asBaseStruct
+    val colValues = annotations.loadField(cb, "cols").getOrAssert(cb).asIndexable
     val sampleIds = cb.memoize(Code.newArray[String](colValues.loadLength()))
     colValues.forEachDefined(cb) { case (cb, i, colv: SBaseStructValue) =>
-      val s = colv.subset(typ.colKey: _*).loadField(cb, 0).get(cb).asString
+      val s = colv.subset(typ.colKey: _*).loadField(cb, 0).getOrAssert(cb).asString
       cb += (sampleIds(i) = s.loadString(cb))
     }
 
-    val results = annotations.loadField(cb, "results").get(cb).asIndexable
+    val results = annotations.loadField(cb, "results").getOrAssert(cb).asIndexable
     val dropped = cb.newLocal[Long]("dropped", 0L)
     results.forEachDefined(cb) { (cb, i, res) =>
       res.asBaseStruct.loadField(cb, "dropped").consume(
@@ -2019,7 +2026,7 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
       results.forEachDefined(cb) { (cb, i, res) =>
         cb += files.update(
           i,
-          res.asBaseStruct.loadField(cb, "partFile").get(cb).asString.loadString(cb),
+          res.asBaseStruct.loadField(cb, "partFile").getOrAssert(cb).asString.loadString(cb),
         )
       }
 
@@ -2066,22 +2073,23 @@ case class BGENExportFinalizer(typ: MatrixType, path: String, exportType: String
       )
       cb += os.invoke[Array[Byte], Unit]("write", header)
 
-      annotations.loadField(cb, "results").get(cb).asIndexable.forEachDefined(cb) { (cb, i, res) =>
-        res.asBaseStruct.loadField(cb, "partFile").consume(
-          cb,
-          { /* do nothing */ },
-          { case pf: SStringValue =>
-            val f = cb.memoize(cb.emb.open(pf.loadString(cb), false))
-            cb += Code.invokeStatic3[
-              org.apache.hadoop.io.IOUtils,
-              InputStream,
-              OutputStream,
-              Int,
-              Unit,
-            ]("copyBytes", f, os, 4096)
-            cb += f.invoke[Unit]("close")
-          },
-        )
+      annotations.loadField(cb, "results").getOrAssert(cb).asIndexable.forEachDefined(cb) {
+        (cb, i, res) =>
+          res.asBaseStruct.loadField(cb, "partFile").consume(
+            cb,
+            { /* do nothing */ },
+            { case pf: SStringValue =>
+              val f = cb.memoize(cb.emb.open(pf.loadString(cb), false))
+              cb += Code.invokeStatic3[
+                org.apache.hadoop.io.IOUtils,
+                InputStream,
+                OutputStream,
+                Int,
+                Unit,
+              ]("copyBytes", f, os, 4096)
+              cb += f.invoke[Unit]("close")
+            },
+          )
       }
 
       cb += os.invoke[Unit]("flush")
@@ -2179,8 +2187,8 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
     region: Value[Region],
   ): IEmitCode = {
     context.toI(cb).map(cb) { case context: SBaseStructValue =>
-      val bedFile = context.loadField(cb, "bedFile").get(cb).asString.loadString(cb)
-      val bimFile = context.loadField(cb, "bimFile").get(cb).asString.loadString(cb)
+      val bedFile = context.loadField(cb, "bedFile").getOrAssert(cb).asString.loadString(cb)
+      val bimFile = context.loadField(cb, "bimFile").getOrAssert(cb).asString.loadString(cb)
 
       val bedOs = cb.memoize(cb.emb.create(bedFile))
       val bimOs = cb.memoize(cb.emb.create(bimFile))
@@ -2215,21 +2223,24 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
     def writeC(code: Code[Int]) = _writeC(cb, code)
     def writeS(code: Code[String]) = _writeS(cb, code)
 
-    val elt = element.toI(cb).get(cb).asBaseStruct
+    val elt = element.toI(cb).getOrAssert(cb).asBaseStruct
 
-    val (contig, position) = elt.loadField(cb, locusIdx).get(cb) match {
+    val (contig, position) = elt.loadField(cb, locusIdx).getOrAssert(cb) match {
       case locus: SLocusValue =>
         locus.contig(cb).loadString(cb) -> locus.position(cb)
       case locus: SBaseStructValue =>
-        locus.loadField(cb, 0).get(cb).asString.loadString(cb) -> locus.loadField(cb, 1).get(
+        locus.loadField(cb, 0).getOrAssert(cb).asString.loadString(cb) -> locus.loadField(
+          cb,
+          1,
+        ).getOrAssert(
           cb
         ).asInt.value
     }
-    val cmPosition = elt.loadField(cb, cmPosIdx).get(cb).asDouble
-    val varid = elt.loadField(cb, varidIdx).get(cb).asString.loadString(cb)
-    val alleles = elt.loadField(cb, allelesIdx).get(cb).asIndexable
-    val a0 = alleles.loadElement(cb, 0).get(cb).asString.loadString(cb)
-    val a1 = alleles.loadElement(cb, 1).get(cb).asString.loadString(cb)
+    val cmPosition = elt.loadField(cb, cmPosIdx).getOrAssert(cb).asDouble
+    val varid = elt.loadField(cb, varidIdx).getOrAssert(cb).asString.loadString(cb)
+    val alleles = elt.loadField(cb, allelesIdx).getOrAssert(cb).asIndexable
+    val a0 = alleles.loadElement(cb, 0).getOrAssert(cb).asString.loadString(cb)
+    val a1 = alleles.loadElement(cb, 1).getOrAssert(cb).asString.loadString(cb)
 
     cb += Code.invokeScalaObject5[String, String, Int, String, String, Unit](
       ExportPlink.getClass,
@@ -2253,7 +2264,7 @@ case class PLINKPartitionWriter(typ: MatrixType, entriesFieldName: String) exten
     writeS(a0)
     writeC('\n')
 
-    elt.loadField(cb, entriesFieldName).get(cb).asIndexable.forEachDefinedOrMissing(cb)(
+    elt.loadField(cb, entriesFieldName).getOrAssert(cb).asIndexable.forEachDefinedOrMissing(cb)(
       (cb, i) => cb += bp.invoke[Int, Unit]("add", 1),
       { (cb, i, va) =>
         va.asBaseStruct.loadField(cb, "GT").consume(
@@ -2296,12 +2307,12 @@ case class PLINKExportFinalizer(typ: MatrixType, path: String, headerPath: Strin
 
   def writeMetadata(writeAnnotations: => IEmitCode, cb: EmitCodeBuilder, region: Value[Region])
     : Unit = {
-    val paths = writeAnnotations.get(cb).asIndexable
+    val paths = writeAnnotations.getOrAssert(cb).asIndexable
     val bedFiles = cb.memoize(Code.newArray[String](paths.loadLength() + 1)) // room for header
     val bimFiles = cb.memoize(Code.newArray[String](paths.loadLength()))
     paths.forEachDefined(cb) { case (cb, i, elt: SBaseStructValue) =>
-      val bed = elt.loadField(cb, "bedFile").get(cb).asString.loadString(cb)
-      val bim = elt.loadField(cb, "bimFile").get(cb).asString.loadString(cb)
+      val bed = elt.loadField(cb, "bedFile").getOrAssert(cb).asString.loadString(cb)
+      val bim = elt.loadField(cb, "bimFile").getOrAssert(cb).asString.loadString(cb)
       cb += (bedFiles(cb.memoize(i + 1)) = bed)
       cb += (bimFiles(i) = bim)
     }

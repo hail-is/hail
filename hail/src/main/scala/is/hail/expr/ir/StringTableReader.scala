@@ -86,11 +86,11 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
 
           cb.assign(
             fileName,
-            partitionContext.loadField(cb, "file").get(cb).asString.loadString(cb),
+            partitionContext.loadField(cb, "file").getOrAssert(cb).asString.loadString(cb),
           )
           cb.assign(
             partIdx,
-            partitionContext.loadField(cb, "partitionIndex").get(cb).asInt.value.toL,
+            partitionContext.loadField(cb, "partitionIndex").getOrAssert(cb).asInt.value.toL,
           )
           cb.assign(rowIdx, -1L)
 

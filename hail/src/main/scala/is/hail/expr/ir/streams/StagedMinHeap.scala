@@ -65,7 +65,7 @@ object StagedMinHeap {
       classBuilder.defineEmitMethod("load", FastSeq(IntInfo), elemParamType) { mb =>
         mb.emitSCode { cb =>
           val idx = mb.getCodeParam[Int](1)
-          heap.loadElement(cb, idx).toI(cb).get(cb, errorMsg = idx.toS)
+          heap.loadElement(cb, idx).toI(cb).getOrAssert(cb, debugMsg = idx.toS)
         }
       }
 

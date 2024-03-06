@@ -464,8 +464,8 @@ class DownsampleState(
               cb,
               {},
               { case point: SBaseStructValue =>
-                val x = point.loadField(cb, "x").get(cb).asFloat64.value
-                val y = point.loadField(cb, "y").get(cb).asFloat64.value
+                val x = point.loadField(cb, "x").getOrAssert(cb).asFloat64.value
+                val y = point.loadField(cb, "y").getOrAssert(cb).asFloat64.value
                 val pointc = coerce[Long](SingleCodeSCode.fromSCode(cb, point, region).code)
                 insertIntoTree(
                   cb,

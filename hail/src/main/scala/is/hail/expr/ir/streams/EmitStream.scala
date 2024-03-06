@@ -1536,14 +1536,20 @@ object EmitStream {
               cb.goto(blocksProducer.LproduceElement)
               cb.define(blocksProducer.LproduceElementDone)
               val row =
-                blocksProducer.element.toI(cb).get(cb, "StreamWhiten: missing tuple").asBaseStruct
+                blocksProducer.element.toI(cb).getOrFatal(
+                  cb,
+                  "StreamWhiten: missing tuple",
+                ).asBaseStruct
               row.loadField(cb, prevWindowName).consume(
                 cb,
                 {},
                 prevWindow => state.initializeWindow(cb, prevWindow.asNDArray),
               )
               val block =
-                row.loadField(cb, newChunkName).get(cb, "StreamWhiten: missing chunk").asNDArray
+                row.loadField(cb, newChunkName).getOrFatal(
+                  cb,
+                  "StreamWhiten: missing chunk",
+                ).asNDArray
               val whitenedBlock =
                 LinalgCodeUtils.checkColMajorAndCopyIfNeeded(block, cb, elementRegion)
               state.whitenBlock(cb, whitenedBlock)
@@ -1727,7 +1733,7 @@ object EmitStream {
               SBaseStructPointer(rProd.element.st.storageType().asInstanceOf[PBaseStruct])
 
             def loadInterval(cb: EmitCodeBuilder, rElem: SValue): SIntervalValue =
-              rElem.asBaseStruct.loadField(cb, rIntrvlName).get(cb).asInterval
+              rElem.asBaseStruct.loadField(cb, rIntrvlName).getOrAssert(cb).asInterval
 
             val q: StagedMinHeap =
               StagedMinHeap(mb.emodb, rElemSTy) {
@@ -1736,9 +1742,9 @@ object EmitStream {
                   val r = loadInterval(cb, b)
                   IntervalFunctions.intervalEndpointCompare(
                     cb,
-                    l.loadEnd(cb).get(cb),
+                    l.loadEnd(cb).getOrAssert(cb),
                     l.includesEnd,
-                    r.loadEnd(cb).get(cb),
+                    r.loadEnd(cb).getOrAssert(cb),
                     r.includesEnd,
                   )
               }(mb.ecb)
@@ -1798,8 +1804,8 @@ object EmitStream {
                     cb.goto(lProd.LproduceElement)
                     cb.define(lProd.LproduceElementDone)
 
-                    cb.assign(lElement, lProd.element.toI(cb).get(cb).asBaseStruct)
-                    val point = lElement.loadField(cb, lKeyField).get(cb)
+                    cb.assign(lElement, lProd.element.toI(cb).getOrAssert(cb).asBaseStruct)
+                    val point = lElement.loadField(cb, lKeyField).getOrAssert(cb)
 
                     /* Drop rows from the priority queue if their interval's right endpoint is
                      * before the current key. */
@@ -1807,7 +1813,7 @@ object EmitStream {
                       cb.if_(
                         q.nonEmpty(cb), {
                           val interval = loadInterval(cb, q.peek(cb))
-                          val end = interval.loadEnd(cb).get(cb)
+                          val end = interval.loadEnd(cb).getOrAssert(cb)
                           cb.if_(
                             pointGTIntervalEndpoint(cb, point, end, interval.includesEnd), {
                               q.pop(cb)
@@ -1830,20 +1836,20 @@ object EmitStream {
                       val rElement = rElemSTy.coerceOrCopy(
                         cb,
                         elementRegion,
-                        rProd.element.toI(cb).get(cb),
+                        rProd.element.toI(cb).getOrAssert(cb),
                         deepCopy = false,
                       )
                       val interval = loadInterval(cb, rElement)
 
                       // Drop intervals whose right endpoint is before the key
-                      val end = interval.loadEnd(cb).get(cb)
+                      val end = interval.loadEnd(cb).getOrAssert(cb)
                       cb.if_(
                         pointGTIntervalEndpoint(cb, point, end, interval.includesEnd),
                         cb.goto(LproduceRightElement),
                       )
 
                       // Stop consuming intervals if the left endpoint is after the key
-                      val start = interval.loadStart(cb).get(cb)
+                      val start = interval.loadStart(cb).getOrAssert(cb)
                       cb.if_(
                         pointLTIntervalEndpoint(
                           cb,
@@ -2673,7 +2679,7 @@ object EmitStream {
           }
 
           mb.implementLabel(childProducer.LproduceElementDone) { cb =>
-            cb.assign(xCurElt, childProducer.element.toI(cb).get(cb))
+            cb.assign(xCurElt, childProducer.element.toI(cb).getOrAssert(cb))
             cb.assign(curKey, subsetCode)
             cb.if_(inOuter, cb.goto(LchildProduceDoneOuter), cb.goto(LchildProduceDoneInner))
           }
@@ -3314,7 +3320,7 @@ object EmitStream {
 
                   cb.define(p.LproduceElementDone)
                   val storedElt =
-                    eltType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false)
+                    eltType.store(cb, p.elementRegion, p.element.toI(cb).getOrAssert(cb), false)
                   cb += (heads(idx) = storedElt)
                   cb.assign(matchIdx, (idx + k) >>> 1)
                   cb.goto(LrunMatch)
@@ -3366,7 +3372,7 @@ object EmitStream {
                 cb,
                 env.bind(ctxName, cb.memoize(contextsArray.loadElement(cb, idx))),
               )
-                .get(cb, "streams in zipJoinProducers cannot be missing")
+                .getOrFatal(cb, "streams in zipJoinProducers cannot be missing")
                 .asInstanceOf[SStreamConcrete]
               streamRequiresMemoryManagement = iter.st.requiresMemoryManagement
               cb += iterArray.update(idx, iter.it)
@@ -3759,7 +3765,12 @@ object EmitStream {
 
                     cb.define(p.LproduceElementDone)
                     cb += (heads(idx) =
-                      unifiedType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false)
+                      unifiedType.store(
+                        cb,
+                        p.elementRegion,
+                        p.element.toI(cb).getOrAssert(cb),
+                        false,
+                      )
                     )
                     cb.assign(matchIdx, (const(idx) + k) >>> 1)
                     cb.goto(LrunMatch)
@@ -3801,14 +3812,14 @@ object EmitStream {
                 childProducer.requiresMemoryManagementPerElement
 
               def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
-                cb.assign(queueSize, emit(maxQueueSize, cb).get(cb).asInt32.value)
+                cb.assign(queueSize, emit(maxQueueSize, cb).getOrAssert(cb).asInt32.value)
                 cb.assign(queue, Code.newInstance[util.ArrayDeque[BitPackedVector], Int](queueSize))
-                cb.assign(threshold, emit(r2Threshold, cb).get(cb).asFloat64.value)
-                cb.assign(windowSize, emit(winSize, cb).get(cb).asInt32.value)
+                cb.assign(threshold, emit(r2Threshold, cb).getOrAssert(cb).asFloat64.value)
+                cb.assign(windowSize, emit(winSize, cb).getOrAssert(cb).asInt32.value)
                 cb.assign(
                   builder,
                   Code.newInstance[BitPackedVectorBuilder, Int](
-                    emit(nSamples, cb).get(cb).asInt32.value
+                    emit(nSamples, cb).getOrAssert(cb).asInt32.value
                   ),
                 )
                 childProducer.initialize(cb, outerRegion)
@@ -3824,9 +3835,9 @@ object EmitStream {
                   cb,
                   cb.goto(Lpruned),
                   { case sc: SBaseStructValue =>
-                    val locus = sc.loadField(cb, "locus").get(cb).asLocus
+                    val locus = sc.loadField(cb, "locus").getOrAssert(cb).asLocus
                     val locusObj = locus.getLocusObj(cb)
-                    val genotypes = sc.loadField(cb, "genotypes").get(cb).asIndexable
+                    val genotypes = sc.loadField(cb, "genotypes").getOrAssert(cb).asIndexable
                     cb += builder.invoke[Unit]("reset")
                     genotypes.forEachDefinedOrMissing(cb)(
                       (cb, _) => cb += builder.invoke[Unit]("addMissing"),

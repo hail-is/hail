@@ -713,7 +713,7 @@ case class BgenPartitionReaderWithVariantFilter(
             override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
               vs.initialize(cb, outerRegion)
 
-              cb.assign(fileIdx, context.loadField(cb, "file_index").get(cb).asInt.value)
+              cb.assign(fileIdx, context.loadField(cb, "file_index").getOrAssert(cb).asInt.value)
               val metadata =
                 cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastSeq)
                   .invoke[Int, BgenFileMetadata]("apply", fileIdx))
@@ -744,7 +744,7 @@ case class BgenPartitionReaderWithVariantFilter(
                 currVariantIndex < stopVariantIndex, {
                   val addr = index.queryIndex(cb, vs.elementRegion, currVariantIndex)
                     .loadField(cb, "offset")
-                    .get(cb).asLong.value
+                    .getOrAssert(cb).asLong.value
                   cb += cbfis.invoke[Long, Unit]("seek", addr)
 
                   val reqTypeNoUID = if (requestedType.hasField(uidFieldName))
@@ -752,7 +752,7 @@ case class BgenPartitionReaderWithVariantFilter(
                   else requestedType
                   val sc = StagedBGENReader.decodeRow(cb, elementRegion, cbfis, nSamples, fileIdx,
                     compression, skipInvalidLoci, contigRecoding, reqTypeNoUID, rg)
-                    .toI(cb).get(cb)
+                    .toI(cb).getOrAssert(cb)
                   val scUID = if (requestedType.hasField(uidFieldName))
                     sc.asBaseStruct.insert(
                       cb,
@@ -782,7 +782,7 @@ case class BgenPartitionReaderWithVariantFilter(
               cb.goto(vs.LproduceElement)
               cb.define(vs.LproduceElementDone)
 
-              val nextVariant = vs.element.toI(cb).get(cb).asBaseStruct
+              val nextVariant = vs.element.toI(cb).getOrAssert(cb).asBaseStruct
               val bound = SStackStruct.constructFromArgs(
                 cb,
                 vs.elementRegion,
@@ -804,11 +804,11 @@ case class BgenPartitionReaderWithVariantFilter(
 
               cb.assign(
                 currVariantIndex,
-                index.queryBound(cb, bound, false).loadField(cb, 0).get(cb).asLong.value,
+                index.queryBound(cb, bound, false).loadField(cb, 0).getOrAssert(cb).asLong.value,
               )
               cb.assign(
                 stopVariantIndex,
-                index.queryBound(cb, bound, true).loadField(cb, 0).get(cb).asLong.value,
+                index.queryBound(cb, bound, true).loadField(cb, 0).getOrAssert(cb).asLong.value,
               )
               cb.goto(Lstart)
 
@@ -878,11 +878,13 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
         override def method: EmitMethodBuilder[_] = mb
 
         override val length: Option[EmitCodeBuilder => Code[Int]] =
-          Some(cb => ctxField.asBaseStruct.loadField(cb, "n_variants").get(cb).asLong.value.toI)
+          Some(cb =>
+            ctxField.asBaseStruct.loadField(cb, "n_variants").getOrAssert(cb).asLong.value.toI
+          )
 
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 
-          cb.assign(fileIdx, context.loadField(cb, "file_index").get(cb).asInt.value)
+          cb.assign(fileIdx, context.loadField(cb, "file_index").getOrAssert(cb).asInt.value)
           val metadata =
             cb.memoize(mb.getObject[IndexedSeq[BgenFileMetadata]](fileMetadata.toFastSeq)
               .invoke[Int, BgenFileMetadata]("apply", fileIdx))
@@ -903,11 +905,11 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
 
           cb.assign(
             currVariantIndex,
-            context.loadField(cb, "first_variant_index").get(cb).asLong.value,
+            context.loadField(cb, "first_variant_index").getOrAssert(cb).asLong.value,
           )
           cb.assign(
             endVariantIndex,
-            currVariantIndex + context.loadField(cb, "n_variants").get(cb).asLong.value,
+            currVariantIndex + context.loadField(cb, "n_variants").getOrAssert(cb).asLong.value,
           )
         }
 
@@ -920,7 +922,7 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
 
           val addr = index.queryIndex(cb, eltRegion, currVariantIndex)
             .loadField(cb, "offset")
-            .get(cb).asLong.value
+            .getOrAssert(cb).asLong.value
           cb += cbfis.invoke[Long, Unit]("seek", addr)
 
           val reqTypeNoUID = if (requestedType.hasField(uidFieldName))
