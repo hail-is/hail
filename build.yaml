@@ -3659,6 +3659,7 @@ steps:
       - test_hail_spark_conf_requester_pays_parsing
       - test_dataproc-37
       - test_dataproc-38
+      - hail_run_image
       - hail-benchmark-image
     image:
       valueFrom: hail_run_image.image
