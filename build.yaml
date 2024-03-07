@@ -1392,6 +1392,52 @@ steps:
     dependsOn:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
+  - kind: runImage
+    name: submit-hail-benchmark
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
+    dependsOn:
+      - test_hail_java
+      - test_hail_python_local_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
+      - test_hail_scala_fs
+      - test_hail_services_java
+      - test_hail_spark_conf_requester_pays_parsing
+      - test_dataproc-37
+      - test_dataproc-38
+      - hail-benchmark-image
+    image:
+      valueFrom: hail_run_image.image
+    inputs:
+      - from: /repo/benchmark
+        to: /io/repo/benchmark
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+    script: |
+      set -ex
+      pushd /io/repo/benchmark
+
+      IMAGE=docker://{{ hail-benchmark-image.image }}
+
+      BUCKET=hail-benchmarks2
+      RESULTS_PREFIX="gs://${BUCKET}/ci/{{ scope }}"
+      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+
+      REPLICATES=5
+      ITERATIONS=5
+
+      PYTHONPATH="$PWD/python" python3 ./scripts/in_batch.py \
+		      $(IMAGE) \
+		      $(RESULTS_PREFIX) \
+		      $(HAIL_PIP_VERSION) \
+		      $(REPLICATES) \
+		      $(ITERATIONS) \
+          submit
+
   - kind: buildImage2
     name: hailgenetics_hail_image_python_3_10
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile

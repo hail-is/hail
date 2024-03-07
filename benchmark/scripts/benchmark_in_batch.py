@@ -8,14 +8,21 @@ from benchmark_hail.run.resources import all_resources
 from benchmark_hail.run.utils import list_benchmarks
 from hailtop import batch as hb
 
+RUN_OPTS=['submit', 'run']
+RUN_OPTS_STR=f'[{ "|".join(RUN_OPTS) }]'
+
 if __name__ == '__main__':
-    if len(sys.argv) != 6:
-        raise RuntimeError(f'usage: <script.py> DOCKER_IMAGE_URL BUCKET_BASE SHA N_REPLICATES N_ITERS')
+    if len(sys.argv) != 7:
+        raise RuntimeError(f'usage: <script.py> DOCKER_IMAGE_URL BUCKET_BASE SHA N_REPLICATES N_ITERS {RUN_OPTS_STR}')
+
     BENCHMARK_IMAGE = sys.argv[1]
     BUCKET_BASE = sys.argv[2]
     SHA = sys.argv[3]
     N_REPLICATES = int(sys.argv[4])
     N_ITERS = int(sys.argv[5])
+    MODE=sys.argv[6]
+    if not MODE in RUN_OPTS:
+        raise RuntimeError(f'unknown mode: "{MODE}". choices={RUN_OPTS_STR}')
 
     labeled_sha = SHA
     label = os.environ.get('BENCHMARK_LABEL')
@@ -137,4 +144,4 @@ if __name__ == '__main__':
     print(f'writing output to {output_file}')
 
     b.write_output(combine.ofile, output_file)
-    b.run()
+    b.run(wait=MODE=='run')
