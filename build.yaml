@@ -1370,7 +1370,7 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
-    name: hail-benchmark-image
+    name: hail_benchmark_image
     dockerFile: /io/repo/benchmark/Dockerfile
     contextPath: /io/repo
     publishAs: hail-benchmark
@@ -3660,7 +3660,7 @@ steps:
       - test_dataproc-37
       - test_dataproc-38
       - hail_run_image
-      - hail-benchmark-image
+      - hail_benchmark_image
     image:
       valueFrom: hail_run_image.image
     inputs:
@@ -3672,7 +3672,7 @@ steps:
       set -ex
       pushd /io/repo/benchmark
 
-      IMAGE=docker://{{ hail-benchmark-image.image }}
+      IMAGE=docker://{{ hail_benchmark_image.image }}
 
       BUCKET=hail-benchmarks2
       RESULTS_PREFIX="gs://${BUCKET}/ci/{{ scope }}"
