@@ -62,6 +62,30 @@ trait InputBuffer extends Closeable {
     val a = readBytesArray(n)
     new String(a, utfCharset)
   }
+
+  final def readLEB128Int(): Int = {
+    var b: Byte = readByte()
+    var x: Int = b & 0x7f
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7f) << shift)
+      shift += 7
+    }
+    x
+  }
+
+  final def readLEB128Long(): Long = {
+    var b: Byte = readByte()
+    var x: Long = b & 0x7fL
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7fL) << shift)
+      shift += 7
+    }
+    x
+  }
 }
 
 trait InputBlockBuffer extends Spec with Closeable {
@@ -216,29 +240,9 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
 
-  def readInt(): Int = {
-    var b: Byte = readByte()
-    var x: Int = b & 0x7f
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7f) << shift)
-      shift += 7
-    }
-    x
-  }
+  def readInt(): Int = readLEB128Int()
 
-  def readLong(): Long = {
-    var b: Byte = readByte()
-    var x: Long = b & 0x7fL
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7fL) << shift)
-      shift += 7
-    }
-    x
-  }
+  def readLong(): Long = readLEB128Long()
 
   def readFloat(): Float = in.readFloat()
 
