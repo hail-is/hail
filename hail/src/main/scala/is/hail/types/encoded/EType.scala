@@ -414,6 +414,7 @@ object EType {
       case "EBoolean" => EBoolean(req)
       case "EInt32" => EInt32(req)
       case "EInt64" => EInt64(req)
+      case "EVarInt" => EVarInt(req)
       case "EFloat32" => EFloat32(req)
       case "EFloat64" => EFloat64(req)
       case "EBinary" => EBinary(req)

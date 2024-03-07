@@ -58,6 +58,12 @@ class RichCodeOutputBuffer(
   def writeUTF(s: Code[String]): Code[Unit] =
     ob.invoke[String, Unit]("writeUTF", s)
 
+  def writeLEB128Int(i: Code[Int]): Code[Unit] =
+    ob.invoke[Int, Unit]("writeLEB128Int", i)
+
+  def writeLEB128Long(l: Code[Long]): Code[Unit] =
+    ob.invoke[Long, Unit]("writeLEB128Long", l)
+
   def writePrimitive(cb: EmitCodeBuilder, pc: SValue): Unit = pc.st.virtualType match {
     case TBoolean => cb += writeBoolean(pc.asBoolean.value)
     case TInt32 => cb += writeInt(pc.asInt.value)

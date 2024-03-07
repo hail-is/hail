@@ -21,6 +21,7 @@ class ETypeSuite extends HailSuite {
       EInt32Required,
       EInt32Optional,
       EInt64Required,
+      EVarIntOptional,
       EFloat32Optional,
       EFloat32Required,
       EFloat64Optional,
