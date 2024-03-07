@@ -49,6 +49,12 @@ final case class EStructOfArrays(
   // if the struct missing bit is set (element missing), that is,
   // struct_mbits & field_mbits == field_mbits
 
+  def _decodedSType(requestedType: Type): SType = {
+    require(requestedType.isInstanceOf[TArray])
+    val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
+    SIndexablePointer(PCanonicalArray(elementPType, required = false))
+  }
+
   def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer])
     : SValue = {
     val st: SIndexablePointer = tcoerce(decodedSType(t))
@@ -221,12 +227,6 @@ final case class EStructOfArrays(
       cb += in.skipBytes(nMissingBytes)
     // XXX: possible alternate layouts in the future
     in.skipBytes(length * EStructOfArrays.elementSize(field.typ).toInt)
-  }
-
-  def _decodedSType(requestedType: Type): SType = {
-    require(requestedType.isInstanceOf[TArray])
-    val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
-    SIndexablePointer(PCanonicalArray(elementPType, required = false))
   }
 
   def setRequired(newRequired: Boolean): EStructOfArrays = EStructOfArrays(elementType, newRequired)
