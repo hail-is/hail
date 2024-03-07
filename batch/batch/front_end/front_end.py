@@ -832,6 +832,11 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
@@ -848,6 +853,11 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
@@ -956,11 +966,6 @@ VALUES (%s, %s, %s, %s);
 async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: str, job_group_specs: List[dict]):
     assert len(job_group_specs) > 0
 
-    try:
-        validate_job_groups(job_group_specs)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
-
     @transaction(db)
     async def insert(tx):
         record = await tx.execute_and_fetchone(
@@ -1067,11 +1072,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     batch_format_version = BatchFormatVersion(record['format_version'])
     update_start_job_id = int(record['start_job_id'])
     update_start_job_group_id = int(record['start_job_group_id'])
-
-    try:
-        validate_and_clean_jobs(job_specs)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
 
     spec_writer = SpecWriter(file_store, batch_id)
 
@@ -1523,6 +1523,13 @@ async def create_batch_fast(request, userdata):
     jobs = batch_and_bunch['bunch']
     job_groups = batch_and_bunch.get('job_groups', [])
 
+    try:
+        validate_batch(batch_spec)
+        validate_and_clean_jobs(jobs)
+        validate_job_groups(job_groups)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     batch_id = await _create_batch(batch_spec, userdata, db)
 
     update_id, start_job_group_id, start_job_id = await _create_batch_update(
@@ -1581,11 +1588,6 @@ async def create_batch(request, userdata):
 
 
 async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
-    try:
-        validate_batch(batch_spec)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
-
     user = userdata['username']
 
     # restrict to what's necessary; in particular, drop the session
@@ -1708,6 +1710,8 @@ async def update_batch_fast(request, userdata):
 
     try:
         validate_batch_update(update_spec)
+        validate_and_clean_jobs(jobs)
+        validate_job_groups(job_groups)
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
