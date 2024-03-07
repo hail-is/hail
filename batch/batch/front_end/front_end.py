@@ -808,6 +808,11 @@ async def create_job_groups(request: web.Request, userdata: UserData) -> web.Res
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_group_specs = await json_request(request)
+    try:
+        validate_job_groups(job_group_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     await _create_job_groups(db, batch_id, update_id, user, job_group_specs)
     return web.Response()
 
@@ -1566,6 +1571,11 @@ async def create_batch(request, userdata):
     db: Database = app['db']
 
     batch_spec = await json_request(request)
+    try:
+        validate_batch(batch_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     n_job_groups = batch_spec.get('n_job_groups', 0)
