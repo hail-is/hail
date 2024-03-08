@@ -72,9 +72,6 @@ class RichCodeInputBuffer(
   def readBoolean(): Code[Boolean] =
     ib.invoke[Boolean]("readBoolean")
 
-  def readUTF(): Code[String] =
-    ib.invoke[String]("readUTF")
-
   def readBytes(toRegion: Value[Region], toOff: Code[Long], n: Int): Code[Unit] = {
     if (n == 0)
       Code._empty
