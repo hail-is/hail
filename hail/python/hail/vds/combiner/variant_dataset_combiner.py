@@ -372,6 +372,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             return combiner
 
     def _raise_if_output_exists(self):
+        if self.finished:
+            return
         fs = hl.current_backend().fs
         ref_success_path = os.path.join(VariantDataset._reference_path(self._output_path), '_SUCCESS')
         var_success_path = os.path.join(VariantDataset._variants_path(self._output_path), '_SUCCESS')
