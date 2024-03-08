@@ -189,14 +189,30 @@ final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
     2 + cases.length
 }
 
-final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
+object AggLet {
+  def apply(name: String, value: IR, body: IR, isScan: Boolean): IR = {
+    val scope = if (isScan) Scope.SCAN else Scope.AGG
+    Let.withAgg(FastSeq(Binding(name, value, scope)), body)
+  }
+}
 
-final case class Let(bindings: IndexedSeq[(String, IR)], body: IR) extends IR {
+case class Binding(name: String, value: IR, scope: Int = Scope.EVAL)
+
+final class Let(val bindings: IndexedSeq[Binding], val body: IR) extends IR {
   override lazy val size: Int =
     bindings.length + 1
 }
 
 object Let {
+  def apply(bindings: IndexedSeq[(String, IR)], body: IR): Let =
+    new Let(
+      bindings.map { case (name, value) => Binding(name, value) },
+      body,
+    )
+
+  def withAgg(bindings: IndexedSeq[Binding], body: IR): Let =
+    new Let(bindings, body)
+
   def void(bindings: IndexedSeq[(String, IR)]): IR = {
     if (bindings.isEmpty) {
       Void()
@@ -206,16 +222,20 @@ object Let {
     }
   }
 
-  case class Extract(p: ((String, IR)) => Boolean) {
-    def unapply(bindings: IndexedSeq[(String, IR)])
-      : Option[(IndexedSeq[(String, IR)], IndexedSeq[(String, IR)])] = {
-      val idx = bindings.indexWhere(p)
-      if (idx == -1) None else Some(bindings.splitAt(idx))
+  def unapply(x: IR): Option[(IndexedSeq[Binding], IR)] = x match {
+    case x: Let => Some((x.bindings, x.body))
+    case _ => None
+  }
+
+  case class Extract(p: IR => Boolean) {
+    def unapply(bindings: IndexedSeq[Binding])
+      : Option[(IndexedSeq[Binding], Binding, IndexedSeq[Binding])] = {
+      val idx = bindings.indexWhere(b => p(b.value))
+      if (idx == -1) None else Some((bindings.take(idx), bindings(idx), bindings.drop(idx + 1)))
     }
   }
 
-  object Nested extends Extract(_._2.isInstanceOf[Let])
-  object Insert extends Extract(_._2.isInstanceOf[InsertFields])
+  object Insert extends Extract(_.isInstanceOf[InsertFields])
 
 }
 

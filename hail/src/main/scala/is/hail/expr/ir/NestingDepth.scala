@@ -16,10 +16,20 @@ case class ScopedDepth(eval: Int, agg: Int, scan: Int) {
   def promoteScanOrAgg(isScan: Boolean): ScopedDepth = if (isScan) promoteScan else promoteAgg
 }
 
-object NestingDepth {
-  def apply(ir0: BaseIR): Memo[Int] = {
+final class NestingDepth(private val memo: Memo[ScopedDepth]) {
+  def lookupRef(x: RefEquality[BaseRef]): Int = memo.lookup(x).eval
+  def lookupRef(x: BaseRef): Int = memo.lookup(x).eval
+  def lookupBinding(x: Let, scope: Int): Int = scope match {
+    case Scope.EVAL => memo(x).eval
+    case Scope.AGG => memo(x).agg
+    case Scope.SCAN => memo(x).scan
+  }
+}
 
-    val memo = Memo.empty[Int]
+object NestingDepth {
+  def apply(ir0: BaseIR): NestingDepth = {
+
+    val memo = Memo.empty[ScopedDepth]
 
     def computeChildren(ir: BaseIR): Unit = {
       ir.children
@@ -40,12 +50,9 @@ object NestingDepth {
 
     def computeIR(ir: IR, depth: ScopedDepth): Unit = {
       ir match {
-        case x @ AggLet(_, _, _, false) =>
-          memo.bind(x, depth.agg)
-        case x @ AggLet(_, _, _, true) =>
-          memo.bind(x, depth.scan)
+        case _: Let | _: BaseRef =>
+          memo.bind(ir, depth)
         case _ =>
-          memo.bind(ir, depth.eval)
       }
       ir match {
         case StreamMap(a, _, body) =>
@@ -150,6 +157,6 @@ object NestingDepth {
       case bmir: BlockMatrixIR => computeBlockMatrix(bmir)
     }
 
-    memo
+    new NestingDepth(memo)
   }
 }

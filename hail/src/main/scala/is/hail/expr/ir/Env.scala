@@ -29,6 +29,12 @@ trait GenericBindingEnv[Self, V] {
   def bindAggOrScan(isScan: Boolean, bindings: (String, V)*): Self =
     if (isScan) bindScan(bindings: _*) else bindAgg(bindings: _*)
 
+  def bindInScope(name: String, v: V, scope: Int): Self = scope match {
+    case Scope.EVAL => bindEval(name -> v)
+    case Scope.AGG => bindAgg(name -> v)
+    case Scope.SCAN => bindScan(name -> v)
+  }
+
   def createAgg: Self
 
   def createScan: Self
@@ -66,6 +72,12 @@ case class BindingEnv[V](
   def promoteAgg: BindingEnv[V] = copy(eval = agg.get, agg = None)
 
   def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
+
+  def promoteScope(scope: Int): BindingEnv[V] = scope match {
+    case Scope.EVAL => this
+    case Scope.AGG => promoteAgg
+    case Scope.SCAN => promoteScan
+  }
 
   def noAgg: BindingEnv[V] = copy(agg = None)
 

@@ -95,8 +95,6 @@ object TypeCheck {
         assert(cases.forall(_.typ == default.typ))
       case x @ Let(_, body) =>
         assert(x.typ == body.typ)
-      case x @ AggLet(_, _, body, _) =>
-        assert(x.typ == body.typ)
       case x @ Ref(name, _) =>
         env.eval.lookupOption(name) match {
           case Some(expected) =>

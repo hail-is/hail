@@ -3,12 +3,9 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.expr.Nat
-import is.hail.expr.ir.DeprecatedIRBuilder.{applyAggOp, let, _}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-import org.scalatest.AppendedClues.convertToClueful
-import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {
@@ -145,7 +142,7 @@ class ForwardLetsSuite extends HailSuite {
   @Test(dataProvider = "nonForwardingAggOps")
   def testNonForwardingAggOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    assert(after.isInstanceOf[AggLet])
+    assert(after.isInstanceOf[Let])
   }
 
   @Test(dataProvider = "forwardingOps")
@@ -158,7 +155,7 @@ class ForwardLetsSuite extends HailSuite {
   @Test(dataProvider = "forwardingAggOps")
   def testForwardingAggOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    assert(!after.isInstanceOf[AggLet])
+    assert(!after.isInstanceOf[Let])
   }
 
   @DataProvider(name = "TrivialIRCases")
@@ -242,27 +239,35 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "TrivialIRCases")
-  def testTrivialCases(input: IR, expected: IR, reason: String): Unit =
-    ForwardLets(ctx)(input) should be(expected) withClue reason
+  def testTrivialCases(input: IR, expected: IR, reason: String): Unit = {
+    val result = ForwardLets(ctx)(input)
+    assert(result == expected, s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}")
+  }
 
   @Test def testAggregators(): Unit = {
-    val aggEnv = Env[Type]("row" -> TStruct("idx" -> TInt32))
-    val ir0 = applyAggOp(
-      Sum(),
-      seqOpArgs = FastSeq(let(x = 'row('idx) - 1) {
-        'x.toD
-      }),
+    val row = Ref("row", TStruct("idx" -> TInt32))
+    val x = Ref("x", TInt32)
+    val aggEnv = Env[Type](row.name -> row.typ)
+
+    val ir0 = ApplyAggOp(
+      FastSeq(),
+      FastSeq(Let(FastSeq("x" -> (GetField(row, "idx") - 1)), Cast(x, TFloat64))),
+      AggSignature(Sum(), FastSeq(), FastSeq(TFloat64))
     )
-      .apply(aggEnv)
 
     TypeCheck(ctx, ForwardLets(ctx)(ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
   }
 
   @Test def testNestedBindingOverwrites(): Unit = {
     val env = Env[Type]("x" -> TInt32)
-    val ir = let(y = 'x.toD, x = 'x.toD) {
-      'x + 'x + 'y
-    }(env)
+    def xInt = Ref("x", TInt32)
+    def xCast = Cast(xInt, TFloat64)
+    def xFloat = Ref("x", TFloat64)
+    def y = Ref("y", TFloat64)
+    val ir = Let(FastSeq(
+      "y" -> xCast,
+      "x" -> xCast
+    ), xFloat + xFloat + y)
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx)(ir), BindingEnv(env))

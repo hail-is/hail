@@ -234,11 +234,15 @@ class Pretty(
           "<literal value>",
       )
     case EncodedLiteral(codec, _) => single(codec.encodedVirtualType.parsableString())
-    case Let(bindings, _) if !elideBindings => bindings.map(b => text(prettyIdentifier(b._1)))
-    case AggLet(name, _, _, isScan) => if (elideBindings)
-        single(Pretty.prettyBooleanLiteral(isScan))
-      else
-        FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
+    case Let(bindings, _) if !elideBindings =>
+      bindings.flatMap { b =>
+        val bindType = b.scope match {
+          case Scope.EVAL => "eval"
+          case Scope.AGG => "agg"
+          case Scope.SCAN => "scan"
+        }
+        FastSeq(text(bindType), text(prettyIdentifier(b.name)))
+      }
     case TailLoop(name, args, returnType, _) if !elideBindings =>
       FastSeq(
         prettyIdentifier(name),
@@ -797,8 +801,6 @@ class Pretty(
         if (i == 1) Some(Array(eltName -> "elt")) else None
       case BlockMatrixMap2(_, _, lName, rName, _, _) =>
         if (i == 2) Some(Array(lName -> "l", rName -> "r")) else None
-      case AggLet(name, _, _, _) =>
-        if (i == 1) Some(Array(name -> "")) else None
       case AggExplode(_, name, _, _) =>
         if (i == 1) Some(Array(name -> "elt")) else None
       case StreamAgg(_, name, _) =>
@@ -836,10 +838,15 @@ class Pretty(
       }
     }
 
-    def prettyWithIdent(ir: BaseIR, bindings: Env[String], prefix: String): (Doc, String) = {
+    def prettyWithIdent(ir: BaseIR, bindings: Env[String], prefix: String, scope: Int = Scope.EVAL): (Doc, String) = {
       val (pre, body) = pretty(ir, bindings)
       val ident = prefix + uniqueify(getIdentBase(ir))
-      val doc = vsep(pre, hsep(text(ident), "=", body))
+      val assignmentSymbol = scope match {
+        case Scope.EVAL => "="
+        case Scope.AGG => "=(agg)"
+        case Scope.SCAN => "=(scan)"
+      }
+      val doc = vsep(pre, hsep(text(ident), assignmentSymbol, body))
       (doc, ident)
     }
 
@@ -868,9 +875,9 @@ class Pretty(
     def pretty(ir: BaseIR, bindings: Env[String]): (Doc, Doc) = ir match {
       case Let(binds, body) =>
         val (valueDoc, newBindings) =
-          binds.foldLeft((empty, bindings)) { case ((valueDoc, bindings), (name, value)) =>
-            val (doc, ident) = prettyWithIdent(value, bindings, "%")
-            (concat(valueDoc, doc), bindings.bind(name, ident))
+          binds.foldLeft((empty, bindings)) { case ((valueDoc, bindings), binding) =>
+            val (doc, ident) = prettyWithIdent(binding.value, bindings, "%", binding.scope)
+            (concat(valueDoc, doc), bindings.bind(binding.name, ident))
           }
         val (bodyPre, bodyHead) = pretty(body, newBindings)
         (concat(valueDoc, bodyPre), bodyHead)
