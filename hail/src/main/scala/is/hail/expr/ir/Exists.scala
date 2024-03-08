@@ -56,7 +56,12 @@ object IsAggResult {
 
 object ContainsAgg {
   def apply(root: IR): Boolean = IsAggResult(root) || (root match {
-    case l: AggLet => !l.isScan
+    case Let(bindings, body) =>
+      bindings.exists {
+        case Binding(_, value, Scope.EVAL) => ContainsAgg(value)
+        case Binding(_, _, Scope.AGG) => true
+        case Binding(_, _, Scope.SCAN) => false
+      } || ContainsAgg(body)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _: StreamAgg => false
@@ -107,7 +112,12 @@ object ContainsNonCommutativeAgg {
 
 object ContainsScan {
   def apply(root: IR): Boolean = IsScanResult(root) || (root match {
-    case l: AggLet => l.isScan
+    case Let(bindings, body) =>
+      bindings.exists {
+        case Binding(_, value, Scope.EVAL) => ContainsScan(value)
+        case Binding(_, _, Scope.AGG) => false
+        case Binding(_, _, Scope.SCAN) => true
+      } || ContainsScan(body)
     case _: TableAggregate => false
     case _: MatrixAggregate => false
     case _: StreamAggScan => false

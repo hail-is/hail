@@ -43,6 +43,8 @@ object Interpretable {
           _: StreamZipJoinProducers |
           _: ArrayMaximalIndependentSet |
           _: RNGStateLiteral => false
+      case Let(bindings, _) =>
+        bindings.forall(_.scope == Scope.EVAL)
       case x: ApplyIR =>
         !Exists(
           x.body,

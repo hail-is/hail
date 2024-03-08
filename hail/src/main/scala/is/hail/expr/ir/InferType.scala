@@ -63,8 +63,6 @@ object InferType {
         default.typ
       case Let(_, body) =>
         body.typ
-      case AggLet(_, _, body, _) =>
-        body.typ
       case TailLoop(_, _, resultType, _) =>
         resultType
       case Recur(_, _, typ) =>

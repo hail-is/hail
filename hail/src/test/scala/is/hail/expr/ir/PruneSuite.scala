@@ -1636,7 +1636,7 @@ class PruneSuite extends HailSuite {
       subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[Let]
-        ir.bindings.head._2.typ == subsetTS("b")
+        ir.bindings.head.value.typ == subsetTS("b")
       },
     )
   }
@@ -1656,9 +1656,9 @@ class PruneSuite extends HailSuite {
         false,
       ),
       TArray(subsetTS("a")),
-      (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[AggLet]
-        ir.value.typ == subsetTS("a")
+      (_: BaseIR, r: BaseIR) => r match {
+        case Let(Seq(Binding(_, value, Scope.AGG)), _) =>
+          value.typ == subsetTS("a")
       },
     )
   }

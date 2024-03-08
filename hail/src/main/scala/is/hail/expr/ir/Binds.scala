@@ -16,9 +16,14 @@ object Bindings {
   // index < i
   def apply(x: BaseIR, i: Int): Iterable[(String, Type)] = x match {
     case Let(bindings, _) =>
-      val result = Array.ofDim[(String, Type)](i)
-      for (k <- 0 until i) result(k) = bindings(k)._1 -> bindings(k)._2.typ
-      result
+      val result = Array.newBuilder[(String, Type)]
+      result.sizeHint(i)
+      for (k <- 0 until i) bindings(k) match {
+        case Binding(name, body, Scope.EVAL) =>
+          result += name -> body.typ
+        case _ =>
+      }
+      result.result
     case TailLoop(name, args, resultType, _) => if (i == args.length)
         args.map { case (name, ir) => name -> ir.typ } :+
           name -> TTuple(TTuple(args.map(_._2.typ): _*), resultType)
@@ -153,8 +158,22 @@ object AggBindings {
     def base: Option[Iterable[(String, Type)]] = parent.agg.map(_ => FastSeq())
 
     x match {
-      case AggLet(name, value, _, false) =>
-        if (i == 1) wrapped(FastSeq(name -> value.typ)) else None
+      case Let(bindings, _) =>
+        if (i == bindings.length || bindings(i).scope == Scope.EVAL) {
+          val builder = Array.newBuilder[(String, Type)]
+          for (k <- 0 until i) bindings(k) match {
+            case Binding(name, body, Scope.AGG) =>
+              builder += name -> body.typ
+            case _ =>
+          }
+          val result = builder.result()
+          if (result.nonEmpty) wrapped(result) else base
+        } else if (bindings(i).scope == Scope.AGG) {
+          // aggregations are not allowed in the value of an Agg binding
+          None
+        } else {
+          base
+        }
       case AggFilter(_, _, false) => if (i == 0) None else base
       case AggGroupBy(_, _, false) => if (i == 0) None else base
       case AggExplode(a, name, _, false) =>
@@ -206,7 +225,22 @@ object ScanBindings {
     def base: Option[Iterable[(String, Type)]] = parent.scan.map(_ => FastSeq())
 
     x match {
-      case AggLet(name, value, _, true) => if (i == 1) wrapped(FastSeq(name -> value.typ)) else None
+      case Let(bindings, _) =>
+        if (i == bindings.length || bindings(i).scope == Scope.EVAL) {
+          val builder = Array.newBuilder[(String, Type)]
+          for (k <- 0 until i) bindings(k) match {
+            case Binding(name, body, Scope.SCAN) =>
+              builder += name -> body.typ
+            case _ =>
+          }
+          val result = builder.result()
+          if (result.nonEmpty) wrapped(result) else base
+        } else if (bindings(i).scope == Scope.SCAN) {
+          // scans are not allowed in the value of a scan binding
+          None
+        } else {
+          base
+        }
       case AggFilter(_, _, true) => if (i == 0) None else base
       case AggGroupBy(_, _, true) => if (i == 0) None else base
       case AggExplode(a, name, _, true) =>

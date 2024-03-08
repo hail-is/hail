@@ -14,14 +14,14 @@ object ForwardLets {
 
     def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR = {
 
-      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: IR): Boolean = {
+      def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: Let, scope: Int): Boolean = {
         IsPure(value) && (
           value.isInstanceOf[Ref] ||
             value.isInstanceOf[In] ||
             (IsConstant(value) && !value.isInstanceOf[Str]) ||
             refs.isEmpty ||
             (refs.size == 1 &&
-              nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
+              nestingDepth.lookupRef(refs.head) == nestingDepth.lookupBinding(base, scope) &&
               !ContainsScan(value) &&
               !ContainsAgg(value)) &&
             !ContainsAggIntermediate(value)
@@ -29,37 +29,31 @@ object ForwardLets {
       }
 
       ir match {
-        case l @ Let(bindings, body) =>
-          val keep = new BoxedArrayBuilder[(String, IR)]
-          val refs = uses(ir)
-          val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
-            val rewriteValue = rewrite(value, env).asInstanceOf[IR]
-            if (
-              rewriteValue.typ != TVoid
-              && shouldForward(rewriteValue, refs.filter(_.t.name == name), l)
-            ) {
-              env.bindEval(name -> rewriteValue)
-            } else {
-              keep += (name -> rewriteValue)
-              env
-            }
+        case l: Let =>
+          val keep = new BoxedArrayBuilder[Binding]
+          val refs = uses(l)
+          val newEnv = l.bindings.foldLeft(env) {
+            case (env, Binding(name, value, scope)) =>
+              val rewriteValue = rewrite(value, env.promoteScope(scope)).asInstanceOf[IR]
+              if (
+                rewriteValue.typ != TVoid
+                && shouldForward(rewriteValue, refs.filter(_.t.name == name), l, scope)
+              ) {
+                scope match {
+                  case Scope.EVAL => env.bindEval(name -> rewriteValue)
+                  case Scope.AGG => env.copy(agg = Some(env.agg.get.bind(name -> rewriteValue)))
+                  case Scope.SCAN => env.copy(scan = Some(env.scan.get.bind(name -> rewriteValue)))
+                }
+              } else {
+                keep += Binding(name, rewriteValue, scope)
+                env
+              }
           }
 
-          val newBody = rewrite(body, newEnv).asInstanceOf[IR]
+          val newBody = rewrite(l.body, newEnv).asInstanceOf[IR]
           if (keep.isEmpty) newBody
-          else Let(keep.result(), newBody)
+          else Let.withAgg(keep.result(), newBody)
 
-        case l @ AggLet(name, value, body, isScan) =>
-          val refs = uses.lookup(ir)
-          val rewriteValue =
-            rewrite(value, if (isScan) env.promoteScan else env.promoteAgg).asInstanceOf[IR]
-          if (shouldForward(rewriteValue, refs, l))
-            if (isScan)
-              rewrite(body, env.copy(scan = Some(env.scan.get.bind(name -> rewriteValue))))
-            else
-              rewrite(body, env.copy(agg = Some(env.agg.get.bind(name -> rewriteValue))))
-          else
-            AggLet(name, rewriteValue, rewrite(body, env).asInstanceOf[IR], isScan)
         case x @ Ref(name, _) =>
           env.eval
             .lookupOption(name)

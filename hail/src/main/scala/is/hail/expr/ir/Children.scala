@@ -36,12 +36,10 @@ object Children {
       children
     case Let(bindings, body) =>
       val children = Array.ofDim[BaseIR](x.size)
-      for (i <- bindings.indices) children(i) = bindings(i)._2
+      for (i <- bindings.indices) children(i) = bindings(i).value
       children(bindings.size) = body
       children
     case RelationalLet(_, value, body) =>
-      Array(value, body)
-    case AggLet(_, value, body, _) =>
       Array(value, body)
     case TailLoop(_, args, _, body) =>
       args.map(_._2).toFastSeq :+ body
