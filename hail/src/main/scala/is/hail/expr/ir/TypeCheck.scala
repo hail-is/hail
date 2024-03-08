@@ -14,7 +14,8 @@ object TypeCheck {
     try
       check(ctx, ir, BindingEnv.empty).run()
     catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true)}", e)
+      case e: Throwable =>
+        fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true)}", e)
     }
 
   def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit =

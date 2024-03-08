@@ -126,7 +126,10 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test def testBlock(): Unit = {
-    val ir = Block(FastSeq(Binding("x", I32(1), Scope.AGG), Binding("y", Ref("x", TInt32), Scope.AGG)), ApplyAggOp(Sum())(Ref("y", TInt32)))
+    val ir = Block(
+      FastSeq(Binding("x", I32(1), Scope.AGG), Binding("y", Ref("x", TInt32), Scope.AGG)),
+      ApplyAggOp(Sum())(Ref("y", TInt32)),
+    )
     val after: IR = ForwardLets(ctx)(ir)
     val expected = ApplyAggOp(Sum())(I32(1))
     val normalize = new NormalizeNames(_.toString)

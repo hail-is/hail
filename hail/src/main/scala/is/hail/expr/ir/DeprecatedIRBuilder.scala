@@ -406,9 +406,7 @@ object DeprecatedIRBuilder {
   class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
     def apply(body: IRProxy): IRProxy = in(body)
 
-    def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env)
-    }
+    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object aggLet extends Dynamic {
@@ -421,9 +419,7 @@ object DeprecatedIRBuilder {
   class AggLetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
     def apply(body: IRProxy): IRProxy = in(body)
 
-    def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env)
-    }
+    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object MapIRProxy {
