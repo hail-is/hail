@@ -3682,11 +3682,11 @@ steps:
       ITERATIONS=5
 
       PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
-          $(IMAGE) \
-          $(RESULTS_PREFIX) \
-          $(HAIL_PIP_VERSION) \
-          $(REPLICATES) \
-          $(ITERATIONS) \
+          $IMAGE \
+          $RESULTS_PREFIX \
+          $HAIL_PIP_VERSION \
+          $REPLICATES \
+          $ITERATIONS \
           submit
 
   - kind: runImage
