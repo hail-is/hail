@@ -1882,6 +1882,33 @@ class Tests(unittest.TestCase):
         mt = mt.semi_join_rows(rows)
         hl.hwe_normalized_pca(mt.GT)
 
+    def test_dummy_code(self):
+        matrix_table = hl.utils.range_matrix_table(10, 10)
+        smoking_categories = hl.literal(['current', 'former', 'never'])
+        matrix_table = matrix_table.annotate_cols(smoking_status=smoking_categories[matrix_table.col_idx % 3])
+        # Test using the column field name
+        matrix_table, dummy_variable_field_names, _ = matrix_table.dummy_code('smoking_status')
+        self.assertEqual(
+            {'smoking_status__current', 'smoking_status__former', 'smoking_status__never'},
+            set(dummy_variable_field_names),
+        )
+        self.assertEqual([1, 0, 0, 1, 0, 0, 1, 0, 0, 1], matrix_table['smoking_status__current'].collect())
+        self.assertEqual([0, 1, 0, 0, 1, 0, 0, 1, 0, 0], matrix_table['smoking_status__former'].collect())
+        self.assertEqual([0, 0, 1, 0, 0, 1, 0, 0, 1, 0], matrix_table['smoking_status__never'].collect())
+
+        # Reset matrix_table
+        matrix_table = hl.utils.range_matrix_table(10, 10)
+        matrix_table = matrix_table.annotate_cols(smoking_status=smoking_categories[matrix_table.col_idx % 3])
+        # Test using an expression
+        matrix_table, dummy_variable_field_names, _ = matrix_table.dummy_code(matrix_table.smoking_status)
+        self.assertEqual(
+            {'smoking_status__current', 'smoking_status__former', 'smoking_status__never'},
+            set(dummy_variable_field_names),
+        )
+        self.assertEqual([1, 0, 0, 1, 0, 0, 1, 0, 0, 1], matrix_table['smoking_status__current'].collect())
+        self.assertEqual([0, 1, 0, 0, 1, 0, 0, 1, 0, 0], matrix_table['smoking_status__former'].collect())
+        self.assertEqual([0, 0, 1, 0, 0, 1, 0, 0, 1, 0], matrix_table['smoking_status__never'].collect())
+
 
 def test_keys_before_scans():
     mt = hl.utils.range_matrix_table(6, 6)
