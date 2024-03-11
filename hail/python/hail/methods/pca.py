@@ -208,13 +208,18 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
 
 
 class TallSkinnyMatrix:
-    def __init__(self, block_table, block_expr, source_table, col_key):
-        self.col_key = col_key
-        first_block = block_expr.take(1)[0]
-        self.ncols = first_block.shape[1]
+    def __init__(self, block_table, block_field_name: str, source_table, col_key):
         self.block_table = block_table
-        self.block_expr = block_expr
+        self.block_field_name = block_field_name
         self.source_table = source_table
+        self.col_key = col_key
+
+        first_block = self.block_expr.take(1)[0]
+        self.ncols = first_block.shape[1]
+
+    @property
+    def block_expr(self):
+        return self.block_table[self.block_field_name]
 
 
 def _make_tsm(
@@ -230,7 +235,7 @@ def _make_tsm(
 
     if whiten_window_size is None:
         A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
-        return TallSkinnyMatrix(A, A.ndarray, ht, list(mt.col_key))
+        return TallSkinnyMatrix(A, 'ndarray', ht, list(mt.col_key))
     else:
         # FIXME: don't whiten across chromosome boundaries
         A, trailing_blocks_ht, ht = mt_to_table_of_ndarray(
@@ -263,7 +268,7 @@ def _make_tsm(
         whitened = joined._map_partitions(whiten_map_body)
         whitened = whitened.annotate(ndarray=whitened.ndarray.T).persist()
 
-        return TallSkinnyMatrix(whitened, whitened.ndarray, ht, list(mt.col_key))
+        return TallSkinnyMatrix(whitened, 'ndarray', ht, list(mt.col_key))
 
 
 def _make_tsm_from_call(
@@ -401,7 +406,7 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     return KrylovFactorization(U, R, V, k)
 
 
-def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None):
+def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, iteration_size=None, *, seed=None):
     # Set Parameters
     q = iterations
     if iteration_size is None:
@@ -412,7 +417,7 @@ def _reduced_svd(A: TallSkinnyMatrix, k=10, compute_U=False, iterations=2, itera
     n = A.ncols
 
     # Generate random matrix G
-    G = hl.rand_norm(0, 1, size=(n, L))
+    G = hl.rand_norm(0, 1, seed=seed, size=(n, L))
     G = hl.nd.qr(G)[0]._persist()
 
     fact = _krylov_factorization(A, G, q, compute_U)
@@ -534,6 +539,8 @@ def _pca_and_moments(
     block_size=int,
     compute_scores=bool,
     transpose=bool,
+    _seed=nullable(int),
+    _unrelated_A=nullable(TallSkinnyMatrix),
 )
 def _blanczos_pca(
     A,
@@ -544,6 +551,9 @@ def _blanczos_pca(
     block_size=128,
     compute_scores=True,
     transpose=False,
+    *,
+    _seed=None,
+    _unrelated_A=None,
 ):
     r"""Run randomized principal component analysis approximation (PCA)
     on numeric columns derived from a matrix table.
@@ -639,7 +649,10 @@ def _blanczos_pca(
         oversampling_param = k
 
     compute_U = (not transpose and compute_loadings) or (transpose and compute_scores)
-    U, S, V = _reduced_svd(A, k, compute_U, q_iterations, k + oversampling_param)
+    if _unrelated_A is not None:
+        U, S, V = _reduced_svd(_unrelated_A, k, compute_U, q_iterations, k + oversampling_param, seed=_seed)
+    else:
+        U, S, V = _reduced_svd(A, k, compute_U, q_iterations, k + oversampling_param, seed=_seed)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
     def numpy_to_rows_table(X, field_name):
@@ -666,10 +679,21 @@ def _blanczos_pca(
         if compute_loadings:
             lt = numpy_to_cols_table(V, 'loadings')
         if compute_scores:
+            assert _unrelated_A is None
             st = numpy_to_rows_table(U * S, 'scores')
     else:
         if compute_scores:
-            st = numpy_to_cols_table(V * S, 'scores')
+            if _unrelated_A is not None:
+                # Matrix multiply A^T with U to compute the scores
+                t = A.block_table.add_index()
+                t = t.annotate_globals(U=U)
+                st = t.aggregate(
+                    hl.agg.ndarray_sum(t[A.block_field_name].T @ t.U[t.idx * block_size : (t.idx + 1) * block_size, :]),
+                    _localize=False,
+                )
+                st = numpy_to_cols_table(st, 'scores')
+            else:
+                st = numpy_to_cols_table(V * S, 'scores')
         if compute_loadings:
             lt = numpy_to_rows_table(U, 'loadings')
 
@@ -683,9 +707,19 @@ def _blanczos_pca(
     q_iterations=int,
     oversampling_param=nullable(int),
     block_size=int,
+    _seed=nullable(int),
+    _partition_table=nullable(Table),
 )
 def _hwe_normalized_blanczos(
-    call_expr, k=10, compute_loadings=False, q_iterations=10, oversampling_param=None, block_size=128
+    call_expr,
+    k=10,
+    compute_loadings=False,
+    q_iterations=10,
+    oversampling_param=None,
+    block_size=128,
+    *,
+    _seed=None,
+    _partition_table: Table = None,
 ):
     r"""Run randomized principal component analysis approximation (PCA) on the
     Hardy-Weinberg-normalized genotype call matrix.
@@ -720,6 +754,20 @@ def _hwe_normalized_blanczos(
         List of eigenvalues, table with column scores, table with row loadings.
     """
     raise_unless_entry_indexed('_blanczos_pca/entry_expr', call_expr)
+    _unrelated_A = None
+
+    if _partition_table is not None:
+        matrix_table = matrix_table_source('hwe_normalized_blanczos/call_expr', call_expr)
+        field_name = matrix_table._fields_inverse[call_expr]
+        unrelated_table = _partition_table.filter(_partition_table.is_in_unrelated)
+        matrix_table = matrix_table.semi_join_cols(unrelated_table)
+        unrelated_call_expr = matrix_table[field_name]
+        _unrelated_A = _make_tsm_from_call(
+            unrelated_call_expr,
+            block_size,
+            hwe_normalize=True,
+        )
+
     A = _make_tsm_from_call(call_expr, block_size, hwe_normalize=True)
 
     return _blanczos_pca(
@@ -729,4 +777,6 @@ def _hwe_normalized_blanczos(
         q_iterations=q_iterations,
         oversampling_param=oversampling_param,
         block_size=block_size,
+        _seed=_seed,
+        _unrelated_A=_unrelated_A,
     )
