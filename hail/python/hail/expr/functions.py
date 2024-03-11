@@ -824,6 +824,84 @@ def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     return _func("contingency_table_test", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
+# We use 64-bit integers.
+# It is relatively easy to encounter an integer overflow bug with 32-bit integers.
+@typecheck(a=expr_array(expr_int64), b=expr_array(expr_int64), c=expr_array(expr_int64), d=expr_array(expr_int64))
+def cochran_mantel_haenszel_test(
+    a: Union[tarray, list], b: Union[tarray, list], c: Union[tarray, list], d: Union[tarray, list]
+) -> StructExpression:
+    """Perform the Cochran-Mantel-Haenszel test for association.
+
+    Examples
+    --------
+    >>> a = [56, 61, 73, 71]
+    >>> b = [69, 257, 65, 48]
+    >>> c = [40, 57, 71, 55]
+    >>> d = [77, 301, 79, 48]
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=5.0496881823306765, p_value=0.024630370456863417)
+
+    >>> mt = ds.filter_rows(mt.locus == hl.Locus(20, 10633237))
+    >>> mt.count_rows()
+    1
+    >>> a, b, c, d = mt.aggregate_entries(
+    ...     hl.tuple([
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)])
+    ...     ])
+    ... )
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=0.2188830334629822, p_value=0.6398923118508772)
+
+    Notes
+    -----
+    See the `Wikipedia article <https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics>`_
+    for more details.
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the upper-left cell in the contingency tables.
+    b : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the upper-right cell in the contingency tables.
+    c : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the lower-left cell in the contingency tables.
+    d : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the lower-right cell in the contingency tables.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        A :class:`.tstruct` expression with two fields, `test_statistic`
+        (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
+    """
+    # The variable names below correspond to the notation used in the Wikipedia article.
+    # https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics
+    n1 = hl.zip(a, b).map(lambda ab: ab[0] + ab[1])
+    n2 = hl.zip(c, d).map(lambda cd: cd[0] + cd[1])
+    m1 = hl.zip(a, c).map(lambda ac: ac[0] + ac[1])
+    m2 = hl.zip(b, d).map(lambda bd: bd[0] + bd[1])
+    t = hl.zip(n1, n2).map(lambda nn: nn[0] + nn[1])
+
+    def numerator_term(a, n1, m1, t):
+        return a - n1 * m1 / t
+
+    # The numerator comes from the link below, not from the Wikipedia article.
+    # https://www.biostathandbook.com/cmh.html
+    numerator = (hl.abs(hl.sum(hl.zip(a, n1, m1, t).map(lambda tup: numerator_term(*tup)))) - 0.5) ** 2
+
+    def denominator_term(n1, n2, m1, m2, t):
+        return n1 * n2 * m1 * m2 / (t**3 - t**2)
+
+    denominator = hl.sum(hl.zip(n1, n2, m1, m2, t).map(lambda tup: denominator_term(*tup)))
+
+    test_statistic = numerator / denominator
+    p_value = pchisqtail(test_statistic, 1)
+    return struct(test_statistic=test_statistic, p_value=p_value)
+
+
 @typecheck(
     collection=expr_oneof(
         expr_dict(), expr_set(expr_tuple([expr_any, expr_any])), expr_array(expr_tuple([expr_any, expr_any]))
