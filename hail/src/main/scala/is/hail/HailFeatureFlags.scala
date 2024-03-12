@@ -71,6 +71,9 @@ class HailFeatureFlags private (
 
   def get(flag: String): String = flags(flag)
 
+  def lookup(flag: String): Option[String] =
+    Option(flags(flag))
+
   def exists(flag: String): Boolean = flags.contains(flag)
 
   def toJSONEnv: JArray =

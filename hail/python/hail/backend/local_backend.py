@@ -67,8 +67,6 @@ class LocalBackend(Py4JBackend):
 
         jbackend = hail_package.backend.local.LocalBackend.apply(
             tmpdir,
-            gcs_requester_pays_project,
-            gcs_requester_pays_buckets,
             log,
             True,
             append,
@@ -81,7 +79,10 @@ class LocalBackend(Py4JBackend):
         self._fs = self._exit_stack.enter_context(RouterFS())
         self._logger = None
 
-        self._initialize_flags({})
+        self._initialize_flags({
+            'gcs_requester_pays_project': gcs_requester_pays_project,
+            'gcs_requester_pays_buckets': gcs_requester_pays_buckets
+        })
 
     def validate_file(self, uri: str) -> None:
         validate_file(uri, self._fs.afs)

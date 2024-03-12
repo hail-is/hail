@@ -257,38 +257,40 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 object FS {
-  def cloudSpecificFS(
-    credentialsPath: String,
-    flags: Option[HailFeatureFlags],
-  ): FS = retryTransientErrors {
-    val cloudSpecificFS = using(new FileInputStream(credentialsPath)) { is =>
-      val credentialsStr = Some(IOUtils.toString(is, Charset.defaultCharset()))
-      sys.env.get("HAIL_CLOUD") match {
-        case Some("gcp") =>
-          val requesterPaysConfiguration = flags.flatMap { flags =>
-            RequesterPaysConfiguration.fromFlags(
-              flags.get("gcs_requester_pays_project"),
-              flags.get("gcs_requester_pays_buckets"),
-            )
-          }
-          new GoogleStorageFS(credentialsStr, requesterPaysConfiguration)
-        case Some("azure") =>
-          sys.env.get("HAIL_TERRA") match {
-            case Some(_) => new TerraAzureStorageFS()
-            case None => new AzureStorageFS(credentialsStr)
-          }
-        case Some(cloud) =>
-          throw new IllegalArgumentException(s"Bad cloud: $cloud")
-        case None =>
-          throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+  def buildRoutes(credentialsPath: Option[String], flags: Option[HailFeatureFlags]): FS =
+    retryTransientErrors {
+      val credentialsStr = credentialsPath.map { path =>
+        using(new FileInputStream(path))(is => IOUtils.toString(is, Charset.defaultCharset()))
       }
-    }
 
-    new RouterFS(Array(
-      cloudSpecificFS,
-      new HadoopFS(new SerializableHadoopConfiguration(new hadoop.conf.Configuration())),
-    ))
-  }
+      def gcs = new GoogleStorageFS(
+        credentialsStr,
+        flags.flatMap(RequesterPaysConfiguration.fromFlags),
+      )
+
+      def az = sys.env.get("HAIL_TERRA") match {
+        case Some(_) => new TerraAzureStorageFS()
+        case None => new AzureStorageFS(credentialsStr)
+      }
+
+      val cloudSpecificFSs = sys.env.get("HAIL_CLOUD") match {
+        case Some("gcp") => FastSeq(gcs)
+        case Some("azure") => FastSeq(az)
+        case Some(cloud) =>
+          throw new IllegalArgumentException(s"Unknown cloud provider: '$cloud'.'")
+        case None =>
+          if (credentialsPath.isEmpty) FastSeq(gcs, az)
+          else fatal(
+            "Don't know to which cloud credentials belong because 'HAIL_CLOUD' was not set."
+          )
+      }
+
+      new RouterFS(
+        cloudSpecificFSs :+ new HadoopFS(
+          new SerializableHadoopConfiguration(new hadoop.conf.Configuration())
+        )
+      )
+    }
 
   private val log = Logger.getLogger(getClass.getName())
 }

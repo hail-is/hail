@@ -1,5 +1,6 @@
 package is.hail.io.fs
 
+import is.hail.HailFeatureFlags
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.utils._
@@ -82,25 +83,17 @@ object GoogleStorageFileListEntry {
 }
 
 object RequesterPaysConfiguration {
-  def fromFlags(requesterPaysProject: String, requesterPaysBuckets: String)
-    : Option[RequesterPaysConfiguration] = {
-    if (requesterPaysProject == null) {
-      if (requesterPaysBuckets == null) {
-        None
-      } else {
+  def fromFlags(flags: HailFeatureFlags): Option[RequesterPaysConfiguration] =
+    FastSeq("gcs_requester_pays_project", "gcs_requester_pays_buckets").map(flags.lookup) match {
+      case Seq(Some(project), buckets) =>
+        Some(RequesterPaysConfiguration(project, buckets.map(_.split(",").toSet)))
+      case Seq(None, Some(buckets)) =>
         fatal(
-          s"Expected gcs_requester_pays_buckets flag to be unset when gcs_requester_pays_project is unset, but instead found: $requesterPaysBuckets"
+          s"Expected gcs_requester_pays_buckets flag to be unset when gcs_requester_pays_project is unset, but instead found: $buckets"
         )
-      }
-    } else {
-      val buckets = if (requesterPaysBuckets == null) {
+      case _ =>
         None
-      } else {
-        Some(requesterPaysBuckets.split(",").toSet)
-      }
-      Some(RequesterPaysConfiguration(requesterPaysProject, buckets))
     }
-  }
 }
 
 case class RequesterPaysConfiguration(
