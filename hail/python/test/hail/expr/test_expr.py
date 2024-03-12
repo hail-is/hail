@@ -3600,6 +3600,48 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
 
+    def test_cochran_mantel_haenszel_test(self):
+        # https://cran.r-project.org/web/packages/samplesizeCMH/vignettes/samplesizeCMH-introduction.html
+        a = [118, 154, 422, 670]
+        b = [62, 25, 88, 192]
+        c = [4, 13, 106, 3]
+        d = [141, 93, 90, 20]
+
+        result = hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+        self.assertEqual(360.3311519725744, result['test_statistic'])
+        self.assertEqual(2.384935629406975e-80, result['p_value'])
+
+        # https://www.biostathandbook.com/cmh.html
+        a = [708, 136, 106, 109, 801, 159, 151, 950]
+        b = [50, 24, 32, 22, 102, 27, 51, 173]
+        c = [169, 73, 17, 16, 180, 18, 28, 218]
+        d = [13, 14, 4, 26, 25, 13, 15, 33]
+
+        expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
+        result = hl.eval(expr)
+        self.assertEqual(6.07023412667767, result['test_statistic'])
+        self.assertEqual(0.013747873638119005, result['p_value'])
+
+        a = [56, 61, 73, 71]
+        b = [69, 257, 65, 48]
+        c = [40, 57, 71, 55]
+        d = [77, 301, 79, 48]
+
+        expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
+        result = hl.eval(expr)
+        self.assertEqual(5.0496881823306765, result['test_statistic'])
+        self.assertEqual(0.024630370456863417, result['p_value'])
+
+        a = hl.array([2, 4, 1, 1, 2])
+        b = hl.array([46, 67, 86, 37, 92])
+        c = hl.array([11, 12, 4, 6, 1])
+        d = hl.array([41, 60, 76, 32, 93])
+
+        expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
+        result = hl.eval(expr)
+        self.assertEqual(12.74572269532737, result['test_statistic'])
+        self.assertEqual(0.0003568242404514306, result['p_value'])
+
     def test_hardy_weinberg_test(self):
         two_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=False))
         self.assertAlmostEqual(two_sided_res['p_value'], 0.65714285)
@@ -3834,6 +3876,9 @@ class Tests(unittest.TestCase):
         self.assertValueEqual(
             hl.array_scan(lambda x, y: x + y, 0, [1.0, 2.0, 3.0]), [0.0, 1.0, 3.0, 6.0], tarray(tfloat64)
         )
+
+    def test_sum(self):
+        self.assertValueEqual(hl.sum([1, 2, 3, 4]), 10, tint32)
 
     def test_cumulative_sum(self):
         self.assertValueEqual(hl.cumulative_sum([1, 2, 3, 4]), [1, 3, 6, 10], tarray(tint32))

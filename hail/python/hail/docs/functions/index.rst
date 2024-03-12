@@ -164,6 +164,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     chi_squared_test
     fisher_exact_test
     contingency_table_test
+    cochran_mantel_haenszel_test
     dbeta
     dpois
     hardy_weinberg_test
