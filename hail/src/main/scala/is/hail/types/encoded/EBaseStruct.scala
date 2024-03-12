@@ -159,9 +159,16 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       case t: PCanonicalBaseStruct => t
     }
     val mbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1), const(nMissingBytes)))
+    var midx = 0
+    var byteIdx = 0L
     cb += in.readBytes(region, mbytes, nMissingBytes)
+    val m = cb.newLocal[Int]("cached_mbyte")
 
     fields.foreach { f =>
+      if (midx == 0 && f.typ.required) {
+        cb.assign[Int](m, Region.loadByte(mbytes + byteIdx))
+        byteIdx += 1
+      }
       if (structType.hasField(f.name)) {
         val rf = structType.field(f.name)
         val readElemF = f.typ.buildInplaceDecoder(rf.typ, cb.emb.ecb)
@@ -172,7 +179,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
             structType.setFieldPresent(cb, addr, rf.index)
         } else {
           cb.if_(
-            Region.loadBit(mbytes, const(missingIdx(f.index).toLong)),
+            (const(1 << midx) & m).cne(0),
             structType.setFieldMissing(cb, addr, rf.index), {
               structType.setFieldPresent(cb, addr, rf.index)
               readElemF(cb, region, rFieldAddr, in)
@@ -184,8 +191,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         if (f.typ.required)
           skip(cb, region, in)
         else
-          cb.if_(!Region.loadBit(mbytes, const(missingIdx(f.index).toLong)), skip(cb, region, in))
+          cb.if_((const(1 << midx) & m).ceq(0), skip(cb, region, in))
       }
+      midx = (midx + f.typ.required.toInt) & 0x7
     }
   }
 
