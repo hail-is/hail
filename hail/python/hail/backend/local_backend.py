@@ -81,7 +81,7 @@ class LocalBackend(Py4JBackend):
 
         self._initialize_flags({
             'gcs_requester_pays_project': gcs_requester_pays_project,
-            'gcs_requester_pays_buckets': gcs_requester_pays_buckets
+            'gcs_requester_pays_buckets': gcs_requester_pays_buckets,
         })
 
     def validate_file(self, uri: str) -> None:
