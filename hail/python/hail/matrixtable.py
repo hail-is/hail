@@ -2846,7 +2846,7 @@ class MatrixTable(ExprContainer):
             )
 
             matrix_table = matrix_table.select_entries(**{k: hl._showstr(v) for k, v in matrix_table.entry.items()})
-            table = matrix_table.head(n_rows, n_cols).localize_entries('entries', 'cols')
+            table = matrix_table.head(n_rows=None, n_cols=n_cols).localize_entries('entries', 'cols')
             table_key_dtype = table.key.dtype
             if len(table.key) > 0:
                 table = table.order_by(*table.key)
@@ -2861,10 +2861,13 @@ class MatrixTable(ExprContainer):
             row_field_right_align = [hl.expr.types.is_numeric(row_dtype[field]) for field in row_fields]
 
             table = table.select(**{k: hl._showstr(v) if k != "entries" else v for k, v in table.row.items()})
-            rows, _ = table._take_n(n_rows)
+            rows, has_more_rows = table._take_n(n_rows)
             truncated_rows = [[truncate(row[field]) for field in row_fields] for row in rows]
 
-            entries = [[[entry[field] for field in entry_fields] for entry in row['entries']] for row in rows]
+            entries = [
+                [[entry[field] for field in entry_fields] if entry else ['NA'] for entry in row['entries']]
+                for row in rows
+            ]
             truncated_entries = [[[truncate(entry) for entry in column] for column in row] for row in entries]
 
             truncated_values = [
@@ -2969,7 +2972,8 @@ class MatrixTable(ExprContainer):
                     ascii_str += format_line(row[block_slice], block_display_column_widths, block_right_align)
                 ascii_str += hline
 
-            ascii_str += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+            if has_more_rows:
+                ascii_str += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
             total_n_cols = matrix_table.count_cols()
             if n_cols != total_n_cols:
                 ascii_str += f"showing the first { n_cols } of { total_n_cols } columns"
