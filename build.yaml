@@ -1197,9 +1197,8 @@ steps:
       mkdir -p /io/tmp
 
       # The test should use the test credentials, not CI's credentials
-      sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/test-azure-key/credentials.json
 
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
