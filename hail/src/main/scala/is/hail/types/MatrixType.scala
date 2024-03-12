@@ -199,21 +199,28 @@ case class MatrixType(
   }
 
   @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
+    .bind(globalBindings: _*)
+
+  def globalBindings: IndexedSeq[(String, Type)] =
+    FastSeq("global" -> globalType)
 
   @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("va" -> rowType)
+    .bind(rowBindings: _*)
+
+  def rowBindings: IndexedSeq[(String, Type)] =
+    FastSeq("global" -> globalType, "va" -> rowType)
 
   @transient lazy val colEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("sa" -> colType)
+    .bind(colBindings: _*)
+
+  def colBindings: IndexedSeq[(String, Type)] =
+    FastSeq("global" -> globalType, "sa" -> colType)
 
   @transient lazy val entryEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("sa" -> colType)
-    .bind("va" -> rowType)
-    .bind("g" -> entryType)
+    .bind(entryBindings: _*)
+
+  def entryBindings: IndexedSeq[(String, Type)] =
+    FastSeq("global" -> globalType, "sa" -> colType, "va" -> rowType, "g" -> entryType)
 
   def requireRowKeyVariant(): Unit = {
     val rowKeyTypes = rowKeyStruct.types

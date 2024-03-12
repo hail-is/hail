@@ -30,9 +30,15 @@ case class BindingEnv[V](
 
   def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
 
+  def promoteAggOrScan(isScan: Boolean): BindingEnv[V] =
+    if (isScan) promoteScan else promoteAgg
+
   def noAgg: BindingEnv[V] = copy(agg = None)
 
   def noScan: BindingEnv[V] = copy(scan = None)
+
+  def noAggOrScan(isScan: Boolean): BindingEnv[V] =
+    if (isScan) noScan else noAgg
 
   def createAgg: BindingEnv[V] =
     copy(agg = Some(eval), scan = scan.map(_ => Env.empty))
@@ -40,7 +46,15 @@ case class BindingEnv[V](
   def createScan: BindingEnv[V] =
     copy(scan = Some(eval), agg = agg.map(_ => Env.empty))
 
-  def onlyRelational: BindingEnv[V] = BindingEnv(relational = relational)
+  def createAggOrScan(isScan: Boolean): BindingEnv[V] =
+    if (isScan) createScan else createAgg
+
+  def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
+    BindingEnv(
+      agg = if (keepAggCapabilities) agg.map(_ => Env.empty) else None,
+      scan = if (keepAggCapabilities) scan.map(_ => Env.empty) else None,
+      relational = relational
+    )
 
   def bindEval(name: String, v: V): BindingEnv[V] =
     copy(eval = eval.bind(name, v))
@@ -65,8 +79,14 @@ case class BindingEnv[V](
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
 
+  def bindAggOrScan(isScan: Boolean, bindings: (String, V)*): BindingEnv[V] =
+    if (isScan) bindScan(bindings: _*) else bindAgg(bindings: _*)
+
   def bindRelational(name: String, v: V): BindingEnv[V] =
     copy(relational = relational.bind(name, v))
+
+  def bindRelational(bindings: (String, V)*): BindingEnv[V] =
+    copy(relational = relational.bind(bindings: _*))
 
   def scanOrEmpty: Env[V] = scan.getOrElse(Env.empty)
 
@@ -139,9 +159,13 @@ case class BindingEnv[V](
   )
 }
 
-class Env[V] private (val m: Map[Env.K, V]) {
+final class Env[V] private (val m: Map[Env.K, V]) {
   def this() =
     this(Map())
+
+  override def equals(other: Any): Boolean = other match {
+    case env: Env[V] => this.m == env.m
+  }
 
   def contains(k: Env.K): Boolean = m.contains(k)
 

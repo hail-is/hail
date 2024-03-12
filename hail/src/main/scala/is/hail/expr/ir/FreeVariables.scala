@@ -62,9 +62,9 @@ object FreeVariables {
             .zipWithIndex
             .map {
               case (child: IR, i) =>
-                val childEnv = ChildEnvWithoutBindings(ir1, i, baseEnv)
-                val sub = compute(child, childEnv)
-                  .subtract(NewBindings(ir1, i, childEnv))
+                val bindings = Bindings2(ir1, i, baseEnv)
+                val childEnv = bindings.childEnvWithoutBindings
+                val sub = compute(child, childEnv).subtract(bindings.newBindings)
                 if (UsesAggEnv(ir1, i))
                   sub.copy(eval = Env.empty[Unit], agg = Some(sub.eval), scan = baseEnv.scan)
                 else if (UsesScanEnv(ir1, i))

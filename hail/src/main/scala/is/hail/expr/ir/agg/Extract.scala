@@ -484,7 +484,19 @@ object Extract {
 
     val bindingNodesReferenced = Memo.empty[Unit]
     val rewriteMap = Memo.empty[IR]
-    extract(ir, Env.empty, bindingNodesReferenced, rewriteMap, ab, seq, let, memo, ref, r, isScan)
+    extract(
+      ir,
+      BindingEnv.empty,
+      bindingNodesReferenced,
+      rewriteMap,
+      ab,
+      seq,
+      let,
+      memo,
+      ref,
+      r,
+      isScan,
+    )
     val (initOps, pAggSigs) = ab.result().unzip
     val rt = TTuple(initOps.map(_.aggSig.resultType): _*)
     ref._typ = rt
@@ -501,7 +513,7 @@ object Extract {
 
   private def extract(
     ir: IR,
-    env: Env[RefEquality[IR]],
+    env: BindingEnv[RefEquality[IR]],
     bindingNodesReferenced: Memo[Unit],
     rewriteMap: Memo[IR],
     ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)],
@@ -520,7 +532,7 @@ object Extract {
       initArgs.foreach { arg =>
         val fv = FreeVariables(arg, false, false).eval
         fv.m.keys
-          .flatMap(k => env.lookupOption(k))
+          .flatMap(k => env.eval.lookupOption(k))
           .foreach(bindingNodesReferenced.bind(_, ()))
       }
     }
@@ -706,11 +718,7 @@ object Extract {
         x
       case x =>
         ir.mapChildrenWithIndex { case (child: IR, i) =>
-          val nb = Bindings(x, i)
-          val newEnv = if (nb.nonEmpty) {
-            val re = RefEquality(x)
-            env.bindIterable(nb.map { case (name, _) => (name, re) })
-          } else env
+          val newEnv = Bindings2(x, i, env).mapNewBindings((_, _) => RefEquality(x)).unified
 
           this.extract(child, newEnv, bindingNodesReferenced, rewriteMap, ab, seqBuilder,
             letBuilder, memo, result, r, isScan)
