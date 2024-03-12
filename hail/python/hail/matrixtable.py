@@ -2838,30 +2838,34 @@ class MatrixTable(ExprContainer):
             def truncate(string: str) -> str:
                 return string[: truncate_limit - 3] + "..." if len(string) > truncate_limit else string
 
+            entry_dtype = matrix_table.entry.dtype
+            entry_fields = list(entry_dtype)
+            entry_field_right_align = [hl.expr.types.is_numeric(entry_dtype[field]) for field in entry_fields] * n_cols
+            truncated_entry_field_types = (
+                [truncate(str(entry_dtype[field])) for field in entry_fields] * n_cols if should_show_types else None
+            )
+
+            matrix_table = matrix_table.select_entries(**{k: hl._showstr(v) for k, v in matrix_table.entry.items()})
             table = matrix_table.head(n_rows, n_cols).localize_entries('entries', 'cols')
             table_key_dtype = table.key.dtype
             if len(table.key) > 0:
                 table = table.order_by(*table.key)
 
             row_dtype = table.row.dtype
-            rows, _ = table._take_n(n_rows)
             row_fields = list(row_dtype) if include_row_fields else list(table_key_dtype)
             row_fields = [row_field for row_field in row_fields if row_field != 'entries']
             truncated_row_fields = [truncate(field) for field in row_fields]
-            truncated_rows = [[truncate(repr(row[field])) for field in row_fields] for row in rows]
             truncated_row_field_types = (
                 [truncate(str(row_dtype[field])) for field in row_fields] if should_show_types else None
             )
             row_field_right_align = [hl.expr.types.is_numeric(row_dtype[field]) for field in row_fields]
 
-            entry_dtype = matrix_table.entry.dtype
-            entry_fields = list(entry_dtype)
+            table = table.select(**{k: hl._showstr(v) if k != "entries" else v for k, v in table.row.items()})
+            rows, _ = table._take_n(n_rows)
+            truncated_rows = [[truncate(row[field]) for field in row_fields] for row in rows]
+
             entries = [[[entry[field] for field in entry_fields] for entry in row['entries']] for row in rows]
-            truncated_entries = [[[truncate(repr(entry)) for entry in column] for column in row] for row in entries]
-            entry_field_right_align = [hl.expr.types.is_numeric(entry_dtype[field]) for field in entry_fields] * n_cols
-            truncated_entry_field_types = (
-                [truncate(str(entry_dtype[field])) for field in entry_fields] * n_cols if should_show_types else None
-            )
+            truncated_entries = [[[truncate(entry) for entry in column] for column in row] for row in entries]
 
             truncated_values = [
                 truncated_row
@@ -3090,7 +3094,7 @@ class MatrixTable(ExprContainer):
             truncate_limit,
             types,
         )
-        handler(show)
+        return handler(show)
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
