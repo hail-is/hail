@@ -2516,7 +2516,7 @@ def test_table_randomness_matrix_cols_table():
 
 
 def test_table_randomness_parallelize_with_body_randomness():
-    rt = hl.utils.range_table(20, 3)
+    hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x, r=hl.rand_int64())))
     assert_contains_node(t, ir.TableParallelize)
     t._force_count()  # test with no consumer randomness
@@ -2524,7 +2524,7 @@ def test_table_randomness_parallelize_with_body_randomness():
 
 
 def test_table_randomness_parallelize_without_body_randomness():
-    rt = hl.utils.range_table(20, 3)
+    hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x)))
     assert_contains_node(t, ir.TableParallelize)
     assert_unique_uids(t)
