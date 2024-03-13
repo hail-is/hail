@@ -125,7 +125,7 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
+    val fs = FS.buildRoutes(None, None)
 
     def open(x: String): SeekableDataInputStream =
       fs.openNoCompression(x)

@@ -54,6 +54,10 @@ class AzureStorageFSURL(
     prefix + pathPart
   }
 
+  def withSasToken(newToken: String): AzureStorageFSURL = {
+    new AzureStorageFSURL(account, container, path, Some(newToken))
+  }
+
   override def toString(): String = {
     val sasTokenPart = sasToken.getOrElse("")
     this.base + sasTokenPart

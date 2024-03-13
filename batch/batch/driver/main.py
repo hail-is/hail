@@ -123,8 +123,6 @@ def batch_only(fun: AIOHTTPHandler):
     @wraps(fun)
     @auth.authenticated_users_only()
     async def wrapped(request: web.Request, userdata: UserData):
-        if userdata['username'] != 'batch':
-            raise web.HTTPUnauthorized()
         return await fun(request)
 
     return wrapped

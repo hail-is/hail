@@ -14,7 +14,6 @@ import scala.io.Source
 
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.charset._
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
 
@@ -265,7 +264,6 @@ object FS {
     env: Map[String, String],
   ): FS =
     retryTransientErrors {
-
       def readString(path: String): String =
         using(new FileInputStream(path))(is => IOUtils.toString(is, Charset.defaultCharset()))
 

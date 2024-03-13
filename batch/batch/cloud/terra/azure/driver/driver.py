@@ -16,7 +16,7 @@ from hailtop.aiocloud.aioazure import AzurePricingClient
 from hailtop.aiocloud.aioterra.azure import TerraClient
 from hailtop.config import get_deploy_config
 from hailtop.config.deploy_config import TerraDeployConfig
-from hailtop.utils import parse_timestamp_msecs, periodically_call, secret_alnum_string
+from hailtop.utils import parse_timestamp_msecs, periodically_call
 
 from .....batch_configuration import DOCKER_PREFIX, INTERNAL_GATEWAY_IP
 from .....driver.driver import CloudDriver
@@ -144,12 +144,18 @@ write_files:
            --show-error \
            https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 
-      add-apt-repository \
+      retry() {{
+          "$@" ||
+              (sleep 2 && "$@") ||
+              (sleep 5 && "$@");
+      }}
+
+      retry add-apt-repository \
          "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
          $(lsb_release -cs) \
          stable"
 
-      apt-get install -y docker-ce
+      retry apt-get install -y docker-ce
 
       curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
 
@@ -161,9 +167,11 @@ write_files:
       UNRESERVED_WORKER_DATA_DISK_SIZE_GB=50
       ACCEPTABLE_QUERY_JAR_URL_PREFIX={ shq(ACCEPTABLE_QUERY_JAR_URL_PREFIX) }
 
-      sudo mkdir -p /host/batch
-      sudo mkdir -p /host/logs
-      sudo mkdir -p /host/cloudfuse
+      sudo mkdir -p /host
+      sudo mkdir -p /host/batch/jvm-container-logs
+      sudo ln -s /host/batch /batch
+      sudo mkdir -p /logs
+      sudo mkdir -p /cloudfuse
 
       sudo mkdir -p /etc/netns
 
@@ -229,6 +237,7 @@ write_files:
       -e INTERNAL_GATEWAY_IP=$INTERNAL_GATEWAY_IP \
       -e DOCKER_PREFIX=$DOCKER_PREFIX \
       -e HAIL_TERRA=true \
+      -e HAIL_IDENTITY_PROVIDER_JSON='{{"idp": "Microsoft"}}' \
       -e WORKSPACE_STORAGE_CONTAINER_ID=$WORKSPACE_STORAGE_CONTAINER_ID \
       -e WORKSPACE_STORAGE_CONTAINER_URL=$WORKSPACE_STORAGE_CONTAINER_URL \
       -e TERRA_STORAGE_ACCOUNT=$TERRA_STORAGE_ACCOUNT \
@@ -240,10 +249,10 @@ write_files:
       -v /var/run/docker.sock:/var/run/docker.sock \
       -v /var/run/netns:/var/run/netns:shared \
       -v /usr/bin/docker:/usr/bin/docker \
-      -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
       -v /batch:/batch:shared \
       -v /logs:/logs \
       -v /global-config:/global-config \
+      -v /deploy-config:/deploy-config \
       -v /cloudfuse:/cloudfuse:shared \
       -v /etc/netns:/etc/netns \
       -v /sys/fs/cgroup:/sys/fs/cgroup \
@@ -287,7 +296,7 @@ runcmd:
             },
             'vmUser': {
                 'name': 'hail-admin',
-                'password': secret_alnum_string(),
+                'password': 'SuperStrongPassword1',
             },
             'ephemeralOSDisk': 'NONE',
             'customData': encoded_startup_script,
@@ -326,8 +335,10 @@ class TerraAzureResourceManager(CloudResourceManager):
             raise
 
     async def get_vm_state(self, instance: Instance) -> VMState:
+        assert isinstance(instance.instance_config, TerraAzureSlimInstanceConfig)
+        resource_id = instance.instance_config._resource_id
         try:
-            spec = await self.terra_client.get(f'/vm/create-result/{instance.name[32:]}')
+            spec = await self.terra_client.get(f'/vm/{resource_id}')
             state = spec['metadata']['state']
             if state == 'CREATING':
                 return VMStateCreating(spec, instance.time_created)

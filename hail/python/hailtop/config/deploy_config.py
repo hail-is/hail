@@ -165,6 +165,10 @@ class TerraDeployConfig(DeployConfig):
             }[service]
         return self._domain
 
+    def scheme(self, base_scheme='http'):
+        # Terra app services are in the same pod and just use http
+        return (base_scheme + 's') if self._location == 'external' else base_scheme
+
     def client_ssl_context(self) -> ssl.SSLContext:
         # Terra app networking doesn't use self-signed certs
         return external_client_ssl_context()

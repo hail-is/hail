@@ -10,13 +10,13 @@ class TerraClient(CloudBaseClient):
         super().__init__(base_url, Session(credentials=hail_credentials()))
 
     async def get_storage_container_sas_token(
-        self, container_resource_id: str, blob_name: str, permissions: str = 'racwdl', expires_after: int = 3600
+        self, container_resource_id: str, permissions: str = 'racwdlt', expires_after: int = 3600
     ) -> str:
         headers = {'Content-Type': 'application/json'}
-        params = {'sasPermissions': permissions, 'sasExpirationDuration': expires_after, 'sasBlobName': blob_name}
+        params = {'sasPermissions': permissions, 'sasExpirationDuration': expires_after}
         resp = await self.post(
             f'/storageContainer/{container_resource_id}/getSasToken',
             headers=headers,
             params=params,
         )
-        return resp['url']
+        return resp['token']

@@ -92,6 +92,10 @@ class Authenticator(abc.ABC):
         return wrap
 
     @abc.abstractmethod
+    def only_service(self, service: str) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
+        raise NotImplementedError
+
+    @abc.abstractmethod
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
         raise NotImplementedError
 
@@ -101,6 +105,19 @@ class AuthServiceAuthenticator(Authenticator):
         self._userdata_cache = TimeLimitedMaxSizeCache(
             self._fetch_userdata_from_auth_service, TEN_SECONDS_IN_NANOSECONDS, 100, 'session_userdata_cache'
         )
+
+    def only_service(self, service: str) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
+        def wrap(fun: AuthenticatedAIOHTTPHandler):
+            @self.authenticated_users_only(redirect=False)
+            @wraps(fun)
+            async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                if userdata['username'] == service:
+                    return await fun(request, userdata, *args, **kwargs)
+                raise web.HTTPUnauthorized()
+
+            return wrapped
+
+        return wrap
 
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
         session_id = await get_session_id(request)
@@ -125,12 +142,23 @@ class AuthServiceAuthenticator(Authenticator):
 
 
 class TrustedSingleTenantAuthenticator(Authenticator):
+    def only_service(self, service: str) -> Callable[[AuthenticatedAIOHTTPHandler], AIOHTTPHandler]:
+        def wrap(fun: AuthenticatedAIOHTTPHandler):
+            @self.authenticated_users_only(redirect=False)
+            @wraps(fun)
+            async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                return await fun(request, userdata, *args, **kwargs)
+
+            return wrapped
+
+        return wrap
+
     async def _fetch_userdata(self, request: web.Request) -> Optional[UserData]:
         return cast(
             UserData,
             {
                 'is_developer': True,
-                'username': 'user',
+                'username': 'test-dev',
                 'hail_credentials_secret_name': 'dummy',
                 'tokens_secret_name': 'dummy',
             },
