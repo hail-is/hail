@@ -53,7 +53,7 @@ class GGPlot:
         self.add_default_scales(aes)
 
     def __add__(self, other):
-        assert isinstance(other, FigureAttribute) or isinstance(other, Aesthetic)
+        assert isinstance(other, (FigureAttribute, Aesthetic))
 
         copied = self.copy()
         if isinstance(other, Geom):

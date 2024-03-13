@@ -1272,7 +1272,7 @@ def import_bgen(
 
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
-        if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
+        if isinstance(variants, (StructExpression, LocusExpression)):
             if isinstance(variants, LocusExpression):
                 variants = hl.struct(locus=variants)
 

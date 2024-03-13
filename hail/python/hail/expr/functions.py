@@ -929,7 +929,7 @@ def dict(collection) -> DictExpression:
     -------
     :class:`.DictExpression`
     """
-    if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
+    if isinstance(collection.dtype, (tarray, tset)):
         key_type, value_type = collection.dtype.element_type.types
         return _func('dict', tdict(key_type, value_type), collection)
     else:
@@ -4501,7 +4501,7 @@ def len(x) -> Int32Expression:
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
+    if isinstance(x.dtype, (ttuple, tstruct)):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
         return apply_expr(lambda x: ir.Apply("length", tint32, x), tint32, x)
@@ -4802,7 +4802,7 @@ def abs(x):
     -------
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+    if isinstance(x.dtype, (tarray, tndarray)):
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
@@ -4839,7 +4839,7 @@ def sign(x):
     -------
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+    if isinstance(x.dtype, (tarray, tndarray)):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)
@@ -5157,7 +5157,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     """
 
     def list_shape(x):
-        if isinstance(x, list) or isinstance(x, builtins.tuple):
+        if isinstance(x, (list, builtins.tuple)):
             dim_len = builtins.len(x)
             if dim_len != 0:
                 first, rest = x[0], x[1:]
@@ -5175,7 +5175,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     def deep_flatten(es):
         result = []
         for e in es:
-            if isinstance(e, list) or isinstance(e, builtins.tuple):
+            if isinstance(e, (list, builtins.tuple)):
                 result.extend(deep_flatten(e))
             else:
                 result.append(e)
@@ -5203,7 +5203,7 @@ def _ndarray(collection, row_major=None, dtype=None):
         elif isinstance(collection, ArrayExpression):
             recursive_type = collection.dtype
             ndim = 0
-            while isinstance(recursive_type, tarray) or isinstance(recursive_type, tndarray):
+            while isinstance(recursive_type, (tarray, tndarray)):
                 recursive_type = recursive_type._element_type
                 ndim += 1
 
@@ -5229,7 +5229,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     else:
         if isinstance(collection, np.ndarray):
             return hl.literal(collection)
-        elif isinstance(collection, list) or isinstance(collection, builtins.tuple):
+        elif isinstance(collection, (list, builtins.tuple)):
             shape = list_shape(collection)
             data = deep_flatten(collection)
         else:

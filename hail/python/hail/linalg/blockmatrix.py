@@ -2549,7 +2549,7 @@ block_matrix_type.set(BlockMatrix)
 
 
 def _is_scalar(x):
-    return isinstance(x, float) or isinstance(x, int)
+    return isinstance(x, (int, float))
 
 
 def _shape_after_broadcast(left, right):

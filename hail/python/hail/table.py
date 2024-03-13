@@ -3616,7 +3616,7 @@ class Table(ExprContainer):
             t = t.order_by(*t.key)
 
         def _expand(e):
-            if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
+            if isinstance(e, (CollectionExpression, DictExpression)):
                 return hl.map(lambda x: _expand(x), hl.array(e))
             elif isinstance(e, StructExpression):
                 return hl.struct(**{k: _expand(v) for (k, v) in e.items()})

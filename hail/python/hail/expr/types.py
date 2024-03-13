@@ -1016,7 +1016,7 @@ class tstream(HailType):
 
 
 def is_setlike(maybe_setlike):
-    return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
+    return isinstance(maybe_setlike, (set, frozenset))
 
 
 class tset(HailType):
@@ -2281,18 +2281,12 @@ def is_primitive(t) -> bool:
 
 @typecheck(t=HailType)
 def is_container(t) -> bool:
-    return isinstance(t, tarray) or isinstance(t, tset) or isinstance(t, tdict)
+    return isinstance(t, (tarray, tset, tdict))
 
 
 @typecheck(t=HailType)
 def is_compound(t) -> bool:
-    return (
-        is_container(t)
-        or isinstance(t, tstruct)
-        or isinstance(t, tunion)
-        or isinstance(t, ttuple)
-        or isinstance(t, tndarray)
-    )
+    return is_container(t) or isinstance(t, (tstruct, tunion, ttuple, tndarray))
 
 
 def types_match(left, right) -> bool:
