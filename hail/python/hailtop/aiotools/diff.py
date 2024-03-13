@@ -1,26 +1,16 @@
-from typing import Optional, Tuple, TypeVar, List
 import argparse
 import asyncio
-import orjson
 import logging
 import sys
-
 from concurrent.futures import ThreadPoolExecutor
+from typing import List, Optional, Tuple, TypeVar
 
+import orjson
+
+from .. import uvloopx
 from ..utils.rich_progress_bar import SimpleCopyToolProgressBar, SimpleCopyToolProgressBarTask
-from .router_fs import RouterAsyncFS
 from .fs import AsyncFS, FileStatus
-
-try:
-    import uvloop
-
-    uvloop_install = uvloop.install
-except ImportError as e:
-    if not sys.platform.startswith('win32'):
-        raise e
-
-    def uvloop_install():
-        pass
+from .router_fs import RouterAsyncFS
 
 
 async def diff(
@@ -185,5 +175,5 @@ async def main() -> None:
 
 
 if __name__ == '__main__':
-    uvloop_install()
+    uvloopx.install()
     asyncio.run(main())

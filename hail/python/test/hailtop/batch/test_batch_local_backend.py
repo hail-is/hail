@@ -1,14 +1,14 @@
-from typing import AsyncIterator
 import os
-import pytest
 import subprocess as sp
 import tempfile
+from typing import AsyncIterator
+
+import pytest
 
 from hailtop import pip_version
 from hailtop.batch import Batch, LocalBackend, ResourceGroup
 from hailtop.batch.resource import JobResourceFile
 from hailtop.batch.utils import concatenate
-
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:22.04')
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'

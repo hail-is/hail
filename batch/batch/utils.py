@@ -149,21 +149,20 @@ LEFT JOIN LATERAL (
 LEFT JOIN LATERAL (
   SELECT SUM(`usage` * rate) as cost
   FROM (
-    SELECT billing_project, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_billing_project_user_resources_v3
     WHERE billing_projects.name = aggregated_billing_project_user_resources_v3.billing_project
-    GROUP BY billing_project, resource_id
+    GROUP BY resource_id
     LOCK IN SHARE MODE
   ) AS usage_t
   LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
-  GROUP BY usage_t.billing_project
 ) AS cost_t ON TRUE
 {where_condition}
 LOCK IN SHARE MODE;
 """
 
     billing_projects = []
-    async for record in db.execute_and_fetchall(sql, tuple(args)):
+    async for record in db.select_and_fetchall(sql, tuple(args)):
         record['users'] = json.loads(record['users']) if record['users'] is not None else []
         billing_projects.append(record)
 
@@ -206,7 +205,7 @@ LOCK IN SHARE MODE;
 """
 
     billing_projects = []
-    async for record in db.execute_and_fetchall(sql, tuple(args)):
+    async for record in db.select_and_fetchall(sql, tuple(args)):
         record['users'] = json.loads(record['users']) if record['users'] is not None else []
         billing_projects.append(record)
 

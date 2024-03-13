@@ -110,7 +110,7 @@ services-jvm-test:
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: upload-remote-qob-test-resources
+fs-jvm-test: upload-remote-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
@@ -301,7 +301,7 @@ $(eval $(call ENV_VAR,wheel_cloud_path))
 
 .PHONY: check-pip-lockfile
 check-pip-lockfile:
-	$(PIP) install 'pip-tools==6.13.0' && bash ../check_pip_requirements.sh python
+	$(PIP) install 'pip-tools==7.4.0' && bash ../check_pip_requirements.sh python
 
 
 python/hailtop/hailctl/deploy.yaml: env/cloud_base env/wheel_cloud_path
@@ -424,27 +424,27 @@ test-dataproc-38: install-hailctl
 #
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
-# set WHEEL_FOR_AZURE to the path to that wheel file
+# set AZURE_WHEEL to the path to that wheel file
 #
 # Create a hail docs www.tar.gz file (see build.yaml "make_docs" rule) and set WEBSITE_TAR to the path to www.tar.gz
 #
 .PHONY: release
 release: test-dataproc $(WHEEL)
-	bash scripts/release.sh \
-		$(HAIL_PIP_VERSION) \
-		$(HAIL_VERSION) \
-		$(REVISION) \
-		$(DEPLOY_REMOTE) \
-		$(WHEEL) \
-		$(GITHUB_OAUTH_HEADER_FILE) \
-		$(HAIL_GENETICS_HAIL_IMAGE) \
-		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
-		$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
-		$(HAIL_GENETICS_HAILTOP_IMAGE) \
-		$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
-		$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
-		$(WHEEL_FOR_AZURE) \
-		$(WEBSITE_TAR)
+	HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) \
+          HAIL_VERSION=$(HAIL_VERSION) \
+          GIT_VERSION=$(REVISION) \
+          REMOTE=$(DEPLOY_REMOTE) \
+          WHEEL=$(WHEEL) \
+          GITHUB_OAUTH_HEADER_FILE=$(GITHUB_OAUTH_HEADER_FILE) \
+          HAIL_GENETICS_HAIL_IMAGE=$(HAIL_GENETICS_HAIL_IMAGE) \
+          HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
+          HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
+          HAIL_GENETICS_HAILTOP_IMAGE=$(HAIL_GENETICS_HAILTOP_IMAGE) \
+          HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
+          HAIL_GENETICS_VEP_GRCH38_95_IMAGE=$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
+          AZURE_WHEEL=$(AZURE_WHEEL) \
+          WEBSITE_TAR=$(WEBSITE_TAR) \
+          bash scripts/release.sh
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \

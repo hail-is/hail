@@ -17,4 +17,7 @@ case object TRNGState extends Type {
     : is.hail.annotations.ExtendedOrdering = ???
 
   def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = ???
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }

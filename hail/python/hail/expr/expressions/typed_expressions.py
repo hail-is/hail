@@ -1,64 +1,64 @@
-from typing import Mapping, Dict, Sequence, Union
+from typing import Dict, Mapping, Sequence, Union
 
+import numpy as np
 from deprecated import deprecated
 
 import hail as hl
-from .indices import Indices, Aggregation
+from hail import ir
+from hail.expr.types import (
+    HailType,
+    is_numeric,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
+    tfloat32,
+    tfloat64,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
+    tndarray,
+    tset,
+    tstr,
+    tstream,
+    tstruct,
+    ttuple,
+)
+from hail.typecheck import (
+    anyfunc,
+    dictof,
+    func_spec,
+    identity,
+    nullable,
+    oneof,
+    sliceof,
+    tupleof,
+    typecheck,
+    typecheck_method,
+)
+from hail.utils.java import Env, warning
+from hail.utils.linkedlist import LinkedList
+from hail.utils.misc import get_nice_attr_error, get_nice_field_error, wrap_to_list, wrap_to_tuple
+
 from .base_expression import Expression, ExpressionException, to_expr, unify_all, unify_types
 from .expression_typecheck import (
     coercer_from_dtype,
     expr_any,
     expr_array,
-    expr_set,
     expr_bool,
-    expr_numeric,
+    expr_dict,
     expr_int32,
     expr_int64,
-    expr_str,
-    expr_dict,
     expr_interval,
-    expr_tuple,
-    expr_oneof,
     expr_ndarray,
+    expr_numeric,
+    expr_oneof,
+    expr_set,
+    expr_str,
+    expr_tuple,
 )
-from hail.expr.types import (
-    HailType,
-    tint32,
-    tint64,
-    tfloat32,
-    tfloat64,
-    tbool,
-    tcall,
-    tset,
-    tarray,
-    tstream,
-    tstruct,
-    tdict,
-    ttuple,
-    tstr,
-    tndarray,
-    tlocus,
-    tinterval,
-    is_numeric,
-)
-import hail.ir as ir
-from hail.typecheck import (
-    typecheck,
-    typecheck_method,
-    func_spec,
-    oneof,
-    identity,
-    nullable,
-    tupleof,
-    sliceof,
-    dictof,
-    anyfunc,
-)
-from hail.utils.java import Env, warning
-from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
-
-import numpy as np
+from .indices import Aggregation, Indices
 
 
 class CollectionExpression(Expression):

@@ -537,8 +537,8 @@ object UtilFunctions extends RegistryFunctions {
         if (l.required && r.required) {
           val result = cb.newLocal[Boolean]("land_result")
           cb.if_(
-            l.toI(cb).get(cb).asBoolean.value,
-            cb.assign(result, r.toI(cb).get(cb).asBoolean.value),
+            l.toI(cb).getOrAssert(cb).asBoolean.value,
+            cb.assign(result, r.toI(cb).getOrAssert(cb).asBoolean.value),
             cb.assign(result, const(false)),
           )
 
@@ -581,9 +581,9 @@ object UtilFunctions extends RegistryFunctions {
         if (l.required && r.required) {
           val result = cb.newLocal[Boolean]("land_result")
           cb.if_(
-            l.toI(cb).get(cb).asBoolean.value,
+            l.toI(cb).getOrAssert(cb).asBoolean.value,
             cb.assign(result, const(true)),
-            cb.assign(result, r.toI(cb).get(cb).asBoolean.value),
+            cb.assign(result, r.toI(cb).getOrAssert(cb).asBoolean.value),
           )
 
           IEmitCode.present(cb, primitive(result))

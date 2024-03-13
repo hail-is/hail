@@ -915,10 +915,13 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec, uidFieldName: Str
       concreteSType
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
+      val partIdx =
+        cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb), "partIdx")
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val pathString =
-        cb.memoizeField(ctxStruct.loadField(cb, "partitionPath").get(cb).asString.loadString(cb))
+        cb.memoizeField(
+          ctxStruct.loadField(cb, "partitionPath").getOrAssert(cb).asString.loadString(cb)
+        )
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
       val next = mb.newPSettable(mb.fieldBuilder, elementSType, "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
@@ -1075,9 +1078,9 @@ case class PartitionNativeIntervalReader(
 
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
 
-          val startBound = ctx.loadStart(cb).get(cb)
+          val startBound = ctx.loadStart(cb).getOrAssert(cb)
           val includesStart = ctx.includesStart
-          val endBound = ctx.loadEnd(cb).get(cb)
+          val endBound = ctx.loadEnd(cb).getOrAssert(cb)
           val includesEnd = ctx.includesEnd
 
           val (startPart, endPart) = IntervalFunctions.partitionerFindIntervalRange(
@@ -1153,10 +1156,11 @@ case class PartitionNativeIntervalReader(
                     cb.assign(indexInitialized, true),
                   )
                   cb.assign(indexCachedIndex, currPartitionIdx)
-                  val partPath = partitionPathsRuntime.loadElement(cb, currPartitionIdx).get(
-                    cb
-                  ).asString.loadString(cb)
-                  val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).get(
+                  val partPath =
+                    partitionPathsRuntime.loadElement(cb, currPartitionIdx).getOrAssert(
+                      cb
+                    ).asString.loadString(cb)
+                  val idxPath = indexPathsRuntime.loadElement(cb, currPartitionIdx).getOrAssert(
                     cb
                   ).asString.loadString(cb)
                   index.initialize(cb, idxPath)
@@ -1180,22 +1184,22 @@ case class PartitionNativeIntervalReader(
                       // query the full interval
                       val indexResult = index.queryInterval(cb, ctx)
                       val startIdx = indexResult.loadField(cb, 0)
-                        .get(cb)
+                        .getOrAssert(cb)
                         .asInt64
                         .value
                       cb.assign(currIdxInPartition, startIdx)
                       val endIdx = indexResult.loadField(cb, 1)
-                        .get(cb)
+                        .getOrAssert(cb)
                         .asInt64
                         .value
                       cb.assign(stopIdxInPartition, endIdx)
                       cb.if_(
                         endIdx > startIdx, {
                           val firstOffset = indexResult.loadField(cb, 2)
-                            .get(cb)
+                            .getOrAssert(cb)
                             .asBaseStruct
                             .loadField(cb, "offset")
-                            .get(cb)
+                            .getOrAssert(cb)
                             .asInt64
                             .value
 
@@ -1206,8 +1210,12 @@ case class PartitionNativeIntervalReader(
                       // read from start of partition to the end interval
 
                       val indexResult =
-                        index.queryBound(cb, ctx.loadEnd(cb).get(cb).asBaseStruct, ctx.includesEnd)
-                      val startIdx = indexResult.loadField(cb, 0).get(cb).asInt64.value
+                        index.queryBound(
+                          cb,
+                          ctx.loadEnd(cb).getOrAssert(cb).asBaseStruct,
+                          ctx.includesEnd,
+                        )
+                      val startIdx = indexResult.loadField(cb, 0).getOrAssert(cb).asInt64.value
                       cb.assign(currIdxInPartition, 0L)
                       cb.assign(stopIdxInPartition, startIdx)
                       // no need to seek, starting at beginning of partition
@@ -1219,17 +1227,18 @@ case class PartitionNativeIntervalReader(
                       // read from left endpoint until end of partition
                       val indexResult = index.queryBound(
                         cb,
-                        ctx.loadStart(cb).get(cb).asBaseStruct,
+                        ctx.loadStart(cb).getOrAssert(cb).asBaseStruct,
                         cb.memoize(!ctx.includesStart),
                       )
-                      val startIdx = indexResult.loadField(cb, 0).get(cb).asInt64.value
+                      val startIdx = indexResult.loadField(cb, 0).getOrAssert(cb).asInt64.value
 
                       cb.assign(currIdxInPartition, startIdx)
                       cb.assign(stopIdxInPartition, index.nKeys(cb))
                       cb.if_(
                         currIdxInPartition < stopIdxInPartition, {
-                          val firstOffset = indexResult.loadField(cb, 1).get(cb).asBaseStruct
-                            .loadField(cb, "offset").get(cb).asInt64.value
+                          val firstOffset =
+                            indexResult.loadField(cb, 1).getOrAssert(cb).asBaseStruct
+                              .loadField(cb, "offset").getOrAssert(cb).asInt64.value
 
                           cb += ib.seek(firstOffset)
                         },
@@ -1331,7 +1340,8 @@ case class PartitionNativeReaderIndexed(
     val index = new StagedIndexReader(cb.emb, indexSpec.leafCodec, indexSpec.internalNodeCodec)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
-      val partIdx = cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").get(cb), "partIdx")
+      val partIdx =
+        cb.memoizeField(ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb), "partIdx")
       val curIdx = mb.genFieldThisRef[Long]("cur_index")
       val endIdx = mb.genFieldThisRef[Long]("end_index")
       val ib = mb.genFieldThisRef[InputBuffer]("buffer")
@@ -1347,27 +1357,27 @@ case class PartitionNativeReaderIndexed(
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           val indexPath = ctxStruct
             .loadField(cb, "indexPath")
-            .get(cb)
+            .getOrAssert(cb)
             .asString
             .loadString(cb)
           val partitionPath = ctxStruct
             .loadField(cb, "partitionPath")
-            .get(cb)
+            .getOrAssert(cb)
             .asString
             .loadString(cb)
           val interval = ctxStruct
             .loadField(cb, "interval")
-            .get(cb)
+            .getOrAssert(cb)
             .asInterval
           index.initialize(cb, indexPath)
 
           val indexResult = index.queryInterval(cb, interval)
           val startIndex = indexResult.loadField(cb, 0)
-            .get(cb)
+            .getOrAssert(cb)
             .asInt64
             .value
           val endIndex = indexResult.loadField(cb, 1)
-            .get(cb)
+            .getOrAssert(cb)
             .asInt64
             .value
           cb.assign(curIdx, startIndex)
@@ -1384,10 +1394,10 @@ case class PartitionNativeReaderIndexed(
           cb.if_(
             endIndex > startIndex, {
               val firstOffset = indexResult.loadField(cb, 2)
-                .get(cb)
+                .getOrAssert(cb)
                 .asBaseStruct
                 .loadField(cb, "offset")
-                .get(cb)
+                .getOrAssert(cb)
                 .asInt64
                 .value
 
@@ -1651,35 +1661,38 @@ case class PartitionZippedIndexedNativeReader(
         override def initialize(cb: EmitCodeBuilder, outerRegion: Value[Region]): Unit = {
           val indexPath = ctxStruct
             .loadField(cb, "indexPath")
-            .get(cb)
+            .getOrAssert(cb)
             .asString
             .loadString(cb)
           val interval = ctxStruct
             .loadField(cb, "interval")
-            .get(cb)
+            .getOrAssert(cb)
             .asInterval
           index.initialize(cb, indexPath)
 
           val indexResult = index.queryInterval(cb, interval)
           val startIndex = indexResult.loadField(cb, 0)
-            .get(cb)
+            .getOrAssert(cb)
             .asInt64
             .value
           val endIndex = indexResult.loadField(cb, 1)
-            .get(cb)
+            .getOrAssert(cb)
             .asInt64
             .value
           cb.assign(curIdx, startIndex)
           cb.assign(endIdx, endIndex)
 
-          cb.assign(partIdx, ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt64.value)
+          cb.assign(
+            partIdx,
+            ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb).asInt64.value,
+          )
           cb.assign(
             leftBuffer,
             specLeft.buildCodeInputBuffer(
               Code.newInstance[ByteTrackingInputStream, InputStream](
                 mb.openUnbuffered(
                   ctxStruct.loadField(cb, "leftPartitionPath")
-                    .get(cb)
+                    .getOrAssert(cb)
                     .asString
                     .loadString(cb),
                   true,
@@ -1693,7 +1706,7 @@ case class PartitionZippedIndexedNativeReader(
               Code.newInstance[ByteTrackingInputStream, InputStream](
                 mb.openUnbuffered(
                   ctxStruct.loadField(cb, "rightPartitionPath")
-                    .get(cb)
+                    .getOrAssert(cb)
                     .asString
                     .loadString(cb),
                   true,
@@ -1705,21 +1718,21 @@ case class PartitionZippedIndexedNativeReader(
           cb.if_(
             endIndex > startIndex, {
               val leafNode = indexResult.loadField(cb, 2)
-                .get(cb)
+                .getOrAssert(cb)
                 .asBaseStruct
 
               val leftSeekAddr = leftOffsetFieldIndex match {
                 case Some(offsetIdx) =>
                   leafNode
                     .loadField(cb, "annotation")
-                    .get(cb)
+                    .getOrAssert(cb)
                     .asBaseStruct
                     .loadField(cb, offsetIdx)
-                    .get(cb)
+                    .getOrAssert(cb)
                 case None =>
                   leafNode
                     .loadField(cb, "offset")
-                    .get(cb)
+                    .getOrAssert(cb)
               }
               cb += leftBuffer.seek(leftSeekAddr.asInt64.value)
 
@@ -1727,14 +1740,14 @@ case class PartitionZippedIndexedNativeReader(
                 case Some(offsetIdx) =>
                   leafNode
                     .loadField(cb, "annotation")
-                    .get(cb)
+                    .getOrAssert(cb)
                     .asBaseStruct
                     .loadField(cb, offsetIdx)
-                    .get(cb)
+                    .getOrAssert(cb)
                 case None =>
                   leafNode
                     .loadField(cb, "offset")
-                    .get(cb)
+                    .getOrAssert(cb)
               }
               cb += rightBuffer.seek(rightSeekAddr.asInt64.value)
             },
@@ -2593,7 +2606,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   override def typecheck(): Unit = {
     assert(left.typ.key.length >= joinKey)
     assert(right.typ.key.length >= joinKey)
-    assert(left.typ.keyType.truncate(joinKey) isIsomorphicTo right.typ.keyType.truncate(joinKey))
+    assert(left.typ.keyType.truncate(joinKey) isJoinableWith right.typ.keyType.truncate(joinKey))
     assert(
       left.typ.globalType.fieldNames.toSet
         .intersect(right.typ.globalType.fieldNames.toSet)

@@ -548,7 +548,7 @@ class TableStage(
     joiner: (Ref, Ref) => IR,
     rightKeyIsDistinct: Boolean = false,
   ): TableStage = {
-    assert(this.kType.truncate(joinKey).isIsomorphicTo(right.kType.truncate(joinKey)))
+    assert(this.kType.truncate(joinKey).isJoinableWith(right.kType.truncate(joinKey)))
 
     val newPartitioner = {
       def leftPart: RVDPartitioner = this.partitioner.strictify()

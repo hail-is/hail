@@ -1,7 +1,6 @@
 import typer
 
-from ..batch_cli_utils import make_formatter, StructuredFormat, StructuredFormatOption
-
+from ..batch_cli_utils import StructuredFormat, StructuredFormatOption, make_formatter
 
 app = typer.Typer(
     name='billing',

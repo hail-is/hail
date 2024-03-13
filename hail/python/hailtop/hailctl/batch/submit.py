@@ -1,13 +1,15 @@
-import orjson
 import os
+import orjson
 import re
 from shlex import quote as shq
-from hailtop import pip_version
-from typing import Tuple, Optional, List
-import typer
+from typing import List, Optional, Tuple
+
 from contextlib import AsyncExitStack
+
+import typer
+
 import hailtop.batch as hb
-from hailtop import yamlx
+from hailtop import pip_version, yamlx
 from hailtop.batch.job import BashJob
 from hailtop.aiotools.router_fs import RouterAsyncFS, AsyncFSURL
 from hailtop.aiotools.copy import copy_from_dict

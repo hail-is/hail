@@ -1,3 +1,4 @@
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import (
     CPU_REGEX,
     CPU_REGEXPAT,
@@ -62,6 +63,8 @@ job_validator = keyed({
     'parent_ids': listof(int_type),
     'absolute_parent_ids': listof(int_type),
     'in_update_parent_ids': listof(int_type),
+    'absolute_job_group_id': int_type,
+    'in_update_job_group_id': int_type,
     'port': int_type,
     required('process'): switch(
         'type',
@@ -103,23 +106,42 @@ batch_validator = keyed({
     required('billing_project'): str_type,
     'callback': nullable(str_type),
     required('n_jobs'): int_type,
+    'n_job_groups': int_type,
     required('token'): str_type,
     'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
 })
 
 batch_update_validator = keyed({
     required('token'): str_type,
-    required('n_jobs'): numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}),
+    'n_job_groups': numeric(**{"x >= 0": lambda x: isinstance(x, int) and x >= 0}),
+    required('n_jobs'): numeric(**{"x >= 0": lambda x: isinstance(x, int) and x >= 0}),
+})
+
+
+job_group_validator = keyed({
+    required('job_group_id'): int_type,
+    'attributes': nullable(dictof(str_type)),
+    'callback': nullable(str_type),
+    'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0})),
+    'absolute_parent_id': nullable(int_type),
+    'in_update_parent_id': nullable(int_type),
 })
 
 
 def validate_and_clean_jobs(jobs):
     if not isinstance(jobs, list):
         raise ValidationError('jobs is not list')
+
+    prev_job_id = None
     for i, job in enumerate(jobs):
         handle_deprecated_job_keys(i, job)
         job_validator.validate(f"jobs[{i}]", job)
         handle_job_backwards_compatibility(job)
+        job_id = job['job_id']
+        if prev_job_id:
+            if job_id != prev_job_id + 1:
+                raise ValidationError(f'noncontiguous job ids found in the spec: {prev_job_id} -> {job_id}')
+        prev_job_id = job_id
 
 
 def handle_deprecated_job_keys(i, job):
@@ -197,11 +219,34 @@ def handle_job_backwards_compatibility(job):
         process = job['process']
         if process['type'] == 'jvm' and 'profile' not in process:
             process['profile'] = False
+    if 'in_update_job_group_id' not in job and 'absolute_job_group_id' not in job:
+        job['absolute_job_group_id'] = ROOT_JOB_GROUP_ID
 
 
 def validate_batch(batch):
     batch_validator.validate('batch', batch)
+    if 'n_job_groups' not in batch:
+        batch['n_job_groups'] = 0
 
 
 def validate_batch_update(update):
     batch_update_validator.validate('batch_update', update)
+    if 'n_job_groups' not in update:
+        update['n_job_groups'] = 0
+
+
+def validate_job_groups(job_groups):
+    if not isinstance(job_groups, list):
+        raise ValidationError('job_groups is not a list')
+    prev_job_group_id = None
+    for i, job_group in enumerate(job_groups):
+        job_group_validator.validate(f'job_groups[{i}]', job_group)
+        if 'in_update_parent_id' not in job_group and 'absolute_parent_id' not in job_group:
+            raise ValidationError('job group must define in_update_parent_id or absolute_parent_id')
+        job_group_id = job_group['job_group_id']
+        if prev_job_group_id:
+            if job_group_id != prev_job_group_id + 1:
+                raise ValidationError(
+                    f'noncontiguous job group ids found in the spec: {prev_job_group_id} -> {job_group_id}'
+                )
+        prev_job_group_id = job_group_id

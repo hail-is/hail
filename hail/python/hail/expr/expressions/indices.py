@@ -1,7 +1,7 @@
-from hail.typecheck import typecheck_method, anytype, setof
-import hail as hl
-
 from typing import List
+
+import hail as hl
+from hail.typecheck import anytype, setof, typecheck_method
 
 
 class Indices(object):

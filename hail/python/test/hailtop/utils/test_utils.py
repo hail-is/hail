@@ -1,13 +1,13 @@
 from hailtop.utils import (
+    grouped,
+    parse_docker_image_reference,
     partition,
+    url_and_params,
     url_basename,
     url_join,
     url_scheme,
-    url_and_params,
-    parse_docker_image_reference,
-    grouped,
 )
-from hailtop.utils.utils import digits_needed, unzip, filter_none, flatten
+from hailtop.utils.utils import digits_needed, filter_none, flatten, unzip
 
 
 def test_partition_zero_empty():

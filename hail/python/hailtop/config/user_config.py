@@ -1,9 +1,9 @@
-from typing import Optional, Union, TypeVar
+import configparser
 import os
 import re
-import configparser
 import warnings
 from pathlib import Path
+from typing import Optional, TypeVar, Union
 
 from .variables import ConfigVariable
 
@@ -138,7 +138,7 @@ def get_remote_tmpdir(
             )
         remote_tmpdir = f'gs://{bucket}/batch'
     else:
-        schemes = {'gs', 'hail-az', 'https'}
+        schemes = {'gs', 'https'}
         found_scheme = any(remote_tmpdir.startswith(f'{scheme}://') for scheme in schemes)
         if not found_scheme:
             raise ValueError(

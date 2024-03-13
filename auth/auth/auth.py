@@ -11,7 +11,6 @@ import aiohttp_session
 import kubernetes_asyncio.client
 import kubernetes_asyncio.client.rest
 import kubernetes_asyncio.config
-import uvloop
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
@@ -33,11 +32,10 @@ from gear import (
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
-from hailtop import httpx
+from hailtop import httpx, uvloopx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import secret_alnum_string
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
@@ -55,8 +53,6 @@ from .exceptions import (
 )
 
 log = logging.getLogger('auth')
-
-uvloop.install()
 
 CLOUD = get_global_config()['cloud']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
@@ -814,13 +810,20 @@ class AppKeys:
     HAILCTL_CLIENT_CONFIG = web.AppKey('hailctl_client_config', dict)
     K8S_CLIENT = web.AppKey('k8s_client', kubernetes_asyncio.client.CoreV1Api)
     K8S_CACHE = web.AppKey('k8s_cache', K8sCache)
+    EXIT_STACK = web.AppKey('exit_stack', AsyncExitStack)
 
 
 async def on_startup(app):
+    exit_stack = AsyncExitStack()
+    app[AppKeys.EXIT_STACK] = exit_stack
+
     db = Database()
     await db.async_init(maxsize=50)
+    exit_stack.push_async_callback(db.async_close)
     app[AppKeys.DB] = db
+
     app[AppKeys.CLIENT_SESSION] = httpx.client_session()
+    exit_stack.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
 
     credentials_file = '/auth-oauth2-client-secret/client_secret.json'
     if CLOUD == 'gcp':
@@ -834,14 +837,13 @@ async def on_startup(app):
 
     kubernetes_asyncio.config.load_incluster_config()
     app[AppKeys.K8S_CLIENT] = kubernetes_asyncio.client.CoreV1Api()
+    exit_stack.push_async_callback(app[AppKeys.K8S_CLIENT].api_client.rest_client.pool_manager.close)
+
     app[AppKeys.K8S_CACHE] = K8sCache(app[AppKeys.K8S_CLIENT])
 
 
 async def on_cleanup(app):
-    async with AsyncExitStack() as cleanup:
-        cleanup.push_async_callback(app[AppKeys.K8S_CLIENT].api_client.rest_client.pool_manager.close)
-        cleanup.push_async_callback(app[AppKeys.DB].async_close)
-        cleanup.push_async_callback(app[AppKeys.CLIENT_SESSION].close)
+    await app[AppKeys.EXIT_STACK].aclose()
 
 
 class AuthAccessLogger(AccessLogger):
@@ -881,6 +883,8 @@ async def auth_check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
 
 
 def run():
+    uvloopx.install()
+
     install_profiler_if_requested('auth')
 
     app = web.Application(middlewares=[auth_check_csrf_token, monitor_endpoints_middleware])
@@ -900,5 +904,5 @@ def run():
         host='0.0.0.0',
         port=443,
         access_log_class=AuthAccessLogger,
-        ssl_context=internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

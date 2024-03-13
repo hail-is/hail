@@ -43,7 +43,7 @@ class RVD(
   self =>
   require(crdd.getNumPartitions == partitioner.numPartitions)
 
-  require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
+  require(typ.kType.virtualType isJoinableWith partitioner.kType)
 
   // Basic accessors
 

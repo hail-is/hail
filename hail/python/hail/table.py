@@ -1,74 +1,76 @@
 import collections
 import itertools
-import pandas
-import numpy as np
-import pyspark
 import pprint
 import shutil
-from typing import Optional, Dict, Callable, Sequence, Union, List, overload
+from typing import Callable, Dict, List, Optional, Sequence, Union, overload
 
+import numpy as np
+import pandas
+import pyspark
+
+import hail as hl
+from hail import ir
 from hail.expr.expressions import (
-    Expression,
-    StructExpression,
+    ArrayExpression,
     BooleanExpression,
-    expr_struct,
-    expr_any,
-    expr_bool,
-    analyze,
-    Indices,
-    construct_reference,
-    to_expr,
-    construct_expr,
-    extract_refs_by_indices,
-    ExpressionException,
-    TupleExpression,
-    unify_all,
-    NumericExpression,
-    StringExpression,
     CallExpression,
     CollectionExpression,
     DictExpression,
+    Expression,
+    ExpressionException,
+    Indices,
     IntervalExpression,
     LocusExpression,
     NDArrayExpression,
-    expr_stream,
+    NumericExpression,
+    StringExpression,
+    StructExpression,
+    TupleExpression,
+    analyze,
+    construct_expr,
+    construct_reference,
+    expr_any,
     expr_array,
+    expr_bool,
+    expr_stream,
+    expr_struct,
+    extract_refs_by_indices,
+    to_expr,
+    unify_all,
 )
-from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
-import hail.ir as ir
+from hail.expr.types import dtypes_from_pandas, hail_type, tarray, tset, tstruct, types_match
 from hail.typecheck import (
+    anyfunc,
+    anytype,
+    dictof,
+    enumeration,
+    func_spec,
+    lazy,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
+    table_key_type,
     typecheck,
     typecheck_method,
-    dictof,
-    anytype,
-    anyfunc,
-    nullable,
-    sequenceof,
-    oneof,
-    numeric,
-    lazy,
-    enumeration,
-    table_key_type,
-    func_spec,
 )
 from hail.utils import deduplicate
 from hail.utils.interval import Interval
-from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import (
-    wrap_to_tuple,
-    storage_level,
-    plural,
-    get_nice_field_error,
-    get_nice_attr_error,
-    get_key_by_exprs,
-    check_keys,
-    get_select_exprs,
     check_annotate_exprs,
+    check_keys,
+    get_key_by_exprs,
+    get_nice_attr_error,
+    get_nice_field_error,
+    get_select_exprs,
+    plural,
     process_joins,
+    storage_level,
+    wrap_to_tuple,
 )
-import hail as hl
+from hail.utils.placement_tree import PlacementTree
 
 table_type = lazy()
 
@@ -715,9 +717,9 @@ class Table(ExprContainer):
         globals=nullable(expr_struct()),
     )
     def _generate(
-        contexts: 'hl.ArrayExpression',
+        contexts: 'ArrayExpression',
         partitions: 'Union[Sequence[Interval], int]',
-        rowfn: 'Callable[[hl.Expression, hl.StructExpression], hl.ArrayExpression]',
+        rowfn: 'Callable[[hl.Expression, hl.StructExpression], ArrayExpression]',
         globals: 'Optional[hl.StructExpression]' = None,
     ) -> 'Table':
         """
@@ -2777,7 +2779,7 @@ class Table(ExprContainer):
     def collect(self) -> List[hl.Struct]: ...
 
     @overload
-    def collect(self, _localize=False) -> hl.ArrayExpression: ...
+    def collect(self, _localize=False) -> ArrayExpression: ...
 
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):
@@ -4506,7 +4508,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        import hail.methods.misc as misc
+        from hail.methods import misc
 
         misc.require_key(self, 'collect_by_key')
 
@@ -4556,7 +4558,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        import hail.methods.misc as misc
+        from hail.methods import misc
 
         misc.require_key(self, 'distinct')
 

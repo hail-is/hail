@@ -72,6 +72,9 @@ resource "azurerm_storage_account" "batch" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  min_tls_version          = "TLS1_0"
+
+  allow_nested_items_to_be_public   = false
 
   blob_properties {
     last_access_time_enabled = true
@@ -96,6 +99,9 @@ resource "azurerm_storage_account" "test" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  min_tls_version          = "TLS1_0"
+
+  allow_nested_items_to_be_public   = false
 
   blob_properties {
     last_access_time_enabled = true
@@ -317,16 +323,6 @@ resource "azurerm_role_assignment" "ci_acr_role" {
   scope                = var.container_registry_id
   role_definition_name = each.key
   principal_id         = module.ci_sp.principal_id
-}
-
-resource "kubernetes_secret" "registry_push_credentials" {
-  metadata {
-    name = "registry-push-credentials"
-  }
-
-  data = {
-    "credentials.json" = jsonencode(module.ci_sp.credentials)
-  }
 }
 
 resource "azuread_application" "testns_ci" {

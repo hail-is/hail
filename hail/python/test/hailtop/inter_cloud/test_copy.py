@@ -1,21 +1,15 @@
-from typing import Tuple, Dict, AsyncIterator, List
-import os
-import secrets
-from concurrent.futures import ThreadPoolExecutor
 import asyncio
-import functools
+import secrets
+from typing import AsyncIterator, Dict, List, Tuple
+
 import pytest
-from hailtop.utils import url_scheme, bounded_gather2
-from hailtop.aiotools import LocalAsyncFS, Transfer, FileAndDirectoryError, Copier, AsyncFS, FileListEntry
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
-from hailtop.aiocloud.aioaws import S3AsyncFS
-from hailtop.aiocloud.aioazure import AzureAsyncFS
 
-
-from .generate_copy_test_specs import run_test_spec, create_test_file, create_test_dir
+from hailtop.aiotools import AsyncFS, Copier, FileAndDirectoryError, FileListEntry, Transfer
+from hailtop.utils import url_scheme
 
 from .copy_test_specs import COPY_TEST_SPECS
+from .generate_copy_test_specs import create_test_dir, create_test_file, run_test_spec
+from .utils import fresh_dir
 
 
 # This fixture is for test_copy_behavior.  It runs a series of copy
@@ -33,54 +27,6 @@ async def test_spec(request):
 @pytest.fixture(params=['gs', 's3', 'azure-https'])
 async def cloud_scheme(request):
     yield request.param
-
-
-@pytest.fixture(scope='module')
-async def router_filesystem(request) -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]]]:
-    token = secrets.token_hex(16)
-
-    with ThreadPoolExecutor() as thread_pool:
-        async with RouterAsyncFS(
-            local_kwargs={'thread_pool': thread_pool},
-            s3_kwargs={'thread_pool': thread_pool},
-        ) as fs:
-            file_base = f'/tmp/{token}/'
-            await fs.mkdir(file_base)
-
-            gs_bucket = os.environ['HAIL_TEST_GCS_BUCKET']
-            gs_base = f'gs://{gs_bucket}/tmp/{token}/'
-
-            s3_bucket = os.environ['HAIL_TEST_S3_BUCKET']
-            s3_base = f's3://{s3_bucket}/tmp/{token}/'
-
-            azure_account = os.environ['HAIL_TEST_AZURE_ACCOUNT']
-            azure_container = os.environ['HAIL_TEST_AZURE_CONTAINER']
-            azure_base = f'https://{azure_account}.blob.core.windows.net/{azure_container}/tmp/{token}/'
-
-            bases = {'file': file_base, 'gs': gs_base, 's3': s3_base, 'azure-https': azure_base}
-
-            sema = asyncio.Semaphore(50)
-            async with sema:
-                yield (sema, fs, bases)
-                await bounded_gather2(
-                    sema,
-                    functools.partial(fs.rmtree, sema, file_base),
-                    functools.partial(fs.rmtree, sema, gs_base),
-                    functools.partial(fs.rmtree, sema, s3_base),
-                    functools.partial(fs.rmtree, sema, azure_base),
-                )
-
-            assert not await fs.isdir(file_base)
-            assert not await fs.isdir(gs_base)
-            assert not await fs.isdir(s3_base)
-            assert not await fs.isdir(azure_base)
-
-
-async def fresh_dir(fs, bases, scheme):
-    token = secrets.token_hex(16)
-    dir = f'{bases[scheme]}{token}/'
-    await fs.mkdir(dir)
-    return dir
 
 
 @pytest.fixture(

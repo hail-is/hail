@@ -1,13 +1,12 @@
+import abc
 from typing import List
 
-import abc
-
-from pandas import DataFrame
-
 import pandas as pd
+from pandas import DataFrame
 
 import hail as hl
 from hail.utils.java import warning
+
 from .utils import should_use_scale_for_grouping
 
 

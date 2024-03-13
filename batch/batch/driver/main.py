@@ -5,6 +5,7 @@ import logging
 import os
 import re
 import signal
+import traceback
 import warnings
 from collections import defaultdict, namedtuple
 from contextlib import AsyncExitStack
@@ -19,18 +20,17 @@ import pandas as pd
 import plotly
 import plotly.graph_objects as go
 import prometheus_client as pc  # type: ignore
-import uvloop
 from aiohttp import web
 from plotly.subplots import make_subplots
 from prometheus_async.aio.web import server_stats
 
 from gear import (
-    AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
     K8sCache,
     Transaction,
     check_csrf_token,
+    get_authenticator,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -40,7 +40,8 @@ from gear import (
 from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, httpx
+from hailtop import aiotools, httpx, uvloopx
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import (
@@ -53,7 +54,7 @@ from hailtop.utils import (
 )
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
-from ..batch import cancel_batch_in_db
+from ..batch import cancel_job_group_in_db
 from ..batch_configuration import (
     BATCH_STORAGE_URI,
     CLOUD,
@@ -79,7 +80,7 @@ from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
 
-uvloop.install()
+uvloopx.install()
 
 log = logging.getLogger('batch')
 
@@ -89,7 +90,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthServiceAuthenticator()
+auth = get_authenticator()
 
 warnings.filterwarnings(
     'ignore',
@@ -204,8 +205,16 @@ async def get_check_invariants(request: web.Request, _) -> web.Response:
         check_incremental(db), check_resource_aggregation(db), return_exceptions=True
     )
     return json_response({
-        'check_incremental_error': incremental_result,
-        'check_resource_aggregation_error': resource_agg_result,
+        'check_incremental_error': '\n'.join(
+            traceback.format_exception(None, incremental_result, incremental_result.__traceback__)
+        )
+        if incremental_result
+        else None,
+        'check_resource_aggregation_error': '\n'.join(
+            traceback.format_exception(None, resource_agg_result, resource_agg_result.__traceback__)
+        )
+        if resource_agg_result
+        else None,
     })
 
 
@@ -316,6 +325,7 @@ async def job_complete_1(request, instance):
     batch_id = job_status['batch_id']
     job_id = job_status['job_id']
     attempt_id = job_status['attempt_id']
+    job_group_id = job_status.get('job_group_id', ROOT_JOB_GROUP_ID)
 
     request['batch_telemetry']['batch_id'] = str(batch_id)
     request['batch_telemetry']['job_id'] = str(job_id)
@@ -339,6 +349,7 @@ async def job_complete_1(request, instance):
         batch_id,
         job_id,
         attempt_id,
+        job_group_id,
         instance.name,
         new_state,
         status,
@@ -1014,13 +1025,21 @@ FROM
     CAST(COALESCE(SUM(state = 'Creating' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_creating_jobs
   FROM
   (
-    SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
-      (jobs.always_run OR NOT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS runnable,
-      (NOT jobs.always_run AND (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL)) AS cancelled
-    FROM batches
-    INNER JOIN jobs ON batches.id = jobs.batch_id
-    LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
-    WHERE batches.`state` = 'running'
+    SELECT job_groups.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
+      (jobs.always_run OR NOT (jobs.cancelled OR t.cancelled IS NOT NULL)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR t.cancelled IS NOT NULL)) AS cancelled
+    FROM job_groups
+    LEFT JOIN jobs ON job_groups.batch_id = jobs.batch_id AND job_groups.job_group_id = jobs.job_group_id
+    LEFT JOIN LATERAL (
+      SELECT 1 AS cancelled
+      FROM job_group_self_and_ancestors
+      INNER JOIN job_groups_cancelled
+        ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+           job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+      WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+            job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+    ) AS t ON TRUE
+    WHERE job_groups.`state` = 'running'
   ) as v
   GROUP BY user, inst_coll
 ) as t
@@ -1116,11 +1135,48 @@ GROUP BY batch_id, job_id, attempt_id
 LOCK IN SHARE MODE;
 """)
 
+        attempt_by_job_group_resources = tx.execute_and_fetchall("""
+SELECT batch_id, ancestor_id, JSON_OBJECTAGG(resource, `usage`) as resources
+FROM (
+  SELECT job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, resource,
+  CAST(COALESCE(SUM(quantity * GREATEST(COALESCE(rollup_time - start_time, 0), 0)), 0) AS SIGNED) as `usage`
+  FROM attempt_resources
+  INNER JOIN attempts
+    ON attempts.batch_id = attempt_resources.batch_id AND
+       attempts.job_id = attempt_resources.job_id AND
+       attempts.attempt_id = attempt_resources.attempt_id
+  LEFT JOIN resources ON attempt_resources.resource_id = resources.resource_id
+  LEFT JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+  LEFT JOIN job_group_self_and_ancestors ON jobs.batch_id = job_group_self_and_ancestors.batch_id AND
+    jobs.job_group_id = job_group_self_and_ancestors.job_group_id
+  WHERE GREATEST(COALESCE(rollup_time - start_time, 0), 0) != 0
+  GROUP BY job_group_self_and_ancestors.batch_id, job_group_self_and_ancestors.ancestor_id, resource
+  LOCK IN SHARE MODE
+) AS t
+GROUP BY t.batch_id, t.ancestor_id;
+""")
+
         agg_job_resources = tx.execute_and_fetchall("""
 SELECT batch_id, job_id, JSON_OBJECTAGG(resource, `usage`) as resources
-FROM aggregated_job_resources_v3
-LEFT JOIN resources ON aggregated_job_resources_v3.resource_id = resources.resource_id
+FROM (
+  SELECT batch_id, job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_resources_v3
+  GROUP BY batch_id, job_id, resource_id
+) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
 GROUP BY batch_id, job_id
+LOCK IN SHARE MODE;
+""")
+
+        agg_job_group_resources = tx.execute_and_fetchall("""
+SELECT batch_id, job_group_id, JSON_OBJECTAGG(resource, `usage`) as resources
+FROM (
+  SELECT batch_id, job_group_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  FROM aggregated_job_group_resources_v3
+  GROUP BY batch_id, job_group_id, resource_id
+) AS t
+LEFT JOIN resources ON t.resource_id = resources.resource_id
+GROUP BY batch_id, job_group_id
 LOCK IN SHARE MODE;
 """)
 
@@ -1129,7 +1185,9 @@ SELECT batch_id, billing_project, JSON_OBJECTAGG(resource, `usage`) as resources
 FROM (
   SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_group_resources_v3
-  GROUP BY batch_id, resource_id) AS t
+  WHERE job_group_id = 0
+  GROUP BY batch_id, resource_id
+) AS t
 LEFT JOIN resources ON t.resource_id = resources.resource_id
 JOIN batches ON batches.id = t.batch_id
 GROUP BY t.batch_id, billing_project
@@ -1152,9 +1210,19 @@ LOCK IN SHARE MODE;
             async for record in attempt_resources
         }
 
+        attempt_by_job_group_resources = {
+            (record['batch_id'], record['ancestor_id']): json_to_value(record['resources'])
+            async for record in attempt_by_job_group_resources
+        }
+
         agg_job_resources = {
             (record['batch_id'], record['job_id']): json_to_value(record['resources'])
             async for record in agg_job_resources
+        }
+
+        agg_job_group_resources = {
+            (record['batch_id'], record['job_group_id']): json_to_value(record['resources'])
+            async for record in agg_job_group_resources
         }
 
         agg_batch_resources = {
@@ -1169,6 +1237,7 @@ LOCK IN SHARE MODE;
 
         attempt_by_batch_resources = fold(attempt_resources, lambda k: k[0])
         attempt_by_job_resources = fold(attempt_resources, lambda k: (k[0], k[1]))
+        attempt_by_job_group_resources = fold(attempt_by_job_group_resources, lambda k: (k[0], k[1]))
         job_by_batch_resources = fold(agg_job_resources, lambda k: k[0])
         batch_by_billing_project_resources = fold(agg_batch_resources, lambda k: k[1])
 
@@ -1195,14 +1264,20 @@ LOCK IN SHARE MODE;
             agg_billing_project_resources,
         )
 
+        assert attempt_by_job_group_resources == agg_job_group_resources, (
+            dictdiffer.diff(attempt_by_job_group_resources, agg_job_group_resources),
+            attempt_by_job_group_resources,
+            agg_job_group_resources,
+        )
+
     await check()
 
 
-async def _cancel_batch(app, batch_id):
+async def _cancel_job_group(app, batch_id, job_group_id):
     try:
-        await cancel_batch_in_db(app['db'], batch_id)
+        await cancel_job_group_in_db(app['db'], batch_id, job_group_id)
     except BatchUserError as exc:
-        log.info(f'cannot cancel batch because {exc.message}')
+        log.info(f'cannot cancel job group because {exc.message}')
         return
     set_cancel_state_changed(app)
 
@@ -1224,21 +1299,32 @@ WHERE billing_project = %s AND state = 'running';
                 (record['billing_project'],),
             )
             async for batch in running_batches:
-                await _cancel_batch(app, batch['id'])
+                await _cancel_job_group(app, batch['id'], ROOT_JOB_GROUP_ID)
 
 
-async def cancel_fast_failing_batches(app):
+async def cancel_fast_failing_job_groups(app):
     db: Database = app['db']
-
-    records = db.select_and_fetchall("""
-SELECT batches.id, job_groups_n_jobs_in_complete_states.n_failed
-FROM batches
+    records = db.select_and_fetchall(
+        """
+SELECT job_groups.batch_id, job_groups.job_group_id, job_groups_n_jobs_in_complete_states.n_failed
+FROM job_groups
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS t_cancelled ON TRUE
 LEFT JOIN job_groups_n_jobs_in_complete_states
-  ON batches.id = job_groups_n_jobs_in_complete_states.id
-WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
-""")
-    async for batch in records:
-        await _cancel_batch(app, batch['id'])
+  ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND
+     job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+WHERE t_cancelled.cancelled IS NULL AND state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures;
+""",
+    )
+    async for job_group in records:
+        await _cancel_job_group(app, job_group['batch_id'], job_group['job_group_id'])
 
 
 USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
@@ -1344,6 +1430,66 @@ def monitor_instances(app) -> None:
 async def monitor_system(app):
     await monitor_user_resources(app)
     monitor_instances(app)
+
+
+async def delete_committed_job_groups_inst_coll_staging_records(db: Database):
+    targets = db.execute_and_fetchall(
+        """
+SELECT job_groups_inst_coll_staging.batch_id,
+  job_groups_inst_coll_staging.update_id,
+  job_groups_inst_coll_staging.job_group_id
+FROM job_groups_inst_coll_staging
+INNER JOIN batch_updates ON batch_updates.batch_id = job_groups_inst_coll_staging.batch_id AND
+  batch_updates.update_id = job_groups_inst_coll_staging.update_id
+WHERE committed
+GROUP BY job_groups_inst_coll_staging.batch_id, job_groups_inst_coll_staging.update_id, job_groups_inst_coll_staging.job_group_id
+LIMIT 1000;
+""",
+        query_name='find_staging_records_to_delete',
+    )
+
+    async for target in targets:
+        await db.just_execute(
+            """
+DELETE FROM job_groups_inst_coll_staging
+WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
+""",
+            (target['batch_id'], target['update_id'], target['job_group_id']),
+        )
+
+
+async def delete_prev_cancelled_job_group_cancellable_resources_records(db: Database):
+    targets = db.execute_and_fetchall(
+        """
+SELECT DISTINCT
+  group_resources.batch_id,
+  group_resources.update_id,
+  group_resources.job_group_id
+FROM job_group_inst_coll_cancellable_resources AS group_resources
+INNER JOIN LATERAL (
+  SELECT
+    1
+  FROM job_group_self_and_ancestors AS descendant
+  INNER JOIN job_groups_cancelled AS cancelled
+     ON descendant.batch_id = cancelled.id
+    AND descendant.ancestor_id = cancelled.job_group_id
+  WHERE descendant.batch_id = group_resources.batch_id
+    AND descendant.job_group_id = group_resources.job_group_id
+) AS t ON TRUE
+ORDER BY group_resources.batch_id desc, group_resources.update_id desc, group_resources.job_group_id desc
+LIMIT 1000;
+""",
+        query_name='find_cancelled_cancellable_resources_records_to_delete',
+    )
+
+    async for target in targets:
+        await db.just_execute(
+            """
+DELETE FROM job_group_inst_coll_cancellable_resources
+WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
+""",
+            (target['batch_id'], target['update_id'], target['job_group_id']),
+        )
 
 
 async def compact_agg_billing_project_users_table(app, db: Database):
@@ -1600,12 +1746,14 @@ SELECT instance_id, frozen FROM globals;
     exit_stack.push_async_callback(app['task_manager'].shutdown_and_wait)
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
-    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
+    task_manager.ensure_future(periodically_call(10, cancel_fast_failing_job_groups, app))
     task_manager.ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
     task_manager.ensure_future(periodically_call(15, monitor_system, app))
     task_manager.ensure_future(periodically_call(5, refresh_globals_from_db, app, db))
     task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_table, app, db))
     task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
+    task_manager.ensure_future(periodically_call(60, delete_committed_job_groups_inst_coll_staging_records, db))
+    task_manager.ensure_future(periodically_call(60, delete_prev_cancelled_job_group_cancellable_resources_records, db))
 
 
 async def on_cleanup(app):

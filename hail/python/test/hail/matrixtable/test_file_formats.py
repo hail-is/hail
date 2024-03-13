@@ -1,12 +1,17 @@
 import asyncio
-import pytest
-import os
 from typing import List, Tuple
-from pathlib import Path
+
+import pytest
 
 import hail as hl
 from hail.utils.java import Env, scala_object
-from ..helpers import *
+
+from ..helpers import (
+    create_all_values_datasets,
+    create_all_values_matrix_table,
+    create_all_values_table,
+    resource,
+)
 
 
 def create_backward_compatibility_files():
@@ -49,8 +54,10 @@ def all_values_table_fixture(init_hail):
     return create_all_values_table()
 
 
+resource_dir = resource('backward_compatability/')
+
+
 async def collect_paths() -> Tuple[List[str], List[str]]:
-    resource_dir = resource('backward_compatability/')
     from hailtop.aiotools.router_fs import RouterAsyncFS
 
     fs = RouterAsyncFS()

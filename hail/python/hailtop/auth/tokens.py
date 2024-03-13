@@ -1,9 +1,10 @@
-from typing import Optional, Dict, Tuple
 import base64
 import collections.abc
-import os
 import json
 import logging
+import os
+from typing import Dict, Optional, Tuple
+
 from hailtop.config import get_deploy_config
 from hailtop.utils import first_extant_file
 

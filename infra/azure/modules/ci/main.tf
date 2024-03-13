@@ -4,6 +4,9 @@ resource "azurerm_storage_account" "ci" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  min_tls_version          = "TLS1_0"
+
+  allow_nested_items_to_be_public   = false
 
   blob_properties {
     last_access_time_enabled = true
@@ -49,7 +52,7 @@ resource "azurerm_role_assignment" "ci_test_container_contributor" {
 module "k8s_resources" {
   source = "../../../k8s/ci"
 
-  storage_uri                             = "hail-az://${azurerm_storage_account.ci.name}/${azurerm_storage_container.ci_artifacts.name}"
+  storage_uri                             = "https://${azurerm_storage_account.ci.name}.blob.core.windows.net/${azurerm_storage_container.ci_artifacts.name}"
   deploy_steps                            = var.deploy_steps
   watched_branches                        = var.watched_branches
   github_context                          = var.github_context

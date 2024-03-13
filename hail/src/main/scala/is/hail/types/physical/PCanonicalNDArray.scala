@@ -54,7 +54,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     assert(settables.length == nDims, s"got ${settables.length} settables, expect $nDims dims")
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(addr, "shape"))
     (0 until nDims).foreach { dimIdx =>
-      cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.value)
+      cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).getOrAssert(cb).asLong.value)
     }
   }
 
@@ -63,7 +63,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     assert(settables.length == nDims)
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(addr, "strides"))
     (0 until nDims).foreach { dimIdx =>
-      cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).get(cb).asLong.value)
+      cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).getOrAssert(cb).asLong.value)
     }
   }
 
@@ -265,7 +265,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
                 cb,
                 result.firstDataAddress + (loopCtr * elementType.byteSize),
                 region,
-                dataValue.loadElement(cb, loopCtr.toI).get(
+                dataValue.loadElement(cb, loopCtr.toI).getOrFatal(
                   cb,
                   "NDArray elements cannot be missing",
                 ),
@@ -469,9 +469,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val a = cb.memoize(addr)
     val shapeTuple = shapeType.loadCheapSCode(cb, representation.loadField(a, "shape"))
     val shape =
-      Array.tabulate(nDims)(i => SizeValueDyn(shapeTuple.loadField(cb, i).get(cb).asLong.value))
+      Array.tabulate(nDims)(i =>
+        SizeValueDyn(shapeTuple.loadField(cb, i).getOrAssert(cb).asLong.value)
+      )
     val strideTuple = strideType.loadCheapSCode(cb, representation.loadField(a, "strides"))
-    val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).get(cb).asLong.value)
+    val strides = Array.tabulate(nDims)(strideTuple.loadField(cb, _).getOrAssert(cb).asLong.value)
     val firstDataAddress = cb.memoize(dataFirstElementPointer(a))
     new SNDArrayPointerValue(sType, a, shape, strides, firstDataAddress)
   }

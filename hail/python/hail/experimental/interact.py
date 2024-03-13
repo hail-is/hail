@@ -2,7 +2,6 @@ from IPython.display import display
 from ipywidgets import widgets
 
 import hail as hl
-
 from hail.expr.types import summary_type
 
 __all__ = [

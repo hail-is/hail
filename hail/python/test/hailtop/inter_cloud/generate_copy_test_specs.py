@@ -1,8 +1,9 @@
+import asyncio
+import pprint
 import secrets
 from concurrent.futures import ThreadPoolExecutor
-import pprint
-import asyncio
-from hailtop.aiotools import LocalAsyncFS, Transfer, Copier
+
+from hailtop.aiotools import Copier, Transfer
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 

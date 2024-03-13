@@ -1,13 +1,12 @@
 import asyncio
-import typer
 import webbrowser
+from typing import Annotated as Ann
+from typing import List, Optional
 
-from typing import List, Optional, Annotated as Ann
+import typer
 from typer import Option as Opt
 
-
 from . import config
-
 
 app = typer.Typer(
     name='dev',
@@ -52,6 +51,7 @@ async def _deploy(branch: str, steps: List[str], excluded_steps: List[str], extr
         unpack_comma_delimited_inputs,
         unpack_key_value_inputs,
     )
+
     from .ci_client import CIClient  # pylint: disable=import-outside-toplevel
 
     deploy_config = get_deploy_config()

@@ -1,9 +1,11 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-from hailtop.utils import async_to_blocking, ait_to_blocking
+from hailtop.batch_client.types import GetJobGroupResponseV1Alpha
+from hailtop.utils import ait_to_blocking, async_to_blocking
+
+from .. import httpx
 from ..config import DeployConfig
 from . import aioclient
-from .. import httpx
 
 
 class Job:
@@ -96,6 +98,118 @@ class Job:
         return async_to_blocking(self._async_job.attempts())
 
 
+class JobGroup:
+    def __init__(self, async_job_group: aioclient.JobGroup):
+        self._async_job_group = async_job_group
+
+    def attributes(self):
+        return async_to_blocking(self._async_job_group.attributes())
+
+    @property
+    def batch_id(self) -> int:
+        return self._async_job_group.batch_id
+
+    @property
+    def job_group_id(self) -> int:
+        return self._async_job_group.job_group_id
+
+    @property
+    def id(self) -> Tuple[int, int]:
+        return (self.batch_id, self.job_group_id)
+
+    def cancel(self):
+        return async_to_blocking(self._async_job_group.cancel())
+
+    def jobs(self, q: Optional[str] = None, version: Optional[int] = None, recursive: bool = False):
+        return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
+
+    def job_groups(self):
+        return ait_to_blocking(self._async_job_group.job_groups())
+
+    def status(self) -> GetJobGroupResponseV1Alpha:
+        return async_to_blocking(self._async_job_group.status())
+
+    def wait(self, *args, **kwargs) -> GetJobGroupResponseV1Alpha:
+        return async_to_blocking(self._async_job_group.wait(*args, **kwargs))
+
+    def last_known_status(self) -> GetJobGroupResponseV1Alpha:
+        return async_to_blocking(self._async_job_group.last_known_status())
+
+    def create_job_group(self, *, attributes=None, callback=None, cancel_after_n_failures=None) -> 'JobGroup':
+        async_job_group = self._async_job_group.create_job_group(
+            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+        )
+        return JobGroup(async_job_group)
+
+    def create_job(
+        self,
+        image,
+        command,
+        *,
+        env=None,
+        port=None,
+        resources=None,
+        secrets=None,
+        service_account=None,
+        attributes=None,
+        parents=None,
+        input_files=None,
+        output_files=None,
+        always_run=False,
+        timeout=None,
+        cloudfuse=None,
+        requester_pays_project=None,
+        mount_tokens=False,
+        network: Optional[str] = None,
+        unconfined: bool = False,
+        user_code: Optional[str] = None,
+        regions: Optional[List[str]] = None,
+        always_copy_output: bool = False,
+    ) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_job_group.create_job(
+            image,
+            command,
+            env=env,
+            port=port,
+            resources=resources,
+            secrets=secrets,
+            service_account=service_account,
+            attributes=attributes,
+            parents=parents,
+            input_files=input_files,
+            output_files=output_files,
+            always_run=always_run,
+            always_copy_output=always_copy_output,
+            timeout=timeout,
+            cloudfuse=cloudfuse,
+            requester_pays_project=requester_pays_project,
+            mount_tokens=mount_tokens,
+            network=network,
+            unconfined=unconfined,
+            user_code=user_code,
+            regions=regions,
+        )
+
+        return Job(async_job)
+
+    def create_jvm_job(self, command, *, profile: bool = False, parents=None, **kwargs) -> Job:
+        if parents:
+            parents = [parent._async_job for parent in parents]
+
+        async_job = self._async_job_group.create_jvm_job(command, profile=profile, parents=parents, **kwargs)
+
+        return Job(async_job)
+
+    def debug_info(self):
+        return async_to_blocking(self._async_job_group.debug_info())
+
+    def __str__(self):
+        return str(self._async_job_group)
+
+
 class Batch:
     @staticmethod
     def _open_batch(client: 'BatchClient', token: Optional[str] = None) -> 'Batch':
@@ -126,30 +240,16 @@ class Batch:
     def _submission_info(self):
         return self._async_batch._submission_info
 
+    def get_job_group(self, job_group_id: int) -> JobGroup:
+        return JobGroup(self._async_batch.get_job_group(job_group_id))
+
+    def job_groups(self):
+        for jg in ait_to_blocking(self._async_batch.job_groups()):
+            yield JobGroup(jg)
+
     def cancel(self):
         async_to_blocking(self._async_batch.cancel())
 
-    # {
-    #   id: int
-    #   user: str
-    #   billing_project: str
-    #   token: str
-    #   state: str, (open, failure, cancelled, success, running)
-    #   complete: bool
-    #   closed: bool
-    #   n_jobs: int
-    #   n_completed: int
-    #   n_succeeded: int
-    #   n_failed: int
-    #   n_cancelled: int
-    #   time_created: optional(str), (date)
-    #   time_closed: optional(str), (date)
-    #   time_completed: optional(str), (date)
-    #   duration: optional(str)
-    #   attributes: optional(dict(str, str))
-    #   msec_mcpu: int
-    #   cost: float
-    # }
     def status(self):
         return async_to_blocking(self._async_batch.status())
 
@@ -174,6 +274,12 @@ class Batch:
 
     def delete(self):
         async_to_blocking(self._async_batch.delete())
+
+    def create_job_group(self, *, attributes=None, callback=None, cancel_after_n_failures=None) -> JobGroup:
+        async_job_group = self._async_batch.create_job_group(
+            attributes=attributes, callback=callback, cancel_after_n_failures=cancel_after_n_failures
+        )
+        return JobGroup(async_job_group)
 
     def create_job(
         self,

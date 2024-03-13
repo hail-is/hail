@@ -1,21 +1,29 @@
 import json
-import re
 import os
-import pytest
+import re
 import shutil
 import unittest
-
 from unittest import mock
 
+import pytest
 from avro.datafile import DataFileReader
 from avro.io import DatumReader
-from hail.context import TemporaryFilename
 
-import pytest
 import hail as hl
-from ..helpers import *
 from hail import ir
-from hail.utils import new_temp_file, new_local_temp_file, FatalError, run_command, uri_path, HailUserError
+from hail.context import TemporaryFilename
+from hail.utils import FatalError, HailUserError, new_local_temp_file, new_temp_file, run_command, uri_path
+
+from ..helpers import (
+    doctest_resource,
+    fails_local_backend,
+    fails_service_backend,
+    get_dataset,
+    qobtest,
+    resource,
+    test_timeout,
+    with_flags,
+)
 
 _FLOAT_INFO_FIELDS = [
     'BaseQRankSum',
@@ -432,6 +440,12 @@ class VCFTests(unittest.TestCase):
 """
         assert msg in str(exp.value)
 
+    def test_export_vcf_haploid(self):
+        ds = hl.import_vcf(resource("sample.vcf"))
+        ds = ds.select_entries(GT=hl.call(0))
+        with TemporaryFilename(suffix='.vcf') as export_path:
+            hl.export_vcf(ds, export_path)
+
     def import_gvcfs_sample_vcf(self, path):
         parts_type = hl.tarray(hl.tinterval(hl.tstruct(locus=hl.tlocus('GRCh37'))))
         parts = [
@@ -536,7 +550,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(mt._same(vcf))
 
     def test_combiner_works(self):
-        from hail.vds.combiner.combine import transform_gvcf, combine_variant_datasets
+        from hail.vds.combiner.combine import combine_variant_datasets, transform_gvcf
 
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]

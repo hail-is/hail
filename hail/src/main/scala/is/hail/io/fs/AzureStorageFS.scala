@@ -2,11 +2,10 @@ package is.hail.io.fs
 
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.retryTransientErrors
-import is.hail.shadedazure.com.azure.core.credential.{AzureSasCredential, TokenCredential}
+import is.hail.shadedazure.com.azure.core.credential.AzureSasCredential
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
 import is.hail.shadedazure.com.azure.identity.{
-  ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential,
-  DefaultAzureCredentialBuilder,
+  ClientSecretCredentialBuilder, DefaultAzureCredentialBuilder,
 }
 import is.hail.shadedazure.com.azure.storage.blob.{
   BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,
@@ -28,7 +27,7 @@ import java.time.Duration
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
-abstract class AzureStorageFSURL(
+class AzureStorageFSURL(
   val account: String,
   val container: String,
   val path: String,
@@ -41,84 +40,39 @@ abstract class AzureStorageFSURL(
     else
       withPath(s"$path/$c")
 
-  def withPath(newPath: String): AzureStorageFSURL
   def fromString(s: String): AzureStorageFSURL = AzureStorageFS.parseUrl(s)
 
-  def prefix: String
+  def withPath(newPath: String): AzureStorageFSURL =
+    new AzureStorageFSURL(account, container, newPath, sasToken)
+
+  def prefix: String = s"https://$account.blob.core.windows.net/$container"
+
   def getPath: String = path
 
-  override def toString(): String = {
+  def base: String = {
     val pathPart = if (path == "") "" else s"/$path"
-    val sasTokenPart = sasToken.getOrElse("")
+    prefix + pathPart
+  }
 
-    prefix + pathPart + sasTokenPart
+  override def toString(): String = {
+    val sasTokenPart = sasToken.getOrElse("")
+    this.base + sasTokenPart
   }
 }
 
-class AzureStorageFSHailAzURL(
-  account: String,
-  container: String,
-  path: String,
-  sasToken: Option[String],
-) extends AzureStorageFSURL(account, container, path, sasToken) {
-
-  override def withPath(newPath: String): AzureStorageFSHailAzURL =
-    new AzureStorageFSHailAzURL(account, container, newPath, sasToken)
-
-  override def prefix: String = s"hail-az://$account/$container"
-}
-
-class AzureStorageFSHttpsURL(
-  account: String,
-  container: String,
-  path: String,
-  sasToken: Option[String],
-) extends AzureStorageFSURL(account, container, path, sasToken) {
-
-  override def withPath(newPath: String): AzureStorageFSHttpsURL =
-    new AzureStorageFSHttpsURL(account, container, newPath, sasToken)
-
-  override def prefix: String = s"https://$account.blob.core.windows.net/$container"
-}
-
 object AzureStorageFS {
-  private val HAIL_AZ_URI_REGEX = "^hail-az:\\/\\/([a-z0-9_\\-\\.]+)\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
-
   private val AZURE_HTTPS_URI_REGEX =
     "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def parseUrl(filename: String): AzureStorageFSURL = {
-    val scheme = filename.split(":")(0)
-    if (scheme == "hail-az") {
-      parseHailAzUrl(filename)
-    } else if (scheme == "https") {
-      parseHttpsUrl(filename)
-    } else {
-      throw new IllegalArgumentException(s"Invalid scheme, expected hail-az or https: $scheme")
-    }
-  }
-
-  private[this] def parseHttpsUrl(filename: String): AzureStorageFSHttpsURL = {
     AZURE_HTTPS_URI_REGEX
       .findFirstMatchIn(filename)
       .map { m =>
         val (path, sasToken) = parsePathAndQuery(m.group(3))
-        new AzureStorageFSHttpsURL(m.group(1), m.group(2), path, sasToken)
+        new AzureStorageFSURL(m.group(1), m.group(2), path, sasToken)
       }
       .getOrElse(throw new IllegalArgumentException(
         "ABS URI must be of the form https://<ACCOUNT>.blob.core.windows.net/<CONTAINER>/<PATH>"
-      ))
-  }
-
-  private[this] def parseHailAzUrl(filename: String): AzureStorageFSHailAzURL = {
-    HAIL_AZ_URI_REGEX
-      .findFirstMatchIn(filename)
-      .map { m =>
-        val (path, sasToken) = parsePathAndQuery(m.group(3))
-        new AzureStorageFSHailAzURL(m.group(1), m.group(2), path, sasToken)
-      }
-      .getOrElse(throw new IllegalArgumentException(
-        "hail-az URI must be of the form hail-az://<ACCOUNT>/<CONTAINER>/<PATH>"
       ))
   }
 
@@ -162,14 +116,30 @@ object AzureStorageFileListEntry {
     new BlobStorageFileListEntry(url.toString, null, 0, true)
 }
 
-class AzureBlobServiceClientCache(
-  credential: TokenCredential,
-  val httpClientOptions: HttpClientOptions,
-) {
+class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
+  type URL = AzureStorageFSURL
+
   private[this] lazy val clients =
     mutable.Map[(String, String, Option[String]), BlobServiceClient]()
 
-  def getServiceClient(url: AzureStorageFSURL): BlobServiceClient = {
+  private lazy val credential = credentialsJSON match {
+    case None =>
+      new DefaultAzureCredentialBuilder().build()
+    case Some(keyData) =>
+      implicit val formats: Formats = defaultJSONFormats
+      val kvs = JsonMethods.parse(keyData)
+      val appId = (kvs \ "appId").extract[String]
+      val password = (kvs \ "password").extract[String]
+      val tenant = (kvs \ "tenant").extract[String]
+
+      new ClientSecretCredentialBuilder()
+        .clientId(appId)
+        .clientSecret(password)
+        .tenantId(tenant)
+        .build()
+  }
+
+  def getServiceClient(url: URL): BlobServiceClient = {
     val k = (url.account, url.container, url.sasToken)
 
     clients.get(k) match {
@@ -197,10 +167,6 @@ class AzureBlobServiceClientCache(
       .buildClient()
     clients += ((url.account, url.container, url.sasToken) -> blobServiceClient)
   }
-}
-
-class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
-  type URL = AzureStorageFSURL
 
   override def parseUrl(filename: String): URL = AzureStorageFS.parseUrl(filename)
 
@@ -227,7 +193,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         f
       catch {
         case e: BlobStorageException if e.getStatusCode == 401 =>
-          serviceClientCache.setPublicAccessServiceClient(url)
+          setPublicAccessServiceClient(url)
           f
       }
     }
@@ -239,37 +205,18 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     .setConnectionIdleTimeout(Duration.ofSeconds(5))
     .setWriteTimeout(Duration.ofSeconds(5))
 
-  private lazy val serviceClientCache = credentialsJSON match {
-    case None =>
-      val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
-      new AzureBlobServiceClientCache(credential, httpClientOptions)
-    case Some(keyData) =>
-      implicit val formats: Formats = defaultJSONFormats
-      val kvs = JsonMethods.parse(keyData)
-      val appId = (kvs \ "appId").extract[String]
-      val password = (kvs \ "password").extract[String]
-      val tenant = (kvs \ "tenant").extract[String]
-
-      val clientSecretCredential: ClientSecretCredential = new ClientSecretCredentialBuilder()
-        .clientId(appId)
-        .clientSecret(password)
-        .tenantId(tenant)
-        .build()
-      new AzureBlobServiceClientCache(clientSecretCredential, httpClientOptions)
-  }
-
   // Set to max timeout for blob storage of 30 seconds
   /* https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations */
   private val timeout = Duration.ofSeconds(30)
 
   def getBlobClient(url: URL): BlobClient = retryTransientErrors {
-    serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container).getBlobClient(
+    getServiceClient(url).getBlobContainerClient(url.container).getBlobClient(
       url.path
     )
   }
 
   def getContainerClient(url: URL): BlobContainerClient = retryTransientErrors {
-    serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container)
+    getServiceClient(url).getBlobContainerClient(url.container)
   }
 
   def openNoCompression(url: URL): SeekableDataInputStream = handlePublicAccessError(url) {

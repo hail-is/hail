@@ -1,48 +1,50 @@
-from typing import (
-    Any,
-    Callable,
-    TypeVar,
-    Awaitable,
-    Mapping,
-    Optional,
-    Type,
-    List,
-    Dict,
-    Iterable,
-    Tuple,
-    AsyncIterator,
-    Iterator,
-    Union,
-    AsyncGenerator,
-)
-from typing import Literal, Sequence
-from typing_extensions import ParamSpec
-from types import TracebackType
+import asyncio
 import concurrent.futures
 import contextlib
-import subprocess
-import traceback
-import sys
-import os
-import re
 import errno
-import random
+import itertools
 import logging
-import asyncio
-import aiohttp
-import urllib.parse
-import urllib3.exceptions
+import os
+import random
+import re
 import secrets
 import socket
-import requests
-import botocore.exceptions
-import itertools
+import subprocess
+import sys
 import time
+import traceback
+import urllib.parse
+from types import TracebackType
+from typing import (
+    Any,
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
+
+import aiohttp
+import botocore.exceptions
+import requests
+import urllib3.exceptions
 from requests.adapters import HTTPAdapter
+from typing_extensions import ParamSpec
 from urllib3.poolmanager import PoolManager
 
-from .time import time_msecs
 from ..hail_event_loop import hail_event_loop
+from .time import time_msecs
 
 try:
     import aiodocker  # pylint: disable=import-error
@@ -65,7 +67,7 @@ U = TypeVar('U')  # pylint: disable=invalid-name
 P = ParamSpec("P")
 
 
-async def the_empty_async_generator() -> AsyncGenerator[T, None]:
+async def the_empty_async_generator() -> AsyncGenerator[Any, None]:
     if False:  # pylint: disable=using-constant-test
         yield  # The appearance of the keyword `yield` forces Python to make this function into a generator
 
@@ -283,8 +285,9 @@ class WaitableSharedPool:
 
 
 class WithoutSemaphore:
-    def __init__(self, sema):
+    def __init__(self, sema, *, acquire_on_error: bool = False):
         self._sema = sema
+        self._acquire_on_error = acquire_on_error
 
     async def __aenter__(self) -> 'WithoutSemaphore':
         self._sema.release()
@@ -293,7 +296,8 @@ class WithoutSemaphore:
     async def __aexit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
-        await self._sema.acquire()
+        if exc_val is None or self._acquire_on_error:
+            await self._sema.acquire()
 
 
 class PoolShutdownError(Exception):

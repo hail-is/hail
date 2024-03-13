@@ -1,15 +1,15 @@
 from typing import Union
 
 import hail as hl
-from hail.expr import Expression, expr_numeric, expr_array, expr_interval, expr_any, construct_expr, construct_variable
-from hail.expr.types import tlocus, tarray, tstr, tstruct, ttuple
+from hail import ir
+from hail.expr import Expression, construct_expr, construct_variable, expr_any, expr_array, expr_interval, expr_numeric
+from hail.expr.types import tarray, tlocus, tstr, tstruct, ttuple
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.typecheck import typecheck, nullable, func_spec, oneof
-from hail.utils import Interval, Struct, new_temp_file, deduplicate
-from hail.utils.misc import plural
+from hail.typecheck import func_spec, nullable, oneof, typecheck
+from hail.utils import Interval, Struct, deduplicate, new_temp_file
 from hail.utils.java import Env, info
-from hail import ir
+from hail.utils.misc import plural
 
 
 @typecheck(i=Expression, j=Expression, keep=bool, tie_breaker=nullable(func_spec(2, expr_numeric)), keyed=bool)

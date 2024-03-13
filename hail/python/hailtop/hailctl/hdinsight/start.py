@@ -1,12 +1,11 @@
-import re
+import json
 import os
-from enum import Enum
+import re
+import subprocess
 import sys
 import time
-import json
-import subprocess
+from enum import Enum
 from shlex import quote as shq
-
 from typing import List, Optional
 
 
@@ -39,8 +38,9 @@ def start(
 ):
     import requests  # pylint: disable=import-outside-toplevel
     import requests.auth  # pylint: disable=import-outside-toplevel
-    from ...utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
+
     from ... import pip_version  # pylint: disable=import-outside-toplevel
+    from ...utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
 
     print(f'Starting the cluster {cluster_name}')
 

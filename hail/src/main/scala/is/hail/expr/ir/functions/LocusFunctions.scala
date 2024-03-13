@@ -254,7 +254,10 @@ object LocusFunctions extends RegistryFunctions {
           cb.while_(
             iContig < ncontigs, {
               val coordPerContig =
-                grouped.loadElement(cb, iContig).get(cb, "locus_windows group cannot be missing")
+                grouped.loadElement(cb, iContig).getOrFatal(
+                  cb,
+                  "locus_windows group cannot be missing",
+                )
                   .asIndexable
               f(cb, iContig, coordPerContig)
               cb.assign(iContig, iContig + 1)
@@ -287,7 +290,7 @@ object LocusFunctions extends RegistryFunctions {
               cb.assign(lastCoord, 0.0),
               cb.assign(
                 lastCoord,
-                coords.loadElement(cb, 0).get(
+                coords.loadElement(cb, 0).getOrFatal(
                   cb,
                   "locus_windows: missing value for 'coord_expr'",
                 ).asDouble.value,
@@ -352,9 +355,9 @@ object LocusFunctions extends RegistryFunctions {
             EmitCode.fromI(cb.emb)(cb =>
               addIdxWithCondition(cb) { case (cb, i, idx, coords) =>
                 coords.loadElement(cb, i)
-                  .get(cb, "locus_windows: missing value for 'coord_expr'")
+                  .getOrFatal(cb, "locus_windows: missing value for 'coord_expr'")
                   .asDouble.value > (coords.loadElement(cb, idx)
-                    .get(
+                    .getOrFatal(
                       cb,
                       "locus_windows: missing value for 'coord_expr'",
                     ).asDouble.value + radius)
@@ -363,9 +366,9 @@ object LocusFunctions extends RegistryFunctions {
             EmitCode.fromI(cb.emb)(cb =>
               addIdxWithCondition(cb) { case (cb, i, idx, coords) =>
                 coords.loadElement(cb, i)
-                  .get(cb, "locus_windows: missing value for 'coord_expr'")
+                  .getOrFatal(cb, "locus_windows: missing value for 'coord_expr'")
                   .asDouble.value >= (coords.loadElement(cb, idx)
-                    .get(
+                    .getOrFatal(
                       cb,
                       "locus_windows: missing value for 'coord_expr'",
                     ).asDouble.value - radius)

@@ -1,11 +1,11 @@
-import aiohttp
 import sys
-
 from typing import Optional
 
+import aiohttp
+
 from hailtop import httpx
-from hailtop.config import get_deploy_config
 from hailtop.auth import hail_credentials
+from hailtop.config import get_deploy_config
 from hailtop.httpx import client_session
 
 

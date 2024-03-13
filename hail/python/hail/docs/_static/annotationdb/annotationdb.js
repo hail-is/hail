@@ -88,7 +88,7 @@ function copy() {
 }
 
 function updateTextArea() {
-  let text = "db = hl.experimental.DB(region='us', cloud='gcp')\nmt = db.annotate_rows_db(mt";
+  let text = "db = hl.experimental.DB(region='us-central1', cloud='gcp')\nmt = db.annotate_rows_db(mt";
   $("input[type=checkbox]:checked").filter(".checkboxadd").each(function() {
     text += ", '" + $(this).val() + "'";
     $("#result").val(text + ")");

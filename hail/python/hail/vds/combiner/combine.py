@@ -1,19 +1,24 @@
 import math
-from typing import Collection, Optional, Set, Union, List, Tuple, Dict
+from typing import Collection, Dict, List, Optional, Set, Tuple, Union
 
 import hail as hl
-from hail import MatrixTable, Table
 from hail.experimental.function import Function
-from hail.expr import StructExpression, unify_all, construct_expr
+from hail.expr import BooleanExpression, StructExpression, construct_expr, unify_all
 from hail.expr.expressions import expr_bool, expr_str
+from hail.expr.functions import numeric_allele_type
+from hail.expr.types import HailType
+from hail.genetics.allele_type import AlleleType
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows
+from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.typecheck import oneof, sequenceof, typecheck
+
 from ..variant_dataset import VariantDataset
 
-_transform_variant_function_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
-_transform_reference_fuction_map: Dict[Tuple[hl.HailType, Tuple[str, ...]], Function] = {}
-_merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
+_transform_variant_function_map: Dict[Tuple[HailType, Tuple[str, ...]], Function] = {}
+_transform_reference_fuction_map: Dict[Tuple[HailType, Tuple[str, ...]], Function] = {}
+_merge_function_map: Dict[Tuple[HailType, HailType], Function] = {}
 
 
 def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collection[str]] = None) -> MatrixTable:
@@ -379,8 +384,8 @@ def combine_variant_datasets(vdss: List[VariantDataset]) -> VariantDataset:
     return VariantDataset(reference, variants._key_rows_by_assert_sorted('locus', 'alleles'))
 
 
-_transform_rows_function_map: Dict[Tuple[hl.HailType], Function] = {}
-_merge_function_map: Dict[Tuple[hl.HailType, hl.HailType], Function] = {}
+_transform_rows_function_map: Dict[Tuple[HailType], Function] = {}
+_merge_function_map: Dict[Tuple[HailType, HailType], Function] = {}
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
@@ -436,8 +441,8 @@ _allele_specific_field_parsers = {
 
 
 def parse_allele_specific_fields(
-    info: hl.StructExpression, has_non_ref: Union[bool, hl.BooleanExpression]
-) -> hl.StructExpression:
+    info: StructExpression, has_non_ref: Union[bool, BooleanExpression]
+) -> StructExpression:
     def parse_field(field: str) -> hl.Expression:
         if parse := _allele_specific_field_parsers.get(field):
             return parse(info[field], has_non_ref)
@@ -459,8 +464,6 @@ def unlocalize(mt):
 
 
 def merge_alleles(alleles):
-    from hail.expr.functions import _num_allele_type, _allele_ints
-
     return hl.rbind(
         alleles.map(lambda a: hl.or_else(a[0], '')).fold(lambda s, t: hl.if_else(hl.len(s) > hl.len(t), s, t), ''),
         lambda ref: hl.rbind(
@@ -470,13 +473,13 @@ def merge_alleles(alleles):
                     lambda r: hl.array([ref]).extend(
                         al[1:].map(
                             lambda a: hl.rbind(
-                                _num_allele_type(r, a),
+                                numeric_allele_type(r, a),
                                 lambda at: hl.if_else(
-                                    (_allele_ints['SNP'] == at)
-                                    | (_allele_ints['Insertion'] == at)
-                                    | (_allele_ints['Deletion'] == at)
-                                    | (_allele_ints['MNP'] == at)
-                                    | (_allele_ints['Complex'] == at),
+                                    (at == AlleleType.SNP)
+                                    | (at == AlleleType.INSERTION)
+                                    | (at == AlleleType.DELETION)
+                                    | (at == AlleleType.MNP)
+                                    | (at == AlleleType.COMPLEX),
                                     a + ref[hl.len(r) :],
                                     a,
                                 ),
@@ -568,7 +571,7 @@ def combine_gvcfs(mts):
     return unlocalize(combined)
 
 
-@typecheck(mt=hl.MatrixTable, desired_average_partition_size=int, tmp_path=str)
+@typecheck(mt=MatrixTable, desired_average_partition_size=int, tmp_path=str)
 def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: str):
     """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
     for repartitioning a combiner matrix table.

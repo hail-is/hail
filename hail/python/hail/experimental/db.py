@@ -3,16 +3,17 @@ import os
 import warnings
 from typing import Iterable, List, Optional, Set, Tuple, Union
 
-import hail as hl
 import pkg_resources
+
+import hail as hl
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
 
-from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
 from ..matrixtable import MatrixTable, matrix_table_type
 from ..table import Table, table_type
 from ..typecheck import oneof, typecheck_method
 from ..utils.java import Env, info
+from .lens import MatrixRows, TableRows
 
 
 class DatasetVersion:
@@ -71,8 +72,7 @@ class DatasetVersion:
             is a :obj:`dict` containing key: value pairs, like ``region: url``.
         region : :obj:`str`
             Region from which to access data, available regions given in
-            :attr:`hail.experimental.DB._valid_regions`, currently either
-            ``'us'`` or 'eu'.
+            :attr:`hail.experimental.DB._valid_regions`.
 
         Returns
         -------
@@ -101,8 +101,7 @@ class DatasetVersion:
             Name of dataset.
         region : :obj:`str`
             Region from which to access data, available regions given in
-            :func:`hail.experimental.DB._valid_regions`, currently either
-            ``'us'`` or ``'eu'``.
+            :func:`hail.experimental.DB._valid_regions`.
 
         Returns
         -------
@@ -181,8 +180,7 @@ class Dataset:
             versions.
         region : :obj:`str`
             Region from which to access data, available regions given in
-            :func:`hail.experimental.DB._valid_regions`, currently either
-            ``'us'`` or 'eu'.
+            :func:`hail.experimental.DB._valid_regions`.
         cloud : :obj:`str`
             Cloud platform to access dataset, either ``'gcp'`` or ``'aws'``.
 
@@ -272,19 +270,18 @@ class Dataset:
 class DB:
     """An annotation database instance.
 
-    This class facilitates the annotation of genetic datasets with variant
-    annotations. It accepts either an HTTP(S) URL to an Annotation DB
-    configuration or a Python :obj:`dict` describing an Annotation DB
-    configuration. User must specify the `region` (``'us'`` or ``'eu'``) in which
-    the cluster is running if connecting to the default Hail Annotation DB.
-    User must also specify the `cloud` platform that they are using (``'gcp'``
-    or ``'aws'``).
+    This class facilitates the annotation of genetic datasets with variant annotations. It accepts
+    either an HTTP(S) URL to an Annotation DB configuration or a Python :obj:`dict` describing an
+    Annotation DB configuration. User must specify the `region` (aws: ``'us'``, gcp:
+    ``'us-central1'`` or ``'europe-west1'``) in which the cluster is running if connecting to the
+    default Hail Annotation DB.  User must also specify the `cloud` platform that they are using
+    (``'gcp'`` or ``'aws'``).
 
     Parameters
     ----------
     region : :obj:`str`
-        Region cluster is running in, either ``'us'`` or ``'eu'``
-        (default is ``'us'``).
+        Region cluster is running in, either ``'us'``, ``'us-central1'``, or ``'europe-west1'``
+        (default is ``'us-central1'``).
     cloud : :obj:`str`
         Cloud platform, either ``'gcp'`` or ``'aws'`` (default is ``'gcp'``).
     url : :obj:`str`, optional
@@ -297,22 +294,27 @@ class DB:
     Note
     ----
     The ``'aws'`` `cloud` platform is currently only available for the ``'us'``
-    `region`. If `region` is ``'eu'``, `cloud` must be set to ``'gcp'``.
+    `region`.
 
     Examples
     --------
     Create an annotation database connecting to the default Hail Annotation DB:
 
-    >>> db = hl.experimental.DB(region='us', cloud='gcp')
+    >>> db = hl.experimental.DB(region='us-central1', cloud='gcp')
     """
 
     _valid_key_properties = {'gene', 'unique'}
-    _valid_regions = {'us', 'eu'}
+    _valid_regions = {'us', 'us-central1', 'europe-west1'}
     _valid_clouds = {'gcp', 'aws'}
-    _valid_combinations = {('us', 'aws'), ('us', 'gcp'), ('eu', 'gcp')}
+    _valid_combinations = {('us', 'aws'), ('us-central1', 'gcp'), ('europe-west1', 'gcp')}
 
     def __init__(
-        self, *, region: str = 'us', cloud: str = 'gcp', url: Optional[str] = None, config: Optional[dict] = None
+        self,
+        *,
+        region: str = 'us-central1',
+        cloud: str = 'gcp',
+        url: Optional[str] = None,
+        config: Optional[dict] = None,
     ):
         if region not in DB._valid_regions:
             raise ValueError(
@@ -457,13 +459,13 @@ class DB:
         --------
         Annotate a :class:`.MatrixTable` with ``gnomad_lof_metrics``:
 
-        >>> db = hl.experimental.DB(region='us', cloud='gcp')
+        >>> db = hl.experimental.DB(region='us-central1', cloud='gcp')
         >>> mt = db.annotate_rows_db(mt, 'gnomad_lof_metrics') # doctest: +SKIP
 
         Annotate a :class:`.Table` with ``clinvar_gene_summary``, ``CADD``,
         and ``DANN``:
 
-        >>> db = hl.experimental.DB(region='us', cloud='gcp')
+        >>> db = hl.experimental.DB(region='us-central1', cloud='gcp')
         >>> ht = db.annotate_rows_db(ht, 'clinvar_gene_summary', 'CADD', 'DANN') # doctest: +SKIP
 
         Notes

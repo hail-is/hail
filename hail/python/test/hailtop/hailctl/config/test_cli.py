@@ -1,10 +1,10 @@
 import os
-import pytest
 
+import pytest
 from typer.testing import CliRunner
 
-from hailtop.config.variables import ConfigVariable
 from hailtop.config.user_config import get_user_config_path
+from hailtop.config.variables import ConfigVariable
 from hailtop.hailctl.config import cli, config_variables
 
 
