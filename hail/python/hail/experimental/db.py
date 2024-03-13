@@ -319,19 +319,19 @@ class DB:
         if region not in DB._valid_regions:
             raise ValueError(
                 f'Specify valid region parameter,'
-                f' received: region={repr(region)}.\n'
+                f' received: region={region!r}.\n'
                 f'Valid regions are {DB._valid_regions}.'
             )
         if cloud not in DB._valid_clouds:
             raise ValueError(
                 f'Specify valid cloud parameter,'
-                f' received: cloud={repr(cloud)}.\n'
+                f' received: cloud={cloud!r}.\n'
                 f'Valid cloud platforms are {DB._valid_clouds}.'
             )
         if (region, cloud) not in DB._valid_combinations:
             raise ValueError(
-                f'The {repr(region)} region is not available for'
-                f' the {repr(cloud)} cloud platform. '
+                f'The {region!r} region is not available for'
+                f' the {cloud!r} cloud platform. '
                 f'Valid region, cloud combinations are'
                 f' {DB._valid_combinations}.'
             )

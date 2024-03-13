@@ -617,7 +617,7 @@ class Expression(object):
         )
 
     def __iter__(self):
-        raise ExpressionException(f"{repr(self)} object is not iterable")
+        raise ExpressionException(f"{self!r} object is not iterable")
 
     def _compare_op(self, op, other):
         other = to_expr(other)

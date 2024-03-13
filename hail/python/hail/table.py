@@ -139,8 +139,8 @@ class ExprContainer:
             if key not in ExprContainer._warned_about:
                 ExprContainer._warned_about.add(key)
                 warning(
-                    f"Name collision: field {repr(key)} already in object dict. "
-                    f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]"
+                    f"Name collision: field {key!r} already in object dict. "
+                    f"\n  This field must be referenced with __getitem__ syntax: obj[{key!r}]"
                 )
         else:
             self.__dict__[key] = value
@@ -278,9 +278,7 @@ class GroupedTable(ExprContainer):
             Aggregated table.
         """
         for name, expr in named_exprs.items():
-            analyze(
-                f'GroupedTable.aggregate: ({repr(name)})', expr, self._parent._global_indices, {self._parent._row_axis}
-            )
+            analyze(f'GroupedTable.aggregate: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis})
         if not named_exprs.keys().isdisjoint(set(self._key_expr)):
             intersection = set(named_exprs.keys()) & set(self._key_expr)
             raise ValueError(
@@ -3484,7 +3482,7 @@ class Table(ExprContainer):
             right = right.rename(renames)
             info(
                 'Table.join: renamed the following fields on the right to avoid name conflicts:'
-                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items())
+                + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renames.items())
             )
 
         return Table(ir.TableJoin(self._tir, right._tir, how, _join_key))
@@ -3982,9 +3980,9 @@ class Table(ExprContainer):
         row_field_set = set(self.row)
         for k, v in c.items():
             if k not in row_field_set:
-                raise ValueError(f"'to_matrix_table': field {repr(k)} is not a row field")
+                raise ValueError(f"'to_matrix_table': field {k!r} is not a row field")
             if v > 1:
-                raise ValueError(f"'to_matrix_table': field {repr(k)} appeared in {v} field groups")
+                raise ValueError(f"'to_matrix_table': field {k!r} appeared in {v} field groups")
 
         if len(row_key) == 0:
             raise ValueError("'to_matrix_table': require at least one row key field")

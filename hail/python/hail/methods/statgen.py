@@ -197,13 +197,13 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
     for f in pass_through:
         if isinstance(f, str):
             if f not in mt.row:
-                raise ValueError(f"'{method}/pass_through': MatrixTable has no row field {repr(f)}")
+                raise ValueError(f"'{method}/pass_through': MatrixTable has no row field {f!r}")
             if f in row_fields:
                 # allow silent pass through of key fields
                 if f in mt.row_key:
                     pass
                 else:
-                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(f)}")
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {f!r}")
             row_fields[f] = mt[f]
         else:
             assert isinstance(f, Expression)
@@ -217,7 +217,7 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
             if name in row_fields:
                 # allow silent pass through of key fields
                 if not (name in mt.row_key and f._ir == mt[name]._ir):
-                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {name!r}")
             row_fields[name] = f
     for k in mt.row_key:
         del row_fields[k]

@@ -3389,7 +3389,7 @@ class Tests(unittest.TestCase):
         expr = hl.dict(hl.zip(arg_list, values))
         results = hl.eval(expr)
         for args, result in results.items():
-            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')
+            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {args!s}')
 
     def test_min_rep(self):
         def assert_min_reps_to(old, new, pos_change=0):
