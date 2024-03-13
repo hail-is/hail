@@ -89,10 +89,10 @@ final case class EStructOfArrays(
         skipField(cb, field, length, nMissingBytes, in)
       } else {
         // XXX: this only works if we're not using some kind of per-field compression
-        val fieldIdx = ept.fieldIdx(field.name)
-        val fieldType: PPrimitive = tcoerce(ept.types(fieldIdx))
+        val pFieldIdx = ept.fieldIdx(field.name)
+        val pFieldType: PPrimitive = tcoerce(ept.types(pFieldIdx))
         val elementSize = EStructOfArrays.elementSize(field.typ)
-        assert(elementSize == fieldType.byteSize)
+        assert(elementSize == pFieldType.byteSize)
 
         val arraySize = cb.memoize(const(elementSize) * length.toL)
         val mbytes =
@@ -110,14 +110,13 @@ final case class EStructOfArrays(
           i < length, {
             cb.if_(
               pt.isElementMissing(arrayPtr, i),
-              if (!fieldType.required) ept.setFieldMissing(cb, structPtr, fieldIdx),
+              if (!pFieldType.required) ept.setFieldMissing(cb, structPtr, pFieldIdx),
               cb.if_(
                 mbytes.map(mbytes => Region.loadBit(mbytes, i.toL)).getOrElse[Code[Boolean]](const(
                   false
                 )),
-                if (!fieldType.required) ept.setFieldMissing(cb, structPtr, fieldIdx), {
-                  // ept.setFieldPresent(cb, structPtr, fieldIdx)
-                  val fieldPtr = ept.fieldOffset(structPtr, fieldIdx)
+                if (!pFieldType.required) ept.setFieldMissing(cb, structPtr, pFieldIdx), {
+                  val fieldPtr = ept.fieldOffset(structPtr, pFieldIdx)
                   cb += Region.copyFrom(elementPtr, fieldPtr, elementSize)
                 },
               ),
