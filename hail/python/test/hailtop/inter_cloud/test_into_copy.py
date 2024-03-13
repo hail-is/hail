@@ -1,7 +1,7 @@
-import pytest
 import os.path
-from hailtop.aiotools.copy import copy_from_dict
 import tempfile
+
+from hailtop.aiotools.copy import copy_from_dict
 
 
 def write_file(path, data):

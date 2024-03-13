@@ -1,4 +1,4 @@
-from typing import Optional, Any, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional
 
 from .base_client import AzureBaseClient
 

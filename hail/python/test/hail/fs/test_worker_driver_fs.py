@@ -1,13 +1,12 @@
 import asyncio
 import os
-import pytest
 
 import hail as hl
-from hailtop.utils import secret_alnum_string
-from hailtop.test_utils import skip_in_azure, run_if_azure
 from hailtop.aiocloud.aioazure import AzureAsyncFS
+from hailtop.test_utils import run_if_azure, skip_in_azure
+from hailtop.utils import secret_alnum_string
 
-from ..helpers import fails_local_backend, hl_stop_for_test, hl_init_for_test, test_timeout, resource
+from ..helpers import fails_local_backend, hl_init_for_test, hl_stop_for_test, resource, test_timeout
 
 
 @skip_in_azure

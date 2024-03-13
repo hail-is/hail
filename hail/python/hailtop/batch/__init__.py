@@ -1,12 +1,12 @@
 import warnings
 
+from .backend import Backend, LocalBackend, ServiceBackend
 from .batch import Batch
 from .batch_pool_executor import BatchPoolExecutor
-from .backend import LocalBackend, ServiceBackend, Backend
 from .docker import build_python_image
 from .exceptions import BatchException
+from .resource import PythonResult, Resource, ResourceFile, ResourceGroup
 from .utils import concatenate, plink_merge
-from .resource import Resource, ResourceFile, ResourceGroup, PythonResult
 
 __all__ = [
     'Batch',

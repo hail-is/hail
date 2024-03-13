@@ -1,26 +1,24 @@
-from typing import Tuple
+import os
 import secrets
+from configparser import ConfigParser
+from shlex import quote as shq
+from typing import Tuple
 
 import pytest
-import os
-from shlex import quote as shq
 
-from hailtop.batch import Batch, ServiceBackend, ResourceGroup
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
+from hailtop.batch import Batch, ResourceGroup, ServiceBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
-from hailtop.utils import async_to_blocking, grouped
-from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.test_utils import skip_in_azure
-from hailtop.httpx import ClientResponseError
-
-from configparser import ConfigParser
 from hailtop.config import get_user_config, user_config
-from hailtop.aiotools.validators import validate_file
-
+from hailtop.httpx import ClientResponseError
+from hailtop.test_utils import skip_in_azure
+from hailtop.utils import async_to_blocking, grouped
 
 from .utils import (
-    batch,
     REQUESTER_PAYS_PROJECT,
+    batch,
 )
 
 

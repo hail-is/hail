@@ -13,6 +13,33 @@ ignore = [
     "PLR0913", # Too many arguments to function call
     "PLC1901", # `<VAR> != ''` can be simplified to `<VAR>` as an empty string is falsey
     "PLR2004", # Magic value used in comparison
+
+    # rules to ignore temporarily while progressively introducing ruff linting to the codebase
+    "F541",
+    "RUF010",
+    "PLR1701",
+    "W605",
+    "E712",
+    "E711",
+    "F841",
+    "PLR1714",
+    "PLW2901",
+    "RUF005",
+    "PLW3301",
+    "RUF012",
+    "RUF013",
+    "PLR5501",
+    "RUF100",
+    "RUF015",
+    "PLC0414",
+    "PLW0602",
+    "RUF002",
+    "PLC0132",
+    "PLE0307",
+    "PLW0127",
+    "PLR0124",
+    "F601",
+    "F811",
 ]
 extend-exclude = ['sql', 'datasets']
 force-exclude = true
@@ -21,13 +48,6 @@ force-exclude = true
 known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "website", "web_common"]
 
 [tool.ruff.per-file-ignores]
-"hail/python/hail/**/*" = ["I", "PL", "RUF"]
-"hail/python/hailtop/**/*" = ["I"]
-"hail/python/test/**/*" = ["ALL"]
-"hail/python/cluster-tests/**/*" = ["ALL"]
-"hail/python/setup-hailtop.py" = ["ALL"]
-"hail/python/setup.py" = ["ALL"]
-"hail/scripts/update-terra-image.py" = ["ALL"]
 "hail/src/**/*" = ["ALL"]
 "benchmark/**/*" = ["ALL"]
 "datasets/**/*" = ["ALL"]

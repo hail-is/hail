@@ -1,10 +1,12 @@
-from typing import Tuple, Dict
 import asyncio
+from typing import Dict, Tuple
+
 import pytest
 
-from .utils import fresh_dir
-from hailtop.aiotools.fs import AsyncFS
 from hailtop.aiotools.delete import delete
+from hailtop.aiotools.fs import AsyncFS
+
+from .utils import fresh_dir
 
 
 @pytest.fixture(params=['file', 'gs', 's3', 'azure-https'])

@@ -1,7 +1,8 @@
 import hail as hl
+from hail.expr.expressions import expr_float64, expr_locus, expr_numeric
 from hail.linalg import BlockMatrix
-from hail.typecheck import typecheck, nullable, sequenceof, oneof
-from hail.expr.expressions import expr_float64, expr_numeric, expr_locus
+from hail.table import Table
+from hail.typecheck import nullable, oneof, sequenceof, typecheck
 from hail.utils import new_temp_file, wrap_to_list
 
 
@@ -13,7 +14,7 @@ from hail.utils import new_temp_file, wrap_to_list
     annotation_exprs=nullable(oneof(expr_numeric, sequenceof(expr_numeric))),
     block_size=nullable(int),
 )
-def ld_score(entry_expr, locus_expr, radius, coord_expr=None, annotation_exprs=None, block_size=None) -> hl.Table:
+def ld_score(entry_expr, locus_expr, radius, coord_expr=None, annotation_exprs=None, block_size=None) -> Table:
     """Calculate LD scores.
 
     Example
@@ -151,7 +152,7 @@ def ld_score(entry_expr, locus_expr, radius, coord_expr=None, annotation_exprs=N
         ht = ht.annotate(univariate=hl.literal(1.0))
         names = [name for name in ht.row if name not in ht.key]
 
-        ht_union = hl.Table.union(*[
+        ht_union = Table.union(*[
             (ht.annotate(name=hl.str(x), value=hl.float(ht[x])).select('name', 'value')) for x in names
         ])
         mt_annotations = ht_union.to_matrix_table(row_key=list(ht_union.key), col_key=['name'])

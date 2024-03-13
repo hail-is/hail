@@ -1,7 +1,7 @@
-from hail.expr.expressions import expr_float64, expr_int32, Float64Expression
+from hail.expr.expressions import Float64Expression, expr_float64, expr_int32
+from hail.expr.functions import _func
 from hail.expr.types import tfloat64
 from hail.typecheck import typecheck
-from hail.expr.functions import _func
 
 
 @typecheck(ac=expr_int32, an=expr_int32, ci=expr_float64)

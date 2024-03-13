@@ -1,8 +1,9 @@
-from hailtop.hail_event_loop import hail_event_loop
-from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
-from hailtop.aiotools.router_fs import RouterAsyncFS
 from typing import Optional
 from urllib.parse import urlparse
+
+from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.hail_event_loop import hail_event_loop
 
 
 def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False) -> None:

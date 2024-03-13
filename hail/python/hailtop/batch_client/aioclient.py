@@ -1,26 +1,26 @@
-from enum import Enum
-from typing import Optional, Dict, Any, List, Tuple, Union, AsyncIterator, TypedDict, cast
+import asyncio
+import functools
+import json
+import logging
 import math
 import random
-import logging
-import json
-import functools
-import asyncio
+import secrets
+from enum import Enum
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
+
 import aiohttp
 import orjson
-import secrets
 
-from hailtop import is_notebook
-from hailtop.config import get_deploy_config, DeployConfig
+from hailtop import httpx, is_notebook
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
+from hailtop.config import DeployConfig, get_deploy_config
 from hailtop.utils import async_to_blocking, bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
-from hailtop import httpx
 
-from .globals import ROOT_JOB_GROUP_ID, tasks, complete_states
-from .types import GetJobGroupResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha, GetJobResponseV1Alpha
+from .globals import ROOT_JOB_GROUP_ID, complete_states, tasks
+from .types import GetJobGroupResponseV1Alpha, GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
 
 log = logging.getLogger('batch_client.aioclient')
 

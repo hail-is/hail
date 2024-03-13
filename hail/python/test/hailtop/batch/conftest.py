@@ -1,13 +1,13 @@
-from typing import AsyncIterator, Tuple
 import asyncio
+import os
+from typing import AsyncIterator, Tuple
 
 import pytest
-import os
 
-from hailtop.batch import ServiceBackend
-from hailtop.utils import secret_alnum_string
-from hailtop.config import get_remote_tmpdir
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.batch import ServiceBackend
+from hailtop.config import get_remote_tmpdir
+from hailtop.utils import secret_alnum_string
 
 
 @pytest.fixture(scope="session")

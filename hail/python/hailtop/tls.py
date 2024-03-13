@@ -1,9 +1,9 @@
-from typing import Dict
-import logging
 import json
+import logging
 import os
 import ssl
 from ssl import Purpose
+from typing import Dict
 
 log = logging.getLogger('hailtop.tls')
 _server_ssl_context = None

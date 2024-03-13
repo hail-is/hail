@@ -1,12 +1,10 @@
 import abc
 import base64
-from cryptography import x509
-from cryptography.hazmat.primitives import serialization
 import json
 import logging
 import os
 import urllib.parse
-from typing import Any, Dict, List, Mapping, Optional, TypedDict, ClassVar
+from typing import Any, ClassVar, Dict, List, Mapping, Optional, TypedDict
 
 import aiohttp.web
 import google.auth.transport.requests
@@ -14,6 +12,8 @@ import google.oauth2.id_token
 import google_auth_oauthlib.flow
 import jwt
 import msal
+from cryptography import x509
+from cryptography.hazmat.primitives import serialization
 
 from hailtop import httpx
 from hailtop.utils import retry_transient_errors

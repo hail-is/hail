@@ -1,8 +1,8 @@
 import abc
 
 from hail.expr.types import tstream
-from .renderer import Renderer, PlainRenderer, Renderable
 
+from .renderer import PlainRenderer, Renderable, Renderer
 
 counter = 0
 

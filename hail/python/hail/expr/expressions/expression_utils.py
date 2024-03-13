@@ -1,14 +1,15 @@
-from typing import Set, Dict
-from hail.typecheck import typecheck, setof
+from typing import Dict, Set
 
-from .indices import Indices, Aggregation
-from ..expressions import Expression, ExpressionException, expr_any
+from hail.typecheck import setof, typecheck
+
 from ...ir import MakeTuple
+from ..expressions import Expression, ExpressionException, expr_any
+from .indices import Aggregation, Indices
 
 
 @typecheck(caller=str, expr=Expression, expected_indices=Indices, aggregation_axes=setof(str), broadcast=bool)
 def analyze(caller: str, expr: Expression, expected_indices: Indices, aggregation_axes: Set = set(), broadcast=True):
-    from hail.utils import warning, error
+    from hail.utils import error, warning
 
     indices = expr._indices
     source = indices.source

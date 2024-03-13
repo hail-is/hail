@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Dict, NamedTuple, Optional, Union, Any
+from typing import Any, Dict, NamedTuple, Optional, Union
 
 from hailtop.utils.filesize import filesize
 

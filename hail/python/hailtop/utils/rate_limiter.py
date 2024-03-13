@@ -1,8 +1,8 @@
-from types import TracebackType
-from typing import Optional, Type, Deque
+import asyncio
 import collections
 import time
-import asyncio
+from types import TracebackType
+from typing import Deque, Optional, Type
 
 
 class RateLimit:

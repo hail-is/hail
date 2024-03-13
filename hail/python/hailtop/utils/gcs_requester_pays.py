@@ -1,7 +1,6 @@
-from typing import Any, Dict, FrozenSet, Optional, Tuple, Type, TypeVar, Union, Generic
+from typing import Any, Dict, FrozenSet, Generic, Optional, Tuple, Type, TypeVar, Union
 
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
-
 
 FS = TypeVar("FS")
 MaybeGCSRequesterPaysConfiguration = Optional[GCSRequesterPaysConfiguration]
