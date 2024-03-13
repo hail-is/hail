@@ -1,6 +1,6 @@
 import hail as hl
 
-from ..helpers import *
+from ..helpers import get_dataset
 
 
 def test_mating_simulation():

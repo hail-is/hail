@@ -1,8 +1,9 @@
-from typing import TypeVar, Callable
-import re
-import inspect
 import abc
 import collections
+import inspect
+import re
+from typing import Callable, TypeVar
+
 from hailtop.hail_decorator import decorator
 
 

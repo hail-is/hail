@@ -1,8 +1,9 @@
-from typing import Optional, Tuple, Sequence, Callable
-from hail.expr.expressions import construct_expr, expr_any, unify_all, Expression
-from hail.expr.types import hail_type, HailType
+from typing import Callable, Optional, Sequence, Tuple
+
+from hail.expr.expressions import Expression, construct_expr, expr_any, unify_all
+from hail.expr.types import HailType, hail_type
 from hail.ir import Apply, Ref
-from hail.typecheck import typecheck, nullable, tupleof, anytype
+from hail.typecheck import anytype, nullable, tupleof, typecheck
 from hail.utils.java import Env
 
 

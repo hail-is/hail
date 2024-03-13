@@ -1,7 +1,7 @@
 import os
 
-from ....common import CloudBaseClient, Session
 from .....auth import hail_credentials
+from ....common import CloudBaseClient, Session
 
 
 class TerraClient(CloudBaseClient):

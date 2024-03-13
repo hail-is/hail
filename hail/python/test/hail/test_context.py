@@ -1,10 +1,10 @@
-from typing import Tuple, Dict, Optional
+from test.hail.helpers import hl_init_for_test, hl_stop_for_test, qobtest, skip_unless_spark_backend, with_flags
+from typing import Dict, Optional, Tuple
 
 import hail as hl
-from hail.utils.java import Env
 from hail.backend.backend import Backend
 from hail.backend.spark_backend import SparkBackend
-from test.hail.helpers import skip_unless_spark_backend, hl_init_for_test, hl_stop_for_test, qobtest, with_flags
+from hail.utils.java import Env
 
 
 def _scala_map_str_to_tuple_str_str_to_dict(scala) -> Dict[str, Tuple[Optional[str], Optional[str]]]:

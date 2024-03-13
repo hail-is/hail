@@ -1,10 +1,10 @@
-import sys
 import os
-import pyspark
-import pyspark.sql
+import sys
+from typing import Optional
 
 import orjson
-from typing import Optional
+import pyspark
+import pyspark.sql
 
 from hail.expr.table_type import ttable
 from hail.fs.hadoop_fs import HadoopFS
@@ -13,8 +13,8 @@ from hail.table import Table
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 
-from .py4j_backend import Py4JBackend
 from .backend import local_jar_information
+from .py4j_backend import Py4JBackend
 
 
 def append_to_comma_separated_list(conf: pyspark.SparkConf, k: str, *new_values: str):

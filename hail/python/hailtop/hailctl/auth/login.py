@@ -1,9 +1,9 @@
-import os
 import json
+import os
 
-from hailtop.config import get_deploy_config, DeployConfig, get_user_identity_config_path, get_hail_config_path
-from hailtop.auth import hail_credentials, IdentityProvider, AzureFlow, GoogleFlow
-from hailtop.httpx import client_session, ClientSession
+from hailtop.auth import AzureFlow, GoogleFlow, IdentityProvider, hail_credentials
+from hailtop.config import DeployConfig, get_deploy_config, get_hail_config_path, get_user_identity_config_path
+from hailtop.httpx import ClientSession, client_session
 
 
 async def auth_flow(deploy_config: DeployConfig, session: ClientSession):

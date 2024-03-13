@@ -1,7 +1,7 @@
 from typing import Union
 
 import hail as hl
-from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import typecheck_method
 
 

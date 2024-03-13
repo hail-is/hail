@@ -4,9 +4,8 @@ import time
 import pytest
 
 from hailtop.batch import BatchPoolExecutor, ServiceBackend
-from hailtop.config import get_user_config
-from hailtop.utils import sync_sleep_before_try
 from hailtop.batch_client.client import BatchClient
+from hailtop.utils import sync_sleep_before_try
 
 PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9'
 

@@ -1,5 +1,5 @@
-from hail.genetics import Locus
 import hail as hl
+from hail.genetics import Locus
 
 
 def test_constructor():

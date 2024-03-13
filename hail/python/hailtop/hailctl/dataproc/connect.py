@@ -1,12 +1,10 @@
-from enum import Enum
 import os
 import platform
 import shutil
 import subprocess
 import tempfile
-
-from typing import Optional, List
-
+from enum import Enum
+from typing import List, Optional
 
 from . import gcloud
 
