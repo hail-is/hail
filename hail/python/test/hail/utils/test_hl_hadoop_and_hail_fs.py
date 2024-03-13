@@ -134,7 +134,7 @@ def test_hadoop_stat(tmpdir: str):
             f.write('\n')
 
     stat1 = hl.hadoop_stat(f'{tmpdir}')
-    assert stat1['is_dir'] == True
+    assert stat1['is_dir'] is True
 
     hadoop_copy(f'{tmpdir}/test_hadoop_stat.txt.gz', f'{tmpdir}/test_hadoop_stat.copy.txt.gz')
 
@@ -143,7 +143,7 @@ def test_hadoop_stat(tmpdir: str):
     # practice, Hadoop creates a 175 byte file and gzip.GzipFile creates a 202 byte file. The 27
     # extra bytes appear to include at least the filename (20 bytes) and a modification timestamp.
     assert stat2['size_bytes'] == 175 or stat2['size_bytes'] == 202
-    assert stat2['is_dir'] == False
+    assert stat2['is_dir'] is False
     assert 'path' in stat2
 
 

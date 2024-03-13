@@ -3893,19 +3893,19 @@ class Tests(unittest.TestCase):
         nan = math.nan
         na = hl.missing('float64')
 
-        assert hl.eval(hl.is_finite(finite)) == True
-        assert hl.eval(hl.is_finite(infinite)) == False
-        assert hl.eval(hl.is_finite(nan)) == False
+        assert hl.eval(hl.is_finite(finite)) is True
+        assert hl.eval(hl.is_finite(infinite)) is False
+        assert hl.eval(hl.is_finite(nan)) is False
         assert hl.eval(hl.is_finite(na)) == None
 
-        assert hl.eval(hl.is_infinite(finite)) == False
-        assert hl.eval(hl.is_infinite(infinite)) == True
-        assert hl.eval(hl.is_infinite(nan)) == False
+        assert hl.eval(hl.is_infinite(finite)) is False
+        assert hl.eval(hl.is_infinite(infinite)) is True
+        assert hl.eval(hl.is_infinite(nan)) is False
         assert hl.eval(hl.is_infinite(na)) == None
 
-        assert hl.eval(hl.is_nan(finite)) == False
-        assert hl.eval(hl.is_nan(infinite)) == False
-        assert hl.eval(hl.is_nan(nan)) == True
+        assert hl.eval(hl.is_nan(finite)) is False
+        assert hl.eval(hl.is_nan(infinite)) is False
+        assert hl.eval(hl.is_nan(nan)) is True
         assert hl.eval(hl.is_nan(na)) == None
 
     def test_array_and_if_requiredness(self):
@@ -4050,8 +4050,8 @@ class Tests(unittest.TestCase):
         for htyp in collection_types:
             a = htyp([hl.struct(x='foo'), hl.struct(x='bar')])
 
-            assert hasattr(a, 'x') == True
-            assert hasattr(a, 'y') == False
+            assert hasattr(a, 'x') is True
+            assert hasattr(a, 'y') is False
 
             with pytest.raises(AttributeError, match="has no field"):
                 getattr(a, 'y')
