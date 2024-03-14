@@ -7,6 +7,7 @@ from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
 
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.router_fs import RouterFS
 from hailtop.utils import find_spark_home
@@ -28,12 +29,9 @@ class LocalBackend(Py4JBackend):
         skip_logging_configuration,
         optimizer_iterations,
         jvm_heap_size,
-        *,
-        gcs_requester_pays_project: Optional[str] = None,
-        gcs_requester_pays_buckets: Optional[str] = None,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     ):
         self._exit_stack = ExitStack()
-        assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
@@ -75,14 +73,22 @@ class LocalBackend(Py4JBackend):
         jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
 
         super(LocalBackend, self).__init__(self._gateway.jvm, jbackend, jhc)
+        self._fs = self._exit_stack.enter_context(
+            RouterFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
+        )
 
-        self._fs = self._exit_stack.enter_context(RouterFS())
         self._logger = None
 
-        self._initialize_flags({
-            'gcs_requester_pays_project': gcs_requester_pays_project,
-            'gcs_requester_pays_buckets': gcs_requester_pays_buckets,
-        })
+        flags = {}
+        if gcs_requester_pays_configuration is not None:
+            if isinstance(gcs_requester_pays_configuration, str):
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration
+            else:
+                assert isinstance(gcs_requester_pays_configuration, tuple)
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
+                flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
+
+        self._initialize_flags(flags)
 
     def validate_file(self, uri: str) -> None:
         validate_file(uri, self._fs.afs)
