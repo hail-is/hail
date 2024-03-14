@@ -10,6 +10,43 @@ object Env {
   def fromSeq[V](bindings: Iterable[(String, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
+trait GenericBindingEnv[Self, V] {
+  def promoteAgg: Self
+
+  def promoteScan: Self
+
+  def promoteAggOrScan(isScan: Boolean): Self =
+    if (isScan) promoteScan else promoteAgg
+
+  def bindEval(bindings: (String, V)*): Self
+
+  def dropEval: Self
+
+  def bindAgg(bindings: (String, V)*): Self
+
+  def bindScan(bindings: (String, V)*): Self
+
+  def bindAggOrScan(isScan: Boolean, bindings: (String, V)*): Self =
+    if (isScan) bindScan(bindings: _*) else bindAgg(bindings: _*)
+
+  def createAgg: Self
+
+  def createScan: Self
+
+  def createAggOrScan(isScan: Boolean): Self =
+    if (isScan) createScan else createAgg
+
+  def noAgg: Self
+
+  def noScan: Self
+
+  def noAggOrScan(isScan: Boolean): Self = if (isScan) noScan else noAgg
+
+  def onlyRelational(keepAggCapabilities: Boolean = false): Self
+
+  def bindRelational(bindings: (String, V)*): Self
+}
+
 object BindingEnv {
   def empty[T]: BindingEnv[T] = BindingEnv(Env.empty[T], None, None)
 
@@ -22,7 +59,7 @@ case class BindingEnv[V](
   agg: Option[Env[V]] = None,
   scan: Option[Env[V]] = None,
   relational: Env[V] = Env.empty[V],
-) {
+) extends GenericBindingEnv[BindingEnv[V], V] {
   def allEmpty: Boolean =
     eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
@@ -30,15 +67,9 @@ case class BindingEnv[V](
 
   def promoteScan: BindingEnv[V] = copy(eval = scan.get, scan = None)
 
-  def promoteAggOrScan(isScan: Boolean): BindingEnv[V] =
-    if (isScan) promoteScan else promoteAgg
-
   def noAgg: BindingEnv[V] = copy(agg = None)
 
   def noScan: BindingEnv[V] = copy(scan = None)
-
-  def noAggOrScan(isScan: Boolean): BindingEnv[V] =
-    if (isScan) noScan else noAgg
 
   def createAgg: BindingEnv[V] =
     copy(agg = Some(eval), scan = scan.map(_ => Env.empty))
@@ -46,14 +77,11 @@ case class BindingEnv[V](
   def createScan: BindingEnv[V] =
     copy(scan = Some(eval), agg = agg.map(_ => Env.empty))
 
-  def createAggOrScan(isScan: Boolean): BindingEnv[V] =
-    if (isScan) createScan else createAgg
-
   def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
     BindingEnv(
       agg = if (keepAggCapabilities) agg.map(_ => Env.empty) else None,
       scan = if (keepAggCapabilities) scan.map(_ => Env.empty) else None,
-      relational = relational
+      relational = relational,
     )
 
   def bindEval(name: String, v: V): BindingEnv[V] =
@@ -64,6 +92,8 @@ case class BindingEnv[V](
 
   def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
   def deleteEval(names: IndexedSeq[String]): BindingEnv[V] = copy(eval = eval.delete(names))
+
+  def dropEval: BindingEnv[V] = copy(eval = Env.empty)
 
   def bindAgg(name: String, v: V): BindingEnv[V] =
     copy(agg = Some(agg.get.bind(name, v)))
@@ -78,9 +108,6 @@ case class BindingEnv[V](
 
   def bindScan(bindings: (String, V)*): BindingEnv[V] =
     copy(scan = Some(scan.get.bindIterable(bindings)))
-
-  def bindAggOrScan(isScan: Boolean, bindings: (String, V)*): BindingEnv[V] =
-    if (isScan) bindScan(bindings: _*) else bindAgg(bindings: _*)
 
   def bindRelational(name: String, v: V): BindingEnv[V] =
     copy(relational = relational.bind(name, v))

@@ -297,59 +297,83 @@ object ChildEnvWithoutBindings {
   }
 }
 
-case class Bindings2[A, B](
+case class SegregatedBindingEnv[A, B](
   childEnvWithoutBindings: BindingEnv[A],
   newBindings: BindingEnv[B],
-) {
+) extends GenericBindingEnv[SegregatedBindingEnv[A, B], B] {
   def unified(implicit ev: BindingEnv[B] =:= BindingEnv[A]): BindingEnv[A] =
     childEnvWithoutBindings.merge(newBindings)
 
-  def mapNewBindings[C](f: (String, B) => C): Bindings2[A, C] = Bindings2(
+  def mapNewBindings[C](f: (String, B) => C): SegregatedBindingEnv[A, C] = SegregatedBindingEnv(
     childEnvWithoutBindings,
     newBindings.mapValuesWithKey(f),
   )
 
-  def promoteAgg(isScan: Boolean): Bindings2[A, B] = Bindings2(
-    childEnvWithoutBindings.promoteAggOrScan(isScan),
-    newBindings.promoteAggOrScan(isScan),
+  def promoteAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+    childEnvWithoutBindings.promoteAgg,
+    newBindings.promoteAgg,
   )
 
-  def bindEval(bindings: (String, B)*): Bindings2[A, B] =
+  def promoteScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+    childEnvWithoutBindings.promoteScan,
+    newBindings.promoteScan,
+  )
+
+  def bindEval(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
     copy(newBindings = newBindings.bindEval(bindings: _*))
 
-  def dropEval: Bindings2[A, B] = Bindings2(
+  def dropEval: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.copy(eval = Env.empty),
     newBindings.copy(eval = Env.empty),
   )
 
-  def bindAgg(isScan: Boolean, bindings: (String, B)*): Bindings2[A, B] =
-    copy(newBindings = newBindings.bindAggOrScan(isScan, bindings: _*))
+  def bindAgg(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
+    copy(newBindings = newBindings.bindAgg(bindings: _*))
 
-  def createAgg(isScan: Boolean): Bindings2[A, B] = Bindings2(
-    childEnvWithoutBindings.createAggOrScan(isScan),
-    newBindings.createAggOrScan(isScan),
+  def bindScan(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
+    copy(newBindings = newBindings.bindScan(bindings: _*))
+
+  def createAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+    childEnvWithoutBindings.createAgg,
+    newBindings.createAgg,
   )
 
-  def noAgg(isScan: Boolean): Bindings2[A, B] = Bindings2(
-    childEnvWithoutBindings.noAggOrScan(isScan),
-    newBindings.noAggOrScan(isScan),
+  def createScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+    childEnvWithoutBindings.createScan,
+    newBindings.createScan,
   )
 
-  def onlyRelational(keepAggCapabilities: Boolean = false): Bindings2[A, B] = Bindings2(
+  def noAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+    childEnvWithoutBindings.noAgg,
+    newBindings.noAgg,
+  )
+
+  def noScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+    childEnvWithoutBindings.noScan,
+    newBindings.noScan,
+  )
+
+  def onlyRelational(keepAggCapabilities: Boolean = false): SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.onlyRelational(keepAggCapabilities),
     newBindings.onlyRelational(keepAggCapabilities),
   )
 
-  def bindRelational(bindings: (String, B)*): Bindings2[A, B] =
+  def bindRelational(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
     copy(newBindings = newBindings.bindRelational(bindings: _*))
 }
 
 object Bindings2 {
-  def empty[A, B]: Bindings2[A, B] = Bindings2(BindingEnv.empty, BindingEnv.empty)
+  def empty[A, B]: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(BindingEnv.empty, BindingEnv.empty)
 
-  def apply[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): Bindings2[A, Type] = {
+  def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
+    segregated(ir, i, baseEnv).unified
+    // FIXME: use this
+//    childEnv(ir, i, baseEnv)
+  }
+
+  def segregated[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] = {
     val env = ChildEnvWithoutBindings(ir, i, baseEnv)
-    val result = Bindings2(
+    val result = SegregatedBindingEnv(
       env,
       BindingEnv(
         Env.fromSeq(Bindings(ir, i)),
@@ -367,9 +391,10 @@ object Bindings2 {
     result
   }
 
-  def apply2[A](ir: BaseIR, i: Int, _baseEnv: BindingEnv[A]): Bindings2[A, Type] = {
-    val baseEnv = Bindings2[A, Type](_baseEnv, _baseEnv.dropBindings)
+  def apply2[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
+    childEnv(ir, i, SegregatedBindingEnv(baseEnv, baseEnv.dropBindings))
 
+  def childEnv[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E = {
     ir match {
       case Let(bindings, _) =>
         val result = Array.ofDim[(String, Type)](i)
@@ -467,7 +492,7 @@ object Bindings2 {
           val eltType = elementType(a.typ)
           baseEnv
             .bindEval(name -> eltType)
-            .createAgg(true).bindAgg(isScan = true, name -> eltType)
+            .createScan.bindScan(name -> eltType)
         } else baseEnv
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) =>
         if (i == 2)
@@ -490,20 +515,20 @@ object Bindings2 {
           baseEnv.dropEval.bindEval(left -> tupleType, right -> tupleType)
         } else baseEnv
       case AggArrayPerElement(a, elementName, indexName, _, _, isScan) =>
-        if (i == 0) baseEnv.promoteAgg(isScan)
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
         else if (i == 1)
           baseEnv
             .bindEval(indexName -> TInt32)
-            .bindAgg(
+            .bindAggOrScan(
               isScan,
               elementName -> elementType(a.typ),
               indexName -> TInt32,
             )
         else baseEnv
       case AggFold(zero, _, _, accumName, otherAccumName, isScan) =>
-        if (i == 0) baseEnv.noAgg(isScan)
-        else if (i == 1) baseEnv.promoteAgg(isScan).bindEval(accumName -> zero.typ)
-        else baseEnv.dropEval.noAgg(isScan)
+        if (i == 0) baseEnv.noAggOrScan(isScan)
+        else if (i == 1) baseEnv.promoteAggOrScan(isScan).bindEval(accumName -> zero.typ)
+        else baseEnv.dropEval.noAggOrScan(isScan)
           .bindEval(accumName -> zero.typ, otherAccumName -> zero.typ)
       case NDArrayMap(nd, name, _) =>
         if (i == 1) baseEnv.bindEval(name -> tcoerce[TNDArray](nd.typ).elementType)
@@ -524,13 +549,13 @@ object Bindings2 {
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.globalBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.rowBindings: _*)
+            .createAgg.bindAgg(child.typ.rowBindings: _*)
         else baseEnv.onlyRelational()
       case MatrixAggregate(child, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.globalBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.entryBindings: _*)
+            .createAgg.bindAgg(child.typ.entryBindings: _*)
         else baseEnv.onlyRelational()
       case TableFilter(child, _) =>
         if (i == 1)
@@ -551,19 +576,19 @@ object Bindings2 {
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.rowBindings: _*)
-            .createAgg(true).bindAgg(isScan = true, child.typ.rowBindings: _*)
+            .createScan.bindScan(child.typ.rowBindings: _*)
         else baseEnv.onlyRelational()
       case TableAggregateByKey(child, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.globalBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.rowBindings: _*)
+            .createAgg.bindAgg(child.typ.rowBindings: _*)
         else baseEnv.onlyRelational()
       case TableKeyByAndAggregate(child, _, _, _, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.globalBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.rowBindings: _*)
+            .createAgg.bindAgg(child.typ.rowBindings: _*)
         else if (i == 2)
           baseEnv.onlyRelational().bindEval(child.typ.rowBindings: _*)
         else baseEnv.onlyRelational()
@@ -577,11 +602,11 @@ object Bindings2 {
       case MatrixMapRows(child, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
-            .createAgg(false).createAgg(true)
+            .createAgg.createScan
             .bindEval(child.typ.rowBindings: _*)
             .bindEval("n_cols" -> TInt32)
-            .bindAgg(isScan = false, child.typ.entryBindings: _*)
-            .bindAgg(isScan = true, child.typ.rowBindings: _*)
+            .bindAgg(child.typ.entryBindings: _*)
+            .bindScan(child.typ.rowBindings: _*)
         else baseEnv.onlyRelational()
       case MatrixFilterRows(child, _) =>
         if (i == 1)
@@ -590,11 +615,11 @@ object Bindings2 {
       case MatrixMapCols(child, _, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
-            .createAgg(false).createAgg(true)
+            .createAgg.createScan
             .bindEval(child.typ.colBindings: _*)
             .bindEval("n_rows" -> TInt64)
-            .bindAgg(isScan = false, child.typ.entryBindings: _*)
-            .bindAgg(isScan = true, child.typ.colBindings: _*)
+            .bindAgg(child.typ.entryBindings: _*)
+            .bindScan(child.typ.colBindings: _*)
         else baseEnv.onlyRelational()
       case MatrixFilterCols(child, _) =>
         if (i == 1)
@@ -616,21 +641,21 @@ object Bindings2 {
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.rowBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.entryBindings: _*)
+            .createAgg.bindAgg(child.typ.entryBindings: _*)
         else if (i == 2)
           baseEnv.onlyRelational()
             .bindEval(child.typ.globalBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.colBindings: _*)
+            .createAgg.bindAgg(child.typ.colBindings: _*)
         else baseEnv.onlyRelational()
       case MatrixAggregateRowsByKey(child, _, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
             .bindEval(child.typ.colBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.entryBindings: _*)
+            .createAgg.bindAgg(child.typ.entryBindings: _*)
         else if (i == 2)
           baseEnv.onlyRelational()
             .bindEval(child.typ.globalBindings: _*)
-            .createAgg(false).bindAgg(isScan = false, child.typ.rowBindings: _*)
+            .createAgg.bindAgg(child.typ.rowBindings: _*)
         else baseEnv.onlyRelational()
       case BlockMatrixMap(_, eltName, _, _) =>
         if (i == 1)
@@ -642,53 +667,53 @@ object Bindings2 {
             .bindEval(lName -> TFloat64, rName -> TFloat64)
         else baseEnv.onlyRelational()
       case AggLet(name, value, _, isScan) =>
-        if (i == 0) baseEnv.promoteAgg(isScan)
-        else baseEnv.bindAgg(isScan, name -> value.typ)
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
+        else baseEnv.bindAggOrScan(isScan, name -> value.typ)
       case AggFilter(_, _, isScan) =>
-        if (i == 0) baseEnv.promoteAgg(isScan)
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
         else baseEnv
       case AggGroupBy(_, _, isScan) =>
-        if (i == 0) baseEnv.promoteAgg(isScan)
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
         else baseEnv
       case AggExplode(a, name, _, isScan) =>
-        if (i == 0) baseEnv.promoteAgg(isScan)
-        else baseEnv.bindAgg(isScan, name -> elementType(a.typ))
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
+        else baseEnv.bindAggOrScan(isScan, name -> elementType(a.typ))
       case StreamAgg(a, name, _) =>
         if (i == 1)
-          baseEnv.createAgg(isScan = false)
-            .bindAgg(isScan = false, name -> elementType(a.typ))
+          baseEnv.createAgg
+            .bindAgg(name -> elementType(a.typ))
         else baseEnv
       case RelationalLet(name, value, _) =>
         if (i == 1)
-          baseEnv.noAgg(false).noAgg(true).bindRelational(name -> value.typ)
+          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
         else
           baseEnv.onlyRelational()
       case RelationalLetTable(name, value, _) =>
         if (i == 1)
-          baseEnv.noAgg(false).noAgg(true).bindRelational(name -> value.typ)
+          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
         else
           baseEnv.onlyRelational()
       case RelationalLetMatrixTable(name, value, _) =>
         if (i == 1)
-          baseEnv.noAgg(false).noAgg(true).bindRelational(name -> value.typ)
+          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
         else
           baseEnv.onlyRelational()
       case RelationalLetBlockMatrix(name, value, _) =>
         if (i == 1)
-          baseEnv.noAgg(false).noAgg(true).bindRelational(name -> value.typ)
+          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
         else
           baseEnv.onlyRelational()
       case ApplyAggOp(init, _, _) =>
-        if (i < init.length) baseEnv.noAgg(isScan = false)
-        else baseEnv.promoteAgg(isScan = false)
+        if (i < init.length) baseEnv.noAgg
+        else baseEnv.promoteAgg
       case ApplyScanOp(init, _, _) =>
-        if (i < init.length) baseEnv.noAgg(isScan = true)
-        else baseEnv.promoteAgg(isScan = true)
+        if (i < init.length) baseEnv.noScan
+        else baseEnv.promoteScan
       case _: LiftMeOut =>
         baseEnv.onlyRelational(keepAggCapabilities = true)
       case _: IR =>
-        if (UsesAggEnv(ir, i)) baseEnv.promoteAgg(false)
-        else if (UsesScanEnv(ir, i)) baseEnv.promoteAgg(true)
+        if (UsesAggEnv(ir, i)) baseEnv.promoteAgg
+        else if (UsesScanEnv(ir, i)) baseEnv.promoteScan
         else baseEnv
       case _: TableIR | _: MatrixIR | _: BlockMatrixIR =>
         baseEnv.onlyRelational()
