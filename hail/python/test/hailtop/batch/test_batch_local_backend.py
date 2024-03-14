@@ -202,25 +202,6 @@ def test_resource_group_get_all_inputs(batch):
     assert input.idx in j._inputs
 
 
-def test_resource_group_get_all_mentioned(batch):
-    b = batch
-    j = b.new_job()
-    j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-    assert isinstance(j.foo, ResourceGroup)
-    j.command(f"cat {j.foo.bed}")
-    assert j.foo.bed in j._mentioned
-    assert j.foo.bim not in j._mentioned
-
-
-def test_resource_group_get_all_mentioned_dependent_jobs(batch):
-    b = batch
-    j = b.new_job()
-    j.declare_resource_group(foo={'bed': '{root}.bed', 'bim': '{root}.bim'})
-    j.command(f"cat")
-    j2 = b.new_job()
-    j2.command(f"cat {j.foo}")
-
-
 def test_resource_group_get_all_outputs(batch):
     b = batch
     j1 = b.new_job()
@@ -233,14 +214,6 @@ def test_resource_group_get_all_outputs(batch):
     for r in [j1.foo.bed, j1.foo.bim]:
         assert r in j1._internal_outputs
         assert r in j2._inputs
-
-    assert j1.foo.bed in j1._mentioned
-    assert j1.foo.bim not in j1._mentioned
-
-    assert j1.foo.bed in j2._mentioned
-    assert j1.foo.bim not in j2._mentioned
-
-    assert j1.foo not in j1._mentioned
 
 
 def test_multiple_isolated_jobs(batch):
@@ -348,16 +321,15 @@ def test_file_name_space(batch):
         assert open(input_file.name).read() == open(output_file.name).read()
 
 
-def test_resource_group_mentioned(batch):
-    b = batch
-    j = b.new_job()
-    j.declare_resource_group(foo={'bed': '{root}.bed'})
-    assert isinstance(j.foo, ResourceGroup)
-    j.command(f'echo "hello" > {j.foo}')
-
-    t2 = b.new_job()
-    t2.command(f'echo "hello" >> {j.foo.bed}')
-    b.run()
+def test_write_output_resource_group_file_not_in_command(batch):
+    with tempfile.NamedTemporaryFile('w') as output_file:
+        b = batch
+        j = b.new_job()
+        j.declare_resource_group(tmp={'file1': '{root}.file1', 'file1.gz': '{root}.file1.gz'})
+        j.command(f'touch {j.tmp["file1"]}; gzip {j.tmp["file1"]}')
+        b.write_output(j.tmp['file1.gz'], output_file.name)
+        b.run()
+        assert os.path.isfile(output_file.name)
 
 
 def test_envvar(batch):
