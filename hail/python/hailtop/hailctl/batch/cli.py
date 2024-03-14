@@ -223,7 +223,7 @@ def submit(
 
     Copying a local directory to the root directory in the job is not supported (example: ``--files my-local-dir/:/``).
     """
-    from .submit import HailctlBatchSubmitError
+    from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
     from .submit import submit as _submit  # pylint: disable=import-outside-toplevel
 
     try:
