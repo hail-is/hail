@@ -3643,7 +3643,7 @@ steps:
       - build_hail_test_artifacts
       - deploy_batch
   - kind: runImage
-    name: submit-hail-benchmark
+    name: submit_hail_benchmark
     scopes:
       - deploy
       - dev
@@ -3668,6 +3668,11 @@ steps:
         to: /io/repo/benchmark
       - from: /hail_pip_version
         to: /io/hail_pip_version
+    secrets:
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
     script: |
       set -ex
       pushd /io/repo/benchmark
@@ -3684,8 +3689,9 @@ steps:
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
       export HAIL_BATCH_BILLING_PROJECT=test
       export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
-      export PYTHONPATH="$PWD/python"
-      python3 ./scripts/benchmark_in_batch.py \
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+
+      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
           $IMAGE \
           $RESULTS_PREFIX \
           $HAIL_PIP_VERSION \
