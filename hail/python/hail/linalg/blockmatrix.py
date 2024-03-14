@@ -1157,11 +1157,11 @@ class BlockMatrix(object):
             Sparse block matrix.
         """
         if isinstance(starts, np.ndarray):
-            if starts.dtype not in {np.int32, np.int64}:
+            if starts.dtype not in (np.int32, np.int64):
                 raise ValueError("sparsify_row_intervals: starts ndarray must have dtype 'int32' or 'int64'")
             starts = [int(s) for s in starts]
         if isinstance(stops, np.ndarray):
-            if stops.dtype not in {np.int32, np.int64}:
+            if stops.dtype not in (np.int32, np.int64):
                 raise ValueError("sparsify_row_intervals: stops ndarray must have dtype 'int32' or 'int64'")
             stops = [int(s) for s in stops]
 
