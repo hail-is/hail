@@ -1,4 +1,5 @@
 import abc
+from typing import ClassVar
 
 from hail.expr.types import tstream
 
@@ -442,8 +443,8 @@ class TableIR(BaseIR):
     def renderable_new_block(self, i: int) -> bool:
         return True
 
-    global_env = {'global'}
-    row_env = {'global', 'row'}
+    global_env: ClassVar = {'global'}
+    row_env: ClassVar = {'global', 'row'}
 
 
 class MatrixIR(BaseIR):
@@ -496,10 +497,10 @@ class MatrixIR(BaseIR):
     def renderable_new_block(self, i: int) -> bool:
         return True
 
-    global_env = {'global'}
-    row_env = {'global', 'va'}
-    col_env = {'global', 'sa'}
-    entry_env = {'global', 'sa', 'va', 'g'}
+    global_env: ClassVar = {'global'}
+    row_env: ClassVar = {'global', 'va'}
+    col_env: ClassVar = {'global', 'sa'}
+    entry_env: ClassVar = {'global', 'sa', 'va', 'g'}
 
 
 class BlockMatrixIR(BaseIR):

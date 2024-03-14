@@ -1,7 +1,7 @@
 import json
 import os
 import warnings
-from typing import Iterable, List, Optional, Set, Tuple, Union
+from typing import ClassVar, Iterable, List, Optional, Set, Tuple, Union
 
 import pkg_resources
 
@@ -303,10 +303,10 @@ class DB:
     >>> db = hl.experimental.DB(region='us-central1', cloud='gcp')
     """
 
-    _valid_key_properties = {'gene', 'unique'}
-    _valid_regions = {'us', 'us-central1', 'europe-west1'}
-    _valid_clouds = {'gcp', 'aws'}
-    _valid_combinations = {('us', 'aws'), ('us-central1', 'gcp'), ('europe-west1', 'gcp')}
+    _valid_key_properties: ClassVar = {'gene', 'unique'}
+    _valid_regions: ClassVar = {'us', 'us-central1', 'europe-west1'}
+    _valid_clouds: ClassVar = {'gcp', 'aws'}
+    _valid_combinations: ClassVar = {('us', 'aws'), ('us-central1', 'gcp'), ('europe-west1', 'gcp')}
 
     def __init__(
         self,

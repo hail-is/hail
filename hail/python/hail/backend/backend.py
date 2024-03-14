@@ -3,7 +3,7 @@ import warnings
 import zipfile
 from dataclasses import dataclass
 from enum import Enum
-from typing import AbstractSet, Any, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
+from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
 
 import orjson
 import pkg_resources
@@ -139,7 +139,7 @@ class FromFASTAFilePayload(ActionPayload):
 
 class Backend(abc.ABC):
     # Must match knownFlags in HailFeatureFlags.scala
-    _flags_env_vars_and_defaults: Dict[str, Tuple[str, Optional[str]]] = {
+    _flags_env_vars_and_defaults: ClassVar[Dict[str, Tuple[str, Optional[str]]]] = {
         "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
         "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
         "lower": ("HAIL_DEV_LOWER", None),
