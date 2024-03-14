@@ -64,7 +64,7 @@ abstract class BaseIR {
 
   def forEachChildWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => Unit): Unit =
     childrenSeq.view.zipWithIndex.foreach { case (child, i) =>
-      val childEnv = Bindings2(this, i, env).unified
+      val childEnv = Bindings2(this, i, env)
       f(child, childEnv)
     }
 
@@ -72,7 +72,7 @@ abstract class BaseIR {
     val newChildren = childrenSeq.toArray
     var res = this
     for (i <- newChildren.indices) {
-      val childEnv = Bindings2(res, i, env).unified
+      val childEnv = Bindings2(res, i, env)
       val child = newChildren(i)
       val newChild = f(child, childEnv)
       if (!(newChild eq child)) {
@@ -89,7 +89,7 @@ abstract class BaseIR {
     f: (BaseIR, Int, BindingEnv[Type]) => StackFrame[Unit]
   ): StackFrame[Unit] =
     childrenSeq.view.zipWithIndex.foreachRecur { case (child, i) =>
-      val childEnv = Bindings2(this, i, env).unified
+      val childEnv = Bindings2(this, i, env)
       f(child, i, childEnv)
     }
 }

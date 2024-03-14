@@ -718,7 +718,7 @@ object Extract {
         x
       case x =>
         ir.mapChildrenWithIndex { case (child: IR, i) =>
-          val newEnv = Bindings2(x, i, env).mapNewBindings((_, _) => RefEquality(x)).unified
+          val newEnv = Bindings2.segregated(x, i, env).mapNewBindings((_, _) => RefEquality(x)).unified
 
           this.extract(child, newEnv, bindingNodesReferenced, rewriteMap, ab, seqBuilder,
             letBuilder, memo, result, r, isScan)

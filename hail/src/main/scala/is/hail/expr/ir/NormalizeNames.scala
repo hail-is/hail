@@ -295,7 +295,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
 
       case x =>
         x.mapChildrenWithIndexStackSafe { (child, i) =>
-          normalizeBaseIR(child, Bindings2(x, i, env).mapNewBindings((name, _) => name).unified)
+          normalizeBaseIR(child, Bindings2.segregated(x, i, env).mapNewBindings((name, _) => name).unified)
         }
     }
   }
