@@ -184,14 +184,14 @@ class HailType(object):
 
     @abc.abstractmethod
     def _eq(self, other):
-        return
+        raise NotImplementedError
 
     def __eq__(self, other):
         return isinstance(other, HailType) and self._eq(other)
 
     @abc.abstractmethod
     def __str__(self):
-        return
+        raise NotImplementedError
 
     def __hash__(self):
         # FIXME this is a bit weird
@@ -219,7 +219,7 @@ class HailType(object):
 
     @abc.abstractmethod
     def _parsable_string(self) -> str:
-        pass
+        raise NotImplementedError
 
     def typecheck(self, value):
         """Check that `value` matches a type.
@@ -242,7 +242,7 @@ class HailType(object):
 
     @abc.abstractmethod
     def _typecheck_one_level(self, annotation):
-        pass
+        raise NotImplementedError
 
     def _to_json(self, x):
         converted = self._convert_to_json_na(x)
