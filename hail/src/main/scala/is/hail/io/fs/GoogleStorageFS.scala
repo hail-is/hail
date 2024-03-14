@@ -158,7 +158,7 @@ class GoogleStorageFS(
         case exc: GoogleJsonResponseException =>
           Option(exc.getMessage).exists { message =>
             message == "userProjectMissing" ||
-            (exc.getStatusCode == 400 && exc.getMessage.contains("requester pays"))
+            (exc.getStatusCode == 400 && message.contains("requester pays"))
           }
 
         case _ =>
