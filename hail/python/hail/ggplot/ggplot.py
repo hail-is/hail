@@ -109,11 +109,10 @@ class GGPlot:
                         "The 'shape' aesthetic does not support continuous "
                         "types. Specify values of a discrete type instead."
                     )
+                elif is_continuous:
+                    self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
                 else:
-                    if is_continuous:
-                        self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
-                    else:
-                        self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
+                    self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
 
     def copy(self):
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales, self.facet)
