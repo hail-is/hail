@@ -41,6 +41,10 @@ case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
 }
 
 object GoogleStorageFS {
+  object EnvVars {
+    val GoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
+  }
+
   private val log = Logger.getLogger(getClass.getName())
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
@@ -79,31 +83,36 @@ object GoogleStorageFileListEntry {
   }
 
   def dir(url: GoogleStorageFSURL): BlobStorageFileListEntry =
-    return new BlobStorageFileListEntry(url.toString, null, 0, true)
+    new BlobStorageFileListEntry(url.toString, null, 0, true)
 }
 
-object RequesterPaysConfiguration {
-  def fromFlags(flags: HailFeatureFlags): Option[RequesterPaysConfiguration] =
-    FastSeq("gcs_requester_pays_project", "gcs_requester_pays_buckets").map(flags.lookup) match {
+object RequesterPaysConfig {
+  object Flags {
+    val RequesterPaysProject = "gcs_requester_pays_project"
+    val RequesterPaysBuckets = "gcs_requester_pays_buckets"
+  }
+
+  def fromFlags(flags: HailFeatureFlags): Option[RequesterPaysConfig] =
+    FastSeq(Flags.RequesterPaysProject, Flags.RequesterPaysBuckets).map(flags.lookup) match {
       case Seq(Some(project), buckets) =>
-        Some(RequesterPaysConfiguration(project, buckets.map(_.split(",").toSet)))
+        Some(RequesterPaysConfig(project, buckets.map(_.split(",").toSet)))
       case Seq(None, Some(buckets)) =>
         fatal(
-          s"Expected gcs_requester_pays_buckets flag to be unset when gcs_requester_pays_project is unset, but instead found: $buckets"
+          s"'${Flags.RequesterPaysBuckets}' requires '${Flags.RequesterPaysProject}'." +
+            s"Expected: <undefined>" +
+            s"  Actual: '$buckets'"
         )
       case _ =>
         None
     }
 }
 
-case class RequesterPaysConfiguration(
-  val project: String,
-  val buckets: Option[Set[String]] = None,
-) extends Serializable
+case class RequesterPaysConfig(project: String, buckets: Option[Set[String]] = None)
+    extends Serializable
 
 class GoogleStorageFS(
   private[this] val serviceAccountKey: Option[String] = None,
-  private[this] var requesterPaysConfiguration: Option[RequesterPaysConfiguration] = None,
+  private[this] var requesterPaysConfig: Option[RequesterPaysConfig] = None,
 ) extends FS {
   type URL = GoogleStorageFSURL
 
@@ -116,67 +125,60 @@ class GoogleStorageFS(
 
   def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
 
-  def getConfiguration(): Option[RequesterPaysConfiguration] =
-    requesterPaysConfiguration
+  def getConfiguration(): Option[RequesterPaysConfig] =
+    requesterPaysConfig
 
   def setConfiguration(config: Any): Unit =
-    requesterPaysConfiguration = config.asInstanceOf[Option[RequesterPaysConfiguration]]
+    requesterPaysConfig = config.asInstanceOf[Option[RequesterPaysConfig]]
 
   private[this] def requesterPaysOptions[T](bucket: String, makeUserProjectOption: String => T)
-    : Seq[T] = {
-    requesterPaysConfiguration match {
-      case None =>
-        Seq()
-      case Some(RequesterPaysConfiguration(project, None)) =>
+    : Seq[T] =
+    requesterPaysConfig match {
+      case Some(RequesterPaysConfig(project, buckets)) if buckets.fold(true)(_.contains(bucket)) =>
         Seq(makeUserProjectOption(project))
-      case Some(RequesterPaysConfiguration(project, Some(buckets))) =>
-        if (buckets.contains(bucket)) {
-          Seq(makeUserProjectOption(project))
-        } else {
-          Seq()
-        }
-    }
-  }
-
-  private[this] def retryIfRequesterPays[T, U](
-    exc: Throwable,
-    makeRequest: Seq[U] => T,
-    makeUserProjectOption: String => U,
-    bucket: String,
-  ): T =
-    if (isRequesterPaysException(exc)) {
-      makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
-    } else {
-      throw exc
+      case _ =>
+        Seq()
     }
 
-  def isRequesterPaysException(exc: Throwable): Boolean = exc match {
-    case exc: IOException if exc.getCause() != null =>
-      isRequesterPaysException(exc.getCause())
-    case exc: StorageException =>
-      exc.getMessage != null && (exc.getMessage.equals(
-        "userProjectMissing"
-      ) || (exc.getCode == 400 && exc.getMessage.contains("requester pays")))
-    case exc: GoogleJsonResponseException =>
-      exc.getMessage != null && (exc.getMessage.equals(
-        "userProjectMissing"
-      ) || (exc.getStatusCode == 400 && exc.getMessage.contains("requester pays")))
-    case _: Throwable =>
-      false
+  object RequesterPaysFailure {
+    def unapply(t: Throwable): Option[Throwable] =
+      Some(t).filter {
+        case e: IOException =>
+          Option(e.getCause).exists {
+            case RequesterPaysFailure(_) => true
+            case _ => false
+          }
+
+        case exc: StorageException =>
+          Option(exc.getMessage).exists { message =>
+            message == "userProjectMissing" ||
+            (exc.getCode == 400 && message.contains("requester pays"))
+          }
+
+        case exc: GoogleJsonResponseException =>
+          Option(exc.getMessage).exists { message =>
+            message == "userProjectMissing" ||
+            (exc.getStatusCode == 400 && exc.getMessage.contains("requester pays"))
+          }
+
+        case _ =>
+          false
+      }
   }
 
   private[this] def handleRequesterPays[T, U](
     makeRequest: Seq[U] => T,
     makeUserProjectOption: String => U,
     bucket: String,
-  ): T = {
+  ): T =
     try
       makeRequest(Seq())
     catch {
-      case exc: Throwable =>
-        retryIfRequesterPays(exc, makeRequest, makeUserProjectOption, bucket)
+      case RequesterPaysFailure(_) =>
+        makeRequest(requesterPaysOptions(bucket, makeUserProjectOption))
+      case t: Throwable =>
+        throw t
     }
-  }
 
   private lazy val storage: Storage = {
     val transportOptions = HttpTransportOptions.newBuilder()
@@ -217,7 +219,7 @@ class GoogleStorageFS(
             }
             return reader.read(bb)
           } catch {
-            case exc: Exception if isRequesterPaysException(exc) && options.isEmpty =>
+            case RequesterPaysFailure(_) if options.isEmpty =>
               reader = null
               bb.clear()
               options = Some(requesterPaysOptions(url.bucket, BlobSourceOption.userProject))
@@ -340,16 +342,16 @@ class GoogleStorageFS(
         throw exc
       }
 
-      val config = requesterPaysConfiguration match {
+      val config = requesterPaysConfig match {
         case None =>
           throw exc
-        case Some(RequesterPaysConfiguration(project, None)) =>
+        case Some(RequesterPaysConfig(project, None)) =>
           Storage.CopyRequest.newBuilder()
             .setSourceOptions(BlobSourceOption.userProject(project))
             .setSource(srcId)
             .setTarget(dstId)
             .build()
-        case Some(RequesterPaysConfiguration(project, Some(buckets))) =>
+        case Some(RequesterPaysConfig(project, Some(buckets))) =>
           if (buckets.contains(src.bucket) && buckets.contains(dst.bucket)) {
             Storage.CopyRequest.newBuilder()
               .setSourceOptions(BlobSourceOption.userProject(project))

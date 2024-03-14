@@ -3,7 +3,9 @@ package is.hail.io.fs
 import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
+import is.hail.io.fs.AzureStorageFS.EnvVars.AzureApplicationCredentials
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
+import is.hail.io.fs.GoogleStorageFS.EnvVars.GoogleApplicationCredentials
 import is.hail.services._
 import is.hail.utils._
 
@@ -259,18 +261,20 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 object FS {
   def buildRoutes(credentialsPath: Option[String], flags: Option[HailFeatureFlags]): FS =
     retryTransientErrors {
-      val credentialsStr = credentialsPath.map { path =>
+
+      def readString(path: String): String =
         using(new FileInputStream(path))(is => IOUtils.toString(is, Charset.defaultCharset()))
-      }
 
       def gcs = new GoogleStorageFS(
-        credentialsStr,
-        flags.flatMap(RequesterPaysConfiguration.fromFlags),
+        credentialsPath.orElse(sys.env.get(GoogleApplicationCredentials)).map(readString),
+        flags.flatMap(RequesterPaysConfig.fromFlags),
       )
 
       def az = sys.env.get("HAIL_TERRA") match {
         case Some(_) => new TerraAzureStorageFS()
-        case None => new AzureStorageFS(credentialsStr)
+        case None => new AzureStorageFS(
+            credentialsPath.orElse(sys.env.get(AzureApplicationCredentials)).map(readString)
+          )
       }
 
       val cloudSpecificFSs = sys.env.get("HAIL_CLOUD") match {
