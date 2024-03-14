@@ -2,8 +2,8 @@ import asyncio
 from enum import Enum
 from typing import Annotated as Ann
 from typing import Any, Dict, List, Optional, cast
-import orjson
 
+import orjson
 import typer
 from typer import Argument as Arg
 from typer import Option as Opt
@@ -223,7 +223,8 @@ def submit(
 
     Copying a local directory to the root directory in the job is not supported (example: ``--files my-local-dir/:/``).
     """
-    from .submit import submit as _submit, HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
+    from .submit import HailctlBatchSubmitError
+    from .submit import submit as _submit  # pylint: disable=import-outside-toplevel
 
     try:
         asyncio.run(_submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args], wait))

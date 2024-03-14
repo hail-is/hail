@@ -1,22 +1,21 @@
 import os
-import orjson
 import re
+from contextlib import AsyncExitStack
 from shlex import quote as shq
 from typing import List, Optional, Tuple
 
-from contextlib import AsyncExitStack
-
+import orjson
 import typer
 
 import hailtop.batch as hb
 from hailtop import pip_version, yamlx
-from hailtop.batch.job import BashJob
-from hailtop.aiotools.router_fs import RouterAsyncFS, AsyncFSURL
 from hailtop.aiotools.copy import copy_from_dict
+from hailtop.aiotools.router_fs import AsyncFSURL, RouterAsyncFS
+from hailtop.batch.job import BashJob
 from hailtop.config import (
+    get_deploy_config,
     get_remote_tmpdir,
     get_user_config_path,
-    get_deploy_config,
 )
 from hailtop.utils import (
     secret_alnum_string,

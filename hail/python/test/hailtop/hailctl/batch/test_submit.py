@@ -1,7 +1,7 @@
 import os
-import pytest
 import tempfile
 
+import pytest
 from typer.testing import CliRunner
 
 from hailtop.hailctl.batch import cli
