@@ -2242,8 +2242,8 @@ class Table(ExprContainer):
                     s += format_line(type_strs[start:end], block_column_width, block_right_align)
                     s += hline
                 for row in rows:
-                    row = row[start:end]
-                    s += format_line(row, block_column_width, block_right_align)
+                    _row = row[start:end]
+                    s += format_line(_row, block_column_width, block_right_align)
                 s += hline
 
             if has_more:
@@ -3754,17 +3754,18 @@ class Table(ExprContainer):
         """
         lifted_exprs = []
         for e in exprs:
+            _e = e
             sort_type = 'A'
             if isinstance(e, Ascending):
-                e = e.col
+                _e = e.col
             elif isinstance(e, Descending):
-                e = e.col
+                _e = e.col
                 sort_type = 'D'
 
-            if isinstance(e, str):
-                expr = self[e]
+            if isinstance(_e, str):
+                expr = self[_e]
             else:
-                expr = e
+                expr = _e
             lifted_exprs.append((expr, sort_type))
 
         sort_fields = []
