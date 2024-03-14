@@ -257,7 +257,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+                y=pheno[mt.s].Pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, *list(covariates[mt.s].values())]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -298,7 +298,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=pheno[mt.s].Pheno, x=hl.pl_dosage(mt.PL), covariates=[1.0] + list(covariates[mt.s].values())
+                y=pheno[mt.s].Pheno, x=hl.pl_dosage(mt.PL), covariates=[1.0, *list(covariates[mt.s].values())]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -329,7 +329,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=pheno[mt.s].Pheno, x=hl.gp_dosage(mt.GP), covariates=[1.0] + list(covariates[mt.s].values())
+                y=pheno[mt.s].Pheno, x=hl.gp_dosage(mt.GP), covariates=[1.0, *list(covariates[mt.s].values())]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -375,7 +375,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=fam[mt.s].is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+                y=fam[mt.s].is_case, x=mt.GT.n_alt_alleles(), covariates=[1.0, *list(covariates[mt.s].values())]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -405,7 +405,7 @@ class Tests(unittest.TestCase):
 
         for linreg_function in self.linreg_functions:
             ht = linreg_function(
-                y=fam[mt.s].quant_pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0] + list(covariates[mt.s].values())
+                y=fam[mt.s].quant_pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, *list(covariates[mt.s].values())]
             )
 
             results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
@@ -573,7 +573,7 @@ class Tests(unittest.TestCase):
 
         mt = mt.annotate_cols(y=hl.coalesce(pheno[mt.s].Pheno, 1.0))
         mt = mt.annotate_entries(x=hl.coalesce(mt.GT.n_alt_alleles(), 1.0))
-        my_covs = [1.0] + list(covariates[mt.s].values())
+        my_covs = [1.0, *list(covariates[mt.s].values())]
 
         ht_with_weights = hl._linear_regression_rows_nd(y=mt.y, x=mt.x, covariates=my_covs, weights=mt.col_idx)
 
@@ -590,7 +590,7 @@ class Tests(unittest.TestCase):
         )
 
         ht_from_agg = mt.annotate_rows(
-            my_linreg=hl.agg.linreg(mt.y, [1, mt.x] + list(covariates[mt.s].values()), weight=mt.col_idx)
+            my_linreg=hl.agg.linreg(mt.y, [1, mt.x, *list(covariates[mt.s].values())], weight=mt.col_idx)
         ).rows()
 
         betas_with_weights = ht_with_weights.beta.collect()
@@ -1697,7 +1697,7 @@ class Tests(unittest.TestCase):
             [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()],
         ]:
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
-            self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
+            self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept, *covariates]))
 
     def test_regression_field_dependence(self):
         mt = hl.utils.range_matrix_table(10, 10)
