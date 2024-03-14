@@ -3650,6 +3650,7 @@ steps:
     clouds:
       - gcp
     dependsOn:
+      - default_ns
       - test_hail_java
       - test_hail_python_local_backend
       - test_hail_python_service_backend_gcp
