@@ -165,7 +165,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val m = cb.newLocal[Int]("cached_mbyte")
 
     fields.foreach { f =>
-      if (midx == 0 && f.typ.required) {
+      if (midx == 0 && !f.typ.required) {
         cb.assign[Int](m, Region.loadByte(mbytes + byteIdx))
         byteIdx += 1
       }
@@ -193,7 +193,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         else
           cb.if_((const(1 << midx) & m).ceq(0), skip(cb, region, in))
       }
-      midx = (midx + f.typ.required.toInt) & 0x7
+      midx = (midx + (!f.typ.required).toInt) & 0x7
     }
   }
 
