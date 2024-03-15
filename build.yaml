@@ -3660,18 +3660,13 @@ steps:
         to: /io/repo/benchmark
       - from: /hail_pip_version
         to: /io/hail_pip_version
-    secrets:
-      - name: test-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-gsa-key
     script: |
       set -ex
       pushd /io/repo/benchmark
 
       IMAGE=docker://{{ hail_benchmark_image.image }}
 
-      BUCKET=hail-benchmarks2
+      BUCKET=hail-benchmarks-2
       RESULTS_PREFIX="gs://${BUCKET}/ci/{{ scope }}"
       HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
 
@@ -3679,9 +3674,8 @@ steps:
       ITERATIONS=5
 
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
-      export HAIL_BATCH_BILLING_PROJECT=test
-      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      export HAIL_BATCH_BILLING_PROJECT=benchmark
+      export HAIL_BATCH_REMOTE_TMPDIR={{ ci_storage_uri }}/{{ token }}
 
       PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
           $IMAGE \
