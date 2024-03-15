@@ -401,7 +401,6 @@ class TerraAzureResourceManager(CloudResourceManager):
         if not local_ssd_data_disk:
             raise ValueError('VMs without a local ssd data disk are not yet supported')
 
-        assert location == 'eastus'
         vm_config = create_vm_config(
             file_store,
             location,
