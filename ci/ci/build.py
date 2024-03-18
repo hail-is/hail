@@ -206,6 +206,7 @@ class Step(abc.ABC):
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
         config['code'] = code.config()
+        config['ci_storage_uri'] = STORAGE_URI
         if self.deps:
             for d in self.deps:
                 config[d.name] = d.config(scope)
