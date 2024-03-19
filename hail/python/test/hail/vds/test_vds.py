@@ -56,6 +56,12 @@ def test_validate():
             vds.variant_data,
         ).validate()
 
+    with pytest.raises(ValueError):
+        hl.vds.VariantDataset(
+            vds.reference_data.annotate_entries(END=vds.reference_data.END + 1),
+            vds.variant_data,
+        ).validate()
+
 
 @qobtest
 def test_multi_write():
