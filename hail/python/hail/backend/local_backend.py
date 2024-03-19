@@ -1,7 +1,7 @@
-import os
 import glob
-import sys
 import logging
+import os
+import sys
 from contextlib import ExitStack
 from typing import List, Optional, Tuple, Union
 
@@ -18,7 +18,6 @@ from ..expr import Expression
 from ..expr.types import HailType
 from .backend import local_jar_information
 from .py4j_backend import Py4JBackend, uninstall_exception_handler
-
 
 log = logging.getLogger('hail.backend')
 
