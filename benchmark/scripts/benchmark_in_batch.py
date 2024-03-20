@@ -161,4 +161,4 @@ if __name__ == '__main__':
     print(f'writing output to {output_file}')
 
     b.write_output(combine.ofile, output_file)
-    b.run(wait=CMD=='run')
+    b.run(verbose=True, wait=CMD=='run')

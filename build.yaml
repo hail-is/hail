@@ -3664,7 +3664,7 @@ steps:
       set -ex
       pushd /io/repo/benchmark
 
-      IMAGE=docker://{{ hail_benchmark_image.image }}
+      IMAGE={{ hail_benchmark_image.image }}
 
       BUCKET=hail-benchmarks-2
       RESULTS_PREFIX="gs://${BUCKET}/ci/{{ scope }}"
