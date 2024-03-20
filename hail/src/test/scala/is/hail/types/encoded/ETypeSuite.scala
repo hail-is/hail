@@ -192,11 +192,9 @@ class ETypeSuite extends HailSuite {
   @Test def testStructOfArrays(): Unit = {
     val etype =
       EStructOfArrays(
-        EBaseStruct(
-          FastSeq(
-            EField("a", EInt32Required, 0),
-            EField("b", EInt32Optional, 1),
-          )
+        FastSeq(
+          EField("a", EArray(EInt32Required), 0),
+          EField("b", EArray(EInt32Optional), 1),
         )
       )
     val toEncode =
