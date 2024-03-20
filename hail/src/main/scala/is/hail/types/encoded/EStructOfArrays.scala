@@ -29,9 +29,20 @@ object EStructOfArrays {
 }
 
 final case class EStructOfArrays(
-  override val elementType: EBaseStruct, // TODO: add some kind of enum for supported per-field layout
+  fields: IndexedSeq[EField],
   val required: Boolean = false,
+  val structRequired: Boolean = false,
 ) extends EContainer {
+  assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
+  require(fields.forall(f => f.typ.isInstanceOf[EContainer]))
+
+  val elementType = EBaseStruct(
+    fields.map { field =>
+      EField(field.name, field.typ.asInstanceOf[EContainer].elementType, field.index)
+    },
+    required = structRequired,
+  )
+
   elementType.fields.foreach(fld => EStructOfArrays.supportsFieldType(fld.typ))
 
   // length: 1 int32
@@ -77,53 +88,49 @@ final case class EStructOfArrays(
     pt.storeLength(cb, arrayPtr, length)
     val nMissingBytes = cb.memoize(pt.nMissingBytes(length))
     if (!elementType.required)
-      cb += in.readBytes(region, arrayPtr + pt.missingBytesOffset, pt.nMissingBytes(length))
+      cb += in.readBytes(region, arrayPtr + pt.missingBytesOffset, nMissingBytes)
 
     // scratch variables
     val i = cb.newLocal[Int]("i")
     val structPtr = cb.newLocal[Long]("element_out") // pointer to struct we're constructing
-    val elementPtr = cb.newLocal[Long]("element_in") // pointer to element we're reading
-    elementType.fields.foreach { field =>
+    fields.foreach { field =>
       cb += scratchRegion.clearRegion()
       if (!ept.hasField(field.name)) {
-        skipField(cb, field, length, nMissingBytes, in)
+        field.typ.buildSkip(cb.emb.ecb)(cb, scratchRegion, in)
       } else {
-        // XXX: this only works if we're not using some kind of per-field compression
         val pFieldIdx = ept.fieldIdx(field.name)
         val pFieldType: PPrimitive = tcoerce(ept.types(pFieldIdx))
-        val elementSize = EStructOfArrays.elementSize(field.typ)
-        assert(elementSize == pFieldType.byteSize)
 
-        val arraySize = cb.memoize(const(elementSize) * length.toL)
-        val mbytes =
-          if (field.typ.required) None
-          else Some(cb.memoize(scratchRegion.allocate(1L, nMissingBytes.toL)))
-        val elements = cb.memoize(scratchRegion.allocate(const(elementSize), arraySize))
-        mbytes.foreach(mbytes => cb += in.readBytes(scratchRegion, mbytes, nMissingBytes))
-        cb += in.readBytes(scratchRegion, elements, arraySize.toI)
-
+        val array = field.typ.buildDecoder(t, cb.emb.ecb)(cb, scratchRegion, in).asIndexable
+        cb.if_(
+          array.loadLength().cne(length),
+          cb._fatal(
+            "Mismatch in length for decoded array of field `",
+            field.name,
+            "` expected ",
+            length.toS,
+            ", was ",
+            array.loadLength().toS,
+          ),
+        )
         cb.assign(i, 0)
         cb.assign(structPtr, pt.firstElementOffset(arrayPtr))
-        cb.assign(elementPtr, elements)
-
         cb.while_(
           i < length, {
             cb.if_(
               pt.isElementMissing(arrayPtr, i),
               if (!pFieldType.required) ept.setFieldMissing(cb, structPtr, pFieldIdx),
-              cb.if_(
-                mbytes.map(mbytes => Region.loadBit(mbytes, i.toL)).getOrElse[Code[Boolean]](const(
-                  false
-                )),
-                if (!pFieldType.required) ept.setFieldMissing(cb, structPtr, pFieldIdx), {
+              array.loadElement(cb, i).consume(
+                cb,
+                if (!pFieldType.required) ept.setFieldMissing(cb, structPtr, pFieldIdx),
+                { sv =>
                   val fieldPtr = ept.fieldOffset(structPtr, pFieldIdx)
-                  cb += Region.copyFrom(elementPtr, fieldPtr, elementSize)
+                  pFieldType.storeAtAddress(cb, fieldPtr, region, sv, true)
                 },
               ),
             )
             cb.assign(i, i + 1)
             cb.assign(structPtr, pt.nextElementAddress(structPtr))
-            cb.assign(elementPtr, elementPtr + elementSize)
           },
         )
       }
@@ -153,10 +160,10 @@ final case class EStructOfArrays(
         cb += out.writeBytes(sv.a + pArray.missingBytesOffset, nMissingBytes)
       }
 
-      elementType.fields.foreach { field =>
-        val fieldPType = tcoerce[PBaseStruct](pArray.elementType).fieldByName(field.name).typ
-        require(fieldPType.isPrimitive)
-        val arrayType = PCanonicalArray(fieldPType, required = false)
+      fields.foreach { field =>
+        val pFieldType = tcoerce[PBaseStruct](pArray.elementType).fieldByName(field.name).typ
+        require(pFieldType.isPrimitive)
+        val arrayType = PCanonicalArray(pFieldType, required = false)
         transposeAndWriteField(cb, field, arrayType, sv, r, out)
       }
 
@@ -176,6 +183,7 @@ final case class EStructOfArrays(
     cb += r.clearRegion()
     val length = sv.length
     val arrayPtr = cb.memoize(arrayType.zeroes(cb, r, length))
+    arrayType.storeLength(cb, arrayPtr, length)
     sv.forEachDefinedOrMissing(cb)(
       (cb, idx) =>
         if (!arrayType.elementType.required) arrayType.setElementMissing(cb, arrayPtr, idx),
@@ -196,13 +204,10 @@ final case class EStructOfArrays(
       },
     )
 
-    if (!field.typ.required) {
-      cb += out.writeBytes(arrayPtr + arrayType.missingBytesOffset, arrayType.nMissingBytes(length))
-    }
+    val arrayValue = arrayType.loadCheapSCode(cb, arrayPtr)
 
-    val writeFrom = cb.memoize(arrayType.firstElementOffset(arrayPtr, length))
-    val writeTo = cb.memoize(arrayType.pastLastElementOffset(arrayPtr, length))
-    cb += out.writeBytes(writeFrom, (writeTo - writeFrom).toI)
+    val arrayEncoder = field.typ.buildEncoder(arrayValue.st, cb.emb.ecb)
+    arrayEncoder(cb, arrayValue, out)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
@@ -212,23 +217,11 @@ final case class EStructOfArrays(
     if (!elementType.required)
       cb += in.skipBytes(nMissingBytes)
 
-    elementType.fields.foreach(field => skipField(cb, field, length, nMissingBytes, in))
+    fields.foreach(field => field.typ.buildSkip(cb.emb.ecb)(cb, r, in))
   }
 
-  private[this] def skipField(
-    cb: EmitCodeBuilder,
-    field: EField,
-    length: Value[Int],
-    nMissingBytes: Value[Int],
-    in: Value[InputBuffer],
-  ): Unit = {
-    if (!field.typ.required)
-      cb += in.skipBytes(nMissingBytes)
-    // XXX: possible alternate layouts in the future
-    in.skipBytes(length * EStructOfArrays.elementSize(field.typ).toInt)
-  }
-
-  def setRequired(newRequired: Boolean): EStructOfArrays = EStructOfArrays(elementType, newRequired)
+  def setRequired(newRequired: Boolean): EStructOfArrays =
+    EStructOfArrays(fields, required = newRequired, structRequired = structRequired)
 
   def _asIdent: String = s"struct_of_arrays_from_${elementType.asIdent}"
 
@@ -240,7 +233,18 @@ final case class EStructOfArrays(
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     sb.append("EStructOfArrays[")
-    elementType.pretty(sb, indent, compact)
-    sb += ']'
+    if (structRequired) sb += '+'
+    sb += '{'
+    if (compact) {
+      fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
+    } else if (fields.length == 0) {
+      sb += ' '
+    } else {
+      sb += '\n'
+      fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
+      sb += '\n'
+      sb.append(" " * indent)
+    }
+    sb.append("}]")
   }
 }
