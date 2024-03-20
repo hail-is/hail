@@ -654,19 +654,20 @@ class GoogleStorageAsyncFS(AsyncFS):
         is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
         location = self.storage_location(uri)
-        error = None
+        errors = []
 
         async def is_bucket_hot():
             try:
                 return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
             except aiohttp.ClientResponseError as e:
-                error = e
+                errors.append(e)
                 return False
 
         async def is_object_hot():
             try:
                 return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-            except (aiohttp.ClientResponseError, FileNotFoundError):
+            except (aiohttp.ClientResponseError, FileNotFoundError) as e:
+                errors.append(e)
                 return False
 
         async def is_dir_first_object_hot():
@@ -676,13 +677,14 @@ class GoogleStorageAsyncFS(AsyncFS):
                 while await next_file.is_dir():
                     next_file = await files.__anext__()
                 return await self.is_hot_storage(await next_file.url())
-            except (aiohttp.ClientResponseError, FileNotFoundError, StopAsyncIteration):
+            except (aiohttp.ClientResponseError, FileNotFoundError, StopAsyncIteration) as e:
+                errors.append(e)
                 return False
 
         if location not in self.allowed_storage_locations:
             is_hot_storage = (await is_bucket_hot()) or (await is_object_hot()) or (await is_dir_first_object_hot())
             if not is_hot_storage:
-                if error is None:
+                if len(errors) == 0:
                     raise ValueError(
                         dedent(f"""\
                             GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
@@ -696,8 +698,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                               variable (https://hail.is/docs/0.2/configuration_reference.html).
                             """)
                     )
-                else:
-                    raise error
+                raise Exception(errors)  # pylint: disable=broad-exception-raised
             self.allowed_storage_locations.append(location)
         return is_hot_storage
 
