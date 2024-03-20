@@ -86,7 +86,6 @@ check-pip-requirements:
 		hail/python/dev \
 		gear \
 		web_common \
-		auth \
 		batch \
 		ci
 
@@ -98,7 +97,6 @@ check-linux-pip-requirements:
 		hail/python/dev \
 		gear \
 		web_common \
-		auth \
 		batch \
 		ci
 
