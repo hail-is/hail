@@ -3667,9 +3667,12 @@ steps:
       IMAGE={{ hail_benchmark_image.image }}
 
       BUCKET=hail-benchmarks-2
-      RESULTS_PREFIX="gs://${BUCKET}/ci/{{ scope }}"
       HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
-
+      RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}"
+      {% if scope != 'deploy' %}
+      RESULTS_PREFIX="${RESULTS_PREFIX}/{{ user['username'] }}"
+      {% endif %}
+      
       REPLICATES=5
       ITERATIONS=5
 
