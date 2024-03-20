@@ -3,10 +3,10 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.compatibility
-import is.hail.expr.{ir, JSONAnnotationImpex}
+import is.hail.expr.{JSONAnnotationImpex, ir}
 import is.hail.expr.ir.{
   IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader,
-  PartitionZippedNativeReader, ReadPartition, ToStream,
+  PartitionZippedNativeReader, ReadPartition, Ref, ToStream, flatMapIR,
 }
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
@@ -17,7 +17,6 @@ import is.hail.types.encoded.ETypeSerializer
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
-
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
@@ -497,43 +496,124 @@ case class IndexedRVDSpec2(
         uidFieldName,
       )
 
-      val (contextsValues, tmpRangeBounds) = (for {
-        newInterval <- extendedNP.rangeBounds
-        oldPartIdx <- part.queryInterval(newInterval)
-      } yield {
-        val oldInterval = part.rangeBounds(oldPartIdx)
-        val intersectionInterval =
-          newInterval.intersect(extendedNP.kord.intervalEndpointOrdering, oldInterval).get
+      val body = (ctxs: Ref) =>
+        flatMapIR(ToStream(ctxs, true)) { ctx =>
+          ir.ReadPartition(ctx, requestedType.rowType, reader)
+        }
 
-        val partFile = partFiles(oldPartIdx)
-        val ctx = Row(
-          oldPartIdx.toLong,
-          s"$path/parts/$partFile",
-          s"$path/${indexSpec.relPath}/$partFile.idx",
-          RVDPartitioner.intervalToIRRepresentation(intersectionInterval, part.kType.size),
-        )
-        (ctx, intersectionInterval)
-      }).toFastSeq.unzip
-      val tmpPartitioner = new RVDPartitioner(part.sm, part.kType, tmpRangeBounds)
+      if (filterIntervals) {
+        val (nestedContexts, newRangeBounds) = part.rangeBounds.indices.flatMap { oldPartIdx =>
+          val oldInterval = part.rangeBounds(oldPartIdx)
+          val overlapRange = extendedNP.queryInterval(oldInterval)
+          if (overlapRange.isEmpty) None
+          else {
+            val ctxs = overlapRange.map { newPartIdx =>
+              val partFile = partFiles(oldPartIdx)
+              val intersectionInterval =
+                extendedNP.rangeBounds(newPartIdx)
+                  .intersect(extendedNP.kord.intervalEndpointOrdering, oldInterval).get
+              Row(
+                oldPartIdx.toLong,
+                s"$path/parts/$partFile",
+                s"$path/${indexSpec.relPath}/$partFile.idx",
+                RVDPartitioner.intervalToIRRepresentation(intersectionInterval, part.kType.size),
+              )
+            }
+            val newInterval = Interval(
+              extendedNP.rangeBounds(overlapRange.head).left,
+              extendedNP.rangeBounds(overlapRange.last).right,
+            )
+            Some((
+              ctxs,
+              oldInterval.intersect(extendedNP.kord.intervalEndpointOrdering, newInterval).get,
+            ))
+          }
+        }.unzip
 
-      assert(TArray(reader.contextType).typeCheck(contextsValues))
+        assert(TArray(TArray(reader.contextType)).typeCheck(nestedContexts))
 
-      val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
+        val contexts = ir.ToStream(ir.Literal(TArray(TArray(reader.contextType)), nestedContexts))
 
-      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType.rowType, reader)
+        { (globals: IR) =>
+          TableStage(
+            globals,
+            new RVDPartitioner(part.sm, part.kType, newRangeBounds),
+            TableStageDependency.none,
+            contexts,
+            body,
+          )
+        }
+      } else {
+        val nestedContexts = extendedNP.rangeBounds.indices.map { newPartIdx =>
+          val newInterval = extendedNP.rangeBounds(newPartIdx)
+          val overlapRange = part.queryInterval(newInterval)
+          overlapRange.map { oldPartIdx =>
+            val oldInterval = part.rangeBounds(oldPartIdx)
+            val partFile = partFiles(oldPartIdx)
+            val intersectionInterval =
+              extendedNP.rangeBounds(newPartIdx)
+                .intersect(extendedNP.kord.intervalEndpointOrdering, oldInterval).get
+            Row(
+              oldPartIdx.toLong,
+              s"$path/parts/$partFile",
+              s"$path/${indexSpec.relPath}/$partFile.idx",
+              RVDPartitioner.intervalToIRRepresentation(intersectionInterval, part.kType.size),
+            )
+          }
+        }
 
-      { (globals: IR) =>
-        val ts = TableStage(
-          globals,
-          tmpPartitioner,
-          TableStageDependency.none,
-          contexts,
-          body,
-        )
-        if (filterIntervals)
-          ts.repartitionNoShuffle(ctx, part.strictify(), dropEmptyPartitions = true)
-        else ts.repartitionNoShuffle(ctx, extendedNP)
+        assert(TArray(TArray(reader.contextType)).typeCheck(nestedContexts))
+
+        val contexts = ir.ToStream(ir.Literal(TArray(TArray(reader.contextType)), nestedContexts))
+
+        { (globals: IR) =>
+          TableStage(
+            globals,
+            extendedNP,
+            TableStageDependency.none,
+            contexts,
+            body,
+          )
+        }
       }
+
+//      val (contextsValues, tmpRangeBounds) = (for {
+//        newInterval <- extendedNP.rangeBounds
+//        oldPartIdx <- part.queryInterval(newInterval)
+//      } yield {
+//        val oldInterval = part.rangeBounds(oldPartIdx)
+//        val intersectionInterval =
+//          newInterval.intersect(extendedNP.kord.intervalEndpointOrdering, oldInterval).get
+//
+//        val partFile = partFiles(oldPartIdx)
+//        val ctx = Row(
+//          oldPartIdx.toLong,
+//          s"$path/parts/$partFile",
+//          s"$path/${indexSpec.relPath}/$partFile.idx",
+//          RVDPartitioner.intervalToIRRepresentation(intersectionInterval, part.kType.size),
+//        )
+//        (ctx, intersectionInterval)
+//      }).toFastSeq.unzip
+//      val tmpPartitioner = new RVDPartitioner(part.sm, part.kType, tmpRangeBounds)
+
+//      assert(TArray(TArray(reader.contextType)).typeCheck(nestedContexts))
+//
+//      val contexts = ir.ToStream(ir.Literal(TArray(TArray(reader.contextType)), nestedContexts))
+//
+////      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType.rowType, reader)
+//
+//      { (globals: IR) =>
+//        val ts = TableStage(
+//          globals,
+//          if (filterIntervals) part else extendedNP,
+//          TableStageDependency.none,
+//          contexts,
+//          body,
+//        )
+//        if (filterIntervals)
+//          ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
+//        else ts.repartitionNoShuffle(ctx, extendedNP)
+//      }
 
     case None =>
       super.readTableStage(ctx, path, requestedType, uidFieldName, newPartitioner, filterIntervals)
