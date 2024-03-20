@@ -1,4 +1,5 @@
-import os
+#!/usr/bin/env python3
+
 import random
 import re
 import sys
@@ -7,34 +8,75 @@ import time
 from benchmark_hail.run.resources import all_resources
 from benchmark_hail.run.utils import list_benchmarks
 from hailtop import batch as hb
+from os import (getenv, path as P)
 
-RUN_OPTS=['submit', 'run']
-RUN_OPTS_STR=f'[{ "|".join(RUN_OPTS) }]'
+
+CMDS = ['start', 'run']
+CMDS_STR = f'[{ "|".join(CMDS) }]'
+
+USAGE = ' '.join([
+    f'usage: ./{P.basename(sys.argv[0])}',
+    'DOCKER_IMAGE_URL',
+    'BUCKET_BASE',
+    'SHA',
+    'N_REPLICATES',
+    'N_ITERS',
+    CMDS_STR
+])
+
+BILLING_PROJECT = getenv('HAIL_BATCH_BILLING_PROJECT', 'benchmark')
+LABEL = getenv('BENCHMARK_LABEL')
+REGEX_INCLUDE = getenv('BENCHMARK_REGEX_INCLUDE')
+REGEX_EXCLUDE = getenv('BENCHMARK_REGEX_EXCLUDE')
+LOWER = getenv('BENCHMARK_LOWER')
+LOWER_ONLY = getenv('BENCHMARK_LOWER_ONLY')
+BRANCH_FACTOR = int(getenv('BENCHMARK_BRANCH_FACTOR', 32))
+
+
+def gen_benchmark_replicates(nreplicates, all_benchmarks):
+    include = (
+        (lambda t: re.match(REGEX_INCLUDE, t) is not None) if REGEX_INCLUDE
+        else lambda t: True
+    )
+
+    exclude = (
+        (lambda t: re.match(REGEX_EXCLUDE, t) is not None) if REGEX_EXCLUDE
+        else lambda t: False
+    )
+
+    tasks = [
+        (benchmark.name, replicate, benchmark.groups)
+        for benchmark in all_benchmarks
+        if include(benchmark.name) and not exclude(benchmark.name)
+        for replicate in range(nreplicates)
+    ]
+
+    random.shuffle(tasks)
+
+    return tasks
+
 
 if __name__ == '__main__':
     if len(sys.argv) != 7:
-        raise RuntimeError(f'usage: <script.py> DOCKER_IMAGE_URL BUCKET_BASE SHA N_REPLICATES N_ITERS {RUN_OPTS_STR}')
+        raise RuntimeError(USAGE)
 
     BENCHMARK_IMAGE = sys.argv[1]
     BUCKET_BASE = sys.argv[2]
     SHA = sys.argv[3]
     N_REPLICATES = int(sys.argv[4])
     N_ITERS = int(sys.argv[5])
-    MODE=sys.argv[6]
-    if not MODE in RUN_OPTS:
-        raise RuntimeError(f'unknown mode: "{MODE}". choices={RUN_OPTS_STR}')
+    CMD = sys.argv[6]
 
-    labeled_sha = SHA
-    label = os.environ.get('BENCHMARK_LABEL')
+    if not CMD in CMDS:
+        raise RuntimeError(f'unknown comamnd: "{CMD}". choices={CMDS_STR}')
+
     timestamp = time.strftime('%Y-%m-%d')
-    if label:
-        labeled_sha = f'{labeled_sha}-{label}'
-    output_file = os.path.join(BUCKET_BASE, f'{timestamp}-{labeled_sha}.json')
-    permissions_test_file = os.path.join(BUCKET_BASE, f'permissions-test')
+    labeled_sha = SHA + ('' if LABEL is None else f'-{LABEL}')
+    output_file = P.join(BUCKET_BASE, f'{timestamp}-{labeled_sha}.json')
 
     b = hb.Batch(
         name=f'benchmark-{labeled_sha}',
-        backend=hb.ServiceBackend(billing_project='hail'),
+        backend=hb.ServiceBackend(billing_project=BILLING_PROJECT),
         default_image=BENCHMARK_IMAGE,
         default_cpu='2',
         default_storage='30G',
@@ -47,6 +89,7 @@ if __name__ == '__main__':
     )
 
     test_permissions = b.new_job(f'test permissions')
+    permissions_test_file = P.join(BUCKET_BASE, f'permissions-test')
     test_permissions.command(f'echo hello world > {test_permissions.permissions_test_file}')
     b.write_output(test_permissions.permissions_test_file, permissions_test_file)
 
@@ -60,67 +103,41 @@ if __name__ == '__main__':
         j.command(f'mv {r.name()}.tar {j.ofile}')
         resource_tasks[r] = j
 
+
     all_benchmarks = list_benchmarks()
     assert len(all_benchmarks) > 0
-
-    all_output = []
-
-    task_filter_regex_include = os.environ.get('BENCHMARK_REGEX_INCLUDE')
-    task_filter_regex_exclude = os.environ.get('BENCHMARK_REGEX_EXCLUDE')
-
-    if task_filter_regex_include:
-        include = lambda t: re.match(task_filter_regex_include, t) is not None
-    else:
-        include = lambda t: True
-
-    if task_filter_regex_exclude:
-        exclude = lambda t: re.match(task_filter_regex_exclude, t) is not None
-    else:
-        exclude = lambda t: False
-
-    n_passed_filter = 0
-    task_fs = []
-    for benchmark in all_benchmarks:
-        if include(benchmark.name):
-            if not exclude(benchmark.name):
-                n_passed_filter += 1
-                for replicate in range(N_REPLICATES):
-                    task_fs.append((benchmark.name, replicate, benchmark.groups))
+    tasks = gen_benchmark_replicates(N_REPLICATES, all_benchmarks)
 
     print(
-        f'generating {n_passed_filter} * {N_REPLICATES} = {n_passed_filter * N_REPLICATES} individual benchmark tasks'
+        f'generating {len(tasks)} * {N_REPLICATES} = {len(tasks) * N_REPLICATES} individual benchmark tasks'
     )
 
-    random.shuffle(task_fs)
-
-    benchmark_lower_env_var = ''
-    if os.environ.get('BENCHMARK_LOWER'):
-        benchmark_lower_env_var = f' HAIL_DEV_LOWER="1" '
-    if os.environ.get('BENCHMARK_LOWER_ONLY'):
-        benchmark_lower_env_var = f'{benchmark_lower_env_var} HAIL_DEV_LOWER_ONLY="1" '
-
-    for name, replicate, groups in task_fs:
+    all_output = []
+    for name, replicate, groups in tasks:
         j = b.new_job(name=f'{name}_{replicate}')
         j.command('mkdir -p benchmark-resources')
+
         for resource_group in groups:
             resource_task = resource_tasks[resource_group]
             j.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
             j.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
+
         j.command(
             f'MKL_NUM_THREADS=1 '
             f'OPENBLAS_NUM_THREADS=1 '
             f'OMP_NUM_THREADS=1 '
             f'VECLIB_MAXIMUM_THREADS=1 '
-            f'{benchmark_lower_env_var} '
+            f'{"HAIL_DEV_LOWER=1 " if LOWER else ""}'
+            f'{"HAIL_DEV_LOWER_ONLY=1 " if LOWER_ONLY else ""}'
             f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
             f'TMPDIR="/io/tmp" '
             f'hail-bench run -o {j.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}'
         )
+
         all_output.append(j.ofile)
 
-    combine_branch_factor = int(os.environ.get('BENCHMARK_BRANCH_FACTOR', 32))
     phase_i = 1
-    while len(all_output) > combine_branch_factor:
+    while len(all_output) > BRANCH_FACTOR:
         new_output = []
 
         job_i = 1
@@ -128,10 +145,10 @@ if __name__ == '__main__':
         while i < len(all_output):
             combine = b.new_job(f'combine_output_phase{phase_i}_job{job_i}')
             combine.command(
-                f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i : i + combine_branch_factor])
+                f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i : i + BRANCH_FACTOR])
             )
             new_output.append(combine.ofile)
-            i += combine_branch_factor
+            i += BRANCH_FACTOR
             job_i += 1
 
         phase_i += 1
@@ -144,4 +161,4 @@ if __name__ == '__main__':
     print(f'writing output to {output_file}')
 
     b.write_output(combine.ofile, output_file)
-    b.run(wait=MODE=='run')
+    b.run(wait=CMD=='run')
