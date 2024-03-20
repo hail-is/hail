@@ -14,3 +14,5 @@ da2790242a40ec425a53a02707d261c893b264f7
 422edf6386616711ca70f87c455f76781ac925d4
 # replaces black formatting with ruff
 fa2ef0f2c76654d0c037ff6db60ccb8842fb8539
+# ruff lint python imports
+01a6a6a107faf204d4f5c20f8ae510d2c35518e9
