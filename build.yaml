@@ -3643,7 +3643,7 @@ steps:
       - build_hail_test_artifacts
       - deploy_batch
   - kind: runImage
-    name: submit_hail_benchmark
+    name: start_hail_benchmark
     scopes:
       - deploy
       - dev
@@ -3683,7 +3683,7 @@ steps:
           $HAIL_PIP_VERSION \
           $REPLICATES \
           $ITERATIONS \
-          submit
+          start
 
   - kind: runImage
     name: cancel_all_running_test_batches
