@@ -702,7 +702,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                               variable (https://hail.is/docs/0.2/configuration_reference.html).
                             """)
                     )
-                errors = list(reversed(errors))
+                # errors = list(reversed(errors))
                 error = errors.pop()
                 while len(errors) > 0:
                     next_error = errors.pop()
