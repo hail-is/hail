@@ -732,7 +732,6 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     ]
     public_access_uri1 = f"gs://{public_access_bucket}/references"
     public_access_uri2 = f"{public_access_uri1}/human_g1k_v37.fasta.gz"
-    fs = RouterAsyncFS()
 
     def _test_raises(exception_type, exception_msg, func):
         with pytest.raises(exception_type) as e:
@@ -749,15 +748,21 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     def _test_raises_cold_error(func):
         _test_raises(ValueError, cold_error, func)
 
+    def _with_temp_fs(func):
+        fs = RouterAsyncFS()
+        func(fs)
+        async_to_blocking(fs.close())
+
     # no configuration, nonexistent buckets error
     _test_raises_no_bucket_error(fake_uri1)
     _test_raises_no_bucket_error(fake_uri2)
 
     # no configuration, public access bucket doesn't error unless the object doesn't exist
-    validate_file(public_access_uri1, fs)
-    validate_file(public_access_uri2, fs)
-    _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri3, fs))
-    async_to_blocking(fs.close())
+    _with_temp_fs(lambda fs: validate_file(public_access_uri1, fs))
+    _with_temp_fs(lambda fs: validate_file(public_access_uri2, fs))
+    _with_temp_fs(
+        lambda fs: _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri3, fs))
+    )
 
     # no configuration, no perms bucket errors
     _test_raises(ClientResponseError, no_perms_error, lambda: ServiceBackend(remote_tmpdir=no_perms_uri))
