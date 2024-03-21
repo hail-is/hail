@@ -3658,8 +3658,8 @@ steps:
     inputs:
       - from: /repo/benchmark
         to: /io/repo/benchmark
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
+      - from: /hail_version
+        to: /io/hail_version
     script: |
       set -ex
       pushd /io/repo/benchmark
@@ -3667,12 +3667,9 @@ steps:
       IMAGE={{ hail_benchmark_image.image }}
 
       BUCKET=hail-benchmarks-2
-      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
-      RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}"
-      {% if scope != 'deploy' %}
-      RESULTS_PREFIX="${RESULTS_PREFIX}/{{ user['username'] }}"
-      {% endif %}
-      
+      HAIL_VERSION=$(cat /io/hail_version)
+      RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}/${HAIL_VERSION}"
+
       REPLICATES=5
       ITERATIONS=5
 
@@ -3683,7 +3680,7 @@ steps:
       PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
           $IMAGE \
           $RESULTS_PREFIX \
-          $HAIL_PIP_VERSION \
+          $HAIL_VERSION \
           $REPLICATES \
           $ITERATIONS \
           start

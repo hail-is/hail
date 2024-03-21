@@ -89,7 +89,7 @@ if __name__ == '__main__':
     )
 
     test_permissions = b.new_job(f'test permissions')
-    permissions_test_file = P.join(BUCKET_BASE, f'permissions-test')
+    permissions_test_file = P.join(BUCKET_BASE, f'{SHA}-permissions-test')
     test_permissions.command(f'echo hello world > {test_permissions.permissions_test_file}')
     b.write_output(test_permissions.permissions_test_file, permissions_test_file)
 
@@ -161,4 +161,8 @@ if __name__ == '__main__':
     print(f'writing output to {output_file}')
 
     b.write_output(combine.ofile, output_file)
-    b.run(verbose=True, wait=CMD=='run')
+    if CMD == 'start':
+        b = b.run(wait=False)
+        print(f"Submitted  batch '{b.id}'.")
+    else:
+        b.run()
