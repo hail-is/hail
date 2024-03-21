@@ -150,7 +150,7 @@ object TableStageToRVD {
 
     val bcValsPType = gbPType.fieldType("broadcastVals")
 
-    val bcValsSpec = TypedCodecSpec(bcValsPType, BufferSpec.wireSpec)
+    val bcValsSpec = TypedCodecSpec(ctx, bcValsPType, BufferSpec.wireSpec)
     val encodedBcVals =
       sparkContext.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
     val (decodedBcValsPType: PStruct, makeBcDec) =
@@ -158,7 +158,7 @@ object TableStageToRVD {
 
     val contextsPType = gbPType.fieldType("contexts").asInstanceOf[PArray]
     val contextPType = contextsPType.elementType
-    val contextSpec = TypedCodecSpec(contextPType, BufferSpec.wireSpec)
+    val contextSpec = TypedCodecSpec(ctx, contextPType, BufferSpec.wireSpec)
     val contextsAddr = gbPType.loadField(gbAddr, 2)
     val nContexts = contextsPType.loadLength(contextsAddr)
 

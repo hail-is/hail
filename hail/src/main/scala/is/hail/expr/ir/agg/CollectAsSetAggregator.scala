@@ -74,7 +74,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq)
   val size: Settable[Int] = kb.genFieldThisRef[Int]()
   val key = new TypedKey(t, kb, region)
   val tree = new AppendOnlyBTree(kb, key, region, root)
-  val et = EType.defaultFromPType(t)
+  val et = EType.defaultFromPType(kb.ctx, t)
 
   val typ: PStruct = PCanonicalStruct(
     required = true,

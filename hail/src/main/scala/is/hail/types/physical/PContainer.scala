@@ -99,7 +99,7 @@ object PContainer {
   def unsafeSetElementMissing(cb: EmitCodeBuilder, p: PContainer, aoff: Code[Long], i: Code[Int])
     : Unit =
     if (p.elementType.required)
-      cb._fatal("Missing element at index ", i.toS, s" of ptype ${p.elementType.asIdent}'.")
+      cb._assert(false, "Missing element at index ", i.toS, s" of ptype ${p.elementType.asIdent}'.")
     else
       p.setElementMissing(cb, aoff, i)
 }

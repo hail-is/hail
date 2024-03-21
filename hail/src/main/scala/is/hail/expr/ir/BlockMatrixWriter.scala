@@ -70,7 +70,7 @@ case class BlockMatrixNativeWriter(
     eltR: TypeWithRequiredness,
   ): IR = {
     val etype = EBlockMatrixNDArray(
-      EType.fromTypeAndAnalysis(s.typ.elementType, eltR),
+      EType.fromTypeAndAnalysis(ctx, s.typ.elementType, eltR),
       encodeRowMajor = forceRowMajor,
       required = true,
     )

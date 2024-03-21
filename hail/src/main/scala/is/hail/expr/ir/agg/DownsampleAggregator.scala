@@ -90,8 +90,8 @@ class DownsampleState(
     "label" -> labelPType,
   )
 
-  private val binET = EType.defaultFromPType(binType)
-  private val pointET = EType.defaultFromPType(pointType)
+  private val binET = EType.defaultFromPType(kb.ctx, binType)
+  private val pointET = EType.defaultFromPType(kb.ctx, pointType)
 
   private val root: Settable[Long] = kb.genFieldThisRef[Long]("root")
   private val oldRoot: Settable[Long] = kb.genFieldThisRef[Long]("old_root")

@@ -175,7 +175,11 @@ object LowerDistributedSort {
     val (keyToSortBy, _) = inputStage.rowType.select(sortFields.map(sf => sf.field))
 
     val spec =
-      TypedCodecSpec(rowTypeRequiredness.canonicalPType(inputStage.rowType), BufferSpec.wireSpec)
+      TypedCodecSpec(
+        ctx,
+        rowTypeRequiredness.canonicalPType(inputStage.rowType),
+        BufferSpec.wireSpec,
+      )
     val reader = PartitionNativeReader(spec, "__dummy_uid")
     val initialTmpPath = ctx.createTmpPath("hail_shuffle_temp_initial")
     val writer = PartitionNativeWriter(

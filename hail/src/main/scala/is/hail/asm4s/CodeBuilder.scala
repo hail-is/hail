@@ -270,7 +270,8 @@ trait CodeBuilderLike {
   def _throw[T <: java.lang.Throwable](cerr: Code[T]): Unit =
     append(Code._throw[T, Unit](cerr))
 
-  def _assert(cond: => Code[Boolean], message: Code[String]): Unit =
+  def _assert(cond: => Code[Boolean], msgs: Code[String]*): Unit = {
+    val message = msgs.reduce(_.concat(_))
     if (HAIL_BUILD_CONFIGURATION.isDebug) {
       val traceback = mb.cb.modb.getObject[Throwable](new Traceback().fillInStackTrace())
       val assertion = Code.newInstance[AssertionError, String, Throwable](message, traceback)
@@ -278,6 +279,7 @@ trait CodeBuilderLike {
     } else {
       if_(cond, {}, _throw(Code.newInstance[AssertionError, String](message)))
     }
+  }
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {

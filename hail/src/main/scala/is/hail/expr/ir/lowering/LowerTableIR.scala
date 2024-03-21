@@ -860,6 +860,7 @@ object LowerTableIR {
           val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
           val codecSpec = TypedCodecSpec(
+            ctx,
             PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*),
             BufferSpec.wireSpec,
           )
@@ -1687,6 +1688,7 @@ object LowerTableIR {
             val tmpDir = ctx.createTmpPath("aggregate_intermediates/")
 
             val codecSpec = TypedCodecSpec(
+              ctx,
               PCanonicalTuple(true, aggs.aggs.map(_ => PCanonicalBinary(true)): _*),
               BufferSpec.wireSpec,
             )

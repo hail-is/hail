@@ -3178,8 +3178,10 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val contextPTuple: PTuple = PCanonicalTuple(required = true, ctxType.storageType)
           val globalPTuple: PTuple =
             PCanonicalTuple(required = true, emitGlobals.emitType.storageType)
-          val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
-          val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
+          val contextSpec: TypedCodecSpec =
+            TypedCodecSpec(ctx.executeContext, contextPTuple, bufferSpec)
+          val globalSpec: TypedCodecSpec =
+            TypedCodecSpec(ctx.executeContext, globalPTuple, bufferSpec)
 
           // emit body in new FB
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](
@@ -3240,7 +3242,11 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)),
             )
 
-            bodySpec = TypedCodecSpec(bodyResult.st.storageType().setRequired(true), bufferSpec)
+            bodySpec = TypedCodecSpec(
+              ctx.executeContext,
+              bodyResult.st.storageType().setRequired(true),
+              bufferSpec,
+            )
 
             val bOS = cb.newLocal[ByteArrayOutputStream](
               "cda_baos",

@@ -273,7 +273,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def zeroes(region: Region, length: Int): Long = {
-    require(elementType.isNumeric)
+    require(elementType.isPrimitive)
     val aoff = allocate(region, length)
     initialize(aoff, length)
     Region.setMemory(aoff + elementsOffset(length), length * elementByteSize, 0.toByte)
@@ -281,7 +281,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] = {
-    require(elementType.isNumeric)
+    require(elementType.isPrimitive)
     val lengthMem = cb.memoize(length)
     val aoff = cb.memoize[Long](allocate(region, lengthMem))
     stagedInitialize(cb, aoff, lengthMem)

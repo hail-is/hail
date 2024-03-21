@@ -702,6 +702,7 @@ object BGENFunctions extends RegistryFunctions {
         val currSize = cb.newLocal[Int]("currSize", 0)
 
         val spec = TypedCodecSpec(
+          ctx,
           PType.canonical(TStruct(
             "locus" -> locType,
             "alleles" -> TArray(TString),
