@@ -72,6 +72,9 @@ class RichCodeInputBuffer(
   def readBoolean(): Code[Boolean] =
     ib.invoke[Boolean]("readBoolean")
 
+  def readLEB128(): Code[Long] =
+    ib.invoke[Long]("readLEB128")
+
   def readBytes(toRegion: Value[Region], toOff: Code[Long], n: Int): Code[Unit] = {
     if (n == 0)
       Code._empty
