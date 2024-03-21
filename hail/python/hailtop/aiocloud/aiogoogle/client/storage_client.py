@@ -654,31 +654,35 @@ class GoogleStorageAsyncFS(AsyncFS):
         is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
         location = self.storage_location(uri)
-        errors = []
+        errors: List[aiohttp.ClientResponseError] = []
 
-        async def is_bucket_hot():
+        async def is_bucket_hot() -> bool:
             try:
                 return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
             except aiohttp.ClientResponseError as e:
                 errors.append(e)
                 return False
 
-        async def is_object_hot():
+        async def is_object_hot() -> bool:
             try:
                 return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-            except (aiohttp.ClientResponseError, FileNotFoundError) as e:
+            except aiohttp.ClientResponseError as e:
                 errors.append(e)
                 return False
+            except FileNotFoundError:
+                return False
 
-        async def is_dir_first_object_hot():
+        async def is_dir_first_object_hot() -> bool:
             try:
                 files = await self.listfiles(uri, recursive=True)
                 next_file = await files.__anext__()
                 while await next_file.is_dir():
                     next_file = await files.__anext__()
                 return await self.is_hot_storage(await next_file.url())
-            except (aiohttp.ClientResponseError, FileNotFoundError, StopAsyncIteration) as e:
+            except aiohttp.ClientResponseError as e:
                 errors.append(e)
+                return False
+            except (FileNotFoundError, StopAsyncIteration):
                 return False
 
         if location not in self.allowed_storage_locations:
@@ -698,7 +702,13 @@ class GoogleStorageAsyncFS(AsyncFS):
                               variable (https://hail.is/docs/0.2/configuration_reference.html).
                             """)
                     )
-                raise Exception(errors)  # pylint: disable=broad-exception-raised
+                errors = list(reversed(errors))
+                error = errors.pop()
+                while len(errors) > 0:
+                    next_error = errors.pop()
+                    next_error.__cause__ = error
+                    error = next_error
+                raise error
             self.allowed_storage_locations.append(location)
         return is_hot_storage
 
