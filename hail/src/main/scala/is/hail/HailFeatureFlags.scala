@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.backend.ExecutionCache
+import is.hail.io.fs.RequesterPaysConfig
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -30,8 +31,8 @@ object HailFeatureFlags {
     ("shuffle_cutoff_to_local_sort", ("HAIL_SHUFFLE_CUTOFF" -> "512000000")), // This is in bytes
     ("grouped_aggregate_buffer_size", ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE" -> "50")),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> "1"),
-    ("gcs_requester_pays_project", "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
-    ("gcs_requester_pays_buckets", "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
+    (RequesterPaysConfig.Flags.RequesterPaysProject, "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
+    (RequesterPaysConfig.Flags.RequesterPaysBuckets, "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     ("index_branching_factor", "HAIL_INDEX_BRANCHING_FACTOR" -> null),
     ("rng_nonce", "HAIL_RNG_NONCE" -> "0x0"),
     ("profile", "HAIL_PROFILE" -> null),
@@ -70,6 +71,9 @@ class HailFeatureFlags private (
   }
 
   def get(flag: String): String = flags(flag)
+
+  def lookup(flag: String): Option[String] =
+    Option(flags(flag)).filter(_.nonEmpty)
 
   def exists(flag: String): Boolean = flags.contains(flag)
 

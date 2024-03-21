@@ -61,6 +61,10 @@ class AzureStorageFSURL(
 }
 
 object AzureStorageFS {
+  object EnvVars {
+    val AzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
+  }
+
   private val AZURE_HTTPS_URI_REGEX =
     "^https:\\/\\/([a-z0-9_\\-\\.]+)\\.blob\\.core\\.windows\\.net\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
