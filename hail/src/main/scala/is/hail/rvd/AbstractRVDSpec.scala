@@ -511,7 +511,7 @@ case class IndexedRVDSpec2(
               val partFile = partFiles(oldPartIdx)
               val intersectionInterval =
                 extendedNP.rangeBounds(newPartIdx)
-                  .intersect(extendedNP.kord.intervalEndpointOrdering, oldInterval).get
+                  .intersect(extendedNP.kord, oldInterval).get
               Row(
                 oldPartIdx.toLong,
                 s"$path/parts/$partFile",
@@ -525,7 +525,7 @@ case class IndexedRVDSpec2(
             )
             Some((
               ctxs,
-              oldInterval.intersect(extendedNP.kord.intervalEndpointOrdering, newInterval).get,
+              oldInterval.intersect(extendedNP.kord, newInterval).get,
             ))
           }
         }.unzip
@@ -552,7 +552,7 @@ case class IndexedRVDSpec2(
             val partFile = partFiles(oldPartIdx)
             val intersectionInterval =
               extendedNP.rangeBounds(newPartIdx)
-                .intersect(extendedNP.kord.intervalEndpointOrdering, oldInterval).get
+                .intersect(extendedNP.kord, oldInterval).get
             Row(
               oldPartIdx.toLong,
               s"$path/parts/$partFile",
