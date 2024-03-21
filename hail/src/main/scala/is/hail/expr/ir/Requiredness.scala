@@ -169,8 +169,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
     }
     node match {
-      case AggLet(name, value, _, _) => addBinding(name, value)
-      case Let(bindings, _) => bindings.foreach(Function.tupled(addBinding))
+      case Block(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
       case RelationalLet(name, value, _) => addBinding(name, value)
       case RelationalLetTable(name, value, _) => addBinding(name, value)
       case TailLoop(loopName, params, _, body) =>
@@ -598,9 +597,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(x).required)
         requiredness.unionFrom(lookup(default))
         requiredness.unionFrom(cases.map(lookup))
-      case AggLet(_, _, body, _) =>
-        requiredness.unionFrom(lookup(body))
-      case Let(_, body) =>
+      case Block(_, body) =>
         requiredness.unionFrom(lookup(body))
       case RelationalLet(_, _, body) =>
         requiredness.unionFrom(lookup(body))
@@ -732,22 +729,20 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val rit = tcoerce[RIterable](requiredness)
         rit.union(lookup(a).required)
         rit.elementType.unionFrom(lookup(body))
-      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => // FIXME round-tripping through ptype
+      case ApplyAggOp(_, seqOpArgs, aggSig) => // FIXME round-tripping through ptype
         val emitResult = agg.PhysicalAggSig(
           aggSig.op,
           agg.AggStateSig(
             aggSig.op,
-            initOpArgs.map(i => i -> lookup(i)),
             seqOpArgs.map(s => s -> lookup(s)),
           ),
         ).emitResultType
         requiredness.fromEmitType(emitResult)
-      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+      case ApplyScanOp(_, seqOpArgs, aggSig) =>
         val emitResult = agg.PhysicalAggSig(
           aggSig.op,
           agg.AggStateSig(
             aggSig.op,
-            initOpArgs.map(i => i -> lookup(i)),
             seqOpArgs.map(s => s -> lookup(s)),
           ),
         ).emitResultType

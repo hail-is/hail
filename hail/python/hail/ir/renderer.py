@@ -435,7 +435,7 @@ class CSEPrintPass:
                     continue
 
                 if lift_type == 'value':
-                    child_builder = [f'(Let {name} ']
+                    child_builder = [f'(Let eval {name} ']
                 elif lift_type == 'agg':
                     child_builder = [f'(AggLet {name} False ']
                 else:

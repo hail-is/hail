@@ -1371,6 +1371,31 @@ class TableIRSuite extends HailSuite {
     )
   }
 
+  @Test def testLetBoundInitOpArg(): Unit = {
+    implicit val execStrats = ExecStrategy.allRelational
+    var tir: TableIR = TableRange(10, 3)
+    tir =
+      TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType), FastSeq("aStr" -> Str("foo"))))
+    tir = TableMapGlobals(tir, MakeStruct(FastSeq("n" -> I32(5))))
+    val x = TableAggregate(
+      tir,
+      bindIR(GetField(Ref("global", tir.typ.globalType), "n")) { n =>
+        MakeTuple.ordered(FastSeq(
+          n,
+          ApplyAggOp(Take(), n)(GetField(Ref("row", tir.typ.rowType), "idx")),
+        ))
+      },
+    )
+
+    assertEvalsTo(
+      x,
+      Row(
+        5,
+        0 until 5,
+      ),
+    )
+  }
+
   @Test def testNDArrayMultiplyAddAggregator(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(6, 3)
