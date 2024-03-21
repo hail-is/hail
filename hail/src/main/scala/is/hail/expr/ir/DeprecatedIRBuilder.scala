@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.types._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
+import is.hail.utils.{toRichIterable, FastSeq}
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -377,63 +377,49 @@ object DeprecatedIRBuilder {
     def ~>(body: IRProxy): LambdaProxy = new LambdaProxy(s, body)
   }
 
-  case class BindingProxy(s: Symbol, value: IRProxy)
+  case class BindingProxy(s: Symbol, value: IRProxy, scope: Int)
 
-  object LetProxy {
-    def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E, scope: Int): IR =
-      bindings match {
-        case BindingProxy(sym, binding) +: rest =>
-          val name = sym.name
-          val value = binding(env)
-          scope match {
-            case Scope.EVAL =>
-              Let(FastSeq(name -> value), bind(rest, body, env.bind(name -> value.typ), scope))
-            case Scope.AGG => AggLet(
-                name,
-                value,
-                bind(rest, body, env.bind(name -> value.typ), scope),
-                isScan = false,
-              )
-            case Scope.SCAN => AggLet(
-                name,
-                value,
-                bind(rest, body, env.bind(name -> value.typ), scope),
-                isScan = true,
-              )
-          }
-        case Seq() =>
-          body(env)
+  private object LetProxy {
+    def bind(bindings: IndexedSeq[BindingProxy], body: IRProxy, env: E): IR = {
+      var newEnv = env
+      val resolvedBindings = bindings.map { case BindingProxy(sym, value, scope) =>
+        val resolvedValue = value(newEnv)
+        newEnv = newEnv.bind(sym.name -> resolvedValue.typ)
+        Binding(sym.name, resolvedValue, scope)
       }
+      Block(resolvedBindings, body(newEnv))
+    }
   }
 
   object let extends Dynamic {
     def applyDynamicNamed(method: String)(args: (String, IRProxy)*): LetProxy = {
       assert(method == "apply")
-      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b) })
+      letDyn(args: _*)
     }
   }
 
-  class LetProxy(val bindings: Seq[BindingProxy]) extends AnyVal with Dynamic {
+  object letDyn {
+    def apply(args: (String, IRProxy)*): LetProxy =
+      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.EVAL) }.toFastSeq)
+  }
+
+  class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
     def apply(body: IRProxy): IRProxy = in(body)
 
-    def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env, scope = Scope.EVAL)
-    }
+    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object aggLet extends Dynamic {
     def applyDynamicNamed(method: String)(args: (String, IRProxy)*): AggLetProxy = {
       assert(method == "apply")
-      new AggLetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b) })
+      new AggLetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.AGG) }.toFastSeq)
     }
   }
 
-  class AggLetProxy(val bindings: Seq[BindingProxy]) extends AnyVal with Dynamic {
+  class AggLetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {
     def apply(body: IRProxy): IRProxy = in(body)
 
-    def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env, scope = Scope.AGG)
-    }
+    def in(body: IRProxy): IRProxy = { (env: E) => LetProxy.bind(bindings, body, env) }
   }
 
   object MapIRProxy {

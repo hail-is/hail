@@ -139,8 +139,8 @@ object Interpret {
           case null =>
             null
         }
-      case Let(bindings, body) =>
-        val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
+      case Block(bindings, body) =>
+        val newEnv = bindings.foldLeft(env) { case (env, Binding(name, value, Scope.EVAL)) =>
           env.bind(name -> interpret(value, env, args))
         }
         interpret(body, newEnv, args)
@@ -940,9 +940,7 @@ object Interpret {
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val res = genUID()
-
-        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
+        val extracted = agg.Extract(query, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) =
@@ -1080,7 +1078,7 @@ object Interpret {
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
               Let(
-                FastSeq(res -> extracted.results),
+                FastSeq(extracted.resultRef.name -> extracted.results),
                 MakeTuple.ordered(FastSeq(extracted.postAggIR)),
               ),
             )

@@ -389,7 +389,7 @@ class SimplifySuite extends HailSuite {
 
     assert(Simplify(ctx, StreamLen(rangeIR)) == Simplify(ctx, StreamLen(mapOfRange)))
     assert(Simplify(ctx, StreamLen(mapBlockedByLet)) match {
-      case Let(_, body) => body == Simplify(ctx, StreamLen(mapOfRange))
+      case Block(_, body) => body == Simplify(ctx, StreamLen(mapOfRange))
     })
   }
 

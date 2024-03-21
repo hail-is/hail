@@ -21,7 +21,7 @@ object ForwardRelationalLets {
           usages(name) = (0, 0)
         case x @ RelationalRef(name, _) =>
           val (n, nd) = usages(name)
-          usages(name) = (n + 1, math.max(nd, nestingDepth.lookup(x)))
+          usages(name) = (n + 1, math.max(nd, nestingDepth.lookupRef(x)))
         case _ =>
       }
       ir1.children.foreach(visit)

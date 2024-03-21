@@ -823,7 +823,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
-      case let: Let =>
+      case let: Block =>
         val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
         emitVoid(let.body, env = newEnv)
 
@@ -1107,7 +1107,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
 
-      case let: Let =>
+      case let: Block =>
         val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
         emitI(let.body, env = newEnv)
 
@@ -3622,7 +3622,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     */
   // TODO: splitting logic should get lifted into ComputeMethodSplits
   def emitLetBindings(
-    let: Let,
+    let: Block,
     cb: EmitCodeBuilder,
     env: EmitEnv,
     r: Value[Region],
@@ -3646,9 +3646,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     /* Emit a sequence of bindings into a code builder. Each is added to the environment of all
      * following bindings. Any bindings which is unused and has no side effects is skipped (this is
      * mostly an optimization, but it is important not to emit unused streams). */
-    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[(String, IR)], env: EmitEnv, r: Value[Region])
+    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[Binding], env: EmitEnv, r: Value[Region])
       : EmitEnv =
-      bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+      bindings.foldLeft(env) { case (newEnv, Binding(name, ir, Scope.EVAL)) =>
         if (ir.typ == TVoid) {
           emitVoid(ir, cb, newEnv, r)
           newEnv
@@ -3698,7 +3698,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           return env
       }
 
-      val (curName, curIR) = let.bindings(pos)
+      val Binding(curName, curIR, Scope.EVAL) = let.bindings(pos)
 
       // skip over unused streams
       if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {

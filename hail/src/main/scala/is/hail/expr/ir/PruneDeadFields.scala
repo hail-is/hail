@@ -1314,31 +1314,29 @@ object PruneDeadFields {
         )
       case Coalesce(values) => unifyEnvsSeq(values.map(memoizeValueIR(ctx, _, requestedType, memo)))
       case Consume(value) => memoizeValueIR(ctx, value, value.typ, memo)
-      case Let(bindings, body) =>
+      case Block(bindings, body) =>
         val bodyEnv = memoizeValueIR(ctx, body, requestedType, memo)
-        bindings.foldRight(bodyEnv) { case ((name, value), bodyEnv) =>
-          val valueType = unifySeq(value.typ, uses(name, bodyEnv.eval))
-          unifyEnvs(
-            bodyEnv.deleteEval(name),
-            memoizeValueIR(ctx, value, valueType, memo),
-          )
-        }
-      case AggLet(name, value, body, isScan) =>
-        val bodyEnv = memoizeValueIR(ctx, body, requestedType, memo)
-        if (isScan) {
-          val valueType = unifySeq(value.typ, uses(name, bodyEnv.scanOrEmpty))
-          val valueEnv = memoizeValueIR(ctx, value, valueType, memo)
-          unifyEnvs(
-            bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
-            valueEnv.copy(eval = Env.empty, scan = Some(valueEnv.eval)),
-          )
-        } else {
-          val valueType = unifySeq(value.typ, uses(name, bodyEnv.aggOrEmpty))
-          val valueEnv = memoizeValueIR(ctx, value, valueType, memo)
-          unifyEnvs(
-            bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
-            valueEnv.copy(eval = Env.empty, agg = Some(valueEnv.eval)),
-          )
+        bindings.foldRight(bodyEnv) {
+          case (Binding(name, value, Scope.EVAL), bodyEnv) =>
+            val valueType = unifySeq(value.typ, uses(name, bodyEnv.eval))
+            unifyEnvs(
+              bodyEnv.deleteEval(name),
+              memoizeValueIR(ctx, value, valueType, memo),
+            )
+          case (Binding(name, value, Scope.SCAN), bodyEnv) =>
+            val valueType = unifySeq(value.typ, uses(name, bodyEnv.scanOrEmpty))
+            val valueEnv = memoizeValueIR(ctx, value, valueType, memo)
+            unifyEnvs(
+              bodyEnv.copy(scan = bodyEnv.scan.map(_.delete(name))),
+              valueEnv.copy(eval = Env.empty, scan = Some(valueEnv.eval)),
+            )
+          case (Binding(name, value, Scope.AGG), bodyEnv) =>
+            val valueType = unifySeq(value.typ, uses(name, bodyEnv.aggOrEmpty))
+            val valueEnv = memoizeValueIR(ctx, value, valueType, memo)
+            unifyEnvs(
+              bodyEnv.copy(agg = bodyEnv.agg.map(_.delete(name))),
+              valueEnv.copy(eval = Env.empty, agg = Some(valueEnv.eval)),
+            )
         }
       case Ref(name, _) =>
         val ab = new BoxedArrayBuilder[Type]()
@@ -2379,28 +2377,15 @@ object PruneDeadFields {
       case Consume(value) =>
         val value2 = rebuildIR(ctx, value, env, memo)
         Consume(value2)
-      case Let(bindings, body) =>
-        val newBindings = new Array[(String, IR)](bindings.length)
-        val (_, newEnv) = bindings.foldLeft((0, env)) { case ((idx, env), (name, value)) =>
-          val newValue = rebuildIR(ctx, value, env, memo)
-          newBindings(idx) = (name -> newValue)
-          (idx + 1, env.bindEval(name -> newValue.typ))
+      case Block(bindings, body) =>
+        val newBindings = new Array[Binding](bindings.length)
+        val (_, newEnv) = bindings.foldLeft((0, env)) {
+          case ((idx, env), Binding(name, value, scope)) =>
+            val newValue = rebuildIR(ctx, value, env.promoteScope(scope), memo)
+            newBindings(idx) = Binding(name, newValue, scope)
+            (idx + 1, env.bindInScope(name, newValue.typ, scope))
         }
-
-        Let(newBindings, rebuildIR(ctx, body, newEnv, memo))
-      case AggLet(name, value, body, isScan) =>
-        val value2 = rebuildIR(ctx, value, if (isScan) env.promoteScan else env.promoteAgg, memo)
-        AggLet(
-          name,
-          value2,
-          rebuildIR(
-            ctx,
-            body,
-            if (isScan) env.bindScan(name, value2.typ) else env.bindAgg(name, value2.typ),
-            memo,
-          ),
-          isScan,
-        )
+        Block(newBindings, rebuildIR(ctx, body, newEnv, memo))
       case Ref(name, t) =>
         Ref(name, env.eval.lookupOption(name).getOrElse(t))
       case RelationalLet(name, value, body) =>
