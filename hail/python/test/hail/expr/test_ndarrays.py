@@ -892,7 +892,6 @@ def test_svd():
             assert h.shape == n.shape
 
         k = min(np_array.shape)
-        np.linalg.matrix_rank(np_array)
 
         if compute_uv:
             hu, hs, hv = evaled

@@ -1886,7 +1886,6 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))

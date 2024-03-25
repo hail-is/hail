@@ -350,7 +350,6 @@ class Tests(unittest.TestCase):
     @fails_local_backend()
     def test_block_matrices_tofiles(self):
         data = [np.random.rand(11 * 12), np.random.rand(5 * 17)]
-        [data[0].reshape((11, 12)), data[1].reshape((5, 17))]
         bms = [
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8),

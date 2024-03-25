@@ -46,8 +46,6 @@ class ValueIRTests(unittest.TestCase):
         a = ir.Ref('a', env['a'])
         st = ir.Ref('st', env['st'])
         whitenStream = ir.Ref('whitenStream')
-        ir.Ref('mat')
-        ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
         sts = ir.Ref('sts', env['sts'])
         da = ir.Ref('da', env['da'])
