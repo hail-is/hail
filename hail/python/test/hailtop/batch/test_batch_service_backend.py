@@ -238,7 +238,7 @@ def test_cloudfuse_fails_with_io_mount_point(fs: RouterAsyncFS, service_backend:
     b = batch(service_backend)
     j = b.new_job()
     j.command(f'mkdir -p {path}; echo head > {path}/cloudfuse_test_1')
-    j.cloudfuse(bucket, f'/io', read_only=True)
+    j.cloudfuse(bucket, '/io', read_only=True)
 
     try:
         b.run()
@@ -270,8 +270,8 @@ def test_cloudfuse_implicit_dirs(fs: RouterAsyncFS, service_backend: ServiceBack
 
     b = batch(service_backend)
     j = b.new_job()
-    j.command(f'cat ' + os.path.join('/cloudfuse', object_name))
-    j.cloudfuse(bucket_name, f'/cloudfuse', read_only=True)
+    j.command('cat ' + os.path.join('/cloudfuse', object_name))
+    j.cloudfuse(bucket_name, '/cloudfuse', read_only=True)
 
     res = b.run()
     assert res
@@ -302,7 +302,7 @@ async def test_cloudfuse_submount_in_io_doesnt_rm_bucket(
     b = batch(service_backend)
     j = b.new_job()
     j.cloudfuse(bucket, '/io/cloudfuse')
-    j.command(f'ls /io/cloudfuse/')
+    j.command('ls /io/cloudfuse/')
     res = b.run()
     assert res
     res_status = res.status()
@@ -332,8 +332,8 @@ def test_fuse_non_requester_pays_bucket_when_requester_pays_project_specified(
 
     b = batch(service_backend, requester_pays_project=REQUESTER_PAYS_PROJECT)
     j = b.new_job()
-    j.command(f'ls /fuse-bucket')
-    j.cloudfuse(bucket, f'/fuse-bucket', read_only=True)
+    j.command('ls /fuse-bucket')
+    j.cloudfuse(bucket, '/fuse-bucket', read_only=True)
 
     res = b.run()
     assert res
@@ -370,7 +370,7 @@ def test_benchmark_lookalike_workflow(service_backend: ServiceBackend, output_tm
         j.command(f'echo "bar" >> {j.ofile}')
         jobs.append(j)
 
-    combine = b.new_job(f'combine_output').cpu(0.25)
+    combine = b.new_job('combine_output').cpu(0.25)
     for _ in grouped(arg_max(), jobs):
         combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
     b.write_output(combine.ofile, os.path.join(output_tmpdir, 'pipeline_benchmark_test.txt'))
@@ -403,7 +403,7 @@ def test_single_job_with_shell(service_backend: ServiceBackend):
 def test_single_job_with_nonsense_shell(service_backend: ServiceBackend):
     b = batch(service_backend)
     j = b.new_job(shell='/bin/ajdsfoijasidojf')
-    j.command(f'echo "hello"')
+    j.command('echo "hello"')
     res = b.run()
     assert res
     res_status = res.status()
@@ -413,9 +413,9 @@ def test_single_job_with_nonsense_shell(service_backend: ServiceBackend):
 def test_single_job_with_intermediate_failure(service_backend: ServiceBackend):
     b = batch(service_backend)
     j = b.new_job()
-    j.command(f'echoddd "hello"')
+    j.command('echoddd "hello"')
     j2 = b.new_job()
-    j2.command(f'echo "world"')
+    j2.command('echo "world"')
 
     res = b.run()
     assert res
@@ -663,7 +663,7 @@ def test_non_spot_job(service_backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is False
 
 
 def test_spot_unspecified_job(service_backend: ServiceBackend):
@@ -672,7 +672,7 @@ def test_spot_unspecified_job(service_backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is True
 
 
 def test_spot_true_job(service_backend: ServiceBackend):
@@ -682,7 +682,7 @@ def test_spot_true_job(service_backend: ServiceBackend):
     j.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is True
 
 
 def test_non_spot_batch(service_backend: ServiceBackend):
@@ -696,9 +696,9 @@ def test_non_spot_batch(service_backend: ServiceBackend):
     j3.command('echo hello')
     res = b.run()
     assert res
-    assert res.get_job(1).status()['spec']['resources']['preemptible'] == False
-    assert res.get_job(2).status()['spec']['resources']['preemptible'] == False
-    assert res.get_job(3).status()['spec']['resources']['preemptible'] == True
+    assert res.get_job(1).status()['spec']['resources']['preemptible'] is False
+    assert res.get_job(2).status()['spec']['resources']['preemptible'] is False
+    assert res.get_job(3).status()['spec']['resources']['preemptible'] is True
 
 
 def test_local_file_paths_error(service_backend: ServiceBackend):

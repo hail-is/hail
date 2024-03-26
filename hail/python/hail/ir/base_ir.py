@@ -1,4 +1,5 @@
 import abc
+from typing import ClassVar
 
 from hail.expr.types import tstream
 
@@ -204,7 +205,7 @@ class BaseIR(Renderable):
     def base_search(self, criteria):
         others = [node for child in self.children if isinstance(child, BaseIR) for node in child.base_search(criteria)]
         if criteria(self):
-            return others + [self]
+            return [*others, self]
         return others
 
     def save_error_info(self):
@@ -259,7 +260,7 @@ class IR(BaseIR):
     def search(self, criteria):
         others = [node for child in self.children if isinstance(child, IR) for node in child.search(criteria)]
         if criteria(self):
-            return others + [self]
+            return [*others, self]
         return others
 
     def map_ir(self, f):
@@ -442,8 +443,8 @@ class TableIR(BaseIR):
     def renderable_new_block(self, i: int) -> bool:
         return True
 
-    global_env = {'global'}
-    row_env = {'global', 'row'}
+    global_env: ClassVar = {'global'}
+    row_env: ClassVar = {'global', 'row'}
 
 
 class MatrixIR(BaseIR):
@@ -496,10 +497,10 @@ class MatrixIR(BaseIR):
     def renderable_new_block(self, i: int) -> bool:
         return True
 
-    global_env = {'global'}
-    row_env = {'global', 'va'}
-    col_env = {'global', 'sa'}
-    entry_env = {'global', 'sa', 'va', 'g'}
+    global_env: ClassVar = {'global'}
+    row_env: ClassVar = {'global', 'va'}
+    col_env: ClassVar = {'global', 'sa'}
+    entry_env: ClassVar = {'global', 'sa', 'va', 'g'}
 
 
 class BlockMatrixIR(BaseIR):
