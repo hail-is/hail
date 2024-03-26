@@ -1033,7 +1033,7 @@ def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, 
     convenience to those in the statistical genetics community who often
     search enormous text files like VCFs. Hail uses `Java regular expression
     patterns
-    <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+    <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`__.
     The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
     Parameters
@@ -1747,7 +1747,7 @@ def import_table(
     find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+        `String.replaceAll <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#replaceAll(java.lang.String,java.lang.String)>`__.
     force : :obj:`bool`
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be
@@ -3030,7 +3030,7 @@ def import_vcf(
     find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+        `String.replaceAll <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#replaceAll(java.lang.String,java.lang.String)>`__.
     n_partitions : :obj:`int`, optional
         Number of partitions.  If both `n_partitions` and `block_size`
         are specified, `n_partitions` will be used.
@@ -3517,7 +3517,7 @@ def import_csv(
     find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+        `String.replaceAll <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#replaceAll(java.lang.String,java.lang.String)>`__.
     force : :obj:`bool`
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be

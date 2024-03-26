@@ -2944,7 +2944,7 @@ class StringExpression(Expression):
         -----
 
         The regex expressions used should follow `Java regex syntax
-        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_. In
+        <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`_. In
         the Java regular expression syntax, a dollar sign, ``$1``, refers to the
         first group, not the canonical ``\\1``.
 
@@ -2974,7 +2974,7 @@ class StringExpression(Expression):
         Notes
         -----
         The delimiter is a regex using the
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
+        `Java regex syntax <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`_
         delimiter. To split on special characters, escape them with double
         backslash (``\\\\``).
 
@@ -3222,7 +3222,7 @@ class StringExpression(Expression):
         The `regex` argument is a
         `regular expression <https://en.wikipedia.org/wiki/Regular_expression>`__,
         and uses
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+        `Java regex syntax <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`__.
 
         Parameters
         ----------

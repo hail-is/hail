@@ -2,8 +2,8 @@
 Install Hail on Mac OS X
 ========================
 
-- Install Java 8 or 11. We recommend using a `packaged installation from Azul
-  <https://www.azul.com/downloads/?version=java-8-lts&os=macos&package=jdk&show-old-builds=true>`__
+- Install Java 11. We recommend using a `packaged installation from Azul
+  <https://www.azul.com/downloads/?version=java-11-lts&os=macos&package=jdk&show-old-builds=true>`__
   (make sure the OS version and architecture match your system) or using `Homebrew
   <https://brew.sh/>`__:
 

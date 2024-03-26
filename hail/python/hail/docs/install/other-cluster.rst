@@ -5,12 +5,12 @@ Install Hail on a Spark Cluster
 If you are using Google Dataproc, please see `these simpler instructions <dataproc.rst>`__. If you
 are using Azure HDInsight please see `these simpler instructions <azure.rst>`__.
 
-Hail should work with any Spark 3.3.x cluster built with Scala 2.12.
+Hail should work with any Spark 3.5.x cluster built with Scala 2.12.
 
 Hail needs to be built from source on the leader node. Building Hail from source
 requires:
 
-- Java 8 or 11 JDK.
+- Java 11 JDK.
 - Python 3.9 or later.
 - A recent C and a C++ compiler, GCC 5.0, LLVM 3.4, or later versions of either
   suffice.
@@ -23,7 +23,7 @@ On a Debian-like system, the following should suffice:
 
    apt-get update
    apt-get install \
-       openjdk-8-jdk-headless \
+       openjdk-11-jdk-headless \
        g++ \
        python3 python3-pip \
        libopenblas-dev liblapack-dev \
@@ -36,7 +36,7 @@ The next block of commands downloads, builds, and installs Hail from source.
 
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
-    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.18 SPARK_VERSION=3.3.2
+    make install-on-cluster HAIL_COMPILE_NATIVES=1 SCALA_VERSION=2.12.18 SPARK_VERSION=3.5.0
 
 If you forget to install any of the requirements before running `make install-on-cluster`, it's possible
 to get into a bad state where `make` insists you don't have a requirement that you have in fact installed.

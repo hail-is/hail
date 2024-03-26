@@ -4,13 +4,13 @@
 <configuration>
 
   <property>
-    <name>google.cloud.auth.service.account.enable</name>
-    <value>true</value>
+    <name>google.cloud.auth.type</name>
+    <value>SERVICE_ACCOUNT_JSON_KEYFILE</value>
   </property>
-  
+
   <property>
     <name>google.cloud.auth.service.account.json.keyfile</name>
     <value>/gsa-key/key.json</value>
   </property>
-  
+
 </configuration>
