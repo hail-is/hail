@@ -7,13 +7,14 @@ from typing import Tuple
 import pytest
 
 from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
 from hailtop.batch import Batch, ResourceGroup, ServiceBackend
 from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
 from hailtop.config import get_user_config, user_config
 from hailtop.httpx import ClientResponseError
 from hailtop.test_utils import skip_in_azure
-from hailtop.utils import grouped
+from hailtop.utils import async_to_blocking, grouped
 
 from .utils import (
     REQUESTER_PAYS_PROJECT,
@@ -720,12 +721,17 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     # bucket exists, but account does not have permissions on it
     no_perms_bucket = "test"
     no_perms_error = "does not have storage.buckets.get access"
+    # bucket is a public access bucket (https://cloud.google.com/storage/docs/access-public-data)
+    public_access_bucket = "hail-common"
     # bucket exists and account has permissions, but is set to use cold storage by default
     cold_bucket = "hail-test-cold-storage"
     cold_error = "configured to use cold storage by default"
-    fake_uri1, fake_uri2, no_perms_uri, cold_uri = [
-        f"gs://{bucket}/test" for bucket in [fake_bucket1, fake_bucket2, no_perms_bucket, cold_bucket]
+    fake_uri1, fake_uri2, public_access_uri3, no_perms_uri, cold_uri = [
+        f"gs://{bucket}/test"
+        for bucket in [fake_bucket1, fake_bucket2, public_access_bucket, no_perms_bucket, cold_bucket]
     ]
+    public_access_uri1 = f"gs://{public_access_bucket}/references"
+    public_access_uri2 = f"{public_access_uri1}/human_g1k_v37.fasta.gz"
 
     def _test_raises(exception_type, exception_msg, func):
         with pytest.raises(exception_type) as e:
@@ -742,9 +748,21 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     def _test_raises_cold_error(func):
         _test_raises(ValueError, cold_error, func)
 
+    def _with_temp_fs(func):
+        fs = RouterAsyncFS()
+        func(fs)
+        async_to_blocking(fs.close())
+
     # no configuration, nonexistent buckets error
     _test_raises_no_bucket_error(fake_uri1)
     _test_raises_no_bucket_error(fake_uri2)
+
+    # no configuration, public access bucket doesn't error unless the object doesn't exist
+    _with_temp_fs(lambda fs: validate_file(public_access_uri1, fs))
+    _with_temp_fs(lambda fs: validate_file(public_access_uri2, fs))
+    _with_temp_fs(
+        lambda fs: _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri3, fs))
+    )
 
     # no configuration, no perms bucket errors
     _test_raises(ClientResponseError, no_perms_error, lambda: ServiceBackend(remote_tmpdir=no_perms_uri))

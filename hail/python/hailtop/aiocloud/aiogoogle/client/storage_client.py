@@ -4,6 +4,7 @@ import logging
 import os
 import urllib.parse
 from contextlib import AsyncExitStack
+from textwrap import dedent
 from types import TracebackType
 from typing import Any, AsyncIterator, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
 
@@ -639,7 +640,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
 
-    async def is_hot_storage(self, location: str) -> bool:
+    async def is_hot_storage(self, uri: str) -> bool:
         """
         See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
         classes.
@@ -647,14 +648,68 @@ class GoogleStorageAsyncFS(AsyncFS):
         Raises
         ------
         :class:`aiohttp.ClientResponseError`
-            If the specified bucket does not exist, or if the account being used to access GCS does not have permission
-            to read the bucket's default storage policy.
+            If the specified object does not exist, or if the account being used to access GCS does not have permission
+            to read the bucket's default storage policy and it is not a public access bucket.
         """
-        return (await self._storage_client.bucket_info(location))["storageClass"].lower() in (
-            "standard",
-            "regional",
-            "multi_regional",
-        )
+        is_hot_storage = False
+        hot_storage_classes = {"standard", "regional", "multi_regional"}
+        errors: List[aiohttp.ClientResponseError] = []
+        location = self.storage_location(uri)
+
+        async def is_bucket_hot() -> bool:
+            try:
+                return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
+            except aiohttp.ClientResponseError as e:
+                errors.append(e)
+                return False
+
+        async def is_object_hot() -> bool:
+            try:
+                return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+            except aiohttp.ClientResponseError as e:
+                errors.append(e)
+                return False
+            except FileNotFoundError:
+                return False
+
+        async def is_dir_first_object_hot() -> bool:
+            try:
+                files = await self.listfiles(uri, recursive=True)
+                next_file = await files.__anext__()
+                while await next_file.is_dir():
+                    next_file = await files.__anext__()
+                return await self.is_hot_storage(await next_file.url())
+            except aiohttp.ClientResponseError as e:
+                errors.append(e)
+                return False
+            except (FileNotFoundError, StopAsyncIteration):
+                return False
+
+        if location not in self.allowed_storage_locations:
+            is_hot_storage = (await is_bucket_hot()) or (await is_object_hot()) or (await is_dir_first_object_hot())
+            if not is_hot_storage:
+                if len(errors) == 0:
+                    raise ValueError(
+                        dedent(f"""\
+                            GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
+                            '{uri}' would incur egress charges. Either
+
+                            * avoid the increased cost by changing the default storage policy for the bucket
+                              (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
+                              blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
+
+                            * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
+                              variable (https://hail.is/docs/0.2/configuration_reference.html).
+                            """)
+                    )
+                error = errors.pop()
+                while len(errors) > 0:
+                    next_error = errors.pop()
+                    next_error.__cause__ = error
+                    error = next_error
+                raise error
+            self.allowed_storage_locations.append(location)
+        return is_hot_storage
 
     @staticmethod
     def valid_url(url: str) -> bool:
