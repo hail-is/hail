@@ -2936,7 +2936,7 @@ class JVMPool:
 
 
 class Worker:
-    def __init__(self, client_session: httpx.ClientSession):
+    def __init__(self):
         self.active = False
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
@@ -2948,7 +2948,7 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
         os.makedirs('/hail-jars/', exist_ok=True)
         self.jar_download_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-        self.client_session = client_session
+        self.client_session = httpx.client_session()
 
         self.image_data: Dict[str, ImageData] = defaultdict(ImageData)
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
@@ -3452,7 +3452,7 @@ async def async_main():
     network_allocator = NetworkAllocator(network_allocator_task_manager)
     await network_allocator.reserve()
 
-    worker = Worker(httpx.client_session())
+    worker = Worker()
     try:
         async with AsyncExitStack() as cleanup:
             cleanup.push_async_callback(docker.close)

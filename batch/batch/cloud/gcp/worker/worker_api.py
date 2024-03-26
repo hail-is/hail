@@ -1,6 +1,7 @@
 import base64
 import os
 import tempfile
+from contextlib import AsyncExitStack
 from typing import Dict, List
 
 import orjson
@@ -20,13 +21,13 @@ from .metadata_server import create_app
 class GCPWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '169.254.169.254'
 
-    # async because GoogleSession must be created inside a running event loop
+    # async because ClientSession must be created inside a running event loop
     @staticmethod
     async def from_env() -> 'GCPWorkerAPI':
         project = os.environ['PROJECT']
         zone = os.environ['ZONE'].rsplit('/', 1)[1]
         worker_credentials = aiogoogle.GoogleInstanceMetadataCredentials()
-        http_session = httpx.ClientSession()
+        http_session = httpx.client_session()
         return GCPWorkerAPI(project, zone, worker_credentials, http_session)
 
     def __init__(
@@ -38,9 +39,15 @@ class GCPWorkerAPI(CloudWorkerAPI):
     ):
         self.project = project
         self.zone = zone
+
+        self._exit_stack = AsyncExitStack()
         self._http_session = http_session
-        self._metadata_server_client = aiogoogle.GoogleMetadataServerClient(http_session)
+        self._exit_stack.push_async_callback(self._http_session.close)
+
         self._compute_client = aiogoogle.GoogleComputeClient(project)
+        self._exit_stack.push_async_callback(self._compute_client.close)
+
+        self._metadata_server_client = aiogoogle.GoogleMetadataServerClient(http_session)
         self._gcsfuse_credential_files: Dict[str, str] = {}
         self._worker_credentials = worker_credentials
 
@@ -132,7 +139,7 @@ class GCPWorkerAPI(CloudWorkerAPI):
             del self._gcsfuse_credential_files[mount_base_path_data]
 
     async def close(self):
-        await self._compute_client.close()
+        await self._exit_stack.aclose()
 
     def __str__(self):
         return f'project={self.project} zone={self.zone}'
