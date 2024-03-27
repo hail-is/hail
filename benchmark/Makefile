@@ -1,8 +1,6 @@
 include ../config.mk
 include ../hail/version.mk
 
-SHORT_REVISION := $(shell git rev-parse --short=12 HEAD)
-
 HAIL_PYTHON3 ?= python3
 PIP := $(HAIL_PYTHON3) -m pip
 
@@ -53,7 +51,6 @@ pushed_image: image
 
 BENCHMARK_ITERS ?= 3
 BENCHMARK_REPLICATES ?= 5
-HAIL_WHEEL_DESCRIPTOR ?= $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 BENCHMARK_BUCKET ?= gs://hail-benchmarks-2
 .PHONY: submit
 submit: pushed_image install
@@ -61,13 +58,14 @@ submit: pushed_image install
 	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py \
 		`cat pushed_image` \
 		$(BENCHMARK_BUCKET)/$(shell whoami) \
-		$(HAIL_WHEEL_DESCRIPTOR) \
+		$(HAIL_VERSION) \
 		$(BENCHMARK_REPLICATES) \
-		$(BENCHMARK_ITERS)
+		$(BENCHMARK_ITERS) \
+		run
 
 clean: cleanup_image
 	rm -rf python/dist/*
 	rm -rf python/build/*
-	rm -r $(HAIL_BENCHMARK_VERSION_FILE)
+	rm -f $(HAIL_BENCHMARK_VERSION_FILE)
 
 FORCE:
