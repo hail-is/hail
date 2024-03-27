@@ -1012,6 +1012,10 @@ steps:
 
       # pyspark/conf/core-site.xml already points at /gsa-key/key.json
       mv /test-gsa-key/key.json /gsa-key/key.json
+      export GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+      export AZURE_APPLICATION_CREDENTIALS=/gsa-key/key.json
+
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}  # hailctl batch submit tests should speak to namespaced batch
 
       export HAIL_QUERY_N_CORES=2
       export OMP_NUM_THREADS=2
@@ -1023,6 +1027,10 @@ steps:
       export HAIL_TEST_RESOURCES_DIR=$(realpath ./resources)
       export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      export HAIL_BATCH_BILLING_PROJECT=test
+      export HAIL_BATCH_REMOTE_TMPDIR={{ global.test_storage_uri }}
+
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -3080,9 +3088,7 @@ steps:
       BATCH_ID=$(hailctl batch submit simple_hail.py --name=test-hailctl-batch-submit --files=foo -o json | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
@@ -3101,45 +3107,39 @@ steps:
       BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json hail_with_args.py 100 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
 
-      cat >file.sh <<EOF
+      cat >file.sh <<'EOF'
       set -ex
 
-      cat foo
+      cat foo/baz.txt
       echo "Hello World!"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file.sh | jq '.id')
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json --image-name ubuntu:22.04 file.sh | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
 
-      cat >file-with-args.sh <<EOF
+      cat >file-with-args.sh <<'EOF'
       set -ex
 
       [[ $# -eq 2 ]]
 
-      cat foo
+      cat foo/baz.txt
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file-with-args.sh abc 123 | jq '.id')
+      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json --image-name ubuntu:22.04 file-with-args.sh abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
