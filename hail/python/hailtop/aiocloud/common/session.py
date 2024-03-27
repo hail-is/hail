@@ -21,6 +21,10 @@ class BaseSession(abc.ABC):
     async def request(self, method: str, url: str, **kwargs) -> aiohttp.ClientResponse:
         pass
 
+    @abc.abstractmethod
+    def ws_connect(self, url: str, **kwargs) -> aiohttp.client._WSRequestContextManager:
+        raise NotImplementedError
+
     async def get(self, url: str, **kwargs) -> aiohttp.ClientResponse:
         return await self.request('GET', url, **kwargs)
 
@@ -61,6 +65,9 @@ class RateLimitedSession(BaseSession):
     async def request(self, method: str, url: str, **kwargs):
         async with self._rate_limiter:
             return await self._session.request(method, url, **kwargs)
+
+    def ws_connect(self, url: str, **kwargs):
+        return self._session.ws_connect(url, **kwargs)
 
     async def close(self) -> None:
         if hasattr(self, '_session'):
@@ -121,6 +128,9 @@ class Session(BaseSession):
                 if expiration is None or time.time() <= expiration:
                     raise err
                 log.info(f'Credentials expired while waiting for request to {url}. We will retry. {err}.')
+
+    def ws_connect(self, url: str, **kwargs) -> aiohttp.client._WSRequestContextManager:
+        return self._http_session.ws_connect(url, **kwargs)
 
     async def close(self) -> None:
         async with AsyncExitStack() as stack:

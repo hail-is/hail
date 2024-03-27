@@ -6,7 +6,7 @@ import math
 import random
 import secrets
 from enum import Enum
-from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
+from typing import Any, AsyncGenerator, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
 
 import aiohttp
 import orjson
@@ -470,6 +470,21 @@ class JobGroup:
             cancel_after_n_failures=cancel_after_n_failures,
         )
 
+    async def stream_status(self) -> AsyncGenerator[GetJobGroupResponseV1Alpha, None]:
+        async for status in self._client.status_stream(self.batch_id):
+            self._last_known_status = status
+            yield status
+
+    async def poll_status(self) -> AsyncGenerator[GetJobGroupResponseV1Alpha, None]:
+        i = 0
+        while True:
+            yield await self.status()
+            j = random.randrange(math.floor(1.1**i))
+            await asyncio.sleep(0.100 * j)
+            # max 44.5s
+            if i < 64:
+                i = i + 1
+
     async def _wait(
         self,
         description: str,
@@ -479,7 +494,6 @@ class JobGroup:
         self._raise_if_not_submitted()
         deploy_config = get_deploy_config()
         url = deploy_config.external_url('batch', f'/batches/{self.batch_id}')
-        i = 0
         status = await self.status()
 
         if is_notebook():
@@ -488,16 +502,13 @@ class JobGroup:
             description += url
 
         with progress.with_task(description, total=status['n_jobs'], disable=disable_progress_bar) as progress_task:
-            while True:
-                status = await self.status()
-                progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'])
-                if status['complete']:
-                    return status
-                j = random.randrange(math.floor(1.1**i))
-                await asyncio.sleep(0.100 * j)
-                # max 44.5s
-                if i < 64:
-                    i = i + 1
+            # Fall back to polling if the websocket fails
+            for get_statuses in (self.stream_status, self.poll_status):
+                async for status in get_statuses():
+                    progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'])
+                    if status['complete']:
+                        return status
+            raise ValueError('unreachable')
 
     async def wait(
         self, *, disable_progress_bar: bool = False, description: str = '', progress: Optional[BatchProgressBar] = None
@@ -672,29 +683,8 @@ class Batch:
         self, description: str, progress: BatchProgressBar, disable_progress_bar: bool, starting_job: int
     ) -> Dict[str, Any]:
         self._raise_if_not_created()
-        deploy_config = get_deploy_config()
-        url = deploy_config.external_url('batch', f'/batches/{self.id}')
-        i = 0
-        status = await self.status()
-        if is_notebook():
-            description += f'[link={url}]{self.id}[/link]'
-        else:
-            description += url
-        with progress.with_task(
-            description, total=status['n_jobs'] - starting_job + 1, disable=disable_progress_bar
-        ) as progress_task:
-            while True:
-                status = await self.status()
-                progress_task.update(
-                    None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1
-                )
-                if status['complete']:
-                    return status
-                j = random.randrange(math.floor(1.1**i))
-                await asyncio.sleep(0.100 * j)
-                # max 44.5s
-                if i < 64:
-                    i = i + 1
+        root_job_group = JobGroup(self, 0, True)
+        return cast(dict, await root_job_group.wait(disable_progress_bar=disable_progress_bar, progress=progress))
 
     async def wait(
         self,
@@ -1294,6 +1284,15 @@ class BatchClient:
 
     async def _delete(self, path) -> aiohttp.ClientResponse:
         return await self._session.delete(self.url + path, headers=self._headers)
+
+    async def _ws_connect(self, path) -> aiohttp.client._WSRequestContextManager:
+        assert self._session
+        return self._session.ws_connect(self.url + path, headers=self._headers)
+
+    async def status_stream(self, batch_id: int) -> AsyncGenerator[GetJobGroupResponseV1Alpha, None]:
+        async with await self._ws_connect(f'/wss/v1alpha/batches/{batch_id}') as ws:
+            async for msg in ws:
+                yield orjson.loads(msg.data)
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project

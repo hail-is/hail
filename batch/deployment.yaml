@@ -17,6 +17,8 @@ data:
               "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
               codec_type: AUTO
               stat_prefix: ingress_http
+              upgrade_configs:
+                - upgrade_type: websocket
               access_log:
                 name: json_error_access_log
                 filter:

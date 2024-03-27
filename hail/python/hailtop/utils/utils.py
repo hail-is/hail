@@ -22,6 +22,7 @@ from typing import (
     Awaitable,
     Callable,
     Dict,
+    Generic,
     Iterable,
     Iterator,
     List,
@@ -29,6 +30,7 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
     TypeVar,
@@ -39,6 +41,7 @@ import aiohttp
 import botocore.exceptions
 import requests
 import urllib3.exceptions
+from aiohttp import web
 from requests.adapters import HTTPAdapter
 from typing_extensions import ParamSpec
 from urllib3.poolmanager import PoolManager
@@ -1123,3 +1126,77 @@ def am_i_interactive() -> bool:
     """
     # https://stackoverflow.com/questions/2356399/tell-if-python-is-in-interactive-mode
     return bool(getattr(sys, 'ps1', sys.flags.interactive))
+
+
+async def call_at_most_every(ms: int, f: Callable[[], Awaitable[Any]]):
+    while True:
+        before_call = time_msecs()
+        await retry_transient_errors(f)
+        duration = time_msecs() - before_call
+        if duration < ms:
+            await asyncio.sleep((ms - duration) / 1000)
+
+
+class Subscription(Generic[T, U]):
+    def __init__(self, key: T, clients: Set[U], handler, guaranteed_update_interval_sec: Optional[int] = None):
+        self.key = key
+        self.clients = clients
+        self.handler = handler
+        self.guaranteed_update_interval_sec = guaranteed_update_interval_sec
+        self.state_changed = asyncio.Event()
+        self.task = asyncio.create_task(call_at_most_every(100, self.update_clients))
+
+    async def update_clients(self):
+        # Always send an intial notification before waiting for state change
+        await self.handler(self.key, self.clients)
+        try:
+            await asyncio.wait_for(self.state_changed.wait(), timeout=self.guaranteed_update_interval_sec)
+            self.state_changed.clear()
+        except TimeoutError:
+            pass
+
+    def close(self):
+        self.task.cancel()
+
+
+class PubSub(Generic[T, U]):
+    def __init__(
+        self, handler: Callable[[T, Set[U]], Awaitable[None]], guaranteed_update_interval_sec: Optional[int] = None
+    ):
+        self._subscriptions: Dict[T, Subscription] = {}
+        self._handler = handler
+        self._guaranteed_update_interval_sec = guaranteed_update_interval_sec
+
+    def subscribe(self, key: T, client: U):
+        if sub := self._subscriptions.get(key):
+            sub.clients.add(client)
+        else:
+            self._subscriptions[key] = Subscription(key, {client}, self._handler, self._guaranteed_update_interval_sec)
+
+    def unsubscribe(self, key: T, client: U):
+        sub = self._subscriptions[key]
+        sub.clients.remove(client)
+        if len(sub.clients) == 0:
+            del self._subscriptions[key]
+            sub.close()
+
+    def unsubscribe_all(self, client: U):
+        all_keys = list(self._subscriptions.keys())
+        for key in all_keys:
+            self.unsubscribe(key, client)
+
+    def update(self, key: T):
+        if sub := self._subscriptions.get(key):
+            sub.state_changed.set()
+
+
+class WebSocketPubSub(Generic[T], PubSub[T, web.WebSocketResponse]):
+    def __init__(
+        self, get_ws_response: Callable[[T], Awaitable[Any]], guaranteed_update_interval_sec: Optional[int] = None
+    ):
+        async def update_websockets(key: T, clients: Set[web.WebSocketResponse]):
+            response = await get_ws_response(key)
+            # We assume a small number of clients subscribing to a given topic
+            await asyncio.gather(*(ws.send_json(response) for ws in clients), return_exceptions=True)
+
+        super().__init__(update_websockets, guaranteed_update_interval_sec)

@@ -22,9 +22,11 @@ from .utils import (
     LoggingTimer,
     Notice,
     OnlineBoundedGather2,
+    Subscription,
     Timings,
     TransientError,
     WaitableSharedPool,
+    WebSocketPubSub,
     ait_to_blocking,
     am_i_interactive,
     async_to_blocking,
@@ -144,4 +146,6 @@ __all__ = [
     'rich_progress_bar',
     'time_ns',
     'am_i_interactive',
+    'WebSocketPubSub',
+    'Subscription',
 ]

@@ -277,6 +277,7 @@ async def mark_job_complete(
         # already complete, do nothing
         return
 
+    app['ws_notifier'].batch_updated(batch_id)
     await notify_batch_job_complete(db, client_session, batch_id)
     await notify_job_group_on_job_complete(db, client_session, batch_id, job_group_id)
 

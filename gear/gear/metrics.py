@@ -1,7 +1,9 @@
-from typing import Optional
+import json
+from typing import Any, Optional
 
 import prometheus_client as pc  # type: ignore
 from aiohttp import web
+from aiohttp.typedefs import JSONEncoder
 from prometheus_async.aio import time as prom_async_time
 from prometheus_client.context_managers import Timer  # type: ignore
 
@@ -13,6 +15,10 @@ SQL_TRANSACTIONS = pc.Counter('sql_transactions', 'Number of SQL transactions')
 SQL_QUERY_COUNT = pc.Counter('sql_query_count', 'Number of SQL Queries', ['query_name'])
 SQL_QUERY_LATENCY = pc.Summary('sql_query_latency_seconds', 'SQL Query latency in seconds', ['query_name'])
 DB_CONNECTION_QUEUE_SIZE = pc.Gauge('sql_connection_queue_size', 'Number of coroutines waiting for a connection')
+
+ACTIVE_WEBSOCKETS = pc.Gauge('wss_active_connections', 'Number of active websocket connections')
+WEBSOCKET_MESSAGES = pc.Counter('wss_messages', 'Number of websocket messages', ['sent'])
+WEBSOCKET_ERRORS = pc.Counter('wss_errors', 'Number of errors that occured during websocket communication')
 
 
 @web.middleware
@@ -49,3 +55,40 @@ class PrometheusSQLTimer:
     async def __aexit__(self, exc_type, exc, tb):
         assert self.sql_query_latency_manager
         self.sql_query_latency_manager.__exit__(exc_type, exc, tb)
+
+
+class MetricsWebSocketResponse(web.WebSocketResponse):
+    def __init__(self):
+        super().__init__()
+        ACTIVE_WEBSOCKETS.inc()
+
+    async def send_str(self, data: str, compress: Optional[bool] = None) -> None:
+        await super().send_str(data, compress)
+        WEBSOCKET_MESSAGES.labels(sent=False).inc()
+
+    async def send_bytes(self, data: bytes, compress: Optional[bool] = None) -> None:
+        await super().send_bytes(data, compress)
+        WEBSOCKET_MESSAGES.labels(sent=False).inc()
+
+    async def send_json(
+        self,
+        data: Any,
+        compress: Optional[bool] = None,
+        *,
+        dumps: JSONEncoder = json.dumps,
+    ) -> None:
+        await super().send_json(data, compress, dumps=dumps)
+        WEBSOCKET_MESSAGES.labels(sent=False).inc()
+
+    async def __anext__(self):
+        try:
+            val = await super().__anext__()
+            WEBSOCKET_MESSAGES.labels(sent=False).inc()
+            return val
+        except StopAsyncIteration:
+            ACTIVE_WEBSOCKETS.dec()
+            raise
+        except Exception:
+            ACTIVE_WEBSOCKETS.dec()
+            WEBSOCKET_ERRORS.inc()
+            raise

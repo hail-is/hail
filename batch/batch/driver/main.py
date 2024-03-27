@@ -28,6 +28,7 @@ from gear import (
     CommonAiohttpAppKeys,
     Database,
     K8sCache,
+    MetricsWebSocketResponse,
     Transaction,
     check_csrf_token,
     get_authenticator,
@@ -47,6 +48,7 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.utils import (
     AsyncWorkerPool,
     Notice,
+    Subscription,
     dump_all_stacktraces,
     flatten,
     periodically_call,
@@ -259,6 +261,21 @@ async def cancel_batch(request):
 async def delete_batch(request):
     set_cancel_state_changed(request.app)
     return web.Response()
+
+
+@routes.get('/wss/v1alpha/batches')
+@batch_only
+async def stream_batch_status(request: web.Request) -> web.StreamResponse:
+    notifier: WebSocketNotifier = request.app['ws_notifier']
+    ws = MetricsWebSocketResponse()
+    await ws.prepare(request)
+    notifier.subscription.clients.add(ws)
+    try:
+        async for msg in ws:
+            pass
+    finally:
+        notifier.subscription.clients.remove(ws)
+    return ws
 
 
 async def activate_instance_1(request, instance):
@@ -1684,6 +1701,22 @@ class BatchDriverAccessLogger(AccessLogger):
         super().log(request, response, time)
 
 
+class WebSocketNotifier:
+    def __init__(self):
+        self.subscription = Subscription(None, set(), self.notify_batch_front_ends, 1)
+        self.updated_batches = set()
+
+    async def notify_batch_front_ends(self, _, clients):
+        message = list(self.updated_batches)
+        self.updated_batches.clear()
+        if len(clients) > 0:
+            await asyncio.gather(*(ws.send_json(message) for ws in clients))
+
+    def batch_updated(self, batch_id):
+        self.updated_batches.add(batch_id)
+        self.subscription.state_changed.set()
+
+
 async def on_startup(app):
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
@@ -1744,6 +1777,8 @@ SELECT instance_id, frozen FROM globals;
     task_manager = aiotools.BackgroundTaskManager()
     app['task_manager'] = task_manager
     exit_stack.push_async_callback(app['task_manager'].shutdown_and_wait)
+
+    app['ws_notifier'] = WebSocketNotifier()
 
     task_manager.ensure_future(periodically_call(10, monitor_billing_limits, app))
     task_manager.ensure_future(periodically_call(10, cancel_fast_failing_job_groups, app))

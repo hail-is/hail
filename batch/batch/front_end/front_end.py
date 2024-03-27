@@ -18,6 +18,7 @@ import aiohttp
 import aiohttp.web_exceptions
 import aiohttp_session
 import humanize
+import orjson
 import pandas as pd
 import plotly
 import plotly.express as px
@@ -31,6 +32,7 @@ from typing_extensions import ParamSpec
 from gear import (
     CommonAiohttpAppKeys,
     Database,
+    MetricsWebSocketResponse,
     Transaction,
     UserData,
     check_csrf_token,
@@ -58,6 +60,7 @@ from hailtop.batch_client.types import (
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import (
+    WebSocketPubSub,
     cost_str,
     dump_all_stacktraces,
     humanize_timedelta_msecs,
@@ -3344,6 +3347,22 @@ async def delete_batch_loop_body(app):
     return should_wait
 
 
+@routes.get('/wss/v1alpha/batches/{batch_id}')
+@billing_project_users_only()
+async def stream_batch_status(request: web.Request, _, batch_id) -> web.StreamResponse:
+    pubsub: WebSocketPubSub = request.app['batch_status_pubsub']
+    ws = MetricsWebSocketResponse()
+    await ws.prepare(request)
+    pubsub.subscribe(batch_id, ws)
+    try:
+        async for _ in ws:
+            await ws.close(code=aiohttp.WSCloseCode.POLICY_VIOLATION)
+            break
+    finally:
+        pubsub.unsubscribe(batch_id, ws)
+    return ws
+
+
 class BatchFrontEndAccessLogger(AccessLogger):
     def __init__(self, logger: logging.Logger, log_format: str):
         super().__init__(logger, log_format)
@@ -3428,6 +3447,24 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     )
 
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
+
+    async def get_batch(batch_id: int):
+        return await _get_batch(app, batch_id)
+
+    batch_status_pubsub = WebSocketPubSub(get_batch, guaranteed_update_interval_sec=5)
+    app['batch_status_pubsub'] = batch_status_pubsub
+
+    async def receive_notifications_from_driver(app):
+        batch_driver_ws = await app[CommonAiohttpAppKeys.CLIENT_SESSION].ws_connect(
+            deploy_config.url('batch-driver', '/wss/v1alpha/batches'),
+            headers=await app['hail_credentials'].auth_headers(),
+        )
+        app['batch_driver_ws'] = batch_driver_ws
+        async for msg in batch_driver_ws:
+            for batch_id in orjson.loads(msg.data):
+                batch_status_pubsub.update(batch_id)
+
+    app['task_manager'].ensure_future(periodically_call(5, receive_notifications_from_driver, app))
 
 
 async def on_cleanup(app):
