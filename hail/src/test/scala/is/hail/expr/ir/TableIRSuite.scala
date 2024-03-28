@@ -7,12 +7,12 @@ import is.hail.annotations.SafeNDArray
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
-import is.hail.methods.ForceCountTable
+import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
-
+import is.hail.variant.Locus
 import org.apache.spark.sql.Row
 import org.scalatest.{Failed, Succeeded}
 import org.scalatest.Inspectors.forAll
@@ -672,6 +672,25 @@ class TableIRSuite extends HailSuite {
     t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), FastSeq("locus", "alleles")))
     val join: TableIR = TableJoin(t, t2, "inner", 2)
     assertEvalsTo(TableCount(join), 346L)
+  }
+
+  @Test def testNativeReaderWithOverlappingPartitions(): Unit = {
+    val path = "src/test/resources/sample.vcf-20-partitions-with-overlap.mt/rows"
+    // i1 overlaps the first two partitions
+    val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
+
+    def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
+      val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
+      val tr = TableNativeReader(fs, TableNativeReaderParameters(path, Some(opts)))
+      val tir = TableRead(tr.fullTypeWithoutUIDs, false, tr)
+      val nParts = TableToValueApply(tir, NPartitionsTable())
+      val count = TableToValueApply(tir, ForceCountTable())
+      assertEvalsTo(nParts, expectedNParts)
+      assertEvalsTo(count, 20L)
+    }
+
+    test(false, 1)
+    test(true, 2)
   }
 
   @Test def testTableKeyBy(): Unit = {
