@@ -3678,7 +3678,7 @@ steps:
     script: |
       set -ex
 
-      # only run benchmarks iff file contains '1'
+      # only run benchmarks iff we've published a new release
       if [[ $(< /io/release-hail-flag) != '1' ]]
       then
           echo 'Skipping benchmarks (no new release published).'
