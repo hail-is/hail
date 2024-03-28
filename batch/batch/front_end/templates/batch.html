@@ -77,6 +77,7 @@
           <th>Exit Code</th>
           <th>Duration</th>
           <th>Cost</th>
+          <th>Always Run</th>
         </tr>
       </thead>
       <tbody>
@@ -104,6 +105,11 @@
           <td>
             {% if 'cost' in job and job['cost'] is not none %}
             {{ job['cost'] }}
+            {% endif %}
+          </td>
+          <td>
+            {% if 'always_run' in job and job['always_run'] is not none %}
+            {{ job['always_run'] }}
             {% endif %}
           </td>
         </tr>

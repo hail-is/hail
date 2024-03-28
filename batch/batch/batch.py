@@ -155,6 +155,7 @@ def job_record_to_dict(record: Dict[str, Any], name: Optional[str]) -> JobListEn
             'cost': coalesce(record['cost'], 0),
             'msec_mcpu': record['msec_mcpu'],
             'cost_breakdown': record['cost_breakdown'],
+            'always_run': bool(record['always_run']),
         },
     )
 
