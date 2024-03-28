@@ -70,7 +70,8 @@ object ForwardLets {
             .getOrElse(x)
         case _ =>
           ir.mapChildrenWithIndex((ir1, i) =>
-            rewrite(ir1, Bindings2.segregated(ir, i, env).childEnvWithoutBindings))
+            rewrite(ir1, Bindings2.segregated(ir, i, env).childEnvWithoutBindings)
+          )
       }
     }
 

@@ -309,67 +309,68 @@ case class SegregatedBindingEnv[A, B](
     newBindings.mapValuesWithKey(f),
   )
 
-  def promoteAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def promoteAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.promoteAgg,
     newBindings.promoteAgg,
   )
 
-  def promoteScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def promoteScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.promoteScan,
     newBindings.promoteScan,
   )
 
-  def bindEval(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
+  override def bindEval(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
     copy(newBindings = newBindings.bindEval(bindings: _*))
 
-  def dropEval: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def dropEval: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.copy(eval = Env.empty),
     newBindings.copy(eval = Env.empty),
   )
 
-  def bindAgg(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
+  override def bindAgg(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
     copy(newBindings = newBindings.bindAgg(bindings: _*))
 
-  def bindScan(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
+  override def bindScan(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
     copy(newBindings = newBindings.bindScan(bindings: _*))
 
-  def createAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def createAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.createAgg,
     newBindings.createAgg,
   )
 
-  def createScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def createScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.createScan,
     newBindings.createScan,
   )
 
-  def noAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def noAgg: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.noAgg,
     newBindings.noAgg,
   )
 
-  def noScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
+  override def noScan: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
     childEnvWithoutBindings.noScan,
     newBindings.noScan,
   )
 
-  def onlyRelational(keepAggCapabilities: Boolean = false): SegregatedBindingEnv[A, B] = SegregatedBindingEnv(
-    childEnvWithoutBindings.onlyRelational(keepAggCapabilities),
-    newBindings.onlyRelational(keepAggCapabilities),
-  )
+  override def onlyRelational(keepAggCapabilities: Boolean = false): SegregatedBindingEnv[A, B] =
+    SegregatedBindingEnv(
+      childEnvWithoutBindings.onlyRelational(keepAggCapabilities),
+      newBindings.onlyRelational(keepAggCapabilities),
+    )
 
-  def bindRelational(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
+  override def bindRelational(bindings: (String, B)*): SegregatedBindingEnv[A, B] =
     copy(newBindings = newBindings.bindRelational(bindings: _*))
 }
 
 object Bindings2 {
-  def empty[A, B]: SegregatedBindingEnv[A, B] = SegregatedBindingEnv(BindingEnv.empty, BindingEnv.empty)
+  def empty[A, B]: SegregatedBindingEnv[A, B] =
+    SegregatedBindingEnv(BindingEnv.empty, BindingEnv.empty)
 
-  def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] = {
+  def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] =
     segregated(ir, i, baseEnv).unified
-    // FIXME: use this
+  // FIXME: use this
 //    childEnv(ir, i, baseEnv)
-  }
 
   def segregated[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] = {
     val env = ChildEnvWithoutBindings(ir, i, baseEnv)
@@ -391,37 +392,152 @@ object Bindings2 {
     result
   }
 
-  def apply2[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
-    childEnv(ir, i, SegregatedBindingEnv(baseEnv, baseEnv.dropBindings))
+  private def apply2[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
+    ir match {
+      case ir: MatrixIR =>
+        childEnvMatrix(ir, i, SegregatedBindingEnv(baseEnv, baseEnv.dropBindings))
+      case ir: TableIR =>
+        childEnvTable(ir, i, SegregatedBindingEnv(baseEnv, baseEnv.dropBindings))
+      case ir: BlockMatrixIR =>
+        childEnvBlockMatrix(ir, i, SegregatedBindingEnv(baseEnv, baseEnv.dropBindings))
+      case ir: IR =>
+        childEnvValue(ir, i, SegregatedBindingEnv(baseEnv, baseEnv.dropBindings))
+    }
 
-  def childEnv[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E = {
+  private def childEnvMatrix[E <: GenericBindingEnv[E, Type]](ir: MatrixIR, i: Int, _baseEnv: E)
+    : E = {
+    val baseEnv = _baseEnv.onlyRelational()
+    ir match {
+      case MatrixMapRows(child, _) if i == 1 =>
+        baseEnv
+          .createAgg.createScan
+          .bindEval(child.typ.rowBindings: _*)
+          .bindEval("n_cols" -> TInt32)
+          .bindAgg(child.typ.entryBindings: _*)
+          .bindScan(child.typ.rowBindings: _*)
+      case MatrixFilterRows(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.rowBindings: _*)
+      case MatrixMapCols(child, _, _) if i == 1 =>
+        baseEnv
+          .createAgg.createScan
+          .bindEval(child.typ.colBindings: _*)
+          .bindEval("n_rows" -> TInt64)
+          .bindAgg(child.typ.entryBindings: _*)
+          .bindScan(child.typ.colBindings: _*)
+      case MatrixFilterCols(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.colBindings: _*)
+      case MatrixMapEntries(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.entryBindings: _*)
+      case MatrixFilterEntries(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.entryBindings: _*)
+      case MatrixMapGlobals(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.globalBindings: _*)
+      case MatrixAggregateColsByKey(child, _, _) =>
+        if (i == 1)
+          baseEnv
+            .bindEval(child.typ.rowBindings: _*)
+            .createAgg.bindAgg(child.typ.entryBindings: _*)
+        else if (i == 2)
+          baseEnv
+            .bindEval(child.typ.globalBindings: _*)
+            .createAgg.bindAgg(child.typ.colBindings: _*)
+        else baseEnv
+      case MatrixAggregateRowsByKey(child, _, _) =>
+        if (i == 1)
+          baseEnv
+            .bindEval(child.typ.colBindings: _*)
+            .createAgg.bindAgg(child.typ.entryBindings: _*)
+        else if (i == 2)
+          baseEnv
+            .bindEval(child.typ.globalBindings: _*)
+            .createAgg.bindAgg(child.typ.rowBindings: _*)
+        else baseEnv
+      case RelationalLetMatrixTable(name, value, _) if i == 1 =>
+        baseEnv.bindRelational(name -> value.typ)
+      case _ =>
+        baseEnv
+    }
+  }
+
+  private def childEnvTable[E <: GenericBindingEnv[E, Type]](ir: TableIR, i: Int, _baseEnv: E)
+    : E = {
+    val baseEnv = _baseEnv.onlyRelational()
+    ir match {
+      case TableFilter(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.rowBindings: _*)
+      case TableGen(contexts, globals, cname, gname, _, _, _) if i == 2 =>
+        baseEnv.bindEval(
+          cname -> elementType(contexts.typ),
+          gname -> globals.typ,
+        )
+      case TableMapGlobals(child, _) if i == 1 =>
+        baseEnv.bindEval(child.typ.globalBindings: _*)
+      case TableMapRows(child, _) if i == 1 =>
+        baseEnv
+          .bindEval(child.typ.rowBindings: _*)
+          .createScan.bindScan(child.typ.rowBindings: _*)
+      case TableAggregateByKey(child, _) if i == 1 =>
+        baseEnv
+          .bindEval(child.typ.globalBindings: _*)
+          .createAgg.bindAgg(child.typ.rowBindings: _*)
+      case TableKeyByAndAggregate(child, _, _, _, _) =>
+        if (i == 1)
+          baseEnv
+            .bindEval(child.typ.globalBindings: _*)
+            .createAgg.bindAgg(child.typ.rowBindings: _*)
+        else if (i == 2)
+          baseEnv.bindEval(child.typ.rowBindings: _*)
+        else baseEnv
+      case TableMapPartitions(child, g, p, _, _, _) if i == 1 =>
+        baseEnv.bindEval(
+          g -> child.typ.globalType,
+          p -> TStream(child.typ.rowType),
+        )
+      case RelationalLetTable(name, value, _) if i == 1 =>
+        baseEnv.bindRelational(name -> value.typ)
+      case _ =>
+        baseEnv
+    }
+  }
+
+  private def childEnvBlockMatrix[E <: GenericBindingEnv[E, Type]](
+    ir: BlockMatrixIR,
+    i: Int,
+    _baseEnv: E,
+  ): E = {
+    val baseEnv = _baseEnv.onlyRelational()
+    ir match {
+      case BlockMatrixMap(_, eltName, _, _) if i == 1 =>
+        baseEnv.bindEval(eltName -> TFloat64)
+      case BlockMatrixMap2(_, _, lName, rName, _, _) if i == 2 =>
+        baseEnv.bindEval(lName -> TFloat64, rName -> TFloat64)
+      case RelationalLetBlockMatrix(name, value, _) if i == 1 =>
+        baseEnv.bindRelational(name -> value.typ)
+      case _ =>
+        baseEnv
+    }
+  }
+
+  private def childEnvValue[E <: GenericBindingEnv[E, Type]](ir: IR, i: Int, baseEnv: E): E =
     ir match {
       case Let(bindings, _) =>
         val result = Array.ofDim[(String, Type)](i)
         for (k <- 0 until i) result(k) = bindings(k)._1 -> bindings(k)._2.typ
         baseEnv.bindEval(result: _*)
-      case TailLoop(name, args, resultType, _) =>
-        if (i == args.length)
-          baseEnv
-            .bindEval(args.map { case (name, ir) => name -> ir.typ }: _*)
-            .bindEval(name -> TTuple(TTuple(args.map(_._2.typ): _*), resultType))
-        else baseEnv
-      case StreamMap(a, name, _) =>
-        if (i == 1)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamZip(as, names, _, _, _) =>
-        if (i == as.length)
-          baseEnv.bindEval(names.zip(as.map(a => elementType(a.typ))): _*)
-        else baseEnv
-      case StreamZipJoin(as, key, curKey, curVals, _) =>
-        if (i == as.length) {
-          val eltType = tcoerce[TStruct](elementType(as.head.typ))
-          baseEnv.bindEval(
-            curKey -> eltType.typeAfterSelectNames(key),
-            curVals -> TArray(eltType),
-          )
-        } else baseEnv
+      case TailLoop(name, args, resultType, _) if i == args.length =>
+        baseEnv
+          .bindEval(args.map { case (name, ir) => name -> ir.typ }: _*)
+          .bindEval(name -> TTuple(TTuple(args.map(_._2.typ): _*), resultType))
+      case StreamMap(a, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamZip(as, names, _, _, _) if i == as.length =>
+        baseEnv.bindEval(names.zip(as.map(a => elementType(a.typ))): _*)
+      case StreamZipJoin(as, key, curKey, curVals, _) if i == as.length =>
+        val eltType = tcoerce[TStruct](elementType(as.head.typ))
+        baseEnv.bindEval(
+          curKey -> eltType.typeAfterSelectNames(key),
+          curVals -> TArray(eltType),
+        )
       case StreamZipJoinProducers(contexts, ctxName, makeProducer, key, curKey, curVals, _) =>
         if (i == 1) {
           val contextType = elementType(contexts.typ)
@@ -433,36 +549,23 @@ object Bindings2 {
             curVals -> TArray(eltType),
           )
         } else baseEnv
-      case StreamLeftIntervalJoin(left, right, _, _, lEltName, rEltName, _) =>
-        if (i == 2) baseEnv.bindEval(
+      case StreamLeftIntervalJoin(left, right, _, _, lEltName, rEltName, _) if i == 2 =>
+        baseEnv.bindEval(
           lEltName -> elementType(left.typ),
           rEltName -> TArray(elementType(right.typ)),
         )
-        else baseEnv
-      case StreamFor(a, name, _) =>
-        if (i == 1)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamFlatMap(a, name, _) =>
-        if (i == 1)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamFilter(a, name, _) =>
-        if (i == 1)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamTakeWhile(a, name, _) =>
-        if (i == 1)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamDropWhile(a, name, _) =>
-        if (i == 1)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamFold(a, zero, accumName, valueName, _) =>
-        if (i == 2)
-          baseEnv.bindEval(accumName -> zero.typ, valueName -> elementType(a.typ))
-        else baseEnv
+      case StreamFor(a, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamFlatMap(a, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamFilter(a, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamTakeWhile(a, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamDropWhile(a, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamFold(a, zero, accumName, valueName, _) if i == 2 =>
+        baseEnv.bindEval(accumName -> zero.typ, valueName -> elementType(a.typ))
       case StreamFold2(a, accum, valueName, _, _) =>
         if (i <= accum.length)
           baseEnv
@@ -472,48 +575,34 @@ object Bindings2 {
             .bindEval(accum.map { case (name, value) => (name, value.typ) }: _*)
         else
           baseEnv.bindEval(accum.map { case (name, value) => (name, value.typ) }: _*)
-      case StreamBufferedAggregate(stream, _, _, _, name, _, _) =>
-        if (i > 0)
-          baseEnv.bindEval(name -> elementType(stream.typ))
-        else baseEnv
-      case RunAggScan(a, name, _, _, _, _) =>
-        if (i == 2 || i == 3)
-          baseEnv.bindEval(name -> elementType(a.typ))
-        else baseEnv
-      case StreamScan(a, zero, accumName, valueName, _) =>
-        if (i == 2)
-          baseEnv.bindEval(
-            accumName -> zero.typ,
-            valueName -> elementType(a.typ),
-          )
-        else baseEnv
-      case StreamAggScan(a, name, _) =>
-        if (i == 1) {
-          val eltType = elementType(a.typ)
-          baseEnv
-            .bindEval(name -> eltType)
-            .createScan.bindScan(name -> eltType)
-        } else baseEnv
-      case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) =>
-        if (i == 2)
-          baseEnv.bindEval(
-            l -> elementType(ll.typ),
-            r -> elementType(rr.typ),
-          )
-        else baseEnv
-      case ArraySort(a, left, right, _) =>
-        if (i == 1)
-          baseEnv.bindEval(
-            left -> elementType(a.typ),
-            right -> elementType(a.typ),
-          )
-        else baseEnv
-      case ArrayMaximalIndependentSet(a, Some((left, right, _))) =>
-        if (i == 1) {
-          val typ = tcoerce[TBaseStruct](elementType(a.typ)).types.head
-          val tupleType = TTuple(typ)
-          baseEnv.dropEval.bindEval(left -> tupleType, right -> tupleType)
-        } else baseEnv
+      case StreamBufferedAggregate(stream, _, _, _, name, _, _) if i > 0 =>
+        baseEnv.bindEval(name -> elementType(stream.typ))
+      case RunAggScan(a, name, _, _, _, _) if i == 2 || i == 3 =>
+        baseEnv.bindEval(name -> elementType(a.typ))
+      case StreamScan(a, zero, accumName, valueName, _) if i == 2 =>
+        baseEnv.bindEval(
+          accumName -> zero.typ,
+          valueName -> elementType(a.typ),
+        )
+      case StreamAggScan(a, name, _) if i == 1 =>
+        val eltType = elementType(a.typ)
+        baseEnv
+          .bindEval(name -> eltType)
+          .createScan.bindScan(name -> eltType)
+      case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) if i == 2 =>
+        baseEnv.bindEval(
+          l -> elementType(ll.typ),
+          r -> elementType(rr.typ),
+        )
+      case ArraySort(a, left, right, _) if i == 1 =>
+        baseEnv.bindEval(
+          left -> elementType(a.typ),
+          right -> elementType(a.typ),
+        )
+      case ArrayMaximalIndependentSet(a, Some((left, right, _))) if i == 1 =>
+        val typ = tcoerce[TBaseStruct](elementType(a.typ)).types.head
+        val tupleType = TTuple(typ)
+        baseEnv.dropEval.bindEval(left -> tupleType, right -> tupleType)
       case AggArrayPerElement(a, elementName, indexName, _, _, isScan) =>
         if (i == 0) baseEnv.promoteAggOrScan(isScan)
         else if (i == 1)
@@ -530,21 +619,18 @@ object Bindings2 {
         else if (i == 1) baseEnv.promoteAggOrScan(isScan).bindEval(accumName -> zero.typ)
         else baseEnv.dropEval.noAggOrScan(isScan)
           .bindEval(accumName -> zero.typ, otherAccumName -> zero.typ)
-      case NDArrayMap(nd, name, _) =>
-        if (i == 1) baseEnv.bindEval(name -> tcoerce[TNDArray](nd.typ).elementType)
-        else baseEnv
-      case NDArrayMap2(l, r, lName, rName, _, _) =>
-        if (i == 2) baseEnv.bindEval(
+      case NDArrayMap(nd, name, _) if i == 1 =>
+        baseEnv.bindEval(name -> tcoerce[TNDArray](nd.typ).elementType)
+      case NDArrayMap2(l, r, lName, rName, _, _) if i == 2 =>
+        baseEnv.bindEval(
           lName -> tcoerce[TNDArray](l.typ).elementType,
           rName -> tcoerce[TNDArray](r.typ).elementType,
         )
-        else baseEnv
-      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) =>
-        if (i == 2) baseEnv.onlyRelational().bindEval(
+      case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) if i == 2 =>
+        baseEnv.onlyRelational().bindEval(
           cname -> elementType(contexts.typ),
           gname -> globals.typ,
         )
-        else baseEnv
       case TableAggregate(child, _) =>
         if (i == 1)
           baseEnv.onlyRelational()
@@ -557,166 +643,36 @@ object Bindings2 {
             .bindEval(child.typ.globalBindings: _*)
             .createAgg.bindAgg(child.typ.entryBindings: _*)
         else baseEnv.onlyRelational()
-      case TableFilter(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case TableGen(contexts, globals, cname, gname, _, _, _) =>
-        if (i == 2)
-          baseEnv.onlyRelational().bindEval(
-            cname -> elementType(contexts.typ),
-            gname -> globals.typ,
-          )
-        else baseEnv.onlyRelational()
-      case TableMapGlobals(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.globalBindings: _*)
-        else baseEnv.onlyRelational()
-      case TableMapRows(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.rowBindings: _*)
-            .createScan.bindScan(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case TableAggregateByKey(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.globalBindings: _*)
-            .createAgg.bindAgg(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case TableKeyByAndAggregate(child, _, _, _, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.globalBindings: _*)
-            .createAgg.bindAgg(child.typ.rowBindings: _*)
-        else if (i == 2)
-          baseEnv.onlyRelational().bindEval(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case TableMapPartitions(child, g, p, _, _, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(
-            g -> child.typ.globalType,
-            p -> TStream(child.typ.rowType),
-          )
-        else baseEnv.onlyRelational()
-      case MatrixMapRows(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .createAgg.createScan
-            .bindEval(child.typ.rowBindings: _*)
-            .bindEval("n_cols" -> TInt32)
-            .bindAgg(child.typ.entryBindings: _*)
-            .bindScan(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixFilterRows(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixMapCols(child, _, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .createAgg.createScan
-            .bindEval(child.typ.colBindings: _*)
-            .bindEval("n_rows" -> TInt64)
-            .bindAgg(child.typ.entryBindings: _*)
-            .bindScan(child.typ.colBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixFilterCols(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.colBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixMapEntries(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.entryBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixFilterEntries(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.entryBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixMapGlobals(child, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(child.typ.globalBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixAggregateColsByKey(child, _, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.rowBindings: _*)
-            .createAgg.bindAgg(child.typ.entryBindings: _*)
-        else if (i == 2)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.globalBindings: _*)
-            .createAgg.bindAgg(child.typ.colBindings: _*)
-        else baseEnv.onlyRelational()
-      case MatrixAggregateRowsByKey(child, _, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.colBindings: _*)
-            .createAgg.bindAgg(child.typ.entryBindings: _*)
-        else if (i == 2)
-          baseEnv.onlyRelational()
-            .bindEval(child.typ.globalBindings: _*)
-            .createAgg.bindAgg(child.typ.rowBindings: _*)
-        else baseEnv.onlyRelational()
-      case BlockMatrixMap(_, eltName, _, _) =>
-        if (i == 1)
-          baseEnv.onlyRelational().bindEval(eltName -> TFloat64)
-        else baseEnv.onlyRelational()
-      case BlockMatrixMap2(_, _, lName, rName, _, _) =>
-        if (i == 2)
-          baseEnv.onlyRelational()
-            .bindEval(lName -> TFloat64, rName -> TFloat64)
-        else baseEnv.onlyRelational()
-      case AggLet(name, value, _, isScan) =>
-        if (i == 0) baseEnv.promoteAggOrScan(isScan)
-        else baseEnv.bindAggOrScan(isScan, name -> value.typ)
-      case AggFilter(_, _, isScan) =>
-        if (i == 0) baseEnv.promoteAggOrScan(isScan)
-        else baseEnv
-      case AggGroupBy(_, _, isScan) =>
-        if (i == 0) baseEnv.promoteAggOrScan(isScan)
-        else baseEnv
-      case AggExplode(a, name, _, isScan) =>
-        if (i == 0) baseEnv.promoteAggOrScan(isScan)
-        else baseEnv.bindAggOrScan(isScan, name -> elementType(a.typ))
-      case StreamAgg(a, name, _) =>
-        if (i == 1)
-          baseEnv.createAgg
-            .bindAgg(name -> elementType(a.typ))
-        else baseEnv
-      case RelationalLet(name, value, _) =>
-        if (i == 1)
-          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
-        else
-          baseEnv.onlyRelational()
-      case RelationalLetTable(name, value, _) =>
-        if (i == 1)
-          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
-        else
-          baseEnv.onlyRelational()
-      case RelationalLetMatrixTable(name, value, _) =>
-        if (i == 1)
-          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
-        else
-          baseEnv.onlyRelational()
-      case RelationalLetBlockMatrix(name, value, _) =>
-        if (i == 1)
-          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
-        else
-          baseEnv.onlyRelational()
       case ApplyAggOp(init, _, _) =>
         if (i < init.length) baseEnv.noAgg
         else baseEnv.promoteAgg
       case ApplyScanOp(init, _, _) =>
         if (i < init.length) baseEnv.noScan
         else baseEnv.promoteScan
+      case AggLet(name, value, _, isScan) =>
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
+        else baseEnv.bindAggOrScan(isScan, name -> value.typ)
+      case AggFilter(_, _, isScan) if i == 0 =>
+        baseEnv.promoteAggOrScan(isScan)
+      case AggGroupBy(_, _, isScan) if i == 0 =>
+        baseEnv.promoteAggOrScan(isScan)
+      case AggExplode(a, name, _, isScan) =>
+        if (i == 0) baseEnv.promoteAggOrScan(isScan)
+        else baseEnv.bindAggOrScan(isScan, name -> elementType(a.typ))
+      case StreamAgg(a, name, _) if i == 1 =>
+        baseEnv.createAgg
+          .bindAgg(name -> elementType(a.typ))
+      case RelationalLet(name, value, _) =>
+        if (i == 1)
+          baseEnv.noAgg.noScan.bindRelational(name -> value.typ)
+        else
+          baseEnv.onlyRelational()
       case _: LiftMeOut =>
         baseEnv.onlyRelational(keepAggCapabilities = true)
-      case _: IR =>
+      case _ =>
         if (UsesAggEnv(ir, i)) baseEnv.promoteAgg
         else if (UsesScanEnv(ir, i)) baseEnv.promoteScan
         else baseEnv
-      case _: TableIR | _: MatrixIR | _: BlockMatrixIR =>
-        baseEnv.onlyRelational()
     }
-  }
+
 }
