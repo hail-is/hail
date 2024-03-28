@@ -3361,6 +3361,7 @@ steps:
       if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
       then
           echo "tag $HAIL_PIP_VERSION already exists"
+          echo '0' > release-hail-flag
           exit 0
       fi
 
@@ -3385,6 +3386,7 @@ steps:
       WEBSITE_TAR=/io/www.tar.gz
 
       bash scripts/release.sh
+      echo '1' > release-hail-flag
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3398,6 +3400,9 @@ steps:
         to: /io/azure-wheel
       - from: /www.tar.gz
         to: /io/www.tar.gz
+    outputs:
+      - from: /io/release-hail-flag
+      - to: /release-hail-flag
     secrets:
       - name: pypi-credentials
         namespace:
@@ -3660,8 +3665,7 @@ steps:
       - test_hail_scala_fs
       - test_hail_services_java
       - test_hail_spark_conf_requester_pays_parsing
-      - test_dataproc-37
-      - test_dataproc-38
+      - release
     image:
       valueFrom: hail_dev_image.image
     inputs:
@@ -3669,8 +3673,18 @@ steps:
         to: /io/repo/benchmark
       - from: /hail_version
         to: /io/hail_version
+      - from: /release-hail-flag
+        to: /io/release-hail-flag
     script: |
       set -ex
+
+      # only run benchmarks iff file contains '1'
+      if [[ $(< /io/release-hail-flag) != '1' ]]
+      then
+          echo 'Skipping benchmarks (no new release published).'
+          exit 0
+      fi
+
       pushd /io/repo/benchmark
 
       IMAGE={{ hail_benchmark_image.image }}
