@@ -3361,7 +3361,7 @@ steps:
       if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
       then
           echo "tag $HAIL_PIP_VERSION already exists"
-          echo '0' > release-hail-flag
+          echo '0' > /io/release-hail-flag
           exit 0
       fi
 
@@ -3386,7 +3386,7 @@ steps:
       WEBSITE_TAR=/io/www.tar.gz
 
       bash scripts/release.sh
-      echo '1' > release-hail-flag
+      echo '1' > /io/release-hail-flag
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3402,7 +3402,7 @@ steps:
         to: /io/www.tar.gz
     outputs:
       - from: /io/release-hail-flag
-      - to: /release-hail-flag
+        to: /release-hail-flag
     secrets:
       - name: pypi-credentials
         namespace:
