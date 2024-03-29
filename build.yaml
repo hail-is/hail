@@ -1370,7 +1370,7 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
-    name: hail-benchmark-image
+    name: hail_benchmark_image
     dockerFile: /io/repo/benchmark/Dockerfile
     contextPath: /io/repo
     publishAs: hail-benchmark
@@ -3361,6 +3361,7 @@ steps:
       if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
       then
           echo "tag $HAIL_PIP_VERSION already exists"
+          echo '0' > release-hail-flag
           exit 0
       fi
 
@@ -3385,6 +3386,7 @@ steps:
       WEBSITE_TAR=/io/www.tar.gz
 
       bash scripts/release.sh
+      echo '1' > release-hail-flag
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3398,6 +3400,9 @@ steps:
         to: /io/azure-wheel
       - from: /www.tar.gz
         to: /io/www.tar.gz
+    outputs:
+      - from: /io/release-hail-flag
+      - to: /release-hail-flag
     secrets:
       - name: pypi-credentials
         namespace:
@@ -3642,6 +3647,67 @@ steps:
       - hail_run_image
       - build_hail_test_artifacts
       - deploy_batch
+  - kind: runImage
+    name: start_hail_benchmark
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
+    dependsOn:
+      - default_ns
+      - hail_dev_image
+      - hail_benchmark_image
+      - test_hail_java
+      - test_hail_python_local_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
+      - test_hail_scala_fs
+      - test_hail_services_java
+      - test_hail_spark_conf_requester_pays_parsing
+      - release
+    image:
+      valueFrom: hail_dev_image.image
+    inputs:
+      - from: /repo/benchmark
+        to: /io/repo/benchmark
+      - from: /hail_version
+        to: /io/hail_version
+      - from: /release-hail-flag
+        to: /io/release-hail-flag
+    script: |
+      set -ex
+
+      # only run benchmarks iff we've published a new release
+      if [[ $(< /io/release-hail-flag) != '1' ]]
+      then
+          echo 'Skipping benchmarks (no new release published).'
+          exit 0
+      fi
+
+      pushd /io/repo/benchmark
+
+      IMAGE={{ hail_benchmark_image.image }}
+
+      BUCKET=hail-benchmarks-2
+      HAIL_VERSION=$(cat /io/hail_version)
+      RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}/${HAIL_VERSION}"
+
+      REPLICATES=5
+      ITERATIONS=5
+
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      export HAIL_BATCH_BILLING_PROJECT=benchmark
+      export HAIL_BATCH_REMOTE_TMPDIR={{ ci_storage_uri }}/{{ token }}
+
+      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
+          $IMAGE \
+          $RESULTS_PREFIX \
+          $HAIL_VERSION \
+          $REPLICATES \
+          $ITERATIONS \
+          start
+
   - kind: runImage
     name: cancel_all_running_test_batches
     image:
