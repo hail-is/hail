@@ -3402,7 +3402,7 @@ steps:
         to: /io/www.tar.gz
     outputs:
       - from: /io/release-hail-flag
-      - to: /release-hail-flag
+        to: /release-hail-flag
     secrets:
       - name: pypi-credentials
         namespace:
