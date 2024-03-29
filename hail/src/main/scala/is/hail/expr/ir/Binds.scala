@@ -7,8 +7,7 @@ import is.hail.utils._
 
 object Binds {
   def apply(x: IR, v: String, i: Int): Boolean =
-    Bindings2.segregated(x, i, BindingEnv.empty[Type]).newBindings.eval.contains(v)
-//    Bindings(x, i).exists(_._1 == v)
+    Bindings.segregated(x, i, BindingEnv.empty[Type]).newBindings.eval.contains(v)
 }
 
 object SegregatedBindingEnv {
@@ -82,17 +81,14 @@ case class SegregatedBindingEnv[A, B](
     copy(newBindings = newBindings.bindRelational(bindings: _*))
 }
 
-object Bindings2 {
-  def empty[A, B]: SegregatedBindingEnv[A, B] =
-    SegregatedBindingEnv(BindingEnv.empty, BindingEnv.empty)
-
+object Bindings {
   def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] =
-    apply2(ir, i, baseEnv)
+    childEnv(ir, i, baseEnv)
 
   def segregated[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
-    apply2(ir, i, SegregatedBindingEnv(baseEnv))
+    childEnv(ir, i, SegregatedBindingEnv(baseEnv))
 
-  private def apply2[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E =
+  private def childEnv[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E =
     ir match {
       case ir: MatrixIR => childEnvMatrix(ir, i, baseEnv)
       case ir: TableIR => childEnvTable(ir, i, baseEnv)
@@ -370,5 +366,4 @@ object Bindings2 {
         else if (UsesScanEnv(ir, i)) baseEnv.promoteScan
         else baseEnv
     }
-
 }

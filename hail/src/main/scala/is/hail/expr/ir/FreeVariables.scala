@@ -62,7 +62,7 @@ object FreeVariables {
             .zipWithIndex
             .map {
               case (child: IR, i) =>
-                val bindings = Bindings2.segregated(ir1, i, baseEnv)
+                val bindings = Bindings.segregated(ir1, i, baseEnv)
                 val childEnv = bindings.childEnvWithoutBindings
                 val sub = compute(child, childEnv).subtract(bindings.newBindings)
                 if (UsesAggEnv(ir1, i))
