@@ -3,12 +3,6 @@ package is.hail.expr.ir
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
-import is.hail.utils._
-
-object Binds {
-  def apply(x: IR, v: String, i: Int): Boolean =
-    Bindings.segregated(x, i, BindingEnv.empty[Type]).newBindings.eval.contains(v)
-}
 
 object SegregatedBindingEnv {
   def apply[A, B](env: BindingEnv[A]): SegregatedBindingEnv[A, B] =
@@ -81,20 +75,60 @@ case class SegregatedBindingEnv[A, B](
     copy(newBindings = newBindings.bindRelational(bindings: _*))
 }
 
+case class EvalOnlyBindingEnv[T](env: Env[T]) extends GenericBindingEnv[EvalOnlyBindingEnv[T], T] {
+  override def promoteAgg: EvalOnlyBindingEnv[T] =
+    EvalOnlyBindingEnv(Env.empty)
+
+  override def promoteScan: EvalOnlyBindingEnv[T] =
+    EvalOnlyBindingEnv(Env.empty)
+
+  override def bindEval(bindings: (String, T)*): EvalOnlyBindingEnv[T] =
+    EvalOnlyBindingEnv(env.bindIterable(bindings))
+
+  override def dropEval: EvalOnlyBindingEnv[T] =
+    EvalOnlyBindingEnv(Env.empty)
+
+  override def bindAgg(bindings: (String, T)*): EvalOnlyBindingEnv[T] =
+    this
+
+  override def bindScan(bindings: (String, T)*): EvalOnlyBindingEnv[T] =
+    this
+
+  override def createAgg: EvalOnlyBindingEnv[T] =
+    this
+
+  override def createScan: EvalOnlyBindingEnv[T] =
+    this
+
+  override def noAgg: EvalOnlyBindingEnv[T] =
+    this
+
+  override def noScan: EvalOnlyBindingEnv[T] =
+    this
+
+  override def onlyRelational(keepAggCapabilities: Boolean = false): EvalOnlyBindingEnv[T] =
+    EvalOnlyBindingEnv(Env.empty)
+
+  override def bindRelational(bindings: (String, T)*): EvalOnlyBindingEnv[T] =
+    this
+}
+
+object Binds {
+  def apply(x: IR, v: String, i: Int): Boolean =
+    Bindings(x, i, EvalOnlyBindingEnv(Env.empty[Type])).env.contains(v)
+}
+
 object Bindings {
-  def apply(ir: BaseIR, i: Int, baseEnv: BindingEnv[Type]): BindingEnv[Type] =
-    childEnv(ir, i, baseEnv)
-
-  def segregated[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
-    childEnv(ir, i, SegregatedBindingEnv(baseEnv))
-
-  private def childEnv[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E =
+  def apply[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E =
     ir match {
       case ir: MatrixIR => childEnvMatrix(ir, i, baseEnv)
       case ir: TableIR => childEnvTable(ir, i, baseEnv)
       case ir: BlockMatrixIR => childEnvBlockMatrix(ir, i, baseEnv)
       case ir: IR => childEnvValue(ir, i, baseEnv)
     }
+
+  def segregated[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
+    apply(ir, i, SegregatedBindingEnv(baseEnv))
 
   private def childEnvMatrix[E <: GenericBindingEnv[E, Type]](ir: MatrixIR, i: Int, _baseEnv: E)
     : E = {
