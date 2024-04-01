@@ -824,7 +824,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
       case let: Block =>
-        val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
+        val newEnv = emitBlock(let, cb, env, region, container, loopEnv)
         emitVoid(let.body, env = newEnv)
 
       case StreamFor(a, valueName, body) =>
@@ -1108,7 +1108,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         presentPC(primitive(m))
 
       case let: Block =>
-        val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
+        val newEnv = emitBlock(let, cb, env, region, container, loopEnv)
         emitI(let.body, env = newEnv)
 
       case Coalesce(values) =>
@@ -3621,7 +3621,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     * emit each chunk in a separate method.
     */
   // TODO: splitting logic should get lifted into ComputeMethodSplits
-  def emitLetBindings(
+  def emitBlock(
     let: Block,
     cb: EmitCodeBuilder,
     env: EmitEnv,

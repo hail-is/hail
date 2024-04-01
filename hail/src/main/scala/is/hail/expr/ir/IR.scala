@@ -222,15 +222,20 @@ final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
 }
 
 object Block {
-  case class Extract(p: IR => Boolean) {
+  object Insert {
     def unapply(bindings: IndexedSeq[Binding])
       : Option[(IndexedSeq[Binding], Binding, IndexedSeq[Binding])] = {
-      val idx = bindings.indexWhere(b => p(b.value))
+      val idx = bindings.indexWhere(_.value.isInstanceOf[InsertFields])
       if (idx == -1) None else Some((bindings.take(idx), bindings(idx), bindings.drop(idx + 1)))
     }
   }
 
-  object Insert extends Extract(_.isInstanceOf[InsertFields])
+  object Nested {
+    def unapply(bindings: IndexedSeq[Binding]): Option[(Int, IndexedSeq[Binding])] = {
+      val idx = bindings.indexWhere(_.value.isInstanceOf[Block])
+      if (idx == -1) None else Some((idx, bindings))
+    }
+  }
 }
 
 sealed abstract class BaseRef extends IR with TrivialIR {

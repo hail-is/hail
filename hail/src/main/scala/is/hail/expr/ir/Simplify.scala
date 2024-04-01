@@ -423,7 +423,7 @@ object Simplify {
       Block(xs ++ ys, body)
 
     // assumes `NormalizeNames` has been run before this.
-    case Block(bindings, body) if bindings.exists(_.value.isInstanceOf[Block]) =>
+    case Block(Block.Nested(i, bindings), body) =>
       def numBindings(b: Binding): Int =
         b.value match {
           case let: Block => 1 + let.bindings.length
@@ -435,7 +435,9 @@ object Simplify {
           bindings.foldLeft(0)((sum, binding) => sum + numBindings(binding))
         )
 
-      bindings.foreach {
+      newBindings ++= bindings.view.take(i)
+
+      bindings.view.drop(i).foreach {
         case Binding(name, ir: Block, scope) =>
           newBindings ++= (if (scope == Scope.EVAL) ir.bindings
                            else ir.bindings.map {
@@ -443,8 +445,7 @@ object Simplify {
                              case _ => fatal("Simplify: found nested Agg bindings")
                            })
           newBindings += Binding(name, ir.body, scope)
-        case Binding(name, value, scope) =>
-          newBindings += Binding(name, value, scope)
+        case binding => newBindings += binding
       }
 
       Block(newBindings.underlying(), body)

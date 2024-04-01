@@ -40,11 +40,7 @@ object ForwardLets {
                 rewriteValue.typ != TVoid
                 && shouldForward(rewriteValue, refs.filter(_.t.name == name), l, scope)
               ) {
-                scope match {
-                  case Scope.EVAL => env.bindEval(name -> rewriteValue)
-                  case Scope.AGG => env.copy(agg = Some(env.agg.get.bind(name -> rewriteValue)))
-                  case Scope.SCAN => env.copy(scan = Some(env.scan.get.bind(name -> rewriteValue)))
-                }
+                env.bindInScope(name, rewriteValue, scope)
               } else {
                 keep += Binding(name, rewriteValue, scope)
                 env

@@ -92,17 +92,7 @@ case object SemanticHash extends Logging {
         buffer += a.isScan.toByte
 
       case Block(bindings, _) =>
-        // encode scopes
-        for {
-          group <- bindings.map(_.scope).grouped(4)
-        } {
-          var byte: Int = 0
-          for (i <- group) {
-            byte <<= 2
-            byte |= i
-          }
-          buffer += byte.toByte
-        }
+        for (b <- bindings) buffer += b.scope.toByte
 
       case a: AggArrayPerElement =>
         buffer += a.isScan.toByte

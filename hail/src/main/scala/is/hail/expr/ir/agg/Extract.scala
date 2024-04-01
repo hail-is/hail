@@ -18,8 +18,6 @@ import org.apache.spark.TaskContext
 
 class UnsupportedExtraction(msg: String) extends Exception(msg)
 
-// --- AggStateSig --
-
 object AggStateSig {
   def apply(op: AggOp, seqOpArgs: Seq[IR], r: RequirednessAnalysis): AggStateSig = {
     val seqs = seqOpArgs.map(s => s -> (if (s.typ == TVoid) null else r(s)))
@@ -137,8 +135,6 @@ case class FoldStateSig(
   combOpIR: IR,
 ) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
 
-// --- PhysicalAggSig --
-
 object PhysicalAggSig {
   def apply(op: AggOp, state: AggStateSig): PhysicalAggSig = BasicPhysicalAggSig(op, state)
 
@@ -176,8 +172,6 @@ case class ArrayLenAggSig(knownLength: Boolean, nested: Seq[PhysicalAggSig]) ext
       ArrayAggStateSig(nested.map(_.state)),
       nested.flatMap(sig => sig.allOps).toArray,
     )
-
-// --- Aggs --
 
 // The result of Extract
 class Aggs(
@@ -399,8 +393,6 @@ class Aggs(
   def results: IR =
     ResultOp.makeTuple(aggs)
 }
-
-// --- Extract --
 
 object Extract {
 
