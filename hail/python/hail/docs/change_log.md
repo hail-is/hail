@@ -62,6 +62,7 @@ Released 2024-04-02
 - (hail#14321) Removed `GOOGLE_APPLICATION_CREDENTIALS` from batch docs.
   Metadata server introduction means users no longer need to explicitly activate
   service accounts with the `gcloud` command line tool.
+- (hail#14339) Added citations since 2021
 
 ### New Features
 
@@ -74,6 +75,8 @@ Released 2024-04-02
   use the values returned by `numeric_allele_type`.
 - (hail#14297) `vds.sample_gc` now uses independent aggregators.
   Users may now import these functions and use them directly.
+- (hail#14405) `VariantDataset.validate` now checks that all ref blocks are no
+  longer than the ref_block_max_length field, if it exists.
 
 ### Bug Fixes
 
