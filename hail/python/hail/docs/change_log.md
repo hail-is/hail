@@ -91,7 +91,6 @@ Released 2024-04-02
   only happen by using the `_intervals` or `_n_partitions` arguments to
   `read_(matrix)_table`, or possibly `repartition`. Please reach out to us
   if you're concerned you may have been affected by this.
-- (hail#14350) Batch now returns 400s for bad job group specifications.
 - (hail#14330) Fixes erroneous error in `export_vcf` with unphased haploid Calls.
 - (hail#14303) Fix missingness error when sampling entries from a MatrixTable.
 - (hail#14288) Contigs may now be compared for inquality while filtering rows.
