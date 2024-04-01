@@ -119,6 +119,10 @@ object Binds {
 }
 
 object Bindings {
+
+  /** Returns the environment of the `i`th child of `ir` given the environment of the parent node
+    * `ir`.
+    */
   def apply[E <: GenericBindingEnv[E, Type]](ir: BaseIR, i: Int, baseEnv: E): E =
     ir match {
       case ir: MatrixIR => childEnvMatrix(ir, i, baseEnv)
@@ -127,6 +131,12 @@ object Bindings {
       case ir: IR => childEnvValue(ir, i, baseEnv)
     }
 
+  /** Like [[Bindings.apply]], but keeps separate any new bindings introduced by `ir`. Always
+    * satisfies the identity
+    * {{{
+    * Bindings.segregated(ir, i, baseEnv).unified == Bindings(ir, i, baseEnv)
+    * }}}
+    */
   def segregated[A](ir: BaseIR, i: Int, baseEnv: BindingEnv[A]): SegregatedBindingEnv[A, Type] =
     apply(ir, i, SegregatedBindingEnv(baseEnv))
 
