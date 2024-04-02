@@ -192,6 +192,7 @@ final class Env[V] private (val m: Map[Env.K, V]) {
 
   override def equals(other: Any): Boolean = other match {
     case env: Env[V] => this.m == env.m
+    case _ => false
   }
 
   def contains(k: Env.K): Boolean = m.contains(k)
