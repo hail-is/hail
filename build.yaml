@@ -3367,7 +3367,7 @@ steps:
           exit 0
       fi
 
-      make upload-artifacts DEPLOY_REMOTE=origin --assume-old=$(WHEEL)
+      make upload-artifacts DEPLOY_REMOTE=origin --assume-old=$WHEEL
 
       echo Setting arguments and invoking release.sh.
 
