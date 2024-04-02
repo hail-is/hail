@@ -53,6 +53,53 @@ policy. Their functionality or even existence may change without notice. Please 
 critically depend on experimental functionality.**
 
 
+## Version 0.2.129
+
+Released 2024-04-02
+
+### Documentation
+
+- (hail#14321) Removed `GOOGLE_APPLICATION_CREDENTIALS` from batch docs.
+  Metadata server introduction means users no longer need to explicitly activate
+  service accounts with the `gcloud` command line tool.
+- (hail#14339) Added citations since 2021
+
+### New Features
+
+- (hail#14406) Performance improvements for reading structured data from (Matrix)Tables
+- (hail#14255) Added Cochran-Hantel-Haenszel test for association (`cochran_mantel_haenszel_test`).
+  Our thanks to @Will-Tyler for generously contributing this feature.
+- (hail#14393) `hail` depends on `protobuf` no longer; users may choose their own version of `protobuf`.
+- (hail#14360) Exposed previously internal `_num_allele_type` as `numeric_allele_type`
+  and deprecated it. Add new `AlleleType` enumeration for users to be able to easily
+  use the values returned by `numeric_allele_type`.
+- (hail#14297) `vds.sample_gc` now uses independent aggregators.
+  Users may now import these functions and use them directly.
+- (hail#14405) `VariantDataset.validate` now checks that all ref blocks are no
+  longer than the ref_block_max_length field, if it exists.
+
+### Bug Fixes
+
+- (hail#14420) Fixes a serious, but likely rare, bug in the
+  Table/MatrixTable reader, which has been present since Sep 2020. It
+  manifests as many (around half or more) of the rows being dropped. This
+  could only happen when 1) reading a (matrix)table whose partitioning
+  metadata allows rows with the same key to be split across neighboring
+  partitions, and 2) reading it with a different partitioning than it was
+  written. 1) would likely only happen by reading data keyed by locus and
+  alleles, and rekeying it to only locus before writing. 2) would likely
+  only happen by using the `_intervals` or `_n_partitions` arguments to
+  `read_(matrix)_table`, or possibly `repartition`. Please reach out to us
+  if you're concerned you may have been affected by this.
+- (hail#14330) Fixes erroneous error in `export_vcf` with unphased haploid Calls.
+- (hail#14303) Fix missingness error when sampling entries from a MatrixTable.
+- (hail#14288) Contigs may now be compared for inquality while filtering rows.
+
+### Deprecations
+
+- (hail#14386) `MatrixTable.make_table` is deprecated. Use `.localize_entries` instead.
+
+
 ## Version 0.2.128
 
 Released 2024-02-16
