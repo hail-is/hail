@@ -3357,35 +3357,34 @@ steps:
       export GIT_ASKPASS=/io/git-askpass
 
       cd /io/repo/hail
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version) \
+             WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl"
 
-      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
           echo "tag $HAIL_PIP_VERSION already exists"
           echo '0' > /io/release-hail-flag
           exit 0
       fi
 
-      time retry sh millw --version
-      make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
+      make upload-artifacts DEPLOY_REMOTE=origin --assume-old=$(WHEEL)
 
       echo Setting arguments and invoking release.sh.
 
-      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
-      HAIL_VERSION=$(cat /io/hail_version)
-      GIT_VERSION=$(cat /io/git_version)
-      REMOTE=origin
-      WHEEL=/io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl
-      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
-      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }}
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }}
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }}
-      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }}
-      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }}
-      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }}
-      AZURE_WHEEL=/io/azure-wheel/hail-*-py3-none-any.whl
-      WEBSITE_TAR=/io/www.tar.gz
+      HAIL_VERSION=$(cat /io/hail_version) \
+      GIT_VERSION=$(cat /io/git_version) \
+      REMOTE=origin \
+      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
+      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }} \
+      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
+      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
+      AZURE_WHEEL=/io/azure-wheel/hail-*-py3-none-any.whl \
+      WEBSITE_TAR=/io/www.tar.gz \
+      ./scripts/release.sh
 
-      bash scripts/release.sh
       echo '1' > /io/release-hail-flag
     inputs:
       - from: /hail_version
@@ -3396,6 +3395,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
+      - from: /wheel
+        to: /io/repo/hail/build/deploy/dist
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
@@ -3424,8 +3425,6 @@ steps:
       - deploy
       - dev
     dependsOn:
-      - test_dataproc-37
-      - test_dataproc-38
       - default_ns
       - ci_utils_image
       - merge_code
@@ -3435,7 +3434,17 @@ steps:
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
+      - build_hail_jar_and_wheel
       - build_azure_wheel
+      - test_hail_java
+      - test_hail_python_local_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
+      - test_hail_scala_fs
+      - test_hail_services_java
+      - test_hail_spark_conf_requester_pays_parsing
+      - test_dataproc-37
+      - test_dataproc-38
       - make_docs
     clouds:
       - gcp
