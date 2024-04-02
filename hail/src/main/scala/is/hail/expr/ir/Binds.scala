@@ -13,7 +13,7 @@ case class SegregatedBindingEnv[A, B](
   childEnvWithoutBindings: BindingEnv[A],
   newBindings: BindingEnv[B],
 ) extends GenericBindingEnv[SegregatedBindingEnv[A, B], B] {
-  def unified(implicit ev: BindingEnv[B] <:< BindingEnv[A]): BindingEnv[A] =
+  def unified(implicit ev: BindingEnv[B] =:= BindingEnv[A]): BindingEnv[A] =
     childEnvWithoutBindings.merge(newBindings)
 
   def mapNewBindings[C](f: (String, B) => C): SegregatedBindingEnv[A, C] = SegregatedBindingEnv(
