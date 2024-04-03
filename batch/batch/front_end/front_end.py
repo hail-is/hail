@@ -1928,19 +1928,15 @@ async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.
 
     job_record = await _get_job_record(request.app, batch_id, job_id)
 
-    # effectively the auth check
-    if not job_record:
-        raise web.HTTPNotFound()
-
     resources: Optional[Dict[str, Optional[pd.DataFrame]]] = await _get_job_resource_usage_from_record(
         app=request.app, record=job_record, batch_id=batch_id, job_id=job_id
     )
 
     if not resources:
         # empty response if not available yet
-        return web.json_response({})
+        return json_response({})
 
-    return web.json_response({
+    return json_response({
         stage: stage_resource.to_dict(orient='split')
         for stage, stage_resource in resources.items()
         if stage_resource is not None
