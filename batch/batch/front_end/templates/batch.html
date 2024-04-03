@@ -90,7 +90,7 @@
             {{ job['name'] }}
             {% endif %}
           </td>
-          <td>{{ job['state'] }}{% if 'always_run' in job and job['always_run'] is not none %} (Always Run){% endif %}</td>
+          <td>{{ job['state'] }}{% if job['state'] not in {'Success', 'Failed', 'Error'} and 'always_run' in job and job['always_run'] is not none %} (Always Run){% endif %}</td>
           <td>
             {% if 'exit_code' in job and job['exit_code'] is not none %}
             {{ job['exit_code'] }}
