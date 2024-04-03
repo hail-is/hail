@@ -313,7 +313,7 @@ pathspec==0.12.1
     # via curlylint
 pexpect==4.9.0
     # via ipython
-pillow==10.2.0
+pillow==10.3.0
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   -r hail/hail/python/dev/requirements.txt
