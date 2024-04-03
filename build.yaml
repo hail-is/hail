@@ -3357,8 +3357,8 @@ steps:
       export GIT_ASKPASS=/io/git-askpass
 
       cd /io/repo/hail
-      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version) \
-             WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl"
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl"
 
       if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
