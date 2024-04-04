@@ -1221,10 +1221,8 @@ object Simplify {
       MatrixMapGlobals(child, bindIR(ng1)(uid => Subst(ng2, BindingEnv(Env("global" -> uid)))))
 
     /* Note: the following MMR and MMC fusing rules are much weaker than they could be. If they
-     * contain aggregations */
-    /* but those aggregations that mention "row" / "sa" but do not depend on the updated value, we
-     * should locally */
-    // prune and fuse anyway.
+     * contain aggregations but those aggregations that mention "row" / "sa" but do not depend on
+     * the updated value, we should locally prune and fuse anyway. */
     case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2)
         if !Mentions.inAggOrScan(newRow2, "va")
           && !Exists.inIR(

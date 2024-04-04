@@ -266,7 +266,8 @@ object Bindings {
           case Scope.EVAL => env
           case Scope.AGG => env.promoteAgg
           case Scope.SCAN => env.promoteScan
-        } else env
+        }
+        else env
       case TailLoop(name, args, resultType, _) if i == args.length =>
         baseEnv
           .bindEval(args.map { case (name, ir) => name -> ir.typ }: _*)
