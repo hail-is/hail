@@ -3257,6 +3257,8 @@ steps:
     name: test_dataproc-37
     image:
       valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
     script: |
       set -ex
 
@@ -3298,6 +3300,8 @@ steps:
     name: test_dataproc-38
     image:
       valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
     script: |
       set -ex
 
