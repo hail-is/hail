@@ -25,6 +25,7 @@ class GetJobResponseV1Alpha(TypedDict):
     spec: Optional[Dict[str, Any]]
     attributes: NotRequired[Dict[str, str]]
     always_run: bool
+    display_state: Optional[str]
 
 
 class JobListEntryV1Alpha(TypedDict):
