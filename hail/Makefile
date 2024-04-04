@@ -444,7 +444,7 @@ release: test-dataproc $(WHEEL)
         HAIL_GENETICS_VEP_GRCH38_95_IMAGE=$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
         AZURE_WHEEL=$(AZURE_WHEEL) \
         WEBSITE_TAR=$(WEBSITE_TAR) \
-        ./scripts/release.sh
+        bash scripts/release.sh
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
