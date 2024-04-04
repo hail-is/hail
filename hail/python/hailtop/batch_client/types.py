@@ -41,6 +41,7 @@ class JobListEntryV1Alpha(TypedDict):
     msec_mcpu: int
     cost_breakdown: List[CostBreakdownEntry]
     always_run: bool
+    display_state: Optional[str]
 
 
 class GetJobsResponseV1Alpha(TypedDict):
