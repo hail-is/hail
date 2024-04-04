@@ -6,7 +6,7 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 usage() {
 cat << EOF
-usage: ./$(basename "$0")
+usage: $(basename "$0")
 
     All arguments are specified by environment variables. For example:
 
@@ -24,7 +24,7 @@ usage: ./$(basename "$0")
         HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-grch38-95:deploy-123abc
         AZURE_WHEEL=/path/to/wheel/for/azure
         WEBSITE_TAR=/path/to/www.tar.gz
-        ./$(basename "$0")
+        bash $(basename "$0")
 EOF
 }
 

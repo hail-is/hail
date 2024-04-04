@@ -3257,6 +3257,8 @@ steps:
     name: test_dataproc-37
     image:
       valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
     script: |
       set -ex
 
@@ -3298,6 +3300,8 @@ steps:
     name: test_dataproc-38
     image:
       valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
     script: |
       set -ex
 
@@ -3383,7 +3387,7 @@ steps:
       HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
       AZURE_WHEEL=/io/azure-wheel/hail-*-py3-none-any.whl \
       WEBSITE_TAR=/io/www.tar.gz \
-      ./scripts/release.sh
+      bash scripts/release.sh
 
       echo '1' > /io/release-hail-flag
     inputs:
