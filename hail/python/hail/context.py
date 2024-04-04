@@ -462,7 +462,7 @@ def init_spark(
     local_tmpdir=None,
     _optimizer_iterations=None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
-    copy_log_on_error: bool=False,
+    copy_log_on_error: bool = False,
 ):
     from hail.backend.py4j_backend import connect_logger
     from hail.backend.spark_backend import SparkBackend

@@ -48,7 +48,7 @@ class SparkBackend(Py4JBackend):
         *,
         gcs_requester_pays_project: Optional[str] = None,
         gcs_requester_pays_buckets: Optional[str] = None,
-        copy_log_on_error: bool = False
+        copy_log_on_error: bool = False,
     ):
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 

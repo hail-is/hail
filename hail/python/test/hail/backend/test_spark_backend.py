@@ -6,7 +6,7 @@ import pytest
 import hail as hl
 
 
-def fatal(typ: hl.HailType, msg: str="") -> hl.Expression:
+def fatal(typ: hl.HailType, msg: str = "") -> hl.Expression:
     return hl.construct_expr(hl.ir.Die(hl.to_expr(msg, hl.tstr)._ir, typ), typ)
 
 
@@ -26,8 +26,4 @@ def test_copy_spark_log(copy):
     _, filename = os.path.split(hc._log)
     log = os.path.join(hc._tmpdir, filename)
 
-    assert (
-        Env.fs().exists(log)
-        if copy
-        else not Env.fs().exists(log)
-    )
+    assert Env.fs().exists(log) if copy else not Env.fs().exists(log)
