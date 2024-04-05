@@ -6,8 +6,7 @@ def version() -> str:
     if _VERSION is None:
         import importlib.resources as r  # pylint: disable=import-outside-toplevel
 
-        with r.files(__name__).joinpath('hail_version').open('r') as fp:
-            _VERSION = fp.read().strip()
+        _VERSION = (r.files(__name__) / 'hail_version').read_text('utf-9').strip()
 
     return _VERSION
 

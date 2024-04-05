@@ -4,7 +4,5 @@ import yaml
 
 
 def get_deploy_metadata():
-    with r.files('hailtop.hailctl').joinpath("deploy.yaml").open('r') as fp:
-        deploy_metadata = yaml.safe_load(fp.read())
-
-    return deploy_metadata["dataproc"]
+    content = r.files('hailtop.hailctl').joinpath('deploy.yaml').read_text('utf-8')
+    return yaml.safe_load(content)["dataproc"]

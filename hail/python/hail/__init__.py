@@ -8,11 +8,11 @@ if version_info < (3, 9):
 
 
 def __resource(name: str) -> Path:
-    return importlib.resources.files(__name__).joinpath(name)
+    return importlib.resources.files(__name__) / name
 
 
 def __resource_str(name: str) -> str:
-    with __resource(name).open('r') as fp:
+    with __resource(name).open('r', encoding='utf-8') as fp:
         return fp.read()
 
 
