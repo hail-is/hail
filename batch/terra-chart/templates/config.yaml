@@ -5,7 +5,7 @@ metadata:
 data:
   cloud: "azure"
   default_namespace: "default"
-  docker_prefix: "us-docker.pkg.dev/hail-vdc/terra-dev-public"
+  docker_prefix: "terradevacrpublic.azurecr.io/hail/batch"
   docker_root_image: "ubuntu:22.04"
   batch_logs_storage_uri: "{{ .Values.persistence.workspaceManager.storageContainerUrl }}/{{ .Values.persistence.leoAppName }}/hailbatch/logs"
   query_storage_uri: "{{ .Values.persistence.workspaceManager.storageContainerUrl }}/{{ .Values.persistence.leoAppName }}/hailbatch/query"
@@ -28,7 +28,7 @@ metadata:
   name: deploy-config
 data:
   deploy-config.json: |
-    { "default_namespace": "default", "location": "k8s", "domain": "{{ .Values.relay.domain }}", "subpath": "{{ .Values.relay.subpath }}" }
+    { "default_namespace": "default", "location": "k8s", "domain": "{{ .Values.relay.domain }}", "base_path": "{{ .Values.relay.subpath }}" }
 ---
 apiVersion: v1
 kind: ConfigMap

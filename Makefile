@@ -220,6 +220,17 @@ hailgenetics-vep-grch38-95-image: hail-ubuntu-image
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
+terra-batch-image: batch-image
+	./docker-build.sh . batch/terra-chart/Dockerfile.batch $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat batch-image)
+	echo $(IMAGE_NAME) > $@
+
+terra-batch-worker-image: batch-worker-image
+	$(MAKE) -C hail shadowJar
+	./docker-build.sh . batch/terra-chart/Dockerfile.worker $(IMAGE_NAME) \
+		--build-arg BASE_IMAGE=$(shell cat batch-worker-image)
+	echo $(IMAGE_NAME) > $@
+
 letsencrypt-image:
 	./docker-build.sh letsencrypt Dockerfile $(IMAGE_NAME)
 	echo $(IMAGE_NAME) > $@
