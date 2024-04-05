@@ -1,7 +1,8 @@
-import importlib.resources as r
 import json
+
+from hail import __resource
 
 
 def get_datasets_metadata():
-    with r.files('hail.experimental').joinpath("datasets.json").open('r') as fp:
+    with __resource('experimental/datasets.json').open('r') as fp:
         return json.load(fp)
