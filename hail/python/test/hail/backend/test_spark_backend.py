@@ -26,4 +26,4 @@ def test_copy_spark_log(copy):
     _, filename = os.path.split(hc._log)
     log = os.path.join(hc._tmpdir, filename)
 
-    assert Env.fs().exists(log) if copy else not Env.fs().exists(log)
+    assert Env.fs().exists(log) == copy
