@@ -663,14 +663,14 @@ class GoogleStorageAsyncFS(AsyncFS):
                 errors.append(e)
                 return False
 
-        # async def is_object_hot() -> bool:
-        #     try:
-        #         return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-        #     except aiohttp.ClientResponseError as e:
-        #         errors.append(e)
-        #         return False
-        #     except FileNotFoundError:
-        #         return False
+        async def is_object_hot() -> bool:
+            try:
+                return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+            except aiohttp.ClientResponseError as e:
+                errors.append(e)
+                return False
+            except FileNotFoundError:
+                return False
 
         # async def is_dir_first_object_hot() -> bool:
         #     try:
@@ -685,7 +685,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         #         return False
 
         if location not in self.allowed_storage_locations:
-            is_hot_storage = await is_bucket_hot()  # or (await is_object_hot()) or (await is_dir_first_object_hot())
+            is_hot_storage = await is_bucket_hot() or (await is_object_hot())  # or (await is_dir_first_object_hot())
             if not is_hot_storage:
                 if len(errors) == 0:
                     raise ValueError(
