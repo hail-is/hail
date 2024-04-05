@@ -4,9 +4,11 @@ _VERSION = None
 def version() -> str:
     global _VERSION
     if _VERSION is None:
-        import pkg_resources  # pylint: disable=import-outside-toplevel
+        import importlib.resources as r  # pylint: disable=import-outside-toplevel
 
-        _VERSION = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
+        with r.files(__name__).joinpath('hail_version').open('r') as fp:
+            _VERSION = fp.read().strip()
+
     return _VERSION
 
 

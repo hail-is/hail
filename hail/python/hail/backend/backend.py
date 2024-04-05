@@ -6,11 +6,11 @@ from enum import Enum
 from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
 
 import orjson
-import pkg_resources
 
 from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
+from .. import __resource, __resource_str
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.blockmatrix_type import tblockmatrix
@@ -50,33 +50,22 @@ class LocalJarInformation:
         self.extra_classpath = extra_classpath
 
 
-def resource_exists(f: str) -> bool:
-    return pkg_resources.resource_exists(__name__, f)
-
-
-def resource_filename(f: str) -> str:
-    return pkg_resources.resource_filename(__name__, f)
-
-
 def local_jar_information() -> LocalJarInformation:
-    if resource_exists('hail.jar'):
+    if (hail_jar := __resource('hail.jar')).exists():
         warnings.warn('!!! THIS IS A DEVELOPMENT VERSION OF HAIL !!!')
-        with open(pkg_resources.resource_filename(__name__, 'extra_classpath')) as fobj:
-            return LocalJarInformation(
-                True,
-                resource_filename('hail.jar'),
-                [fobj.read()],
-            )
-    elif resource_exists('hail-all-spark.jar'):
+        return LocalJarInformation(
+            True,
+            str(hail_jar),
+            [__resource_str('extra_classpath')],
+        )
+    elif (hail_all_spark_jar := __resource('hail-all-spark.jar')).exists():
         return LocalJarInformation(
             False,
-            resource_filename("hail-all-spark.jar"),
+            str(hail_all_spark_jar),
             [],
         )
     else:
-        raise ValueError(
-            f'Hail requires either {resource_filename("hail.jar")} or {resource_filename("hail-all-spark.jar")}.'
-        )
+        raise ValueError(f'Hail requires either {hail_jar} or {hail_all_spark_jar}.')
 
 
 class ActionTag(Enum):
