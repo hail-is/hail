@@ -10,7 +10,6 @@ def test_get_fs_by_requester_pays_config(cls):
     config_1 = "foo"
     config_2 = ("foo", ["bar", "baz", "bat"])
     kwargs_1 = {"gcs_requester_pays_configuration": config_1}
-    kwargs_2 = {"gcs_requester_pays_configuration": config_2}
     fses = GCSRequesterPaysFSCache(cls)
     assert fses[None]._gcs_kwargs == {}
     assert fses[config_1]._gcs_kwargs == kwargs_1

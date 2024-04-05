@@ -90,7 +90,7 @@
             {{ job['name'] }}
             {% endif %}
           </td>
-          <td>{{ job['state'] }}</td>
+          <td>{{ job['display_state'] }}</td>
           <td>
             {% if 'exit_code' in job and job['exit_code'] is not none %}
             {{ job['exit_code'] }}

@@ -16,9 +16,8 @@ object Subst {
       case _ =>
         e.mapChildrenWithIndex {
           case (child: IR, i) =>
-            val childEnv = ChildEnvWithoutBindings(e, i, env)
-            val newBindings = NewBindings(e, i, childEnv)
-            subst(child, childEnv.subtract(newBindings))
+            val bindings = Bindings.segregated(e, i, env)
+            subst(child, bindings.childEnvWithoutBindings.subtract(bindings.newBindings))
           case (child, _) => child
         }
     }

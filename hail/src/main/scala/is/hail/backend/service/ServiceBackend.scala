@@ -223,7 +223,6 @@ class ServiceBackend(
         "attributes" -> JObject(
           "name" -> JString(s"${name}_stage${stageCount}_${stageIdentifier}_job$i")
         ),
-        "mount_tokens" -> JBool(true),
         "resources" -> resources,
         "regions" -> JArray(backendContext.regions.map(JString).toList),
         "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map { config =>

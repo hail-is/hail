@@ -5,8 +5,8 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
-  IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader,
-  PartitionZippedNativeReader, ReadPartition, ToStream,
+  flatMapIR, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader,
+  PartitionZippedNativeReader, ReadPartition, Ref, ToStream,
 }
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
@@ -484,48 +484,84 @@ case class IndexedRVDSpec2(
   ): IR => TableStage = newPartitioner match {
     case Some(np) =>
       val part = partitioner(ctx.stateManager)
+      /* ensure the old and new partitioners have the same key, and ensure the new partitioner is
+       * strict */
       val extendedNP = np.extendKey(part.kType)
-      val tmpPartitioner = part.intersect(extendedNP)
 
       assert(key.nonEmpty)
 
-      val rSpec = typedCodecSpec
-      val reader =
-        ir.PartitionNativeReaderIndexed(rSpec, indexSpec, part.kType.fieldNames, uidFieldName)
+      val reader = ir.PartitionNativeReaderIndexed(
+        typedCodecSpec,
+        indexSpec,
+        part.kType.fieldNames,
+        uidFieldName,
+      )
 
-      val absPath = path
-      val partPaths = tmpPartitioner.rangeBounds.map(b => partFiles(part.lowerBoundInterval(b)))
-
-      val kSize = part.kType.size
-      absolutePartPaths(path)
-      assert(tmpPartitioner.rangeBounds.size == partPaths.length)
-      val contextsValues: IndexedSeq[Row] = tmpPartitioner.rangeBounds.map { interval =>
-        val partIdx = part.lowerBoundInterval(interval)
-        val partPath = partFiles(partIdx)
+      def makeCtx(oldPartIdx: Int, newPartIdx: Int): Row = {
+        val oldInterval = part.rangeBounds(oldPartIdx)
+        val partFile = partFiles(oldPartIdx)
+        val intersectionInterval =
+          extendedNP.rangeBounds(newPartIdx)
+            .intersect(extendedNP.kord, oldInterval).get
         Row(
-          partIdx.toLong,
-          s"$absPath/parts/$partPath",
-          s"$absPath/${indexSpec.relPath}/$partPath.idx",
-          RVDPartitioner.intervalToIRRepresentation(interval, kSize),
+          oldPartIdx.toLong,
+          s"$path/parts/$partFile",
+          s"$path/${indexSpec.relPath}/$partFile.idx",
+          RVDPartitioner.intervalToIRRepresentation(intersectionInterval, part.kType.size),
         )
       }
 
-      assert(TArray(reader.contextType).typeCheck(contextsValues))
+      val (nestedContexts, newPartitioner) = if (filterIntervals) {
+        /* We want to filter to intervals in newPartitioner, while preserving the old partitioning,
+         * but dropping any partitions we know would be empty. So we construct a map from old
+         * partitions to the range of overlapping new partitions, dropping any with an empty range. */
+        val contextsAndBounds = for {
+          (oldInterval, oldPartIdx) <- part.rangeBounds.toFastSeq.zipWithIndex
+          overlapRange = extendedNP.queryInterval(oldInterval)
+          if overlapRange.nonEmpty
+        } yield {
+          val ctxs = overlapRange.map(newPartIdx => makeCtx(oldPartIdx, newPartIdx))
+          // the interval spanning all overlapping filter intervals
+          val newInterval = Interval(
+            extendedNP.rangeBounds(overlapRange.head).left,
+            extendedNP.rangeBounds(overlapRange.last).right,
+          )
+          (
+            ctxs,
+            // Shrink oldInterval to the rows filtered to.
+            // By construction we know oldInterval and newInterval overlap
+            oldInterval.intersect(extendedNP.kord, newInterval).get,
+          )
+        }
+        val (nestedContexts, newRangeBounds) = contextsAndBounds.unzip
 
-      val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
+        (nestedContexts, new RVDPartitioner(part.sm, part.kType, newRangeBounds))
+      } else {
+        /* We want to use newPartitioner as the partitioner, dropping any rows not contained in any
+         * new partition. So we construct a map from new partitioner to the range of overlapping old
+         * partitions. */
+        val nestedContexts =
+          extendedNP.rangeBounds.toFastSeq.zipWithIndex.map { case (newInterval, newPartIdx) =>
+            val overlapRange = part.queryInterval(newInterval)
+            overlapRange.map(oldPartIdx => makeCtx(oldPartIdx, newPartIdx))
+          }
 
-      val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType.rowType, reader)
+        (nestedContexts, extendedNP)
+      }
+
+      assert(TArray(TArray(reader.contextType)).typeCheck(nestedContexts))
 
       { (globals: IR) =>
-        val ts = TableStage(
+        TableStage(
           globals,
-          tmpPartitioner,
+          newPartitioner,
           TableStageDependency.none,
-          contexts,
-          body,
+          contexts = ir.ToStream(ir.Literal(TArray(TArray(reader.contextType)), nestedContexts)),
+          body = (ctxs: Ref) =>
+            flatMapIR(ToStream(ctxs, true)) { ctx =>
+              ir.ReadPartition(ctx, requestedType.rowType, reader)
+            },
         )
-        if (filterIntervals) ts.repartitionNoShuffle(ctx, part, dropEmptyPartitions = true)
-        else ts.repartitionNoShuffle(ctx, extendedNP)
       }
 
     case None =>

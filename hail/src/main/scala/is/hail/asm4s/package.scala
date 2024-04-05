@@ -269,7 +269,7 @@ package object asm4s {
 
   implicit def toCodeInt(c: Code[Int]): CodeInt = new CodeInt(c)
 
-  implicit def byteToCodeInt(c: Code[Byte]): Code[Int] = c.asInstanceOf[Code[Int]]
+  implicit def byteToCodeInt(c: Code[Byte]): Code[Int] = coerce(c)
 
   implicit def byteToCodeInt2(c: Code[Byte]): CodeInt = toCodeInt(byteToCodeInt(c))
 

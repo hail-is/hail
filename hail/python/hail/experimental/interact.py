@@ -346,7 +346,7 @@ def append_struct_frames(t, frames):
         frames.append(widgets.HTML('<big>Fields:</big>'))
     acc = widgets.Accordion([recursive_build(x) for x in t.values()])
     for i, (name, fd) in enumerate(t.items()):
-        acc.set_title(i, f'{repr(name)} ({summary_type(fd)})')
+        acc.set_title(i, f'{name!r} ({summary_type(fd)})')
     acc.selected_index = None
     frames.append(acc)
 

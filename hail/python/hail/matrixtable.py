@@ -3375,7 +3375,7 @@ class MatrixTable(ExprContainer):
             itertools.chain(row_exprs.keys(), col_exprs.keys(), entry_exprs.keys(), global_exprs.keys())
         ):
             if field_name in self._fields:
-                raise RuntimeError(f'field {repr(field_name)} already in matrix table, cannot use _annotate_all')
+                raise RuntimeError(f'field {field_name!r} already in matrix table, cannot use _annotate_all')
 
         base, cleanup = self._process_joins(*all_exprs)
         mir = base._mir
@@ -4070,7 +4070,7 @@ class MatrixTable(ExprContainer):
                 other = other.rename(renames)
                 info(
                     'Table.union_cols: renamed the following fields on the right to avoid name conflicts:'
-                    + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items())
+                    + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renames.items())
                 )
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))

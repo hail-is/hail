@@ -290,7 +290,7 @@ def copy_log(path: str) -> None:
         if hadoop_is_dir(path):
             _, tail = os.path.split(log)
             path = os.path.join(path, tail)
-        info(f"copying log to {repr(path)}...")
+        info(f"copying log to {path!r}...")
         hadoop_copy(local_path_uri(log), path)
     except Exception as e:
         sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')

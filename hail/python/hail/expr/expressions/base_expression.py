@@ -80,9 +80,10 @@ class Summary(object):
             for name, v in self.summ_fields.items():
                 summary += f'\n{spacing}  {name.rjust(max_n_len)}: {self.format(v)}'
         for name, field in self.nested.items():
+            _name = name
             if prefix is not None:
-                name = f'{prefix}{name}'
-            summary += field._ascii_string(depth + 1, prefix=name)
+                _name = f'{prefix}{name}'
+            summary += field._ascii_string(depth + 1, prefix=_name)
 
         return summary
 
@@ -102,9 +103,10 @@ class Summary(object):
                 summary += f'<tr><td>{html.escape(name)}</td><td>{html.escape(self.format(v))}</td></tr>'
             summary += '</tbody></table>'
         for name, field in self.nested.items():
+            _name = name
             if prefix is not None:
-                name = f'{prefix}{name}'
-            summary += '<li>' + field._html_string(prefix=name) + '</li>'
+                _name = f'{prefix}{name}'
+            summary += '<li>' + field._html_string(prefix=_name) + '</li>'
         summary += '</ul>'
 
         return summary
@@ -533,15 +535,15 @@ def unify_exprs(*exprs: 'Expression') -> Tuple:
 
     # all types are the same
     if len(types) == 1:
-        return exprs + (True,)
+        return (*exprs, True)
 
     for t in types:
         c = expressions.coercer_from_dtype(t)
         if all(c.can_coerce(e.dtype) for e in exprs):
-            return tuple([c.coerce(e) for e in exprs]) + (True,)
+            return (*tuple([c.coerce(e) for e in exprs]), True)
 
     # cannot coerce all types to the same type
-    return exprs + (False,)
+    return (*exprs, False)
 
 
 class Expression(object):
@@ -617,7 +619,7 @@ class Expression(object):
         )
 
     def __iter__(self):
-        raise ExpressionException(f"{repr(self)} object is not iterable")
+        raise ExpressionException(f"{self!r} object is not iterable")
 
     def _compare_op(self, op, other):
         other = to_expr(other)
@@ -655,7 +657,7 @@ class Expression(object):
     @staticmethod
     def _div_ret_type_f(t):
         assert is_numeric(t)
-        if t == tint32 or t == tint64:
+        if t in {tint32, tint64}:
             return tfloat64
         else:
             # Float64 or Float32
@@ -1240,11 +1242,10 @@ class Expression(object):
         if self in src._fields:
             field_name = src._fields_inverse[self]
             prefix = field_name
+        elif self._ir.is_nested_field:
+            prefix = self._ir.name
         else:
-            if self._ir.is_nested_field:
-                prefix = self._ir.name
-            else:
-                prefix = '<expr>'
+            prefix = '<expr>'
 
         if handler is None:
             handler = hl.utils.default_handler()

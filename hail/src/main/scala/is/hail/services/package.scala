@@ -156,7 +156,8 @@ package object services {
           if e.getMessage != null && e.getMessage.contains("SSL peer shut down incorrectly") =>
         true
       case e: IllegalStateException
-          if e.getMessage.contains("Timeout on blocking read") =>
+          if e.getMessage.contains("Timeout on blocking read") ||
+            e.getMessage.contains("Faulted stream due to underlying sink write failure") =>
         /* Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000
          * NANOSECONDS */
         /* reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123) */

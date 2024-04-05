@@ -2,7 +2,7 @@ import collections
 import itertools
 import pprint
 import shutil
-from typing import Callable, Dict, List, Optional, Sequence, Union, overload
+from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Union, overload
 
 import numpy as np
 import pandas
@@ -120,7 +120,7 @@ def desc(col):
 
 class ExprContainer:
     # this can only grow as big as the object dir, so no need to worry about memory leak
-    _warned_about = set()
+    _warned_about: ClassVar = set()
 
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
@@ -139,8 +139,8 @@ class ExprContainer:
             if key not in ExprContainer._warned_about:
                 ExprContainer._warned_about.add(key)
                 warning(
-                    f"Name collision: field {repr(key)} already in object dict. "
-                    f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]"
+                    f"Name collision: field {key!r} already in object dict. "
+                    f"\n  This field must be referenced with __getitem__ syntax: obj[{key!r}]"
                 )
         else:
             self.__dict__[key] = value
@@ -278,9 +278,7 @@ class GroupedTable(ExprContainer):
             Aggregated table.
         """
         for name, expr in named_exprs.items():
-            analyze(
-                f'GroupedTable.aggregate: ({repr(name)})', expr, self._parent._global_indices, {self._parent._row_axis}
-            )
+            analyze(f'GroupedTable.aggregate: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis})
         if not named_exprs.keys().isdisjoint(set(self._key_expr)):
             intersection = set(named_exprs.keys()) & set(self._key_expr)
             raise ValueError(
@@ -2244,8 +2242,8 @@ class Table(ExprContainer):
                     s += format_line(type_strs[start:end], block_column_width, block_right_align)
                     s += hline
                 for row in rows:
-                    row = row[start:end]
-                    s += format_line(row, block_column_width, block_right_align)
+                    _row = row[start:end]
+                    s += format_line(_row, block_column_width, block_right_align)
                 s += hline
 
             if has_more:
@@ -3401,7 +3399,7 @@ class Table(ExprContainer):
         right: 'Table',
         how='inner',
         _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}',
-        _join_key: int = None,
+        _join_key: Optional[int] = None,
     ) -> 'Table':
         """Join two tables together.
 
@@ -3484,7 +3482,7 @@ class Table(ExprContainer):
             right = right.rename(renames)
             info(
                 'Table.join: renamed the following fields on the right to avoid name conflicts:'
-                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items())
+                + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renames.items())
             )
 
         return Table(ir.TableJoin(self._tir, right._tir, how, _join_key))
@@ -3618,7 +3616,7 @@ class Table(ExprContainer):
             t = t.order_by(*t.key)
 
         def _expand(e):
-            if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
+            if isinstance(e, (CollectionExpression, DictExpression)):
                 return hl.map(lambda x: _expand(x), hl.array(e))
             elif isinstance(e, StructExpression):
                 return hl.struct(**{k: _expand(v) for (k, v) in e.items()})
@@ -3756,17 +3754,18 @@ class Table(ExprContainer):
         """
         lifted_exprs = []
         for e in exprs:
+            _e = e
             sort_type = 'A'
             if isinstance(e, Ascending):
-                e = e.col
+                _e = e.col
             elif isinstance(e, Descending):
-                e = e.col
+                _e = e.col
                 sort_type = 'D'
 
-            if isinstance(e, str):
-                expr = self[e]
+            if isinstance(_e, str):
+                expr = self[_e]
             else:
-                expr = e
+                expr = _e
             lifted_exprs.append((expr, sort_type))
 
         sort_fields = []
@@ -3982,9 +3981,9 @@ class Table(ExprContainer):
         row_field_set = set(self.row)
         for k, v in c.items():
             if k not in row_field_set:
-                raise ValueError(f"'to_matrix_table': field {repr(k)} is not a row field")
+                raise ValueError(f"'to_matrix_table': field {k!r} is not a row field")
             if v > 1:
-                raise ValueError(f"'to_matrix_table': field {repr(k)} appeared in {v} field groups")
+                raise ValueError(f"'to_matrix_table': field {k!r} appeared in {v} field groups")
 
         if len(row_key) == 0:
             raise ValueError("'to_matrix_table': require at least one row key field")

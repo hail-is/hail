@@ -2873,12 +2873,11 @@ class StringExpression(Expression):
                 return self._method('slice', tstr, start, stop)
             else:
                 return self._method('sliceRight', tstr, start)
+        elif stop is not None:
+            stop = to_expr(stop)
+            return self._method('sliceLeft', tstr, stop)
         else:
-            if stop is not None:
-                stop = to_expr(stop)
-                return self._method('sliceLeft', tstr, stop)
-            else:
-                return self
+            return self
 
     def length(self):
         """Returns the length of the string.
@@ -4415,7 +4414,7 @@ class NDArrayExpression(Expression):
             Element-wise result of applying `f` to each index in NDArrays.
         """
 
-        if isinstance(other, list) or isinstance(other, np.ndarray):
+        if isinstance(other, (list, np.ndarray)):
             other = hl.nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
@@ -4471,14 +4470,14 @@ class NDArrayNumericExpression(NDArrayExpression):
     """
 
     def _bin_op_numeric(self, name, other, ret_type_f=None):
-        if isinstance(other, list) or isinstance(other, np.ndarray):
+        if isinstance(other, (list, np.ndarray)):
             other = hl.nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)
         return super(NDArrayNumericExpression, self_broadcast)._bin_op_numeric(name, other_broadcast, ret_type_f)
 
     def _bin_op_numeric_reverse(self, name, other, ret_type_f=None):
-        if isinstance(other, list) or isinstance(other, np.ndarray):
+        if isinstance(other, (list, np.ndarray)):
             other = hl.nd.array(other)
 
         self_broadcast, other_broadcast = self._broadcast_to_same_ndim(other)

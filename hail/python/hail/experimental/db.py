@@ -1,7 +1,7 @@
 import json
 import os
 import warnings
-from typing import Iterable, List, Optional, Set, Tuple, Union
+from typing import ClassVar, Iterable, List, Optional, Set, Tuple, Union
 
 import pkg_resources
 
@@ -303,10 +303,10 @@ class DB:
     >>> db = hl.experimental.DB(region='us-central1', cloud='gcp')
     """
 
-    _valid_key_properties = {'gene', 'unique'}
-    _valid_regions = {'us', 'us-central1', 'europe-west1'}
-    _valid_clouds = {'gcp', 'aws'}
-    _valid_combinations = {('us', 'aws'), ('us-central1', 'gcp'), ('europe-west1', 'gcp')}
+    _valid_key_properties: ClassVar = {'gene', 'unique'}
+    _valid_regions: ClassVar = {'us', 'us-central1', 'europe-west1'}
+    _valid_clouds: ClassVar = {'gcp', 'aws'}
+    _valid_combinations: ClassVar = {('us', 'aws'), ('us-central1', 'gcp'), ('europe-west1', 'gcp')}
 
     def __init__(
         self,
@@ -319,19 +319,19 @@ class DB:
         if region not in DB._valid_regions:
             raise ValueError(
                 f'Specify valid region parameter,'
-                f' received: region={repr(region)}.\n'
+                f' received: region={region!r}.\n'
                 f'Valid regions are {DB._valid_regions}.'
             )
         if cloud not in DB._valid_clouds:
             raise ValueError(
                 f'Specify valid cloud parameter,'
-                f' received: cloud={repr(cloud)}.\n'
+                f' received: cloud={cloud!r}.\n'
                 f'Valid cloud platforms are {DB._valid_clouds}.'
             )
         if (region, cloud) not in DB._valid_combinations:
             raise ValueError(
-                f'The {repr(region)} region is not available for'
-                f' the {repr(cloud)} cloud platform. '
+                f'The {region!r} region is not available for'
+                f' the {cloud!r} cloud platform. '
                 f'Valid region, cloud combinations are'
                 f' {DB._valid_combinations}.'
             )
@@ -350,9 +350,8 @@ class DB:
                 response = retry_response_returning_functions(session.get, url)
                 config = response.json()
             assert isinstance(config, dict)
-        else:
-            if not isinstance(config, dict):
-                raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
+        elif not isinstance(config, dict):
+            raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
         config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
         self.cloud = cloud

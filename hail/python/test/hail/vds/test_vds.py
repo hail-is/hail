@@ -56,6 +56,12 @@ def test_validate():
             vds.variant_data,
         ).validate()
 
+    with pytest.raises(ValueError):
+        hl.vds.VariantDataset(
+            vds.reference_data.annotate_entries(END=vds.reference_data.END + 1),
+            vds.variant_data,
+        ).validate()
+
 
 @qobtest
 def test_multi_write():
@@ -630,7 +636,7 @@ def test_to_dense_mt():
         hl.dict(hl.zip(hl.agg.collect((hl.str(dense.locus), dense.s)), hl.agg.collect(dense.entry)))
     )
 
-    assert as_dict.get(('chr22:10514784', 'NA12891')) == None
+    assert as_dict.get(('chr22:10514784', 'NA12891')) is None
     assert as_dict.get(('chr22:10514784', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=23, DP=4)
 
     assert as_dict.get(('chr22:10516102', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=12, DP=7)
@@ -640,7 +646,7 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10516150', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=10)
 
     assert as_dict.get(('chr22:10519088', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=21)
-    assert as_dict.get(('chr22:10519088', 'NA12878')) == None
+    assert as_dict.get(('chr22:10519088', 'NA12878')) is None
 
     assert as_dict.get(('chr22:10557694', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=28, DP=19)
     assert as_dict.get(('chr22:10557694', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=13, DP=16)
