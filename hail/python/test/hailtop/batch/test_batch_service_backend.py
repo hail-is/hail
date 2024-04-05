@@ -749,9 +749,11 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
         _test_raises(ValueError, cold_error, func)
 
     def _with_temp_fs(func):
-        fs = RouterAsyncFS()
-        func(fs)
-        async_to_blocking(fs.close())
+        async def inner():
+            async with RouterAsyncFS() as fs:
+                func(fs)
+
+        async_to_blocking(inner())
 
     # no configuration, nonexistent buckets error
     _test_raises_no_bucket_error(fake_uri1)

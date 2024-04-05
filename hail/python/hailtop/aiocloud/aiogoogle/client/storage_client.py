@@ -663,30 +663,29 @@ class GoogleStorageAsyncFS(AsyncFS):
                 errors.append(e)
                 return False
 
-        async def is_object_hot() -> bool:
-            try:
-                return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-            except aiohttp.ClientResponseError as e:
-                errors.append(e)
-                return False
-            except FileNotFoundError:
-                return False
+        # async def is_object_hot() -> bool:
+        #     try:
+        #         return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+        #     except aiohttp.ClientResponseError as e:
+        #         errors.append(e)
+        #         return False
+        #     except FileNotFoundError:
+        #         return False
 
-        async def is_dir_first_object_hot() -> bool:
-            try:
-                files = await self.listfiles(uri, recursive=True)
-                next_file = await files.__anext__()
-                while await next_file.is_dir():
-                    next_file = await files.__anext__()
-                return await self.is_hot_storage(await next_file.url())
-            except aiohttp.ClientResponseError as e:
-                errors.append(e)
-                return False
-            except (FileNotFoundError, StopAsyncIteration):
-                return False
+        # async def is_dir_first_object_hot() -> bool:
+        #     try:
+        #         async for entry in await self.listfiles(uri, recursive=True):
+        #             if await entry.is_file():
+        #                 return await self.is_hot_storage(await entry.url())
+        #         return False
+        #     except aiohttp.ClientResponseError as e:
+        #         errors.append(e)
+        #         return False
+        #     except (FileNotFoundError, StopAsyncIteration):
+        #         return False
 
         if location not in self.allowed_storage_locations:
-            is_hot_storage = (await is_bucket_hot()) or (await is_object_hot()) or (await is_dir_first_object_hot())
+            is_hot_storage = await is_bucket_hot()  # or (await is_object_hot()) or (await is_dir_first_object_hot())
             if not is_hot_storage:
                 if len(errors) == 0:
                     raise ValueError(
