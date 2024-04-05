@@ -493,10 +493,12 @@ object TypeCheck {
       case _: SerializeAggs =>
       case _: DeserializeAggs =>
       case x @ ApplyAggOp(initOpArgs, seqOpArgs, aggSig) =>
+        assert(env.agg.nonEmpty)
         assert(x.typ == aggSig.returnType)
         assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })
         assert(seqOpArgs.map(_.typ).zip(aggSig.seqOpArgs).forall { case (l, r) => l == r })
       case x @ ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+        assert(env.scan.nonEmpty)
         assert(x.typ == aggSig.returnType)
         assert(initOpArgs.map(_.typ).zip(aggSig.initOpArgs).forall { case (l, r) => l == r })
         assert(seqOpArgs.map(_.typ).zip(aggSig.seqOpArgs).forall { case (l, r) => l == r })

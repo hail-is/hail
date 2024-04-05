@@ -20,6 +20,8 @@ trait GenericBindingEnv[Self, V] {
 
   def bindEval(bindings: (String, V)*): Self
 
+  def bindEvalAndAggScan(bindings: (String, V)*): Self
+
   def dropEval: Self
 
   def bindAgg(bindings: (String, V)*): Self
@@ -30,7 +32,7 @@ trait GenericBindingEnv[Self, V] {
     if (isScan) bindScan(bindings: _*) else bindAgg(bindings: _*)
 
   def bindInScope(name: String, v: V, scope: Int): Self = scope match {
-    case Scope.EVAL => bindEval(name -> v)
+    case Scope.EVAL => bindEvalAndAggScan(name -> v)
     case Scope.AGG => bindAgg(name -> v)
     case Scope.SCAN => bindScan(name -> v)
   }
@@ -45,6 +47,10 @@ trait GenericBindingEnv[Self, V] {
   def noAgg: Self
 
   def noScan: Self
+
+  def emptyAgg: Self
+
+  def emptyScan: Self
 
   def noAggOrScan(isScan: Boolean): Self = if (isScan) noScan else noAgg
 
@@ -83,11 +89,15 @@ case class BindingEnv[V](
 
   def noScan: BindingEnv[V] = copy(scan = None)
 
+  def emptyAgg: BindingEnv[V] = copy(agg = agg.map(_ => Env.empty))
+
+  def emptyScan: BindingEnv[V] = copy(scan = scan.map(_ => Env.empty))
+
   def createAgg: BindingEnv[V] =
-    copy(agg = Some(eval), scan = scan.map(_ => Env.empty))
+    copy(agg = Some(eval))
 
   def createScan: BindingEnv[V] =
-    copy(scan = Some(eval), agg = agg.map(_ => Env.empty))
+    copy(scan = Some(eval))
 
   def onlyRelational(keepAggCapabilities: Boolean = false): BindingEnv[V] =
     BindingEnv(
@@ -100,7 +110,14 @@ case class BindingEnv[V](
     copy(eval = eval.bind(name, v))
 
   def bindEval(bindings: (String, V)*): BindingEnv[V] =
-    copy(eval = eval.bindIterable(bindings))
+    copy(eval = eval.bindIterable(bindings), agg = None, scan = None)
+
+  def bindEvalAndAggScan(bindings: (String, V)*): BindingEnv[V] =
+    copy(
+      eval = eval.bindIterable(bindings),
+      agg = agg.map(_.bindIterable(bindings)),
+      scan = scan.map(_.bindIterable(bindings)),
+    )
 
   def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
   def deleteEval(names: IndexedSeq[String]): BindingEnv[V] = copy(eval = eval.delete(names))

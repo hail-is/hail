@@ -2734,7 +2734,7 @@ object PruneDeadFields {
         val aEnv = if (isScan) env.promoteScan else env.promoteAgg
         val a2 = rebuildIR(ctx, a, aEnv, memo)
         val a2t = TIterable.elementType(a2.typ)
-        val env_ = env.bindEval(indexName -> TInt32)
+        val env_ = env.bindEvalAndAggScan(indexName -> TInt32)
         val aggBody2 = rebuildIR(
           ctx,
           aggBody,
