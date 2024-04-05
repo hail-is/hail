@@ -226,7 +226,7 @@ terra-batch-image: batch-image
 	echo $(IMAGE_NAME) > $@
 
 terra-batch-worker-image: batch-worker-image
-	$(MAKE) -C hail shadowJar
+	$(MAKE) -C hail shadowJar HAIL_RELEASE_MODE=1
 	./docker-build.sh . batch/terra-chart/Dockerfile.worker $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat batch-worker-image)
 	echo $(IMAGE_NAME) > $@
