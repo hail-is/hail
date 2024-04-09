@@ -68,7 +68,8 @@ abstract class BaseIR {
       f(child, childEnv)
     }
 
-  def mapChildrenWithEnv[E <: GenericBindingEnv[E, Type]](env: E)(f: (BaseIR, E) => BaseIR): BaseIR = {
+  def mapChildrenWithEnv[E <: GenericBindingEnv[E, Type]](env: E)(f: (BaseIR, E) => BaseIR)
+    : BaseIR = {
     val newChildren = childrenSeq.toArray
     var res = this
     for (i <- newChildren.indices) {
