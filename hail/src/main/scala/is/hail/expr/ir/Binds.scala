@@ -256,10 +256,18 @@ object Bindings {
 
   private def childEnvValue[E <: GenericBindingEnv[E, Type]](ir: IR, i: Int, baseEnv: E): E =
     ir match {
-      case Let(bindings, _) =>
-        val result = Array.ofDim[(String, Type)](i)
-        for (k <- 0 until i) result(k) = bindings(k)._1 -> bindings(k)._2.typ
-        baseEnv.bindEval(result: _*)
+      case Block(bindings, _) =>
+        var env = baseEnv
+        for (k <- 0 until i) bindings(k) match {
+          case Binding(name, value, scope) =>
+            env = env.bindInScope(name, value.typ, scope)
+        }
+        if (i < bindings.length) bindings(i).scope match {
+          case Scope.EVAL => env
+          case Scope.AGG => env.promoteAgg
+          case Scope.SCAN => env.promoteScan
+        }
+        else env
       case TailLoop(name, args, resultType, _) if i == args.length =>
         baseEnv
           .bindEval(args.map { case (name, ir) => name -> ir.typ }: _*)
@@ -385,9 +393,6 @@ object Bindings {
       case ApplyScanOp(init, _, _) =>
         if (i < init.length) baseEnv.noScan
         else baseEnv.promoteScan
-      case AggLet(name, value, _, isScan) =>
-        if (i == 0) baseEnv.promoteAggOrScan(isScan)
-        else baseEnv.bindAggOrScan(isScan, name -> value.typ)
       case AggFilter(_, _, isScan) if i == 0 =>
         baseEnv.promoteAggOrScan(isScan)
       case AggGroupBy(_, _, isScan) if i == 0 =>
