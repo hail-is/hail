@@ -52,6 +52,24 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.130
+
+Released 2024-09-02
+
+0.2.129 contained test configuration artifacts that prevented users from
+starting dataproc clusters with `hailctl`. Please upgrade to 0.2.130 if you use
+dataproc.
+
+### New Features
+
+- (hail##14447) Added `copy_spark_log_on_error` initialization flag that when set,
+  copies the hail driver log to the remote `tmpdir` if query execution raises an
+  exception.
+
+### Bug Fixes
+
+- (hail#14452) Fixes a bug that prevents users from starting dataproc clusters with
+  hailctl
 
 ## Version 0.2.129
 
