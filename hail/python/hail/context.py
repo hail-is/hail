@@ -615,14 +615,6 @@ def init_local(
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
-    (
-        gcs_requester_pays_project,
-        gcs_requester_pays_buckets,
-    ) = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
-        get_gcs_requester_pays_configuration(
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-        )
-    )
     backend = LocalBackend(
         tmpdir,
         log,
@@ -632,8 +624,7 @@ def init_local(
         skip_logging_configuration,
         optimizer_iterations,
         jvm_heap_size,
-        gcs_requester_pays_project=gcs_requester_pays_project,
-        gcs_requester_pays_buckets=gcs_requester_pays_buckets,
+        gcs_requester_pays_configuration,
     )
 
     if not backend.fs.exists(tmpdir):
