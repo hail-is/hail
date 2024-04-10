@@ -54,7 +54,7 @@ critically depend on experimental functionality.**
 
 ## Version 0.2.130
 
-Released 2024-09-02
+Released 2024-10-02
 
 0.2.129 contained test configuration artifacts that prevented users from
 starting dataproc clusters with `hailctl`. Please upgrade to 0.2.130 if you use
