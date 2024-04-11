@@ -1197,7 +1197,6 @@ steps:
       mkdir -p /io/tmp
 
       # The test should use the test credentials, not CI's credentials
-      sed -i 's/gsa-key/test-gsa-key/g' ${SPARK_HOME}/conf/core-site.xml
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
 
@@ -3321,7 +3320,6 @@ steps:
 
       cd /io/repo/hail
       export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
-      export WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl"
 
       if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
@@ -3330,11 +3328,15 @@ steps:
           exit 0
       fi
 
-      make upload-artifacts DEPLOY_REMOTE=origin --assume-old=$WHEEL
+      # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
+      # use `assume-old` to prevent `mill` from rebuilding the "SHADOW_JAR"
+      make upload-artifacts DEPLOY_REMOTE=origin \
+        --assume-old=out/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
       HAIL_VERSION=$(cat /io/hail_version) \
+      WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl" \
       GIT_VERSION=$(cat /io/git_version) \
       REMOTE=origin \
       GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
@@ -3358,8 +3360,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
-      - from: /wheel
-        to: /io/repo/hail/build/deploy/dist
+      - from: /hail.jar
+        to: /io/repo/hail/out/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz

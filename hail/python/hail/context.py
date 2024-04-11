@@ -185,6 +185,7 @@ class HailContext(object):
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(dictof(str, sequenceof(str))),
+    copy_spark_log_on_error=nullable(bool),
 )
 def init(
     sc=None,
@@ -213,6 +214,7 @@ def init(
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[Dict[str, List[str]]] = None,
+    copy_spark_log_on_error: bool = False,
 ):
     """Initialize and configure Hail.
 
@@ -334,6 +336,8 @@ def init(
     gcs_bucket_allow_list:
         A list of buckets that Hail should be permitted to read from or write to, even if their default policy is to
         use "cold" storage. Should look like ``["bucket1", "bucket2"]``.
+    copy_spark_log_on_error: :class:`bool`, optional
+        Spark backend only. If `True`, copy the log from the spark driver node to `tmp_dir` on error.
     """
     if Env._hc:
         if idempotent:
@@ -402,6 +406,7 @@ def init(
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
+            copy_log_on_error=copy_spark_log_on_error,
         )
     if backend == 'local':
         return init_local(
@@ -436,6 +441,7 @@ def init(
     local_tmpdir=nullable(str),
     _optimizer_iterations=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
+    copy_log_on_error=nullable(bool),
 )
 def init_spark(
     sc=None,
@@ -456,6 +462,7 @@ def init_spark(
     local_tmpdir=None,
     _optimizer_iterations=None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    copy_log_on_error: bool = False,
 ):
     from hail.backend.py4j_backend import connect_logger
     from hail.backend.spark_backend import SparkBackend
@@ -492,6 +499,7 @@ def init_spark(
         optimizer_iterations,
         gcs_requester_pays_project=gcs_requester_pays_project,
         gcs_requester_pays_buckets=gcs_requester_pays_buckets,
+        copy_log_on_error=copy_log_on_error,
     )
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
@@ -607,14 +615,6 @@ def init_local(
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     jvm_heap_size = get_env_or_default(jvm_heap_size, 'HAIL_LOCAL_BACKEND_HEAP_SIZE', None)
-    (
-        gcs_requester_pays_project,
-        gcs_requester_pays_buckets,
-    ) = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
-        get_gcs_requester_pays_configuration(
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-        )
-    )
     backend = LocalBackend(
         tmpdir,
         log,
@@ -624,8 +624,7 @@ def init_local(
         skip_logging_configuration,
         optimizer_iterations,
         jvm_heap_size,
-        gcs_requester_pays_project=gcs_requester_pays_project,
-        gcs_requester_pays_buckets=gcs_requester_pays_buckets,
+        gcs_requester_pays_configuration,
     )
 
     if not backend.fs.exists(tmpdir):
