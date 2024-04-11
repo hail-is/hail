@@ -7,7 +7,6 @@ from types import TracebackType
 from typing import Dict, List, Optional, Tuple, Type, Union
 from urllib.parse import urlparse, urlunparse
 
-import pkg_resources
 from pyspark import SparkContext
 
 import hail
@@ -21,6 +20,7 @@ from hailtop.fs.fs import FS
 from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
 
+from . import __resource_str
 from .backend.backend import local_jar_information
 from .builtin_references import BUILTIN_REFERENCES
 
@@ -643,8 +643,8 @@ def version() -> str:
     str
     """
     if hail.__version__ is None:
-        # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
-        hail.__version__ = pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
+        hail.__version__ = __resource_str('hail_version').strip()
+
     return hail.__version__
 
 
@@ -656,8 +656,8 @@ def revision() -> str:
     str
     """
     if hail.__revision__ is None:
-        # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
-        hail.__revision__ = pkg_resources.resource_string(__name__, 'hail_revision').decode().strip()
+        hail.__revision__ = __resource_str('hail_revision').strip()
+
     return hail.__revision__
 
 

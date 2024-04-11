@@ -1,9 +1,5 @@
-import json
-import os
 import warnings
 from typing import ClassVar, Iterable, List, Optional, Set, Tuple, Union
-
-import pkg_resources
 
 import hail as hl
 from hailtop.utils import external_requests_client_session, retry_response_returning_functions
@@ -13,6 +9,7 @@ from ..matrixtable import MatrixTable, matrix_table_type
 from ..table import Table, table_type
 from ..typecheck import oneof, typecheck_method
 from ..utils.java import Env, info
+from .datasets_metadata import get_datasets_metadata
 from .lens import MatrixRows, TableRows
 
 
@@ -341,10 +338,7 @@ class DB:
             )
         if config is None:
             if url is None:
-                config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
-                assert os.path.exists(config_path), f'{config_path} does not exist'
-                with open(config_path) as f:
-                    config = json.load(f)
+                config = get_datasets_metadata()
             else:
                 session = external_requests_client_session()
                 response = retry_response_returning_functions(session.get, url)
