@@ -531,7 +531,6 @@ clean: clean-env clean-libs native-lib-clean mill-clean
 	rm -rf $(SCALA_BUILD_INFO)
 	rm -rf $(PYTHON_VERSION_INFO)
 	rm -rf python/hail/docs/change_log.rst
-	rm -rf src/main/resources/build-info.properties
 
 .PHONY: update-hail-repl
 update-hail-repl: NAMESPACE ?= default
