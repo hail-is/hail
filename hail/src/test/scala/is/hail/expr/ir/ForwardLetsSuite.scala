@@ -5,9 +5,6 @@ import is.hail.TestUtils._
 import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.utils._
-
-import org.scalatest.AppendedClues.convertToClueful
-import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {
@@ -256,7 +253,7 @@ class ForwardLetsSuite extends HailSuite {
     val result = ForwardLets(ctx)(input)
     assert(
       result == expected,
-      s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}",
+      s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",
     )
   }
 
