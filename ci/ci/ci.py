@@ -747,7 +747,7 @@ async def update_loop(app: web.Application):
         except Exception:  # pylint: disable=broad-except
             if wb:
                 log.exception(f'{wb.branch.short_str()} update failed due to exception')
-        await asyncio.sleep(300)
+        await asyncio.sleep(60)
 
 
 class AppKeys(CommonAiohttpAppKeys):
