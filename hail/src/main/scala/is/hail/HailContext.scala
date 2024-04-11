@@ -76,16 +76,15 @@ object HailContext {
     val javaVersion = raw"(\d+)\.(\d+)\.(\d+).*".r
     val versionString = System.getProperty("java.version")
     versionString match {
-      // old-style version: 1.MAJOR.MINOR
-      // new-style version: MAJOR.MINOR.SECURITY (started in JRE 9)
+      // old-style version: 1.MAJOR.MINOR (before JRE 9)
+      // new-style version: MAJOR.MINOR.SECURITY (starting with JRE 9)
       /* see:
        * https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB */
-      case javaVersion("1", major, _) =>
-        if (major.toInt < 8)
-          fatal(s"Hail requires Java 1.8, found $versionString")
+      case javaVersion("1", _, _) =>
+        warn(s"Hail is tested against Java 11, found Java $versionString")
       case javaVersion(major, _, _) =>
         if (major.toInt != 11)
-          fatal(s"Hail requires Java 8 or 11, found $versionString")
+          warn(s"Hail is tested against Java 11, found $versionString")
       case _ =>
         fatal(s"Unknown JVM version string: $versionString")
     }

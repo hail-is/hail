@@ -129,7 +129,7 @@ VEP_SUPPORTED_REGIONS = {'us-central1', 'europe-west1', 'europe-west2', 'austral
 
 ANNOTATION_DB_BUCKETS = ["hail-datasets-us-central1", "hail-datasets-europe-west1"]
 
-IMAGE_VERSION = '2.1.33-debian11'
+IMAGE_VERSION = '2.2.5-debian12'
 
 
 def start(

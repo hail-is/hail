@@ -14,7 +14,7 @@ $(error "git rev-parse --abbrev-ref HEAD" failed to produce output)
 endif
 
 SCALA_VERSION ?= 2.12.18
-SPARK_VERSION ?= 3.3.2
+SPARK_VERSION ?= 3.5.0
 HAIL_MAJOR_MINOR_VERSION := 0.2
 HAIL_PATCH_VERSION := 130
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
