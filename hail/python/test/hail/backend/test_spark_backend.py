@@ -27,3 +27,18 @@ def test_copy_spark_log(copy):
     log = os.path.join(hc._tmpdir, filename)
 
     assert Env.fs().exists(log) == copy
+
+
+@skip_unless_spark_backend()
+def test_idempotent_init():
+    """
+    Simulate sharing a spark context across notebook sessions.
+    The first notebook successfully initialised hail.
+    The second re-uses the same context and calls init with idempotent=True
+    """
+
+    from hail.utils.java import Env
+
+    sc = Env.backend().sc
+    Env._hc = None  # please don't do this!
+    hl.init(sc, idempotent=True)
