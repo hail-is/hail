@@ -135,7 +135,7 @@ httpx==0.27.0
     # via jupyterlab
 identify==2.5.35
     # via pre-commit
-idna==3.6
+idna==3.7
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   anyio
