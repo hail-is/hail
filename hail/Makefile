@@ -281,7 +281,7 @@ wheel: $(WHEEL)
 
 $(WHEEL): copy-py-files
 	# Clear the bdist build cache before building the wheel
-	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
+	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) -m build -w
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
