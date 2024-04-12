@@ -34,7 +34,7 @@ distro==1.9.0
     # via zulip
 gidgethub==5.3.0
     # via -r hail/ci/requirements.txt
-idna==3.6
+idna==3.7
     # via
     #   -c hail/ci/../gear/pinned-requirements.txt
     #   -c hail/ci/../hail/python/dev/pinned-requirements.txt
