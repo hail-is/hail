@@ -74,7 +74,7 @@ google-auth-oauthlib==0.8.0
     # via -r hail/hail/python/hailtop/requirements.txt
 humanize==1.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
-idna==3.6
+idna==3.7
     # via
     #   requests
     #   yarl
