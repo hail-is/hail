@@ -7,7 +7,7 @@ import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
 
 import org.apache.spark.sql.Row
-import org.scalatest.Matchers.{be, convertToAnyShouldWrapper}
+import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class SimplifySuite extends HailSuite {
