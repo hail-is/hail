@@ -82,7 +82,7 @@ httplib2==0.22.0
     # via
     #   google-api-python-client
     #   google-auth-httplib2
-idna==3.6
+idna==3.7
     # via
     #   -c hail/gear/../hail/python/dev/pinned-requirements.txt
     #   -c hail/gear/../hail/python/hailtop/pinned-requirements.txt

@@ -47,7 +47,7 @@ frozenlist==1.4.1
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.6
+idna==3.7
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
