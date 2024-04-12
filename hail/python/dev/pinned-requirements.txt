@@ -590,7 +590,7 @@ yarl==1.9.4
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
     #   aiohttp
-zipp==3.17.0
+zipp==3.18.1
     # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
