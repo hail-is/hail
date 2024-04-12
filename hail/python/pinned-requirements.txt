@@ -223,7 +223,7 @@ pyasn1==0.5.1
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   pyasn1-modules
     #   rsa
-pyasn1-modules==0.3.0
+pyasn1-modules==0.4.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   google-auth
