@@ -37,8 +37,14 @@ def test_idempotent_init():
     The second re-uses the same context and calls init with idempotent=True
     """
 
+    from hail.backend.py4j_backend import uninstall_exception_handler
     from hail.utils.java import Env
 
     sc = Env.backend().sc
-    Env._hc = None  # please don't do this!
+
+    # Setup globals to simulate new notebook session
+    # please don't do this!
+    Env._hc = None
+    uninstall_exception_handler()
+
     hl.init(sc, idempotent=True)
