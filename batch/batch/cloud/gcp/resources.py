@@ -11,6 +11,7 @@ from ...resources import (
     ServiceFeeResourceMixin,
     StaticSizedDiskResourceMixin,
     VMResourceMixin,
+    AccleratorResourceMixin,
 )
 
 
@@ -201,6 +202,40 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
     def to_dict(self) -> dict:
         return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
+class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
+    FORMAT_VERSION = 1
+    TYPE = 'gcp_accelerator'
+
+    @staticmethod
+    def product_name(accelerator_family: str, preemptible: bool, region: str) -> str:
+        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'accelerator/{accelerator_family}-{preemptible_str}/{region}'
+
+    @staticmethod
+    def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResourceV2':
+        assert data['type'] == GCPAcceleratorResourceV2.TYPE
+        return GCPAcceleratorResourceV2(data['name'])
+
+    @staticmethod
+    def create(
+        product_versions: ProductVersions,
+        accelerator_family: str,
+        preemptible: bool,
+        region: str,
+        num_gpus: int
+    ) -> 'GCPAcceleratorResourceV2':
+        product = GCPAcceleratorResourceV2.product_name(accelerator_family, preemptible, region)
+        name = product_versions.resource_name(product)
+        assert name, product
+        return GCPAcceleratorResourceV2(name, num_gpus)
+
+    def __init__(self, name: str, number: int):
+        self.name = name
+        self.number = number
+
+    def to_dict(self) -> dict:
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
+
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):
     FORMAT_VERSION = 1
@@ -342,6 +377,8 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPServiceFeeResource.from_dict(data)
     if typ == GCPAcceleratorResource.TYPE:
         return GCPAcceleratorResource.from_dict(data)
+    if typ == GCPAcceleratorResourceV2.TYPE:
+        return GCPAcceleratorResourceV2.from_dict(data)
     if typ == GCPIPFeeResource.TYPE:
         return GCPIPFeeResource.from_dict(data)
     assert typ == GCPSupportLogsSpecsAndFirewallFees.TYPE, typ

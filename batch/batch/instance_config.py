@@ -52,7 +52,8 @@ class InstanceConfig(abc.ABC):
     ) -> List[QuantifiedResource]:
         assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
         assert isinstance(extra_storage_in_gib, int), extra_storage_in_gib
-        assert is_power_two(self.cores) and self.cores <= 256, self.cores
+        if not self.job_private:
+            assert is_power_two(self.cores) and self.cores <= 256, self.cores
 
         # FIXME: Only valid up to cores = 64
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)

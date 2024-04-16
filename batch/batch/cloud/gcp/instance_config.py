@@ -2,9 +2,10 @@ from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import gcp_machine_type_to_parts, machine_family_to_gpu
+from .resource_utils import gcp_machine_type_to_parts, machine_family_to_gpu, machine_type_to_gpu_num
 from .resources import (
     GCPAcceleratorResource,
+    GCPAcceleratorResourceV2,
     GCPComputeResource,
     GCPDynamicSizedDiskResource,
     GCPIPFeeResource,
@@ -63,8 +64,12 @@ class GCPSlimInstanceConfig(InstanceConfig):
         ]
 
         accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
+        num_gpus = machine_type_to_gpu_num(machine_type)
+
         if accelerator_family:
-            resources.append(GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region))
+            assert num_gpus
+            #resources.append(GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region))
+            resources.append(GCPAcceleratorResourceV2.create(product_versions, accelerator_family, preemptible, region, num_gpus))
 
         return GCPSlimInstanceConfig(
             machine_type=machine_type,

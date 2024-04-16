@@ -10,6 +10,15 @@ GCP_MACHINE_FAMILY = 'n1'
 
 MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
 
+SINGLE_GPU_MACHINES = ['g2-standard-4','g2-standard-8','g2-standard-12','g2-standard-16','g2-standard-32']
+
+TWO_GPU_MACHINES = ['g2-standard-24',]
+
+FOUR_GPU_MACHINES = ['g2-standard-48',]
+
+EIGHT_GPU_MACHINES = ['g2-standard-96',]
+
+
 gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
@@ -17,7 +26,7 @@ gcp_valid_cores_from_worker_type = {
 }
 
 
-gcp_valid_machine_types = ['g2-standard-4']
+gcp_valid_machine_types = SINGLE_GPU_MACHINES + TWO_GPU_MACHINES + FOUR_GPU_MACHINES + EIGHT_GPU_MACHINES
 for typ in ('highcpu', 'standard', 'highmem'):
     possible_cores = gcp_valid_cores_from_worker_type[typ]
     for cores in possible_cores:
@@ -129,3 +138,13 @@ def machine_family_to_gpu(machine_family: str) -> Optional[str]:
 
 def is_gpu(machine_family: str) -> bool:
     return machine_family_to_gpu(machine_family) is not None
+
+def machine_type_to_gpu_num(machine_type: str) -> int:
+    if machine_type in SINGLE_GPU_MACHINES:
+        return 1
+    elif machine_type in TWO_GPU_MACHINES:
+        return 2
+    elif machine_type in FOUR_GPU_MACHINES:
+        return 4
+    elif machine_type in EIGHT_GPU_MACHINES:
+        return 8
