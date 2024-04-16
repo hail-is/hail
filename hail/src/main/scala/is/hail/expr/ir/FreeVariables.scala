@@ -4,7 +4,7 @@ import is.hail.types.virtual.Type
 
 import scala.collection.mutable
 
-class FreeVariableEnv(boundVars: Env[Unit], freeVars: mutable.Set[String]) {
+case class FreeVariableEnv(boundVars: Env[Unit], freeVars: mutable.Set[String]) {
   def this(boundVars: Env[Unit]) =
     this(boundVars, mutable.Set.empty)
 
@@ -26,6 +26,34 @@ case class FreeVariableBindingEnv(
   aggVars: Option[FreeVariableEnv],
   scanVars: Option[FreeVariableEnv],
 ) extends GenericBindingEnv[FreeVariableBindingEnv, Type] {
+  def newBlock(
+    eval: Seq[(String, Type)],
+    agg: AggEnv[Type],
+    scan: AggEnv[Type],
+    relational: Seq[(String, Type)],
+    dropEval: Boolean,
+  ): FreeVariableBindingEnv = {
+    var newEnv = this
+    if (dropEval) newEnv = newEnv.noEval
+    agg match {
+      case AggEnv.Drop => newEnv = newEnv.noAgg
+      case AggEnv.Promote => newEnv = newEnv.promoteAgg
+      case AggEnv.Create(bindings) => newEnv = newEnv.createAgg.bindAgg(bindings: _*)
+      case AggEnv.Bind(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
+      case _ =>
+    }
+    scan match {
+      case AggEnv.Drop => newEnv = newEnv.noScan
+      case AggEnv.Promote => newEnv = newEnv.promoteScan
+      case AggEnv.Create(bindings) => newEnv = newEnv.createScan.bindScan(bindings: _*)
+      case AggEnv.Bind(bindings) => newEnv = newEnv.bindScan(bindings: _*)
+      case _ =>
+    }
+    if (eval.nonEmpty) newEnv = newEnv.bindEval(eval: _*)
+    if (relational.nonEmpty) newEnv = newEnv.bindRelational(relational: _*)
+    newEnv
+  }
+
   def visitRef(name: String): Unit =
     evalVars.foreach(_.visitRef(name))
 
@@ -44,7 +72,7 @@ case class FreeVariableBindingEnv(
   override def bindEval(bindings: (String, Type)*): FreeVariableBindingEnv =
     copy(evalVars = evalVars.map(_.bindIterable(bindings)))
 
-  override def dropEval: FreeVariableBindingEnv = copy(evalVars = None)
+  override def noEval: FreeVariableBindingEnv = copy(evalVars = None)
 
   override def bindAgg(bindings: (String, Type)*): FreeVariableBindingEnv =
     copy(aggVars = aggVars.map(_.bindIterable(bindings)))
