@@ -4432,6 +4432,40 @@ class IRSuite extends HailSuite {
     assert(!HasIRSharing(ctx)(ir1.deepCopy()))
   }
 
+  @Test def freeVariables(): Unit = {
+    val stream = rangeIR(5)
+    val sumSig = AggSignature(Sum(), IndexedSeq(), IndexedSeq(TInt32))
+    val x = Ref("x", TInt32)
+    val y = Ref("y", TInt32)
+    val z = Ref("z", TInt32)
+    val explodeIR = AggExplode(
+      stream,
+      "x",
+      z + ApplyAggOp(FastSeq.empty, FastSeq(x + y), sumSig),
+      false,
+    )
+
+    assert(FreeVariables(explodeIR, true, true) == BindingEnv[Unit](
+      Env(("z", ())),
+      Some(Env(("y", ()))),
+      Some(Env()),
+    ))
+    assert(FreeVariables(explodeIR, false, false) == BindingEnv[Unit](Env(("z", ()))))
+
+    val streamAggIR = StreamAgg(
+      stream,
+      "x",
+      z + ApplyAggOp(FastSeq.empty, FastSeq(x + y), sumSig),
+    )
+    assert(
+      FreeVariables(streamAggIR, true, true) == BindingEnv[Unit](
+        Env(("z", ()), ("y", ())),
+        Some(Env()),
+        Some(Env()),
+      )
+    )
+  }
+
   @Test def freeVariablesAggScanBindingEnv(): Unit = {
     def testFreeVarsHelper(ir: IR): Unit = {
       val irFreeVarsTrue = FreeVariables.apply(ir, true, true)
@@ -4440,9 +4474,6 @@ class IRSuite extends HailSuite {
       val irFreeVarsFalse = FreeVariables.apply(ir, false, false)
       assert(irFreeVarsFalse.agg.isEmpty && irFreeVarsFalse.scan.isEmpty)
     }
-
-    val liftIR = LiftMeOut(Ref("x", TInt32))
-    testFreeVarsHelper(liftIR)
 
     val sumSig = AggSignature(Sum(), IndexedSeq(), IndexedSeq(TInt64))
     val streamAggIR = StreamAgg(

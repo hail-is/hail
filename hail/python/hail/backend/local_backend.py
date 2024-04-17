@@ -1,3 +1,5 @@
+import glob
+import logging
 import os
 import sys
 from contextlib import ExitStack
@@ -16,6 +18,8 @@ from ..expr import Expression
 from ..expr.types import HailType
 from .backend import local_jar_information
 from .py4j_backend import Py4JBackend, uninstall_exception_handler
+
+log = logging.getLogger('hail.backend')
 
 
 class LocalBackend(Py4JBackend):
@@ -49,12 +53,18 @@ class LocalBackend(Py4JBackend):
         if jvm_heap_size is not None:
             jvm_opts.append(f'-Xmx{jvm_heap_size}')
 
+        py4j_jars = glob.glob(f'{spark_home}/jars/py4j-*.jar')
+        if len(py4j_jars) == 0:
+            raise ValueError(f'No py4j JAR found in {spark_home}/jars')
+        if len(py4j_jars) > 1:
+            log.warning(f'found multiple p4yj jars arbitrarily choosing the first one: {py4j_jars}')
+
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
             java_path=None,
             javaopts=jvm_opts,
-            jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
+            jarpath=py4j_jars[0],
             classpath=extra_classpath,
             die_on_exit=True,
         )

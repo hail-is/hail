@@ -3,10 +3,9 @@ from enum import Enum
 from shlex import quote as shq
 from typing import List, Optional
 
-import yaml
-
 from . import gcloud
 from .cluster_config import ClusterConfig
+from .deploy_metadata import get_deploy_metadata
 
 
 class VepVersion(str, Enum):
@@ -130,7 +129,7 @@ VEP_SUPPORTED_REGIONS = {'us-central1', 'europe-west1', 'europe-west2', 'austral
 
 ANNOTATION_DB_BUCKETS = ["hail-datasets-us-central1", "hail-datasets-europe-west1"]
 
-IMAGE_VERSION = '2.1.33-debian11'
+IMAGE_VERSION = '2.2.5-debian12'
 
 
 def start(
@@ -179,14 +178,10 @@ def start(
     debug_mode: bool,
     beta: bool,
 ):
-    import pkg_resources  # pylint: disable=import-outside-toplevel
-
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
-    if not pkg_resources.resource_exists('hailtop.hailctl', "deploy.yaml"):
-        raise RuntimeError("package has no 'deploy.yaml' file")
-    deploy_metadata = yaml.safe_load(pkg_resources.resource_stream('hailtop.hailctl', "deploy.yaml"))['dataproc']
+    deploy_metadata = get_deploy_metadata()
 
     conf.extend_flag('properties', DEFAULT_PROPERTIES)
     if properties:
