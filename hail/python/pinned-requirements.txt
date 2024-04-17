@@ -8,7 +8,7 @@ aiodns==2.0.0
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-aiohttp==3.9.4
+aiohttp==3.9.5
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -55,11 +55,11 @@ azure-storage-blob==12.19.1
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.4.1
     # via -r hail/hail/python/requirements.txt
-boto3==1.34.83
+boto3==1.34.85
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.34.83
+botocore==1.34.85
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -187,7 +187,7 @@ oauthlib==3.2.2
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   requests-oauthlib
-orjson==3.10.0
+orjson==3.10.1
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
@@ -260,7 +260,7 @@ pyyaml==6.0.1
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
     #   bokeh
-regex==2023.12.25
+regex==2024.4.16
     # via parsimonious
 requests==2.31.0
     # via
