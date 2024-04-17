@@ -4,21 +4,38 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.tcoerce
-import is.hail.types.virtual._
+import is.hail.types.virtual.{Field => TField, _}
 import is.hail.utils._
 
 object EStructOfArrays {
   // expand this as more types are supported
-  def supportsFieldType(typ: EType): Unit = typ match {
-    case _: EInt32 =>
-    case _ => throw new UnsupportedOperationException(
-        s"$typ not supported as field type for struct of arrays"
-      )
+  def supportsFieldType(typ: EType): Boolean = typ match {
+    case _: EInt32 => true
+    case _ => false
+  }
+
+  def supportsFieldType(typ: Type): Boolean = typ match {
+    case TInt32 => true
+    case _ => false
+  }
+
+  def fromTypeAndRequiredness(t: TIterable, r: RIterable): EStructOfArrays = {
+    val et: TBaseStruct = tcoerce(t.elementType)
+    val ret: RBaseStruct = tcoerce(r.elementType)
+    val fields = et.fields.zip(ret.fields).map { case (TField(name, typ, index), r) =>
+      val encodedType = typ match {
+        case TInt32 => EArray(EInt32(r.typ.required), required = true)
+      }
+      EField(name, encodedType, index)
+    }
+
+    EStructOfArrays(fields, required = r.required, structRequired = ret.required)
   }
 
   def elementSize(fieldType: EType): Long = fieldType match {
@@ -36,6 +53,10 @@ final case class EStructOfArrays(
   assert(fields.zipWithIndex.forall { case (f, i) => f.index == i })
   require(fields.forall(f => f.typ.isInstanceOf[EContainer]))
 
+  // We don't care about the requiredness of these EContainers, but at the top level,
+  // they should all be present, so we require them to be required
+  require(fields.forall(f => f.typ.required))
+
   val elementType = EBaseStruct(
     fields.map { field =>
       EField(field.name, field.typ.asInstanceOf[EContainer].elementType, field.index)
@@ -43,22 +64,12 @@ final case class EStructOfArrays(
     required = structRequired,
   )
 
-  elementType.fields.foreach(fld => EStructOfArrays.supportsFieldType(fld.typ))
-
-  // length: 1 int32
-  // struct mbits: (length + 7) >>> 3 bytes [if optional]
-  // for each field [only int32 supported for now]:
-  //    // top level length elided
-  //    field mbits: (length + 7) >>> 3 bytes [if optional]
-  //    elements: length int32
-  //
-  // unlike EArray, missing elements are zeroed in the stream, rather than
-  // being not written, this should enable faster skips and possibly larger
-  // chunked reads
-  //
-  // it is a bug for a field missing bit to be unset (element present)
-  // if the struct missing bit is set (element missing), that is,
-  // struct_mbits & field_mbits == field_mbits
+  elementType.fields.foreach { fld =>
+    if (!EStructOfArrays.supportsFieldType(fld.typ))
+      throw new UnsupportedOperationException(
+        s"${fld.typ} not supported as field type for struct of arrays"
+      )
+  }
 
   def _decodedSType(requestedType: Type): SType = {
     require(requestedType.isInstanceOf[TArray])

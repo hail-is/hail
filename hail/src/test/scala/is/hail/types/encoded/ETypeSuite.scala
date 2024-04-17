@@ -37,6 +37,14 @@ class ETypeSuite extends HailSuite {
         required = true,
       ),
       ENDArrayColumnMajor(EFloat64Required, 3),
+      EStructOfArrays(
+        FastSeq(
+          EField("a", EArray(EInt32Required, true), 0),
+          EField("b", EArray(EInt32Optional, true), 1),
+        ),
+        required = true,
+        structRequired = false,
+      ),
     ).map(t => Array(t: Any))
   }
 
@@ -193,8 +201,8 @@ class ETypeSuite extends HailSuite {
     val etype =
       EStructOfArrays(
         FastSeq(
-          EField("a", EArray(EInt32Required), 0),
-          EField("b", EArray(EInt32Optional), 1),
+          EField("a", EArray(EInt32Required, true), 0),
+          EField("b", EArray(EInt32Optional, true), 1),
         )
       )
     val toEncode =

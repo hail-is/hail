@@ -334,6 +334,13 @@ object EType {
         ),
         required = rinterval.required,
       )
+    case t: TIterable
+        if (ctx.flags.lookup(
+          EType.Flags.UseUnstableEncodings
+        ).isDefined && t.elementType.isInstanceOf[TBaseStruct] && t.elementType.asInstanceOf[
+          TBaseStruct
+        ].fields.forall(fld => EStructOfArrays.supportsFieldType(fld.typ))) =>
+      EStructOfArrays.fromTypeAndRequiredness(t, tcoerce[RIterable](r))
     case t: TIterable =>
       EArray(fromTypeAndAnalysis(ctx, t.elementType, tcoerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
@@ -439,6 +446,26 @@ object EType {
         val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
         ENDArrayColumnMajor(elementType, nDims, req)
+      case "EStructOfArrays" =>
+        IRParser.punctuation(it, "[")
+        val structReq = it.head match {
+          case x: PunctuationToken if x.value == "+" =>
+            IRParser.consumeToken(it)
+            true
+          case _ => false
+        }
+        IRParser.punctuation(it, "{")
+        val args = IRParser.repsepUntil(
+          it,
+          IRParser.struct_field(eTypeParser),
+          PunctuationToken(","),
+          PunctuationToken("}"),
+        )
+        IRParser.punctuation(it, "}")
+        IRParser.punctuation(it, "]")
+        val fields = args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }
+        EStructOfArrays(fields, required = req, structRequired = structReq)
+
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }
