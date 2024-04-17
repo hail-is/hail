@@ -443,4 +443,9 @@ object EType {
 
     }
   }
+
+  object Flags {
+    val UseUnstableEncodings = "use_unstable_encodings"
+    val UseUnstableEncodingsVar = "HAIL_DEV_USE_UNSTABLE_ENCODINGS"
+  }
 }

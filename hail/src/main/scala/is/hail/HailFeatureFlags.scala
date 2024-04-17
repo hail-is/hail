@@ -2,6 +2,7 @@ package is.hail
 
 import is.hail.backend.ExecutionCache
 import is.hail.io.fs.RequesterPaysConfig
+import is.hail.types.encoded.EType
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -33,8 +34,8 @@ object HailFeatureFlags {
     ("shuffle_max_branch_factor", ("HAIL_SHUFFLE_MAX_BRANCH" -> "64")),
     ("use_new_shuffle", ("HAIL_USE_NEW_SHUFFLE" -> null)),
     ("use_ssa_logs", "HAIL_USE_SSA_LOGS" -> "1"),
-    ("use_unstable_encodings", "HAIL_DEV_USE_UNSTABLE_ENCODINGS" -> null),
     ("write_ir_files", ("HAIL_WRITE_IR_FILES" -> null)),
+    (EType.Flags.UseUnstableEncodings, EType.Flags.UseUnstableEncodingsVar -> null),
     (ExecutionCache.Flags.Cachedir, "HAIL_CACHE_DIR" -> null),
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
     (RequesterPaysConfig.Flags.RequesterPaysBuckets, "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
