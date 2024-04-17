@@ -670,8 +670,9 @@ class GoogleStorageAsyncFS(AsyncFS):
                 # if "" in str(e):
                 #     return False
                 raise e
-            except FileNotFoundError:
-                return False
+            except FileNotFoundError as e:
+                raise e
+                # return False
 
         async def is_dir_first_object_hot() -> bool:
             try:
@@ -683,8 +684,9 @@ class GoogleStorageAsyncFS(AsyncFS):
                 # if "" in str(e):
                 #     return False
                 raise e
-            except (FileNotFoundError, StopAsyncIteration):
-                return False
+            except (FileNotFoundError, StopAsyncIteration) as e:
+                raise e
+                # return False
 
         if location not in self.allowed_storage_locations:
             is_hot_storage = await is_bucket_hot() or (await is_object_hot()) or (await is_dir_first_object_hot())
