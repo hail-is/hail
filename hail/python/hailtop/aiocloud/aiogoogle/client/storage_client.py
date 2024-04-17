@@ -653,22 +653,23 @@ class GoogleStorageAsyncFS(AsyncFS):
         """
         is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
-        errors: List[aiohttp.ClientResponseError] = []
         location = self.storage_location(uri)
 
         async def is_bucket_hot() -> bool:
             try:
                 return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
             except aiohttp.ClientResponseError as e:
-                errors.append(e)
-                return False
+                if "does not have storage.buckets.get access to the Google Cloud Storage bucket" in str(e):
+                    return False
+                raise e
 
         async def is_object_hot() -> bool:
             try:
                 return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
             except aiohttp.ClientResponseError as e:
-                errors.append(e)
-                return False
+                # if "" in str(e):
+                #     return False
+                raise e
             except FileNotFoundError:
                 return False
 
@@ -679,35 +680,30 @@ class GoogleStorageAsyncFS(AsyncFS):
                         return await self.is_hot_storage(await entry.url())
                 return False
             except aiohttp.ClientResponseError as e:
-                errors.append(e)
-                return False
+                # if "" in str(e):
+                #     return False
+                raise e
             except (FileNotFoundError, StopAsyncIteration):
                 return False
 
         if location not in self.allowed_storage_locations:
             is_hot_storage = await is_bucket_hot() or (await is_object_hot()) or (await is_dir_first_object_hot())
             if not is_hot_storage:
-                if len(errors) == 0:
-                    raise ValueError(
-                        dedent(f"""\
-                            GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
-                            '{uri}' would incur egress charges. Either
+                raise ValueError(
+                    dedent(f"""\
+                        GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
+                        '{uri}' would incur egress charges. Either
 
-                            * avoid the increased cost by changing the default storage policy for the bucket
-                              (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
-                              blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
+                        * avoid the increased cost by changing the default storage policy for the bucket
+                          (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
+                          blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
 
-                            * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
-                              variable (https://hail.is/docs/0.2/configuration_reference.html).
-                            """)
-                    )
-                error = errors.pop()
-                while len(errors) > 0:
-                    next_error = errors.pop()
-                    next_error.__cause__ = error
-                    error = next_error
-                raise error
+                        * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
+                          variable (https://hail.is/docs/0.2/configuration_reference.html).
+                        """)
+                )
             self.allowed_storage_locations.append(location)
+        # TODO this is currently false if we hit the cache
         return is_hot_storage
 
     @staticmethod
