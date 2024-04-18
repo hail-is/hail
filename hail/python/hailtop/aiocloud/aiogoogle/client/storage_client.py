@@ -666,13 +666,8 @@ class GoogleStorageAsyncFS(AsyncFS):
         async def is_object_hot() -> bool:
             try:
                 return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-            except aiohttp.ClientResponseError as e:
-                # if "" in str(e):
-                #     return False
-                raise e
-            except FileNotFoundError as e:
-                raise e
-                # return False
+            except FileNotFoundError:
+                return False
 
         async def is_dir_first_object_hot() -> bool:
             try:
