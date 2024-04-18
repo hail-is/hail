@@ -233,7 +233,7 @@ jupyterlab==4.1.2
     # via notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
-jupyterlab-server==2.25.3
+jupyterlab-server==2.26.0
     # via
     #   jupyterlab
     #   notebook
