@@ -403,6 +403,7 @@ def init(
             tmp_dir=tmp_dir,
             local_tmpdir=local_tmpdir,
             default_reference=default_reference,
+            idempotent=idempotent,
             global_seed=global_seed,
             skip_logging_configuration=skip_logging_configuration,
             gcs_requester_pays_configuration=gcs_requester_pays_configuration,
