@@ -205,7 +205,7 @@ jupyter-client==8.6.0
     #   qtconsole
 jupyter-console==6.6.3
     # via jupyter
-jupyter-core==5.7.1
+jupyter-core==5.7.2
     # via
     #   ipykernel
     #   jupyter-client
