@@ -204,7 +204,7 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
 
 class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
     FORMAT_VERSION = 1
-    TYPE = 'gcp_accelerator'
+    TYPE = 'gcp_acceleratorV2'
 
     @staticmethod
     def product_name(accelerator_family: str, preemptible: bool, region: str) -> str:
@@ -214,7 +214,7 @@ class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResourceV2':
         assert data['type'] == GCPAcceleratorResourceV2.TYPE
-        return GCPAcceleratorResourceV2(data['name'])
+        return GCPAcceleratorResourceV2(data['name'], data['number'])
 
     @staticmethod
     def create(
@@ -234,7 +234,7 @@ class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
         self.number = number
 
     def to_dict(self) -> dict:
-        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION, 'number':self.number}
 
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):

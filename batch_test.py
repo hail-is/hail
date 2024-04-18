@@ -19,7 +19,8 @@ def chk_cuda():
     print(torch.cuda.device_count())
 
 j = b.new_python_job(name='chk-cuda')
-j._machine_type = "g2-standard-24"
+j._machine_type = "g2-standard-4"
 j.storage('20Gi')
+j._preemptible = False
 j.output1 = j.call(chk_cuda)
 b.run()
