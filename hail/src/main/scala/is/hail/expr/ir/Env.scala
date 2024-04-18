@@ -56,9 +56,6 @@ trait GenericBindingEnv[Self, V] {
 
   def promoteScan: Self
 
-  def promoteAggOrScan(isScan: Boolean): Self =
-    if (isScan) promoteScan else promoteAgg
-
   def bindEval(bindings: (String, V)*): Self
 
   def noEval: Self
@@ -66,9 +63,6 @@ trait GenericBindingEnv[Self, V] {
   def bindAgg(bindings: (String, V)*): Self
 
   def bindScan(bindings: (String, V)*): Self
-
-  def bindAggOrScan(isScan: Boolean, bindings: (String, V)*): Self =
-    if (isScan) bindScan(bindings: _*) else bindAgg(bindings: _*)
 
   def bindInScope(name: String, v: V, scope: Int): Self = scope match {
     case Scope.EVAL => bindEval(name -> v)
@@ -80,14 +74,9 @@ trait GenericBindingEnv[Self, V] {
 
   def createScan: Self
 
-  def createAggOrScan(isScan: Boolean): Self =
-    if (isScan) createScan else createAgg
-
   def noAgg: Self
 
   def noScan: Self
-
-  def noAggOrScan(isScan: Boolean): Self = if (isScan) noScan else noAgg
 
   def onlyRelational(keepAggCapabilities: Boolean = false): Self
 
