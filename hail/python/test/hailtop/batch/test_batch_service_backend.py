@@ -763,9 +763,7 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     _with_temp_fs(lambda fs: validate_file(public_access_uri1, fs))
     _with_temp_fs(lambda fs: validate_file(public_access_uri2, fs))
     _with_temp_fs(
-        lambda fs: validate_file(
-            public_access_uri3, fs
-        )  # _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri3, fs))
+        lambda fs: _test_raises(ClientResponseError, no_perms_error, lambda: validate_file(public_access_uri3, fs))
     )
 
     # no configuration, no perms bucket errors

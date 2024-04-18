@@ -655,6 +655,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         hot_storage_classes = {"standard", "regional", "multi_regional"}
         location = self.storage_location(uri)
 
+        if location in self.allowed_storage_locations:
+            return True
+
         async def is_bucket_hot() -> bool:
             try:
                 return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
@@ -675,32 +678,25 @@ class GoogleStorageAsyncFS(AsyncFS):
                     if await entry.is_file():
                         return await self.is_hot_storage(await entry.url())
                 return False
-            except aiohttp.ClientResponseError as e:
-                # if "" in str(e):
-                #     return False
-                raise e
-            except (FileNotFoundError, StopAsyncIteration) as e:
-                raise e
-                # return False
+            except FileNotFoundError:
+                return False
 
-        if location not in self.allowed_storage_locations:
-            is_hot_storage = await is_bucket_hot() or (await is_object_hot()) or (await is_dir_first_object_hot())
-            if not is_hot_storage:
-                raise ValueError(
-                    dedent(f"""\
-                        GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
-                        '{uri}' would incur egress charges. Either
+        is_hot_storage = await is_bucket_hot() or (await is_object_hot()) or (await is_dir_first_object_hot())
+        if not is_hot_storage:
+            raise ValueError(
+                dedent(f"""\
+                    GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
+                    '{uri}' would incur egress charges. Either
 
-                        * avoid the increased cost by changing the default storage policy for the bucket
-                          (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
-                          blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
+                    * avoid the increased cost by changing the default storage policy for the bucket
+                      (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
+                      blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
 
-                        * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
-                          variable (https://hail.is/docs/0.2/configuration_reference.html).
-                        """)
-                )
-            self.allowed_storage_locations.append(location)
-        # TODO this is currently false if we hit the cache
+                    * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
+                      variable (https://hail.is/docs/0.2/configuration_reference.html).
+                    """)
+            )
+        self.allowed_storage_locations.append(location)
         return is_hot_storage
 
     @staticmethod
