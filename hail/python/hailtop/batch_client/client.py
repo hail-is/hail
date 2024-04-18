@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from hailtop.batch_client.types import GetJobGroupResponseV1Alpha
 from hailtop.utils import ait_to_blocking, async_to_blocking
@@ -123,8 +123,9 @@ class JobGroup:
     def jobs(self, q: Optional[str] = None, version: Optional[int] = None, recursive: bool = False):
         return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
 
-    def job_groups(self):
-        return ait_to_blocking(self._async_job_group.job_groups())
+    def job_groups(self) -> Iterator['JobGroup']:
+        for jg in ait_to_blocking(self._async_job_group.job_groups()):
+            yield JobGroup(jg)
 
     def status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.status())
