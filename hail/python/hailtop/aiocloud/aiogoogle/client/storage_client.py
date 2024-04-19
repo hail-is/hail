@@ -673,13 +673,10 @@ class GoogleStorageAsyncFS(AsyncFS):
                 return False
 
         async def is_dir_first_object_hot() -> bool:
-            try:
-                async for entry in await self.listfiles(uri, recursive=True):
-                    if await entry.is_file():
-                        return await self.is_hot_storage(await entry.url())
-                return False
-            except FileNotFoundError:
-                return False
+            async for entry in await self.listfiles(uri, recursive=True):
+                if await entry.is_file():
+                    return await self.is_hot_storage(await entry.url())
+            raise FileNotFoundError(uri)
 
         is_hot_storage = await is_bucket_hot() or (await is_object_hot()) or (await is_dir_first_object_hot())
         if not is_hot_storage:
