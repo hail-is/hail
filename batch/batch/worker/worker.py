@@ -1600,6 +1600,10 @@ class Job(abc.ABC):
         return self.job_spec['job_id']
 
     @property
+    def job_group_id(self):
+        return self.job_spec['job_group_id']
+
+    @property
     def attempt_id(self):
         return self.job_spec['attempt_id']
 
@@ -1724,6 +1728,7 @@ class DockerJob(Job):
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
             {'name': 'HAIL_JOB_ID', 'value': str(self.job_id)},
+            {'name': 'HAIL_JOB_GROUP_ID', 'value': str(self.job_group_id)},
             {'name': 'HAIL_ATTEMPT_ID', 'value': str(self.attempt_id)},
         ]
         self.env += hail_extra_env
@@ -2127,7 +2132,7 @@ class JVMJob(Job):
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
-            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id, 'job_group_id': self.job_group_id}))
         # Necessary for backward compatibility for Hail Query jars that expect
         # the deploy config at this path and not at `/deploy-config/deploy-config.json`
         os.makedirs(f'{self.scratch}/secrets/deploy-config', exist_ok=True)
