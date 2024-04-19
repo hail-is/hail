@@ -2655,16 +2655,6 @@ steps:
         WORKDIR ["/work"]
     dependsOn:
       - hail_ubuntu_image
-  - kind: buildImage2
-    name: curl_image
-    publishAs: curl
-    dockerFile:
-      inline: |
-        ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
-        FROM $BASE_IMAGE
-        RUN hail-apt-get-install curl
-    dependsOn:
-      - hail_ubuntu_image
   - kind: runImage
     name: test_batch
     numSplits: 5
@@ -2682,7 +2672,7 @@ steps:
 
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export CI_UTILS_IMAGE={{ ci_utils_image.image }}
-      export HAIL_CURL_IMAGE={{ curl_image.image }}
+      export HAIL_CURL_IMAGE={{ hail_ubuntu_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
       export HAIL_VOLUME_IMAGE={{ volume_image.image }}
@@ -2741,7 +2731,7 @@ steps:
       - netcat_ubuntu_image
       - volume_image
       - workdir_image
-      - curl_image
+      - hail_ubuntu_image
       - gpu_image
   - kind: runImage
     name: delete_test_billing_projects
