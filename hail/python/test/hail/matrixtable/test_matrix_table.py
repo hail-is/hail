@@ -1,3 +1,6 @@
+import json
+import os
+import gzip
 import math
 import operator
 import random
@@ -2359,3 +2362,22 @@ def test_sample_entries():
     ht = mt.entries()
     ht = ht.sample(0.5)
     ht._force_count()
+
+
+def test_struct_of_arrays_encoding():
+    mt = hl.utils.range_matrix_table(10, 10)
+    mt = mt.annotate_entries(
+        x=mt.row_idx + mt.col_idx,
+        y=mt.row_idx * mt.col_idx,
+        z=hl.or_missing(hl.rand_bool(0.8), mt.row_idx - mt.col_idx),
+    )
+    std_mt = mt.checkpoint(new_temp_file(extension='mt'))
+    with hl._with_flags(use_unstable_encodings='1'):
+        out_path = new_temp_file(extension='mt')
+        mt = std_mt.checkpoint(out_path)
+        md_path = os.path.join(out_path, 'entries/rows/metadata.json.gz')
+        with gzip.open(md_path) as md_file:
+            md = json.load(md_file)
+        etype = md['_codecSpec']['_eType']
+        assert 'EStructOfArrays' in etype
+        assert mt._same(std_mt)
