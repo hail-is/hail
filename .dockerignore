@@ -18,6 +18,7 @@ hail/build/
 hail/hail.iml
 hail/hail.log
 hail/out/
+!hail/out/assembly.dest/out.jar
 hail/target/
 hail/python/hail/docs/_build/*
 hail/src/main/c/headers
