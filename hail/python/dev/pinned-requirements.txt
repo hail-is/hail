@@ -76,7 +76,7 @@ click==8.1.7
     #   -r hail/hail/python/dev/requirements.txt
     #   aiohttp-devtools
     #   curlylint
-comm==0.2.1
+comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
