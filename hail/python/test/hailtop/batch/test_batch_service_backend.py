@@ -719,7 +719,7 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     fake_bucket2 = "google1"
     no_bucket_error = "bucket does not exist"
     # bucket exists, but account does not have permissions on it
-    no_perms_bucket = "test"
+    no_perms_bucket = "hail-test-no-perms"
     no_perms_error = "does not have storage.buckets.get access"
     # bucket is a public access bucket (https://cloud.google.com/storage/docs/access-public-data)
     public_access_bucket = "hail-common"
