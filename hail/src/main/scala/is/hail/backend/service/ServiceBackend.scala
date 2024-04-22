@@ -81,7 +81,7 @@ object ServiceBackend {
     val backend = new ServiceBackend(
       jarLocation,
       name,
-      new HailClassLoader(getClass().getClassLoader()),
+      theHailClassLoader,
       batchClient,
       batchId,
       jobGroupId,
