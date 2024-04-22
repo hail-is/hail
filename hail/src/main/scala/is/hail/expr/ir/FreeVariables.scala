@@ -26,13 +26,8 @@ case class FreeVariableBindingEnv(
   aggVars: Option[FreeVariableEnv],
   scanVars: Option[FreeVariableEnv],
 ) extends GenericBindingEnv[FreeVariableBindingEnv, Type] {
-  def newBlock(
-    eval: Seq[(String, Type)],
-    agg: AggEnv[Type],
-    scan: AggEnv[Type],
-    relational: Seq[(String, Type)],
-    dropEval: Boolean,
-  ): FreeVariableBindingEnv = {
+  def extend(bindings: Bindings[Type]): FreeVariableBindingEnv = {
+    val Bindings(eval, agg, scan, relational, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval
     agg match {
