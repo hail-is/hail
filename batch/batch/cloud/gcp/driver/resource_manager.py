@@ -116,8 +116,17 @@ class GCPResourceManager(CloudResourceManager):
 
         resource_rates = self.billing_manager.resource_rates
 
+<<<<<<< HEAD
         parts = gcp_machine_type_to_parts(machine_type)
         assert parts
+=======
+        machine_type_parts = gcp_machine_type_to_parts(machine_type)
+        assert machine_type_parts is not None, machine_type
+        machine_family = machine_type_parts.machine_family
+        worker_type = machine_type_parts.worker_type
+        cores = machine_type_parts.cores
+
+>>>>>>> c73cfc25c (code refactor)
         vm_config = create_vm_config(
             file_store,
             resource_rates,
@@ -135,7 +144,11 @@ class GCPResourceManager(CloudResourceManager):
             instance_config,
         )
 
+<<<<<<< HEAD
         memory_mib = gcp_worker_memory_per_core_mib(parts.worker_type) * parts.cores
+=======
+        memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type) * cores
+>>>>>>> c73cfc25c (code refactor)
         memory_in_bytes = memory_mib << 20
         cores_mcpu = parts.cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(

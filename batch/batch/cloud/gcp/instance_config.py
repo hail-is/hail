@@ -104,6 +104,10 @@ class GCPSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
+    def machine_family(self) -> str:
+        assert self._instance_family is not None, self._instance_family
+        return self._instance_family
+
     def region_for(self, location: str) -> str:
         # location = zone
         return region_from_location(location)

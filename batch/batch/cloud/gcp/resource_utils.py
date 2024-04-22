@@ -10,6 +10,13 @@ GCP_MACHINE_FAMILY = 'n1'
 
 MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
 
+MEMORY_PER_CORE_MIB = {
+    ('n1', 'standard'): 3840,
+    ('n1', 'highmem'): 6656,
+    ('n1', 'highcpu'): 924,
+    ('g2', 'standard'): 4000,
+}
+
 gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
@@ -97,14 +104,10 @@ def gcp_cost_from_msec_mcpu(msec_mcpu: int) -> float:
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
 
-def gcp_worker_memory_per_core_mib(worker_type: str) -> int:
-    if worker_type == 'standard':
-        m = 3840
-    elif worker_type == 'highmem':
-        m = 6656
-    else:
-        assert worker_type == 'highcpu', worker_type
-        m = 924  # this number must be divisible by 4. I rounded up to the nearest MiB
+def gcp_worker_memory_per_core_mib(machine_family: str, worker_type: str) -> int:
+    machine_worker_key = (machine_family, worker_type)
+    assert machine_worker_key in MEMORY_PER_CORE_MIB, machine_worker_key
+    m = MEMORY_PER_CORE_MIB[machine_worker_key]
     return m
 
 

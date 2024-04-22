@@ -7,13 +7,20 @@ from gear import Database
 from .cloud.azure.instance_config import AzureSlimInstanceConfig
 from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
 from .cloud.gcp.instance_config import GCPSlimInstanceConfig
-from .cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, family_worker_type_cores_to_gcp_machine_type
+from .cloud.gcp.resource_utils import (
+    GCP_MACHINE_FAMILY,
+    family_worker_type_cores_to_gcp_machine_type,
+    gcp_machine_type_to_parts,
+)
 from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     cores_mcpu_to_memory_bytes,
     local_ssd_size,
+<<<<<<< HEAD
     machine_type_to_cores_and_memory_mib_per_core,
+=======
+>>>>>>> c73cfc25c (code refactor)
     requested_storage_bytes_to_actual_storage_gib,
     valid_machine_types,
 )
@@ -186,11 +193,10 @@ WHERE pools.name = %s;
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=True)
         if storage_gib is None:
             return None
-
-        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, self.worker_type)
+        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, 'n1', self.worker_type)
         cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
-        memory_bytes = cores_mcpu_to_memory_bytes(self.cloud, cores_mcpu, self.worker_type)
+        memory_bytes = cores_mcpu_to_memory_bytes(self.cloud, cores_mcpu, 'n1', self.worker_type)
 
         if cores_mcpu <= self.worker_cores * 1000:
             return (cores_mcpu, memory_bytes, storage_gib)

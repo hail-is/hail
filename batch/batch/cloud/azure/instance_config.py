@@ -81,6 +81,11 @@ class AzureSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
+    # def machine_family(self) -> str:
+    #     machine_type_parts = azure_machine_type_to_parts(self._machine_type)
+    #     assert machine_type_parts is not None, self._machine_type
+    #     return machine_type_parts.machine_family
+
     def region_for(self, location: str) -> str:
         return location
 

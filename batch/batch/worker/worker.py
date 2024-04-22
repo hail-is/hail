@@ -69,8 +69,9 @@ from hailtop.utils import (
 )
 
 from ..batch_format_version import BatchFormatVersion
+from ..cloud.azure.resource_utils import azure_machine_type_to_parts
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
-from ..cloud.gcp.resource_utils import is_gpu
+from ..cloud.gcp.resource_utils import gcp_machine_type_to_parts, is_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
@@ -2483,10 +2484,21 @@ class JVMContainer:
         assert os.path.isdir(root_dir)
 
         assert instance_config
-        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
+
+        if CLOUD == 'gcp':
+            machine_type_parts = gcp_machine_type_to_parts(INSTANCE_CONFIG["machine_type"])
+        elif CLOUD == 'azure':
+            machine_type_parts = azure_machine_type_to_parts(INSTANCE_CONFIG["machine_type"])
+
+        assert machine_type_parts is not None, INSTANCE_CONFIG["machine_type"]
+        machine_family = machine_type_parts.machine_family
+        assert machine_family is not None, machine_family
+        worker_type = machine_type_parts.worker_type
+
+        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, machine_family, worker_type)
 
         # We allocate 60% of memory per core to off heap memory
-        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
+        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, machine_family, worker_type)
         memory_mib = n_cores * memory_per_core_mib
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib

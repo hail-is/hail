@@ -1185,7 +1185,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             memory_to_worker_types = memory_to_worker_type(cloud)
             if req_memory in memory_to_worker_types:
                 worker_type = memory_to_worker_types[req_memory]
-                req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
+                req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, 'n1', worker_type)
             else:
                 req_memory_bytes = parse_memory_in_bytes(req_memory)
         else:

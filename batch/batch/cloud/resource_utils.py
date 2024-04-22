@@ -67,28 +67,30 @@ def cost_from_msec_mcpu(msec_mcpu: int) -> Optional[float]:
     return gcp_cost_from_msec_mcpu(msec_mcpu)
 
 
-def worker_memory_per_core_mib(cloud: str, worker_type: str) -> int:
+def worker_memory_per_core_mib(cloud: str, machine_family: str, worker_type: str) -> int:
     if cloud == 'azure':
         return azure_worker_memory_per_core_mib(worker_type)
     assert cloud == 'gcp'
-    return gcp_worker_memory_per_core_mib(worker_type)
+    return gcp_worker_memory_per_core_mib(machine_family, worker_type)
 
 
-def worker_memory_per_core_bytes(cloud: str, worker_type: str) -> int:
-    m = worker_memory_per_core_mib(cloud, worker_type)
+def worker_memory_per_core_bytes(cloud: str, machine_family: str, worker_type: str) -> int:
+    m = worker_memory_per_core_mib(cloud, machine_family, worker_type)
     return int(m * 1024**2)
 
 
-def memory_bytes_to_cores_mcpu(cloud: str, memory_in_bytes: int, worker_type: str) -> int:
-    return math.ceil((memory_in_bytes / worker_memory_per_core_bytes(cloud, worker_type)) * 1000)
+def memory_bytes_to_cores_mcpu(cloud: str, memory_in_bytes: int, machine_family: str, worker_type: str) -> int:
+    return math.ceil((memory_in_bytes / worker_memory_per_core_bytes(cloud, machine_family, worker_type)) * 1000)
 
 
-def cores_mcpu_to_memory_bytes(cloud: str, cores_in_mcpu: int, worker_type: str) -> int:
-    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(cloud, worker_type))
+def cores_mcpu_to_memory_bytes(cloud: str, cores_in_mcpu: int, machine_family: str, worker_type: str) -> int:
+    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(cloud, machine_family, worker_type))
 
 
-def adjust_cores_for_memory_request(cloud: str, cores_in_mcpu: int, memory_in_bytes: int, worker_type: str) -> int:
-    min_cores_mcpu = memory_bytes_to_cores_mcpu(cloud, memory_in_bytes, worker_type)
+def adjust_cores_for_memory_request(
+    cloud: str, cores_in_mcpu: int, memory_in_bytes: int, machine_family: str, worker_type: str
+) -> int:
+    min_cores_mcpu = memory_bytes_to_cores_mcpu(cloud, memory_in_bytes, machine_family, worker_type)
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
