@@ -654,31 +654,22 @@ class GoogleStorageAsyncFS(AsyncFS):
         is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
         location = self.storage_location(uri)
-
         if location in self.allowed_storage_locations:
             return True
-
-        async def is_bucket_hot() -> bool:
-            try:
-                return (await self._storage_client.bucket_info(location))["storageClass"].lower() in hot_storage_classes
-            except aiohttp.ClientResponseError as e:
-                if "does not have storage.buckets.get access to the Google Cloud Storage bucket" in str(e):
-                    return False
-                raise e
-
-        async def is_object_hot() -> bool:
-            try:
-                return (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
-            except FileNotFoundError:
-                return False
-
-        async def is_dir_first_object_hot() -> bool:
-            async for entry in await self.listfiles(uri, recursive=True):
-                if await entry.is_file():
-                    return await self.is_hot_storage(await entry.url())
-            raise FileNotFoundError(uri)
-
-        is_hot_storage = await is_bucket_hot() or (await is_object_hot()) or (await is_dir_first_object_hot())
+        try:
+            is_hot_storage = (await self._storage_client.bucket_info(location))[
+                "storageClass"
+            ].lower() in hot_storage_classes
+        except aiohttp.ClientResponseError as e:
+            if "does not have storage.buckets.get access to the Google Cloud Storage bucket" in str(e):
+                try:
+                    is_hot_storage = (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+                except FileNotFoundError:
+                    async for entry in await self.listfiles(uri, recursive=True):
+                        if await entry.is_file():
+                            is_hot_storage = await self.is_hot_storage(await entry.url())
+                    raise FileNotFoundError(uri)
+            raise e
         if not is_hot_storage:
             raise ValueError(
                 dedent(f"""\
