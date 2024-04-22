@@ -656,6 +656,10 @@ class GoogleStorageAsyncFS(AsyncFS):
         location = self.storage_location(uri)
         if location in self.allowed_storage_locations:
             return True
+
+        async def check_object(_uri):
+            return (await (await self.statfile(_uri))["storageClass"]).lower() in hot_storage_classes
+
         try:
             is_hot_storage = (await self._storage_client.bucket_info(location))[
                 "storageClass"
@@ -663,13 +667,11 @@ class GoogleStorageAsyncFS(AsyncFS):
         except aiohttp.ClientResponseError as e:
             if "does not have storage.buckets.get access" in str(e):
                 try:
-                    is_hot_storage = (await (await self.statfile(uri))["storageClass"]).lower() in hot_storage_classes
+                    is_hot_storage = await check_object(uri)
                 except FileNotFoundError:
                     async for entry in await self.listfiles(uri, recursive=True):
                         if await entry.is_file():
-                            is_hot_storage = (
-                                await (await self.statfile(await entry.url()))["storageClass"]
-                            ).lower() in hot_storage_classes
+                            is_hot_storage = await check_object(await entry.url())
             raise e
         if not is_hot_storage:
             raise ValueError(
