@@ -672,7 +672,8 @@ class GoogleStorageAsyncFS(AsyncFS):
                     async for entry in await self.listfiles(uri, recursive=True):
                         if await entry.is_file():
                             is_hot_storage = await check_object(await entry.url())
-            raise e
+            else:
+                raise e
         if not is_hot_storage:
             raise ValueError(
                 dedent(f"""\
