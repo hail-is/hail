@@ -1805,7 +1805,7 @@ object MatrixVCFReader {
         val localFilterAndReplace = params.filterAndReplace
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
-        backend.parallelizeAndComputeWithIndex(
+        val (failureOpt, _) = backend.parallelizeAndComputeWithIndex(
           ctx.backendContext,
           fs,
           files.tail.map(_.getBytes),
@@ -1856,6 +1856,8 @@ object MatrixVCFReader {
 
           bytes
         }
+
+        failureOpt.foreach(throw _)
       }
     }
 

@@ -1059,14 +1059,19 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
 
   final private class CancellingTask[A](f: () => A)
       extends AbstractFuture[A] with RunnableFuture[A] {
+    @volatile private[this] var isFailed = false
+
     override def run(): Unit =
       try set(f())
       catch {
         case NonFatal(e) =>
+          isFailed = true
           setException(e)
-          if (CancellingExecutorService.this.isCancelled.compareAndSet(false, true)) {
-            tasks.foreach(_.cancel(true))
-          }
+      }
+
+    override def afterDone(): Unit =
+      if (isFailed && CancellingExecutorService.this.isCancelled.compareAndSet(false, true)) {
+        tasks.foreach(_.cancel(true))
       }
   }
 

@@ -7,7 +7,7 @@ import is.hail.{CancellingExecutorService, HailSuite}
 import org.apache.spark.storage.StorageLevel
 import org.testng.annotations.Test
 
-import java.util.concurrent.{AbstractExecutorService, Executors}
+import java.util.concurrent.Executors
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==(): Unit = {
