@@ -451,7 +451,7 @@ class SparkBackend(
         (idx, result: Array[Byte]) => buffer += result -> idx,
       )
     catch {
-      case e: ExecutionException => failure.orElse(Some(e.getCause))
+      case e: ExecutionException => failure = failure.orElse(Some(e.getCause))
       case NonFatal(t) => failure = failure.orElse(Some(t))
     }
 
