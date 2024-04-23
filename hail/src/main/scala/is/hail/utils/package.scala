@@ -10,16 +10,22 @@ import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
 import scala.language.higherKinds
 import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
+import scala.util.control.NonFatal
 
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
+import java.util
 import java.util.{Base64, Date}
-import java.util.concurrent.ExecutorService
+import java.util.concurrent.{
+  AbstractExecutorService, Callable, CancellationException, ExecutorCompletionService,
+  ExecutorService, RunnableFuture, TimeUnit,
+}
+import java.util.concurrent.atomic.AtomicBoolean
 
+import com.google.common.util.concurrent.AbstractFuture
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
@@ -1009,13 +1015,13 @@ package object utils
         res
     }
 
-  /** Run (task, key) pairs on the `executor`, returning some `F` of the failures and an
-    * `IndexedSeq` of the successes with their corresponding key.
+  /** Run tasks on the `executor`, returning some `F` of the failures and an `IndexedSeq` of the
+    * successes with their index in `tasks`.
     */
   def runAll[F[_], A](
     executor: ExecutorService
   )(
-    accum: (F[Throwable], (Throwable, Int)) => F[Throwable]
+    accum: (F[Throwable], Throwable) => F[Throwable]
   )(
     init: F[Throwable]
   )(
@@ -1024,26 +1030,75 @@ package object utils
 
     var err = init
     val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
+    val completer = new ExecutorCompletionService[(A, Int)](executor)
 
-    tasks
-      .map { case (t, k) => (executor.submit(() => Try(t())), k) }
-      .foreach { case (f, k) =>
-        f.get() match {
-          case Success(v) =>
-            buffer += ((v, k))
-
-          case Failure(t) =>
-            err = accum(err, (t, k))
-        }
+    tasks.foreach { case (t, k) => completer.submit(() => t() -> k) }
+    tasks.foreach { _ =>
+      try buffer += completer.take().get()
+      catch {
+        case NonFatal(ex) =>
+          err = accum(err, ex)
       }
+    }
 
-    (err, buffer)
+    (err, buffer.sortBy(_._2))
   }
 
-  def runAllKeepFirstError[A](
-    executor: ExecutorService
-  ): IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
-    runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) }(None)
+  def runAllKeepFirstError[A](executor: ExecutorService)
+    : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
+    runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
+}
+
+class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
+
+  private[this] val tasks = new ArrayBuffer[CancellingTask[_]]()
+  private[this] val isCancelled = new AtomicBoolean(false)
+
+  final private class CancellingTask[A](f: () => A)
+      extends AbstractFuture[A] with RunnableFuture[A] {
+    override def run(): Unit =
+      try set(f())
+      catch {
+        case NonFatal(e) =>
+          setException(e)
+          if (CancellingExecutorService.this.isCancelled.compareAndSet(false, true)) {
+            tasks.foreach(_.cancel(true))
+          }
+      }
+  }
+
+  final private[this] class CancelledFuture[A] extends AbstractFuture[A] with RunnableFuture[A] {
+    override def run(): Unit = setException(new CancellationException())
+  }
+
+  override def newTaskFor[T](runnable: Runnable, value: T): RunnableFuture[T] =
+    newTaskFor { () => runnable.run(); value }
+
+  override def newTaskFor[T](callable: Callable[T]): RunnableFuture[T] =
+    if (isCancelled.get()) new CancelledFuture[T]
+    else {
+      val task = new CancellingTask[T](callable.call)
+      tasks += task
+      task
+    }
+
+  override def shutdown(): Unit =
+    delegate.shutdown()
+
+  override def shutdownNow(): util.List[Runnable] =
+    delegate.shutdownNow()
+
+  override def isShutdown: Boolean =
+    delegate.isShutdown
+
+  override def isTerminated: Boolean =
+    delegate.isTerminated
+
+  override def awaitTermination(timeout: Long, unit: TimeUnit): Boolean =
+    delegate.awaitTermination(timeout, unit)
+
+  override def execute(command: Runnable): Unit =
+    delegate.execute(command)
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d

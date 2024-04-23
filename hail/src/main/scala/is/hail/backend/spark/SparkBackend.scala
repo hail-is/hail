@@ -26,7 +26,6 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
 import scala.util.control.NonFatal
 
 import java.io.{Closeable, PrintWriter}
@@ -413,28 +412,10 @@ class SparkBackend(
   override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
-    val sparkDeps = dependency.toIndexedSeq
-      .flatMap(dep =>
-        dep.deps.map(rvdDep =>
-          new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
-        )
-      )
-
-    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
-  }
-
-  override def parallelizeAndComputeWithIndexReturnAllErrors(
-    backendContext: BackendContext,
-    fs: FS,
-    contexts: IndexedSeq[(Array[Byte], Int)],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
+    dependency: Option[TableStageDependency],
+    partitions: Option[IndexedSeq[Int]],
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
@@ -445,48 +426,35 @@ class SparkBackend(
       } yield new AnonymousDependency(dep.asInstanceOf[RVDDependency].rvd.crdd.rdd)
 
     val rdd =
-      new RDD[(Try[Array[Byte]], Int)](sc, sparkDeps) {
+      new RDD[Array[Byte]](sc, sparkDeps) {
 
-        /* Spark insists that `Partition.index` is indeed the index that partition appears in the
-         * result of `RDD.getPartitions`.
-         *
-         * We accept contexts in the form (data, index) and return results in the form (result,
-         * index). The index is the index of input context in the original array of contexts. This
-         * function may receive a subset of those contexts when retrying queries. We can't use it as
-         * the RDD Partition index, therefore; instead store it as a "tag" and use it to transform
-         * the RDD result.
-         *
-         * See `BackendUtils.collectDArray` for how the index is generated. */
-        case class TaggedRDDPartition(data: Array[Byte], tag: Int, index: Int) extends Partition
+        case class RDDPartition(data: Array[Byte], override val index: Int) extends Partition
 
-        override protected def getPartitions: Array[Partition] =
-          for {
-            ((data, index), rddIndex) <- contexts.zipWithIndex.toArray
-          } yield TaggedRDDPartition(data, index, rddIndex)
+        override protected val getPartitions: Array[Partition] =
+          Array.tabulate(contexts.length)(index => RDDPartition(contexts(index), index))
 
-        override def compute(partition: Partition, context: TaskContext)
-          : Iterator[(Try[Array[Byte]], Int)] = {
-          val sp = partition.asInstanceOf[TaggedRDDPartition]
+        override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
+          val sp = partition.asInstanceOf[RDDPartition]
           val fs = new HadoopFS(null)
-          // FIXME: this is broken: the partitionId of SparkTaskContext will be incorrect
-          val result =
-            try
-              Success(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
-            catch {
-              case NonFatal(exc) =>
-                exc.getStackTrace() // Calling getStackTrace appears to ensure the exception is
-                // serialized with its stack trace.
-                Failure(exc)
-            }
-          Iterator.single((result, sp.tag))
+          Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
         }
       }
 
-    val buffer = new ArrayBuffer[(Array[Byte], Int)](contexts.length)
-    rdd.collect().foldLeft((Option.empty[Throwable], buffer)) {
-      case ((err, buffer), (Success(v), index)) => (err, buffer += ((v, index)))
-      case ((err, buffer), (Failure(t), _)) => (err.orElse(Some(t)), buffer)
+    val partsToRun = partitions.getOrElse(contexts.indices)
+    val buffer = new ArrayBuffer[(Array[Byte], Int)](partsToRun.length)
+    var failure: Option[Throwable] = None
+
+    try sc.runJob(
+        rdd,
+        (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
+        partsToRun,
+        (idx, result: Array[Byte]) => buffer += result -> idx,
+      )
+    catch {
+      case NonFatal(t) => failure = failure.orElse(Some(t))
     }
+
+    (failure, buffer.sortBy(_._2))
   }
 
   def defaultParallelism: Int = sc.defaultParallelism
@@ -889,24 +857,5 @@ class SparkBackend(
       case None =>
         LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
     }
-  }
-}
-
-case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
-
-class SparkBackendComputeRDD(
-  sc: SparkContext,
-  @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
-  deps: Seq[Dependency[_]],
-) extends RDD[Array[Byte]](sc, deps) {
-
-  override def getPartitions: Array[Partition] =
-    Array.tabulate(collection.length)(i => SparkBackendComputeRDDPartition(collection(i), i))
-
-  override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
-    val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    val fs = new HadoopFS(null)
-    Iterator.single(f(sp.data, SparkTaskContext.get(), theHailClassLoaderForSparkWorkers, fs))
   }
 }

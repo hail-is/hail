@@ -1810,7 +1810,6 @@ object MatrixVCFReader {
           fs,
           files.tail.map(_.getBytes),
           "load_vcf_parse_header",
-          None,
         ) { (bytes, htc, _, fs) =>
           val fsConfig = fsConfigBC.value
           fs.setConfiguration(fsConfig)
