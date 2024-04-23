@@ -112,7 +112,6 @@
                 "ci-hello",
                 "ci-utils",
                 "create_certs_image",
-                "curl",
                 "git-make-bash",
                 "gpu",
                 "hail-benchmark",
