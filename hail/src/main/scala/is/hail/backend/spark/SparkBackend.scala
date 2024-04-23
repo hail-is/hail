@@ -25,9 +25,12 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
+import scala.concurrent.ExecutionException
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
+
 import java.io.{Closeable, PrintWriter}
+
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark._
@@ -37,8 +40,6 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.json4s
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
-
-import scala.concurrent.ExecutionException
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
   def value: T = bc.value
