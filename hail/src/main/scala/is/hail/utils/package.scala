@@ -5,13 +5,12 @@ import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
 
-import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
+import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
 import scala.language.higherKinds
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
-
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
@@ -19,12 +18,8 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util
 import java.util.{Base64, Date}
-import java.util.concurrent.{
-  AbstractExecutorService, Callable, CancellationException, ExecutorCompletionService,
-  ExecutorService, RunnableFuture, TimeUnit,
-}
+import java.util.concurrent.{AbstractExecutorService, Callable, CancellationException, ExecutorCompletionService, ExecutorService, RunnableFuture, TimeUnit}
 import java.util.concurrent.atomic.AtomicBoolean
-
 import com.google.common.util.concurrent.AbstractFuture
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
@@ -38,6 +33,8 @@ import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
 import org.json4s.JsonAST.{JArray, JString}
 import org.json4s.jackson.Serialization
 import org.json4s.reflect.TypeInfo
+
+import scala.concurrent.ExecutionException
 
 package utils {
   trait Truncatable {
@@ -1036,6 +1033,8 @@ package object utils
     tasks.foreach { _ =>
       try buffer += completer.take().get()
       catch {
+        case e: ExecutionException =>
+          err = accum(err, e.getCause)
         case NonFatal(ex) =>
           err = accum(err, ex)
       }

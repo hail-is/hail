@@ -27,9 +27,7 @@ import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
-
 import java.io.{Closeable, PrintWriter}
-
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark._
@@ -39,6 +37,8 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.json4s
 import org.json4s.DefaultFormats
 import org.json4s.jackson.{JsonMethods, Serialization}
+
+import scala.concurrent.ExecutionException
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
   def value: T = bc.value
@@ -451,6 +451,7 @@ class SparkBackend(
         (idx, result: Array[Byte]) => buffer += result -> idx,
       )
     catch {
+      case e: ExecutionException => failure.orElse(Some(e.getCause))
       case NonFatal(t) => failure = failure.orElse(Some(t))
     }
 
