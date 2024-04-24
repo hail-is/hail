@@ -476,7 +476,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       rvb.startTuple()
       literals.foreach { case (typ, a, _, _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
-      enc.writeRegionValue(rvb.end())
+      enc.writeRegionValue(region, rvb.end())
     }
     enc.flush()
     enc.close()

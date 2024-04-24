@@ -170,7 +170,7 @@ object TableStageToRVD {
       assert(contextsPType.isElementDefined(contextsAddr, i))
       val baos = new ByteArrayOutputStream()
       val enc = makeContextEnc(baos, ctx.theHailClassLoader)
-      enc.writeRegionValue(contextsPType.loadElement(contextsAddr, i))
+      enc.writeRegionValue(ctx.r, contextsPType.loadElement(contextsAddr, i))
       enc.flush()
       baos.toByteArray
     }

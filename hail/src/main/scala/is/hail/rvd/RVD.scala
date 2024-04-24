@@ -80,9 +80,9 @@ class RVD(
 
   def stabilize(ctx: ExecuteContext, enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
     val makeEnc = enc.buildEncoder(ctx, rowPType)
-    crdd.mapPartitions(it =>
-      RegionValue.toBytes(theHailClassLoaderForSparkWorkers, makeEnc, it)
-    ).run
+    crdd.cmapPartitions { (ctx, it) =>
+      RegionValue.toBytes(theHailClassLoaderForSparkWorkers, makeEnc, ctx.r, it)
+    }.run
   }
 
   def encodedRDD(ctx: ExecuteContext, enc: AbstractTypedCodecSpec): RDD[Array[Byte]] =
@@ -102,7 +102,7 @@ class RVD(
       TaskContext.get.addTaskCompletionListener[Unit](_ => encoder.close())
       it.map { ptr =>
         val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
-        val bytes = encoder.regionValueToBytes(ptr)
+        val bytes = encoder.regionValueToBytes(ctx.r, ptr)
         (keys, bytes)
       }
     }.run
@@ -1002,7 +1002,7 @@ class RVD(
             start = Row(interval.start),
             end = Row(interval.end),
           )
-          val bytes = encoder.regionValueToBytes(ptr)
+          val bytes = encoder.regionValueToBytes(ctx.r, ptr)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
         } else
           Iterator()

@@ -1,7 +1,8 @@
 package is.hail.io
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
+import is.hail.expr.ir.FunctionWithPartitionRegion
 import is.hail.types.encoded.EncoderAsmFunction
 
 import java.io._
@@ -11,7 +12,7 @@ trait Encoder extends Closeable {
 
   def close(): Unit
 
-  def writeRegionValue(offset: Long): Unit
+  def writeRegionValue(region: Region, offset: Long): Unit
 
   def writeByte(b: Byte): Unit
 
@@ -23,16 +24,36 @@ final class CompiledEncoder(
   theHailClassLoader: HailClassLoader,
   f: (HailClassLoader) => EncoderAsmFunction,
 ) extends Encoder {
+  private[this] var poolSet: Boolean = false
+  private[this] var partitionRegion: Region = _
+  private[this] val compiled = f(theHailClassLoader)
+
   def flush(): Unit =
     out.flush()
 
-  def close(): Unit =
+  def close(): Unit = {
+    compiled.asInstanceOf[FunctionWithPartitionRegion].setPool(null)
+    compiled.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(null)
+    partitionRegion.close()
     out.close()
+  }
 
-  private[this] val compiled = f(theHailClassLoader)
+  private def setScratchPool(pool: RegionPool) = if (!poolSet) {
+    compiled.asInstanceOf[FunctionWithPartitionRegion].setPool(pool)
+    partitionRegion = pool.getRegion()
+    compiled.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(partitionRegion)
+    poolSet = true
+  }
 
-  def writeRegionValue(offset: Long): Unit =
+  def writeRegionValue(r: Region, offset: Long): Unit = {
+    setScratchPool(r.pool)
+    writeRegionValue(offset)
+  }
+
+  private def writeRegionValue(offset: Long): Unit = {
+    require(poolSet)
     compiled(offset, out)
+  }
 
   def writeByte(b: Byte): Unit =
     out.writeByte(b)
@@ -58,14 +79,8 @@ final class ByteArrayEncoder(
     result()
   }
 
-  def regionValueToBytes(offset: Long): Array[Byte] = {
-    baos.reset()
-    enc.writeRegionValue(offset)
-    result()
-  }
-
   def reset(): Unit = baos.reset()
-  def writeRegionValue(region: Region, offset: Long): Unit = enc.writeRegionValue(offset)
+  def writeRegionValue(region: Region, offset: Long): Unit = enc.writeRegionValue(region, offset)
 
   def result(): Array[Byte] = {
     enc.flush()

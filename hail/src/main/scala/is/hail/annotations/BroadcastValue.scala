@@ -57,7 +57,7 @@ trait BroadcastRegionValue {
     val baos = new ArrayOfByteArrayOutputStream()
 
     val enc = makeEnc(baos, theHailClassLoader)
-    enc.writeRegionValue(value.offset)
+    enc.writeRegionValue(ctx.r, value.offset)
     enc.flush()
     enc.close()
 

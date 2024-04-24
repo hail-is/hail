@@ -236,6 +236,7 @@ object EType {
         Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
         NotGenericTypeInfo[Unit],
       )
+      fb.ecb.makeAddPartitionRegion()
       val mb = fb.apply_method
 
       mb.voidWithBuilder { cb =>
