@@ -87,7 +87,7 @@ final case class EStructOfArrays(
       s"${pt.elementType.required} | ${elementType.required}",
     )
 
-    val scratchRegion: Value[Region] = cb.memoize(cb.emb.ecb.pool().invoke[Region]("getRegion"))
+    val scratchRegion: Value[Region] = cb.memoize(region.getPool().invoke[Region]("getRegion"))
     val length = cb.memoize(in.readInt())
 
     val arrayPtr = cb.memoize(pt.allocate(region, length))
