@@ -102,7 +102,7 @@ class RequirednessSuite extends HailSuite {
   def pinterval(point: PType, r: Boolean): PInterval = PCanonicalInterval(point, r)
 
   @DataProvider(name = "valueIR")
-  def valueIR(): Array[Array[Any]] = {
+  def valueIR(): Array[Array[Any]] = withExecuteContext() { ctx =>
     val nodes = new BoxedArrayBuilder[Array[Any]](50)
 
     val allRequired = Array(
