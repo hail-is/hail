@@ -6,7 +6,7 @@
 #
 aiodocker==0.21.0
     # via -r hail/batch/requirements.txt
-aiohttp==3.9.3
+aiohttp==3.9.5
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
@@ -47,7 +47,7 @@ frozenlist==1.4.1
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-idna==3.6
+idna==3.7
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
@@ -66,16 +66,16 @@ numpy==1.26.4
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
-packaging==23.2
+packaging==24.0
     # via
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   plotly
-pandas==2.2.1
+pandas==2.2.2
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
-plotly==5.19.0
+plotly==5.21.0
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
@@ -99,7 +99,7 @@ tenacity==8.2.3
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   plotly
-typing-extensions==4.10.0
+typing-extensions==4.11.0
     # via
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
