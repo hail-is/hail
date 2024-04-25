@@ -280,7 +280,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 wheel: $(WHEEL)
 
 $(WHEEL): copy-py-files
-	# Clear the bdist build cache before building the wheel
+	# Clear the build cache before building the wheel
 	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) -m build -w
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
