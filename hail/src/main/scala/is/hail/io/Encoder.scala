@@ -34,7 +34,7 @@ final class CompiledEncoder(
   def close(): Unit = {
     compiled.asInstanceOf[FunctionWithPartitionRegion].setPool(null)
     compiled.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(null)
-    partitionRegion.close()
+    if (partitionRegion != null) partitionRegion.close()
     out.close()
   }
 
