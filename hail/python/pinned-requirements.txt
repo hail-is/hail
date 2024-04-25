@@ -55,11 +55,11 @@ azure-storage-blob==12.19.1
     #   -r hail/hail/python/hailtop/requirements.txt
 bokeh==3.3.4
     # via -r hail/hail/python/requirements.txt
-boto3==1.34.85
+boto3==1.34.92
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt
-botocore==1.34.85
+botocore==1.34.92
     # via
     #   -c hail/hail/python/hailtop/pinned-requirements.txt
     #   -r hail/hail/python/hailtop/requirements.txt

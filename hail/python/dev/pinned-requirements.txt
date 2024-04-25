@@ -362,6 +362,8 @@ pygments==2.17.2
     #   sphinx
 pylint==2.17.7
     # via -r hail/hail/python/dev/requirements.txt
+pyproject-hooks==1.0.0
+    # via build
 pyright==1.1.360
     # via -r hail/hail/python/dev/requirements.txt
 pytest==7.4.4
