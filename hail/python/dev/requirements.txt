@@ -18,7 +18,7 @@ pyright>=1.1.349<1.2
 sphinx>=6,<7
 sphinx-autodoc-typehints==1.23.0
 nbsphinx>=0.8.8,<1
-sphinx_rtd_theme>=1.0.0,<2
+sphinx_rtd_theme>=1.0.0,<3
 jupyter>=1.0.0,<2
 sphinxcontrib.katex>=0.9.0,<1
 fswatch>=0.1.1,<1
