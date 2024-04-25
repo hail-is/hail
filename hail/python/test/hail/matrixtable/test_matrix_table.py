@@ -1,8 +1,8 @@
-import json
-import os
 import gzip
+import json
 import math
 import operator
+import os
 import random
 import unittest
 
