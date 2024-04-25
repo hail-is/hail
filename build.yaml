@@ -185,29 +185,6 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
-  - kind: runImage
-    name: check_pip_requirements
-    image:
-      valueFrom: hail_ubuntu_image.image
-    script: |
-      set -ex
-      pip install pip-tools==7.4.0
-      cd /io/repo
-      chmod 755 ./check_pip_requirements.sh
-      ./check_pip_requirements.sh \
-          hail/python/hailtop \
-          hail/python \
-          hail/python/dev \
-          gear \
-          web_common \
-          batch \
-          ci
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
   - kind: buildImage2
     name: create_certs_image
     dockerFile: /io/tls/Dockerfile
@@ -1525,6 +1502,21 @@ steps:
     dependsOn:
       - merge_code
       - hail_ubuntu_image
+  - kind: runImage
+    name: check_pip_requirements
+    image:
+      valueFrom: hail_linting_image.image
+    script: |
+      set -ex
+      cd /io/repo
+      chmod 755 ./check_pip_requirements.sh
+      make check-pip-requirements
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - hail_linting_image
+      - merge_code
   - kind: runImage
     name: check_services
     image:
