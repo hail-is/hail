@@ -542,7 +542,7 @@ types-requests==2.31.0.6
     # via -r hail/hail/python/dev/requirements.txt
 types-setuptools==69.1.0.20240302
     # via -r hail/hail/python/dev/requirements.txt
-types-six==1.16.21.20240301
+types-six==1.16.21.20240425
     # via -r hail/hail/python/dev/requirements.txt
 types-tabulate==0.9.0.20240106
     # via -r hail/hail/python/dev/requirements.txt
