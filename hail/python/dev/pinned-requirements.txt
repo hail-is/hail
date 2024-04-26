@@ -54,6 +54,8 @@ beautifulsoup4==4.12.3
     # via nbconvert
 bleach==6.1.0
     # via nbconvert
+build==1.1.1
+    # via -r hail/hail/python/dev/requirements.txt
 certifi==2024.2.2
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
@@ -147,6 +149,7 @@ imagesize==1.4.1
     # via sphinx
 importlib-metadata==7.1.0
     # via
+    #   build
     #   jupyter-client
     #   jupyter-lsp
     #   jupyterlab
@@ -294,6 +297,7 @@ overrides==7.7.0
 packaging==24.0
     # via
     #   -c hail/hail/python/dev/../pinned-requirements.txt
+    #   build
     #   ipykernel
     #   jupyter-server
     #   jupyterlab
@@ -358,6 +362,8 @@ pygments==2.17.2
     #   sphinx
 pylint==2.17.7
     # via -r hail/hail/python/dev/requirements.txt
+pyproject-hooks==1.0.0
+    # via build
 pyright==1.1.360
     # via -r hail/hail/python/dev/requirements.txt
 pytest==7.4.4
@@ -492,8 +498,10 @@ toml==0.10.2
     # via curlylint
 tomli==2.0.1
     # via
+    #   build
     #   jupyterlab
     #   pylint
+    #   pyproject-hooks
     #   pytest
 tomlkit==0.12.4
     # via pylint
@@ -578,8 +586,6 @@ webencodings==0.5.1
     #   tinycss2
 websocket-client==1.8.0
     # via jupyter-server
-wheel==0.41.3
-    # via -r hail/hail/python/dev/requirements.txt
 widgetsnbextension==4.0.10
     # via ipywidgets
 wrapt==1.16.0

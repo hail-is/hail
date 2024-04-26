@@ -30,9 +30,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/hail/python/hailtop/requirements.txt
 azure-storage-blob==12.19.1
     # via -r hail/hail/python/hailtop/requirements.txt
-boto3==1.34.85
+boto3==1.34.92
     # via -r hail/hail/python/hailtop/requirements.txt
-botocore==1.34.85
+botocore==1.34.92
     # via
     #   -r hail/hail/python/hailtop/requirements.txt
     #   boto3
