@@ -89,17 +89,6 @@ check-pip-requirements:
 		batch \
 		ci
 
-.PHONY: check-linux-pip-requirements
-check-linux-pip-requirements:
-	./check_linux_pip_requirements.sh \
-		hail/python/hailtop \
-		hail/python \
-		hail/python/dev \
-		gear \
-		web_common \
-		batch \
-		ci
-
 .PHONY: install-dev-requirements
 install-dev-requirements:
 	python3 -m pip install \
@@ -112,28 +101,28 @@ install-dev-requirements:
 		-r ci/pinned-requirements.txt
 
 hail/python/hailtop/pinned-requirements.txt: hail/python/hailtop/requirements.txt
-	./generate-linux-pip-lockfile.sh hail/python/hailtop
+	./generate-pip-lockfile.sh hail/python/hailtop
 
 hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt hail/python/requirements.txt
-	./generate-linux-pip-lockfile.sh hail/python
+	./generate-pip-lockfile.sh hail/python
 
 hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
-	./generate-linux-pip-lockfile.sh hail/python/dev
+	./generate-pip-lockfile.sh hail/python/dev
 
 benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt
-	./generate-linux-pip-lockfile.sh benchmark/python
+	./generate-pip-lockfile.sh benchmark/python
 
 gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
-	./generate-linux-pip-lockfile.sh gear
+	./generate-pip-lockfile.sh gear
 
 web_common/pinned-requirements.txt: gear/pinned-requirements.txt web_common/requirements.txt
-	./generate-linux-pip-lockfile.sh web_common
+	./generate-pip-lockfile.sh web_common
 
 batch/pinned-requirements.txt: web_common/pinned-requirements.txt batch/requirements.txt
-	./generate-linux-pip-lockfile.sh batch
+	./generate-pip-lockfile.sh batch
 
 ci/pinned-requirements.txt: web_common/pinned-requirements.txt ci/requirements.txt
-	./generate-linux-pip-lockfile.sh ci
+	./generate-pip-lockfile.sh ci
 
 .PHONY: generate-pip-lockfiles
 generate-pip-lockfiles: hail/python/hailtop/pinned-requirements.txt
