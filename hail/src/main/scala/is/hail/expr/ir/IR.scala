@@ -959,12 +959,13 @@ final case class MakeStruct(fields: IndexedSeq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
 
 object InsertFields {
-  def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
+  def apply(old: IR, fields: IndexedSeq[(String, IR)]): InsertFields =
+    InsertFields(old, fields, None)
 }
 
 final case class InsertFields(
   old: IR,
-  fields: Seq[(String, IR)],
+  fields: IndexedSeq[(String, IR)],
   fieldOrder: Option[IndexedSeq[String]],
 ) extends TypedIR[TStruct]
 

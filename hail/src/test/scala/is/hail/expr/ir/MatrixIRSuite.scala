@@ -102,7 +102,7 @@ class MatrixIRSuite extends HailSuite {
     val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
+    val newRow = InsertFields(oldRow, FastSeq("idx" -> IRScanCount))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -113,7 +113,8 @@ class MatrixIRSuite extends HailSuite {
     val mt = rangeMatrix()
     val oldRow = Ref("va", mt.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
+    val newRow =
+      InsertFields(oldRow, FastSeq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -128,7 +129,7 @@ class MatrixIRSuite extends HailSuite {
 
     val newRow = InsertFields(
       oldRow,
-      Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)),
+      FastSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)),
     )
 
     val newMatrix = MatrixMapRows(mt, newRow)
@@ -142,7 +143,7 @@ class MatrixIRSuite extends HailSuite {
     val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("idx" -> IRScanCount))
+    val newCol = InsertFields(oldCol, FastSeq("idx" -> IRScanCount))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -153,7 +154,8 @@ class MatrixIRSuite extends HailSuite {
     val mt = rangeMatrix()
     val oldCol = Ref("sa", mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
+    val newCol =
+      InsertFields(oldCol, FastSeq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -168,7 +170,7 @@ class MatrixIRSuite extends HailSuite {
 
     val newCol = InsertFields(
       oldCol,
-      Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)),
+      FastSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)),
     )
 
     val newMatrix = MatrixMapCols(mt, newCol, None)

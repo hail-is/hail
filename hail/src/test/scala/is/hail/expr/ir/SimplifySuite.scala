@@ -44,36 +44,44 @@ class SimplifySuite extends HailSuite {
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1, 2))
 
   @Test def testInsertFieldsRewriteRules(): Unit = {
-    val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
-    assert(Simplify(ctx, ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastSeq("1", "2"))))
+    val ir1 =
+      InsertFields(InsertFields(base, FastSeq("1" -> I32(2)), None), FastSeq("1" -> I32(3)), None)
+    assert(Simplify(ctx, ir1) == InsertFields(
+      base,
+      FastSeq("1" -> I32(3)),
+      Some(FastSeq("1", "2")),
+    ))
 
     val ir2 = InsertFields(
-      InsertFields(base, Seq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
-      Seq("3" -> I32(3)),
+      InsertFields(base, FastSeq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
+      FastSeq("3" -> I32(3)),
       None,
     )
     assert(Simplify(ctx, ir2) == InsertFields(
       base,
-      Seq("3" -> I32(3)),
+      FastSeq("3" -> I32(3)),
       Some(FastSeq("3", "1", "2")),
     ))
 
     val ir3 = InsertFields(
-      InsertFields(base, Seq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
-      Seq("4" -> I32(3)),
+      InsertFields(base, FastSeq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
+      FastSeq("4" -> I32(3)),
       Some(FastSeq("3", "1", "2", "4")),
     )
     assert(Simplify(ctx, ir3) == InsertFields(
       base,
-      Seq("3" -> I32(2), "4" -> I32(3)),
+      FastSeq("3" -> I32(2), "4" -> I32(3)),
       Some(FastSeq("3", "1", "2", "4")),
     ))
 
     val ir4 =
-      InsertFields(InsertFields(base, Seq("3" -> I32(0), "4" -> I32(1))), Seq("3" -> I32(5)))
+      InsertFields(
+        InsertFields(base, FastSeq("3" -> I32(0), "4" -> I32(1))),
+        FastSeq("3" -> I32(5)),
+      )
     assert(Simplify(ctx, ir4) == InsertFields(
       base,
-      Seq("4" -> I32(1), "3" -> I32(5)),
+      FastSeq("4" -> I32(1), "3" -> I32(5)),
       Some(FastSeq("1", "2", "3", "4")),
     ))
   }
@@ -128,7 +136,7 @@ class SimplifySuite extends HailSuite {
     var ir: TableIR = TableRange(1, 1)
     ir = TableMapRows(
       ir,
-      InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32), Set(1)))),
+      InsertFields(Ref("row", ir.typ.rowType), FastSeq("foo" -> Literal(TSet(TInt32), Set(1)))),
     )
     ir = TableExplode(ir, FastSeq("foo"))
     assertEvalsTo(TableCount(ir), 1L)

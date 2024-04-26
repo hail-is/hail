@@ -5,7 +5,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.types.TableType
+import is.hail.types.{MatrixType, TableType}
 import is.hail.types.virtual.{TArray, TInterval, TStream, Type}
 import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
@@ -821,7 +821,7 @@ class Pretty(
       case I32(i) => s"c$i"
       case stream if stream.typ.isInstanceOf[TStream] => "s"
       case table if table.typ.isInstanceOf[TableType] => "ht"
-      case mt if mt.typ.isInstanceOf[TableType] => "mt"
+      case mt if mt.typ.isInstanceOf[MatrixType] => "mt"
       case _ => ""
     }
 
@@ -874,12 +874,12 @@ class Pretty(
       ir match {
         case Ref(name, _) =>
           val body =
-            blockBindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref", Some(name)))
+            blockBindings.lookupOption(name).getOrElse("#" + uniqueify("undefined_ref", Some(name)))
           concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
         case RelationalRef(name, _) =>
           val body =
-            blockBindings.lookupOption(name).getOrElse(uniqueify(
-              "%undefined_relational_ref",
+            blockBindings.lookupOption(name).getOrElse("#" + uniqueify(
+              "undefined_relational_ref",
               Some(name),
             ))
           concat(openBlock, group(nest(2, concat(line, body, line)), "}"))
@@ -923,10 +923,10 @@ class Pretty(
         } yield {
           child match {
             case Ref(name, _) =>
-              bindings.lookupOption(name).getOrElse(uniqueify("%undefined_ref", Some(name)))
+              bindings.lookupOption(name).getOrElse("#" + uniqueify("undefined_ref", Some(name)))
             case RelationalRef(name, _) =>
-              bindings.lookupOption(name).getOrElse(uniqueify(
-                "%undefined_relational_ref",
+              bindings.lookupOption(name).getOrElse("#" + uniqueify(
+                "undefined_relational_ref",
                 Some(name),
               ))
             case _ =>
