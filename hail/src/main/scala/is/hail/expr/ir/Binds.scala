@@ -302,7 +302,7 @@ object Bindings {
       case StreamFold(a, zero, accumName, valueName, _) if i == 2 =>
         Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
       case StreamFold2(a, accum, valueName, _, _) =>
-        if (i <= accum.length)
+        if (i < accum.length + 1)
           Bindings.empty
         else if (i < 2 * accum.length + 1)
           Bindings(

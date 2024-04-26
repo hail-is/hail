@@ -217,8 +217,6 @@ object Let {
 case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
 
 final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
-//  assert(bindings.map(_.name).areDistinct(), bindings.map(_.name.str))
-
   override lazy val size: Int =
     bindings.length + 1
 }
@@ -957,12 +955,13 @@ final case class MakeStruct(fields: IndexedSeq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
 
 object InsertFields {
-  def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
+  def apply(old: IR, fields: IndexedSeq[(String, IR)]): InsertFields =
+    InsertFields(old, fields, None)
 }
 
 final case class InsertFields(
   old: IR,
-  fields: Seq[(String, IR)],
+  fields: IndexedSeq[(String, IR)],
   fieldOrder: Option[IndexedSeq[String]],
 ) extends TypedIR[TStruct]
 
