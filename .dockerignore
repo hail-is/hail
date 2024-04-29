@@ -29,4 +29,5 @@ hail/src/main/resources/build-info.properties
 hail/src/test/resources/example.v11.bgen.idx
 hail/src/test/resources/random.bgen.idx
 benchmark/python/build/
+web_common/web_common/static/css
 ci/repos

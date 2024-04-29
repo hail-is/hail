@@ -17,6 +17,7 @@ setup_common_static_routes(routes)
 deploy_config = get_deploy_config()
 
 SERVICE = os.environ['SERVICE']
+IS_DEVELOPER = bool(os.getenv('IS_DEVELOPER', True))
 MODULES = {'batch': 'batch.front_end', 'batch-driver': 'batch.driver'}
 BC = web.AppKey('backend_client', Session)
 
@@ -48,6 +49,8 @@ async def render_html(request: web.Request, context: dict):
     # Make links point back to the local dev server and not use
     # the dev namespace path rewrite shenanigans.
     context['page_context']['base_path'] = ''
+    context['page_context']['is_developer'] = IS_DEVELOPER
+    context['userdata']['is_developer'] = IS_DEVELOPER
     return await render_template(SERVICE, request, **context)
 
 

@@ -1,0 +1,41 @@
+{% macro collapsible_li(starts_open, title_left, title_right) %}
+<li x-data='{open: {{ "true" if starts_open else "false" }}}'>
+  <button class='w-full' x-on:click='open=!open'>
+    <div class='flex justify-between px-4 py-4 bg-slate-100 hover:bg-slate-200 hover:cursor-pointer'
+      :class='open ? "bg-slate-200" : ""'>
+      <div class='text-lg font-light'>{{ title_left }}</div>
+      <div class='text-lg font-light'>{{ title_right }}</div>
+    </div>
+  </button>
+  <div class='relative overflow-hidden transition-all' {{ "" if starts_open else "x-cloak" }}
+    :class='open ? "h-full" : "h-0"'>
+    {{ caller() }}
+  </div>
+</li>
+{% endmacro %}
+
+{% macro resource_cost_table(cost_breakdown) %}
+<table class='w-full'>
+  <tbody class='divide-y'>
+    {% for resource_cost in cost_breakdown %}
+    <tr>
+      <td class='p-2'>{{ resource_cost['resource'] }}</td>
+      <td class='p-2 text-right'>{{ resource_cost['cost'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+{% macro kv_table(items) %}
+<table class='w-full'>
+  <tbody class='divide-y'>
+    {% for k, v in items.items() %}
+    <tr>
+      <td class='p-2'>{{ k }}</td>
+      <td class='p-2 text-right'>{{ v }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
