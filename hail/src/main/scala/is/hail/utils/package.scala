@@ -97,6 +97,8 @@ package object utils
     extends Logging with richUtils.Implicits with NumericPairImplicits with utils.NumericImplicits
     with Py4jUtils with ErrorHandling {
 
+  type UtilsType = this.type
+
   def utilsPackageClass = getClass
 
   def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =

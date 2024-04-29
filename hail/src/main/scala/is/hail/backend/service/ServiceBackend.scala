@@ -58,7 +58,7 @@ object ServiceBackend {
     batchClient: BatchClient,
     batchId: Option[Long],
     jobGroupId: Option[Long],
-    scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+    scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
     rpcConfig: ServiceBackendRPCPayload,
   ): ServiceBackend = {
 
