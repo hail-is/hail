@@ -5,7 +5,7 @@ import logging
 import os
 import uuid
 from shlex import quote as shq
-from typing import List, Tuple
+from typing import List
 
 import aiohttp
 
@@ -37,7 +37,7 @@ from .....inst_coll_config import InstanceCollectionConfigs
 from .....instance_config import InstanceConfig, QuantifiedResource
 from ....azure.driver.billing_manager import AzureBillingManager
 from ....azure.resource_utils import (
-    azure_machine_type_to_worker_type_and_cores,
+    azure_machine_type_to_parts,
     azure_worker_memory_per_core_mib,
     azure_worker_properties_to_machine_type,
 )
@@ -346,9 +346,6 @@ class TerraAzureResourceManager(CloudResourceManager):
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:
         return azure_worker_properties_to_machine_type(worker_type, cores, local_ssd)
 
-    def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
-        return azure_machine_type_to_worker_type_and_cores(machine_type)
-
     def instance_config(
         self,
         machine_type: str,
@@ -389,9 +386,11 @@ class TerraAzureResourceManager(CloudResourceManager):
         instance_config: InstanceConfig,
     ) -> List[QuantifiedResource]:
         assert isinstance(instance_config, TerraAzureSlimInstanceConfig)
-        worker_type, cores = self.worker_type_and_cores(machine_type)
+        parts = azure_machine_type_to_parts(machine_type)
+        assert parts
+        cores = parts.cores
 
-        memory_mib = azure_worker_memory_per_core_mib(worker_type) * cores
+        memory_mib = azure_worker_memory_per_core_mib(parts.family) * cores
         memory_in_bytes = memory_mib << 20
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(

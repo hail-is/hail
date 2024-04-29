@@ -148,11 +148,13 @@ def azure_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]
     return MachineTypeParts.from_dict(match.groupdict())
 
 
-def azure_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str, int]:
+def azure_machine_type_to_cores_and_memory_mib_per_core(machine_type: str) -> Tuple[int, int]:
     maybe_machine_type_parts = azure_machine_type_to_parts(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    return (maybe_machine_type_parts.family, maybe_machine_type_parts.cores)
+    cores = maybe_machine_type_parts.cores
+    memory_per_core = azure_worker_memory_per_core_mib(maybe_machine_type_parts.family)
+    return cores, memory_per_core
 
 
 def azure_worker_properties_to_machine_type(worker_type: str, cores: int, local_ssd_data_disk: bool) -> str:

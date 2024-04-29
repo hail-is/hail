@@ -21,6 +21,7 @@ from hailtop.utils import (
 )
 
 from ...batch_format_version import BatchFormatVersion
+from ...cloud.resource_utils import machine_type_to_cores_and_memory_mib_per_core
 from ...inst_coll_config import JobPrivateInstanceManagerConfig
 from ...instance_config import QuantifiedResource
 from ...utils import Box, ExceededSharesCounter, regions_bits_rep_to_regions
@@ -311,7 +312,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
-        _, cores = self.resource_manager.worker_type_and_cores(machine_type)
+        cores, _ = machine_type_to_cores_and_memory_mib_per_core(self.cloud, machine_type)
         instance, total_resources_on_instance = await self._create_instance(
             app=self.app,
             cores=cores,
