@@ -312,11 +312,13 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    val r @ (_, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+    val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
         (() => readResult(root, jobIndex), partIdx)
       }
     }
+
+    error.foreach(throw _)
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
