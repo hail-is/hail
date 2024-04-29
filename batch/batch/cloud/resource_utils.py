@@ -14,7 +14,6 @@ from .azure.resource_utils import (
     azure_worker_memory_per_core_mib,
 )
 from .gcp.resource_utils import (
-    gcp_cost_from_msec_mcpu,
     gcp_is_valid_storage_request,
     gcp_local_ssd_size,
     gcp_machine_type_to_worker_type_and_cores,
@@ -58,13 +57,6 @@ def machine_type_to_worker_type_cores(cloud: str, machine_type: str) -> Tuple[st
         return azure_machine_type_to_worker_type_and_cores(machine_type)
     assert cloud == 'gcp'
     return gcp_machine_type_to_worker_type_and_cores(machine_type)
-
-
-def cost_from_msec_mcpu(msec_mcpu: int) -> Optional[float]:
-    if msec_mcpu is None:
-        return None
-    # msec_mcpu is deprecated and only applicable to GCP
-    return gcp_cost_from_msec_mcpu(msec_mcpu)
 
 
 def worker_memory_per_core_mib(cloud: str, worker_type: str) -> int:
