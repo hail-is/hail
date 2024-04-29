@@ -9,7 +9,6 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.tcoerce
 import is.hail.types.virtual.{Field => TField, _}
 import is.hail.utils._
 
