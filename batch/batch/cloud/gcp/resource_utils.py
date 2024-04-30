@@ -136,3 +136,9 @@ def machine_family_to_gpu(machine_family: str) -> Optional[str]:
 
 def is_gpu(machine_family: str) -> bool:
     return machine_family_to_gpu(machine_family) is not None
+
+
+def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: str) -> int:
+    memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
+    memory_bytes = int(memory_mib * 1024**2)
+    return int((mcpu / 1000) * memory_bytes)

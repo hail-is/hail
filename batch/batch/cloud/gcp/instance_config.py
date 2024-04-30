@@ -2,7 +2,7 @@ from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import gcp_machine_type_to_parts, gcp_worker_memory_per_core_mib, machine_family_to_gpu
+from .resource_utils import gcp_cores_mcpu_to_memory_bytes, gcp_machine_type_to_parts, machine_family_to_gpu
 from .resources import (
     GCPAcceleratorResource,
     GCPComputeResource,
@@ -105,9 +105,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
         return self._worker_type
 
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
-        memory_mib = gcp_worker_memory_per_core_mib(self._instance_family, self.worker_type())
-        memory_bytes = int(memory_mib * 1024**2)
-        return int((mcpu / 1000) * memory_bytes)
+        return gcp_cores_mcpu_to_memory_bytes(mcpu, self._instance_family, self.worker_type())
 
     def machine_family(self) -> str:
         assert self._instance_family is not None, self._instance_family

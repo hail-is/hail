@@ -206,3 +206,9 @@ def azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
 
 def azure_is_valid_storage_request(storage_in_gib: int) -> bool:
     return 10 <= storage_in_gib <= AZURE_MAX_PERSISTENT_SSD_SIZE_GIB
+
+
+def azure_cores_mcpu_to_memory_bytes(mcpu: int, worker_type: str) -> int:
+    memory_mib = azure_worker_memory_per_core_mib(worker_type)
+    memory_bytes = int(memory_mib * 1024**2)
+    return int((mcpu / 1000) * memory_bytes)
