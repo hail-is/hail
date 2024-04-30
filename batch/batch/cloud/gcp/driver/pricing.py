@@ -181,6 +181,8 @@ def instance_family_from_sku(sku: dict) -> Optional[str]:
         return 'n1'
     if sku['description'].startswith("G2 Instance") or sku['description'].startswith("Spot Preemptible G2 Instance"):
         return 'g2'
+    if sku['description'].startswith("A2 Instance") or sku['description'].startswith("Spot Preemptible A2 Instance"):
+        return 'a2'
     return None
 
 
@@ -188,6 +190,8 @@ def accelerator_from_sku(sku) -> Optional[str]:
     description = sku['description']
     if description.startswith("Nvidia L4 GPU"):
         return 'l4'
+    if description.startswith("Nvidia Tesla A100 GPU"):
+        return 'a100'
     return None
 
 
