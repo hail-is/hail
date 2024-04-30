@@ -2498,7 +2498,7 @@ class JVMContainer:
 
         # We allocate 60% of memory per core to off heap memory
 
-        memory_mib = total_memory_bytes / (1024**2)
+        memory_mib = total_memory_bytes // (1024**2)
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 
