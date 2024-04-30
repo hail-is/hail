@@ -949,7 +949,7 @@ package object utils
   def virtualOffsetCompressedOffset(offset: Long): Long =
     offset >> 16
 
-  def tokenUrlSafe(n: Int): String = {
+  def tokenUrlSafe: String = {
     val bytes = new Array[Byte](32)
     val random = new SecureRandom()
     random.nextBytes(bytes)

@@ -160,7 +160,7 @@ class ServiceBackend(
   ): (String, String, Int) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
-    val token = tokenUrlSafe(32)
+    val token = tokenUrlSafe
     val root = s"${backendContext.remoteTmpDir}parallelizeAndComputeWithIndex/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
