@@ -10,17 +10,13 @@ from .cloud.gcp.instance_config import GCPSlimInstanceConfig
 from .cloud.gcp.resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
-    gcp_machine_type_to_parts,
 )
 from .cloud.resource_utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     cores_mcpu_to_memory_bytes,
     local_ssd_size,
-<<<<<<< HEAD
     machine_type_to_cores_and_memory_mib_per_core,
-=======
->>>>>>> c73cfc25c (code refactor)
     requested_storage_bytes_to_actual_storage_gib,
     valid_machine_types,
 )

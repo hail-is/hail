@@ -58,7 +58,9 @@ def gcp_machine_type_to_cores_and_memory_mib_per_core(machine_type: str) -> Tupl
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
     cores = maybe_machine_type_parts.cores
-    memory_per_core = gcp_worker_memory_per_core_mib(maybe_machine_type_parts.worker_type)
+    memory_per_core = gcp_worker_memory_per_core_mib(
+        maybe_machine_type_parts.machine_family, maybe_machine_type_parts.worker_type
+    )
     return cores, memory_per_core
 
 

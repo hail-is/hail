@@ -1,7 +1,9 @@
-from batch.cloud.resource_utils import adjust_cores_for_packability
-from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib
-from hailtop.batch_client.parse import parse_memory_in_bytes
 import pytest
+
+from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib
+from batch.cloud.resource_utils import adjust_cores_for_packability
+from hailtop.batch_client.parse import parse_memory_in_bytes
+
 
 def test_packability():
     assert adjust_cores_for_packability(0) == 250
@@ -28,8 +30,8 @@ def test_memory_str_to_bytes():
 
 def test_gcp_worker_memory_per_core_mib():
     with pytest.raises(AssertionError):
-        assert gcp_worker_memory_per_core_mib('n2','standard')
-    assert gcp_worker_memory_per_core_mib('n1','standard') == 3840
-    assert gcp_worker_memory_per_core_mib('n1','highmem') == 6656
-    assert gcp_worker_memory_per_core_mib('n1','highcpu') == 924
-    assert gcp_worker_memory_per_core_mib('g2','standard') == 4000
+        assert gcp_worker_memory_per_core_mib('n2', 'standard')
+    assert gcp_worker_memory_per_core_mib('n1', 'standard') == 3840
+    assert gcp_worker_memory_per_core_mib('n1', 'highmem') == 6656
+    assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
+    assert gcp_worker_memory_per_core_mib('g2', 'standard') == 4000
