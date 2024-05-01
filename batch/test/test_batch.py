@@ -45,6 +45,19 @@ def test_job(client: BatchClient):
     assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
 
 
+def test_job_resource_usage(client: BatchClient):
+    b = create_batch(client)
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    b.submit()
+
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+    resource_usage = j.resource_usage()
+    if resource_usage is None:
+        assert resource_usage['main'] is not None, str((resource_usage, b.debug_info()))
+
+
 def test_job_running_logs(client: BatchClient):
     b = create_batch(client)
     j = b.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'echo test && sleep 300'])

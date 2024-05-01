@@ -304,6 +304,25 @@ class Job:
         resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
         return await resp.json()
 
+    async def resource_usage(self):
+        """
+        Get resource usage for a job, one key for each section of the task.
+        This doesn't return a dictionary of dataframes, but could be converted with:
+
+            dataframes = {
+                key: pd.DataFrame(data=values['data'], columns=values['columns'])
+                for key, values in job.resource_usage.items()
+            }
+
+        Returns:
+            dict[str, dict]: values are convertible to dataframe
+        """
+        self._raise_if_not_submitted()
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/resource_usage')
+        # note, not a dataframe, but easy to get with:
+
+        return await resp.json()
+
 
 class BatchSubmissionInfo:
     def __init__(self, used_fast_path: Optional[bool] = None):

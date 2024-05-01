@@ -95,6 +95,21 @@ class Job:
     def attempts(self):
         return async_to_blocking(self._async_job.attempts())
 
+    def resource_usage(self):
+        """
+        Get resource usage for a job, one key for each section of the task.
+        This doesn't return a dictionary of dataframes, but could be converted with:
+
+            dataframes = {
+                key: pd.DataFrame(data=values['data'], columns=values['columns'])
+                for key, values in job.resource_usage.items()
+            }
+
+        Returns:
+            dict[str, dict]: values are convertible to dataframe
+        """
+        return async_to_blocking(self._async_job.resource_usage())
+
 
 class Batch:
     @staticmethod
