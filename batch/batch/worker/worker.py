@@ -2483,7 +2483,8 @@ class JVMContainer:
 
         assert instance_config
 
-        _, total_memory_bytes = machine_type_to_cores_and_memory_bytes(CLOUD, INSTANCE_CONFIG["machine_type"])
+        total_machine_cores , total_machine_memory_bytes = machine_type_to_cores_and_memory_bytes(CLOUD, INSTANCE_CONFIG["machine_type"])
+        total_memory_bytes = int((n_cores / total_machine_cores) * total_machine_memory_bytes)
         # We allocate 60% of memory per core to off heap memory
 
         memory_mib = total_memory_bytes // (1024**2)
