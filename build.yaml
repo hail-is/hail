@@ -2892,6 +2892,8 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
+      export HAIL_PRODUCTION_DOMAIN="{{ global.domain }}"
+      pip install /io/ci
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -2908,8 +2910,8 @@ steps:
         mountPath: /test-dev-gsa-key
     timeout: 5400
     inputs:
-      - from: /repo/ci/test
-        to: /io/ci/test
+      - from: /repo/ci
+        to: /io/ci
     scopes:
       - test
       - dev

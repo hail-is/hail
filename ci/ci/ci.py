@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import traceback
+from collections import defaultdict
 from contextlib import AsyncExitStack
 from typing import Any, Callable, Dict, List, NoReturn, Optional, Set, Tuple, TypedDict
 
@@ -678,6 +679,17 @@ async def add_namespace(request: web.Request, _) -> NoReturn:
     raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
+@routes.get('/envoy-config/{proxy}')
+@auth.authenticated_developers_only()
+async def get_envoy_configs(request: web.Request, _) -> web.Response:
+    proxy = request.match_info['proxy']
+    if proxy not in ('gateway', 'internal-gateway'):
+        raise web.HTTPBadRequest(text=f'Proxy must be either gateway or internal-gateway, found: {proxy}')
+    db = request.app[AppKeys.DB]
+    cds, rds = await generate_envoy_configs(db, proxy)
+    return json_response({'cds': cds, 'rds': rds})
+
+
 async def cleanup_expired_namespaces(db: Database):
     assert DEFAULT_NAMESPACE == 'default'
     expired_namespaces = [
@@ -696,34 +708,15 @@ async def update_envoy_configs(db: Database, k8s_client):
     assert DEFAULT_NAMESPACE == 'default'
 
     api_response = await k8s_client.list_namespace()
-    live_namespaces = tuple(ns.metadata.name for ns in api_response.items)
-    namespace_arg_list = "(" + ",".join('%s' for _ in live_namespaces) + ")"
-
-    services_per_namespace = {
-        r['namespace']: [s for s in json.loads(r['services']) if s is not None]
-        async for r in db.execute_and_fetchall(
-            f"""
-SELECT active_namespaces.namespace, JSON_ARRAYAGG(service) as services
-FROM active_namespaces
-LEFT JOIN deployed_services
-ON active_namespaces.namespace = deployed_services.namespace
-WHERE active_namespaces.namespace IN {namespace_arg_list}
-GROUP BY active_namespaces.namespace""",
-            live_namespaces,
-        )
-    }
-    assert 'default' in services_per_namespace
-    default_services = services_per_namespace.pop('default')
-    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
+    live_namespaces = list(ns.metadata.name for ns in api_response.items)
 
     for proxy in ('gateway', 'internal-gateway'):
+        cds, rds = await generate_envoy_configs(db, proxy, live_namespaces)
         configmap_name = f'{proxy}-xds-config'
         configmap = await k8s_client.read_namespaced_config_map(
             name=configmap_name,
             namespace=DEFAULT_NAMESPACE,
         )
-        cds = create_cds_response(default_services, services_per_namespace, proxy)
-        rds = create_rds_response(default_services, services_per_namespace, proxy)
         configmap.data['cds.yaml'] = yaml.dump(cds)
         configmap.data['rds.yaml'] = yaml.dump(rds)
         await k8s_client.patch_namespaced_config_map(
@@ -731,6 +724,31 @@ GROUP BY active_namespaces.namespace""",
             namespace=DEFAULT_NAMESPACE,
             body=configmap,
         )
+
+
+async def generate_envoy_configs(db: Database, proxy: str, namespaces: Optional[List[str]] = None) -> Tuple[dict, dict]:
+    if namespaces is None:
+        namespace_filter = ''
+    else:
+        namespace_filter = "WHERE active_namespaces.namespace IN (" + ",".join('%s' for _ in namespaces) + ")"
+
+    services_per_namespace: Dict[str, List[str]] = defaultdict(list)
+    async for r in db.execute_and_fetchall(f"""
+SELECT active_namespaces.namespace, service
+FROM active_namespaces
+LEFT JOIN deployed_services
+ON active_namespaces.namespace = deployed_services.namespace
+{namespace_filter}
+"""):
+        services_per_namespace[r['namespace']].append(r['service'])
+
+    assert DEFAULT_NAMESPACE in services_per_namespace
+    default_services = services_per_namespace.pop(DEFAULT_NAMESPACE)
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
+
+    cds_config = create_cds_response(default_services, services_per_namespace, proxy)
+    rds_config = create_rds_response(default_services, services_per_namespace, proxy)
+    return cds_config, rds_config
 
 
 async def update_loop(app: web.Application):
