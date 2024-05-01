@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.types.virtual.Type
+
 object Env {
   type K = String
 
@@ -10,7 +12,46 @@ object Env {
   def fromSeq[V](bindings: Iterable[(String, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
+sealed abstract class AggEnv[+A] {
+  def empty[B]: AggEnv[B] = this match {
+    case AggEnv.Create(_) => AggEnv.Create(Seq.empty)
+    case AggEnv.Bind(_) => AggEnv.NoOp
+    case AggEnv.NoOp => AggEnv.NoOp
+    case AggEnv.Drop => AggEnv.Drop
+    case AggEnv.Promote => AggEnv.Promote
+  }
+}
+
+object AggEnv {
+  case object NoOp extends AggEnv[Nothing]
+  case object Drop extends AggEnv[Nothing]
+  case object Promote extends AggEnv[Nothing]
+  final case class Create[A](bindings: Seq[(String, A)]) extends AggEnv[A]
+  final case class Bind[A](bindings: Seq[(String, A)]) extends AggEnv[A]
+
+  def bindOrNoOp[A](bindings: Seq[(String, A)]): AggEnv[A] =
+    if (bindings.nonEmpty) Bind(bindings) else NoOp
+}
+
+object GenericBindingEnv {
+  implicit class GenericBindingEnvType[Self](private val env: GenericBindingEnv[Self, Type])
+      extends AnyVal {
+    def extend(bindings: Bindings): Self = {
+      val Bindings(eval, agg, scan, relational, dropEval) = bindings
+      env.newBlock(eval, agg, scan, relational, dropEval)
+    }
+  }
+}
+
 trait GenericBindingEnv[Self, V] {
+  def newBlock(
+    eval: Seq[(String, V)] = Seq.empty,
+    agg: AggEnv[V] = AggEnv.NoOp,
+    scan: AggEnv[V] = AggEnv.NoOp,
+    relational: Seq[(String, V)] = Seq.empty,
+    dropEval: Boolean = false,
+  ): Self
+
   def promoteAgg: Self
 
   def promoteScan: Self
@@ -20,7 +61,7 @@ trait GenericBindingEnv[Self, V] {
 
   def bindEval(bindings: (String, V)*): Self
 
-  def dropEval: Self
+  def noEval: Self
 
   def bindAgg(bindings: (String, V)*): Self
 
@@ -66,6 +107,39 @@ case class BindingEnv[V](
   scan: Option[Env[V]] = None,
   relational: Env[V] = Env.empty[V],
 ) extends GenericBindingEnv[BindingEnv[V], V] {
+  def newBlock(
+    eval: Seq[(String, V)] = Seq.empty,
+    agg: AggEnv[V] = AggEnv.NoOp,
+    scan: AggEnv[V] = AggEnv.NoOp,
+    relational: Seq[(String, V)] = Seq.empty,
+    dropEval: Boolean = false,
+  ): BindingEnv[V] = {
+    var newEnv = this
+    if (dropEval) newEnv = newEnv.noEval
+    if (agg.isInstanceOf[AggEnv.Create[V]] || scan.isInstanceOf[AggEnv.Create[V]])
+      newEnv =
+        newEnv.copy(agg = newEnv.agg.map(_ => Env.empty), scan = newEnv.scan.map(_ => Env.empty))
+    agg match {
+      case AggEnv.Drop => newEnv = newEnv.noAgg
+      case AggEnv.Promote => newEnv = newEnv.promoteAgg
+      case AggEnv.Create(bindings) =>
+        newEnv = newEnv.copy(agg = Some(newEnv.eval.bindIterable(bindings)))
+      case AggEnv.Bind(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
+      case _ =>
+    }
+    scan match {
+      case AggEnv.Drop => newEnv = newEnv.noScan
+      case AggEnv.Promote => newEnv = newEnv.promoteScan
+      case AggEnv.Create(bindings) =>
+        newEnv = newEnv.copy(scan = Some(newEnv.eval.bindIterable(bindings)))
+      case AggEnv.Bind(bindings) => newEnv = newEnv.bindScan(bindings: _*)
+      case _ =>
+    }
+    if (eval.nonEmpty) newEnv = newEnv.bindEval(eval: _*)
+    if (relational.nonEmpty) newEnv = newEnv.bindRelational(relational: _*)
+    newEnv
+  }
+
   def allEmpty: Boolean =
     eval.isEmpty && agg.forall(_.isEmpty) && scan.forall(_.isEmpty) && relational.isEmpty
 
@@ -105,7 +179,7 @@ case class BindingEnv[V](
   def deleteEval(name: String): BindingEnv[V] = copy(eval = eval.delete(name))
   def deleteEval(names: IndexedSeq[String]): BindingEnv[V] = copy(eval = eval.delete(names))
 
-  def dropEval: BindingEnv[V] = copy(eval = Env.empty)
+  def noEval: BindingEnv[V] = copy(eval = Env.empty)
 
   def bindAgg(name: String, v: V): BindingEnv[V] =
     copy(agg = Some(agg.get.bind(name, v)))
