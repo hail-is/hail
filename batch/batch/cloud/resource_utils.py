@@ -14,7 +14,6 @@ from .azure.resource_utils import (
     azure_worker_memory_per_core_mib,
 )
 from .gcp.resource_utils import (
-    gcp_cost_from_msec_mcpu,
     gcp_is_valid_storage_request,
     gcp_local_ssd_size,
     gcp_machine_type_to_cores_and_memory_mib_per_core,
@@ -62,13 +61,6 @@ def machine_type_to_cores_and_memory_bytes(cloud: str, machine_type: str) -> Tup
     memory_bytes_per_core = memory_mib_per_core * 1024**2
     memory_bytes = cores * memory_bytes_per_core
     return cores, memory_bytes
-
-
-def cost_from_msec_mcpu(msec_mcpu: int) -> Optional[float]:
-    if msec_mcpu is None:
-        return None
-    # msec_mcpu is deprecated and only applicable to GCP
-    return gcp_cost_from_msec_mcpu(msec_mcpu)
 
 
 def worker_memory_per_core_mib(cloud: str, machine_family: str, worker_type: str) -> int:

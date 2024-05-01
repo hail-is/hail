@@ -68,49 +68,10 @@ def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, 
     return f'{family}-{worker_type}-{cores}'
 
 
-def gcp_cost_from_msec_mcpu(msec_mcpu: int) -> float:
-    assert msec_mcpu is not None
-
-    worker_type = 'standard'
-    worker_cores = 16
-    worker_disk_size_gb = 100
-
-    # https://cloud.google.com/compute/all-pricing
-
-    # per instance costs
-    # persistent SSD: $0.17 GB/month
-    # average number of days per month = 365.25 / 12 = 30.4375
-    avg_n_days_per_month = 30.4375
-
-    disk_cost_per_instance_hour = 0.17 * worker_disk_size_gb / avg_n_days_per_month / 24
-
-    ip_cost_per_instance_hour = 0.004
-
-    instance_cost_per_instance_hour = disk_cost_per_instance_hour + ip_cost_per_instance_hour
-
-    # per core costs
-    if worker_type == 'standard':
-        cpu_cost_per_core_hour = 0.01
-    elif worker_type == 'highcpu':
-        cpu_cost_per_core_hour = 0.0075
-    else:
-        assert worker_type == 'highmem'
-        cpu_cost_per_core_hour = 0.0125
-
-    service_cost_per_core_hour = 0.01
-
-    total_cost_per_core_hour = (
-        cpu_cost_per_core_hour + instance_cost_per_instance_hour / worker_cores + service_cost_per_core_hour
-    )
-
-    return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
-
-
 def gcp_worker_memory_per_core_mib(machine_family: str, worker_type: str) -> int:
     machine_worker_key = (machine_family, worker_type)
     assert machine_worker_key in MEMORY_PER_CORE_MIB, machine_worker_key
-    m = MEMORY_PER_CORE_MIB[machine_worker_key]
-    return m
+    return MEMORY_PER_CORE_MIB[machine_worker_key]
 
 
 def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
