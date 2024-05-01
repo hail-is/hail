@@ -69,12 +69,12 @@ from hailtop.utils import (
 )
 
 from ..batch_format_version import BatchFormatVersion
-from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes, azure_machine_type_to_parts
 from ..cloud.azure.worker.worker_api import AzureWorkerAPI
-from ..cloud.gcp.resource_utils import gcp_cores_mcpu_to_memory_bytes, gcp_machine_type_to_parts, is_gpu
+from ..cloud.gcp.resource_utils import is_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
+    machine_type_to_cores_and_memory_bytes,
     storage_gib_to_bytes,
 )
 from ..file_store import FileStore
@@ -2483,19 +2483,7 @@ class JVMContainer:
 
         assert instance_config
 
-        if CLOUD == 'gcp':
-            machine_type_parts = gcp_machine_type_to_parts(INSTANCE_CONFIG["machine_type"])
-            assert machine_type_parts
-            total_memory_bytes = gcp_cores_mcpu_to_memory_bytes(
-                n_cores * 1000, machine_type_parts.machine_family, machine_type_parts.worker_type
-            )
-
-        else:
-            assert CLOUD == 'azure'
-            machine_type_parts = azure_machine_type_to_parts(INSTANCE_CONFIG["machine_type"])
-            assert machine_type_parts
-            total_memory_bytes = azure_cores_mcpu_to_memory_bytes(n_cores * 1000, machine_type_parts.family)
-
+        _, total_memory_bytes = machine_type_to_cores_and_memory_bytes(CLOUD, INSTANCE_CONFIG["machine_type"])
         # We allocate 60% of memory per core to off heap memory
 
         memory_mib = total_memory_bytes // (1024**2)
