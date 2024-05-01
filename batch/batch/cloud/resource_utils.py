@@ -53,11 +53,15 @@ def memory_to_worker_type(cloud: str) -> Dict[str, str]:
     return gcp_memory_to_worker_type
 
 
-def machine_type_to_cores_and_memory_mib_per_core(cloud: str, machine_type: str) -> Tuple[int, int]:
+def machine_type_to_cores_and_memory_bytes(cloud: str, machine_type: str) -> Tuple[int, int]:
     if cloud == 'azure':
-        return azure_machine_type_to_cores_and_memory_mib_per_core(machine_type)
-    assert cloud == 'gcp'
-    return gcp_machine_type_to_cores_and_memory_mib_per_core(machine_type)
+        cores, memory_mib_per_core = azure_machine_type_to_cores_and_memory_mib_per_core(machine_type)
+    else:
+        assert cloud == 'gcp'
+        cores, memory_mib_per_core = gcp_machine_type_to_cores_and_memory_mib_per_core(machine_type)
+    memory_bytes_per_core = memory_mib_per_core * 1024**2
+    memory_bytes = cores * memory_bytes_per_core
+    return cores, memory_bytes
 
 
 def cost_from_msec_mcpu(msec_mcpu: int) -> Optional[float]:

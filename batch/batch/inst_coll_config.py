@@ -16,7 +16,7 @@ from .cloud.resource_utils import (
     adjust_cores_for_packability,
     cores_mcpu_to_memory_bytes,
     local_ssd_size,
-    machine_type_to_cores_and_memory_mib_per_core,
+    machine_type_to_cores_and_memory_bytes,
     requested_storage_bytes_to_actual_storage_gib,
     valid_machine_types,
 )
@@ -245,10 +245,10 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         if storage_gib is None:
             return None
 
-        cores, memory_mib_per_core = machine_type_to_cores_and_memory_mib_per_core(self.cloud, machine_type)
+        cores, memory_bytes = machine_type_to_cores_and_memory_bytes(self.cloud, machine_type)
         cores_mcpu = cores * 1000
 
-        return (self.name, cores_mcpu, memory_mib_per_core * 1024, storage_gib)
+        return (self.name, cores_mcpu, memory_bytes, storage_gib)
 
 
 class InstanceCollectionConfigs:
