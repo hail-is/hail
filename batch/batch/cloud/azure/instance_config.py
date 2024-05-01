@@ -84,11 +84,6 @@ class AzureSlimInstanceConfig(InstanceConfig):
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
         return azure_cores_mcpu_to_memory_bytes(mcpu, self.worker_type())
 
-    # def machine_family(self) -> str:
-    #     machine_type_parts = azure_machine_type_to_parts(self._machine_type)
-    #     assert machine_type_parts is not None, self._machine_type
-    #     return machine_type_parts.machine_family
-
     def region_for(self, location: str) -> str:
         return location
 
