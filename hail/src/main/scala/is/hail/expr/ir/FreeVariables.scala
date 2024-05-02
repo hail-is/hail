@@ -27,25 +27,30 @@ case class FreeVariableBindingEnv(
   scanVars: Option[FreeVariableEnv],
 ) extends GenericBindingEnv[FreeVariableBindingEnv, Type] {
   def extend(bindings: Bindings[Type]): FreeVariableBindingEnv = {
-    val Bindings(eval, agg, scan, relational, dropEval) = bindings
+    val Bindings(all, eval, agg, scan, relational, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval
     agg match {
       case AggEnv.Drop => newEnv = newEnv.noAgg
       case AggEnv.Promote => newEnv = newEnv.promoteAgg
-      case AggEnv.Create(bindings) => newEnv = newEnv.createAgg.bindAgg(bindings: _*)
-      case AggEnv.Bind(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
+      case AggEnv.Create(bindings) =>
+        newEnv = newEnv.createAgg.bindAgg(bindings.map(all): _*)
+      case AggEnv.Bind(bindings) =>
+        newEnv = newEnv.bindAgg(bindings.map(all): _*)
       case _ =>
     }
     scan match {
       case AggEnv.Drop => newEnv = newEnv.noScan
       case AggEnv.Promote => newEnv = newEnv.promoteScan
-      case AggEnv.Create(bindings) => newEnv = newEnv.createScan.bindScan(bindings: _*)
-      case AggEnv.Bind(bindings) => newEnv = newEnv.bindScan(bindings: _*)
+      case AggEnv.Create(bindings) =>
+        newEnv = newEnv.createScan.bindScan(bindings.map(all): _*)
+      case AggEnv.Bind(bindings) =>
+        newEnv = newEnv.bindScan(bindings.map(all): _*)
       case _ =>
     }
-    if (eval.nonEmpty) newEnv = newEnv.bindEval(eval: _*)
-    if (relational.nonEmpty) newEnv = newEnv.bindRelational(relational: _*)
+    if (eval.nonEmpty) newEnv = newEnv.bindEval(eval.map(all): _*)
+    if (relational.nonEmpty)
+      newEnv = newEnv.bindRelational(relational.map(all): _*)
     newEnv
   }
 

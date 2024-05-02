@@ -33,6 +33,13 @@ object MatrixType {
 
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 
+  def globalBindings: IndexedSeq[Int] = FastSeq(0)
+  def rowInRowBindings: IndexedSeq[Int] = FastSeq(0, 1)
+  def colInColBindings: IndexedSeq[Int] = FastSeq(0, 1)
+  def rowInEntryBindings: IndexedSeq[Int] = FastSeq(0, 2)
+  def colInEntryBindings: IndexedSeq[Int] = FastSeq(0, 1)
+  def entryBindings: IndexedSeq[Int] = FastSeq(0, 1, 2, 3)
+
   def fromTableType(
     typ: TableType,
     colsFieldName: String,

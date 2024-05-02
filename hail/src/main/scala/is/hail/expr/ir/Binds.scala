@@ -1,42 +1,82 @@
 package is.hail.expr.ir
 
-import is.hail.types.tcoerce
+import is.hail.types.{tcoerce, MatrixType, TableType}
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.FastSeq
 
 import scala.collection.mutable
 
+sealed abstract class AggEnv {
+  def empty: AggEnv = this match {
+    case AggEnv.Create(_) => AggEnv.Create(Seq.empty)
+    case AggEnv.Bind(_) => AggEnv.NoOp
+    case AggEnv.NoOp => AggEnv.NoOp
+    case AggEnv.Drop => AggEnv.Drop
+    case AggEnv.Promote => AggEnv.Promote
+  }
+
+  def isEmpty: Boolean = this match {
+    case AggEnv.Create(bindings) => bindings.isEmpty
+    case AggEnv.Bind(bindings) => bindings.isEmpty
+    case _ => true
+  }
+}
+
+object AggEnv {
+  case object NoOp extends AggEnv
+  case object Drop extends AggEnv
+  case object Promote extends AggEnv
+  final case class Create(bindings: Seq[Int]) extends AggEnv
+  final case class Bind(bindings: Seq[Int]) extends AggEnv
+
+  def bindOrNoOp(bindings: Seq[Int]): AggEnv =
+    if (bindings.nonEmpty) Bind(bindings) else NoOp
+}
+
 object Binds {
-  def apply(x: IR, v: String, i: Int): Boolean =
-    Bindings.get(x, i).eval.exists(_._1 == v)
+  def apply(x: IR, v: String, i: Int): Boolean = {
+    val bindings = Bindings.get(x, i)
+    bindings.all.zipWithIndex.exists { case ((name, _), i) =>
+      name == v && bindings.eval.contains(i)
+    }
+  }
 }
 
 final case class Bindings[+T](
-  eval: IndexedSeq[(String, T)] = FastSeq.empty,
-  agg: AggEnv[T] = AggEnv.NoOp,
-  scan: AggEnv[T] = AggEnv.NoOp,
-  relational: IndexedSeq[(String, T)] = FastSeq.empty,
-  dropEval: Boolean = false,
+  all: IndexedSeq[(String, T)],
+  eval: IndexedSeq[Int],
+  agg: AggEnv,
+  scan: AggEnv,
+  relational: IndexedSeq[Int],
+  dropEval: Boolean,
 ) {
-  def map[U](f: (String, T) => U): Bindings[U] = Bindings(
-    eval.map { case (n, v) => n -> f(n, v) },
-    agg.map(f),
-    scan.map(f),
-    relational.map { case (n, v) => n -> f(n, v) },
-    dropEval,
-  )
+  def map[U](f: (String, T) => U): Bindings[U] =
+    copy(all = all.map { case (n, t) => (n, f(n, t)) })
 
   def allEmpty: Boolean =
     eval.isEmpty && agg.isEmpty && scan.isEmpty && relational.isEmpty
 
   def dropBindings[U]: Bindings[U] =
-    Bindings(FastSeq.empty, agg.empty, scan.empty, FastSeq.empty, dropEval)
+    Bindings(FastSeq.empty, FastSeq.empty, agg.empty, scan.empty, FastSeq.empty, dropEval)
 }
 
 object Bindings {
+  def apply[T](
+    bindings: IndexedSeq[(String, T)] = FastSeq.empty,
+    eval: IndexedSeq[Int] = FastSeq.empty,
+    agg: AggEnv = AggEnv.NoOp,
+    scan: AggEnv = AggEnv.NoOp,
+    relational: IndexedSeq[Int] = FastSeq.empty,
+    dropEval: Boolean = false,
+  ): Bindings[T] =
+    if (eval.isEmpty && agg.isEmpty && scan.isEmpty && relational.isEmpty)
+      new Bindings(bindings, bindings.indices, agg, scan, relational, dropEval)
+    else
+      new Bindings(bindings, eval, agg, scan, relational, dropEval)
+
   val empty: Bindings[Nothing] =
-    Bindings(FastSeq.empty, AggEnv.NoOp, AggEnv.NoOp, FastSeq.empty, false)
+    Bindings(FastSeq.empty, FastSeq.empty, AggEnv.NoOp, AggEnv.NoOp, FastSeq.empty, false)
 
   /** Returns the environment of the `i`th child of `ir` given the environment of the parent node
     * `ir`.
@@ -51,11 +91,13 @@ object Bindings {
 
   // Create a `Bindings` which cannot see anything bound in the enclosing context.
   private def inFreshScope(
-    eval: IndexedSeq[(String, Type)] = FastSeq.empty,
-    agg: Option[IndexedSeq[(String, Type)]] = None,
-    scan: Option[IndexedSeq[(String, Type)]] = None,
-    relational: IndexedSeq[(String, Type)] = FastSeq.empty,
+    bindings: IndexedSeq[(String, Type)] = FastSeq.empty,
+    eval: IndexedSeq[Int] = FastSeq.empty,
+    agg: Option[IndexedSeq[Int]] = None,
+    scan: Option[IndexedSeq[Int]] = None,
+    relational: IndexedSeq[Int] = FastSeq.empty,
   ): Bindings[Type] = Bindings(
+    bindings,
     eval,
     agg.map(AggEnv.Create(_)).getOrElse(AggEnv.Drop),
     scan.map(AggEnv.Create(_)).getOrElse(AggEnv.Drop),
@@ -64,20 +106,26 @@ object Bindings {
   )
 
   private def childEnvMatrix(ir: MatrixIR, i: Int): Bindings[Type] = {
+    import is.hail.types.MatrixType.{
+      globalBindings, rowInEntryBindings, colInColBindings, rowInRowBindings, entryBindings,
+      colInEntryBindings,
+    }
     ir match {
       case MatrixMapRows(child, _) if i == 1 =>
         Bindings.inFreshScope(
-          eval = child.typ.rowBindings :+ "n_cols" -> TInt32,
-          agg = Some(child.typ.entryBindings),
-          scan = Some(child.typ.rowBindings),
+          child.typ.entryBindings :+ "n_cols" -> TInt32,
+          eval = rowInEntryBindings :+ 4,
+          agg = Some(entryBindings),
+          scan = Some(rowInEntryBindings),
         )
       case MatrixFilterRows(child, _) if i == 1 =>
         Bindings.inFreshScope(child.typ.rowBindings)
       case MatrixMapCols(child, _, _) if i == 1 =>
         Bindings.inFreshScope(
-          eval = child.typ.colBindings :+ "n_rows" -> TInt64,
-          agg = Some(child.typ.entryBindings),
-          scan = Some(child.typ.colBindings),
+          child.typ.entryBindings :+ "n_rows" -> TInt64,
+          eval = colInEntryBindings :+ 4,
+          agg = Some(entryBindings),
+          scan = Some(colInEntryBindings),
         )
       case MatrixFilterCols(child, _) if i == 1 =>
         Bindings.inFreshScope(child.typ.colBindings)
@@ -88,37 +136,44 @@ object Bindings {
       case MatrixMapGlobals(child, _) if i == 1 =>
         Bindings.inFreshScope(child.typ.globalBindings)
       case MatrixAggregateColsByKey(child, _, _) =>
-        if (i == 1) {
-          Bindings.inFreshScope(
-            eval = child.typ.rowBindings,
-            agg = Some(child.typ.entryBindings),
-          )
-        } else if (i == 2) {
-          Bindings.inFreshScope(
-            eval = child.typ.globalBindings,
-            agg = Some(child.typ.colBindings),
-          )
-        } else Bindings.inFreshScope()
-      case MatrixAggregateRowsByKey(child, _, _) =>
         if (i == 1)
           Bindings.inFreshScope(
-            eval = child.typ.colBindings,
-            agg = Some(child.typ.entryBindings),
+            child.typ.entryBindings,
+            eval = rowInEntryBindings,
+            agg = Some(entryBindings),
           )
         else if (i == 2)
           Bindings.inFreshScope(
-            eval = child.typ.globalBindings,
-            agg = Some(child.typ.rowBindings),
+            child.typ.colBindings,
+            eval = globalBindings,
+            agg = Some(colInColBindings),
           )
-        else Bindings.inFreshScope()
+        else
+          Bindings.inFreshScope()
+      case MatrixAggregateRowsByKey(child, _, _) =>
+        if (i == 1)
+          Bindings.inFreshScope(
+            child.typ.entryBindings,
+            eval = colInEntryBindings,
+            agg = Some(entryBindings),
+          )
+        else if (i == 2)
+          Bindings.inFreshScope(
+            child.typ.rowBindings,
+            eval = globalBindings,
+            agg = Some(rowInRowBindings),
+          )
+        else
+          Bindings.inFreshScope()
       case RelationalLetMatrixTable(name, value, _) if i == 1 =>
-        Bindings.inFreshScope(relational = FastSeq(name -> value.typ))
+        Bindings.inFreshScope(FastSeq(name -> value.typ), relational = FastSeq(0))
       case _ =>
         Bindings.inFreshScope()
     }
   }
 
   private def childEnvTable(ir: TableIR, i: Int): Bindings[Type] = {
+    import is.hail.types.TableType.{globalBindings, rowBindings}
     ir match {
       case TableFilter(child, _) if i == 1 =>
         Bindings.inFreshScope(child.typ.rowBindings)
@@ -130,20 +185,15 @@ object Bindings {
       case TableMapGlobals(child, _) if i == 1 =>
         Bindings.inFreshScope(child.typ.globalBindings)
       case TableMapRows(child, _) if i == 1 =>
-        Bindings.inFreshScope(
-          eval = child.typ.rowBindings,
-          scan = Some(child.typ.rowBindings),
-        )
+        Bindings.inFreshScope(child.typ.rowBindings, eval = rowBindings, scan = Some(rowBindings))
       case TableAggregateByKey(child, _) if i == 1 =>
-        Bindings.inFreshScope(
-          eval = child.typ.globalBindings,
-          agg = Some(child.typ.rowBindings),
-        )
+        Bindings.inFreshScope(child.typ.rowBindings, eval = globalBindings, agg = Some(rowBindings))
       case TableKeyByAndAggregate(child, _, _, _, _) =>
         if (i == 1)
           Bindings.inFreshScope(
-            eval = child.typ.globalBindings,
-            agg = Some(child.typ.rowBindings),
+            child.typ.rowBindings,
+            eval = globalBindings,
+            agg = Some(rowBindings),
           )
         else if (i == 2)
           Bindings.inFreshScope(child.typ.rowBindings)
@@ -154,7 +204,7 @@ object Bindings {
           p -> TStream(child.typ.rowType),
         ))
       case RelationalLetTable(name, value, _) if i == 1 =>
-        Bindings.inFreshScope(relational = FastSeq(name -> value.typ))
+        Bindings.inFreshScope(FastSeq(name -> value.typ), relational = FastSeq(0))
       case _ =>
         Bindings.inFreshScope()
     }
@@ -167,7 +217,7 @@ object Bindings {
       case BlockMatrixMap2(_, _, lName, rName, _, _) if i == 2 =>
         Bindings.inFreshScope(FastSeq(lName -> TFloat64, rName -> TFloat64))
       case RelationalLetBlockMatrix(name, value, _) if i == 1 =>
-        Bindings.inFreshScope(relational = FastSeq(name -> value.typ))
+        Bindings.inFreshScope(FastSeq(name -> value.typ), relational = FastSeq(0))
       case _ =>
         Bindings.inFreshScope()
     }
@@ -176,30 +226,38 @@ object Bindings {
   private def childEnvValue(ir: IR, i: Int): Bindings[Type] =
     ir match {
       case Block(bindings, _) =>
-        val eval = mutable.ArrayBuilder.make[(String, Type)]
-        val agg = mutable.ArrayBuilder.make[(String, Type)]
-        val scan = mutable.ArrayBuilder.make[(String, Type)]
+        val bindingsTypes = bindings.view.take(i).map(b => b.name -> b.value.typ).toArray
+        val eval = mutable.ArrayBuilder.make[Int]
+        val agg = mutable.ArrayBuilder.make[Int]
+        val scan = mutable.ArrayBuilder.make[Int]
         for (k <- 0 until i) bindings(k) match {
-          case Binding(name, value, Scope.EVAL) =>
-            eval += name -> value.typ
-          case Binding(name, value, Scope.AGG) =>
-            agg += name -> value.typ
-          case Binding(name, value, Scope.SCAN) =>
-            scan += name -> value.typ
+          case Binding(_, _, Scope.EVAL) =>
+            eval += k
+          case Binding(_, _, Scope.AGG) =>
+            agg += k
+          case Binding(_, _, Scope.SCAN) =>
+            scan += k
         }
         if (i < bindings.length) bindings(i).scope match {
           case Scope.EVAL =>
             Bindings(
+              bindingsTypes,
               eval.result(),
               AggEnv.bindOrNoOp(agg.result()),
               AggEnv.bindOrNoOp(scan.result()),
             )
-          case Scope.AGG => Bindings(agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
+          case Scope.AGG =>
+            Bindings(bindingsTypes, agg.result(), AggEnv.Promote, AggEnv.bindOrNoOp(scan.result()))
           case Scope.SCAN =>
-            Bindings(scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
+            Bindings(bindingsTypes, scan.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.Promote)
         }
         else
-          Bindings(eval.result(), AggEnv.bindOrNoOp(agg.result()), AggEnv.bindOrNoOp(scan.result()))
+          Bindings(
+            bindingsTypes,
+            eval.result(),
+            AggEnv.bindOrNoOp(agg.result()),
+            AggEnv.bindOrNoOp(scan.result()),
+          )
       case TailLoop(name, args, resultType, _) if i == args.length =>
         Bindings(
           args.map { case (name, ir) => name -> ir.typ } :+
@@ -258,15 +316,13 @@ object Bindings {
       case RunAggScan(a, name, _, _, _, _) if i == 2 || i == 3 =>
         Bindings(FastSeq(name -> elementType(a.typ)))
       case StreamScan(a, zero, accumName, valueName, _) if i == 2 =>
-        Bindings(FastSeq(
-          accumName -> zero.typ,
-          valueName -> elementType(a.typ),
-        ))
+        Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
       case StreamAggScan(a, name, _) if i == 1 =>
         val eltType = elementType(a.typ)
         Bindings(
-          eval = FastSeq(name -> eltType),
-          scan = AggEnv.Create(FastSeq(name -> eltType)),
+          FastSeq(name -> eltType),
+          eval = FastSeq(0),
+          scan = AggEnv.Create(FastSeq(0)),
         )
       case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) if i == 2 =>
         Bindings(FastSeq(
@@ -290,17 +346,13 @@ object Bindings {
           )
         else if (i == 1) {
           Bindings(
-            eval = FastSeq(indexName -> TInt32),
-            agg = if (isScan) AggEnv.NoOp
-            else AggEnv.Bind(FastSeq(
+            FastSeq(
               elementName -> elementType(a.typ),
               indexName -> TInt32,
-            )),
-            scan = if (!isScan) AggEnv.NoOp
-            else AggEnv.Bind(FastSeq(
-              elementName -> elementType(a.typ),
-              indexName -> TInt32,
-            )),
+            ),
+            eval = FastSeq(1),
+            agg = if (isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0, 1)),
+            scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0, 1)),
           )
         } else Bindings.empty
       case AggFold(zero, _, _, accumName, otherAccumName, isScan) =>
@@ -311,13 +363,13 @@ object Bindings {
           )
         else if (i == 1)
           Bindings(
-            eval = FastSeq(accumName -> zero.typ),
+            FastSeq(accumName -> zero.typ),
             agg = if (isScan) AggEnv.NoOp else AggEnv.Promote,
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Promote,
           )
         else
           Bindings(
-            eval = FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ),
+            FastSeq(accumName -> zero.typ, otherAccumName -> zero.typ),
             agg = if (isScan) AggEnv.NoOp else AggEnv.Drop,
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Drop,
             dropEval = true,
@@ -331,7 +383,7 @@ object Bindings {
         ))
       case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) if i == 2 =>
         Bindings(
-          eval = FastSeq(
+          FastSeq(
             cname -> elementType(contexts.typ),
             gname -> globals.typ,
           ),
@@ -342,8 +394,9 @@ object Bindings {
       case TableAggregate(child, _) =>
         if (i == 1)
           Bindings(
-            eval = child.typ.globalBindings,
-            agg = AggEnv.Create(child.typ.rowBindings),
+            child.typ.rowBindings,
+            eval = TableType.globalBindings,
+            agg = AggEnv.Create(TableType.rowBindings),
             scan = AggEnv.Drop,
             dropEval = true,
           )
@@ -351,8 +404,9 @@ object Bindings {
       case MatrixAggregate(child, _) =>
         if (i == 1)
           Bindings(
-            eval = child.typ.globalBindings,
-            agg = AggEnv.Create(child.typ.entryBindings),
+            child.typ.entryBindings,
+            eval = MatrixType.globalBindings,
+            agg = AggEnv.Create(MatrixType.entryBindings),
             scan = AggEnv.Drop,
             dropEval = true,
           )
@@ -381,17 +435,22 @@ object Bindings {
           )
         else
           Bindings(
-            agg = if (isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(name -> elementType(a.typ))),
-            scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(name -> elementType(a.typ))),
+            FastSeq(name -> elementType(a.typ)),
+            agg = if (isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0)),
+            scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0)),
           )
       case StreamAgg(a, name, _) if i == 1 =>
-        Bindings(agg = AggEnv.Create(FastSeq(name -> elementType(a.typ))))
+        Bindings(
+          FastSeq(name -> elementType(a.typ)),
+          agg = AggEnv.Create(FastSeq(0)),
+        )
       case RelationalLet(name, value, _) =>
         if (i == 1)
           Bindings(
+            FastSeq(name -> value.typ),
             agg = AggEnv.Drop,
             scan = AggEnv.Drop,
-            relational = FastSeq(name -> value.typ),
+            relational = FastSeq(0),
           )
         else
           Bindings(
