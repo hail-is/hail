@@ -10,43 +10,6 @@ object Env {
   def fromSeq[V](bindings: Iterable[(String, V)]): Env[V] = empty[V].bindIterable(bindings)
 }
 
-sealed abstract class AggEnv[+A] {
-  def empty[B]: AggEnv[B] = this match {
-    case AggEnv.Create(_) => AggEnv.Create(Seq.empty)
-    case AggEnv.Bind(_) => AggEnv.NoOp
-    case AggEnv.NoOp => AggEnv.NoOp
-    case AggEnv.Drop => AggEnv.Drop
-    case AggEnv.Promote => AggEnv.Promote
-  }
-
-  def map[B](f: (String, A) => B): AggEnv[B] = this match {
-    case AggEnv.Create(bindings) => AggEnv.Create(bindings.map { case (n, v) => n -> f(n, v) })
-    case AggEnv.Bind(bindings) => AggEnv.Bind(bindings.map { case (n, v) => n -> f(n, v) })
-    case AggEnv.NoOp => AggEnv.NoOp
-    case AggEnv.Drop => AggEnv.Drop
-    case AggEnv.Promote => AggEnv.Promote
-  }
-
-  def isEmpty: Boolean = getBindings.forall(_.isEmpty)
-
-  def getBindings: Option[Seq[(String, A)]] = this match {
-    case AggEnv.Create(bindings) => Some(bindings)
-    case AggEnv.Bind(bindings) => Some(bindings)
-    case _ => None
-  }
-}
-
-object AggEnv {
-  case object NoOp extends AggEnv[Nothing]
-  case object Drop extends AggEnv[Nothing]
-  case object Promote extends AggEnv[Nothing]
-  final case class Create[A](bindings: Seq[(String, A)]) extends AggEnv[A]
-  final case class Bind[A](bindings: Seq[(String, A)]) extends AggEnv[A]
-
-  def bindOrNoOp[A](bindings: Seq[(String, A)]): AggEnv[A] =
-    if (bindings.nonEmpty) Bind(bindings) else NoOp
-}
-
 trait GenericBindingEnv[Self, V] {
   def extend(bindings: Bindings[V]): Self
 
@@ -101,10 +64,10 @@ case class BindingEnv[V](
         s"\n  env: agg is ${if (this.agg.isDefined) "" else "not "}defined, " +
         s"scan is ${if (this.scan.isDefined) "" else "not "}defined" +
         s"\n  bindings: agg = ${bindings.agg}, scan = ${bindings.scan}")
-    val Bindings(_, agg, scan, _, dropEval) = bindings
+    val Bindings(_, _, agg, scan, _, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval
-    if (agg.isInstanceOf[AggEnv.Create[V]] || scan.isInstanceOf[AggEnv.Create[V]])
+    if (agg.isInstanceOf[AggEnv.Create] || scan.isInstanceOf[AggEnv.Create])
       newEnv =
         newEnv.copy(agg = newEnv.agg.map(_ => Env.empty), scan = newEnv.scan.map(_ => Env.empty))
     agg match {
@@ -133,43 +96,50 @@ case class BindingEnv[V](
   }
 
   def extend(bindings: Bindings[V]): BindingEnv[V] = {
-    val Bindings(eval, agg, scan, relational, _) = bindings
+    val Bindings(all, eval, agg, scan, relational, _) = bindings
     var newEnv = modifyWithoutNewBindings(bindings)
-    agg match {
-      case AggEnv.Create(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
-      case AggEnv.Bind(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
-      case _ =>
+    if (all.nonEmpty) {
+      agg match {
+        case AggEnv.Create(bindings) =>
+          newEnv = newEnv.bindAgg(bindings.map(all): _*)
+        case AggEnv.Bind(bindings) =>
+          newEnv = newEnv.bindAgg(bindings.map(all): _*)
+        case _ =>
+      }
+      scan match {
+        case AggEnv.Create(bindings) =>
+          newEnv = newEnv.bindScan(bindings.map(all): _*)
+        case AggEnv.Bind(bindings) =>
+          newEnv = newEnv.bindScan(bindings.map(all): _*)
+        case _ =>
+      }
+      if (eval.nonEmpty) newEnv = newEnv.bindEval(eval.map(all): _*)
+      if (relational.nonEmpty)
+        newEnv = newEnv.bindRelational(relational.map(all): _*)
     }
-    scan match {
-      case AggEnv.Create(bindings) => newEnv = newEnv.bindScan(bindings: _*)
-      case AggEnv.Bind(bindings) => newEnv = newEnv.bindScan(bindings: _*)
-      case _ =>
-    }
-    if (eval.nonEmpty) newEnv = newEnv.bindEval(eval: _*)
-    if (relational.nonEmpty) newEnv = newEnv.bindRelational(relational: _*)
     newEnv
   }
 
   def subtract[T](bindings: Bindings[T]): BindingEnv[V] = {
-    val Bindings(eval, agg, scan, relational, _) = bindings
+    val Bindings(all, eval, agg, scan, relational, _) = bindings
     var newEnv = modifyWithoutNewBindings(bindings)
     agg match {
       case AggEnv.Create(bindings) =>
-        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.view.map(_._1))))
+        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.map(all(_)._1))))
       case AggEnv.Bind(bindings) =>
-        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.view.map(_._1))))
+        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.map(all(_)._1))))
       case _ =>
     }
     scan match {
       case AggEnv.Create(bindings) =>
-        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.view.map(_._1))))
+        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.map(all(_)._1))))
       case AggEnv.Bind(bindings) =>
-        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.view.map(_._1))))
+        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.map(all(_)._1))))
       case _ =>
     }
-    if (eval.nonEmpty) newEnv = newEnv.copy(eval = newEnv.eval.delete(eval.view.map(_._1)))
+    if (eval.nonEmpty) newEnv = newEnv.copy(eval = newEnv.eval.delete(eval.map(all(_)._1)))
     if (relational.nonEmpty)
-      newEnv = newEnv.copy(relational = newEnv.relational.delete(relational.view.map(_._1)))
+      newEnv = newEnv.copy(relational = newEnv.relational.delete(relational.map(all(_)._1)))
     newEnv
   }
 
