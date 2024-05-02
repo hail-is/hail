@@ -1,7 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.types.virtual.Type
-
 object Env {
   type K = String
 
@@ -20,6 +18,22 @@ sealed abstract class AggEnv[+A] {
     case AggEnv.Drop => AggEnv.Drop
     case AggEnv.Promote => AggEnv.Promote
   }
+
+  def map[B](f: (String, A) => B): AggEnv[B] = this match {
+    case AggEnv.Create(bindings) => AggEnv.Create(bindings.map { case (n, v) => n -> f(n, v) })
+    case AggEnv.Bind(bindings) => AggEnv.Bind(bindings.map { case (n, v) => n -> f(n, v) })
+    case AggEnv.NoOp => AggEnv.NoOp
+    case AggEnv.Drop => AggEnv.Drop
+    case AggEnv.Promote => AggEnv.Promote
+  }
+
+  def isEmpty: Boolean = getBindings.forall(_.isEmpty)
+
+  def getBindings: Option[Seq[(String, A)]] = this match {
+    case AggEnv.Create(bindings) => Some(bindings)
+    case AggEnv.Bind(bindings) => Some(bindings)
+    case _ => None
+  }
 }
 
 object AggEnv {
@@ -33,24 +47,8 @@ object AggEnv {
     if (bindings.nonEmpty) Bind(bindings) else NoOp
 }
 
-object GenericBindingEnv {
-  implicit class GenericBindingEnvType[Self](private val env: GenericBindingEnv[Self, Type])
-      extends AnyVal {
-    def extend(bindings: Bindings): Self = {
-      val Bindings(eval, agg, scan, relational, dropEval) = bindings
-      env.newBlock(eval, agg, scan, relational, dropEval)
-    }
-  }
-}
-
 trait GenericBindingEnv[Self, V] {
-  def newBlock(
-    eval: Seq[(String, V)] = Seq.empty,
-    agg: AggEnv[V] = AggEnv.NoOp,
-    scan: AggEnv[V] = AggEnv.NoOp,
-    relational: Seq[(String, V)] = Seq.empty,
-    dropEval: Boolean = false,
-  ): Self
+  def extend(bindings: Bindings[V]): Self
 
   def promoteAgg: Self
 
@@ -96,13 +94,14 @@ case class BindingEnv[V](
   scan: Option[Env[V]] = None,
   relational: Env[V] = Env.empty[V],
 ) extends GenericBindingEnv[BindingEnv[V], V] {
-  def newBlock(
-    eval: Seq[(String, V)] = Seq.empty,
-    agg: AggEnv[V] = AggEnv.NoOp,
-    scan: AggEnv[V] = AggEnv.NoOp,
-    relational: Seq[(String, V)] = Seq.empty,
-    dropEval: Boolean = false,
-  ): BindingEnv[V] = {
+
+  private def modifyWithoutNewBindings[T](bindings: Bindings[T]): BindingEnv[V] = {
+    def error(): Unit =
+      throw new RuntimeException(s"found inconsistent agg or scan environments:" +
+        s"\n  env: agg is ${if (this.agg.isDefined) "" else "not "}defined, " +
+        s"scan is ${if (this.scan.isDefined) "" else "not "}defined" +
+        s"\n  bindings: agg = ${bindings.agg}, scan = ${bindings.scan}")
+    val Bindings(_, agg, scan, _, dropEval) = bindings
     var newEnv = this
     if (dropEval) newEnv = newEnv.noEval
     if (agg.isInstanceOf[AggEnv.Create[V]] || scan.isInstanceOf[AggEnv.Create[V]])
@@ -110,22 +109,67 @@ case class BindingEnv[V](
         newEnv.copy(agg = newEnv.agg.map(_ => Env.empty), scan = newEnv.scan.map(_ => Env.empty))
     agg match {
       case AggEnv.Drop => newEnv = newEnv.noAgg
-      case AggEnv.Promote => newEnv = newEnv.promoteAgg
-      case AggEnv.Create(bindings) =>
-        newEnv = newEnv.copy(agg = Some(newEnv.eval.bindIterable(bindings)))
-      case AggEnv.Bind(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
+      case AggEnv.Promote =>
+        if (newEnv.agg.isEmpty) error()
+        newEnv = newEnv.promoteAgg
+      case AggEnv.Create(_) =>
+        newEnv = newEnv.copy(agg = Some(newEnv.eval))
+      case AggEnv.Bind(_) =>
+        if (newEnv.agg.isEmpty) error()
       case _ =>
     }
     scan match {
       case AggEnv.Drop => newEnv = newEnv.noScan
-      case AggEnv.Promote => newEnv = newEnv.promoteScan
-      case AggEnv.Create(bindings) =>
-        newEnv = newEnv.copy(scan = Some(newEnv.eval.bindIterable(bindings)))
+      case AggEnv.Promote =>
+        if (newEnv.scan.isEmpty) error()
+        newEnv = newEnv.promoteScan
+      case AggEnv.Create(_) =>
+        newEnv = newEnv.copy(scan = Some(newEnv.eval))
+      case AggEnv.Bind(_) =>
+        if (newEnv.scan.isEmpty) error()
+      case _ =>
+    }
+    newEnv
+  }
+
+  def extend(bindings: Bindings[V]): BindingEnv[V] = {
+    val Bindings(eval, agg, scan, relational, _) = bindings
+    var newEnv = modifyWithoutNewBindings(bindings)
+    agg match {
+      case AggEnv.Create(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
+      case AggEnv.Bind(bindings) => newEnv = newEnv.bindAgg(bindings: _*)
+      case _ =>
+    }
+    scan match {
+      case AggEnv.Create(bindings) => newEnv = newEnv.bindScan(bindings: _*)
       case AggEnv.Bind(bindings) => newEnv = newEnv.bindScan(bindings: _*)
       case _ =>
     }
     if (eval.nonEmpty) newEnv = newEnv.bindEval(eval: _*)
     if (relational.nonEmpty) newEnv = newEnv.bindRelational(relational: _*)
+    newEnv
+  }
+
+  def subtract[T](bindings: Bindings[T]): BindingEnv[V] = {
+    val Bindings(eval, agg, scan, relational, _) = bindings
+    var newEnv = modifyWithoutNewBindings(bindings)
+    agg match {
+      case AggEnv.Create(bindings) =>
+        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.view.map(_._1))))
+      case AggEnv.Bind(bindings) =>
+        newEnv = newEnv.copy(agg = Some(newEnv.agg.get.delete(bindings.view.map(_._1))))
+      case _ =>
+    }
+    scan match {
+      case AggEnv.Create(bindings) =>
+        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.view.map(_._1))))
+      case AggEnv.Bind(bindings) =>
+        newEnv = newEnv.copy(scan = Some(newEnv.scan.get.delete(bindings.view.map(_._1))))
+      case _ =>
+    }
+    if (eval.nonEmpty) newEnv = newEnv.copy(eval = newEnv.eval.delete(eval.view.map(_._1)))
+    if (relational.nonEmpty)
+      newEnv = newEnv.copy(relational = newEnv.relational.delete(relational.view.map(_._1)))
     newEnv
   }
 
@@ -200,42 +244,6 @@ case class BindingEnv[V](
        |  Relational: ${relational.m.map { case (k, v) =>
         s"\n    $k -> ${valuePrinter(v)}"
       }.mkString("")}""".stripMargin
-
-  def merge(newBindings: BindingEnv[V]): BindingEnv[V] = {
-    if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
-      throw new RuntimeException(s"found inconsistent agg or scan environments:" +
-        s"\n  left: ${agg.isDefined}, ${scan.isDefined}" +
-        s"\n  right: ${newBindings.agg.isDefined}, ${newBindings.scan.isDefined}")
-    if (allEmpty)
-      newBindings
-    else if (newBindings.allEmpty)
-      this
-    else {
-      copy(
-        eval = eval.bindIterable(newBindings.eval.m),
-        agg = agg.map(a => a.bindIterable(newBindings.agg.get.m)),
-        scan = scan.map(a => a.bindIterable(newBindings.scan.get.m)),
-        relational = relational.bindIterable(newBindings.relational.m),
-      )
-    }
-  }
-
-  def subtract(newBindings: BindingEnv[_]): BindingEnv[V] = {
-    if (agg.isDefined != newBindings.agg.isDefined || scan.isDefined != newBindings.scan.isDefined)
-      throw new RuntimeException(s"found inconsistent agg or scan environments:" +
-        s"\n  left: ${agg.isDefined}, ${scan.isDefined}" +
-        s"\n  right: ${newBindings.agg.isDefined}, ${newBindings.scan.isDefined}")
-    if (allEmpty || newBindings.allEmpty)
-      this
-    else {
-      copy(
-        eval = eval.delete(newBindings.eval.m.keys),
-        agg = agg.map(a => a.delete(newBindings.agg.get.m.keys)),
-        scan = scan.map(a => a.delete(newBindings.scan.get.m.keys)),
-        relational = relational.delete(newBindings.relational.m.keys),
-      )
-    }
-  }
 
   def mapValues[T](f: V => T): BindingEnv[T] =
     copy[T](
