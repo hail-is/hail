@@ -68,9 +68,9 @@ class GCPSlimInstanceConfig(InstanceConfig):
         ]
 
         accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
-        num_gpus = machine_type_to_gpu_num(machine_type)
 
         if accelerator_family:
+            num_gpus = machine_type_to_gpu_num(machine_type)
             assert num_gpus
             resources.append(
                 GCPAcceleratorResourceV2.create(product_versions, accelerator_family, preemptible, region, num_gpus)
