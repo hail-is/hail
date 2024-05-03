@@ -73,8 +73,9 @@ from web_common import render_template, set_message, setup_aiohttp_jinja2, setup
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
 from ..batch_format_version import BatchFormatVersion
+from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
+from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
 from ..cloud.resource_utils import (
-    cores_mcpu_to_memory_bytes,
     is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
@@ -1185,7 +1186,11 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             memory_to_worker_types = memory_to_worker_type(cloud)
             if req_memory in memory_to_worker_types:
                 worker_type = memory_to_worker_types[req_memory]
-                req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
+                if CLOUD == 'gcp':
+                    req_memory_bytes = gcp_cores_mcpu_to_memory_bytes(req_cores_mcpu, GCP_MACHINE_FAMILY, worker_type)
+                else:
+                    assert CLOUD == 'azure'
+                    req_memory_bytes = azure_cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
             else:
                 req_memory_bytes = parse_memory_in_bytes(req_memory)
         else:

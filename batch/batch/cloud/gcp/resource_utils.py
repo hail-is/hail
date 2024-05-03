@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from typing import Optional, Tuple
 
@@ -9,6 +10,13 @@ MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]
 GCP_MACHINE_FAMILY = 'n1'
 
 MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
+
+MEMORY_PER_CORE_MIB = {
+    ('n1', 'standard'): 3840,
+    ('n1', 'highmem'): 6656,
+    ('n1', 'highcpu'): 924,
+    ('g2', 'standard'): 4000,
+}
 
 gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
@@ -45,27 +53,26 @@ def gcp_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
     return MachineTypeParts.from_dict(match.groupdict())
 
 
-def gcp_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str, int]:
+def gcp_machine_type_to_cores_and_memory_mib_per_core(machine_type: str) -> Tuple[int, int]:
     # FIXME: "WORKER TYPE" IS WRONG OR CONFUSING WHEN THE MACHINE TYPE IS NOT n1!
     maybe_machine_type_parts = gcp_machine_type_to_parts(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    return (maybe_machine_type_parts.worker_type, maybe_machine_type_parts.cores)
+    cores = maybe_machine_type_parts.cores
+    memory_per_core = gcp_worker_memory_per_core_mib(
+        maybe_machine_type_parts.machine_family, maybe_machine_type_parts.worker_type
+    )
+    return cores, memory_per_core
 
 
 def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:
     return f'{family}-{worker_type}-{cores}'
 
 
-def gcp_worker_memory_per_core_mib(worker_type: str) -> int:
-    if worker_type == 'standard':
-        m = 3840
-    elif worker_type == 'highmem':
-        m = 6656
-    else:
-        assert worker_type == 'highcpu', worker_type
-        m = 924  # this number must be divisible by 4. I rounded up to the nearest MiB
-    return m
+def gcp_worker_memory_per_core_mib(machine_family: str, worker_type: str) -> int:
+    machine_worker_key = (machine_family, worker_type)
+    assert machine_worker_key in MEMORY_PER_CORE_MIB, machine_worker_key
+    return MEMORY_PER_CORE_MIB[machine_worker_key]
 
 
 def gcp_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
@@ -91,3 +98,18 @@ def machine_family_to_gpu(machine_family: str) -> Optional[str]:
 
 def is_gpu(machine_family: str) -> bool:
     return machine_family_to_gpu(machine_family) is not None
+
+
+def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: str) -> int:
+    memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
+    memory_bytes = int(memory_mib * 1024**2)
+    return int((mcpu / 1000) * memory_bytes)
+
+
+def gcp_adjust_cores_for_memory_request(
+    cores_in_mcpu: int, memory_in_bytes: int, machine_family: str, worker_type: str
+) -> int:
+    memory_per_core_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
+    memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
+    min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
+    return max(cores_in_mcpu, min_cores_mcpu)

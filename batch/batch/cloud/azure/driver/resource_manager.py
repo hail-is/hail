@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 import aiohttp
 
@@ -21,7 +21,7 @@ from ....instance_config import InstanceConfig, QuantifiedResource
 from ..instance_config import AzureSlimInstanceConfig
 from ..resource_utils import (
     azure_local_ssd_size,
-    azure_machine_type_to_worker_type_and_cores,
+    azure_machine_type_to_parts,
     azure_worker_memory_per_core_mib,
     azure_worker_properties_to_machine_type,
 )
@@ -101,9 +101,6 @@ class AzureResourceManager(CloudResourceManager):
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:
         return azure_worker_properties_to_machine_type(worker_type, cores, local_ssd)
 
-    def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
-        return azure_machine_type_to_worker_type_and_cores(machine_type)
-
     def instance_config(
         self,
         machine_type: str,
@@ -140,10 +137,12 @@ class AzureResourceManager(CloudResourceManager):
         machine_type: str,
         instance_config: InstanceConfig,
     ) -> List[QuantifiedResource]:
-        worker_type, cores = self.worker_type_and_cores(machine_type)
+        parts = azure_machine_type_to_parts(machine_type)
+        assert parts
+        cores = parts.cores
 
         if local_ssd_data_disk:
-            assert data_disk_size_gb == azure_local_ssd_size(worker_type, cores)
+            assert data_disk_size_gb == azure_local_ssd_size(parts.family, parts.cores)
 
         max_price: Optional[float]
         if preemptible:
@@ -173,7 +172,7 @@ class AzureResourceManager(CloudResourceManager):
             self.app['feature_flags'],
         )
 
-        memory_mib = azure_worker_memory_per_core_mib(worker_type) * cores
+        memory_mib = azure_worker_memory_per_core_mib(parts.family) * cores
         memory_in_bytes = memory_mib << 20
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(

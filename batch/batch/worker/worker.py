@@ -74,9 +74,8 @@ from ..cloud.gcp.resource_utils import is_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
+    machine_type_to_cores_and_memory_bytes,
     storage_gib_to_bytes,
-    worker_memory_per_core_bytes,
-    worker_memory_per_core_mib,
 )
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
@@ -2483,11 +2482,14 @@ class JVMContainer:
         assert os.path.isdir(root_dir)
 
         assert instance_config
-        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
 
+        total_machine_cores, total_machine_memory_bytes = machine_type_to_cores_and_memory_bytes(
+            CLOUD, INSTANCE_CONFIG["machine_type"]
+        )
+        total_memory_bytes = int((n_cores / total_machine_cores) * total_machine_memory_bytes)
         # We allocate 60% of memory per core to off heap memory
-        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
-        memory_mib = n_cores * memory_per_core_mib
+
+        memory_mib = total_memory_bytes // (1024**2)
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 

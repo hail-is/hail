@@ -1,6 +1,6 @@
 import abc
 import logging
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from hailtop.utils import time_msecs
 
@@ -65,10 +65,6 @@ class VMStateRunning(TimestampedVMState):
 class CloudResourceManager:
     @abc.abstractmethod
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
         raise NotImplementedError
 
     @abc.abstractmethod

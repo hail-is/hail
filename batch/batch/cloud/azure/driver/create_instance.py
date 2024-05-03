@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import azure_machine_type_to_worker_type_and_cores
+from ..resource_utils import azure_machine_type_to_parts
 
 log = logging.getLogger('create_instance')
 
@@ -43,7 +43,9 @@ def create_vm_config(
     instance_config: InstanceConfig,
     feature_flags: dict,
 ) -> dict:
-    _, cores = azure_machine_type_to_worker_type_and_cores(machine_type)
+    parts = azure_machine_type_to_parts(machine_type)
+    assert parts
+    cores = parts.cores
 
     hail_azure_oauth_scope = os.environ['HAIL_AZURE_OAUTH_SCOPE']
     region = instance_config.region_for(location)
