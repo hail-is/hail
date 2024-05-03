@@ -144,7 +144,7 @@ def skip_when_local_backend(reason='skipping for Local Backend'):
 
 
 def skip_when_service_backend(reason='skipping for Service Backend'):
-    return pytest.mark.backend('local', 'batch')
+    return pytest.mark.backend('local', 'spark')
 
 
 def skip_when_service_backend_in_azure(reason='skipping for Service Backend in Azure'):
