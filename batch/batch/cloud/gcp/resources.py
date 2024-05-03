@@ -2,7 +2,6 @@ from typing import Any, Dict, Optional
 
 from ...driver.billing_manager import ProductVersions
 from ...resources import (
-    AccleratorResourceMixin,
     ComputeResourceMixin,
     DynamicSizedDiskResourceMixin,
     IPFeeResourceMixin,
@@ -203,7 +202,7 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
         return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
 
-class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
+class GCPAcceleratorResourceV2(VMResourceMixin, GCPResource):
     FORMAT_VERSION = 1
     TYPE = 'gcp_acceleratorV2'
 
@@ -232,6 +231,15 @@ class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
 
     def to_dict(self) -> dict:
         return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION, 'number': self.number}
+
+    def to_quantified_resource(
+        self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
+    ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
+        resource_dic = super().to_quantified_resource(
+            cpu_in_mcpu, memory_in_bytes, worker_fraction_in_1024ths, external_storage_in_gib
+        )
+        assert resource_dic
+        return {'name': resource_dic['name'], 'quantity': self.number * resource_dic['quantity']}
 
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):

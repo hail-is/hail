@@ -116,15 +116,15 @@ def is_gpu(machine_family: str) -> bool:
     return machine_family_to_gpu(machine_family) is not None
 
 
-def machine_type_to_gpu_num(machine_type: str) -> int:
+def machine_type_to_gpu_num(machine_type: str) -> Optional[int]:
     if machine_type in SINGLE_GPU_MACHINES:
         return 1
-    elif machine_type in TWO_GPU_MACHINES:
+    if machine_type in TWO_GPU_MACHINES:
         return 2
-    elif machine_type in FOUR_GPU_MACHINES:
+    if machine_type in FOUR_GPU_MACHINES:
         return 4
-    elif machine_type in EIGHT_GPU_MACHINES:
-        return 8
+    assert machine_type in EIGHT_GPU_MACHINES
+    return 8
 
 
 def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: str) -> int:

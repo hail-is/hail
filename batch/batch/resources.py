@@ -90,11 +90,3 @@ class ServiceFeeResourceMixin(Resource):
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
         del memory_in_bytes, worker_fraction_in_1024ths, external_storage_in_gib
         return {'name': self.name, 'quantity': cpu_in_mcpu}
-
-
-class AccleratorResourceMixin(Resource):
-    def to_quantified_resource(
-        self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
-    ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
-        del cpu_in_mcpu, memory_in_bytes, external_storage_in_gib
-        return {'name': self.name, 'quantity': self.number * worker_fraction_in_1024ths}
