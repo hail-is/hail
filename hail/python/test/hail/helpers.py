@@ -1,7 +1,7 @@
 import os
 import unittest
 from timeit import default_timer as timer
-from typing import Callable, TypeVar
+from typing import TypeVar
 
 import pytest
 from typing_extensions import ParamSpec
@@ -136,42 +136,15 @@ T = TypeVar('T')
 
 
 def skip_unless_spark_backend(reason='requires Spark'):
-    from hail.backend.spark_backend import SparkBackend
-
-    @decorator
-    def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
-        if isinstance(hl.utils.java.Env.backend(), SparkBackend):
-            return func(*args, **kwargs)
-        else:
-            raise unittest.SkipTest(reason)
-
-    return wrapper
+    return pytest.mark.backend('spark')
 
 
 def skip_when_local_backend(reason='skipping for Local Backend'):
-    from hail.backend.local_backend import LocalBackend
-
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), LocalBackend):
-            raise unittest.SkipTest(reason)
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
+    return pytest.mark.backend('spark', 'batch')
 
 
 def skip_when_service_backend(reason='skipping for Service Backend'):
-    from hail.backend.service_backend import ServiceBackend
-
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(reason)
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
+    return pytest.mark.backend('local', 'batch')
 
 
 def skip_when_service_backend_in_azure(reason='skipping for Service Backend in Azure'):
@@ -188,18 +161,7 @@ def skip_when_service_backend_in_azure(reason='skipping for Service Backend in A
 
 
 def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
-    from hail.backend.service_backend import ServiceBackend
-
-    @decorator
-    def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
-        if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(reason)
-        else:
-            if clouds is None or os.environ['HAIL_CLOUD'] in clouds:
-                return func(*args, **kwargs)
-            raise unittest.SkipTest(f'{reason} for clouds {clouds}')
-
-    return wrapper
+    return pytest.mark.backend('batch')
 
 
 fails_local_backend = pytest.mark.xfail(
@@ -217,7 +179,7 @@ fails_spark_backend = pytest.mark.xfail(
 )
 
 
-qobtest = pytest.mark.qobtest
+qobtest = pytest.mark.backend('batch')
 
 
 def test_timeout(overall=None, *, batch=None, local=None, spark=None):

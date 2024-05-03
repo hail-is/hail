@@ -10,8 +10,6 @@ import hail as hl
 from hail.backend.service_backend import ServiceBackend
 from hailtop.batch_client.client import Batch, Job, JobGroup
 
-from ..helpers import qobtest, skip_unless_service_backend
-
 
 @dataclass
 class BatchServiceMocks:
@@ -65,8 +63,7 @@ def run_on_batch_mocks(mocker):
     return m
 
 
-@qobtest
-@skip_unless_service_backend()
+@pytest.mark.backend('batch')
 def test_big_worker_has_big_memory(run_on_batch_mocks):
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
@@ -81,8 +78,7 @@ def test_big_worker_has_big_memory(run_on_batch_mocks):
     assert config['worker_memory'] == 'highmem'
 
 
-@qobtest
-@skip_unless_service_backend()
+@pytest.mark.backend('batch')
 def test_regions(run_on_batch_mocks):
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
@@ -104,8 +100,7 @@ def test_regions(run_on_batch_mocks):
         backend.regions = old_regions
 
 
-@qobtest
-@skip_unless_service_backend()
+@pytest.mark.backend('batch')
 def test_driver_and_worker_job_groups():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)

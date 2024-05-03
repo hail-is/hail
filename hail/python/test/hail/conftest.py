@@ -9,6 +9,7 @@ from pytest import CollectReport, StashKey
 
 from hail import current_backend, reset_global_randomness
 from hail.backend.service_backend import ServiceBackend
+from hail.utils.java import choose_backend
 from hailtop.hail_event_loop import hail_event_loop
 
 from .helpers import hl_init_for_test, hl_stop_for_test
@@ -26,20 +27,32 @@ def event_loop():
 
 
 def pytest_collection_modifyitems(items):
-    n_splits = int(os.environ.get('HAIL_RUN_IMAGE_SPLITS', '1'))
-    split_index = int(os.environ.get('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
-    if n_splits <= 1:
-        return
-    if not (0 <= split_index < n_splits):
-        raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}\n  env={os.environ}")
-    skip_this = pytest.mark.skip(reason="skipped in this round")
-
     def digest(s):
         return int.from_bytes(hashlib.md5(str(s).encode('utf-8')).digest(), 'little')
 
+    use_splits = False
+    n_splits = int(os.getenv('HAIL_RUN_IMAGE_SPLITS', '1'))
+    split_index = int(os.getenv('HAIL_RUN_IMAGE_SPLIT_INDEX', '-1'))
+    if n_splits > 1:
+        if not (0 <= split_index < n_splits):
+            raise RuntimeError(f"invalid split_index: index={split_index}, n_splits={n_splits}\n  env={os.environ}")
+
+        use_splits = True
+
+    backend = choose_backend()
+
+    skip_not_in_split = pytest.mark.skip(reason=f'not included in split index {split_index}')
     for item in items:
-        if not digest(item.name) % n_splits == split_index:
-            item.add_marker(skip_this)
+        if use_splits and not digest(item.name) % n_splits == split_index:
+            item.add_marker(skip_not_in_split)
+
+        backend_mark = item.get_closest_marker('backend')
+        if backend_mark is not None and backend_mark.args is not None:
+            if backend not in backend_mark.args:
+                reason = f'current backend "{backend}" not listed in "{backend_mark.args}"'
+                item.add_marker(pytest.mark.skip(reason=reason))
+            elif backend == 'batch':
+                item.fixturenames.insert(0, 'reinitialize_hail_for_testing')
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -65,19 +78,15 @@ def pytest_runtest_makereport(item, call):
     return report
 
 
-@pytest.fixture(autouse=True)
-def reinitialize_hail_for_each_qob_test(init_hail, request):
-    if isinstance(current_backend(), ServiceBackend):
-        hl_stop_for_test()
-        hl_init_for_test(app_name=request.node.name)
-        new_backend = current_backend()
-        assert isinstance(new_backend, ServiceBackend)
-        yield
-        if new_backend._batch_was_submitted:
-            batch = new_backend._batch
-            report: Dict[str, CollectReport] = request.node.stash[test_results_key]
-            if any(r.failed for r in report.values()):
-                log.info(f'cancelling failed test batch {batch.id}')
-                hail_event_loop().run_until_complete(batch.cancel())
-    else:
-        yield
+@pytest.fixture
+def reinitialize_hail_for_testing(init_hail, request):
+    hl_stop_for_test()
+    hl_init_for_test(app_name=request.node.name)
+    yield
+    new_backend = current_backend()
+    if isinstance(new_backend, ServiceBackend) and new_backend._batch_was_submitted:
+        batch = new_backend._batch
+        report: Dict[str, CollectReport] = request.node.stash[test_results_key]
+        if any(r.failed for r in report.values()):
+            log.info(f'cancelling failed test batch {batch.id}')
+            hail_event_loop().run_until_complete(batch.cancel())
