@@ -189,30 +189,12 @@ final case class EStructOfArrays(
     out: Value[OutputBuffer],
   ): Unit = {
     cb += r.clearRegion()
-    val length = sv.length
-    val arrayPtr = cb.memoize(arrayType.zeroes(cb, r, length))
-    arrayType.storeLength(cb, arrayPtr, length)
-    sv.forEachDefinedOrMissing(cb)(
-      (cb, idx) =>
-        if (!arrayType.elementType.required) arrayType.setElementMissing(cb, arrayPtr, idx),
-      { case (cb, idx, sbsv: SBaseStructValue) =>
-        sbsv.loadField(cb, field.name).consume(
-          cb,
-          if (!arrayType.elementType.required) arrayType.setElementMissing(cb, arrayPtr, idx),
-          { fieldValue =>
-            arrayType.elementType.storeAtAddress(
-              cb,
-              arrayType.elementOffset(arrayPtr, length, idx),
-              r,
-              fieldValue,
-              deepCopy = false,
-            )
-          },
-        )
-      },
-    )
-
-    val arrayValue = arrayType.loadCheapSCode(cb, arrayPtr)
+    val arrayValue =
+      arrayType.constructFromElements(cb, r, sv.length, deepCopy = false) { (cb, i) =>
+        sv.loadElement(cb, i).flatMap(cb) { case sbsv: SBaseStructValue =>
+          sbsv.loadField(cb, field.name)
+        }
+      }
 
     val arrayEncoder = field.typ.buildEncoder(arrayValue.st, cb.emb.ecb)
     arrayEncoder(cb, arrayValue, out)
