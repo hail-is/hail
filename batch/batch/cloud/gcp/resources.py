@@ -380,8 +380,6 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPMemoryResource.from_dict(data)
     if typ == GCPServiceFeeResource.TYPE:
         return GCPServiceFeeResource.from_dict(data)
-    if typ == GCPAcceleratorResource.TYPE:
-        return GCPAcceleratorResource.from_dict(data)
     if typ == GCPAcceleratorResourceV2.TYPE:
         return GCPAcceleratorResourceV2.from_dict(data)
     if typ == GCPIPFeeResource.TYPE:

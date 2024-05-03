@@ -72,7 +72,6 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
         if accelerator_family:
             assert num_gpus
-            # resources.append(GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region))
             resources.append(
                 GCPAcceleratorResourceV2.create(product_versions, accelerator_family, preemptible, region, num_gpus)
             )
