@@ -2468,6 +2468,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --ignore=test/hail/matrixtable/test_file_formats.py \
+              -m backend \
               --timeout=600 \
               test
     timeout: 5400
@@ -2539,6 +2540,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --ignore=test/hail/matrixtable/test_file_formats.py \
+              -m backend \
               --timeout=600 \
               test
     timeout: 5400
