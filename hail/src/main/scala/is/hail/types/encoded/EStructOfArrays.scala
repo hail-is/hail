@@ -2,7 +2,7 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types._
 import is.hail.types.physical._
@@ -191,8 +191,27 @@ final case class EStructOfArrays(
     cb += r.clearRegion()
     val arrayValue =
       arrayType.constructFromElements(cb, r, sv.length, deepCopy = false) { (cb, i) =>
-        sv.loadElement(cb, i).flatMap(cb) { case sbsv: SBaseStructValue =>
-          sbsv.loadField(cb, field.name)
+        if (arrayType.elementType.required) {
+          sv.loadElement(cb, i).consumeI(
+            cb, {
+              val elementSType: SBaseStruct = tcoerce(sv.st.elementType)
+              val fieldSType = elementSType.fieldTypes(elementSType.fieldIdx(field.name))
+              IEmitCode.present(
+                cb,
+                cb.newSLocal(
+                  fieldSType,
+                  s"${fieldSType.asIdent}_present_for_required_element_in_missing_struct",
+                ),
+              )
+            },
+            { case sbsv: SBaseStructValue =>
+              sbsv.loadField(cb, field.name)
+            },
+          )
+        } else {
+          sv.loadElement(cb, i).flatMap(cb) { case sbsv: SBaseStructValue =>
+            sbsv.loadField(cb, field.name)
+          }
         }
       }
 
