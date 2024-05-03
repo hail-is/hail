@@ -107,10 +107,6 @@ class GCPSlimInstanceConfig(InstanceConfig):
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
         return gcp_cores_mcpu_to_memory_bytes(mcpu, self._instance_family, self.worker_type())
 
-    def machine_family(self) -> str:
-        assert self._instance_family is not None, self._instance_family
-        return self._instance_family
-
     def region_for(self, location: str) -> str:
         # location = zone
         return region_from_location(location)

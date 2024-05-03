@@ -5,16 +5,20 @@ from typing import Dict, Optional, Tuple
 from gear import Database
 
 from .cloud.azure.instance_config import AzureSlimInstanceConfig
-from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
+from .cloud.azure.resource_utils import (
+    azure_adjust_cores_for_memory_request,
+    azure_cores_mcpu_to_memory_bytes,
+    azure_worker_properties_to_machine_type,
+)
 from .cloud.gcp.instance_config import GCPSlimInstanceConfig
 from .cloud.gcp.resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
+    gcp_adjust_cores_for_memory_request,
+    gcp_cores_mcpu_to_memory_bytes,
 )
 from .cloud.resource_utils import (
-    adjust_cores_for_memory_request,
     adjust_cores_for_packability,
-    cores_mcpu_to_memory_bytes,
     local_ssd_size,
     machine_type_to_cores_and_memory_bytes,
     requested_storage_bytes_to_actual_storage_gib,
@@ -189,10 +193,20 @@ WHERE pools.name = %s;
         storage_gib = requested_storage_bytes_to_actual_storage_gib(self.cloud, storage_bytes, allow_zero_storage=True)
         if storage_gib is None:
             return None
-        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, 'n1', self.worker_type)
-        cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
-        memory_bytes = cores_mcpu_to_memory_bytes(self.cloud, cores_mcpu, 'n1', self.worker_type)
+        if self.cloud == 'gcp':
+            cores_mcpu = gcp_adjust_cores_for_memory_request(
+                cores_mcpu, memory_bytes, GCP_MACHINE_FAMILY, self.worker_type
+            )
+            cores_mcpu = adjust_cores_for_packability(cores_mcpu)
+            memory_bytes = gcp_cores_mcpu_to_memory_bytes(cores_mcpu, GCP_MACHINE_FAMILY, self.worker_type)
+        else:
+            assert self.cloud == 'azure'
+            cores_mcpu = azure_adjust_cores_for_memory_request(
+                cores_mcpu, memory_bytes, GCP_MACHINE_FAMILY, self.worker_type
+            )
+            cores_mcpu = adjust_cores_for_packability(cores_mcpu)
+            memory_bytes = azure_cores_mcpu_to_memory_bytes(cores_mcpu, GCP_MACHINE_FAMILY, self.worker_type)
 
         if cores_mcpu <= self.worker_cores * 1000:
             return (cores_mcpu, memory_bytes, storage_gib)

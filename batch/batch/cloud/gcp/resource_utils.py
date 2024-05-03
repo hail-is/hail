@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from typing import Optional, Tuple
 
@@ -103,3 +104,12 @@ def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: 
     memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
     memory_bytes = int(memory_mib * 1024**2)
     return int((mcpu / 1000) * memory_bytes)
+
+
+def gcp_adjust_cores_for_memory_request(
+    cores_in_mcpu: int, memory_in_bytes: int, machine_family: str, worker_type: str
+) -> int:
+    memory_per_core_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
+    memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
+    min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
+    return max(cores_in_mcpu, min_cores_mcpu)

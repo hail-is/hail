@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from typing import Dict, Optional, Tuple
 
@@ -212,3 +213,10 @@ def azure_cores_mcpu_to_memory_bytes(mcpu: int, worker_type: str) -> int:
     memory_mib = azure_worker_memory_per_core_mib(worker_type)
     memory_bytes = int(memory_mib * 1024**2)
     return int((mcpu / 1000) * memory_bytes)
+
+
+def azure_adjust_cores_for_memory_request(cores_in_mcpu: int, memory_in_bytes: int, worker_type: str) -> int:
+    memory_per_core_mib = azure_worker_memory_per_core_mib(worker_type)
+    memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
+    min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
+    return max(cores_in_mcpu, min_cores_mcpu)
