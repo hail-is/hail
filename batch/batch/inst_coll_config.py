@@ -202,11 +202,9 @@ WHERE pools.name = %s;
             memory_bytes = gcp_cores_mcpu_to_memory_bytes(cores_mcpu, GCP_MACHINE_FAMILY, self.worker_type)
         else:
             assert self.cloud == 'azure'
-            cores_mcpu = azure_adjust_cores_for_memory_request(
-                cores_mcpu, memory_bytes, GCP_MACHINE_FAMILY, self.worker_type
-            )
+            cores_mcpu = azure_adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
             cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-            memory_bytes = azure_cores_mcpu_to_memory_bytes(cores_mcpu, GCP_MACHINE_FAMILY, self.worker_type)
+            memory_bytes = azure_cores_mcpu_to_memory_bytes(cores_mcpu, self.worker_type)
 
         if cores_mcpu <= self.worker_cores * 1000:
             return (cores_mcpu, memory_bytes, storage_gib)
