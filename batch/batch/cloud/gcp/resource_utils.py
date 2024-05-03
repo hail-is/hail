@@ -11,13 +11,19 @@ GCP_MACHINE_FAMILY = 'n1'
 
 MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
 
-SINGLE_GPU_MACHINES = ['g2-standard-4','g2-standard-8','g2-standard-12','g2-standard-16','g2-standard-32']
+SINGLE_GPU_MACHINES = ['g2-standard-4', 'g2-standard-8', 'g2-standard-12', 'g2-standard-16', 'g2-standard-32']
 
-TWO_GPU_MACHINES = ['g2-standard-24',]
+TWO_GPU_MACHINES = [
+    'g2-standard-24',
+]
 
-FOUR_GPU_MACHINES = ['g2-standard-48',]
+FOUR_GPU_MACHINES = [
+    'g2-standard-48',
+]
 
-EIGHT_GPU_MACHINES = ['g2-standard-96',]
+EIGHT_GPU_MACHINES = [
+    'g2-standard-96',
+]
 
 
 MEMORY_PER_CORE_MIB = {
@@ -134,4 +140,3 @@ def gcp_adjust_cores_for_memory_request(
     memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
     min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
     return max(cores_in_mcpu, min_cores_mcpu)
-

@@ -2,6 +2,7 @@ from typing import Any, Dict, Optional
 
 from ...driver.billing_manager import ProductVersions
 from ...resources import (
+    AccleratorResourceMixin,
     ComputeResourceMixin,
     DynamicSizedDiskResourceMixin,
     IPFeeResourceMixin,
@@ -11,7 +12,6 @@ from ...resources import (
     ServiceFeeResourceMixin,
     StaticSizedDiskResourceMixin,
     VMResourceMixin,
-    AccleratorResourceMixin,
 )
 
 
@@ -202,6 +202,7 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
     def to_dict(self) -> dict:
         return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
 
+
 class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
     FORMAT_VERSION = 1
     TYPE = 'gcp_acceleratorV2'
@@ -218,11 +219,7 @@ class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
 
     @staticmethod
     def create(
-        product_versions: ProductVersions,
-        accelerator_family: str,
-        preemptible: bool,
-        region: str,
-        num_gpus: int
+        product_versions: ProductVersions, accelerator_family: str, preemptible: bool, region: str, num_gpus: int
     ) -> 'GCPAcceleratorResourceV2':
         product = GCPAcceleratorResourceV2.product_name(accelerator_family, preemptible, region)
         name = product_versions.resource_name(product)
@@ -234,7 +231,7 @@ class GCPAcceleratorResourceV2(AccleratorResourceMixin, GCPResource):
         self.number = number
 
     def to_dict(self) -> dict:
-        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION, 'number':self.number}
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION, 'number': self.number}
 
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):
