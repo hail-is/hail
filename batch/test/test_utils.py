@@ -1,9 +1,9 @@
 import pytest
 
 from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib
+from batch.cloud.gcp.resources import gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
 from hailtop.batch_client.parse import parse_memory_in_bytes
-from batch.cloud.gcp.resources import gcp_resource_from_dict, GCPAcceleratorResourceV2
 
 
 def test_packability():
@@ -37,14 +37,17 @@ def test_gcp_worker_memory_per_core_mib():
     assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
     assert gcp_worker_memory_per_core_mib('g2', 'standard') == 4000
 
+
 def test_gcp_resource_from_dict():
     name = 'accelerator/l4-nonpreemptible/us-central1/1712657549063'
     gpu_data_dic_single = {'name': name, 'number': 1, 'type': 'gcp_acceleratorV2'}
     resource = gcp_resource_from_dict(gpu_data_dic_single)
     quantified_resources = resource.to_quantified_resource(1000, 20, 1024, 20)
+    assert quantified_resources
     assert quantified_resources['quantity'] == 1024
 
     gpu_data_dic_double = {'name': name, 'number': 2, 'type': 'gcp_acceleratorV2'}
     resource = gcp_resource_from_dict(gpu_data_dic_double)
     quantified_resources = resource.to_quantified_resource(1000, 20, 1024, 20)
+    assert quantified_resources
     assert quantified_resources['quantity'] == 2048
