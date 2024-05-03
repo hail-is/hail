@@ -1,13 +1,14 @@
 package is.hail.utils
 
-import com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService
+import is.hail.{CancellingExecutorService, HailSuite}
 import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
-import is.hail.{CancellingExecutorService, HailSuite}
-import org.apache.spark.storage.StorageLevel
-import org.testng.annotations.Test
 
 import java.util.concurrent.Executors
+
+import com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService
+import org.apache.spark.storage.StorageLevel
+import org.testng.annotations.Test
 
 class UtilsSuite extends HailSuite {
   @Test def testD_==(): Unit = {

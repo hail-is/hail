@@ -152,7 +152,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   override def bspCompileClasspath: T[Agg[UnresolvedPath]] =
     super.bspCompileClasspath() ++ resources().map(p => UnresolvedPath.ResolvedPath(p.path))
 
-  trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule {
+  trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule with ScalafixModule {
     override def forkArgs: T[Seq[String]] = Seq("-Xss4m", "-Xmx4096M")
 
     override def ivyDeps: T[Agg[Dep]] =

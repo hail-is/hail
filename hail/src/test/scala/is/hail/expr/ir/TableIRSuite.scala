@@ -13,6 +13,7 @@ import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
+
 import org.apache.spark.sql.Row
 import org.scalatest.{Failed, Succeeded}
 import org.scalatest.Inspectors.forAll
