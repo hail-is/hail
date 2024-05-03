@@ -15,6 +15,14 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.130**
+
+- (`#14425 <https://github.com/hail-is/hail/pull/14425>`__) A job's 'always run'
+  state is rendered in the Job and Batch pages. This makes it easier to understand
+  why a job is queued to run when others have failed or been cancelled.
+- (`#14437 <https://github.com/hail-is/hail/pull/14437>`__) The billing page now
+  reports users' spend on the batch service.
+
 **Version 0.2.128**
 
 - (`#14224 <https://github.com/hail-is/hail/pull/14224>`__) `hb.Batch` now accepts a

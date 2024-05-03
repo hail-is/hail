@@ -15,10 +15,7 @@ object Subst {
         env.eval.lookupOption(name).getOrElse(x)
       case _ =>
         e.mapChildrenWithIndex {
-          case (child: IR, i) =>
-            val childEnv = ChildEnvWithoutBindings(e, i, env)
-            val newBindings = NewBindings(e, i, childEnv)
-            subst(child, childEnv.subtract(newBindings))
+          case (child: IR, i) => subst(child, env.subtract(Bindings.get(e, i)))
           case (child, _) => child
         }
     }

@@ -48,6 +48,15 @@ class AggregatorsSuite extends HailSuite {
     )
   }
 
+  @Test def nestedAgg(): Unit = {
+    val agg = ToArray(StreamMap(StreamRange(0, 10, 1), "elt", ApplyAggOp(Count())()))
+    assertEvalsTo(
+      agg,
+      (FastSeq(1, 2).map(i => Row(i)), TStruct("x" -> TInt32)),
+      IndexedSeq.fill(10)(2L),
+    )
+  }
+
   @Test def sumFloat64(): Unit = {
     runAggregator(Sum(), TFloat64, (0 to 100).map(_.toDouble), 5050.0)
     runAggregator(Sum(), TFloat64, FastSeq(), 0.0)

@@ -1,12 +1,10 @@
-import json
-import os
 from typing import Optional, Union
-
-import pkg_resources
 
 import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.table import Table
+
+from .datasets_metadata import get_datasets_metadata
 
 
 def _read_dataset(path: str) -> Union[Table, MatrixTable, hl.linalg.BlockMatrix]:
@@ -76,11 +74,7 @@ def load_dataset(
             f'Valid cloud platforms are {valid_clouds}.'
         )
 
-    config_path = pkg_resources.resource_filename(__name__, 'datasets.json')
-    assert os.path.exists(config_path), f'{config_path} does not exist'
-    with open(config_path) as f:
-        datasets = json.load(f)
-
+    datasets = get_datasets_metadata()
     names = set([dataset for dataset in datasets])
     if name not in names:
         raise ValueError(f'{name} is not a dataset available in the' f' repository.')

@@ -5,9 +5,8 @@
 
 set -ex
 
-source hail-pip-compile.sh
-
-docker run --rm -it \
-       -v $HAIL:/hail \
-       $PIP_COMPILE_IMAGE \
-       /bin/bash -c "cd /hail && bash check_pip_requirements.sh $*"
+package=$1
+uv pip compile \
+    --python-version 3.9 \
+    --python-platform linux \
+    --upgrade $package/requirements.txt --output-file=$package/pinned-requirements.txt

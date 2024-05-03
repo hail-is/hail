@@ -13,6 +13,7 @@
   <li>Exit Code: {% if 'exit_code' in job and job['exit_code'] is not none %}{{ job['exit_code'] }}{% endif %}</li>
   <li>Duration: {% if 'duration' in job and job['duration'] is not none %}{{ job['duration'] }}{% endif %}</li>
   <li>Cost: {% if 'cost' in job and job['cost'] is not none %}{{ job['cost'] }}{% endif %}</li>
+  <li>Always Run: {% if 'always_run' in job and job['always_run'] is not none %}{{ job['always_run'] }}{% endif %}</li>
 </ul>
 
 <h2>Attributes</h2>

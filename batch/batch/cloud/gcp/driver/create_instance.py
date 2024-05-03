@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import gcp_machine_type_to_worker_type_and_cores, machine_family_to_gpu
+from ..resource_utils import gcp_machine_type_to_parts, machine_family_to_gpu
 
 log = logging.getLogger('create_instance')
 
@@ -40,7 +40,9 @@ def create_vm_config(
     project: str,
     instance_config: InstanceConfig,
 ) -> dict:
-    _, cores = gcp_machine_type_to_worker_type_and_cores(machine_type)
+    parts = gcp_machine_type_to_parts(machine_type)
+    assert parts
+    cores = parts.cores
 
     region = instance_config.region_for(zone)
     machine_family = machine_type.split('-')[0]

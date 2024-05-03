@@ -1,7 +1,6 @@
 import abc
 from typing import Dict, List, Sequence
 
-from .cloud.resource_utils import cores_mcpu_to_memory_bytes
 from .driver.billing_manager import ProductVersions
 from .resources import QuantifiedResource, Resource
 
@@ -42,6 +41,10 @@ class InstanceConfig(abc.ABC):
     # instead of accepting a "location"
     @abc.abstractmethod
     def region_for(self, location: str) -> str:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
         raise NotImplementedError
 
     def quantified_resources(
@@ -103,13 +106,13 @@ class InstanceConfig(abc.ABC):
         utilized_cores_mcpu: int,
     ) -> float:
         assert 0 <= utilized_cores_mcpu <= self.cores * 1000
-        memory_in_bytes = cores_mcpu_to_memory_bytes(self.cloud, utilized_cores_mcpu, self.worker_type())
+        memory_in_bytes = self.cores_mcpu_to_memory_bytes(utilized_cores_mcpu)
         storage_in_gb = 0  # we don't need to account for external storage
         return self.cost_per_hour(resource_rates, utilized_cores_mcpu, memory_in_bytes, storage_in_gb)
 
     def actual_cost_per_hour(self, resource_rates: Dict[str, float]) -> float:
         cpu_in_mcpu = self.cores * 1000
-        memory_in_bytes = cores_mcpu_to_memory_bytes(self.cloud, cpu_in_mcpu, self.worker_type())
+        memory_in_bytes = self.cores_mcpu_to_memory_bytes(cpu_in_mcpu)
         storage_in_gb = 0  # we don't need to account for external storage
         resources = self.quantified_resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
         resources = [r for r in resources if 'service-fee' not in r['name']]

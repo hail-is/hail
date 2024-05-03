@@ -42,12 +42,10 @@ object ComputeUsesAndDefs {
       ir.children
         .zipWithIndex
         .foreach { case (child, i) =>
-          val e = ChildEnvWithoutBindings(ir, i, env)
-          val b = NewBindings(ir, i, env).mapValues[BaseIR](_ => ir)
-          if (!b.allEmpty && !uses.contains(ir))
+          val newBindings = Bindings.get(ir, i).map((_, _) => ir)
+          if (!newBindings.allEmpty && !uses.contains(ir))
             uses.bind(ir, mutable.Set.empty[RefEquality[BaseRef]])
-          val childEnv = e.merge(b)
-          compute(child, childEnv)
+          compute(child, env.extend(newBindings))
         }
     }
 

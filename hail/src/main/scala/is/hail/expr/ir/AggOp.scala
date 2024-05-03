@@ -36,7 +36,29 @@ case class AggSignature(
   var seqOpArgs: Seq[Type],
 ) {
   // only to be used with virtual non-nested signatures on ApplyAggOp and ApplyScanOp
-  lazy val returnType: Type = Extract.getResultType(this)
+  lazy val returnType: Type = (op, seqOpArgs) match {
+    case (Sum(), Seq(t)) => t
+    case (Product(), Seq(t)) => t
+    case (Min(), Seq(t)) => t
+    case (Max(), Seq(t)) => t
+    case (Count(), _) => TInt64
+    case (Take(), Seq(t)) => TArray(t)
+    case (ReservoirSample(), Seq(t)) => TArray(t)
+    case (CallStats(), _) => CallStatsState.resultPType.virtualType
+    case (TakeBy(_), Seq(value, _)) => TArray(value)
+    case (PrevNonnull(), Seq(t)) => t
+    case (CollectAsSet(), Seq(t)) => TSet(t)
+    case (Collect(), Seq(t)) => TArray(t)
+    case (Densify(), Seq(t)) => t
+    case (ImputeType(), _) => ImputeTypeState.resultEmitType.virtualType
+    case (LinearRegression(), _) =>
+      LinearRegressionAggregator.resultPType.virtualType
+    case (ApproxCDF(), _) => QuantilesAggregator.resultPType.virtualType
+    case (Downsample(), Seq(_, _, _)) => DownsampleAggregator.resultType
+    case (NDArraySum(), Seq(t)) => t
+    case (NDArrayMultiplyAdd(), Seq(a: TNDArray, _)) => a
+    case _ => throw new UnsupportedExtraction(this.toString)
+  }
 }
 
 sealed trait AggOp {}

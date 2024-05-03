@@ -62,16 +62,21 @@ class BatchClient(
   def delete(path: String, token: String): JValue =
     request(new HttpDelete(s"$baseUrl$path"))
 
-  def update(batchID: Long, token: String, jobs: IndexedSeq[JObject]): Long = {
+  def update(batchID: Long, token: String, jobGroup: JObject, jobs: IndexedSeq[JObject])
+    : (Long, Long) = {
     implicit val formats: Formats = DefaultFormats
 
-    val updateJson = JObject("n_jobs" -> JInt(jobs.length), "token" -> JString(token))
-    val bunches = createBunches(jobs)
-    val updateID =
-      if (bunches.length == 1) {
+    val updateJson =
+      JObject("n_jobs" -> JInt(jobs.length), "n_job_groups" -> JInt(1), "token" -> JString(token))
+    val jobGroupSpec = specBytes(jobGroup)
+    val jobBunches = createBunches(jobs)
+    val updateIDAndJobGroupId =
+      if (jobBunches.length == 1 && jobBunches(0).length + jobGroupSpec.length < 1024 * 1024) {
         val b = new ByteArrayBuilder()
-        b ++= "{\"bunch\":".getBytes(StandardCharsets.UTF_8)
-        addBunchBytes(b, bunches(0))
+        b ++= "{\"job_groups\":".getBytes(StandardCharsets.UTF_8)
+        addBunchBytes(b, Array(jobGroupSpec))
+        b ++= ",\"bunch\":".getBytes(StandardCharsets.UTF_8)
+        addBunchBytes(b, jobBunches(0))
         b ++= ",\"update\":".getBytes(StandardCharsets.UTF_8)
         b ++= JsonMethods.compact(updateJson).getBytes(StandardCharsets.UTF_8)
         b += '}'
@@ -83,17 +88,29 @@ class BatchClient(
           )
         }
         b.clear()
-        (resp \ "update_id").extract[Long]
+        ((resp \ "update_id").extract[Long], (resp \ "start_job_group_id").extract[Long])
       } else {
         val resp = retryTransientErrors {
           post(s"/api/v1alpha/batches/$batchID/updates/create", json = updateJson)
         }
         val updateID = (resp \ "update_id").extract[Long]
+        val startJobGroupId = (resp \ "start_job_group_id").extract[Long]
 
         val b = new ByteArrayBuilder()
+        b ++= "[".getBytes(StandardCharsets.UTF_8)
+        b ++= jobGroupSpec
+        b ++= "]".getBytes(StandardCharsets.UTF_8)
+        retryTransientErrors {
+          post(
+            s"/api/v1alpha/batches/$batchID/updates/$updateID/job-groups/create",
+            new ByteArrayEntity(b.result(), ContentType.create("application/json")),
+          )
+        }
+
+        b.clear()
         var i = 0
-        while (i < bunches.length) {
-          addBunchBytes(b, bunches(i))
+        while (i < jobBunches.length) {
+          addBunchBytes(b, jobBunches(i))
           val data = b.result()
           retryTransientErrors {
             post(
@@ -111,11 +128,11 @@ class BatchClient(
         retryTransientErrors {
           patch(s"/api/v1alpha/batches/$batchID/updates/$updateID/commit")
         }
-        updateID
+        (updateID, startJobGroupId)
       }
 
-    log.info(s"run: created update $updateID for batch $batchID")
-    updateID
+    log.info(s"run: created update $updateIDAndJobGroupId for batch $batchID")
+    updateIDAndJobGroupId
   }
 
   def create(batchJson: JObject, jobs: IndexedSeq[JObject]): Long = {
@@ -171,10 +188,10 @@ class BatchClient(
 
   def run(batchJson: JObject, jobs: IndexedSeq[JObject]): JValue = {
     val batchID = create(batchJson, jobs)
-    waitForBatch(batchID, false)
+    waitForJobGroup(batchID, 0L)
   }
 
-  def waitForBatch(batchID: Long, excludeDriverJobInBatch: Boolean): JValue = {
+  def waitForJobGroup(batchID: Long, jobGroupId: Long): JValue = {
     implicit val formats: Formats = DefaultFormats
 
     Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
@@ -182,11 +199,10 @@ class BatchClient(
     val start = System.nanoTime()
 
     while (true) {
-      val batch = retryTransientErrors(get(s"/api/v1alpha/batches/$batchID"))
-      val n_completed = (batch \ "n_completed").extract[Int]
-      val n_jobs = (batch \ "n_jobs").extract[Int]
-      if ((excludeDriverJobInBatch && n_completed == n_jobs - 1) || n_completed == n_jobs)
-        return batch
+      val jobGroup =
+        retryTransientErrors(get(s"/api/v1alpha/batches/$batchID/job-groups/$jobGroupId"))
+      if ((jobGroup \ "complete").extract[Boolean])
+        return jobGroup
 
       // wait 10% of duration so far
       // at least, 50ms
@@ -213,7 +229,7 @@ class BatchClient(
     var i = 0
     var size = 0
     while (i < jobs.length) {
-      val jobBytes = JsonMethods.compact(jobs(i)).getBytes(StandardCharsets.UTF_8)
+      val jobBytes = specBytes(jobs(i))
       if (size + jobBytes.length > 1024 * 1024) {
         bunches += bunchb.result()
         bunchb.clear()
@@ -229,6 +245,9 @@ class BatchClient(
     bunchb.clear()
     bunches
   }
+
+  private def specBytes(obj: JObject): Array[Byte] =
+    JsonMethods.compact(obj).getBytes(StandardCharsets.UTF_8)
 
   private def addBunchBytes(b: ByteArrayBuilder, bunch: Array[Array[Byte]]): Unit = {
     var j = 0

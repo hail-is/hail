@@ -117,7 +117,7 @@ object Worker {
       s"$scratchDir/secrets/deploy-config/deploy-config.json"
     )
     DeployConfig.set(deployConfig)
-    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
+    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     log.info(s"is.hail.backend.service.Worker $myRevision")
     log.info(s"running job $i/$n at root $root with scratch directory '$scratchDir'")
@@ -125,7 +125,7 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None)
 
     def open(x: String): SeekableDataInputStream =
       fs.openNoCompression(x)
@@ -170,6 +170,7 @@ object Worker {
         new HailClassLoader(getClass().getClassLoader()),
         null,
         None,
+        None,
         null,
         null,
         null,
@@ -183,6 +184,7 @@ object Worker {
           null,
           new HailClassLoader(getClass().getClassLoader()),
           null,
+          None,
           None,
           null,
           null,

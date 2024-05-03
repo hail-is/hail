@@ -851,8 +851,9 @@ object IRParser {
           default <- ir_value_expr(env)(it)
           cases <- ir_value_children(env)(it)
         } yield Switch(x, default, cases)
-      case "Let" =>
-        val names = repUntilNonStackSafe(it, identifier, PunctuationToken("("))
+      case "Let" | "Block" =>
+        val names =
+          repUntilNonStackSafe(it, it => (identifier(it), identifier(it)), PunctuationToken("("))
         val values = new Array[IR](names.length)
         for {
           _ <- names.indices.foldLeft(done(())) { case (update, i) =>
@@ -862,7 +863,17 @@ object IRParser {
             } yield values.update(i, value)
           }
           body <- ir_value_expr(env)(it)
-        } yield Let(names.zip(values).toFastSeq, body)
+        } yield {
+          val bindings = (names, values).zipped.map { case ((bindType, name), value) =>
+            val scope = bindType match {
+              case "eval" => Scope.EVAL
+              case "agg" => Scope.AGG
+              case "scan" => Scope.SCAN
+            }
+            Binding(name, value, scope)
+          }
+          Block(bindings, body)
+        }
       case "AggLet" =>
         val name = identifier(it)
         val isScan = boolean_literal(it)

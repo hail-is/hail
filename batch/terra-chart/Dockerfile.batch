@@ -9,4 +9,5 @@ RUN hail-apt-get-install xz-utils libncurses5 && \
     ln -s /opt/mysql-8.0.26-linux-glibc2.17-x86_64-minimal-rebuild/bin/* /usr/bin/
 
 COPY batch/sql /batch/sql/
+COPY build.yaml /
 COPY ci/create_database.py ci/create_local_database.py /ci/

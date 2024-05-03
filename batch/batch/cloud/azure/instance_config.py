@@ -4,7 +4,7 @@ from hailtop.utils import filter_none
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import azure_machine_type_to_worker_type_and_cores
+from .resource_utils import azure_cores_mcpu_to_memory_bytes, azure_machine_type_to_parts
 from .resources import (
     AzureDynamicSizedDiskResource,
     AzureIPFeeResource,
@@ -73,13 +73,16 @@ class AzureSlimInstanceConfig(InstanceConfig):
         self.boot_disk_size_gb = boot_disk_size_gb
         self.resources = resources
 
-        worker_type, cores = azure_machine_type_to_worker_type_and_cores(self._machine_type)
-
-        self._worker_type = worker_type
-        self.cores = cores
+        machine_type_parts = azure_machine_type_to_parts(self._machine_type)
+        assert machine_type_parts
+        self._worker_type = machine_type_parts.family
+        self.cores = machine_type_parts.cores
 
     def worker_type(self) -> str:
         return self._worker_type
+
+    def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
+        return azure_cores_mcpu_to_memory_bytes(mcpu, self.worker_type())
 
     def region_for(self, location: str) -> str:
         return location
