@@ -172,7 +172,7 @@ final case class EStructOfArrays(
 
       fields.foreach { field =>
         val pFieldType = tcoerce[PBaseStruct](pArray.elementType).fieldByName(field.name).typ
-        require(pFieldType.isPrimitive)
+        require(EStructOfArrays.supportsFieldType(pFieldType.virtualType))
         val arrayType = PCanonicalArray(pFieldType, required = false)
         transposeAndWriteField(cb, field, arrayType, sv, r, out)
       }
@@ -180,8 +180,6 @@ final case class EStructOfArrays(
       cb += r.invalidate()
   }
 
-  // XXX: this is a very basic output that does not apply any transformation to the values, just
-  // places them into a scratch array and dumps the bytes of said array
   private[this] def transposeAndWriteField(
     cb: EmitCodeBuilder,
     field: EField,
