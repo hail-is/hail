@@ -69,7 +69,6 @@ class GCPAcceleratorPrice(Price):
 
     @property
     def product(self):
-        # return GCPAcceleratorResource.product_name(self.accelerator_family, self.preemptible, self.region)
         return GCPAcceleratorResource.product_name(self.accelerator_family, self.preemptible, self.region)
 
     @property
