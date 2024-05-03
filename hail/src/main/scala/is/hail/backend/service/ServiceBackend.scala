@@ -60,11 +60,12 @@ object ServiceBackend {
     jobGroupId: Option[Long],
     scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
     rpcConfig: ServiceBackendRPCPayload,
+    env: Map[String, String],
   ): ServiceBackend = {
 
     val flags = HailFeatureFlags.fromMap(rpcConfig.flags)
     val shouldProfile = flags.get("profile") != null
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), Some(flags))
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), Some(flags), env)
 
     val backendContext = new ServiceBackendContext(
       rpcConfig.billing_project,
@@ -446,7 +447,7 @@ object ServiceBackendAPI {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None)
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json"
     )
@@ -475,6 +476,7 @@ object ServiceBackendAPI {
       jobGroupId,
       scratchDir,
       rpcConfig,
+      sys.env,
     )
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {

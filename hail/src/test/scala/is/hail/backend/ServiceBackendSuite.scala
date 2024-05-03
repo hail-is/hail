@@ -31,6 +31,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
           jobGroupId = None,
           scratchDir = rpcPayload.remote_tmpdir,
           rpcConfig = rpcPayload,
+          sys.env + ("HAIL_CLOUD" -> "gcp"),
         )
 
       val contexts = Array.tabulate(1)(_.toString.getBytes)
@@ -94,6 +95,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
           jobGroupId = None,
           scratchDir = config.remote_tmpdir,
           rpcConfig = config,
+          sys.env + ("HAIL_CLOUD" -> "gcp"),
         )
 
       val contexts = Array.tabulate(1)(_.toString.getBytes)
