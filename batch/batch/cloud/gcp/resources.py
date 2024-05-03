@@ -170,7 +170,7 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
 
 
 class GCPAcceleratorResource(VMResourceMixin, GCPResource):
-    FORMAT_VERSION = 1
+    FORMAT_VERSION = 2
     TYPE = 'gcp_accelerator'
 
     @staticmethod
@@ -181,49 +181,16 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResource':
         assert data['type'] == GCPAcceleratorResource.TYPE
-        return GCPAcceleratorResource(data['name'])
-
-    @staticmethod
-    def create(
-        product_versions: ProductVersions,
-        accelerator_family: str,
-        preemptible: bool,
-        region: str,
-    ) -> 'GCPAcceleratorResource':
-        product = GCPAcceleratorResource.product_name(accelerator_family, preemptible, region)
-        name = product_versions.resource_name(product)
-        assert name, product
-        return GCPAcceleratorResource(name)
-
-    def __init__(self, name: str):
-        self.name = name
-
-    def to_dict(self) -> dict:
-        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
-
-
-class GCPAcceleratorResourceV2(VMResourceMixin, GCPResource):
-    FORMAT_VERSION = 1
-    TYPE = 'gcp_acceleratorV2'
-
-    @staticmethod
-    def product_name(accelerator_family: str, preemptible: bool, region: str) -> str:
-        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
-        return f'accelerator/{accelerator_family}-{preemptible_str}/{region}'
-
-    @staticmethod
-    def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResourceV2':
-        assert data['type'] == GCPAcceleratorResourceV2.TYPE
-        return GCPAcceleratorResourceV2(data['name'], data['number'])
+        return GCPAcceleratorResource(data['name'], data['number'])
 
     @staticmethod
     def create(
         product_versions: ProductVersions, accelerator_family: str, preemptible: bool, region: str, num_gpus: int
-    ) -> 'GCPAcceleratorResourceV2':
-        product = GCPAcceleratorResourceV2.product_name(accelerator_family, preemptible, region)
+    ) -> 'GCPAcceleratorResource':
+        product = GCPAcceleratorResource.product_name(accelerator_family, preemptible, region)
         name = product_versions.resource_name(product)
         assert name, product
-        return GCPAcceleratorResourceV2(name, num_gpus)
+        return GCPAcceleratorResource(name, num_gpus)
 
     def __init__(self, name: str, number: int):
         self.name = name
@@ -235,11 +202,11 @@ class GCPAcceleratorResourceV2(VMResourceMixin, GCPResource):
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
     ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
-        resource_dic = super().to_quantified_resource(
+        resource_dict = super().to_quantified_resource(
             cpu_in_mcpu, memory_in_bytes, worker_fraction_in_1024ths, external_storage_in_gib
         )
-        assert resource_dic
-        return {'name': resource_dic['name'], 'quantity': self.number * resource_dic['quantity']}
+        assert resource_dict
+        return {'name': resource_dict['name'], 'quantity': self.number * resource_dict['quantity']}
 
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):
@@ -380,8 +347,8 @@ def gcp_resource_from_dict(data: dict) -> GCPResource:
         return GCPMemoryResource.from_dict(data)
     if typ == GCPServiceFeeResource.TYPE:
         return GCPServiceFeeResource.from_dict(data)
-    if typ == GCPAcceleratorResourceV2.TYPE:
-        return GCPAcceleratorResourceV2.from_dict(data)
+    if typ == GCPAcceleratorResource.TYPE:
+        return GCPAcceleratorResource.from_dict(data)
     if typ == GCPIPFeeResource.TYPE:
         return GCPIPFeeResource.from_dict(data)
     assert typ == GCPSupportLogsSpecsAndFirewallFees.TYPE, typ

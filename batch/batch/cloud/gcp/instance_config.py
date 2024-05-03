@@ -9,7 +9,7 @@ from .resource_utils import (
     machine_type_to_gpu_num,
 )
 from .resources import (
-    GCPAcceleratorResourceV2,
+    GCPAcceleratorResource,
     GCPComputeResource,
     GCPDynamicSizedDiskResource,
     GCPIPFeeResource,
@@ -71,9 +71,8 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
         if accelerator_family:
             num_gpus = machine_type_to_gpu_num(machine_type)
-            assert num_gpus
             resources.append(
-                GCPAcceleratorResourceV2.create(product_versions, accelerator_family, preemptible, region, num_gpus)
+                GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region, num_gpus)
             )
 
         return GCPSlimInstanceConfig(

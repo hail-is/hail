@@ -12,7 +12,7 @@ from hailtop.utils.time import parse_timestamp_msecs
 
 from ....driver.pricing import Price
 from ..resources import (
-    GCPAcceleratorResourceV2,
+    GCPAcceleratorResource,
     GCPComputeResource,
     GCPLocalSSDStaticSizedDiskResource,
     GCPMemoryResource,
@@ -70,7 +70,7 @@ class GCPAcceleratorPrice(Price):
     @property
     def product(self):
         # return GCPAcceleratorResource.product_name(self.accelerator_family, self.preemptible, self.region)
-        return GCPAcceleratorResourceV2.product_name(self.accelerator_family, self.preemptible, self.region)
+        return GCPAcceleratorResource.product_name(self.accelerator_family, self.preemptible, self.region)
 
     @property
     def rate(self):
