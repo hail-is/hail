@@ -1,7 +1,7 @@
 import pytest
 
 from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
-from batch.cloud.gcp.resources import gcp_resource_from_dict
+from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
 from hailtop.batch_client.parse import parse_memory_in_bytes
 
@@ -62,3 +62,27 @@ def test_machine_type_to_gpu_num():
     assert machine_type_to_gpu_num('g2-standard-24') == 2
     assert machine_type_to_gpu_num('g2-standard-48') == 4
     assert machine_type_to_gpu_num('g2-standard-96') == 8
+
+
+def test_gcp_accelerator_to_from_dict():
+    version_1_dict = {
+        'type': 'gcp_accelerator',
+        'name': 'accelerator/l4-nonpreemptible/us-central1/1712657549063',
+        'format_version': 1,
+    }
+    version_1_resource = GCPAcceleratorResource.from_dict(version_1_dict)
+    assert version_1_resource
+    version_1_remade_dict = version_1_resource.to_dict()
+    del version_1_remade_dict['number']
+    assert version_1_remade_dict == version_1_dict
+
+    version_2_dict = {
+        'type': 'gcp_accelerator',
+        'name': 'accelerator/l4-nonpreemptible/us-central1/1712657549063',
+        'format_version': 2,
+        'number': 2,
+    }
+    version_2_resource = GCPAcceleratorResource.from_dict(version_2_dict)
+    assert version_2_resource
+    version_2_remade_dict = version_2_resource.to_dict()
+    assert version_2_remade_dict == version_2_dict

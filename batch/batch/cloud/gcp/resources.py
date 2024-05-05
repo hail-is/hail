@@ -181,7 +181,11 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResource':
         assert data['type'] == GCPAcceleratorResource.TYPE
-        return GCPAcceleratorResource(data['name'], data['number'])
+        if data['format_version'] == 1:
+            # version 1 assumed only one accelerator
+            return GCPAcceleratorResource(data['name'], 1, data['format_version'])
+        assert data['format_version'] == 2
+        return GCPAcceleratorResource(data['name'], data['number'], data['format_version'])
 
     @staticmethod
     def create(
@@ -190,14 +194,15 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
         product = GCPAcceleratorResource.product_name(accelerator_family, preemptible, region)
         name = product_versions.resource_name(product)
         assert name, product
-        return GCPAcceleratorResource(name, num_gpus)
+        return GCPAcceleratorResource(name, num_gpus, GCPAcceleratorResource.FORMAT_VERSION)
 
-    def __init__(self, name: str, number: int):
+    def __init__(self, name: str, number: int, format_version: int):
         self.name = name
         self.number = number
+        self.format_version = format_version
 
     def to_dict(self) -> dict:
-        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION, 'number': self.number}
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.format_version, 'number': self.number}
 
     def to_quantified_resource(
         self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
