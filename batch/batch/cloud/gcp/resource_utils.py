@@ -11,12 +11,25 @@ GCP_MACHINE_FAMILY = 'n1'
 
 MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
 
+MACHINE_FAMILY_TO_NUM_GPUS = {
+    'g2-standard-4': 1,
+    'g2-standard-8': 1,
+    'g2-standard-12': 1,
+    'g2-standard-16': 1,
+    'g2-standard-32': 1,
+    'g2-standard-24': 2,
+    'g2-standard-48': 4,
+    'g2-standard-96': 8,
+}
+
+
 MEMORY_PER_CORE_MIB = {
     ('n1', 'standard'): 3840,
     ('n1', 'highmem'): 6656,
     ('n1', 'highcpu'): 924,
     ('g2', 'standard'): 4000,
 }
+
 
 gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
@@ -25,7 +38,7 @@ gcp_valid_cores_from_worker_type = {
 }
 
 
-gcp_valid_machine_types = ['g2-standard-4']
+gcp_valid_machine_types = list(MACHINE_FAMILY_TO_NUM_GPUS.keys())
 for typ in ('highcpu', 'standard', 'highmem'):
     possible_cores = gcp_valid_cores_from_worker_type[typ]
     for cores in possible_cores:
@@ -98,6 +111,11 @@ def machine_family_to_gpu(machine_family: str) -> Optional[str]:
 
 def is_gpu(machine_family: str) -> bool:
     return machine_family_to_gpu(machine_family) is not None
+
+
+def machine_type_to_gpu_num(machine_type: str) -> int:
+    assert machine_type in MACHINE_FAMILY_TO_NUM_GPUS
+    return MACHINE_FAMILY_TO_NUM_GPUS[machine_type]
 
 
 def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: str) -> int:
