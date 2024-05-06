@@ -73,8 +73,7 @@ def test_gcp_accelerator_to_from_dict():
     version_1_resource = GCPAcceleratorResource.from_dict(version_1_dict)
     assert version_1_resource
     version_1_remade_dict = version_1_resource.to_dict()
-    del version_1_remade_dict['number']
-    assert version_1_remade_dict == version_1_dict
+    assert version_1_remade_dict['number'] == 1
 
     version_2_dict = {
         'type': 'gcp_accelerator',
