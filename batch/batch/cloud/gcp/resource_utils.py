@@ -58,7 +58,8 @@ class MachineTypeParts:
     @staticmethod
     def from_dict(data: dict) -> 'MachineTypeParts':
         if data['machine_family'] == 'a2':
-            data['cores'] = A2_CORES_PER_GPU * data['gpus']
+            cores = A2_CORES_PER_GPU * int(data['gpus'])
+            data['cores'] = cores
         return MachineTypeParts(data['machine_family'], data['machine_type'], int(data['cores']))
 
     def __init__(self, machine_family: str, worker_type: str, cores: int):
