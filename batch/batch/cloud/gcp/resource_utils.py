@@ -7,9 +7,11 @@ log = logging.getLogger('utils')
 
 GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
+MACHINE_TYPE_REGEX_GPU = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<gpus>\\d+)g')
 GCP_MACHINE_FAMILY = 'n1'
+A2_CORES_PER_GPU = 12
 
-MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4', 'a2': 'a100'}
+MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4', 'a2': 'a100-40gb'}
 
 MACHINE_FAMILY_TO_NUM_GPUS = {
     'g2-standard-4': 1,
@@ -20,6 +22,7 @@ MACHINE_FAMILY_TO_NUM_GPUS = {
     'g2-standard-24': 2,
     'g2-standard-48': 4,
     'g2-standard-96': 8,
+    'a2-highgpu-1g': 1,
 }
 
 
@@ -28,6 +31,7 @@ MEMORY_PER_CORE_MIB = {
     ('n1', 'highmem'): 6656,
     ('n1', 'highcpu'): 924,
     ('g2', 'standard'): 4000,
+    ('a2', 'highgpu'): 7083,
 }
 
 
@@ -35,6 +39,7 @@ gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
     'highmem': [2, 4, 8, 16, 32, 64, 96],
+    'highgpu': [12, 24, 48, 96],
 }
 
 
@@ -52,6 +57,8 @@ gcp_memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highm
 class MachineTypeParts:
     @staticmethod
     def from_dict(data: dict) -> 'MachineTypeParts':
+        if data['machine_family'] == 'a2':
+            data['cores'] = A2_CORES_PER_GPU * data['gpus']
         return MachineTypeParts(data['machine_family'], data['machine_type'], int(data['cores']))
 
     def __init__(self, machine_family: str, worker_type: str, cores: int):
@@ -61,7 +68,10 @@ class MachineTypeParts:
 
 
 def gcp_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
-    match = MACHINE_TYPE_REGEX.fullmatch(machine_type)
+    if 'a2' in machine_type:
+        match = MACHINE_TYPE_REGEX_GPU.fullmatch(machine_type)
+    else:
+        match = MACHINE_TYPE_REGEX.fullmatch(machine_type)
     if match is None:
         return match
     return MachineTypeParts.from_dict(match.groupdict())

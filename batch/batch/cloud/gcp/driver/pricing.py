@@ -190,8 +190,8 @@ def accelerator_from_sku(sku) -> Optional[str]:
     description = sku['description']
     if description.startswith("Nvidia L4 GPU"):
         return 'l4'
-    if description.startswith("Nvidia Tesla A100 GPU"):
-        return 'a100'
+    if (description.startswith("Nvidia Tesla A100 GPU")) and ('80GB' not in description):
+        return 'a100-40gb'
     return None
 
 
