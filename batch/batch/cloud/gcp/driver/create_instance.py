@@ -63,7 +63,7 @@ def create_vm_config(
                 'diskSizeGb': str(data_disk_size_gb),
             },
         }
-        worker_data_disk_name = 'nvme0n2' if ('g2' in machine_type or 'a2' in machine_type) else 'sdb'
+        worker_data_disk_name = 'nvme0n2' if 'g2' in machine_type else 'sdb'
 
     if job_private:
         unreserved_disk_storage_gb = data_disk_size_gb
