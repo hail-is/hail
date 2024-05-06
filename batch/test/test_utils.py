@@ -40,13 +40,13 @@ def test_gcp_worker_memory_per_core_mib():
 
 def test_gcp_resource_from_dict():
     name = 'accelerator/l4-nonpreemptible/us-central1/1712657549063'
-    gpu_data_dic_single = {'name': name, 'number': 1, 'type': 'gcp_accelerator'}
+    gpu_data_dic_single = {'name': name, 'number': 1, 'type': 'gcp_accelerator', 'format_version': 2}
     resource = gcp_resource_from_dict(gpu_data_dic_single)
     quantified_resources = resource.to_quantified_resource(1000, 20, 1024, 20)
     assert quantified_resources
     assert quantified_resources['quantity'] == 1024
 
-    gpu_data_dic_double = {'name': name, 'number': 2, 'type': 'gcp_accelerator'}
+    gpu_data_dic_double = {'name': name, 'number': 2, 'type': 'gcp_accelerator', 'format_version': 2}
     resource = gcp_resource_from_dict(gpu_data_dic_double)
     quantified_resources = resource.to_quantified_resource(1000, 20, 1024, 20)
     assert quantified_resources
