@@ -5,6 +5,7 @@ import is.hail.TestUtils._
 import is.hail.expr.Nat
 import is.hail.types.virtual._
 import is.hail.utils._
+
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {

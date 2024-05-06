@@ -1,4 +1,5 @@
 import logging
+import math
 import re
 from typing import Dict, Optional, Tuple
 
@@ -148,11 +149,13 @@ def azure_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]
     return MachineTypeParts.from_dict(match.groupdict())
 
 
-def azure_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str, int]:
+def azure_machine_type_to_cores_and_memory_mib_per_core(machine_type: str) -> Tuple[int, int]:
     maybe_machine_type_parts = azure_machine_type_to_parts(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    return (maybe_machine_type_parts.family, maybe_machine_type_parts.cores)
+    cores = maybe_machine_type_parts.cores
+    memory_per_core = azure_worker_memory_per_core_mib(maybe_machine_type_parts.family)
+    return cores, memory_per_core
 
 
 def azure_worker_properties_to_machine_type(worker_type: str, cores: int, local_ssd_data_disk: bool) -> str:
@@ -204,3 +207,16 @@ def azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
 
 def azure_is_valid_storage_request(storage_in_gib: int) -> bool:
     return 10 <= storage_in_gib <= AZURE_MAX_PERSISTENT_SSD_SIZE_GIB
+
+
+def azure_cores_mcpu_to_memory_bytes(mcpu: int, worker_type: str) -> int:
+    memory_mib = azure_worker_memory_per_core_mib(worker_type)
+    memory_bytes = int(memory_mib * 1024**2)
+    return int((mcpu / 1000) * memory_bytes)
+
+
+def azure_adjust_cores_for_memory_request(cores_in_mcpu: int, memory_in_bytes: int, worker_type: str) -> int:
+    memory_per_core_mib = azure_worker_memory_per_core_mib(worker_type)
+    memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
+    min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
+    return max(cores_in_mcpu, min_cores_mcpu)

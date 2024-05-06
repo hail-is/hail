@@ -21,7 +21,6 @@ AUTHORIZED_USERS = [
     User('cseed', 'cseed'),
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
     User('danking', 'dking'),
-    User('dependabot[bot]'),
     User('jigold', 'jigold', [SERVICES_TEAM]),
     User('jkgoodrich', 'jgoodric'),
     User('konradjk', 'konradk'),

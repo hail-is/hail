@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
@@ -25,7 +25,6 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
-import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 import java.io._
@@ -155,7 +154,7 @@ class ServiceBackend(
   private[this] def submitAndWaitForBatch(
     _backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
   ): (String, String, Int) = {
@@ -295,52 +294,32 @@ class ServiceBackend(
   override def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
-    val (token, root, n) =
-      submitAndWaitForBatch(_backendContext, fs, collection, stageIdentifier, f)
-
-    log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
-    val startTime = System.nanoTime()
-    val results =
-      try
-        executor.invokeAll[Array[Byte]](
-          IndexedSeq.range(0, n).map { i =>
-            (() => readResult(root, i)): Callable[Array[Byte]]
-          }.asJavaCollection
-        ).asScala.map(_.get).toArray
-      catch {
-        case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
-      }
-    val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
-    val rate = results.length / resultsReadingSeconds
-    val byterate = results.map(_.length).sum / resultsReadingSeconds / 1024 / 1024
-    log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
-    results
-  }
-
-  override def parallelizeAndComputeWithIndexReturnAllErrors(
-    _backendContext: BackendContext,
-    fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
+    dependency: Option[TableStageDependency],
+    partitions: Option[IndexedSeq[Int]],
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+
+    val (partIdxs, parts) =
+      partitions
+        .map(ps => (ps, ps.map(contexts)))
+        .getOrElse((contexts.indices, contexts))
+
     val (token, root, _) =
-      submitAndWaitForBatch(_backendContext, fs, collection.map(_._1).toArray, stageIdentifier, f)
+      submitAndWaitForBatch(_backendContext, fs, parts, stageIdentifier, f)
+
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    val r @ (_, results) = runAllKeepFirstError(executor) {
-      collection.zipWithIndex.map { case ((_, i), jobIndex) =>
-        (() => readResult(root, jobIndex), i)
+    val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+      (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
+        (() => readResult(root, jobIndex), partIdx)
       }
     }
+
+    error.foreach(throw _)
+
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
     val byterate = results.map(_._1.length).sum / resultsReadingSeconds / 1024 / 1024

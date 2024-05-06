@@ -473,8 +473,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -503,8 +502,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -599,8 +597,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, output files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Notes
         -----
