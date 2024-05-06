@@ -44,7 +44,7 @@ object Compile {
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
     val normalizedBody =
-      new NormalizeNames(_.toString, allowFreeVariables = true)(ctx, body).asInstanceOf[IR]
+      NormalizeNames(ctx, body, allowFreeVariables = true)
     val k =
       CodeCacheKey(FastSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F](k) {
@@ -107,7 +107,7 @@ object CompileWithAggregators {
     (HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion),
   ) = {
     val normalizedBody =
-      new NormalizeNames(_.toString, allowFreeVariables = true)(ctx, body).asInstanceOf[IR]
+      NormalizeNames(ctx, body, allowFreeVariables = true)
     val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F with FunctionWithAggRegion](k) {
 

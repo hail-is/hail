@@ -30,7 +30,7 @@ case object SemanticHash extends Logging {
       // Running the algorithm on the name-normalised IR
       // removes sensitivity to compiler-generated names
       val nameNormalizedIR = ctx.timer.time("NormalizeNames") {
-        new NormalizeNames(i => iruid(i), allowFreeVariables = true)(ctx, root)
+        NormalizeNames(ctx, root, allowFreeVariables = true)
       }
 
       val semhash = ctx.timer.time("Hash") {
