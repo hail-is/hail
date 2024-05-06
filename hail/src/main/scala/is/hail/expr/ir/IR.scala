@@ -43,7 +43,7 @@ sealed trait IR extends BaseIR {
   protected lazy val childrenSeq: IndexedSeq[BaseIR] =
     Children(this)
 
-  override protected def copy(newChildren: IndexedSeq[BaseIR]): IR =
+  override protected def withNewChildren(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
   override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]

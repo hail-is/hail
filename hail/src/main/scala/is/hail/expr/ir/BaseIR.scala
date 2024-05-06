@@ -13,10 +13,10 @@ abstract class BaseIR {
 
   def children: Iterable[BaseIR] = childrenSeq
 
-  protected def copy(newChildren: IndexedSeq[BaseIR]): BaseIR
+  protected def withNewChildren(newChildren: IndexedSeq[BaseIR]): BaseIR
 
   def deepCopy(): this.type =
-    copy(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
+    withNewChildren(newChildren = childrenSeq.map(_.deepCopy())).asInstanceOf[this.type]
 
   def noSharing(ctx: ExecuteContext): this.type =
     if (HasIRSharing(ctx)(this)) this.deepCopy() else this
@@ -33,7 +33,7 @@ abstract class BaseIR {
     if (childrenSeq.elementsSameObjects(newChildren))
       this
     else
-      copy(newChildren)
+      withNewChildren(newChildren)
   }
 
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
@@ -41,7 +41,7 @@ abstract class BaseIR {
     if (childrenSeq.elementsSameObjects(newChildren))
       this
     else
-      copy(newChildren)
+      withNewChildren(newChildren)
   }
 
   def mapChildrenWithIndexStackSafe(f: (BaseIR, Int) => StackFrame[BaseIR]): StackFrame[BaseIR] = {
@@ -49,7 +49,7 @@ abstract class BaseIR {
       if (childrenSeq.elementsSameObjects(newChildren))
         this
       else
-        copy(newChildren)
+        withNewChildren(newChildren)
     }
   }
 
@@ -58,7 +58,7 @@ abstract class BaseIR {
       if (childrenSeq.elementsSameObjects(newChildren))
         this
       else
-        copy(newChildren)
+        withNewChildren(newChildren)
     }
   }
 
@@ -68,20 +68,47 @@ abstract class BaseIR {
       f(child, childEnv)
     }
 
-  def mapChildrenWithEnv[E <: GenericBindingEnv[E, Type]](env: E)(f: (BaseIR, E) => BaseIR)
-    : BaseIR = {
-    val newChildren = childrenSeq.toArray
+  def mapChildrenWithEnv(env: BindingEnv[Type])(f: (BaseIR, BindingEnv[Type]) => BaseIR): BaseIR =
+    mapChildrenWithEnv[BindingEnv[Type]](env, (env, bindings) => env.extend(bindings))(f)
+
+  def mapChildrenWithEnv[E](
+    env: E,
+    update: (E, Bindings[Type]) => E,
+  )(
+    f: (BaseIR, E) => BaseIR
+  ): BaseIR = {
+    val newChildren = Array(childrenSeq: _*)
     var res = this
     for (i <- newChildren.indices) {
-      val childEnv = env.extend(Bindings.get(res, i))
+      val childEnv = update(env, Bindings.get(res, i))
       val child = newChildren(i)
       val newChild = f(child, childEnv)
       if (!(newChild eq child)) {
         newChildren(i) = newChild
-        res = res.copy(newChildren)
+        res = res.withNewChildren(newChildren)
       }
     }
     res
+  }
+
+  def mapChildrenWithEnvStackSafe[E](
+    env: E,
+    update: (E, Bindings[Type]) => E,
+  )(
+    f: (BaseIR, E) => StackFrame[BaseIR]
+  ): StackFrame[BaseIR] = {
+    val newChildren = Array(childrenSeq: _*)
+    var res = this
+    newChildren.indices.foreachRecur { i =>
+      val childEnv = update(env, Bindings.get(res, i))
+      val child = newChildren(i)
+      f(child, childEnv).map { newChild =>
+        if (!(newChild eq child)) {
+          newChildren(i) = newChild
+          res = res.withNewChildren(newChildren)
+        }
+      }
+    }.map(_ => res)
   }
 
   def forEachChildWithEnvStackSafe[E <: GenericBindingEnv[E, Type]](
@@ -93,4 +120,21 @@ abstract class BaseIR {
       val childEnv = env.extend(Bindings.get(this, i))
       f(child, i, childEnv)
     }
+
+//  // Body takes the parent IR and the child's index, and returns the new child.
+//  // The parent IR has all children with smaller indices already modified.
+//  def mapChildrenRaw(f: (BaseIR, Int) => BaseIR): BaseIR = {
+//    val newChildren = Array(childrenSeq: _*)
+//    var res = this
+//    for (i <- newChildren.indices) {
+//      val childEnv = update(env, Bindings.get(res, i))
+//      val child = newChildren(i)
+//      val newChild = f(child, childEnv)
+//      if (!(newChild eq child)) {
+//        newChildren(i) = newChild
+//        res = res.withNewChildren(newChildren)
+//      }
+//    }
+//    res
+//  }
 }

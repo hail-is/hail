@@ -132,15 +132,14 @@ class ForwardLetsSuite extends HailSuite {
     )
     val after: IR = ForwardLets(ctx)(ir)
     val expected = ApplyAggOp(Sum())(I32(1))
-    val normalize = new NormalizeNames(_.toString)
-    assert(normalize(ctx, after) == normalize(ctx, expected))
+    assert(NormalizeNames(ctx, after) == NormalizeNames(ctx, expected))
   }
 
   @Test(dataProvider = "nonForwardingOps")
   def testNonForwardingOps(ir: IR): Unit = {
     val after = ForwardLets(ctx)(ir)
-    val normalizedBefore = (new NormalizeNames(_.toString))(ctx, ir)
-    val normalizedAfter = (new NormalizeNames(_.toString))(ctx, after)
+    val normalizedBefore = NormalizeNames(ctx, ir)
+    val normalizedAfter = NormalizeNames(ctx, after)
     assert(normalizedBefore == normalizedAfter)
   }
 
@@ -250,8 +249,9 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "TrivialIRCases")
-  def testTrivialCases(input: IR, expected: IR, reason: String): Unit = {
-    val result = ForwardLets(ctx)(input)
+  def testTrivialCases(input: IR, _expected: IR, reason: String): Unit = {
+    val result = NormalizeNames(ctx, ForwardLets(ctx)(input), allowFreeVariables = true)
+    val expected = NormalizeNames(ctx, _expected, allowFreeVariables = true)
     assert(
       result == expected,
       s"\ninput:\n${Pretty.sexprStyle(input)}\nexpected:\n${Pretty.sexprStyle(expected)}\ngot:\n${Pretty.sexprStyle(result)}\n$reason",

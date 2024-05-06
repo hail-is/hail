@@ -315,6 +315,11 @@ object Bindings {
         Bindings(FastSeq(name -> elementType(stream.typ)))
       case RunAggScan(a, name, _, _, _, _) if i == 2 || i == 3 =>
         Bindings(FastSeq(name -> elementType(a.typ)))
+      case StreamAgg(a, name, _) if i == 1 =>
+        Bindings(
+          FastSeq(name -> elementType(a.typ)),
+          agg = AggEnv.Create(FastSeq(0)),
+        )
       case StreamScan(a, zero, accumName, valueName, _) if i == 2 =>
         Bindings(FastSeq(accumName -> zero.typ, valueName -> elementType(a.typ)))
       case StreamAggScan(a, name, _) if i == 1 =>
@@ -382,33 +387,26 @@ object Bindings {
           rName -> tcoerce[TNDArray](r.typ).elementType,
         ))
       case CollectDistributedArray(contexts, globals, cname, gname, _, _, _, _) if i == 2 =>
-        Bindings(
+        Bindings.inFreshScope(
           FastSeq(
             cname -> elementType(contexts.typ),
             gname -> globals.typ,
-          ),
-          agg = AggEnv.Drop,
-          scan = AggEnv.Drop,
-          dropEval = true,
+          )
         )
       case TableAggregate(child, _) =>
         if (i == 1)
-          Bindings(
+          Bindings.inFreshScope(
             child.typ.rowBindings,
             eval = TableType.globalBindings,
-            agg = AggEnv.Create(TableType.rowBindings),
-            scan = AggEnv.Drop,
-            dropEval = true,
+            agg = Some(TableType.rowBindings),
           )
         else Bindings(agg = AggEnv.Drop, scan = AggEnv.Drop, dropEval = true)
       case MatrixAggregate(child, _) =>
         if (i == 1)
-          Bindings(
+          Bindings.inFreshScope(
             child.typ.entryBindings,
             eval = MatrixType.globalBindings,
-            agg = AggEnv.Create(MatrixType.entryBindings),
-            scan = AggEnv.Drop,
-            dropEval = true,
+            agg = Some(MatrixType.entryBindings),
           )
         else Bindings(agg = AggEnv.Drop, scan = AggEnv.Drop, dropEval = true)
       case ApplyAggOp(init, _, _) =>
@@ -439,11 +437,6 @@ object Bindings {
             agg = if (isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0)),
             scan = if (!isScan) AggEnv.NoOp else AggEnv.Bind(FastSeq(0)),
           )
-      case StreamAgg(a, name, _) if i == 1 =>
-        Bindings(
-          FastSeq(name -> elementType(a.typ)),
-          agg = AggEnv.Create(FastSeq(0)),
-        )
       case RelationalLet(name, value, _) =>
         if (i == 1)
           Bindings(

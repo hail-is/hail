@@ -112,7 +112,7 @@ object PruneDeadFields {
       }
     } catch {
       case e: Throwable =>
-        fatal(s"error trying to rebuild IR:\n${Pretty(ctx, ir, elideLiterals = true)}", e)
+        fatal(s"error trying to rebuild IR:\n${Pretty(ctx, ir, allowUnboundRefs = true)}", e)
     }
   }
 
