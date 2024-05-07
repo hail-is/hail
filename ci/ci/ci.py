@@ -40,7 +40,7 @@ from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .constants import AUTHORIZED_USERS, TEAMS
-from .environment import CLOUD, DEFAULT_NAMESPACE, STORAGE_URI
+from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
 from .envoy import create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 from .utils import gcp_logging_queries
@@ -747,7 +747,7 @@ ON active_namespaces.namespace = deployed_services.namespace
     assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
 
     cds_config = create_cds_response(default_services, services_per_namespace, proxy)
-    rds_config = create_rds_response(default_services, services_per_namespace, proxy)
+    rds_config = create_rds_response(default_services, services_per_namespace, proxy, domain=DOMAIN)
     return cds_config, rds_config
 
 
