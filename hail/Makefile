@@ -535,3 +535,12 @@ update-hail-repl: NAMESPACE ?= default
 update-hail-repl: wheel
 	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
 	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+
+HAIL_BENCHMARK_RESULTS_PREFIX ?= "gs://hail-benchmarks-2/$(USER)/$(HAIL_VERSION)"
+HAIL_DEV_IMAGE ?= ""
+.PHONY: benchmark
+benchmark:
+	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py submit \
+		$(HAIL_DEV_IMAGE) \
+		$(HAIL_BENCHMARK_RESULTS_PREFIX) \
+		$(HAIL_VERSION)

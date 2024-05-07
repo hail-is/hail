@@ -62,7 +62,11 @@ comm==0.2.2
     # via
     #   ipykernel
     #   ipywidgets
+contourpy==1.2.1
+    # via matplotlib
 curlylint==0.13.1
+cycler==0.12.1
+    # via matplotlib
 debugpy==1.8.1
     # via ipykernel
 decorator==4.4.2
@@ -95,6 +99,8 @@ fastjsonschema==2.19.1
     # via nbformat
 filelock==3.14.0
     # via virtualenv
+fonttools==4.52.1
+    # via matplotlib
 fqdn==1.5.1
     # via jsonschema
 frozenlist==1.4.1
@@ -128,6 +134,8 @@ importlib-metadata==7.1.0
     #   jupyterlab-server
     #   nbconvert
     #   sphinx
+importlib-resources==6.4.0
+    # via matplotlib
 iniconfig==2.0.0
     # via pytest
 ipykernel==6.29.4
@@ -169,7 +177,7 @@ jsonschema==4.22.0
 jsonschema-specifications==2023.12.1
     # via jsonschema
 jupyter==1.0.0
-jupyter-client==8.6.1
+jupyter-client==8.6.2
     # via
     #   ipykernel
     #   jupyter-console
@@ -202,22 +210,25 @@ jupyter-server==2.14.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.2.0
+jupyterlab==4.2.1
     # via notebook
 jupyterlab-pygments==0.3.0
     # via nbconvert
-jupyterlab-server==2.27.1
+jupyterlab-server==2.27.2
     # via
     #   jupyterlab
     #   notebook
 jupyterlab-widgets==3.0.10
     # via ipywidgets
+kiwisolver==1.4.5
+    # via matplotlib
 lazy-object-proxy==1.10.0
     # via astroid
 markupsafe==2.1.5
     # via
     #   jinja2
     #   nbconvert
+matplotlib==3.9.0
 matplotlib-inline==0.1.7
     # via
     #   ipykernel
@@ -257,6 +268,10 @@ notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
+numpy==1.26.4
+    # via
+    #   contourpy
+    #   matplotlib
 overrides==7.7.0
     # via jupyter-server
 packaging==24.0
@@ -266,6 +281,7 @@ packaging==24.0
     #   jupyter-server
     #   jupyterlab
     #   jupyterlab-server
+    #   matplotlib
     #   nbconvert
     #   pytest
     #   qtconsole
@@ -282,6 +298,7 @@ pathspec==0.12.1
 pexpect==4.9.0
     # via ipython
 pillow==10.3.0
+    # via matplotlib
 platformdirs==4.2.2
     # via
     #   jupyter-core
@@ -318,6 +335,8 @@ pygments==2.18.0
     #   qtconsole
     #   sphinx
 pylint==2.17.7
+pyparsing==3.1.2
+    # via matplotlib
 pyproject-hooks==1.1.0
     # via build
 pyright==1.1.364
@@ -346,6 +365,7 @@ python-dateutil==2.9.0.post0
     # via
     #   arrow
     #   jupyter-client
+    #   matplotlib
 python-json-logger==2.0.7
     # via jupyter-events
 pyyaml==6.0.1
@@ -474,12 +494,12 @@ traitlets==5.14.3
 types-chardet==5.0.4.6
 types-decorator==5.1.8.20240310
 types-deprecated==1.2.9.20240311
-types-pymysql==1.1.0.20240425
+types-pymysql==1.1.0.20240524
 types-python-dateutil==2.9.0.20240316
     # via arrow
 types-pyyaml==6.0.12.20240311
 types-requests==2.31.0.6
-types-setuptools==69.5.0.20240522
+types-setuptools==70.0.0.20240524
 types-six==1.16.21.20240513
 types-tabulate==0.9.0.20240106
 types-urllib3==1.26.25.14
@@ -517,4 +537,6 @@ wrapt==1.16.0
 yarl==1.9.4
     # via aiohttp
 zipp==3.18.2
-    # via importlib-metadata
+    # via
+    #   importlib-metadata
+    #   importlib-resources

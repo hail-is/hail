@@ -1,50 +1,20 @@
-import hail as hl
-
-from .resources import *
-from .utils import benchmark
 import gzip
 
+from benchmark.tools import benchmark
 
-def read_gunzip(path):
-    with gzip.open(path) as f:
-        for line in f:
+
+@benchmark(iterations=15)
+def benchmark_sentinel_read_gunzip(many_ints_tsv):
+    with gzip.open(many_ints_tsv) as f:
+        for _ in f:
             pass
 
 
-@benchmark(args=many_ints_table.handle('tsv'))
-def sentinel_read_gunzip_1(path):
-    read_gunzip(path)
-
-
-@benchmark(args=many_ints_table.handle('tsv'))
-def sentinel_read_gunzip_2(path):
-    read_gunzip(path)
-
-
-@benchmark(args=many_ints_table.handle('tsv'))
-def sentinel_read_gunzip_3(path):
-    read_gunzip(path)
-
-
-def iter_hash(m, n):
+@benchmark(iterations=15)
+def benchmark_sentinel_cpu_hash_1():
     x = 0
-    for i in range(m):
+    for _ in range(10_000):
         y = 0
-        for j in range(n):
+        for j in range(25_000):
             y = hash(y + j)
         x += y
-
-
-@benchmark()
-def sentinel_cpu_hash_1():
-    iter_hash(10000, 25000)
-
-
-@benchmark()
-def sentinel_cpu_hash_2():
-    iter_hash(10000, 25000)
-
-
-@benchmark()
-def sentinel_cpu_hash_3():
-    iter_hash(10000, 25000)

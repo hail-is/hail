@@ -1,168 +1,290 @@
 #!/usr/bin/env python3
 
+import json
+import logging
 import random
-import re
-import sys
 import time
+from argparse import ArgumentParser, Namespace
+from getpass import getuser
+from os import path as P
+from pathlib import Path
+from tempfile import NamedTemporaryFile
+from typing import Dict, List, Optional, Tuple
 
-from benchmark_hail.run.resources import all_resources
-from benchmark_hail.run.utils import list_benchmarks
+import benchmark
+import pytest
+from benchmark.tools import chunk, init_logging
+
 from hailtop import batch as hb
-from os import (getenv, path as P)
+from hailtop.batch import Batch, Resource
+from hailtop.batch.job import Job
+from hailtop.utils import sync_check_exec
 
 
-CMDS = ['start', 'run']
-CMDS_STR = f'[{ "|".join(CMDS) }]'
+class CollectBenchmarks:
+    def __init__(self):
+        self.items = []
 
-USAGE = ' '.join([
-    f'usage: ./{P.basename(sys.argv[0])}',
-    'DOCKER_IMAGE_URL',
-    'BUCKET_BASE',
-    'SHA',
-    'N_REPLICATES',
-    'N_ITERS',
-    CMDS_STR
-])
-
-BILLING_PROJECT = getenv('HAIL_BATCH_BILLING_PROJECT', 'benchmark')
-LABEL = getenv('BENCHMARK_LABEL')
-REGEX_INCLUDE = getenv('BENCHMARK_REGEX_INCLUDE')
-REGEX_EXCLUDE = getenv('BENCHMARK_REGEX_EXCLUDE')
-LOWER = getenv('BENCHMARK_LOWER')
-LOWER_ONLY = getenv('BENCHMARK_LOWER_ONLY')
-BRANCH_FACTOR = int(getenv('BENCHMARK_BRANCH_FACTOR', 32))
+    @pytest.hookimpl(trylast=True)
+    def pytest_collection_modifyitems(self, items):
+        self.items = [
+            (item.location[0], item.name, marker.kwargs['batch_jobs'])
+            for item in items
+            if (marker := item.get_closest_marker('benchmark'))
+        ]
 
 
-def gen_benchmark_replicates(nreplicates, all_benchmarks):
-    include = (
-        (lambda t: re.match(REGEX_INCLUDE, t) is not None) if REGEX_INCLUDE
-        else lambda t: True
+# https://github.com/pytest-dev/pytest/discussions/2039
+def list_benchmarks(include: str, exclude: str) -> List[Tuple[Path, str, int]]:
+    collect = CollectBenchmarks()
+    directory = Path(benchmark.__file__).parent.parent
+    pytest.main(
+        [
+            '-qq',
+            '--co',
+            directory,
+            '-m',
+            'benchmark',
+            *(['-k', include] if include is not None else []),
+            *(['--ignore', exclude] if exclude is not None else []),
+        ],
+        plugins=[collect],
     )
+    return collect.items
 
-    exclude = (
-        (lambda t: re.match(REGEX_EXCLUDE, t) is not None) if REGEX_EXCLUDE
-        else lambda t: False
-    )
 
-    tasks = [
-        (benchmark.name, replicate, benchmark.groups)
-        for benchmark in all_benchmarks
-        if include(benchmark.name) and not exclude(benchmark.name)
-        for replicate in range(nreplicates)
+def run_list_benchmarks(args: Namespace) -> None:
+    print(sep='\n', *[f'{path}::{name}' for path, name, _ in list_benchmarks(args.include, args.exclude)])
+
+
+def build_and_push_benchmark_image(hail_dev_image: str, artifact_uri: str, tag: str) -> str:
+    image_name = f'{artifact_uri}:{tag}'
+    with NamedTemporaryFile(mode='w+', encoding='utf-8', dir=P.curdir, prefix='Dockerfile.benchmark.') as df:
+        df.write(f"""\
+# syntax=docker/dockerfile:1.7-labs
+FROM --platform=linux/amd64 {hail_dev_image}
+
+RUN hail-apt-get-install wget
+COPY python/pytest.ini .
+COPY --exclude=**/__pycache__ --exclude=**/.pytest_cache python/benchmark benchmark
+COPY --exclude=**/__pycache__ --exclude=**/.pytest_cache python/test test
+""")
+        df.flush()
+        df.file.close()
+
+        sync_check_exec('docker', 'build', '.', '-f', df.name, '-t', image_name)
+        sync_check_exec('docker', 'push', image_name)
+        print(f'built and pushed image {image_name}')
+        return image_name
+
+
+def make_test_storage_permissions_job(b: Batch, object_prefix: str, labelled_sha: str) -> Job:
+    test_permissions = b.new_job('test permissions')
+    permissions_test_file = P.join(object_prefix, f'{labelled_sha}-permissions-test')
+    test_permissions.command(f'echo hello world > {test_permissions.permissions_test_file}')
+    b.write_output(test_permissions.permissions_test_file, permissions_test_file)
+    return test_permissions
+
+
+def make_benchmark_trial(
+    b: Batch,
+    env: Dict[str, Optional[str]],
+    path: Path,
+    benchmark_name: str,
+    trial: int,
+    deps: List[Job],  # dont reformat
+) -> Job:
+    j = b.new_job(name=f'{path}::{benchmark_name}-{trial}')
+    j.depends_on(*deps)
+    j.always_copy_output()
+
+    for varname, val in env.items():
+        if val is not None:
+            j.env(varname, val)
+
+    j.env('BENCHMARK_TRIAL_ID', str(trial))
+
+    j.command('mkdir -p benchmark-resources')
+    j.command(f'touch {j.ofile}')
+    j.command(f"""\
+python3 -m pytest {path} \
+    -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+    --log-cli-level=INFO \
+    -s \
+    -r A \
+    -vv \
+    --instafail \
+    --durations=50 \
+    --timeout=1800 \
+    --override-ini=tmp_path_retention_count=0 \
+    --override-ini=tmp_path_retention_policy=failed \
+    --output={j.ofile} \
+    --data-dir=benchmark-resources \
+    -k {benchmark_name}
+""")
+    return j.ofile
+
+
+def read_jsonl(p: Path):
+    with p.open(encoding='utf-8') as r:
+        for line in r:
+            if len(line) > 1:
+                yield json.loads(line)
+
+
+def combine(output: Resource, files: List[Resource]) -> None:
+    init_logging()
+    logging.info(f'Writing combine output to {output}')
+    n_files = len(files)
+    if n_files < 1:
+        raise ValueError("'combine' requires at least 1 file to merge")
+    logging.info(f'{len(files)} files to merge')
+
+    jsonl = [line for f in files if (p := Path(f)).exists() for line in read_jsonl(p)]
+    jsonl.sort(key=lambda r: (r['path'], r['name'], r['trial']))
+
+    with open(output, encoding='utf-8', mode='w+') as out:
+        for line in jsonl:
+            json.dump(line, out)
+            out.write('\n')
+
+
+def run_combine(args: Namespace) -> None:
+    combine(args.output, args.files)
+
+
+def make_combine_job(b: Batch, context: str, files: List[Resource]) -> Resource:
+    j = b.new_python_job(f'combine_output_{context}')
+    j.call(combine, j.ofile, files)
+    j.always_run()
+    return j.ofile
+
+
+def combine_results_as_tree(b: Batch, branch_factor: int, results: List[Resource]) -> Resource:
+    phase_i = 1
+
+    while len(results) > 1:
+        job_id = 0
+        results = [
+            (make_combine_job(b, f'phase{phase_i}_job{job_id}', files) if len(files) > 1 else files[0])
+            for files in chunk(branch_factor, results)
+            if (job_id := job_id + 1)
+        ]
+        phase_i += 1
+
+    return results[0]
+
+
+def run_submit(args: Namespace) -> None:
+    timestamp = time.strftime('%Y-%m-%d')
+    labelled_sha = args.sha + (f'-{args.label}' if args.label is not None else '')
+    object_prefix = getattr(args, 'object-prefix')
+    output_file = P.join(object_prefix, f'{timestamp}-{labelled_sha}.jsonl')
+
+    all_benchmarks = [
+        (path, name, trial)
+        for path, name, num_jobs in list_benchmarks(args.include, args.exclude)
+        for trial in range(num_jobs)
     ]
 
-    random.shuffle(tasks)
+    assert len(all_benchmarks) > 0
 
-    return tasks
+    image = build_and_push_benchmark_image(args.image, args.artifact_uri, labelled_sha)
 
-
-if __name__ == '__main__':
-    if len(sys.argv) != 7:
-        raise RuntimeError(USAGE)
-
-    BENCHMARK_IMAGE = sys.argv[1]
-    BUCKET_BASE = sys.argv[2]
-    SHA = sys.argv[3]
-    N_REPLICATES = int(sys.argv[4])
-    N_ITERS = int(sys.argv[5])
-    CMD = sys.argv[6]
-
-    if not CMD in CMDS:
-        raise RuntimeError(f'unknown comamnd: "{CMD}". choices={CMDS_STR}')
-
-    timestamp = time.strftime('%Y-%m-%d')
-    labeled_sha = SHA + ('' if LABEL is None else f'-{LABEL}')
-    output_file = P.join(BUCKET_BASE, f'{timestamp}-{labeled_sha}.json')
-
-    b = hb.Batch(
-        name=f'benchmark-{labeled_sha}',
-        backend=hb.ServiceBackend(billing_project=BILLING_PROJECT),
-        default_image=BENCHMARK_IMAGE,
+    b = Batch(
+        name=f'benchmark-{labelled_sha}',
+        backend=hb.ServiceBackend(),
+        default_image=image,
+        default_python_image=image,
         default_cpu='2',
         default_storage='30G',
         attributes={
             'output_file': output_file,
-            'n_replicates': str(N_REPLICATES),
-            'n_iters': str(N_ITERS),
-            'image': str(BENCHMARK_IMAGE),
+            'sha': args.sha,
+            'image': image,
         },
     )
 
-    test_permissions = b.new_job(f'test permissions')
-    permissions_test_file = P.join(BUCKET_BASE, f'{SHA}-permissions-test')
-    test_permissions.command(f'echo hello world > {test_permissions.permissions_test_file}')
-    b.write_output(test_permissions.permissions_test_file, permissions_test_file)
+    test_permissions = make_test_storage_permissions_job(b, object_prefix, labelled_sha)
 
-    resource_tasks = {}
-    for r in all_resources:
-        j = b.new_job(f'create_resource_{r.name()}').cpu(4)
-        j.depends_on(test_permissions)
-        j.command(f'hail-bench create-resources --data-dir benchmark-resources --group {r.name()}')
-        j.command(f"time tar --exclude='*.crc' -cf {r.name()}.tar benchmark-resources/{r.name()}")
-        j.command(f'ls -lh {r.name()}.tar')
-        j.command(f'mv {r.name()}.tar {j.ofile}')
-        resource_tasks[r] = j
+    print(f'generating {len(all_benchmarks)} individual benchmark tasks')
 
+    envvars = {
+        'MKL_NUM_THREADS': '1',
+        'OPENBLAS_NUM_THREADS': '1',
+        'OMP_NUM_THREADS': '1',
+        'VECLIB_MAXIMUM_THREADS': '1',
+        'HAIL_DEV_LOWER': '1' if args.lower else None,
+        'HAIL_DEV_LOWER_ONLY': '1' if args.lower_only else None,
+        'PYSPARK_SUBMIT_ARGS': '--driver-memory 6G pyspark-shell',
+        'TMPDIR': '/io/tmp',
+    }
 
-    all_benchmarks = list_benchmarks()
-    assert len(all_benchmarks) > 0
-    tasks = gen_benchmark_replicates(N_REPLICATES, all_benchmarks)
-
-    print(
-        f'generating {len(tasks)} * {N_REPLICATES} = {len(tasks) * N_REPLICATES} individual benchmark tasks'
+    random.shuffle(all_benchmarks)
+    result = combine_results_as_tree(
+        b,
+        args.branch_factor,
+        [
+            make_benchmark_trial(b, envvars, path, name, trial, deps=[test_permissions])
+            for path, name, trial in all_benchmarks
+        ],
     )
 
-    all_output = []
-    for name, replicate, groups in tasks:
-        j = b.new_job(name=f'{name}_{replicate}')
-        j.command('mkdir -p benchmark-resources')
-
-        for resource_group in groups:
-            resource_task = resource_tasks[resource_group]
-            j.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
-            j.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
-
-        j.command(
-            f'MKL_NUM_THREADS=1 '
-            f'OPENBLAS_NUM_THREADS=1 '
-            f'OMP_NUM_THREADS=1 '
-            f'VECLIB_MAXIMUM_THREADS=1 '
-            f'{"HAIL_DEV_LOWER=1 " if LOWER else ""}'
-            f'{"HAIL_DEV_LOWER_ONLY=1 " if LOWER_ONLY else ""}'
-            f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
-            f'TMPDIR="/io/tmp" '
-            f'hail-bench run -o {j.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}'
-        )
-
-        all_output.append(j.ofile)
-
-    phase_i = 1
-    while len(all_output) > BRANCH_FACTOR:
-        new_output = []
-
-        job_i = 1
-        i = 0
-        while i < len(all_output):
-            combine = b.new_job(f'combine_output_phase{phase_i}_job{job_i}')
-            combine.command(
-                f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i : i + BRANCH_FACTOR])
-            )
-            new_output.append(combine.ofile)
-            i += BRANCH_FACTOR
-            job_i += 1
-
-        phase_i += 1
-        all_output = new_output
-
-    combine = b.new_job('final_combine_output')
-    combine.command(f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output))
-    combine.command(f'cat {combine.ofile}')
-
     print(f'writing output to {output_file}')
+    b.write_output(result, output_file)
 
-    b.write_output(combine.ofile, output_file)
-    if CMD == 'start':
+    if args.wait:
+        b.run()
+    else:
         b = b.run(wait=False)
         print(f"Submitted  batch '{b.id}'.")
+
+
+def nonempty(s: str):
+    if not s:
+        raise ValueError('must be non-empty')
     else:
-        b.run()
+        return s
+
+
+if __name__ == '__main__':
+    parser = ArgumentParser()
+    subparser = parser.add_subparsers(title='commands')
+
+    list_p = subparser.add_parser(
+        'list',
+        description='List known hail benchmarks',
+    )
+    list_p.add_argument('--include', type=nonempty, help="see pytest -k", default=None)
+    list_p.add_argument('--exclude', type=nonempty, help='see pytest --ignore', default=None)
+    list_p.set_defaults(main=run_list_benchmarks)
+
+    combine_p = subparser.add_parser(
+        'combine',
+        description='Combine parallelized benchmark metrics.',
+    )
+    combine_p.add_argument("files", type=nonempty, nargs='+', help="JSONL files to combine.")
+    combine_p.add_argument("--output", "-o", type=nonempty, help="Output file.", default='out.jsonl')
+    combine_p.set_defaults(main=run_combine)
+
+    submit_p = subparser.add_parser('submit', description='Submit hail benchmarks to the batch service')
+    submit_p.add_argument('image', type=nonempty, help='hail dev docker image url')
+    submit_p.add_argument('object-prefix', type=nonempty, help='GCS object prefix for results json')
+    submit_p.add_argument('sha', type=nonempty, help='SHA-1 object name, possibly abbreviated.')
+    submit_p.add_argument(
+        '--artifact-uri',
+        type=nonempty,
+        help='GCS Artifact Repository URI to upload benchmark image',
+        default=f'us-docker.pkg.dev/broad-ctsa/hail-benchmarks/{getuser()}',
+    )
+    submit_p.add_argument('--label', type=nonempty, help='batch job label', default=None)
+    submit_p.add_argument('--branch-factor', type=int, help='number of benchmarks to combine at a time', default=32)
+    submit_p.add_argument('--include', type=nonempty, help="see pytest -k", default=None)
+    submit_p.add_argument('--exclude', type=nonempty, help='see pytest --ignore', default=None)
+    submit_p.add_argument('--lower', action='store_true')
+    submit_p.add_argument('--lower-only', action='store_true')
+    submit_p.add_argument('--wait', action='store_true', help='wait for batch to complete')
+    submit_p.set_defaults(main=run_submit)
+
+    args = parser.parse_args()
+    args.main(args)
