@@ -24,7 +24,15 @@ case object NoRelationalLets extends Rule {
     case _: RelationalLetBlockMatrix => false
     case _: RelationalLetMatrixTable => false
     case _: RelationalLetTable => false
-    case _: RelationalRef => false
+    case _ => true
+  }
+}
+
+case object NoShuffles extends Rule {
+  def allows(ir: BaseIR): Boolean = ir match {
+    case t: TableKeyBy => t.definitelyDoesNotShuffle
+    case _: TableKeyByAndAggregate => false
+    case t: TableOrderBy => t.definitelyDoesNotShuffle
     case _ => true
   }
 }
@@ -45,6 +53,7 @@ case object NoApplyIR extends Rule {
 
 case object ValueIROnly extends Rule {
   def allows(ir: BaseIR): Boolean = ir match {
+    case _: RelationalLet => true
     case _: IR => true
     case _ => false
   }

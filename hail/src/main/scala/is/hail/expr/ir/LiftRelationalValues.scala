@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.types.virtual.TVoid
 import is.hail.utils.BoxedArrayBuilder
 
+import scala.annotation.tailrec
 import scala.collection.mutable
 
 object LiftRelationalValues {
@@ -13,59 +14,27 @@ object LiftRelationalValues {
       : BaseIR = ir match {
       case RelationalLet(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
-        val body2 = rewrite(body, ab2, memo2).asInstanceOf[IR]
-        RelationalLet(
-          name,
-          value2,
-          ab2.result().foldRight[IR](body2) { case ((name, value), acc) =>
-            RelationalLet(name, value, acc)
-          },
-        )
+        ab += name -> value2
+        rewrite(body, ab, memo)
       case RelationalLetTable(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
-        val body2 = rewrite(body, ab2, memo2).asInstanceOf[TableIR]
-        RelationalLetTable(
-          name,
-          value2,
-          ab2.result().foldRight[TableIR](body2) { case ((name, value), acc) =>
-            RelationalLetTable(name, value, acc)
-          },
-        )
+        ab += name -> value2
+        rewrite(body, ab, memo)
       case RelationalLetMatrixTable(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
-        val body2 = rewrite(body, ab2, memo2).asInstanceOf[MatrixIR]
-        RelationalLetMatrixTable(
-          name,
-          value2,
-          ab2.result().foldRight[MatrixIR](body2) { case ((name, value), acc) =>
-            RelationalLetMatrixTable(name, value, acc)
-          },
-        )
+        ab += name -> value2
+        rewrite(body, ab, memo)
       case RelationalLetBlockMatrix(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
-        val body2 = rewrite(body, ab2, memo2).asInstanceOf[BlockMatrixIR]
-        RelationalLetBlockMatrix(
-          name,
-          value2,
-          ab2.result().foldRight[BlockMatrixIR](body2) { case ((name, value), acc) =>
-            RelationalLetBlockMatrix(name, value, acc)
-          },
-        )
+        ab += name -> value2
+        rewrite(body, ab, memo)
       case LiftMeOut(child) =>
         val name = memo.get(child) match {
           case Some(name) => name
           case None =>
             val name = genUID()
             val newChild = rewrite(child, ab, memo).asInstanceOf[IR]
-            ab += ((name, newChild))
+            ab += name -> newChild
             memo(child) = name
             name
         }
@@ -79,7 +48,7 @@ object LiftRelationalValues {
           | _: TableGetGlobals) if ir.typ != TVoid =>
         val ref = RelationalRef(genUID(), ir.asInstanceOf[IR].typ)
         val newChild = ir.mapChildren(rewrite(_, ab, memo))
-        ab += ((ref.name, newChild.asInstanceOf[IR]))
+        ab += ref.name -> newChild.asInstanceOf[IR]
         ref
       case x =>
         x.mapChildren(rewrite(_, ab, memo))
@@ -87,7 +56,13 @@ object LiftRelationalValues {
 
     val ab = new BoxedArrayBuilder[(String, IR)]
     val memo = mutable.Map.empty[IR, String]
-    rewrite(ir0, ab, memo) match {
+
+    @tailrec def unwrap(ir: BaseIR): BaseIR = ir match {
+      case Block(Seq(), body) => unwrap(body)
+      case x => x
+    }
+
+    val res = rewrite(unwrap(ir0), ab, memo) match {
       case rw: IR => ab.result().foldRight[IR](rw) { case ((name, value), acc) =>
           RelationalLet(name, value, acc)
         }
@@ -101,6 +76,9 @@ object LiftRelationalValues {
           case ((name, value), acc) => RelationalLetBlockMatrix(name, value, acc)
         }
     }
+//    println(s"before:\n${Pretty.sexprStyle(unwrap(ir0))}")
+//    println(s"after:\n${Pretty.sexprStyle(res)}")
+    res
 
   }
 }

@@ -10,6 +10,8 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     var x = ir
 
+    log.info(s"beginning lowering pipeline:\n${lowerings.map(_.context).mkString("\n")}")
+
     def render(context: String): Unit =
       if (ctx.shouldLogIR())
         log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x, elideLiterals = true))
@@ -45,7 +47,7 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
 
 object LoweringPipeline {
 
-  def fullLoweringPipeline(context: String, baseTransformer: LoweringPass): LoweringPipeline = {
+  private def fullLoweringPipeline(context: String, baseTransformer: LoweringPass): LoweringPipeline = {
 
     val base = LoweringPipeline(
       baseTransformer,
@@ -59,18 +61,13 @@ object LoweringPipeline {
         OptimizePass(s"$context, after LowerAndExecuteShuffles"),
       ) + base
 
-    // recursively lowers and executes
-    val withLetEvaluation =
-      LoweringPipeline(
-        LiftRelationalValuesToRelationalLets,
-        EvalRelationalLetsPass(withShuffleRewrite),
-      ) + withShuffleRewrite
-
     LoweringPipeline(
+      LiftRelationalValuesToRelationalLets,
       OptimizePass(s"$context, initial IR"),
       LowerMatrixToTablePass,
       OptimizePass(s"$context, after LowerMatrixToTable"),
-    ) + withLetEvaluation
+      EvalRelationalLetsPass(withShuffleRewrite),
+    ) + withShuffleRewrite
   }
 
   private val _relationalLowerer =

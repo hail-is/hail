@@ -22,8 +22,8 @@ final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
 }
 
 trait LoweringPass {
-  val before: IRState
-  val after: IRState
+  protected val before: IRState
+  protected val after: IRState
   val context: String
 
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
@@ -47,8 +47,8 @@ case class OptimizePass(_context: String) extends LoweringPass {
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
-  val before: IRState = AnyIR
-  val after: IRState = MatrixLoweredToTable
+  val before: IRState = AllowTopLevelRelationalLets(NoRelationalLetsState)
+  val after: IRState = AllowTopLevelRelationalLets(MatrixLoweredToTable)
   val context: String = "LowerMatrixToTable"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
@@ -60,15 +60,15 @@ case object LowerMatrixToTablePass extends LoweringPass {
 }
 
 case object LiftRelationalValuesToRelationalLets extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = MatrixLoweredToTable
+  val before: IRState = AnyIR
+  val after: IRState = AllowTopLevelRelationalLets(NoRelationalLetsState)
   val context: String = "LiftRelationalValuesToRelationalLets"
 
   def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = LiftRelationalValues(ir)
 }
 
 case object LegacyInterpretNonCompilablePass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
+  val before: IRState = LoweredShuffles
   val after: IRState = ExecutableTableIR
   val context: String = "InterpretNonCompilable"
 
@@ -76,7 +76,7 @@ case object LegacyInterpretNonCompilablePass extends LoweringPass {
 }
 
 case object LowerOrInterpretNonCompilablePass extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
+  val before: IRState = LoweredShuffles
   val after: IRState = CompilableIR
   val context: String = "LowerOrInterpretNonCompilable"
 
@@ -84,7 +84,7 @@ case object LowerOrInterpretNonCompilablePass extends LoweringPass {
 }
 
 case class LowerToDistributedArrayPass(t: DArrayLowering.Type) extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
+  val before: IRState = LoweredShuffles
   val after: IRState = CompilableIR
   val context: String = "LowerToDistributedArray"
 
@@ -160,8 +160,8 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
 }
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: IRState = MatrixLoweredToTable
-  val after: IRState = before + NoRelationalLetsState
+  val before: IRState = AllowTopLevelRelationalLets(MatrixLoweredToTable)
+  val after: IRState = MatrixLoweredToTable
   val context: String = "EvalRelationalLets"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -169,8 +169,8 @@ case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends Lowerin
 }
 
 case class LowerAndExecuteShufflesPass(passesBelow: LoweringPipeline) extends LoweringPass {
-  val before: IRState = NoRelationalLetsState + MatrixLoweredToTable
-  val after: IRState = before + LoweredShuffles
+  val before: IRState = MatrixLoweredToTable
+  val after: IRState = LoweredShuffles
   val context: String = "LowerAndExecuteShuffles"
 
   override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =

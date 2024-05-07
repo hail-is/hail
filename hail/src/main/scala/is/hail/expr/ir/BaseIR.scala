@@ -140,3 +140,10 @@ abstract class BaseIR {
 //    res
 //  }
 }
+
+//final case class TopLevelBlock()
+//case class Binding(name: String, value: IR, scope: Int = Scope.EVAL)
+//
+//final case class TopLevelBlock(bindings: IndexedSeq[(String, BaseIR)], body: IR) extends IR {
+//
+//}
