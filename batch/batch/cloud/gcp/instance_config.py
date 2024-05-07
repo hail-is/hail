@@ -5,7 +5,7 @@ from ...instance_config import InstanceConfig
 from .resource_utils import (
     gcp_cores_mcpu_to_memory_bytes,
     gcp_machine_type_to_parts,
-    machine_family_to_gpu,
+    machine_type_to_gpu,
     machine_type_to_gpu_num,
 )
 from .resources import (
@@ -67,7 +67,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
 
-        accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
+        accelerator_family = machine_type_to_gpu(machine_type)
 
         if accelerator_family:
             num_gpus = machine_type_to_gpu_num(machine_type)

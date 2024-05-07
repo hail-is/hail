@@ -9,17 +9,37 @@ GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 GCP_MACHINE_FAMILY = 'n1'
 
-MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4'}
-
-MACHINE_FAMILY_TO_NUM_GPUS = {
-    'g2-standard-4': 1,
-    'g2-standard-8': 1,
-    'g2-standard-12': 1,
-    'g2-standard-16': 1,
-    'g2-standard-32': 1,
-    'g2-standard-24': 2,
-    'g2-standard-48': 4,
-    'g2-standard-96': 8,
+MACHINE_TYPE_TO_PARTS = {
+    'n1-standard-1': {'cores': 1, 'memory': 3.75*1024**3, 'num_gpus': 0},
+    'n1-standard-2': {'cores': 2, 'memory': 7.5*1024**3, 'num_gpus': 0},
+    'n1-standard-4': {'cores': 4, 'memory': 15*1024**3, 'num_gpus': 0},
+    'n1-standard-8': {'cores': 8, 'memory': 30*1024**3, 'num_gpus': 0},
+    'n1-standard-16': {'cores': 16, 'memory': 60*1024**3, 'num_gpus': 0},
+    'n1-standard-32': {'cores': 32, 'memory': 120*1024**3, 'num_gpus': 0},
+    'n1-standard-64': {'cores': 64, 'memory': 240*1024**3, 'num_gpus': 0},
+    'n1-standard-96': {'cores': 96, 'memory': 360*1024**3, 'num_gpus': 0},
+    'n1-highmem-2': {'cores': 2, 'memory': 13*1024**3, 'num_gpus': 0},
+    'n1-highmem-4': {'cores': 4, 'memory': 26*1024**3, 'num_gpus': 0},
+    'n1-highmem-8': {'cores': 8, 'memory': 52*1024**3, 'num_gpus': 0},
+    'n1-highmem-16': {'cores': 16, 'memory': 104*1024**3, 'num_gpus': 0},
+    'n1-highmem-32': {'cores': 32, 'memory': 208*1024**3, 'num_gpus': 0},
+    'n1-highmem-64': {'cores': 64, 'memory': 416*1024**3, 'num_gpus': 0},
+    'n1-highmem-96': {'cores': 96, 'memory': 624*1024**3, 'num_gpus': 0},
+    'n1-highmem-2': {'cores': 2, 'memory': 1.8*1024**3, 'num_gpus': 0},
+    'n1-highmem-4': {'cores': 4, 'memory': 3.6*1024**3, 'num_gpus': 0},
+    'n1-highmem-8': {'cores': 8, 'memory': 7.2*1024**3, 'num_gpus': 0},
+    'n1-highmem-16': {'cores': 16, 'memory': 14.4*1024**3, 'num_gpus': 0},
+    'n1-highmem-32': {'cores': 32, 'memory': 28.8*1024**3, 'num_gpus': 0},
+    'n1-highmem-64': {'cores': 64, 'memory': 57.6*1024**3, 'num_gpus': 0},
+    'n1-highmem-96': {'cores': 96, 'memory': 86.4*1024**3, 'num_gpus': 0},
+    'g2-standard-4': {'cores': 4, 'memory': 16*1024**3, 'num_gpus': 1, 'gpu_type': 'l4'},
+    'g2-standard-8': {'cores': 8, 'memory': 32*1024**3, 'num_gpus': 1, 'gpu_type': 'l4'},
+    'g2-standard-12': {'cores': 12, 'memory': 48*1024**3, 'num_gpus': 1, 'gpu_type': 'l4'},
+    'g2-standard-16': {'cores': 16, 'memory': 64*1024**3, 'num_gpus': 1, 'gpu_type': 'l4'},
+    'g2-standard-24': {'cores': 24, 'memory': 96*1024**3, 'num_gpus': 2, 'gpu_type': 'l4'},
+    'g2-standard-32': {'cores': 32, 'memory': 128*1024**3, 'num_gpus': 1, 'gpu_type': 'l4'},
+    'g2-standard-48': {'cores': 48, 'memory': 192*1024**3, 'num_gpus': 4, 'gpu_type': 'l4'},
+    'g2-standard-96': {'cores': 96, 'memory': 384*1024**3, 'num_gpus': 8, 'gpu_type': 'l4'},
 }
 
 
@@ -27,7 +47,6 @@ MEMORY_PER_CORE_MIB = {
     ('n1', 'standard'): 3840,
     ('n1', 'highmem'): 6656,
     ('n1', 'highcpu'): 924,
-    ('g2', 'standard'): 4000,
 }
 
 
@@ -38,12 +57,7 @@ gcp_valid_cores_from_worker_type = {
 }
 
 
-gcp_valid_machine_types = list(MACHINE_FAMILY_TO_NUM_GPUS.keys())
-for typ in ('highcpu', 'standard', 'highmem'):
-    possible_cores = gcp_valid_cores_from_worker_type[typ]
-    for cores in possible_cores:
-        gcp_valid_machine_types.append(f'{GCP_MACHINE_FAMILY}-{typ}-{cores}')
-
+gcp_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())
 
 gcp_memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem': 'highmem'}
 
@@ -66,16 +80,13 @@ def gcp_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
     return MachineTypeParts.from_dict(match.groupdict())
 
 
-def gcp_machine_type_to_cores_and_memory_mib_per_core(machine_type: str) -> Tuple[int, int]:
-    # FIXME: "WORKER TYPE" IS WRONG OR CONFUSING WHEN THE MACHINE TYPE IS NOT n1!
-    maybe_machine_type_parts = gcp_machine_type_to_parts(machine_type)
+def gcp_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int, int]:
+    maybe_machine_type_parts = MACHINE_TYPE_TO_PARTS.get(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    cores = maybe_machine_type_parts.cores
-    memory_per_core = gcp_worker_memory_per_core_mib(
-        maybe_machine_type_parts.machine_family, maybe_machine_type_parts.worker_type
-    )
-    return cores, memory_per_core
+    cores = maybe_machine_type_parts['cores']
+    memory_bytes = maybe_machine_type_parts['memory']
+    return cores, memory_bytes
 
 
 def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:
@@ -105,17 +116,20 @@ def gcp_local_ssd_size() -> int:
     return 375
 
 
-def machine_family_to_gpu(machine_family: str) -> Optional[str]:
-    return MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS.get(machine_family)
+def machine_type_to_gpu(machine_type: str) -> Optional[str]:
+    machine_type_parts = MACHINE_TYPE_TO_PARTS.get(machine_type)
+    assert machine_type_parts
+    return machine_type_parts.get('gpu_type')
 
 
 def is_gpu(machine_family: str) -> bool:
-    return machine_family_to_gpu(machine_family) is not None
+    return machine_type_to_gpu(machine_family) is not None
 
 
 def machine_type_to_gpu_num(machine_type: str) -> int:
-    assert machine_type in MACHINE_FAMILY_TO_NUM_GPUS
-    return MACHINE_FAMILY_TO_NUM_GPUS[machine_type]
+    assert machine_type in MACHINE_TYPE_TO_PARTS
+    machine_type_parts = MACHINE_TYPE_TO_PARTS[machine_type]
+    return machine_type_parts['gpu_num']
 
 
 def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: str) -> int:
