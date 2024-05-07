@@ -1346,29 +1346,6 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
-    name: hail_benchmark_image
-    dockerFile: /io/repo/benchmark/Dockerfile
-    contextPath: /io/repo
-    publishAs: hail-benchmark
-    buildArgs:
-      - name: HAIL_UBUNTU
-        value:
-          valueFrom: hail_ubuntu_image.image
-      - name: HAIL_WHEEL_DIR
-        value: /wheel
-    inputs:
-      - from: /repo/benchmark
-        to: /io/repo/benchmark
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel
-        to: /io/repo/wheel
-      - from: /hail_pip_version
-        to: /io/repo/benchmark/python/version
-    dependsOn:
-      - build_hail_jar_and_wheel
-      - hail_ubuntu_image
-  - kind: buildImage2
     name: hailgenetics_hail_image_python_3_10
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
@@ -1472,7 +1449,6 @@ steps:
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
-        COPY benchmark/python/pinned-requirements.txt benchmark-requirements.txt
         RUN python3 -m pip install \
             -r hail-requirements.txt \
             -r dev-requirements.txt \
@@ -1480,7 +1456,6 @@ steps:
             -r web_common-requirements.txt \
             -r batch-requirements.txt \
             -r ci-requirements.txt \
-            -r benchmark-requirements.txt \
             && \
             python3 -m pyright --version # Force the installation of node and npm pyright in the image
     publishAs: linting
@@ -1497,8 +1472,6 @@ steps:
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
         to: /io/repo/ci/pinned-requirements.txt
-      - from: /repo/benchmark/python/pinned-requirements.txt
-        to: /io/repo/benchmark/python/pinned-requirements.txt
     dependsOn:
       - merge_code
       - hail_ubuntu_image
@@ -2475,6 +2448,8 @@ steps:
     inputs:
       - from: /wheel
         to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2547,6 +2522,8 @@ steps:
     inputs:
       - from: /wheel
         to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2960,6 +2937,8 @@ steps:
               --timeout=360 \
               /io/test/hailtop/batch/
     inputs:
+      - from: /repo/hail/python/pytest.ini
+        to: /io/pytest.ini
       - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
@@ -3614,7 +3593,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_dev_image
-      - hail_benchmark_image
       - test_hail_java
       - test_hail_python_local_backend
       - test_hail_python_service_backend_gcp
@@ -3642,28 +3620,20 @@ steps:
           exit 0
       fi
 
-      pushd /io/repo/benchmark
-
-      IMAGE={{ hail_benchmark_image.image }}
+      pushd /io/repo/hail
 
       BUCKET=hail-benchmarks-2
       HAIL_VERSION=$(cat /io/hail_version)
       RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}/${HAIL_VERSION}"
 
-      REPLICATES=5
-      ITERATIONS=5
-
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
       export HAIL_BATCH_BILLING_PROJECT=benchmark
       export HAIL_BATCH_REMOTE_TMPDIR={{ ci_storage_uri }}/{{ token }}
 
-      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
-          $IMAGE \
+      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py submit \
+          {{ hail_dev_image.image }} \
           $RESULTS_PREFIX \
-          $HAIL_VERSION \
-          $REPLICATES \
-          $ITERATIONS \
-          start
+          $HAIL_VERSION
 
   - kind: runImage
     name: cancel_all_running_test_batches

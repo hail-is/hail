@@ -1,0 +1,54 @@
+import os
+
+import pytest
+
+from benchmark.tools import init_logging
+
+
+@pytest.hookimpl
+def pytest_addoption(parser):
+    parser.addoption("--log", type=str, help='Log file path', default=None)
+    parser.addoption("--output", type=str, help="Output file path.", default=None)
+    parser.addoption("--data-dir", type=str, help="Data directory.", default=None)
+    parser.addoption('--cores', type=int, help='Number of cores to use.', default=1)
+    parser.addoption(
+        '--profile',
+        choices=['cpu', 'alloc', 'itimer'],
+        help='Run with async-profiler.',
+        nargs='?',
+        const='cpu',
+        default=None,
+    )
+    parser.addoption('--profiler-path', type=str, help='path tp aysnc profiler', default=None)
+    parser.addoption('--profiler-fmt', choices=['html', 'flame', 'jfr'], help='Choose profiler output.', default='html')
+
+
+def run_config_from_pytest_config(pytest_config):
+    return type(
+        'RunConfig',
+        (object,),
+        {
+            **{
+                flag: pytest_config.getoption(flag) or default
+                for flag, default in [
+                    ('output', None),
+                    ('cores', 1),
+                    ('log', None),
+                    ('profile', None),
+                    ('data_dir', os.getenv('HAIL_BENCHMARK_DIR')),
+                    ('profile', None),
+                    ('profiler_path', os.getenv('ASYNC_PROFILER_HOME')),
+                    ('profiler_fmt', None),
+                ]
+            },
+            'verbose': pytest_config.getoption('verbose') > 0,
+            'quiet': pytest_config.getoption('verbose') < 0,
+            'timeout': int(pytest_config.getoption('timeout') or 1800),
+        },
+    )
+
+
+@pytest.hookimpl
+def pytest_configure(config):
+    init_logging()
+    config.run_config = run_config_from_pytest_config(config)

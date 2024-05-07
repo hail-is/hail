@@ -1,126 +1,121 @@
-from os import path
-from tempfile import TemporaryDirectory, NamedTemporaryFile
+import pytest
 
 import hail as hl
-
-from .resources import *
-from .utils import benchmark
+from benchmark.tools import benchmark
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_decode_and_count(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_decode_and_count(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt._force_count_rows()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_decode_and_count_just_gt(mt_path):
-    mt = hl.read_matrix_table(mt_path).select_entries('GT')
+@benchmark()
+def benchmark_matrix_table_decode_and_count_just_gt(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt)).select_entries('GT')
     mt._force_count_rows()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_array_arithmetic(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_array_arithmetic(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.filter_rows(mt.alleles.length() == 2)
     mt.select_entries(dosage=hl.pl_dosage(mt.PL)).select_rows()._force_count_rows()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_entries_table(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_entries_table(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.entries()._force_count()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_entries_table_no_key(mt_path):
-    mt = hl.read_matrix_table(mt_path).key_rows_by().key_cols_by()
+@benchmark()
+def benchmark_matrix_table_entries_table_no_key(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt)).key_rows_by().key_cols_by()
     mt.entries()._force_count()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_rows_force_count(mt_path):
-    ht = hl.read_matrix_table(mt_path).rows().key_by()
+@benchmark()
+def benchmark_matrix_table_rows_force_count(profile25_mt):
+    ht = hl.read_matrix_table(str(profile25_mt)).rows().key_by()
     ht._force_count()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_show(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_show(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.show(100)
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_rows_show(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_rows_show(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.rows().show(100)
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_cols_show(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_cols_show(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.cols().show(100)
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_take_entry(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_take_entry(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.GT.take(100)
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_entries_show(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_entries_show(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.entries().show()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_take_row(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_take_row(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.info.AF.take(100)
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_take_col(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_take_col(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.s.take(100)
 
 
 @benchmark()
-def write_range_matrix_table_p100():
-    with TemporaryDirectory() as tmpdir:
-        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-        mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
-        mt.write(path.join(tmpdir, 'tmp.mt'))
+def benchmark_write_range_matrix_table_p100(tmp_path):
+    mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+    mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
+    mt.write(str(tmp_path / 'tmp.mt'))
 
 
-@benchmark(args=profile_25.handle('mt'))
-def write_profile_mt(mt_path):
-    with TemporaryDirectory() as tmpdir:
-        hl.read_matrix_table(mt_path).write(path.join(tmpdir, 'tmp.mt'))
+@benchmark()
+def benchmark_write_profile_mt(profile25_mt, tmp_path):
+    hl.read_matrix_table(str(profile25_mt)).write(str(tmp_path / 'tmp.mt'))
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_rows_is_transition(mt_path):
-    ht = hl.read_matrix_table(mt_path).rows().key_by()
+@benchmark()
+def benchmark_matrix_table_rows_is_transition(profile25_mt):
+    ht = hl.read_matrix_table(str(profile25_mt)).rows().key_by()
     ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_filter_entries(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_filter_entries(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2))._force_count_rows()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_filter_entries_unfilter(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_filter_entries_unfilter(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2)).unfilter_entries()._force_count_rows()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_nested_annotate_rows_annotate_entries(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_nested_annotate_rows_annotate_entries(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_rows(r0=mt.info.AF[0] + 1)
     mt = mt.annotate_entries(e0=mt.GQ + 5)
     for i in range(1, 20):
@@ -168,35 +163,36 @@ def many_aggs(mt):
     return {f'x{i}': expr for i, expr in enumerate(aggs)}
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_many_aggs_row_wise(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_many_aggs_row_wise(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_rows(**many_aggs(mt))
     mt.rows()._force_count()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_many_aggs_col_wise(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_many_aggs_col_wise(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_cols(**many_aggs(mt))
     mt.cols()._force_count()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_aggregate_entries(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_aggregate_entries(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.aggregate_entries(hl.agg.stats(mt.GQ))
 
 
-@benchmark(args=profile_25.handle('mt'))
-def matrix_table_call_stats_star_star(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_matrix_table_call_stats_star_star(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt.annotate_rows(**hl.agg.call_stats(mt.GT, mt.alleles))._force_count_rows()
 
 
-# @benchmark never finishes
-def gnomad_coverage_stats(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+@pytest.mark.skip(reason='never finishes')
+def benchmark_gnomad_coverage_stats(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
 
     def get_coverage_expr(mt):
         cov_arrays = hl.literal({
@@ -225,9 +221,9 @@ def gnomad_coverage_stats(mt_path):
     mt.rows()._force_count()
 
 
-@benchmark(args=gnomad_dp_sim.handle())
-def gnomad_coverage_stats_optimized(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def gnomad_coverage_stats_optimized(gnomad_dp_sim):
+    mt = hl.read_matrix_table(str(gnomad_dp_sim))
     mt = mt.annotate_rows(
         mean=hl.agg.mean(mt.x),
         count_array=hl.rbind(hl.agg.counter(hl.min(100, mt.x)), lambda c: hl.range(0, 100).map(lambda i: c.get(i, 0))),
@@ -242,75 +238,77 @@ def gnomad_coverage_stats_optimized(mt_path):
     mt.rows()._force_count()
 
 
-@benchmark(args=gnomad_dp_sim.handle())
-def per_row_stats_star_star(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_per_row_stats_star_star(gnomad_dp_sim):
+    mt = hl.read_matrix_table(str(gnomad_dp_sim))
     mt.annotate_rows(**hl.agg.stats(mt.x))._force_count_rows()
 
 
-@benchmark(args=gnomad_dp_sim.handle())
-def read_decode_gnomad_coverage(mt_path):
-    hl.read_matrix_table(mt_path)._force_count_rows()
+@benchmark()
+def benchmark_read_decode_gnomad_coverage(gnomad_dp_sim):
+    hl.read_matrix_table(str(gnomad_dp_sim))._force_count_rows()
 
 
-@benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
-def import_bgen_force_count_just_gp(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GP'], n_partitions=8)
+@benchmark()
+def benchmark_import_bgen_force_count_just_gp(sim_ukb_bgen, sim_ukb_sample):
+    mt = hl.import_bgen(str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GP'], n_partitions=8)
     mt._force_count_rows()
 
 
-@benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
-def import_bgen_force_count_all(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GT', 'GP', 'dosage'], n_partitions=8)
+@benchmark()
+def benchmark_import_bgen_force_count_all(sim_ukb_bgen, sim_ukb_sample):
+    mt = hl.import_bgen(
+        str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GT', 'GP', 'dosage'], n_partitions=8
+    )
     mt._force_count_rows()
 
 
-@benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
-def import_bgen_info_score(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GP'], n_partitions=8)
+@benchmark()
+def benchmark_import_bgen_info_score(sim_ukb_bgen, sim_ukb_sample):
+    mt = hl.import_bgen(str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GP'], n_partitions=8)
     mt = mt.annotate_rows(info_score=hl.agg.info_score(mt.GP))
     mt.rows().select('info_score')._force_count()
 
 
-@benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
-def import_bgen_filter_count(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GT', 'GP'], n_partitions=8)
+@benchmark()
+def benchmark_import_bgen_filter_count(sim_ukb_bgen, sim_ukb_sample):
+    mt = hl.import_bgen(str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GT', 'GP'], n_partitions=8)
     mt = mt.filter_rows(mt.alleles == ['A', 'T'])
     mt._force_count_rows()
 
 
 @benchmark()
-def export_range_matrix_table_entry_field_p100():
-    with NamedTemporaryFile() as f:
-        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-        mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
-        mt.x.export(f.name)
+def benchmark_export_range_matrix_table_entry_field_p100(tmp_path):
+    f = str(tmp_path / 'result.txt')
+    mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+    mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
+    mt.x.export(f)
 
 
 @benchmark()
-def export_range_matrix_table_row_p100():
-    with NamedTemporaryFile() as f:
-        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-        mt.row.export(f.name)
+def benchmark_export_range_matrix_table_row_p100(tmp_path):
+    f = str(tmp_path / 'result.txt')
+    mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+    mt.row.export(f)
 
 
 @benchmark()
-def export_range_matrix_table_col_p100():
-    with NamedTemporaryFile() as f:
-        mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-        mt.col.export(f.name)
+def benchmark_export_range_matrix_table_col_p100(tmp_path):
+    f = str(tmp_path / 'result.txt')
+    mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
+    mt.col.export(f)
 
 
 @benchmark()
-def large_range_matrix_table_sum():
+def benchmark_large_range_matrix_table_sum():
     mt = hl.utils.range_matrix_table(n_cols=500000, n_rows=10000, n_partitions=2500)
     mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
     mt.annotate_cols(foo=hl.agg.sum(mt.x))._force_count_cols()
 
 
-@benchmark(args=profile_25.handle('mt'))
-def kyle_sex_specific_qc(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_kyle_sex_specific_qc(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_cols(sex=hl.if_else(hl.rand_bool(0.5), 'Male', 'Female'))
     (num_males, num_females) = mt.aggregate_cols((
         hl.agg.count_where(mt.sex == 'Male'),
@@ -350,36 +348,35 @@ def kyle_sex_specific_qc(mt_path):
 
 
 @benchmark()
-def matrix_table_scan_count_rows_2():
+def benchmark_matrix_table_scan_count_rows_2():
     mt = hl.utils.range_matrix_table(n_rows=200_000_000, n_cols=10, n_partitions=16)
     mt = mt.annotate_rows(x=hl.scan.count())
     mt._force_count_rows()
 
 
 @benchmark()
-def matrix_table_scan_count_cols_2():
+def benchmark__matrix_table_scan_count_cols_2():
     mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
     mt = mt.annotate_cols(x=hl.scan.count())
     mt._force_count_rows()
 
 
 @benchmark()
-def matrix_multi_write_nothing():
-    with TemporaryDirectory() as tmpdir:
-        mt = hl.utils.range_matrix_table(1, 1, n_partitions=1)
-        mts = [mt] * 1000
-        hl.experimental.write_matrix_tables(mts, path.join(tmpdir, 'multi-write'), overwrite=True)
+def benchmark_matrix_multi_write_nothing(tmp_path):
+    mt = hl.utils.range_matrix_table(1, 1, n_partitions=1)
+    mts = [mt] * 1000
+    hl.experimental.write_matrix_tables(mts, str(tmp_path / 'multi-write'))
 
 
-@benchmark(args=profile_25.handle("mt"))
-def mt_localize_and_collect(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_mt_localize_and_collect(profile25_mt):
+    mt = hl.read_matrix_table(str(profile25_mt))
     ht = mt.localize_entries("ent")
-    collected = ht.head(150).collect()
+    ht.head(150).collect()
 
 
-@benchmark(args=random_doubles.handle("mt"))
-def mt_group_by_memory_usage(mt_path):
-    mt = hl.read_matrix_table(mt_path)
+@benchmark()
+def benchmark_mt_group_by_memory_usage(random_doubles_mt):
+    mt = hl.read_matrix_table(str(random_doubles_mt))
     mt = mt.group_rows_by(new_idx=mt.row_idx % 3).aggregate(x=hl.agg.mean(mt.x))
     mt._force_count_rows()
