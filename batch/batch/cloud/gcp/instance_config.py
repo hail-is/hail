@@ -67,7 +67,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
 
-        accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
+        accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family, machine_type_parts.worker_type)
 
         if accelerator_family:
             num_gpus = machine_type_to_gpu_num(machine_type)

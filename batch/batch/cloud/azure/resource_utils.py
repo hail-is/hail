@@ -220,3 +220,14 @@ def azure_adjust_cores_for_memory_request(cores_in_mcpu: int, memory_in_bytes: i
     memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
     min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
     return max(cores_in_mcpu, min_cores_mcpu)
+
+
+def azure_machine_type_to_cores_and_memory_bytes(machine_type: str):
+    maybe_machine_type_parts = azure_machine_type_to_parts(machine_type)
+    assert maybe_machine_type_parts
+    cores = maybe_machine_type_parts.cores
+    memory_mib_per_core = azure_worker_memory_per_core_mib(maybe_machine_type_parts.family)
+    memory_bytes_per_core = memory_mib_per_core * 1024**2
+    memory_bytes = cores * memory_bytes_per_core
+
+    return cores, memory_bytes

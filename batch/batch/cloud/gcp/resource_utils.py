@@ -9,11 +9,16 @@ GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
 MACHINE_TYPE_REGEX_GPU = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<gpus>\\d+)g')
 GCP_MACHINE_FAMILY = 'n1'
+
 A2_CORES_PER_GPU = 12
 
-MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS = {'g2': 'l4', 'a2': 'a100-40gb'}
+MEMORY_PER_GPU_GB = {
+    ('a2', 'highgpu'): 85,
+}
 
-MACHINE_FAMILY_TO_NUM_GPUS = {
+MACHINE_CONFIG_TO_ACCELERATOR_VERSIONS = {('g2', 'standard'): 'l4', ('a2', 'highgpu'): 'a100-40gb'}
+
+MACHINE_TYPE_TO_NUM_GPUS = {
     'g2-standard-4': 1,
     'g2-standard-8': 1,
     'g2-standard-12': 1,
@@ -31,7 +36,6 @@ MEMORY_PER_CORE_MIB = {
     ('n1', 'highmem'): 6656,
     ('n1', 'highcpu'): 924,
     ('g2', 'standard'): 4000,
-    ('a2', 'highgpu'): 7083,
 }
 
 
@@ -43,7 +47,7 @@ gcp_valid_cores_from_worker_type = {
 }
 
 
-gcp_valid_machine_types = list(MACHINE_FAMILY_TO_NUM_GPUS.keys())
+gcp_valid_machine_types = list(MACHINE_TYPE_TO_NUM_GPUS.keys())
 
 for typ in ('highcpu', 'standard', 'highmem'):
     possible_cores = gcp_valid_cores_from_worker_type[typ]
@@ -117,23 +121,30 @@ def gcp_local_ssd_size() -> int:
     return 375
 
 
-def machine_family_to_gpu(machine_family: str) -> Optional[str]:
-    return MACHINE_FAMILY_TO_ACCELERATOR_VERSIONS.get(machine_family)
+def machine_family_to_gpu(machine_family: str, worker_type: str) -> Optional[str]:
+    machine_config_key = (machine_family, worker_type)
+    return MACHINE_CONFIG_TO_ACCELERATOR_VERSIONS.get(machine_config_key)
 
 
-def is_gpu(machine_family: str) -> bool:
-    return machine_family_to_gpu(machine_family) is not None
+def is_gpu(machine_family: str, worker_type: str) -> bool:
+    return machine_family_to_gpu(machine_family, worker_type) is not None
 
 
 def machine_type_to_gpu_num(machine_type: str) -> int:
-    assert machine_type in MACHINE_FAMILY_TO_NUM_GPUS
-    return MACHINE_FAMILY_TO_NUM_GPUS[machine_type]
+    assert machine_type in MACHINE_TYPE_TO_NUM_GPUS
+    return MACHINE_TYPE_TO_NUM_GPUS[machine_type]
 
 
 def gcp_cores_mcpu_to_memory_bytes(mcpu: int, machine_family: str, worker_type: str) -> int:
-    memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
-    memory_bytes = int(memory_mib * 1024**2)
-    return int((mcpu / 1000) * memory_bytes)
+    if machine_family == 'a2':
+        num_gpus = mcpu / 1000 / A2_CORES_PER_GPU
+        memory_gb_per_gpu = MEMORY_PER_GPU_GB[(machine_family, worker_type)]
+        memory_bytes_per_gpu = memory_gb_per_gpu * 1024**3
+        return int(memory_bytes_per_gpu * num_gpus)
+    else:
+        memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type)
+        memory_bytes = int(memory_mib * 1024**2)
+        return int((mcpu / 1000) * memory_bytes)
 
 
 def gcp_adjust_cores_for_memory_request(
@@ -143,3 +154,24 @@ def gcp_adjust_cores_for_memory_request(
     memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
     min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
     return max(cores_in_mcpu, min_cores_mcpu)
+
+
+def gcp_machine_type_to_cores_and_memory_bytes(machine_type: str):
+    maybe_machine_type_parts = gcp_machine_type_to_parts(machine_type)
+    if maybe_machine_type_parts is None:
+        raise ValueError(f'bad machine_type: {machine_type}')
+    cores = maybe_machine_type_parts.cores
+    if maybe_machine_type_parts.machine_family == 'a2':
+        memory_gb_per_gpu = MEMORY_PER_GPU_GB[
+            (maybe_machine_type_parts.machine_family, maybe_machine_type_parts.worker_type)
+        ]
+        memory_bytes_per_gpu = memory_gb_per_gpu * 1024**3
+        memory_bytes = int(memory_bytes_per_gpu * MACHINE_TYPE_TO_NUM_GPUS[machine_type])
+    else:
+        memory_mib_per_core = gcp_worker_memory_per_core_mib(
+            maybe_machine_type_parts.machine_family, maybe_machine_type_parts.worker_type
+        )
+        memory_bytes_per_core = memory_mib_per_core * 1024**2
+        memory_bytes = cores * memory_bytes_per_core
+
+    return cores, memory_bytes
