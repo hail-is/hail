@@ -23,8 +23,7 @@ from ..instance_config import GCPSlimInstanceConfig
 from ..resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
-    gcp_machine_type_to_parts,
-    gcp_worker_memory_per_core_mib,
+    gcp_machine_type_to_cores_and_memory_bytes,
 )
 from .billing_manager import GCPBillingManager
 from .create_instance import create_vm_config
@@ -116,12 +115,6 @@ class GCPResourceManager(CloudResourceManager):
 
         resource_rates = self.billing_manager.resource_rates
 
-        machine_type_parts = gcp_machine_type_to_parts(machine_type)
-        assert machine_type_parts is not None, machine_type
-        machine_family = machine_type_parts.machine_family
-        worker_type = machine_type_parts.worker_type
-        cores = machine_type_parts.cores
-
         vm_config = create_vm_config(
             file_store,
             resource_rates,
@@ -139,8 +132,7 @@ class GCPResourceManager(CloudResourceManager):
             instance_config,
         )
 
-        memory_mib = gcp_worker_memory_per_core_mib(machine_family, worker_type) * cores
-        memory_in_bytes = memory_mib << 20
+        cores, memory_in_bytes = gcp_machine_type_to_cores_and_memory_bytes(machine_type)
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, extra_storage_in_gib=0

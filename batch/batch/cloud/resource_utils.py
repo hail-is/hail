@@ -58,7 +58,7 @@ def machine_type_to_cores_and_memory_bytes(cloud: str, machine_type: str) -> Tup
     else:
         assert cloud == 'gcp'
         cores, memory_bytes = gcp_machine_type_to_cores_and_memory_bytes(machine_type)
-    
+
     return cores, memory_bytes
 
 

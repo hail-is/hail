@@ -42,7 +42,7 @@ def create_vm_config(
 ) -> dict:
     parts = gcp_machine_type_to_parts(machine_type)
     assert parts
-    cores = parts.cores
+    cores = parts['cores']
 
     region = instance_config.region_for(zone)
     docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type) else ''

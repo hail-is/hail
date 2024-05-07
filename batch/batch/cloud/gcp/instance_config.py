@@ -54,7 +54,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
-        instance_family = machine_type_parts.machine_family
+        instance_family = machine_type_parts['machine_family']
 
         resources = [
             GCPComputeResource.create(product_versions, instance_family, preemptible, region),
@@ -105,15 +105,19 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
         machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
         assert machine_type_parts is not None, machine_type
-        self._instance_family = machine_type_parts.machine_family
-        self._worker_type = machine_type_parts.worker_type
-        self.cores = machine_type_parts.cores
+        self.machine_type_parts = machine_type_parts
+        self._instance_family = machine_type_parts['machine_family']
+        self._worker_type = machine_type_parts['worker_type']
+        self.cores = machine_type_parts['cores']
         self.resources = resources
 
     def worker_type(self) -> str:
         return self._worker_type
 
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
+        if self.job_private:
+            assert self.machine_type_parts['memory']
+            return self.machine_type_parts['memory']
         return gcp_cores_mcpu_to_memory_bytes(mcpu, self._instance_family, self.worker_type())
 
     def region_for(self, location: str) -> str:

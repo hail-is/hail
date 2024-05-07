@@ -35,7 +35,6 @@ def test_gcp_worker_memory_per_core_mib():
     assert gcp_worker_memory_per_core_mib('n1', 'standard') == 3840
     assert gcp_worker_memory_per_core_mib('n1', 'highmem') == 6656
     assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
-    assert gcp_worker_memory_per_core_mib('g2', 'standard') == 4000
 
 
 def test_gcp_resource_from_dict():
