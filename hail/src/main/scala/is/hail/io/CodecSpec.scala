@@ -24,7 +24,7 @@ trait AbstractTypedCodecSpec extends Spec {
     val makeEnc = buildEncoder(ctx, t)
     val baos = new ByteArrayOutputStream()
     val enc = makeEnc(baos, ctx.theHailClassLoader)
-    enc.writeRegionValue(valueAddr)
+    enc.writeRegionValue(ctx.r, valueAddr)
     enc.flush()
     baos.toByteArray
   }
@@ -43,7 +43,7 @@ trait AbstractTypedCodecSpec extends Spec {
   }
 
   def encode(ctx: ExecuteContext, t: PType, offset: Long, os: OutputStream): Unit =
-    using(buildEncoder(ctx, t)(os, ctx.theHailClassLoader))(_.writeRegionValue(offset))
+    using(buildEncoder(ctx, t)(os, ctx.theHailClassLoader))(_.writeRegionValue(ctx.r, offset))
 
   def encodeArrays(ctx: ExecuteContext, t: PType, offset: Long): Array[Array[Byte]] = {
     val baos = new ArrayOfByteArrayOutputStream()

@@ -38,10 +38,11 @@ object RegionValue {
   def toBytes(
     theHailClassLoader: HailClassLoader,
     makeEnc: (OutputStream, HailClassLoader) => Encoder,
+    r: Region,
     rvs: Iterator[Long],
   ): Iterator[Array[Byte]] = {
     val bae = new ByteArrayEncoder(theHailClassLoader, makeEnc)
-    rvs.map(bae.regionValueToBytes)
+    rvs.map(off => bae.regionValueToBytes(r, off))
   }
 }
 

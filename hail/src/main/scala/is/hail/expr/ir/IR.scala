@@ -116,7 +116,7 @@ object EncodedLiteral {
       case _: PBoolean => if (Region.loadBoolean(addr)) True() else False()
       case ts: PString => Str(ts.loadString(addr))
       case _ =>
-        val etype = EType.defaultFromPType(pt)
+        val etype = EType.defaultFromPType(ctx, pt)
         val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.wireSpec)
         val bytes = codec.encodeArrays(ctx, pt, addr)
         EncodedLiteral(codec, bytes)
