@@ -45,7 +45,7 @@ def create_vm_config(
 ) -> dict:
     parts = azure_machine_type_to_parts(machine_type)
     assert parts
-    cores = parts.cores
+    cores = parts['cpu']
 
     hail_azure_oauth_scope = os.environ['HAIL_AZURE_OAUTH_SCOPE']
     region = instance_config.region_for(location)

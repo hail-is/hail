@@ -75,13 +75,17 @@ class AzureSlimInstanceConfig(InstanceConfig):
 
         machine_type_parts = azure_machine_type_to_parts(self._machine_type)
         assert machine_type_parts
-        self._worker_type = machine_type_parts.family
-        self.cores = machine_type_parts.cores
+        self.machine_type_parts = machine_type_parts
+        self._worker_type = machine_type_parts['family']
+        self.cores = machine_type_parts['cpu']
 
     def worker_type(self) -> str:
         return self._worker_type
 
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
+        if self.job_private:
+            assert self.machine_type_parts['memory']
+            return self.machine_type_parts['memory']
         return azure_cores_mcpu_to_memory_bytes(mcpu, self.worker_type())
 
     def region_for(self, location: str) -> str:

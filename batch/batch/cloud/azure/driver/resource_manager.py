@@ -21,8 +21,8 @@ from ....instance_config import InstanceConfig, QuantifiedResource
 from ..instance_config import AzureSlimInstanceConfig
 from ..resource_utils import (
     azure_local_ssd_size,
+    azure_machine_type_to_cores_and_memory_bytes,
     azure_machine_type_to_parts,
-    azure_worker_memory_per_core_mib,
     azure_worker_properties_to_machine_type,
 )
 from .billing_manager import AzureBillingManager
@@ -139,10 +139,10 @@ class AzureResourceManager(CloudResourceManager):
     ) -> List[QuantifiedResource]:
         parts = azure_machine_type_to_parts(machine_type)
         assert parts
-        cores = parts.cores
+        cores = parts['cpu']
 
         if local_ssd_data_disk:
-            assert data_disk_size_gb == azure_local_ssd_size(parts.family, parts.cores)
+            assert data_disk_size_gb == azure_local_ssd_size(parts['family'], cores)
 
         max_price: Optional[float]
         if preemptible:
@@ -172,8 +172,7 @@ class AzureResourceManager(CloudResourceManager):
             self.app['feature_flags'],
         )
 
-        memory_mib = azure_worker_memory_per_core_mib(parts.family) * cores
-        memory_in_bytes = memory_mib << 20
+        cores, memory_in_bytes = azure_machine_type_to_cores_and_memory_bytes(machine_type)
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, extra_storage_in_gib=0

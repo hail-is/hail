@@ -388,9 +388,9 @@ class TerraAzureResourceManager(CloudResourceManager):
         assert isinstance(instance_config, TerraAzureSlimInstanceConfig)
         parts = azure_machine_type_to_parts(machine_type)
         assert parts
-        cores = parts.cores
+        cores = parts['cpu']
 
-        memory_mib = azure_worker_memory_per_core_mib(parts.family) * cores
+        memory_mib = azure_worker_memory_per_core_mib(parts['family']) * cores
         memory_in_bytes = memory_mib << 20
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(
