@@ -2732,3 +2732,10 @@ def test_range_table_biggest_int():
     n = biggest_int32 - 1  # NB: range table is [0, ..., n - 1]
     expected_sum = n * (n + 1) // 2
     assert expected_sum == ht.aggregate(hl.agg.sum(hl.int64(ht.idx)))
+
+
+def test_group_by_aggregate_doesnt_clobber_global_field():
+    # https://github.com/hail-is/hail/issues/14506
+    ht = hl.utils.range_table(10).annotate_globals(x=1)
+    with pytest.raises(ExpressionException):
+        ht = ht.group_by(a=ht.idx < 5).aggregate(x=2)

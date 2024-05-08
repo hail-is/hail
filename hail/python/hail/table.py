@@ -60,6 +60,7 @@ from hail.utils.interval import Interval
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import (
     check_annotate_exprs,
+    check_collisions,
     check_keys,
     get_key_by_exprs,
     get_nice_attr_error,
@@ -277,8 +278,10 @@ class GroupedTable(ExprContainer):
         :class:`.Table`
             Aggregated table.
         """
+        caller = 'GroupedTable.aggregate'
         for name, expr in named_exprs.items():
-            analyze(f'GroupedTable.aggregate: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis})
+            analyze(f'{caller}: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis})
+        check_collisions(caller, list(named_exprs), self._parent._row_indices)
         if not named_exprs.keys().isdisjoint(set(self._key_expr)):
             intersection = set(named_exprs.keys()) & set(self._key_expr)
             raise ValueError(
