@@ -84,7 +84,6 @@ class AzureSlimInstanceConfig(InstanceConfig):
 
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
         if self.job_private:
-            assert self.machine_type_parts.memory
             return self.machine_type_parts.memory
         return azure_cores_mcpu_to_memory_bytes(mcpu, self.worker_type())
 

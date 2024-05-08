@@ -30,6 +30,7 @@ class MachineTypeParts:
         self.gpu_config = gpu_config
 
 
+# highcpu n1 machines are rounded up to 924 mib per core
 MACHINE_TYPE_TO_PARTS = {
     'n1-standard-1': MachineTypeParts(
         cores=1,
@@ -138,7 +139,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-2': MachineTypeParts(
         cores=2,
-        # memory = 1.8 * 1024**3,
         memory=int(924 * 1024**2 * 2),
         gpu_config=None,
         machine_family='n1',
@@ -146,7 +146,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-4': MachineTypeParts(
         cores=4,
-        # memory = 3.6 * 1024**3,
         memory=int(924 * 1024**2 * 4),
         gpu_config=None,
         machine_family='n1',
@@ -154,7 +153,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-8': MachineTypeParts(
         cores=8,
-        # memory = 7.2 * 1024**3,
         memory=int(924 * 1024**2 * 8),
         gpu_config=None,
         machine_family='n1',
@@ -162,7 +160,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-16': MachineTypeParts(
         cores=16,
-        # memory = 14.4 * 1024**3,
         memory=int(924 * 1024**2 * 16),
         gpu_config=None,
         machine_family='n1',
@@ -170,7 +167,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-32': MachineTypeParts(
         cores=32,
-        # memory = 28.8 * 1024**3,
         memory=int(924 * 1024**2 * 32),
         gpu_config=None,
         machine_family='n1',
@@ -178,7 +174,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-64': MachineTypeParts(
         cores=64,
-        # memory = 57.6 * 1024**3,
         memory=int(924 * 1024**2 * 64),
         gpu_config=None,
         machine_family='n1',
@@ -186,7 +181,6 @@ MACHINE_TYPE_TO_PARTS = {
     ),
     'n1-highcpu-96': MachineTypeParts(
         cores=96,
-        # memory = 86.4 * 1024**3,
         memory=int(924 * 1024**2 * 96),
         gpu_config=None,
         machine_family='n1',
@@ -305,9 +299,7 @@ def gcp_local_ssd_size() -> int:
 
 def machine_type_to_gpu(machine_type: str) -> Optional[str]:
     machine_type_parts = MACHINE_TYPE_TO_PARTS.get(machine_type)
-    if machine_type_parts is None:
-        return None
-    if machine_type_parts.gpu_config is None:
+    if (machine_type_parts is None) or (machine_type_parts.gpu_config is None):
         return None
     return machine_type_parts.gpu_config.gpu_type
 

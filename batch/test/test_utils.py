@@ -58,8 +58,7 @@ def test_azure_machine_memory_per_core_mib():
         elif machine_parts.family == 'D':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
         elif machine_parts.family == 'E':
-            if machine_parts.cores != 64:
-                assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
 
 
 def test_gcp_resource_from_dict():

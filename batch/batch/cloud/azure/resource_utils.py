@@ -45,6 +45,7 @@ class MachineTypeParts:
         self.memory = memory
 
 
+# E 64 core machines rounded from 504 to 512 Gib memory
 MACHINE_TYPE_TO_PARTS = {
     'Standard_D2ds_v4': MachineTypeParts(
         typ='standard',
@@ -220,7 +221,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='ds',
         version='v4',
-        memory=int(504 * 1024**3),
+        memory=int(512 * 1024**3),
     ),
     'Standard_E2s_v4': MachineTypeParts(
         typ='highmem',
@@ -284,7 +285,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='s',
         version='v4',
-        memory=int(504 * 1024**3),
+        memory=int(512 * 1024**3),
     ),
     'Standard_F2s_v2': MachineTypeParts(
         typ='lowmem',
