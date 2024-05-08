@@ -297,7 +297,8 @@ def gcp_local_ssd_size() -> int:
 
 def machine_type_to_gpu(machine_type: str) -> Optional[str]:
     machine_type_parts = MACHINE_TYPE_TO_PARTS.get(machine_type)
-    assert machine_type_parts, machine_type
+    if machine_type_parts is None:
+        return None
     return machine_type_parts.get('gpu_type')
 
 
