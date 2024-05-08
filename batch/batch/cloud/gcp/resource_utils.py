@@ -8,164 +8,177 @@ GCP_MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
 
 GCP_MACHINE_FAMILY = 'n1'
 
+MEMORY_PER_CORE_MIB = {
+    ('n1', 'standard'): 3840,
+    ('n1', 'highmem'): 6656,
+    ('n1', 'highcpu'): 924,
+}
+
 MACHINE_TYPE_TO_PARTS = {
     'n1-standard-1': {
         'cores': 1,
-        'memory': 3.75 * 1024**3,
+        'memory': int(3.75 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-2': {
         'cores': 2,
-        'memory': 7.5 * 1024**3,
+        'memory': int(7.5 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-4': {
         'cores': 4,
-        'memory': 15 * 1024**3,
+        'memory': int(15 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-8': {
         'cores': 8,
-        'memory': 30 * 1024**3,
+        'memory': int(30 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-16': {
         'cores': 16,
-        'memory': 60 * 1024**3,
+        'memory': int(60 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-32': {
         'cores': 32,
-        'memory': 120 * 1024**3,
+        'memory': int(120 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-64': {
         'cores': 64,
-        'memory': 240 * 1024**3,
+        'memory': int(240 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-standard-96': {
         'cores': 96,
-        'memory': 360 * 1024**3,
+        'memory': int(360 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'standard',
     },
     'n1-highmem-2': {
         'cores': 2,
-        'memory': 13 * 1024**3,
+        'memory': int(13 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highmem-4': {
         'cores': 4,
-        'memory': 26 * 1024**3,
+        'memory': int(26 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highmem-8': {
         'cores': 8,
-        'memory': 52 * 1024**3,
+        'memory': int(52 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highmem-16': {
         'cores': 16,
-        'memory': 104 * 1024**3,
+        'memory': int(104 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highmem-32': {
         'cores': 32,
-        'memory': 208 * 1024**3,
+        'memory': int(208 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highmem-64': {
         'cores': 64,
-        'memory': 416 * 1024**3,
+        'memory': int(416 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highmem-96': {
         'cores': 96,
-        'memory': 624 * 1024**3,
+        'memory': int(624 * 1024**3),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highmem',
     },
     'n1-highcpu-2': {
         'cores': 2,
-        'memory': 1.8 * 1024**3,
+        #'memory': 1.8 * 1024**3,
+        'memory': int(924 * 1024**2 * 2),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'n1-highcpu-4': {
         'cores': 4,
-        'memory': 3.6 * 1024**3,
+        # 'memory': 3.6 * 1024**3,
+        'memory': int(924 * 1024**2 * 4),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'n1-highcpu-8': {
         'cores': 8,
-        'memory': 7.2 * 1024**3,
+        # 'memory': 7.2 * 1024**3,
+        'memory': int(924 * 1024**2 * 8),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'n1-highcpu-16': {
         'cores': 16,
-        'memory': 14.4 * 1024**3,
+        # 'memory': 14.4 * 1024**3,
+        'memory': int(924 * 1024**2 * 16),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'n1-highcpu-32': {
         'cores': 32,
-        'memory': 28.8 * 1024**3,
+        # 'memory': 28.8 * 1024**3,
+        'memory': int(924 * 1024**2 * 32),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'n1-highcpu-64': {
         'cores': 64,
-        'memory': 57.6 * 1024**3,
+        # 'memory': 57.6 * 1024**3,
+        'memory': int(924 * 1024**2 * 64),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'n1-highcpu-96': {
         'cores': 96,
-        'memory': 86.4 * 1024**3,
+        # 'memory': 86.4 * 1024**3,
+        'memory': int(924 * 1024**2 * 96),
         'num_gpus': 0,
         'machine_family': 'n1',
         'worker_type': 'highcpu',
     },
     'g2-standard-4': {
         'cores': 4,
-        'memory': 16 * 1024**3,
+        'memory': int(16 * 1024**3),
         'num_gpus': 1,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -173,7 +186,7 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-8': {
         'cores': 8,
-        'memory': 32 * 1024**3,
+        'memory': int(32 * 1024**3),
         'num_gpus': 1,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -181,7 +194,7 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-12': {
         'cores': 12,
-        'memory': 48 * 1024**3,
+        'memory': int(48 * 1024**3),
         'num_gpus': 1,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -189,7 +202,7 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-16': {
         'cores': 16,
-        'memory': 64 * 1024**3,
+        'memory': int(64 * 1024**3),
         'num_gpus': 1,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -197,7 +210,7 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-24': {
         'cores': 24,
-        'memory': 96 * 1024**3,
+        'memory': int(96 * 1024**3),
         'num_gpus': 2,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -205,7 +218,7 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-32': {
         'cores': 32,
-        'memory': 128 * 1024**3,
+        'memory': int(128 * 1024**3),
         'num_gpus': 1,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -213,7 +226,7 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-48': {
         'cores': 48,
-        'memory': 192 * 1024**3,
+        'memory': int(192 * 1024**3),
         'num_gpus': 4,
         'gpu_type': 'l4',
         'machine_family': 'g2',
@@ -221,19 +234,12 @@ MACHINE_TYPE_TO_PARTS = {
     },
     'g2-standard-96': {
         'cores': 96,
-        'memory': 384 * 1024**3,
+        'memory': int(384 * 1024**3),
         'num_gpus': 8,
         'gpu_type': 'l4',
         'machine_family': 'g2',
         'worker_type': 'standard',
     },
-}
-
-
-MEMORY_PER_CORE_MIB = {
-    ('n1', 'standard'): 3840,
-    ('n1', 'highmem'): 6656,
-    ('n1', 'highcpu'): 924,
 }
 
 
@@ -259,7 +265,7 @@ def gcp_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int, 
         raise ValueError(f'bad machine_type: {machine_type}')
     cores = maybe_machine_type_parts['cores']
     memory_bytes = maybe_machine_type_parts['memory']
-    return cores, memory_bytes
+    return cores, int(memory_bytes)
 
 
 def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:
