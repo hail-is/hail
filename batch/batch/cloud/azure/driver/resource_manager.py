@@ -139,10 +139,10 @@ class AzureResourceManager(CloudResourceManager):
     ) -> List[QuantifiedResource]:
         parts = azure_machine_type_to_parts(machine_type)
         assert parts
-        cores = parts['cpu']
+        cores = parts.cores
 
         if local_ssd_data_disk:
-            assert data_disk_size_gb == azure_local_ssd_size(parts['family'], cores)
+            assert data_disk_size_gb == azure_local_ssd_size(parts.family, cores)
 
         max_price: Optional[float]
         if preemptible:

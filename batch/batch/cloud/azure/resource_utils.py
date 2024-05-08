@@ -1,6 +1,5 @@
 import logging
 import math
-import re
 from typing import Dict, Optional, Tuple
 
 import sortedcontainers
@@ -8,11 +7,6 @@ import sortedcontainers
 from ...globals import RESERVED_STORAGE_GB_PER_CORE
 
 log = logging.getLogger('resource_utils')
-
-# https://docs.microsoft.com/en-us/azure/virtual-machines/vm-naming-conventions
-MACHINE_TYPE_REGEX = re.compile(
-    r'(?P<typ>[^_]+)_(?P<family>[A-Z])(?P<sub_family>[^\d])?(?P<cpu>\d+)(-(?P<constrained_cpu>\d+))?(?P<additive_features>[^_]+)?(_((?P<accelerator_type>[^_]+)_)?(?P<version>.*)?)?'
-)
 
 AZURE_MAX_PERSISTENT_SSD_SIZE_GIB = 32 * 1024
 
@@ -32,311 +26,330 @@ azure_valid_cores_from_worker_type = {
 
 azure_memory_to_worker_type = {'lowmem': 'F', 'standard': 'D', 'highmem': 'E'}
 
+
+class MachineTypeParts:
+    def __init__(
+        self,
+        typ: str,
+        family: str,
+        cores: int,
+        additive_features: Optional[str],
+        version: Optional[str],
+        memory: int,
+    ):
+        self.typ = typ
+        self.family = family
+        self.cores = cores
+        self.additive_features = additive_features
+        self.version = version
+        self.memory = memory
+
+
 MACHINE_TYPE_TO_PARTS = {
-    'Standard_D2ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 2,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(8 * 1024**3),
-    },
-    'Standard_D4ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 4,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(16 * 1024**3),
-    },
-    'Standard_D8ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 8,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(32 * 1024**3),
-    },
-    'Standard_D16ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 16,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(64 * 1024**3),
-    },
-    'Standard_D32ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 32,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(128 * 1024**3),
-    },
-    'Standard_D48ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 48,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(192 * 1024**3),
-    },
-    'Standard_D64ds_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 64,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(256 * 1024**3),
-    },
-    'Standard_D2s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 2,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(8 * 1024**3),
-    },
-    'Standard_D4s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 4,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(16 * 1024**3),
-    },
-    'Standard_D8s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 8,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(32 * 1024**3),
-    },
-    'Standard_D16s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 16,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(64 * 1024**3),
-    },
-    'Standard_D32s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 32,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(128 * 1024**3),
-    },
-    'Standard_D48s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 48,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(192 * 1024**3),
-    },
-    'Standard_D64s_v4': {
-        'typ': 'standard',
-        'family': 'D',
-        'cpu': 64,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(256 * 1024**3),
-    },
-    'Standard_E2ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 2,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(16 * 1024**3),
-    },
-    'Standard_E4ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 4,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(32 * 1024**3),
-    },
-    'Standard_E8ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 8,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(64 * 1024**3),
-    },
-    'Standard_E16ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 16,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(128 * 1024**3),
-    },
-    'Standard_E20ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 20,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(160 * 1024**3),
-    },
-    'Standard_E32ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 32,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(256 * 1024**3),
-    },
-    'Standard_E48ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 48,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(384 * 1024**3),
-    },
-    'Standard_E64ds_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 64,
-        'additive_features': 'ds',
-        'version': 'v4',
-        'memory': int(504 * 1024**3),
-    },
-    'Standard_E2s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 2,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(16 * 1024**3),
-    },
-    'Standard_E4s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 4,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(32 * 1024**3),
-    },
-    'Standard_E8s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 8,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(64 * 1024**3),
-    },
-    'Standard_E16s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 16,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(128 * 1024**3),
-    },
-    'Standard_E20s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 20,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(160 * 1024**3),
-    },
-    'Standard_E32s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 32,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(256 * 1024**3),
-    },
-    'Standard_E48s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 48,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(384 * 1024**3),
-    },
-    'Standard_E64s_v4': {
-        'typ': 'highmem',
-        'family': 'E',
-        'cpu': 64,
-        'additive_features': 's',
-        'version': 'v4',
-        'memory': int(504 * 1024**3),
-    },
-    'Standard_F2s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 2,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(4 * 1024**3),
-    },
-    'Standard_F4s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 4,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(8 * 1024**3),
-    },
-    'Standard_F8s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 8,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(16 * 1024**3),
-    },
-    'Standard_F16s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 16,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(32 * 1024**3),
-    },
-    'Standard_F32s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 32,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(64 * 1024**3),
-    },
-    'Standard_F48s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 48,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(96 * 1024**3),
-    },
-    'Standard_F64s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 64,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(128 * 1024**3),
-    },
-    'Standard_F72s_v2': {
-        'typ': 'lowmem',
-        'family': 'F',
-        'cpu': 64,
-        'additive_features': 's',
-        'version': 'v2',
-        'memory': int(144 * 1024**3),
-    },
+    'Standard_D2ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=2,
+        additive_features='ds',
+        version='v4',
+        memory=int(8 * 1024**3),
+    ),
+    'Standard_D4ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=4,
+        additive_features='ds',
+        version='v4',
+        memory=int(16 * 1024**3),
+    ),
+    'Standard_D8ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=8,
+        additive_features='ds',
+        version='v4',
+        memory=int(32 * 1024**3),
+    ),
+    'Standard_D16ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=16,
+        additive_features='ds',
+        version='v4',
+        memory=int(64 * 1024**3),
+    ),
+    'Standard_D32ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=32,
+        additive_features='ds',
+        version='v4',
+        memory=int(128 * 1024**3),
+    ),
+    'Standard_D48ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=48,
+        additive_features='ds',
+        version='v4',
+        memory=int(192 * 1024**3),
+    ),
+    'Standard_D64ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=64,
+        additive_features='ds',
+        version='v4',
+        memory=int(256 * 1024**3),
+    ),
+    'Standard_D2s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=2,
+        additive_features='s',
+        version='v4',
+        memory=int(8 * 1024**3),
+    ),
+    'Standard_D4s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=4,
+        additive_features='s',
+        version='v4',
+        memory=int(16 * 1024**3),
+    ),
+    'Standard_D8s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=8,
+        additive_features='s',
+        version='v4',
+        memory=int(32 * 1024**3),
+    ),
+    'Standard_D16s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=16,
+        additive_features='s',
+        version='v4',
+        memory=int(64 * 1024**3),
+    ),
+    'Standard_D32s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=32,
+        additive_features='s',
+        version='v4',
+        memory=int(128 * 1024**3),
+    ),
+    'Standard_D48s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=48,
+        additive_features='s',
+        version='v4',
+        memory=int(192 * 1024**3),
+    ),
+    'Standard_D64s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=64,
+        additive_features='s',
+        version='v4',
+        memory=int(256 * 1024**3),
+    ),
+    'Standard_E2ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=2,
+        additive_features='ds',
+        version='v4',
+        memory=int(16 * 1024**3),
+    ),
+    'Standard_E4ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=4,
+        additive_features='ds',
+        version='v4',
+        memory=int(32 * 1024**3),
+    ),
+    'Standard_E8ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=8,
+        additive_features='ds',
+        version='v4',
+        memory=int(64 * 1024**3),
+    ),
+    'Standard_E16ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=16,
+        additive_features='ds',
+        version='v4',
+        memory=int(128 * 1024**3),
+    ),
+    'Standard_E20ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=20,
+        additive_features='ds',
+        version='v4',
+        memory=int(160 * 1024**3),
+    ),
+    'Standard_E32ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=32,
+        additive_features='ds',
+        version='v4',
+        memory=int(256 * 1024**3),
+    ),
+    'Standard_E48ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=48,
+        additive_features='ds',
+        version='v4',
+        memory=int(384 * 1024**3),
+    ),
+    'Standard_E64ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=64,
+        additive_features='ds',
+        version='v4',
+        memory=int(504 * 1024**3),
+    ),
+    'Standard_E2s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=2,
+        additive_features='s',
+        version='v4',
+        memory=int(16 * 1024**3),
+    ),
+    'Standard_E4s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=4,
+        additive_features='s',
+        version='v4',
+        memory=int(32 * 1024**3),
+    ),
+    'Standard_E8s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=8,
+        additive_features='s',
+        version='v4',
+        memory=int(64 * 1024**3),
+    ),
+    'Standard_E16s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=16,
+        additive_features='s',
+        version='v4',
+        memory=int(128 * 1024**3),
+    ),
+    'Standard_E20s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=20,
+        additive_features='s',
+        version='v4',
+        memory=int(160 * 1024**3),
+    ),
+    'Standard_E32s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=32,
+        additive_features='s',
+        version='v4',
+        memory=int(256 * 1024**3),
+    ),
+    'Standard_E48s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=48,
+        additive_features='s',
+        version='v4',
+        memory=int(384 * 1024**3),
+    ),
+    'Standard_E64s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=64,
+        additive_features='s',
+        version='v4',
+        memory=int(504 * 1024**3),
+    ),
+    'Standard_F2s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=2,
+        additive_features='s',
+        version='v2',
+        memory=int(4 * 1024**3),
+    ),
+    'Standard_F4s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=4,
+        additive_features='s',
+        version='v2',
+        memory=int(8 * 1024**3),
+    ),
+    'Standard_F8s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=8,
+        additive_features='s',
+        version='v2',
+        memory=int(16 * 1024**3),
+    ),
+    'Standard_F16s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=16,
+        additive_features='s',
+        version='v2',
+        memory=int(32 * 1024**3),
+    ),
+    'Standard_F32s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=32,
+        additive_features='s',
+        version='v2',
+        memory=int(64 * 1024**3),
+    ),
+    'Standard_F48s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=48,
+        additive_features='s',
+        version='v2',
+        memory=int(96 * 1024**3),
+    ),
+    'Standard_F64s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=64,
+        additive_features='s',
+        version='v2',
+        memory=int(128 * 1024**3),
+    ),
+    'Standard_F72s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=72,
+        additive_features='s',
+        version='v2',
+        memory=int(144 * 1024**3),
+    ),
 }
 
 azure_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())
@@ -401,7 +414,7 @@ def azure_disk_from_storage_in_gib(disk_type: str, storage_in_gib: int) -> Optio
     return disks[index]  # type: ignore
 
 
-def azure_machine_type_to_parts(machine_type: str) -> Optional[dict]:
+def azure_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
     return MACHINE_TYPE_TO_PARTS.get(machine_type)
 
 
@@ -409,8 +422,8 @@ def azure_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int
     maybe_machine_type_parts = azure_machine_type_to_parts(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    cores = maybe_machine_type_parts['cpu']
-    memory_bytes = maybe_machine_type_parts['memory']
+    cores = maybe_machine_type_parts.cores
+    memory_bytes = maybe_machine_type_parts.memory
     return cores, memory_bytes
 
 
