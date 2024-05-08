@@ -15,12 +15,16 @@ import is.hail.utils._
 object EStructOfArrays {
   // expand this as more types are supported
   def supportsFieldType(typ: EType): Boolean = typ match {
+    case _: EBoolean => true
+    case _: EFloat32 => true
+    case _: EFloat64 => true
     case _: EInt32 => true
+    case _: EInt64 => true
     case _ => false
   }
 
   def supportsFieldType(typ: Type): Boolean = typ match {
-    case TInt32 => true
+    case TBoolean | TFloat32 | TFloat64 | TInt32 | TInt64 => true
     case _ => false
   }
 
@@ -29,18 +33,16 @@ object EStructOfArrays {
     val ret: RBaseStruct = tcoerce(r.elementType)
     val fields = et.fields.zip(ret.fields).map { case (TField(name, typ, index), r) =>
       val encodedType = typ match {
+        case TBoolean => EArray(EBoolean(r.typ.required), required = true)
+        case TFloat32 => EArray(EFloat32(r.typ.required), required = true)
+        case TFloat64 => EArray(EFloat64(r.typ.required), required = true)
         case TInt32 => EArray(EInt32(r.typ.required), required = true)
+        case TInt64 => EArray(EInt64(r.typ.required), required = true)
       }
       EField(name, encodedType, index)
     }
 
     EStructOfArrays(fields, required = r.required, structRequired = ret.required)
-  }
-
-  def elementSize(fieldType: EType): Long = fieldType match {
-    case _: EInt32 | _: EFloat32 => 4
-    case _: EInt64 | _: EFloat64 => 8
-    case _: EBoolean => 1
   }
 }
 

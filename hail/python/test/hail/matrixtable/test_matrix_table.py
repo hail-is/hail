@@ -2367,6 +2367,8 @@ def test_sample_entries():
 def test_struct_of_arrays_encoding():
     mt = hl.utils.range_matrix_table(10, 10)
     mt = mt.annotate_entries(
+        p=hl.or_missing(hl.rand_bool(0.6), hl.rand_bool(0.5)),
+        d=mt.row_idx * mt.col_idx / math.pi,
         x=mt.row_idx + mt.col_idx,
         y=mt.row_idx * mt.col_idx,
         z=hl.or_missing(hl.rand_bool(0.8), mt.row_idx - mt.col_idx),
