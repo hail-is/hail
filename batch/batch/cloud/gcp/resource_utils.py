@@ -249,6 +249,13 @@ MACHINE_TYPE_TO_PARTS = {
         machine_family='g2',
         worker_type='standard',
     ),
+    'a2-highgpu-1g': MachineTypeParts(
+        cores=12,
+        memory=gib_to_bytes(85),
+        gpu_config=GPUConfig(num_gpus=1, gpu_type='a100-40gb'),
+        machine_family='a2',
+        worker_type='highmem',
+    ),
 }
 
 
@@ -256,6 +263,7 @@ gcp_valid_cores_from_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
     'highmem': [2, 4, 8, 16, 32, 64, 96],
+    'highgpu': [12, 24, 48, 96],
 }
 
 
