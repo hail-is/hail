@@ -60,12 +60,9 @@ def machine_type_to_cores_and_memory_bytes(cloud: str, machine_type: str) -> Tup
     # memory_bytes_per_core = memory_mib_per_core * 1024**2
     # memory_bytes = cores * memory_bytes_per_core
     if cloud == 'azure':
-        cores, memory_bytes = azure_machine_type_to_cores_and_memory_bytes(machine_type)
-    else:
-        assert cloud == 'gcp'
-        cores, memory_bytes = gcp_machine_type_to_cores_and_memory_bytes(machine_type)
-
-    return cores, memory_bytes
+        return azure_machine_type_to_cores_and_memory_bytes(machine_type)
+    assert cloud == 'gcp'
+    return gcp_machine_type_to_cores_and_memory_bytes(machine_type)
 
 
 def unreserved_worker_data_disk_size_gib(data_disk_size_gib: int, cores: int) -> int:

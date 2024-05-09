@@ -3696,6 +3696,7 @@ class IRSuite extends HailSuite {
         TStruct("foo" -> TInt32),
         PartitionNativeReader(
           TypedCodecSpec(
+            ctx,
             PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()),
             BufferSpec.default,
           ),
@@ -3706,7 +3707,7 @@ class IRSuite extends HailSuite {
         MakeStream(FastSeq(), TStream(TStruct())),
         NA(TString),
         PartitionNativeWriter(
-          TypedCodecSpec(PType.canonical(TStruct()), BufferSpec.default),
+          TypedCodecSpec(ctx, PType.canonical(TStruct()), BufferSpec.default),
           IndexedSeq(),
           "path",
           None,
@@ -3720,6 +3721,7 @@ class IRSuite extends HailSuite {
       ReadValue(
         Str("foo"),
         ETypeValueReader(TypedCodecSpec(
+          ctx,
           PCanonicalStruct("foo" -> PInt32(), "bar" -> PCanonicalString()),
           BufferSpec.default,
         )),
@@ -3728,12 +3730,12 @@ class IRSuite extends HailSuite {
       WriteValue(
         I32(1),
         Str("foo"),
-        ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)),
+        ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
       ),
       WriteValue(
         I32(1),
         Str("foo"),
-        ETypeValueWriter(TypedCodecSpec(PInt32(), BufferSpec.default)),
+        ETypeValueWriter(TypedCodecSpec(ctx, PInt32(), BufferSpec.default)),
         Some(Str("/tmp/uid/part")),
       ),
       LiftMeOut(I32(1)),
@@ -4514,7 +4516,7 @@ class IRSuite extends HailSuite {
   def testReadWriteValues(pt: SingleCodeType, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
-    val spec = TypedCodecSpec(PType.canonical(node.typ), BufferSpec.blockedUncompressed)
+    val spec = TypedCodecSpec(ctx, PType.canonical(node.typ), BufferSpec.blockedUncompressed)
     val writer = ETypeValueWriter(spec)
     val reader = ETypeValueReader(spec)
     val prefix = ctx.createTmpPath("test-read-write-values")
@@ -4527,7 +4529,7 @@ class IRSuite extends HailSuite {
   def testReadWriteValueDistributed(pt: SingleCodeType, value: Any): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
     val node = In(0, SingleCodeEmitParamType(true, pt))
-    val spec = TypedCodecSpec(PType.canonical(node.typ), BufferSpec.blockedUncompressed)
+    val spec = TypedCodecSpec(ctx, PType.canonical(node.typ), BufferSpec.blockedUncompressed)
     val writer = ETypeValueWriter(spec)
     val reader = ETypeValueReader(spec)
     val prefix = ctx.createTmpPath("test-read-write-value-dist")
@@ -4631,6 +4633,7 @@ class IRSuite extends HailSuite {
     val child = ToStream(MakeArray(data.map(makeRowStruct): _*))
     val pivots = MakeArray(splitters.map(makeKeyStruct): _*)
     val spec = TypedCodecSpec(
+      ctx,
       PCanonicalStruct(("rowIdx", PInt32Required), ("extraInfo", PInt32Required)),
       BufferSpec.default,
     )

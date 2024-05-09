@@ -5,7 +5,7 @@ from ...instance_config import InstanceConfig
 from .resource_utils import (
     gcp_cores_mcpu_to_memory_bytes,
     gcp_machine_type_to_parts,
-    machine_family_to_gpu,
+    machine_type_to_gpu,
     machine_type_to_gpu_num,
 )
 from .resources import (
@@ -67,7 +67,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
 
-        accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family, machine_type_parts.worker_type)
+        accelerator_family = machine_type_to_gpu(machine_type)
 
         if accelerator_family:
             num_gpus = machine_type_to_gpu_num(machine_type)
@@ -105,6 +105,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
         machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
         assert machine_type_parts is not None, machine_type
+        self.machine_type_parts = machine_type_parts
         self._instance_family = machine_type_parts.machine_family
         self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
@@ -112,6 +113,9 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     def worker_type(self) -> str:
         return self._worker_type
+
+    def instance_memory(self) -> int:
+        return self.machine_type_parts.memory
 
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
         return gcp_cores_mcpu_to_memory_bytes(mcpu, self._instance_family, self.worker_type())

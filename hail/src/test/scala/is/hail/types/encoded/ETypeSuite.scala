@@ -37,6 +37,14 @@ class ETypeSuite extends HailSuite {
         required = true,
       ),
       ENDArrayColumnMajor(EFloat64Required, 3),
+      EStructOfArrays(
+        FastSeq(
+          EField("a", EArray(EInt32Required, true), 0),
+          EField("b", EArray(EInt32Optional, true), 1),
+        ),
+        required = true,
+        structRequired = false,
+      ),
     ).map(t => Array(t: Any))
   }
 
@@ -187,5 +195,29 @@ class ETypeSuite extends HailSuite {
     val data = longListOfStrings
 
     assert(encodeDecode(toEncode, etype, toDecode, data) == data)
+  }
+
+  @Test def testStructOfArrays(): Unit = {
+    val etype =
+      EStructOfArrays(
+        FastSeq(
+          EField("a", EArray(EInt32Required, true), 0),
+          EField("b", EArray(EInt32Optional, true), 1),
+        )
+      )
+    val toEncode =
+      PCanonicalArray(PCanonicalStruct(false, "a" -> PInt32Required, "b" -> PInt32Optional))
+    val toDecode = toEncode
+    val data = FastSeq(
+      Row(1, 2),
+      null,
+      Row(3, null),
+      Row(4, 5),
+      null,
+      Row(6, 7),
+      Row(8, null),
+      Row(9, 10),
+    )
+    assertEqualEncodeDecode(toEncode, etype, toDecode, data)
   }
 }

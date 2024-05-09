@@ -838,7 +838,7 @@ class SparkBackend(
 
     val act = implicitly[ClassTag[Annotation]]
 
-    val codec = TypedCodecSpec(rvd.rowPType, BufferSpec.wireSpec)
+    val codec = TypedCodecSpec(ctx, rvd.rowPType, BufferSpec.wireSpec)
     val rdd = rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(
       _._1,
       numPartitions = nPartitions.getOrElse(rvd.getNumPartitions),

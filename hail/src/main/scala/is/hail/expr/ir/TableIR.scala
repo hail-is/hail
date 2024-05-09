@@ -2232,7 +2232,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
     val rowsT = ptype.types(0).asInstanceOf[PArray]
     val rowT = rowsT.elementType.asInstanceOf[PStruct].setRequired(true)
-    val spec = TypedCodecSpec(rowT, BufferSpec.wireSpec)
+    val spec = TypedCodecSpec(ctx, rowT, BufferSpec.wireSpec)
 
     val makeEnc = spec.buildEncoder(ctx, rowT)
     val rowsAddr = ptype.loadField(res, 0)
@@ -4067,7 +4067,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
     val act = implicitly[ClassTag[Annotation]]
 
-    val codec = TypedCodecSpec(prev.rvd.rowPType, BufferSpec.wireSpec)
+    val codec = TypedCodecSpec(ctx, prev.rvd.rowPType, BufferSpec.wireSpec)
     val rdd = prev.rvd.keyedEncodedRDD(ctx, codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
     new TableValueIntermediate(TableValue(

@@ -1,5 +1,7 @@
 import pytest
 
+from batch.cloud.azure.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_AZURE
+from batch.cloud.gcp.resource_utils import MACHINE_TYPE_TO_PARTS as MACHINE_TYPE_TO_PARTS_GCP
 from batch.cloud.gcp.resource_utils import gcp_worker_memory_per_core_mib, machine_type_to_gpu_num
 from batch.cloud.gcp.resources import GCPAcceleratorResource, gcp_resource_from_dict
 from batch.cloud.resource_utils import adjust_cores_for_packability
@@ -35,7 +37,28 @@ def test_gcp_worker_memory_per_core_mib():
     assert gcp_worker_memory_per_core_mib('n1', 'standard') == 3840
     assert gcp_worker_memory_per_core_mib('n1', 'highmem') == 6656
     assert gcp_worker_memory_per_core_mib('n1', 'highcpu') == 924
-    assert gcp_worker_memory_per_core_mib('g2', 'standard') == 4000
+
+
+def test_gcp_machine_memory_per_core_mib():
+    for _, machine_parts in MACHINE_TYPE_TO_PARTS_GCP.items():
+        if machine_parts.machine_family == 'n1' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 3840
+        elif machine_parts.machine_family == 'n1' and machine_parts.worker_type == 'highmem':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 6656
+        elif machine_parts.machine_family == 'n1' and machine_parts.worker_type == 'highcpu':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 924
+        elif machine_parts.machine_family == 'g2' and machine_parts.worker_type == 'standard':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+
+
+def test_azure_machine_memory_per_core_mib():
+    for _, machine_parts in MACHINE_TYPE_TO_PARTS_AZURE.items():
+        if machine_parts.family == 'F':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 2048
+        elif machine_parts.family == 'D':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.family == 'E':
+            assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 8192
 
 
 def test_gcp_resource_from_dict():
