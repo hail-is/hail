@@ -111,6 +111,7 @@ class InstanceConfig(abc.ABC):
     ) -> float:
         assert 0 <= utilized_cores_mcpu <= self.cores * 1000
         if self.job_private:
+            assert utilized_cores_mcpu == self.cores * 1000
             memory_in_bytes = self.instance_memory()
         else:
             memory_in_bytes = self.cores_mcpu_to_memory_bytes(utilized_cores_mcpu)
@@ -119,10 +120,7 @@ class InstanceConfig(abc.ABC):
 
     def actual_cost_per_hour(self, resource_rates: Dict[str, float]) -> float:
         cpu_in_mcpu = self.cores * 1000
-        if self.job_private:
-            memory_in_bytes = self.instance_memory()
-        else:
-            memory_in_bytes = self.cores_mcpu_to_memory_bytes(cpu_in_mcpu)
+        memory_in_bytes = self.instance_memory()
         storage_in_gb = 0  # we don't need to account for external storage
         resources = self.quantified_resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
         resources = [r for r in resources if 'service-fee' not in r['name']]
