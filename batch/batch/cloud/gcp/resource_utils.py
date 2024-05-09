@@ -254,7 +254,7 @@ MACHINE_TYPE_TO_PARTS = {
         memory=gib_to_bytes(85),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='a100-40gb'),
         machine_family='a2',
-        worker_type='highmem',
+        worker_type='highgpu',
     ),
 }
 
