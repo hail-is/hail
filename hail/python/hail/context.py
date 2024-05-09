@@ -513,7 +513,6 @@ def init_spark(
 @typecheck(
     billing_project=nullable(str),
     remote_tmpdir=nullable(str),
-    jar_url=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
@@ -536,7 +535,6 @@ async def init_batch(
     *,
     billing_project: Optional[str] = None,
     remote_tmpdir: Optional[str] = None,
-    jar_url: Optional[str] = None,
     log: Optional[str] = None,
     quiet: bool = False,
     append: bool = False,
@@ -562,7 +560,6 @@ async def init_batch(
         billing_project=billing_project,
         remote_tmpdir=remote_tmpdir,
         disable_progress_bar=disable_progress_bar,
-        jar_url=jar_url,
         driver_cores=driver_cores,
         driver_memory=driver_memory,
         worker_cores=worker_cores,
