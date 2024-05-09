@@ -15,6 +15,14 @@ MEMORY_PER_CORE_MIB = {
 }
 
 
+def gib_to_bytes(gib):
+    return int(gib * 1024**3)
+
+
+def mib_to_bytes(mib):
+    return int(mib * 1024**2)
+
+
 class GPUConfig:
     def __init__(self, num_gpus: int, gpu_type: str):
         self.num_gpus = num_gpus
@@ -30,214 +38,213 @@ class MachineTypeParts:
         self.gpu_config = gpu_config
 
 
-# highcpu n1 machines are rounded up to 924 mib per core
 MACHINE_TYPE_TO_PARTS = {
     'n1-standard-1': MachineTypeParts(
         cores=1,
-        memory=int(3.75 * 1024**3),
+        memory=gib_to_bytes(3.75),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-2': MachineTypeParts(
         cores=2,
-        memory=int(7.5 * 1024**3),
+        memory=gib_to_bytes(7.5),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-4': MachineTypeParts(
         cores=4,
-        memory=int(15 * 1024**3),
+        memory=gib_to_bytes(15),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-8': MachineTypeParts(
         cores=8,
-        memory=int(30 * 1024**3),
+        memory=gib_to_bytes(30),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-16': MachineTypeParts(
         cores=16,
-        memory=int(60 * 1024**3),
+        memory=gib_to_bytes(60),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-32': MachineTypeParts(
         cores=32,
-        memory=int(120 * 1024**3),
+        memory=gib_to_bytes(120),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-64': MachineTypeParts(
         cores=64,
-        memory=int(240 * 1024**3),
+        memory=gib_to_bytes(240),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-standard-96': MachineTypeParts(
         cores=96,
-        memory=int(360 * 1024**3),
+        memory=gib_to_bytes(360),
         gpu_config=None,
         machine_family='n1',
         worker_type='standard',
     ),
     'n1-highmem-2': MachineTypeParts(
         cores=2,
-        memory=int(13 * 1024**3),
+        memory=gib_to_bytes(13),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highmem-4': MachineTypeParts(
         cores=4,
-        memory=int(26 * 1024**3),
+        memory=gib_to_bytes(26),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highmem-8': MachineTypeParts(
         cores=8,
-        memory=int(52 * 1024**3),
+        memory=gib_to_bytes(52),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highmem-16': MachineTypeParts(
         cores=16,
-        memory=int(104 * 1024**3),
+        memory=gib_to_bytes(104),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highmem-32': MachineTypeParts(
         cores=32,
-        memory=int(208 * 1024**3),
+        memory=gib_to_bytes(208),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highmem-64': MachineTypeParts(
         cores=64,
-        memory=int(416 * 1024**3),
+        memory=gib_to_bytes(416),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highmem-96': MachineTypeParts(
         cores=96,
-        memory=int(624 * 1024**3),
+        memory=gib_to_bytes(624),
         gpu_config=None,
         machine_family='n1',
         worker_type='highmem',
     ),
     'n1-highcpu-2': MachineTypeParts(
         cores=2,
-        memory=int(924 * 1024**2 * 2),
+        memory=mib_to_bytes(924 * 2),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'n1-highcpu-4': MachineTypeParts(
         cores=4,
-        memory=int(924 * 1024**2 * 4),
+        memory=mib_to_bytes(924 * 4),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'n1-highcpu-8': MachineTypeParts(
         cores=8,
-        memory=int(924 * 1024**2 * 8),
+        memory=mib_to_bytes(924 * 8),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'n1-highcpu-16': MachineTypeParts(
         cores=16,
-        memory=int(924 * 1024**2 * 16),
+        memory=mib_to_bytes(924 * 16),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'n1-highcpu-32': MachineTypeParts(
         cores=32,
-        memory=int(924 * 1024**2 * 32),
+        memory=mib_to_bytes(924 * 32),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'n1-highcpu-64': MachineTypeParts(
         cores=64,
-        memory=int(924 * 1024**2 * 64),
+        memory=mib_to_bytes(924 * 64),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'n1-highcpu-96': MachineTypeParts(
         cores=96,
-        memory=int(924 * 1024**2 * 96),
+        memory=mib_to_bytes(924 * 96),
         gpu_config=None,
         machine_family='n1',
         worker_type='highcpu',
     ),
     'g2-standard-4': MachineTypeParts(
         cores=4,
-        memory=int(16 * 1024**3),
+        memory=gib_to_bytes(16),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-8': MachineTypeParts(
         cores=8,
-        memory=int(32 * 1024**3),
+        memory=gib_to_bytes(32),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-12': MachineTypeParts(
         cores=12,
-        memory=int(48 * 1024**3),
+        memory=gib_to_bytes(48),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-16': MachineTypeParts(
         cores=16,
-        memory=int(64 * 1024**3),
+        memory=gib_to_bytes(64),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-24': MachineTypeParts(
         cores=24,
-        memory=int(96 * 1024**3),
+        memory=gib_to_bytes(96),
         gpu_config=GPUConfig(num_gpus=2, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-32': MachineTypeParts(
         cores=32,
-        memory=int(128 * 1024**3),
+        memory=gib_to_bytes(128),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-48': MachineTypeParts(
         cores=48,
-        memory=int(192 * 1024**3),
+        memory=gib_to_bytes(192),
         gpu_config=GPUConfig(num_gpus=4, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
     ),
     'g2-standard-96': MachineTypeParts(
         cores=96,
-        memory=int(384 * 1024**3),
+        memory=gib_to_bytes(384),
         gpu_config=GPUConfig(num_gpus=8, gpu_type='l4'),
         machine_family='g2',
         worker_type='standard',
@@ -267,7 +274,7 @@ def gcp_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int, 
         raise ValueError(f'bad machine_type: {machine_type}')
     cores = maybe_machine_type_parts.cores
     memory_bytes = maybe_machine_type_parts.memory
-    return cores, int(memory_bytes)
+    return cores, memory_bytes
 
 
 def family_worker_type_cores_to_gcp_machine_type(family: str, worker_type: str, cores: int) -> str:

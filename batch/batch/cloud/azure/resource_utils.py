@@ -27,6 +27,10 @@ azure_valid_cores_from_worker_type = {
 azure_memory_to_worker_type = {'lowmem': 'F', 'standard': 'D', 'highmem': 'E'}
 
 
+def gib_to_bytes(gib):
+    return int(gib * 1024**3)
+
+
 class MachineTypeParts:
     def __init__(
         self,
@@ -45,7 +49,6 @@ class MachineTypeParts:
         self.memory = memory
 
 
-# E 64 core machines rounded from 504 to 512 Gib memory
 MACHINE_TYPE_TO_PARTS = {
     'Standard_D2ds_v4': MachineTypeParts(
         typ='standard',
@@ -53,7 +56,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=2,
         additive_features='ds',
         version='v4',
-        memory=int(8 * 1024**3),
+        memory=gib_to_bytes(8),
     ),
     'Standard_D4ds_v4': MachineTypeParts(
         typ='standard',
@@ -61,7 +64,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=4,
         additive_features='ds',
         version='v4',
-        memory=int(16 * 1024**3),
+        memory=gib_to_bytes(16),
     ),
     'Standard_D8ds_v4': MachineTypeParts(
         typ='standard',
@@ -69,7 +72,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=8,
         additive_features='ds',
         version='v4',
-        memory=int(32 * 1024**3),
+        memory=gib_to_bytes(32),
     ),
     'Standard_D16ds_v4': MachineTypeParts(
         typ='standard',
@@ -77,7 +80,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=16,
         additive_features='ds',
         version='v4',
-        memory=int(64 * 1024**3),
+        memory=gib_to_bytes(64),
     ),
     'Standard_D32ds_v4': MachineTypeParts(
         typ='standard',
@@ -85,7 +88,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=32,
         additive_features='ds',
         version='v4',
-        memory=int(128 * 1024**3),
+        memory=gib_to_bytes(128),
     ),
     'Standard_D48ds_v4': MachineTypeParts(
         typ='standard',
@@ -93,7 +96,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=48,
         additive_features='ds',
         version='v4',
-        memory=int(192 * 1024**3),
+        memory=gib_to_bytes(192),
     ),
     'Standard_D64ds_v4': MachineTypeParts(
         typ='standard',
@@ -101,7 +104,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='ds',
         version='v4',
-        memory=int(256 * 1024**3),
+        memory=gib_to_bytes(256),
     ),
     'Standard_D2s_v4': MachineTypeParts(
         typ='standard',
@@ -109,7 +112,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=2,
         additive_features='s',
         version='v4',
-        memory=int(8 * 1024**3),
+        memory=gib_to_bytes(8),
     ),
     'Standard_D4s_v4': MachineTypeParts(
         typ='standard',
@@ -117,7 +120,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=4,
         additive_features='s',
         version='v4',
-        memory=int(16 * 1024**3),
+        memory=gib_to_bytes(16),
     ),
     'Standard_D8s_v4': MachineTypeParts(
         typ='standard',
@@ -125,7 +128,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=8,
         additive_features='s',
         version='v4',
-        memory=int(32 * 1024**3),
+        memory=gib_to_bytes(32),
     ),
     'Standard_D16s_v4': MachineTypeParts(
         typ='standard',
@@ -133,7 +136,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=16,
         additive_features='s',
         version='v4',
-        memory=int(64 * 1024**3),
+        memory=gib_to_bytes(64),
     ),
     'Standard_D32s_v4': MachineTypeParts(
         typ='standard',
@@ -141,7 +144,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=32,
         additive_features='s',
         version='v4',
-        memory=int(128 * 1024**3),
+        memory=gib_to_bytes(128),
     ),
     'Standard_D48s_v4': MachineTypeParts(
         typ='standard',
@@ -149,7 +152,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=48,
         additive_features='s',
         version='v4',
-        memory=int(192 * 1024**3),
+        memory=gib_to_bytes(192),
     ),
     'Standard_D64s_v4': MachineTypeParts(
         typ='standard',
@@ -157,7 +160,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='s',
         version='v4',
-        memory=int(256 * 1024**3),
+        memory=gib_to_bytes(256),
     ),
     'Standard_E2ds_v4': MachineTypeParts(
         typ='highmem',
@@ -165,7 +168,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=2,
         additive_features='ds',
         version='v4',
-        memory=int(16 * 1024**3),
+        memory=gib_to_bytes(16),
     ),
     'Standard_E4ds_v4': MachineTypeParts(
         typ='highmem',
@@ -173,7 +176,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=4,
         additive_features='ds',
         version='v4',
-        memory=int(32 * 1024**3),
+        memory=gib_to_bytes(32),
     ),
     'Standard_E8ds_v4': MachineTypeParts(
         typ='highmem',
@@ -181,7 +184,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=8,
         additive_features='ds',
         version='v4',
-        memory=int(64 * 1024**3),
+        memory=gib_to_bytes(64),
     ),
     'Standard_E16ds_v4': MachineTypeParts(
         typ='highmem',
@@ -189,7 +192,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=16,
         additive_features='ds',
         version='v4',
-        memory=int(128 * 1024**3),
+        memory=gib_to_bytes(128),
     ),
     'Standard_E20ds_v4': MachineTypeParts(
         typ='highmem',
@@ -197,7 +200,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=20,
         additive_features='ds',
         version='v4',
-        memory=int(160 * 1024**3),
+        memory=gib_to_bytes(160),
     ),
     'Standard_E32ds_v4': MachineTypeParts(
         typ='highmem',
@@ -205,7 +208,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=32,
         additive_features='ds',
         version='v4',
-        memory=int(256 * 1024**3),
+        memory=gib_to_bytes(256),
     ),
     'Standard_E48ds_v4': MachineTypeParts(
         typ='highmem',
@@ -213,7 +216,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=48,
         additive_features='ds',
         version='v4',
-        memory=int(384 * 1024**3),
+        memory=gib_to_bytes(384),
     ),
     'Standard_E64ds_v4': MachineTypeParts(
         typ='highmem',
@@ -221,7 +224,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='ds',
         version='v4',
-        memory=int(512 * 1024**3),
+        memory=gib_to_bytes(512),
     ),
     'Standard_E2s_v4': MachineTypeParts(
         typ='highmem',
@@ -229,7 +232,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=2,
         additive_features='s',
         version='v4',
-        memory=int(16 * 1024**3),
+        memory=gib_to_bytes(16),
     ),
     'Standard_E4s_v4': MachineTypeParts(
         typ='highmem',
@@ -237,7 +240,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=4,
         additive_features='s',
         version='v4',
-        memory=int(32 * 1024**3),
+        memory=gib_to_bytes(32),
     ),
     'Standard_E8s_v4': MachineTypeParts(
         typ='highmem',
@@ -245,7 +248,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=8,
         additive_features='s',
         version='v4',
-        memory=int(64 * 1024**3),
+        memory=gib_to_bytes(64),
     ),
     'Standard_E16s_v4': MachineTypeParts(
         typ='highmem',
@@ -253,7 +256,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=16,
         additive_features='s',
         version='v4',
-        memory=int(128 * 1024**3),
+        memory=gib_to_bytes(128),
     ),
     'Standard_E20s_v4': MachineTypeParts(
         typ='highmem',
@@ -261,7 +264,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=20,
         additive_features='s',
         version='v4',
-        memory=int(160 * 1024**3),
+        memory=gib_to_bytes(160),
     ),
     'Standard_E32s_v4': MachineTypeParts(
         typ='highmem',
@@ -269,7 +272,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=32,
         additive_features='s',
         version='v4',
-        memory=int(256 * 1024**3),
+        memory=gib_to_bytes(256),
     ),
     'Standard_E48s_v4': MachineTypeParts(
         typ='highmem',
@@ -277,7 +280,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=48,
         additive_features='s',
         version='v4',
-        memory=int(384 * 1024**3),
+        memory=gib_to_bytes(384),
     ),
     'Standard_E64s_v4': MachineTypeParts(
         typ='highmem',
@@ -285,7 +288,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='s',
         version='v4',
-        memory=int(512 * 1024**3),
+        memory=gib_to_bytes(512),
     ),
     'Standard_F2s_v2': MachineTypeParts(
         typ='lowmem',
@@ -293,7 +296,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=2,
         additive_features='s',
         version='v2',
-        memory=int(4 * 1024**3),
+        memory=gib_to_bytes(4),
     ),
     'Standard_F4s_v2': MachineTypeParts(
         typ='lowmem',
@@ -301,7 +304,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=4,
         additive_features='s',
         version='v2',
-        memory=int(8 * 1024**3),
+        memory=gib_to_bytes(8),
     ),
     'Standard_F8s_v2': MachineTypeParts(
         typ='lowmem',
@@ -309,7 +312,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=8,
         additive_features='s',
         version='v2',
-        memory=int(16 * 1024**3),
+        memory=gib_to_bytes(16),
     ),
     'Standard_F16s_v2': MachineTypeParts(
         typ='lowmem',
@@ -317,7 +320,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=16,
         additive_features='s',
         version='v2',
-        memory=int(32 * 1024**3),
+        memory=gib_to_bytes(32),
     ),
     'Standard_F32s_v2': MachineTypeParts(
         typ='lowmem',
@@ -325,7 +328,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=32,
         additive_features='s',
         version='v2',
-        memory=int(64 * 1024**3),
+        memory=gib_to_bytes(64),
     ),
     'Standard_F48s_v2': MachineTypeParts(
         typ='lowmem',
@@ -333,7 +336,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=48,
         additive_features='s',
         version='v2',
-        memory=int(96 * 1024**3),
+        memory=gib_to_bytes(96),
     ),
     'Standard_F64s_v2': MachineTypeParts(
         typ='lowmem',
@@ -341,7 +344,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=64,
         additive_features='s',
         version='v2',
-        memory=int(128 * 1024**3),
+        memory=gib_to_bytes(128),
     ),
     'Standard_F72s_v2': MachineTypeParts(
         typ='lowmem',
@@ -349,7 +352,7 @@ MACHINE_TYPE_TO_PARTS = {
         cores=72,
         additive_features='s',
         version='v2',
-        memory=int(144 * 1024**3),
+        memory=gib_to_bytes(144),
     ),
 }
 

@@ -114,9 +114,10 @@ class GCPSlimInstanceConfig(InstanceConfig):
     def worker_type(self) -> str:
         return self._worker_type
 
+    def instance_memory(self) -> int:
+        return self.machine_type_parts.memory
+
     def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
-        if self.job_private:
-            return self.machine_type_parts.memory
         return gcp_cores_mcpu_to_memory_bytes(mcpu, self._instance_family, self.worker_type())
 
     def region_for(self, location: str) -> str:
