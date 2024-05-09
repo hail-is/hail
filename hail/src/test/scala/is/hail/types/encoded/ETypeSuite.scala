@@ -207,7 +207,12 @@ class ETypeSuite extends HailSuite {
         )
       )
     val toEncode =
-      PCanonicalArray(PCanonicalStruct(false, "a" -> PInt32Required, "b" -> PFloat32Optional, "c" -> PBooleanRequired))
+      PCanonicalArray(PCanonicalStruct(
+        false,
+        "a" -> PInt32Required,
+        "b" -> PFloat32Optional,
+        "c" -> PBooleanRequired,
+      ))
     val toDecode = toEncode
     val data = FastSeq(
       Row(1, 2f, true),
