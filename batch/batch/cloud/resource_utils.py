@@ -6,7 +6,7 @@ from ..globals import RESERVED_STORAGE_GB_PER_CORE
 from .azure.resource_utils import (
     azure_is_valid_storage_request,
     azure_local_ssd_size,
-    azure_machine_type_to_cores_and_memory_mib_per_core,
+    azure_machine_type_to_cores_and_memory_bytes,
     azure_memory_to_worker_type,
     azure_requested_to_actual_storage_bytes,
     azure_valid_cores_from_worker_type,
@@ -15,7 +15,7 @@ from .azure.resource_utils import (
 from .gcp.resource_utils import (
     gcp_is_valid_storage_request,
     gcp_local_ssd_size,
-    gcp_machine_type_to_cores_and_memory_mib_per_core,
+    gcp_machine_type_to_cores_and_memory_bytes,
     gcp_memory_to_worker_type,
     gcp_requested_to_actual_storage_bytes,
     gcp_valid_cores_from_worker_type,
@@ -52,13 +52,9 @@ def memory_to_worker_type(cloud: str) -> Dict[str, str]:
 
 def machine_type_to_cores_and_memory_bytes(cloud: str, machine_type: str) -> Tuple[int, int]:
     if cloud == 'azure':
-        cores, memory_mib_per_core = azure_machine_type_to_cores_and_memory_mib_per_core(machine_type)
-    else:
-        assert cloud == 'gcp'
-        cores, memory_mib_per_core = gcp_machine_type_to_cores_and_memory_mib_per_core(machine_type)
-    memory_bytes_per_core = memory_mib_per_core * 1024**2
-    memory_bytes = cores * memory_bytes_per_core
-    return cores, memory_bytes
+        return azure_machine_type_to_cores_and_memory_bytes(machine_type)
+    assert cloud == 'gcp'
+    return gcp_machine_type_to_cores_and_memory_bytes(machine_type)
 
 
 def unreserved_worker_data_disk_size_gib(data_disk_size_gib: int, cores: int) -> int:

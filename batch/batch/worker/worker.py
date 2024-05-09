@@ -1122,8 +1122,7 @@ class Container:
         ]
 
         nvidia_runtime_hook = []
-        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
-        if is_gpu(machine_family):
+        if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
@@ -1341,8 +1340,7 @@ class Container:
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
             + self.env  # User-defined env variables should take precedence
         )
-        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
-        if is_gpu(machine_family):
+        if is_gpu(INSTANCE_CONFIG["machine_type"]):
             env += ["NVIDIA_VISIBLE_DEVICES=all"]
         if self.port is not None:
             assert self.host_port is not None
