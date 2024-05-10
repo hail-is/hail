@@ -4,6 +4,9 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.service.{ServiceBackend, ServiceBackendRPCPayload}
 import is.hail.services.batch_client.BatchClient
 import is.hail.utils.tokenUrlSafe
+
+import scala.reflect.io.{Directory, Path}
+
 import org.json4s.{JArray, JBool, JInt, JObject, JString}
 import org.mockito.ArgumentMatchersSugar.{any, eqTo}
 import org.mockito.IdiomaticMockito
@@ -11,8 +14,6 @@ import org.mockito.MockitoSugar.when
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
-
-import scala.reflect.io.{Directory, Path}
 
 class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
