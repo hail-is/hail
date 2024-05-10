@@ -40,6 +40,7 @@ def pytest_collection_modifyitems(items):
         use_splits = True
 
     backend = choose_backend()
+    cloud = os.getenv('HAIL_CLOUD')
 
     skip_not_in_split = pytest.mark.skip(reason=f'not included in split index {split_index}')
     for item in items:
@@ -53,6 +54,16 @@ def pytest_collection_modifyitems(items):
                 item.add_marker(pytest.mark.skip(reason=reason))
             elif backend == 'batch':
                 item.fixturenames.insert(0, 'reinitialize_hail_for_testing')
+
+        cloud_mark = item.get_closest_marker('backend')
+        if (
+            cloud is not None
+            and cloud_mark is not None
+            and cloud_mark.args is not None
+            and cloud not in cloud_mark.args
+        ):
+            reason = f'current cloud "{cloud}" not listed in "{cloud_mark.args}"'
+            item.add_marker(pytest.mark.skip(reason=reason))
 
 
 @pytest.fixture(scope="session", autouse=True)

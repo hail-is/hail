@@ -160,10 +160,6 @@ def skip_when_service_backend_in_azure(reason='skipping for Service Backend in A
     return wrapper
 
 
-def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
-    return pytest.mark.backend('batch')
-
-
 fails_local_backend = pytest.mark.xfail(
     choose_backend() == 'local', reason="doesn't yet work on local backend", strict=True
 )
