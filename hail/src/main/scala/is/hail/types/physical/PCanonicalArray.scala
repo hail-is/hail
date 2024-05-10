@@ -11,7 +11,8 @@ import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
 // This is a pointer array, whose byteSize is the size of its pointer
-final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
+final case class PCanonicalArray(elementType: PType, required: Boolean = false)
+    extends PArray with PCanonicalArrayBackedContainer {
   assert(elementType.isRealizable)
 
   def arrayRep = this
