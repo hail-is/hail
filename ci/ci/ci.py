@@ -733,13 +733,16 @@ async def generate_envoy_configs(db: Database, proxy: str, namespaces: Optional[
         namespace_filter = "WHERE active_namespaces.namespace IN (" + ",".join('%s' for _ in namespaces) + ")"
 
     services_per_namespace: Dict[str, List[str]] = defaultdict(list)
-    async for r in db.execute_and_fetchall(f"""
+    async for r in db.execute_and_fetchall(
+        f"""
 SELECT active_namespaces.namespace, service
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
 {namespace_filter}
-"""):
+""",
+        namespaces,
+    ):
         services_per_namespace[r['namespace']].append(r['service'])
 
     assert DEFAULT_NAMESPACE in services_per_namespace
