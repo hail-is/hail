@@ -314,15 +314,11 @@ MACHINE_TYPE_TO_PARTS = {
     ),
 }
 
-
-gcp_valid_cores_from_worker_type = {
+gcp_valid_cores_for_pool_worker_type = {
     'highcpu': [2, 4, 8, 16, 32, 64, 96],
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
     'highmem': [2, 4, 8, 16, 32, 64, 96],
-    'highgpu': [12, 24, 48, 96],
-    'megagpu': [96],
 }
-
 
 gcp_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())
 
