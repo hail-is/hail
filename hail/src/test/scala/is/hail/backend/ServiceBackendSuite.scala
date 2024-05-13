@@ -140,7 +140,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
       when(batchClient.waitForJobGroup(any[Long], any[Long])) thenAnswer {
         (batchId: Long, jobGroupId: Long) =>
-          batchId shouldEqual 37L
+          batchId shouldEqual 23L
           jobGroupId shouldEqual 3L
 
           val resultsDir =
