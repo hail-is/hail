@@ -68,10 +68,7 @@ class Canceller:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def shutdown_and_wait(self):
-        try:
-            await self.task_manager.shutdown_and_wait()
-        finally:
-            await self.async_worker_pool.shutdown_and_wait()
+        await self.task_manager.shutdown_and_wait()
 
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
