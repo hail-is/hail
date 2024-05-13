@@ -8,7 +8,7 @@ import is.hail.utils.tokenUrlSafe
 import scala.reflect.io.{Directory, Path}
 
 import org.json4s.{JArray, JBool, JInt, JObject, JString}
-import org.mockito.ArgumentMatchersSugar.{any, eqTo}
+import org.mockito.ArgumentMatchersSugar.any
 import org.mockito.IdiomaticMockito
 import org.mockito.MockitoSugar.when
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
@@ -37,6 +37,11 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
       val contexts = Array.tabulate(1)(_.toString.getBytes)
 
+      // verify that the service backend
+      // - creates the batch with the correct billing project, and
+      // - the number of jobs matches the number of partitions, and
+      // - each job is created in the specified region, and
+      // - each job's resource configuration matches the rpc config
       when(batchClient.create(any[JObject], any[IndexedSeq[JObject]])) thenAnswer {
         (batch: JObject, jobs: IndexedSeq[JObject]) =>
           batch \ "billing_project" shouldBe JString(rpcPayload.billing_project)
@@ -57,15 +62,21 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
           37L
       }
 
-      when(batchClient.waitForJobGroup(eqTo(37L), eqTo(1L))) thenAnswer {
-        val resultsDir =
-          Path(backend.serviceBackendContext.remoteTmpDir) /
-            "parallelizeAndComputeWithIndex" /
-            tokenUrlSafe
+      // the service backend expects that each job write its output to a well-known
+      // location when it finishes.
+      when(batchClient.waitForJobGroup(any[Long], any[Long])) thenAnswer {
+        (batchId: Long, jobGroupId: Long) =>
+          batchId shouldEqual 37L
+          jobGroupId shouldEqual 1L
 
-        resultsDir.createDirectory()
-        for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
-        JObject("state" -> JString("success"))
+          val resultsDir =
+            Path(backend.serviceBackendContext.remoteTmpDir) /
+              "parallelizeAndComputeWithIndex" /
+              tokenUrlSafe
+
+          resultsDir.createDirectory()
+          for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
+          JObject("state" -> JString("success"))
       }
 
       val (failure, _) =
@@ -101,6 +112,11 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
       val contexts = Array.tabulate(1)(_.toString.getBytes)
 
+      // verify that the service backend
+      // - updates the batch with the correct billing project, and
+      // - the number of jobs matches the number of partitions, and
+      // - each job is created in the specified region, and
+      // - each job's resource configuration matches the rpc config
       when(
         batchClient.update(any[Long], any[String], any[JObject], any[IndexedSeq[JObject]])
       ) thenAnswer {
@@ -122,15 +138,19 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
           (2L, 3L)
       }
 
-      when(batchClient.waitForJobGroup(eqTo(23L), eqTo(3L))) thenAnswer {
-        val resultsDir =
-          Path(backend.serviceBackendContext.remoteTmpDir) /
-            "parallelizeAndComputeWithIndex" /
-            tokenUrlSafe
+      when(batchClient.waitForJobGroup(any[Long], any[Long])) thenAnswer {
+        (batchId: Long, jobGroupId: Long) =>
+          batchId shouldEqual 37L
+          jobGroupId shouldEqual 3L
 
-        resultsDir.createDirectory()
-        for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
-        JObject("state" -> JString("success"))
+          val resultsDir =
+            Path(backend.serviceBackendContext.remoteTmpDir) /
+              "parallelizeAndComputeWithIndex" /
+              tokenUrlSafe
+
+          resultsDir.createDirectory()
+          for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
+          JObject("state" -> JString("success"))
       }
 
       val (failure, _) =
