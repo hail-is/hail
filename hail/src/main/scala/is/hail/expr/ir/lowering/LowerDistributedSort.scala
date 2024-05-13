@@ -197,7 +197,7 @@ object LowerDistributedSort {
       inputStage.mapCollectWithGlobals("shuffle_initial_write") { part =>
         WritePartition(part, UUID4(), writer)
       } { case (part, globals) =>
-        val streamElement = Ref(genUID(), part.typ.asInstanceOf[TArray].elementType)
+        val streamElement = Ref(freshName(), part.typ.asInstanceOf[TArray].elementType)
         bindIR(StreamAgg(
           ToStream(part),
           streamElement.name,
@@ -326,11 +326,11 @@ object LowerDistributedSort {
           IndexedSeq("segmentIdx"),
           missingEqual = true,
         )) { oneGroup =>
-          val streamElementRef = Ref(genUID(), oneGroup.typ.asInstanceOf[TIterable].elementType)
+          val streamElementRef = Ref(freshName(), oneGroup.typ.asInstanceOf[TIterable].elementType)
           val dataRef =
-            Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
+            Ref(freshName(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("partData"))
           val sizeRef =
-            Ref(genUID(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("byteSize"))
+            Ref(freshName(), streamElementRef.typ.asInstanceOf[TStruct].fieldType("byteSize"))
           bindIR(StreamAgg(
             oneGroup,
             streamElementRef.name, {
@@ -805,8 +805,8 @@ object LowerDistributedSort {
       mapIR(sampleIndices)(sampleIndex => MakeStruct(FastSeq((samplingIndexName, sampleIndex))))
     val dataWithIdx = zipWithIndex(dataStream)
 
-    val leftName = genUID()
-    val rightName = genUID()
+    val leftName = freshName()
+    val rightName = freshName()
     val leftRef = Ref(leftName, dataWithIdx.typ.asInstanceOf[TStream].elementType)
     val rightRef = Ref(rightName, structSampleIndices.typ.asInstanceOf[TStream].elementType)
 
@@ -828,9 +828,9 @@ object LowerDistributedSort {
     /* Step 2: Aggregate over joined, figure out how to collect only the rows that are marked
      * "shouldKeep" */
     val streamElementType = joined.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-    val streamElementName = genUID()
+    val streamElementName = freshName()
     val streamElementRef = Ref(streamElementName, streamElementType)
-    val eltName = genUID()
+    val eltName = freshName()
     val eltType = dataStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
     val eltRef = Ref(eltName, eltType)
 
@@ -840,8 +840,8 @@ object LowerDistributedSort {
       "sortedSoFar" -> true,
       "haveSeenAny" -> false,
     ))
-    val aggFoldSortedAccumName1 = genUID()
-    val aggFoldSortedAccumName2 = genUID()
+    val aggFoldSortedAccumName1 = freshName()
+    val aggFoldSortedAccumName2 = freshName()
     val isSortedStateType =
       TStruct("lastKeySeen" -> eltType, "sortedSoFar" -> TBoolean, "haveSeenAny" -> TBoolean)
     val aggFoldSortedAccumRef1 = Ref(aggFoldSortedAccumName1, isSortedStateType)

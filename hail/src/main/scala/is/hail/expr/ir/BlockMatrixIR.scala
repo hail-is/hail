@@ -293,7 +293,7 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
     HailContext.backend.getPersistedBlockMatrix(ctx.backendContext, id)
 }
 
-case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean)
+case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense: Boolean)
     extends BlockMatrixIR {
   override def typecheck(): Unit =
     assert(!(needsDense && child.typ.isSparse))
@@ -432,8 +432,8 @@ case object NeedsDense extends SparsityStrategy {
 case class BlockMatrixMap2(
   left: BlockMatrixIR,
   right: BlockMatrixIR,
-  leftName: String,
-  rightName: String,
+  leftName: Name,
+  rightName: Name,
   f: IR,
   sparsityStrategy: SparsityStrategy,
 ) extends BlockMatrixIR {
@@ -1117,7 +1117,7 @@ case class BlockMatrixRandom(
     BlockMatrix.random(shape(0), shape(1), blockSize, ctx.rngNonce, staticUID, gaussian)
 }
 
-case class RelationalLetBlockMatrix(name: String, value: IR, body: BlockMatrixIR)
+case class RelationalLetBlockMatrix(name: Name, value: IR, body: BlockMatrixIR)
     extends BlockMatrixIR {
   override def typ: BlockMatrixType = body.typ
 

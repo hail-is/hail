@@ -1647,9 +1647,9 @@ case class MatrixBGENWriter(
       val numVariants = if (writeHeader) ToStream(ts.countPerPartition())
       else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
 
-      val ctxElt = Ref(genUID(), tcoerce[TStream](oldCtx.typ).elementType)
-      val pf = Ref(genUID(), tcoerce[TStream](partFiles.typ).elementType)
-      val nv = Ref(genUID(), tcoerce[TStream](numVariants.typ).elementType)
+      val ctxElt = Ref(freshName(), tcoerce[TStream](oldCtx.typ).elementType)
+      val pf = Ref(freshName(), tcoerce[TStream](partFiles.typ).elementType)
+      val nv = Ref(freshName(), tcoerce[TStream](numVariants.typ).elementType)
 
       StreamZip(
         FastSeq(oldCtx, partFiles, numVariants),
@@ -2584,7 +2584,9 @@ case class MatrixNativeMultiWriter(
         )
       )
 
-    val allBroadcasts = MakeStruct(components.flatMap(_.stage.broadcastVals))
+    val allBroadcasts = MakeStruct(components.flatMap(_.stage.broadcastVals).map { case (n, ir) =>
+      n.str -> ir
+    })
 
     Begin(FastSeq(
       Begin(components.map(_.setup)),
@@ -2598,7 +2600,7 @@ case class MatrixNativeMultiWriter(
                 default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
                 cases = components.zipWithIndex.map { case (component, i) =>
                   val binds = component.stage.broadcastVals.map { case (name, _) =>
-                    name -> GetField(globals, name)
+                    name -> GetField(globals, name.str)
                   }
 
                   Let(

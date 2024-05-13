@@ -48,6 +48,10 @@ object TableIR {
     val tr = TableNativeReader.read(fs, path, None)
     TableRead(requestedType.getOrElse(tr.fullType), dropRows = dropRows, tr)
   }
+
+  val globalName: Name = Name("global")
+
+  val rowName: Name = Name("row")
 }
 
 sealed abstract class TableIR extends BaseIR {
@@ -175,8 +179,11 @@ object LoweredTableReader {
       case None =>
         info(s"scanning $context for sortedness...")
         val prevkey = AggSignature(PrevNonnull(), FastSeq(), FastSeq(keyType))
-
         val count = AggSignature(Count(), FastSeq(), FastSeq())
+        val samplekey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, TFloat64))
+        val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
+        val minkey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, keyType))
+        val maxkey = AggSignature(TakeBy(Descending), FastSeq(TInt32), FastSeq(keyType, keyType))
 
         val xType = TStruct(
           "key" -> keyType,
@@ -184,13 +191,9 @@ object LoweredTableReader {
           "prevkey" -> keyType,
         )
 
-        val samplekey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, TFloat64))
-
-        val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
-
-        val minkey = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(keyType, keyType))
-
-        val maxkey = AggSignature(TakeBy(Descending), FastSeq(TInt32), FastSeq(keyType, keyType))
+        val keyRef = Ref(freshName(), keyType)
+        val xRef = Ref(freshName(), xType)
+        val nRef = Ref(freshName(), TInt64)
 
         val scanBody = (ctx: IR) =>
           StreamAgg(
@@ -206,9 +209,9 @@ object LoweredTableReader {
                   (requestedType: Type) => keys(requestedType.asInstanceOf[TStruct]),
                 ),
               ),
-              "key",
+              keyRef.name,
               MakeStruct(FastSeq(
-                "key" -> Ref("key", keyType),
+                "key" -> keyRef,
                 "token" -> invokeSeeded(
                   "rand_unif",
                   1,
@@ -217,27 +220,27 @@ object LoweredTableReader {
                   F64(0.0),
                   F64(1.0),
                 ),
-                "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(Ref("key", keyType)), prevkey),
+                "prevkey" -> ApplyScanOp(FastSeq(), FastSeq(keyRef), prevkey),
               )),
             ),
-            "x",
+            xRef.name,
             Let(
-              FastSeq("n" -> ApplyAggOp(FastSeq(), FastSeq(), count)),
+              FastSeq(nRef.name -> ApplyAggOp(FastSeq(), FastSeq(), count)),
               AggLet(
-                "key",
-                GetField(Ref("x", xType), "key"),
+                keyRef.name,
+                GetField(xRef, "key"),
                 MakeStruct(FastSeq(
-                  "n" -> Ref("n", TInt64),
+                  "n" -> nRef,
                   "minkey" ->
                     ApplyAggOp(
                       FastSeq(I32(1)),
-                      FastSeq(Ref("key", keyType), Ref("key", keyType)),
+                      FastSeq(keyRef, keyRef),
                       minkey,
                     ),
                   "maxkey" ->
                     ApplyAggOp(
                       FastSeq(I32(1)),
-                      FastSeq(Ref("key", keyType), Ref("key", keyType)),
+                      FastSeq(keyRef, keyRef),
                       maxkey,
                     ),
                   "ksorted" ->
@@ -252,18 +255,18 @@ object LoweredTableReader {
                             invoke(
                               "lor",
                               TBoolean,
-                              IsNA(GetField(Ref("x", xType), "prevkey")),
+                              IsNA(GetField(xRef, "prevkey")),
                               ApplyComparisonOp(
                                 LTEQ(keyType),
-                                GetField(Ref("x", xType), "prevkey"),
-                                GetField(Ref("x", xType), "key"),
+                                GetField(xRef, "prevkey"),
+                                GetField(xRef, "key"),
                               ),
                             ),
                           )
                         ),
                         sum,
                       ),
-                      Ref("n", TInt64),
+                      nRef,
                     ),
                   "pksorted" ->
                     ApplyComparisonOp(
@@ -277,22 +280,22 @@ object LoweredTableReader {
                             invoke(
                               "lor",
                               TBoolean,
-                              IsNA(selectPK(GetField(Ref("x", xType), "prevkey"))),
+                              IsNA(selectPK(GetField(xRef, "prevkey"))),
                               ApplyComparisonOp(
                                 LTEQ(pkType),
-                                selectPK(GetField(Ref("x", xType), "prevkey")),
-                                selectPK(GetField(Ref("x", xType), "key")),
+                                selectPK(GetField(xRef, "prevkey")),
+                                selectPK(GetField(xRef, "key")),
                               ),
                             ),
                           )
                         ),
                         sum,
                       ),
-                      Ref("n", TInt64),
+                      nRef,
                     ),
                   "sample" -> ApplyAggOp(
                     FastSeq(I32(samplesPerPartition)),
-                    FastSeq(GetField(Ref("x", xType), "key"), GetField(Ref("x", xType), "token")),
+                    FastSeq(GetField(xRef, "key"), GetField(xRef, "token")),
                     samplekey,
                   ),
                 )),
@@ -301,15 +304,12 @@ object LoweredTableReader {
             ),
           )
 
-        val scanResult = CollectDistributedArray(
+        val scanResult = cdaIR(
           ToStream(Literal(TArray(contextType), contexts)),
           MakeStruct(FastSeq()),
-          "context",
-          "globals",
-          scanBody(Ref("context", contextType)),
-          NA(TString),
           "table_coerce_sortedness",
-        )
+          NA(TString),
+        )((context, _) => scanBody(context))
 
         val sortedPartDataIR = sortIR(bindIR(scanResult) { scanResult =>
           mapIR(
@@ -339,107 +339,54 @@ object LoweredTableReader {
             SelectFields(r, FastSeq("minkey", "maxkey")),
           )
         }
-        val partDataElt = tcoerce[TArray](sortedPartDataIR.typ).elementType
 
-        val summary =
-          Let(
-            FastSeq("sortedPartData" -> sortedPartDataIR),
-            MakeStruct(FastSeq(
-              "ksorted" ->
-                invoke(
-                  "land",
-                  TBoolean,
-                  StreamFold(
-                    ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
-                    True(),
-                    "acc",
-                    "partDataWithIndex",
+        val summary = bindIR(sortedPartDataIR) { sortedPartData =>
+          MakeStruct(FastSeq(
+            "ksorted" ->
+              invoke(
+                "land",
+                TBoolean,
+                foldIR(ToStream(sortedPartData), True()) { (acc, partDataWithIndex) =>
+                  invoke("land", TBoolean, acc, GetField(partDataWithIndex, "ksorted"))
+                },
+                foldIR(StreamRange(I32(0), ArrayLen(sortedPartData) - I32(1), I32(1)), True()) {
+                  (acc, i) =>
                     invoke(
                       "land",
                       TBoolean,
-                      Ref("acc", TBoolean),
-                      GetField(Ref("partDataWithIndex", partDataElt), "ksorted"),
-                    ),
-                  ),
-                  StreamFold(
-                    StreamRange(
-                      I32(0),
-                      ArrayLen(Ref("sortedPartData", sortedPartDataIR.typ)) - I32(1),
-                      I32(1),
-                    ),
-                    True(),
-                    "acc",
-                    "i",
-                    invoke(
-                      "land",
-                      TBoolean,
-                      Ref("acc", TBoolean),
+                      acc,
                       ApplyComparisonOp(
                         LTEQ(keyType),
-                        GetField(
-                          ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
-                          "maxkey",
-                        ),
-                        GetField(
-                          ArrayRef(
-                            Ref("sortedPartData", sortedPartDataIR.typ),
-                            Ref("i", TInt32) + I32(1),
-                          ),
-                          "minkey",
-                        ),
+                        GetField(ArrayRef(sortedPartData, i), "maxkey"),
+                        GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey"),
                       ),
-                    ),
-                  ),
-                ),
-              "pksorted" ->
-                invoke(
-                  "land",
-                  TBoolean,
-                  StreamFold(
-                    ToStream(Ref("sortedPartData", sortedPartDataIR.typ)),
-                    True(),
-                    "acc",
-                    "partDataWithIndex",
+                    )
+                },
+              ),
+            "pksorted" ->
+              invoke(
+                "land",
+                TBoolean,
+                foldIR(ToStream(sortedPartData), True()) { (acc, partDataWithIndex) =>
+                  invoke("land", TBoolean, acc, GetField(partDataWithIndex, "pksorted"))
+                },
+                foldIR(StreamRange(I32(0), ArrayLen(sortedPartData) - I32(1), I32(1)), True()) {
+                  (acc, i) =>
                     invoke(
                       "land",
                       TBoolean,
-                      Ref("acc", TBoolean),
-                      GetField(Ref("partDataWithIndex", partDataElt), "pksorted"),
-                    ),
-                  ),
-                  StreamFold(
-                    StreamRange(
-                      I32(0),
-                      ArrayLen(Ref("sortedPartData", sortedPartDataIR.typ)) - I32(1),
-                      I32(1),
-                    ),
-                    True(),
-                    "acc",
-                    "i",
-                    invoke(
-                      "land",
-                      TBoolean,
-                      Ref("acc", TBoolean),
+                      acc,
                       ApplyComparisonOp(
                         LTEQ(pkType),
-                        selectPK(GetField(
-                          ArrayRef(Ref("sortedPartData", sortedPartDataIR.typ), Ref("i", TInt32)),
-                          "maxkey",
-                        )),
-                        selectPK(GetField(
-                          ArrayRef(
-                            Ref("sortedPartData", sortedPartDataIR.typ),
-                            Ref("i", TInt32) + I32(1),
-                          ),
-                          "minkey",
-                        )),
+                        selectPK(GetField(ArrayRef(sortedPartData, i), "maxkey")),
+                        selectPK(GetField(ArrayRef(sortedPartData, i + I32(1)), "minkey")),
                       ),
-                    ),
-                  ),
-                ),
-              "sortedPartData" -> Ref("sortedPartData", sortedPartDataIR.typ),
-            )),
-          )
+                    )
+                },
+              ),
+            "sortedPartData" -> sortedPartData,
+          ))
+        }
 
         val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) =
           Compile[AsmFunction1RegionLong](
@@ -740,14 +687,18 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
     context: EmitCode,
     requestedType: TStruct,
   ): IEmitCode = {
+    val eltRef = Ref(freshName(), rvd.rowType)
 
     val (Some(PTypeReferenceSingleCodeType(upcastPType: PBaseStruct)), upcast) =
       Compile[AsmFunction2RegionLongLong](
         ctx,
-        FastSeq(("elt", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)))),
+        FastSeq((
+          eltRef.name,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(rvd.rowPType)),
+        )),
         FastSeq(classInfo[Region], LongInfo),
         LongInfo,
-        PruneDeadFields.upcast(ctx, Ref("elt", rvd.rowType), requestedType),
+        PruneDeadFields.upcast(ctx, eltRef, requestedType),
       )
 
     val upcastCode = mb.getObject[Function4[
@@ -1977,21 +1928,18 @@ case class TableNativeZippedReader(
 
   def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct)
     : (PStruct, (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction3RegionLongLongLong) = {
+    val leftRef = Ref(freshName(), pLeft.virtualType)
+    val rightRef = Ref(freshName(), pRight.virtualType)
     val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) =
       ir.Compile[AsmFunction3RegionLongLongLong](
         ctx,
         FastSeq(
-          "left" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pLeft)),
-          "right" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight)),
+          leftRef.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pLeft)),
+          rightRef.name -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight)),
         ),
         FastSeq(typeInfo[Region], LongInfo, LongInfo),
         LongInfo,
-        InsertFields(
-          Ref("left", pLeft.virtualType),
-          pRight.fieldNames.map(f =>
-            f -> GetField(Ref("right", pRight.virtualType), f)
-          ),
-        ),
+        InsertFields(leftRef, pRight.fieldNames.map(f => f -> GetField(rightRef, f))),
       )
     (t, mk)
   }
@@ -2336,8 +2284,8 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 case class TableGen(
   contexts: IR,
   globals: IR,
-  cname: String,
-  gname: String,
+  cname: Name,
+  gname: Name,
   body: IR,
   partitioner: RVDPartitioner,
   errorId: Int = ErrorIDs.NO_ERROR,
@@ -2468,22 +2416,28 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     val tv = child.execute(ctx, r).asTableValue(ctx)
 
     if (pred == True())
-      return new TableValueIntermediate(tv)
+      return TableValueIntermediate(tv)
     else if (pred == False())
-      return new TableValueIntermediate(tv.copy(rvd = RVD.empty(ctx, typ.canonicalRVDType)))
+      return TableValueIntermediate(tv.copy(rvd = RVD.empty(ctx, typ.canonicalRVDType)))
 
     val (Some(BooleanSingleCodeType), f) = ir.Compile[AsmFunction3RegionLongLongBoolean](
       ctx,
       FastSeq(
-        ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
-        ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
+        (
+          TableIR.rowName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)),
+        ),
+        (
+          TableIR.globalName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)),
+        ),
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       BooleanInfo,
       Coalesce(FastSeq(pred, False())),
     )
 
-    new TableValueIntermediate(
+    TableValueIntermediate(
       tv.filterWithPartitionOp(ctx.theHailClassLoader, ctx.fsBc, f)((rowF, ctx, ptr, globalPtr) =>
         rowF(ctx.region, ptr, globalPtr)
       )
@@ -2928,15 +2882,15 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 }
 
 object TableMapPartitions {
-  def apply(child: TableIR, globalName: String, partitionStreamName: String, body: IR)
+  def apply(child: TableIR, globalName: Name, partitionStreamName: Name, body: IR)
     : TableMapPartitions =
     TableMapPartitions(child, globalName, partitionStreamName, body, 0, child.typ.key.length)
 }
 
 case class TableMapPartitions(
   child: TableIR,
-  globalName: String,
-  partitionStreamName: String,
+  globalName: Name,
+  partitionStreamName: Name,
   body: IR,
   requestedKey: Int,
   allowedOverlap: Int,
@@ -3081,8 +3035,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         ir.Compile[AsmFunction3RegionLongLongLong](
           ctx,
           FastSeq(
-            ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
-            ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
+            (
+              TableIR.globalName,
+              SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)),
+            ),
+            (
+              TableIR.rowName,
+              SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)),
+            ),
           ),
           FastSeq(classInfo[Region], LongInfo, LongInfo),
           LongInfo,
@@ -3092,7 +3052,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           )),
         )
 
-      val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
+      val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, TableIR.globalName)
       val globalsBc =
         if (rowIterationNeedsGlobals)
           tv.globals.broadcast(ctx.theHailClassLoader)
@@ -3120,9 +3080,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       )
     }
 
-    val scanInitNeedsGlobals = Mentions(extracted.init, "global")
-    val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, "global")
-    val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, "global")
+    val scanInitNeedsGlobals = Mentions(extracted.init, TableIR.globalName)
+    val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, TableIR.globalName)
+    val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, TableIR.globalName)
 
     val globalsBc =
       if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
@@ -3142,7 +3102,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       ctx,
       extracted.states,
       FastSeq((
-        "global",
+        TableIR.globalName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)),
       )),
       FastSeq(classInfo[Region], LongInfo),
@@ -3156,8 +3116,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       ctx,
       extracted.states,
       FastSeq(
-        ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
-        ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
+        (
+          TableIR.globalName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)),
+        ),
+        (
+          TableIR.rowName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)),
+        ),
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
@@ -3173,8 +3139,14 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         ctx,
         extracted.states,
         FastSeq(
-          ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t))),
-          ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType))),
+          (
+            TableIR.globalName,
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)),
+          ),
+          (
+            TableIR.rowName,
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.rvd.rowPType)),
+          ),
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
@@ -3453,7 +3425,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
       Compile[AsmFunction2RegionLongLong](
         ctx,
         FastSeq((
-          "global",
+          TableIR.globalName,
           SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tv.globals.t)),
         )),
         FastSeq(classInfo[Region], LongInfo),
@@ -3466,7 +3438,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
     val resultOff =
       f(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, ctx.r)(ctx.r, tv.globals.value.offset)
-    new TableValueIntermediate(
+    TableValueIntermediate(
       tv.copy(typ = typ, globals = BroadcastRow(ctx, RegionValue(ctx.r, resultOff), resultPType))
     )
   }
@@ -3484,11 +3456,11 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
   private def childRowType = child.typ.rowType
 
-  private[this] lazy val idx = Ref(genUID(), TInt32)
+  private[this] lazy val idx = Ref(freshName(), TInt32)
 
   private[this] lazy val newRow: InsertFields = {
-    val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
-      Ref(genUID(), tcoerce[TStruct](struct.typ).field(name).typ)
+    val refs = path.init.scanLeft(Ref(TableIR.rowName, childRowType))((struct, name) =>
+      Ref(freshName(), tcoerce[TStruct](struct.typ).field(name).typ)
     )
 
     path.zip(refs).zipWithIndex.foldRight[IR](idx) {
@@ -3518,7 +3490,9 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     val length: IR =
       Coalesce(FastSeq(
         ArrayLen(CastToArray(
-          path.foldLeft[IR](Ref("row", childRowType))((struct, field) => GetField(struct, field))
+          path.foldLeft[IR](Ref(TableIR.rowName, childRowType))((struct, field) =>
+            GetField(struct, field)
+          )
         )),
         0,
       ))
@@ -3526,7 +3500,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
     val (_, l) = Compile[AsmFunction2RegionLongInt](
       ctx,
       FastSeq((
-        "row",
+        TableIR.rowName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)),
       )),
       FastSeq(classInfo[Region], LongInfo),
@@ -3537,7 +3511,10 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
       Compile[AsmFunction3RegionLongIntLong](
         ctx,
         FastSeq(
-          ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
+          (
+            TableIR.rowName,
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)),
+          ),
           (idx.name, SingleCodeEmitParamType(true, Int32SingleCodeType)),
         ),
         FastSeq(classInfo[Region], LongInfo, IntInfo),
@@ -3718,8 +3695,14 @@ case class TableKeyByAndAggregate(
       ir.Compile[AsmFunction3RegionLongLongLong](
         ctx,
         FastSeq(
-          ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
-          ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
+          (
+            TableIR.rowName,
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)),
+          ),
+          (
+            TableIR.globalName,
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
+          ),
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
@@ -3739,7 +3722,7 @@ case class TableKeyByAndAggregate(
       ctx,
       extracted.states,
       FastSeq((
-        "global",
+        TableIR.globalName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
       )),
       FastSeq(classInfo[Region], LongInfo),
@@ -3751,8 +3734,14 @@ case class TableKeyByAndAggregate(
       ctx,
       extracted.states,
       FastSeq(
-        ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
-        ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
+        (
+          TableIR.globalName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
+        ),
+        (
+          TableIR.rowName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType)),
+        ),
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
@@ -3764,7 +3753,7 @@ case class TableKeyByAndAggregate(
         ctx,
         extracted.states,
         FastSeq((
-          "global",
+          TableIR.globalName,
           SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
         )),
         FastSeq(classInfo[Region], LongInfo),
@@ -3906,7 +3895,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       ctx,
       extracted.states,
       FastSeq((
-        "global",
+        TableIR.globalName,
         SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
       )),
       FastSeq(classInfo[Region], LongInfo),
@@ -3918,8 +3907,14 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       ctx,
       extracted.states,
       FastSeq(
-        ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
-        ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prevRVD.rowPType))),
+        (
+          TableIR.globalName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
+        ),
+        (
+          TableIR.rowName,
+          SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prevRVD.rowPType)),
+        ),
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
@@ -3929,14 +3924,17 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val valueIR = Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR)
     val keyType = prevRVD.typ.kType
 
-    val key = Ref(genUID(), keyType.virtualType)
-    val value = Ref(genUID(), valueIR.typ)
+    val key = Ref(freshName(), keyType.virtualType)
+    val value = Ref(freshName(), valueIR.typ)
     val (Some(PTypeReferenceSingleCodeType(rowType: PStruct)), makeRow) =
       ir.CompileWithAggregators[AsmFunction3RegionLongLongLong](
         ctx,
         extracted.states,
         FastSeq(
-          ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t))),
+          (
+            TableIR.globalName,
+            SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)),
+          ),
           (key.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(keyType))),
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
@@ -4248,7 +4246,7 @@ case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
     TableValueIntermediate(child.execute(ctx).entriesTable(ctx))
 }
 
-case class RelationalLetTable(name: String, value: IR, body: TableIR) extends TableIR {
+case class RelationalLetTable(name: Name, value: IR, body: TableIR) extends TableIR {
   def typ: TableType = body.typ
 
   lazy val rowCountUpperBound: Option[Long] = body.rowCountUpperBound

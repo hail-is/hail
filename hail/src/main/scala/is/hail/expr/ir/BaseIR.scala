@@ -6,6 +6,10 @@ import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
+case class Name(str: String) extends AnyVal {
+  override def toString: String = str
+}
+
 abstract class BaseIR {
   def typ: BaseType
 
@@ -27,6 +31,12 @@ abstract class BaseIR {
   // without ever having to initialize it at the start of a pass.
   // New sentinel values can be obtained by `nextFlag` on `IRMetadata`.
   var mark: Int = 0
+
+  def isAlphaEquiv(ctx: ExecuteContext, other: BaseIR): Boolean =
+    /* FIXME: rewrite to not rebuild the irs, by maintaining an env mapping left names to right
+     * names */
+    new NormalizeNames(iruid(_), allowFreeVariables = true)(ctx, this) ==
+      new NormalizeNames(iruid(_), allowFreeVariables = true)(ctx, other)
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).toArray

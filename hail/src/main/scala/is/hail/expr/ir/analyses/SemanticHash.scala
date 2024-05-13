@@ -30,7 +30,7 @@ case object SemanticHash extends Logging {
       // Running the algorithm on the name-normalised IR
       // removes sensitivity to compiler-generated names
       val nameNormalizedIR = ctx.timer.time("NormalizeNames") {
-        new NormalizeNames(iruid(_), allowFreeVariables = true)(ctx, root)
+        new NormalizeNames(i => iruid(i), allowFreeVariables = true)(ctx, root)
       }
 
       val semhash = ctx.timer.time("Hash") {
@@ -221,10 +221,10 @@ case object SemanticHash extends Logging {
         indices.foreach(buffer ++= Bytes.fromInt(_))
 
       case Ref(name, _) =>
-        buffer ++= name.getBytes
+        buffer ++= name.str.getBytes
 
       case RelationalRef(name, _) =>
-        buffer ++= name.getBytes
+        buffer ++= name.str.getBytes
 
       case SelectFields(struct, names) =>
         val getFieldIndex = struct.typ.asInstanceOf[TStruct].fieldIdx

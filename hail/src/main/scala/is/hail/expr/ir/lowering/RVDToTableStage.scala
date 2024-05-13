@@ -52,7 +52,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
     val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) =
       Compile[AsmFunction2RegionLongLong](
         ctx,
-        FastSeq(("row", rowEmitType)),
+        FastSeq((TableIR.rowName, rowEmitType)),
         FastSeq(classInfo[Region], LongInfo),
         LongInfo,
         PruneDeadFields.upcast(ctx, In(0, rowEmitType), requestedType.rowType),
@@ -131,7 +131,7 @@ object TableStageToRVD {
         ts.letBindings,
         MakeStruct(FastSeq(
           "globals" -> ts.globals,
-          "broadcastVals" -> MakeStruct(ts.broadcastVals),
+          "broadcastVals" -> MakeStruct(ts.broadcastVals.map { case (n, ir) => n.str -> ir }),
           "contexts" -> ToArray(ts.contexts),
         )),
       )
@@ -183,7 +183,7 @@ object TableStageToRVD {
         ts.broadcastVals.map(_._1).map(bcVal =>
           bcVal -> GetField(
             In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))),
-            bcVal,
+            bcVal.str,
           )
         ),
         ts.partition(In(

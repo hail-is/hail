@@ -19,8 +19,8 @@ class FoldConstantsSuite extends HailSuite {
   @DataProvider(name = "aggNodes")
   def aggNodes(): Array[Array[Any]] = {
     Array[IR](
-      AggLet("x", I32(1), I32(1), false),
-      AggLet("x", I32(1), I32(1), true),
+      AggLet(freshName(), I32(1), I32(1), false),
+      AggLet(freshName(), I32(1), I32(1), true),
       ApplyAggOp(Sum())(I64(1)),
       ApplyScanOp(Sum())(I64(1)),
     ).map(x => Array[Any](x))

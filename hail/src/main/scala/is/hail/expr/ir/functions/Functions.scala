@@ -83,7 +83,7 @@ object IRFunctionRegistry {
       valueParameterTypes,
       IRParser.parseType(returnType),
       false,
-      (_, args, _) => Subst(body, BindingEnv(Env[IR](argNames.asScala.zip(args): _*))),
+      (_, args, _) => Subst(body, BindingEnv.eval(argNames.asScala.map(Name).zip(args): _*)),
     )
   }
 
@@ -91,7 +91,7 @@ object IRFunctionRegistry {
     ctx: ExecuteContext,
     name: String,
     typeParamStrs: Array[String],
-    argNames: Array[String],
+    argNames: Array[Name],
     argTypeStrs: Array[String],
     returnType: String,
     bodyStr: String,

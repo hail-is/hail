@@ -860,8 +860,9 @@ object Interpret {
         ctx.r.pool.scopedRegion { region =>
           val (rt, f) = functionMemo.getOrElseUpdate(
             ir, {
+              val in = Ref(freshName(), argTuple.virtualType)
               val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (_, i) =>
-                GetTupleElement(Ref("in", argTuple.virtualType), i)
+                GetTupleElement(in, i)
               }.toFastSeq
               val newChildren = ir match {
                 case _: ApplySeeded => wrappedArgs :+ NA(TRNGState)
@@ -872,7 +873,7 @@ object Interpret {
               val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](
                 ctx,
                 FastSeq((
-                  "in",
+                  in.name,
                   SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)),
                 )),
                 FastSeq(classInfo[Region], LongInfo),
@@ -947,7 +948,7 @@ object Interpret {
             Compile[AsmFunction2RegionLongLong](
               ctx,
               FastSeq((
-                "global",
+                TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               )),
               FastSeq(classInfo[Region], LongInfo),
@@ -966,7 +967,7 @@ object Interpret {
             ctx,
             extracted.states,
             FastSeq((
-              "global",
+              TableIR.rowName,
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
             )),
             FastSeq(classInfo[Region], LongInfo),
@@ -979,11 +980,11 @@ object Interpret {
             extracted.states,
             FastSeq(
               (
-                "global",
+                TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               ),
               (
-                "row",
+                TableIR.rowName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)),
               ),
             ),
@@ -1072,7 +1073,7 @@ object Interpret {
               ctx,
               extracted.states,
               FastSeq((
-                "global",
+                TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               )),
               FastSeq(classInfo[Region], LongInfo),

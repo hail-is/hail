@@ -28,7 +28,10 @@ case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(FastSeq
     blocksToCollect: Array[(Int, Int)],
   ): IR = {
     assert(blocksToCollect.isEmpty)
-    MakeArray(FastSeq(), TArray(f(Ref("x", ctxType), blockBody(Ref("x", ctxType))).typ))
+    MakeArray(
+      FastSeq(),
+      TArray(f(Ref(freshName(), ctxType), blockBody(Ref(freshName(), ctxType))).typ),
+    )
   }
 }
 
@@ -44,16 +47,16 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
     f: (IR, IR) => IR,
     blocksToCollect: Array[(Int, Int)],
   ): IR = {
-    val ctxRef = Ref(genUID(), ctxType)
+    val ctxRef = Ref(freshName(), ctxType)
     val body = f(ctxRef, blockBody(ctxRef))
     val ctxs = MakeStream(blocksToCollect.map(idx => blockContext(idx)), TStream(ctxRef.typ))
     val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
     val bcFields = broadcastVals.filter { ref =>
       bodyFreeVars.eval.lookupOption(ref.name).isDefined
     }
-    val bcVals = MakeStruct(bcFields.map(ref => ref.name -> ref))
-    val bcRef = Ref(genUID(), bcVals.typ)
-    val wrappedBody = Let(bcFields.map(ref => ref.name -> GetField(bcRef, ref.name)), body)
+    val bcVals = MakeStruct(bcFields.map(ref => ref.name.str -> ref))
+    val bcRef = Ref(freshName(), bcVals.typ)
+    val wrappedBody = Let(bcFields.map(ref => ref.name -> GetField(bcRef, ref.name.str)), body)
     CollectDistributedArray(ctxs, bcVals, ctxRef.name, bcRef.name, wrappedBody, dynamicID, staticID)
   }
 
@@ -62,7 +65,7 @@ abstract class BlockMatrixStage(val broadcastVals: IndexedSeq[Ref], val ctxType:
       Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
     }
     val cda = collectBlocks(staticID, dynamicID)((_, b) => b, blocksRowMajor)
-    val blockResults = Ref(genUID(), cda.typ)
+    val blockResults = Ref(freshName(), cda.typ)
 
     val rows = if (typ.isSparse) {
       val blockMap = blocksRowMajor.zipWithIndex.toMap
@@ -236,7 +239,7 @@ object BlockMatrixStage2 {
     contexts: BMSContexts,
     _blockIR: Ref => IR,
   ): BlockMatrixStage2 = {
-    val ctxRef = Ref(genUID(), contexts.elementType)
+    val ctxRef = Ref(freshName(), contexts.elementType)
     val blockIR = _blockIR(ctxRef)
 
     new BlockMatrixStage2(broadcastVals, typ, contexts, ctxRef.name, blockIR)
@@ -644,7 +647,7 @@ class BlockMatrixStage2 private (
   val broadcastVals: IndexedSeq[Ref],
   val typ: BlockMatrixType,
   val contexts: BMSContexts,
-  private val ctxRefName: String,
+  private val ctxRefName: Name,
   private val _blockIR: IR,
 ) {
   assert {
@@ -825,7 +828,7 @@ class BlockMatrixStage2 private (
   private def mapBody2Aligned(other: BlockMatrixStage2, ib: IRBuilder)(f: (IR, IR) => IR)
     : BlockMatrixStage2 = {
     val newContexts = contexts.zip(other.contexts, ib)
-    val ctxRef = Ref(genUID(), newContexts.elementType)
+    val ctxRef = Ref(freshName(), newContexts.elementType)
     val newBlockIR =
       bindIRs(GetTupleElement(ctxRef, 0), GetTupleElement(ctxRef, 1)) { case Seq(l, r) =>
         f(this.blockIR(l), other.blockIR(r))
@@ -975,7 +978,7 @@ class BlockMatrixStage2 private (
     }.contexts)
 
     val emptyGlobals = MakeStruct(FastSeq())
-    val globalsId = genUID()
+    val globalsId = freshName()
     val letBindings = ib.getBindings :+ globalsId -> emptyGlobals
 
     def tsPartitionFunction(newCtxRef: Ref): IR = {
@@ -1005,8 +1008,8 @@ class BlockMatrixStage2 private (
   )(
     f: (IR, IR, IR) => IR // (ctx, pos, block)
   ): IR = {
-    val posRef = Ref(genUID(), TInt32)
-    val newCtxRef = Ref(genUID(), TTuple(TInt32, ctxType))
+    val posRef = Ref(freshName(), TInt32)
+    val newCtxRef = Ref(freshName(), TTuple(TInt32, ctxType))
     val body = Let(
       FastSeq(
         posRef.name -> GetTupleElement(newCtxRef, 0),
@@ -1019,9 +1022,9 @@ class BlockMatrixStage2 private (
     val bcFields = broadcastVals.filter { case Ref(f, _) =>
       bodyFreeVars.eval.lookupOption(f).isDefined
     }
-    val bcVals = MakeStruct(bcFields.map(ref => ref.name -> ref))
-    val bcRef = Ref(genUID(), bcVals.typ)
-    val wrappedBody = Let(bcFields.map(ref => ref.name -> GetField(bcRef, ref.name)), body)
+    val bcVals = MakeStruct(bcFields.map(ref => ref.name.str -> ref))
+    val bcRef = Ref(freshName(), bcVals.typ)
+    val wrappedBody = Let(bcFields.map(ref => ref.name -> GetField(bcRef, ref.name.str)), body)
 
     val cdaContexts = ToStream(contexts.map(ib) { (rowIdx, colIdx, pos, oldContext) =>
       maketuple(pos, oldContext)
@@ -1343,7 +1346,7 @@ object LowerBlockMatrixIR {
                       )
                   )
                 }
-                val aggVar = genUID()
+                val aggVar = freshName()
                 StreamAgg(
                   summedChildBlocks,
                   aggVar,
@@ -1380,7 +1383,7 @@ object LowerBlockMatrixIR {
                       )
                   }
                 }
-                val aggVar = genUID()
+                val aggVar = freshName()
                 StreamAgg(
                   summedChildBlocks,
                   aggVar,
@@ -1512,11 +1515,11 @@ object LowerBlockMatrixIR {
 
           def blockBody(ctxRef: Ref): IR = {
             val tupleNDArrayStream = ToStream(ctxRef)
-            val streamElementName = genUID()
+            val streamElementName = freshName()
             val streamElementRef =
               Ref(streamElementName, tupleNDArrayStream.typ.asInstanceOf[TStream].elementType)
-            val leftName = genUID()
-            val rightName = genUID()
+            val leftName = freshName()
+            val rightName = freshName()
             val leftRef = Ref(
               leftName,
               tupleNDArrayStream.typ.asInstanceOf[TStream].elementType.asInstanceOf[TTuple].types(0),

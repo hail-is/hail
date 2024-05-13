@@ -147,6 +147,11 @@ class Pretty(
   def prettyIdentifiers(x: IndexedSeq[String]): Doc =
     fillList(x.view.map(text))
 
+  def prettyName(name: Name): Doc = text(name.str)
+
+  def prettyNames(x: IndexedSeq[Name]): Doc =
+    fillList(x.view.map(prettyName))
+
   def prettyAggStateSignatures(states: Seq[AggStateSig]): Doc =
     list(states.view.map(prettyAggStateSignature))
 
@@ -156,8 +161,8 @@ class Pretty(
         fillList(IndexedSeq(
           text(Pretty.prettyClass(state)),
           text(resultEmitType.typeWithRequiredness.canonicalPType.toString),
-          text(accumName),
-          text(otherAccumName),
+          prettyName(accumName),
+          prettyName(otherAccumName),
           text(apply(combOpIR)),
         ))
       case _ =>
@@ -217,7 +222,7 @@ class Pretty(
       )
     case RunAgg(_, _, signature) => single(prettyAggStateSignatures(signature))
     case RunAggScan(_, name, _, _, _, signature) =>
-      FastSeq(prettyIdentifier(name), prettyAggStateSignatures(signature))
+      FastSeq(prettyName(name), prettyAggStateSignatures(signature))
     case I32(x) => single(x.toString)
     case I64(x) => single(x.toString)
     case F32(x) => single(x.toString)
@@ -244,23 +249,23 @@ class Pretty(
           case Scope.AGG => "agg"
           case Scope.SCAN => "scan"
         }
-        FastSeq(text(bindType), text(prettyIdentifier(b.name)))
+        FastSeq(text(bindType), prettyName(b.name))
       }
     case TailLoop(name, args, returnType, _) if !elideBindings =>
       FastSeq(
-        prettyIdentifier(name),
-        prettyIdentifiers(args.map(_._1).toFastSeq),
+        prettyName(name),
+        prettyNames(args.map(_._1).toFastSeq),
         returnType.parsableString(),
       )
     case Recur(name, _, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(name))
+      FastSeq(prettyName(name))
 //    case Ref(name, t) if t != null => FastSeq(prettyIdentifier(name), t.parsableString())  // For debug purposes
-    case Ref(name, _) => single(prettyIdentifier(name))
+    case Ref(name, _) => single(prettyName(name))
     case RelationalRef(name, t) => if (elideBindings)
         single(t.parsableString())
       else
-        FastSeq(prettyIdentifier(name), t.parsableString())
-    case RelationalLet(name, _, _) if !elideBindings => single(prettyIdentifier(name))
+        FastSeq(prettyName(name), t.parsableString())
+    case RelationalLet(name, _, _) if !elideBindings => single(prettyName(name))
     case ApplyBinaryPrimOp(op, _, _) => single(Pretty.prettyClass(op))
     case ApplyUnaryPrimOp(op, _) => single(Pretty.prettyClass(op))
     case ApplyComparisonOp(op, _, _) => single(op.render())
@@ -276,7 +281,7 @@ class Pretty(
       FastSeq(errorID.toString, Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case ToStream(_, requiresMemoryManagementPerElement) =>
       single(Pretty.prettyBooleanLiteral(requiresMemoryManagementPerElement))
-    case StreamMap(_, name, _) if !elideBindings => single(prettyIdentifier(name))
+    case StreamMap(_, name, _) if !elideBindings => single(prettyName(name))
     case StreamZip(_, names, _, behavior, errorID) => if (elideBindings)
         FastSeq(
           errorID.toString,
@@ -296,33 +301,33 @@ class Pretty(
             case ArrayZipBehavior.ExtendNA => "ExtendNA"
             case ArrayZipBehavior.AssumeSameLength => "AssumeSameLength"
           },
-          prettyIdentifiers(names),
+          prettyNames(names),
         )
     case StreamZipJoin(streams, key, curKey, curVals, _) if !elideBindings =>
       FastSeq(
         streams.length.toString,
         prettyIdentifiers(key),
-        prettyIdentifier(curKey),
-        prettyIdentifier(curVals),
+        prettyName(curKey),
+        prettyName(curVals),
       )
     case StreamZipJoinProducers(_, ctxName, _, key, curKey, curVals, _) if !elideBindings =>
       FastSeq(
         prettyIdentifiers(key),
-        prettyIdentifier(ctxName),
-        prettyIdentifier(curKey),
-        prettyIdentifier(curVals),
+        prettyName(ctxName),
+        prettyName(curKey),
+        prettyName(curVals),
       )
     case StreamMultiMerge(_, key) => single(prettyIdentifiers(key))
-    case StreamFilter(_, name, _) if !elideBindings => single(prettyIdentifier(name))
-    case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyIdentifier(name))
-    case StreamDropWhile(_, name, _) if !elideBindings => single(prettyIdentifier(name))
-    case StreamFlatMap(_, name, _) if !elideBindings => single(prettyIdentifier(name))
+    case StreamFilter(_, name, _) if !elideBindings => single(prettyName(name))
+    case StreamTakeWhile(_, name, _) if !elideBindings => single(prettyName(name))
+    case StreamDropWhile(_, name, _) if !elideBindings => single(prettyName(name))
+    case StreamFlatMap(_, name, _) if !elideBindings => single(prettyName(name))
     case StreamFold(_, _, accumName, valueName, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
+      FastSeq(prettyName(accumName), prettyName(valueName))
     case StreamFold2(_, acc, valueName, _, _) if !elideBindings =>
-      FastSeq(prettyIdentifiers(acc.map(_._1)), prettyIdentifier(valueName))
+      FastSeq(prettyNames(acc.map(_._1)), prettyName(valueName))
     case StreamScan(_, _, accumName, valueName, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(accumName), prettyIdentifier(valueName))
+      FastSeq(prettyName(accumName), prettyName(valueName))
     case StreamWhiten(_, newChunk, prevWindow, vecSize, windowSize, chunkSize, blockSize,
           normalizeAfterWhiten) =>
       FastSeq(
@@ -340,8 +345,8 @@ class Pretty(
         FastSeq(
           prettyIdentifiers(lKey),
           prettyIdentifiers(rKey),
-          prettyIdentifier(l),
-          prettyIdentifier(r),
+          prettyName(l),
+          prettyName(r),
           joinType,
         )
     case StreamLeftIntervalJoin(_, _, lKeyFieldName, rIntrvlName, lEltName, rEltName, _) =>
@@ -350,28 +355,28 @@ class Pretty(
       builder += prettyIdentifier(rIntrvlName)
 
       if (!elideBindings) {
-        builder += prettyIdentifier(lEltName)
-        builder += prettyIdentifier(rEltName)
+        builder += prettyName(lEltName)
+        builder += prettyName(rEltName)
       }
 
       builder.underlying()
-    case StreamFor(_, valueName, _) if !elideBindings => single(prettyIdentifier(valueName))
-    case StreamAgg(_, name, _) if !elideBindings => single(prettyIdentifier(name))
-    case StreamAggScan(_, name, _) if !elideBindings => single(prettyIdentifier(name))
+    case StreamFor(_, valueName, _) if !elideBindings => single(prettyName(valueName))
+    case StreamAgg(_, name, _) if !elideBindings => single(prettyName(name))
+    case StreamAggScan(_, name, _) if !elideBindings => single(prettyName(name))
     case StreamGroupByKey(_, key, missingEqual) =>
       FastSeq(prettyIdentifiers(key), prettyBooleanLiteral(missingEqual))
     case AggFold(_, _, _, accumName, otherAccumName, isScan) => if (elideBindings)
         single(Pretty.prettyBooleanLiteral(isScan))
       else
         FastSeq(
-          prettyIdentifier(accumName),
-          prettyIdentifier(otherAccumName),
+          prettyName(accumName),
+          prettyName(otherAccumName),
           Pretty.prettyBooleanLiteral(isScan),
         )
     case AggExplode(_, name, _, isScan) => if (elideBindings)
         single(Pretty.prettyBooleanLiteral(isScan))
       else
-        FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(isScan))
+        FastSeq(prettyName(name), Pretty.prettyBooleanLiteral(isScan))
     case AggFilter(_, _, isScan) => single(Pretty.prettyBooleanLiteral(isScan))
     case AggGroupBy(_, _, isScan) => single(Pretty.prettyBooleanLiteral(isScan))
     case AggArrayPerElement(_, elementName, indexName, _, knownLength, isScan) => if (elideBindings)
@@ -381,16 +386,16 @@ class Pretty(
         )
       else
         FastSeq(
-          prettyIdentifier(elementName),
-          prettyIdentifier(indexName),
+          prettyName(elementName),
+          prettyName(indexName),
           Pretty.prettyBooleanLiteral(isScan),
           Pretty.prettyBooleanLiteral(knownLength.isDefined),
         )
-    case NDArrayMap(_, name, _) if !elideBindings => single(prettyIdentifier(name))
+    case NDArrayMap(_, name, _) if !elideBindings => single(prettyName(name))
     case NDArrayMap2(_, _, lName, rName, _, errorID) => if (elideBindings)
         single(s"$errorID")
       else
-        FastSeq(s"$errorID", prettyIdentifier(lName), prettyIdentifier(rName))
+        FastSeq(s"$errorID", prettyName(lName), prettyName(rName))
     case NDArrayReindex(_, indexExpr) => single(prettyInts(indexExpr, elideLiterals))
     case NDArrayConcat(_, axis) => single(axis.toString)
     case NDArrayAgg(_, axes) => single(prettyInts(axes, elideLiterals))
@@ -403,7 +408,7 @@ class Pretty(
     case NDArrayEigh(_, eigvalsOnly, errorID) => FastSeq(errorID.toString, eigvalsOnly.toString)
     case NDArrayInv(_, errorID) => single(s"$errorID")
     case ArraySort(_, l, r, _) if !elideBindings =>
-      FastSeq(prettyIdentifier(l), prettyIdentifier(r))
+      FastSeq(prettyName(l), prettyName(r))
     case ArrayRef(_, _, errorID) => single(s"$errorID")
     case ApplyIR(function, typeArgs, _, _, errorID) => FastSeq(
         s"$errorID",
@@ -423,7 +428,7 @@ class Pretty(
     case In(i, typ) => FastSeq(typ.toString, i.toString)
     case Die(_, typ, errorID) => FastSeq(typ.parsableString(), errorID.toString)
     case CollectDistributedArray(_, _, cname, gname, _, _, staticID, _) if !elideBindings =>
-      FastSeq(staticID, prettyIdentifier(cname), prettyIdentifier(gname))
+      FastSeq(staticID, prettyName(cname), prettyName(gname))
     case MatrixRead(typ, dropCols, dropRows, reader) =>
       FastSeq(
         if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
@@ -477,13 +482,13 @@ class Pretty(
     case BlockMatrixMap(_, name, _, needsDense) => if (elideBindings)
         single(Pretty.prettyBooleanLiteral(needsDense))
       else
-        FastSeq(prettyIdentifier(name), Pretty.prettyBooleanLiteral(needsDense))
+        FastSeq(prettyName(name), Pretty.prettyBooleanLiteral(needsDense))
     case BlockMatrixMap2(_, _, lName, rName, _, sparsityStrategy) => if (elideBindings)
         single(Pretty.prettyClass(sparsityStrategy))
       else
         FastSeq(
-          prettyIdentifier(lName),
-          prettyIdentifier(rName),
+          prettyName(lName),
+          prettyName(rName),
           Pretty.prettyClass(sparsityStrategy),
         )
     case MatrixRowsHead(_, n) => single(n.toString)
@@ -532,8 +537,8 @@ class Pretty(
       FastSeq(prettyIntOpt(nPartitions), bufferSize.toString)
     case TableExplode(_, path) => single(prettyStrings(path))
     case TableMapPartitions(_, g, p, _, requestedKey, allowedOverlap) => FastSeq(
-        prettyIdentifier(g),
-        prettyIdentifier(p),
+        prettyName(g),
+        prettyName(p),
         requestedKey.toString,
         allowedOverlap.toString,
       )
@@ -564,8 +569,8 @@ class Pretty(
     case TableGen(_, _, cname, gname, _, partitioner, errorId) =>
       implicit val jsonFormats = DefaultFormats
       FastSeq(
-        prettyIdentifier(cname),
-        prettyIdentifier(gname), {
+        prettyName(cname),
+        prettyName(gname), {
           val boundsJson =
             Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.toJSON)))
           list(
@@ -614,9 +619,9 @@ class Pretty(
         )(RelationalSpec.formats)),
         Pretty.prettyBooleanLiteral(keep),
       )
-    case RelationalLetTable(name, _, _) => single(prettyIdentifier(name))
-    case RelationalLetMatrixTable(name, _, _) => single(prettyIdentifier(name))
-    case RelationalLetBlockMatrix(name, _, _) => single(prettyIdentifier(name))
+    case RelationalLetTable(name, _, _) => single(prettyName(name))
+    case RelationalLetMatrixTable(name, _, _) => single(prettyName(name))
+    case RelationalLetBlockMatrix(name, _, _) => single(prettyName(name))
     case ReadPartition(_, rowType, reader) =>
       FastSeq(rowType.parsableString(), prettyStringLiteral(JsonMethods.compact(reader.toJValue)))
     case WritePartition(_, _, writer) =>
@@ -674,7 +679,7 @@ class Pretty(
   def ssaStyle(ir: BaseIR): String = {
     def childIsStrict(ir: BaseIR, i: Int): Boolean = blockArgs(ir, i).isEmpty
 
-    def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(String, String)]] = ir match {
+    def blockArgs(ir: BaseIR, i: Int): Option[IndexedSeq[(Name, String)]] = ir match {
       case If(_, _, _) =>
         if (i > 0) Some(FastSeq()) else None
       case _: Switch =>
@@ -738,66 +743,91 @@ class Pretty(
       case CollectDistributedArray(_, _, cname, gname, _, _, _, _) =>
         if (i == 2) Some(Array(cname -> "ctx", gname -> "g")) else None
       case TableAggregate(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
+        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case MatrixAggregate(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "sa" -> "col", "va" -> "row", "g" -> "entry"))
+        if (i == 1) Some(Array(
+          MatrixIR.globalName -> "g",
+          MatrixIR.colName -> "col",
+          MatrixIR.rowName -> "row",
+          MatrixIR.entryName -> "entry",
+        ))
         else None
       case TableFilter(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
+        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case TableMapGlobals(_, _) =>
-        if (i == 1) Some(Array("global" -> "g")) else None
+        if (i == 1) Some(Array(TableIR.globalName -> "g")) else None
       case TableMapRows(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
+        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case TableAggregateByKey(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "row" -> "row")) else None
+        if (i == 1) Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row")) else None
       case TableKeyByAndAggregate(_, _, _, _, _) =>
         if (i == 1 || i == 2)
-          Some(Array("global" -> "g", "row" -> "row"))
+          Some(Array(TableIR.globalName -> "g", TableIR.rowName -> "row"))
         else None
       case TableMapPartitions(_, g, p, _, _, _) =>
         if (i == 1) Some(Array(g -> "g", p -> "part")) else None
       case MatrixMapRows(_, _) =>
         if (i == 1) Some(Array(
-          "global" -> "g",
-          "va" -> "row",
-          "sa" -> "col",
-          "g" -> "entry",
-          "n_cols" -> "n_cols",
+          MatrixIR.globalName -> "g",
+          MatrixIR.rowName -> "row",
+          MatrixIR.colName -> "col",
+          MatrixIR.entryName -> "entry",
+          Name("n_cols") -> "n_cols",
         ))
         else None
       case MatrixFilterRows(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "va" -> "row")) else None
+        if (i == 1) Some(Array(MatrixIR.globalName -> "g", MatrixIR.rowName -> "row")) else None
       case MatrixMapCols(_, _, _) =>
         if (i == 1) Some(Array(
-          "global" -> "g",
-          "va" -> "row",
-          "sa" -> "col",
-          "g" -> "entry",
-          "n_rows" -> "n_rows",
+          MatrixIR.globalName -> "g",
+          MatrixIR.rowName -> "row",
+          MatrixIR.colName -> "col",
+          MatrixIR.entryName -> "entry",
+          Name("n_rows") -> "n_rows",
         ))
         else None
       case MatrixFilterCols(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "sa" -> "col")) else None
+        if (i == 1) Some(Array(MatrixIR.globalName -> "g", MatrixIR.colName -> "col")) else None
       case MatrixMapEntries(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "sa" -> "col", "va" -> "row", "g" -> "entry"))
+        if (i == 1) Some(Array(
+          MatrixIR.globalName -> "g",
+          MatrixIR.colName -> "col",
+          MatrixIR.rowName -> "row",
+          MatrixIR.entryName -> "entry",
+        ))
         else None
       case MatrixFilterEntries(_, _) =>
-        if (i == 1) Some(Array("global" -> "g", "sa" -> "col", "va" -> "row", "g" -> "entry"))
+        if (i == 1) Some(Array(
+          MatrixIR.globalName -> "g",
+          MatrixIR.colName -> "col",
+          MatrixIR.rowName -> "row",
+          MatrixIR.entryName -> "entry",
+        ))
         else None
       case MatrixMapGlobals(_, _) =>
-        if (i == 1) Some(Array("global" -> "g")) else None
+        if (i == 1) Some(Array(MatrixIR.globalName -> "g")) else None
       case MatrixAggregateColsByKey(_, _, _) =>
         if (i == 1)
-          Some(Array("global" -> "g", "va" -> "row", "sa" -> "col", "g" -> "entry"))
+          Some(Array(
+            MatrixIR.globalName -> "g",
+            MatrixIR.rowName -> "row",
+            MatrixIR.colName -> "col",
+            MatrixIR.entryName -> "entry",
+          ))
         else if (i == 2)
-          Some(Array("global" -> "g", "sa" -> "col"))
+          Some(Array(MatrixIR.globalName -> "g", MatrixIR.colName -> "col"))
         else
           None
       case MatrixAggregateRowsByKey(_, _, _) =>
         if (i == 1)
-          Some(Array("global" -> "g", "va" -> "row", "sa" -> "col", "g" -> "entry"))
+          Some(Array(
+            MatrixIR.globalName -> "g",
+            MatrixIR.rowName -> "row",
+            MatrixIR.colName -> "col",
+            MatrixIR.entryName -> "entry",
+          ))
         else if (i == 2)
-          Some(Array("global" -> "g", "va" -> "row"))
+          Some(Array(MatrixIR.globalName -> "g", MatrixIR.rowName -> "row"))
         else
           None
       case BlockMatrixMap(_, eltName, _, _) =>
@@ -825,9 +855,9 @@ class Pretty(
       case _ => ""
     }
 
-    def uniqueify(base: String, origName: Option[String]): String = {
+    def uniqueify(base: String, origName: Option[Name]): String = {
       if (preserveNames && origName.nonEmpty) {
-        origName.get
+        origName.get.str
       } else {
         if (base.isEmpty) {
           identCounter += 1
@@ -849,7 +879,7 @@ class Pretty(
       ir: BaseIR,
       bindings: Env[String],
       prefix: String,
-      origName: Option[String],
+      origName: Option[Name],
       scope: Int = Scope.EVAL,
     ): (Doc, String) = {
       val (pre, body) = pretty(ir, bindings)
@@ -863,7 +893,7 @@ class Pretty(
       (doc, ident)
     }
 
-    def prettyBlock(ir: BaseIR, newBindings: IndexedSeq[(String, String)], bindings: Env[String])
+    def prettyBlock(ir: BaseIR, newBindings: IndexedSeq[(Name, String)], bindings: Env[String])
       : Doc = {
       val args = newBindings.map { case (name, base) => name -> s"%${uniqueify(base, Some(name))}" }
       val blockBindings = bindings.bindIterable(args)

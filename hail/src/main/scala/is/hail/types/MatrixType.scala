@@ -1,7 +1,7 @@
 package is.hail.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR}
+import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -208,26 +208,31 @@ case class MatrixType(
   @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind(globalBindings: _*)
 
-  def globalBindings: IndexedSeq[(String, Type)] =
-    FastSeq("global" -> globalType)
+  def globalBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(MatrixIR.globalName -> globalType)
 
   @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
     .bind(rowBindings: _*)
 
-  def rowBindings: IndexedSeq[(String, Type)] =
-    FastSeq("global" -> globalType, "va" -> rowType)
+  def rowBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(MatrixIR.globalName -> globalType, MatrixIR.rowName -> rowType)
 
   @transient lazy val colEnv: Env[Type] = Env.empty[Type]
     .bind(colBindings: _*)
 
-  def colBindings: IndexedSeq[(String, Type)] =
-    FastSeq("global" -> globalType, "sa" -> colType)
+  def colBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(MatrixIR.globalName -> globalType, MatrixIR.colName -> colType)
 
   @transient lazy val entryEnv: Env[Type] = Env.empty[Type]
     .bind(entryBindings: _*)
 
-  def entryBindings: IndexedSeq[(String, Type)] =
-    FastSeq("global" -> globalType, "sa" -> colType, "va" -> rowType, "g" -> entryType)
+  def entryBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(
+      MatrixIR.globalName -> globalType,
+      MatrixIR.colName -> colType,
+      MatrixIR.rowName -> rowType,
+      MatrixIR.entryName -> entryType,
+    )
 
   def requireRowKeyVariant(): Unit = {
     val rowKeyTypes = rowKeyStruct.types

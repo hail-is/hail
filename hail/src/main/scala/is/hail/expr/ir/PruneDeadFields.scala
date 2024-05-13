@@ -14,7 +14,7 @@ object PruneDeadFields {
 
   case class ComputeMutableState(
     requestedType: Memo[BaseType],
-    relationalRefs: mutable.HashMap[String, BoxedArrayBuilder[Type]],
+    relationalRefs: mutable.HashMap[Name, BoxedArrayBuilder[Type]],
   ) {
     def rebuildState: RebuildMutableState =
       RebuildMutableState(requestedType, mutable.HashMap.empty)
@@ -22,7 +22,7 @@ object PruneDeadFields {
 
   case class RebuildMutableState(
     requestedType: Memo[BaseType],
-    relationalRefs: mutable.HashMap[String, Type],
+    relationalRefs: mutable.HashMap[Name, Type],
   )
 
   def subsetType(t: Type, path: Array[String], index: Int = 0): Type = {
@@ -336,19 +336,19 @@ object PruneDeadFields {
     val e = bt match {
       case tt: TableType =>
         Env.empty[Type]
-          .bind("row", tt.rowType)
-          .bind("global", tt.globalType)
+          .bind(TableIR.rowName, tt.rowType)
+          .bind(TableIR.globalName, tt.globalType)
       case mt: MatrixType =>
         Env.empty[Type]
-          .bind("global", mt.globalType)
-          .bind("sa", mt.colType)
-          .bind("va", mt.rowType)
-          .bind("g", mt.entryType)
+          .bind(MatrixIR.globalName, mt.globalType)
+          .bind(MatrixIR.colName, mt.colType)
+          .bind(MatrixIR.rowName, mt.rowType)
+          .bind(MatrixIR.entryName, mt.entryType)
     }
     BindingEnv(e, Some(e), Some(e))
   }
 
-  def uses(name: String, env: Env[BoxedArrayBuilder[Type]]): Array[Type] =
+  def uses(name: Name, env: Env[BoxedArrayBuilder[Type]]): Array[Type] =
     env.lookupOption(name).map(_.result()).getOrElse(Array.empty)
 
   def memoizeTableIR(
@@ -1190,7 +1190,7 @@ object PruneDeadFields {
     val depEnv = memoizeValueIR(ctx, ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastSeq(depEnv.eval) ++ FastSeq(depEnv.agg, depEnv.scan).flatten)
 
-    val expectedBindingSet = Set("row", "global")
+    val expectedBindingSet = Set(TableIR.rowName, TableIR.globalName)
     depEnvUnified.m.keys.foreach { k =>
       if (!expectedBindingSet.contains(k))
         throw new RuntimeException(s"found unexpected free variable in pruning: $k\n" +
@@ -1199,9 +1199,9 @@ object PruneDeadFields {
     }
 
     val min = minimal(base)
-    val rowType = unifySeq(base.rowType, Array(min.rowType) ++ uses("row", depEnvUnified))
+    val rowType = unifySeq(base.rowType, Array(min.rowType) ++ uses(TableIR.rowName, depEnvUnified))
     val globalType =
-      unifySeq(base.globalType, Array(min.globalType) ++ uses("global", depEnvUnified))
+      unifySeq(base.globalType, Array(min.globalType) ++ uses(TableIR.globalName, depEnvUnified))
     TableType(
       key = FastSeq(),
       rowType = rowType.asInstanceOf[TStruct],
@@ -1222,7 +1222,14 @@ object PruneDeadFields {
     val depEnv = memoizeValueIR(ctx, ir, requestedType, memo)
     val depEnvUnified = concatEnvs(FastSeq(depEnv.eval) ++ FastSeq(depEnv.agg, depEnv.scan).flatten)
 
-    val expectedBindingSet = Set("va", "sa", "g", "global", "n_rows", "n_cols")
+    val expectedBindingSet = Set(
+      MatrixIR.rowName,
+      MatrixIR.colName,
+      MatrixIR.entryName,
+      MatrixIR.globalName,
+      Name("n_rows"),
+      Name("n_cols"),
+    )
     depEnvUnified.m.keys.foreach { k =>
       if (!expectedBindingSet.contains(k))
         throw new RuntimeException(
@@ -1231,13 +1238,13 @@ object PruneDeadFields {
     }
 
     val globalType =
-      unifySeq(base.globalType, uses("global", depEnvUnified))
+      unifySeq(base.globalType, uses(MatrixIR.globalName, depEnvUnified))
         .asInstanceOf[TStruct]
-    val rowType = unifySeq(base.rowType, uses("va", depEnvUnified))
+    val rowType = unifySeq(base.rowType, uses(MatrixIR.rowName, depEnvUnified))
       .asInstanceOf[TStruct]
-    val colType = unifySeq(base.colType, uses("sa", depEnvUnified))
+    val colType = unifySeq(base.colType, uses(MatrixIR.colName, depEnvUnified))
       .asInstanceOf[TStruct]
-    val entryType = unifySeq(base.entryType, uses("g", depEnvUnified))
+    val entryType = unifySeq(base.entryType, uses(MatrixIR.entryName, depEnvUnified))
       .asInstanceOf[TStruct]
 
     if (rowType.hasField(MatrixType.entriesIdentifier))
@@ -2587,12 +2594,12 @@ object PruneDeadFields {
           }
         case ts: TStream =>
           val ra = rType.asInstanceOf[TStream]
-          val uid = genUID()
+          val uid = freshName()
           val ref = Ref(uid, ts.elementType)
           StreamMap(ir, uid, upcast(ctx, ref, ra.elementType))
         case ts: TArray =>
           val ra = rType.asInstanceOf[TArray]
-          val uid = genUID()
+          val uid = freshName()
           val ref = Ref(uid, ts.elementType)
           ToArray(StreamMap(ToStream(ir), uid, upcast(ctx, ref, ra.elementType)))
         case _: TTuple =>
@@ -2640,21 +2647,27 @@ object PruneDeadFields {
       }
 
       if (upcastEntries && mt.typ.entryType != rType.entryType)
-        mt = MatrixMapEntries(mt, upcast(ctx, Ref("g", mt.typ.entryType), rType.entryType))
+        mt = MatrixMapEntries(
+          mt,
+          upcast(ctx, Ref(MatrixIR.entryName, mt.typ.entryType), rType.entryType),
+        )
 
       if (upcastRows && mt.typ.rowType != rType.rowType)
-        mt = MatrixMapRows(mt, upcast(ctx, Ref("va", mt.typ.rowType), rType.rowType))
+        mt = MatrixMapRows(mt, upcast(ctx, Ref(MatrixIR.rowName, mt.typ.rowType), rType.rowType))
 
       if (upcastCols && (mt.typ.colType != rType.colType || mt.typ.colKey != rType.colKey)) {
         mt = MatrixMapCols(
           mt,
-          upcast(ctx, Ref("sa", mt.typ.colType), rType.colType),
+          upcast(ctx, Ref(MatrixIR.colName, mt.typ.colType), rType.colType),
           if (rType.colKey == mt.typ.colKey) None else Some(rType.colKey),
         )
       }
 
       if (upcastGlobals && mt.typ.globalType != rType.globalType)
-        mt = MatrixMapGlobals(mt, upcast(ctx, Ref("global", ir.typ.globalType), rType.globalType))
+        mt = MatrixMapGlobals(
+          mt,
+          upcast(ctx, Ref(MatrixIR.globalName, ir.typ.globalType), rType.globalType),
+        )
 
       mt
     }
@@ -2676,11 +2689,15 @@ object PruneDeadFields {
         table = TableKeyBy(table, rType.key)
       }
       if (upcastRow && ir.typ.rowType != rType.rowType) {
-        table = TableMapRows(table, upcast(ctx, Ref("row", table.typ.rowType), rType.rowType))
+        table =
+          TableMapRows(table, upcast(ctx, Ref(TableIR.rowName, table.typ.rowType), rType.rowType))
       }
       if (upcastGlobals && ir.typ.globalType != rType.globalType) {
         table =
-          TableMapGlobals(table, upcast(ctx, Ref("global", table.typ.globalType), rType.globalType))
+          TableMapGlobals(
+            table,
+            upcast(ctx, Ref(TableIR.globalName, table.typ.globalType), rType.globalType),
+          )
       }
       table
     }

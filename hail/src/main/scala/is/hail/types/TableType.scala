@@ -41,14 +41,14 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
   @transient lazy val globalEnv: Env[Type] =
     Env.empty[Type].bind(globalBindings: _*)
 
-  def globalBindings: IndexedSeq[(String, Type)] =
-    FastSeq("global" -> globalType)
+  def globalBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(TableIR.globalName -> globalType)
 
   @transient lazy val rowEnv: Env[Type] =
     Env.empty[Type].bind(rowBindings: _*)
 
-  def rowBindings: IndexedSeq[(String, Type)] =
-    FastSeq("global" -> globalType, "row" -> rowType)
+  def rowBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(TableIR.globalName -> globalType, TableIR.rowName -> rowType)
 
   def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
 
