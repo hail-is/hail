@@ -595,22 +595,22 @@ def test_tree_matmul(block_matrix_bindings, x, y):
     _assert_eq(lhs, rhs)
 
 
-# @fails_service_backend()
-# @fails_local_backend()
-# @pytest.mark.parametrize(
-#     'nrows,ncols,block_size,split_size',
-#     [
-#         (nrows, ncols, block_size, split_size)
-#         for (nrows, ncols) in [(50, 60), (60, 25)]
-#         for block_size in [7, 10]
-#         for split_size in [2, 9]
-#     ],
-# )
-# def test_tree_matmul_splits(block_size, split_size, nrows, ncols):
-#     # Variety of block sizes and splits
-#     ndarray = np.arange(nrows * ncols).reshape((nrows, ncols))
-#     bm = BlockMatrix.from_numpy(ndarray, block_size)
-#     _assert_eq(bm.tree_matmul(bm.T, splits=split_size), ndarray @ ndarray.T)
+@fails_service_backend()
+@fails_local_backend()
+@pytest.mark.parametrize(
+    'nrows,ncols,block_size,split_size',
+    [
+        (nrows, ncols, block_size, split_size)
+        for (nrows, ncols) in [(50, 60), (60, 25)]
+        for block_size in [7, 10]
+        for split_size in [2, 9]
+    ],
+)
+def test_tree_matmul_splits(block_size, split_size, nrows, ncols):
+    # Variety of block sizes and splits
+    ndarray = np.arange(nrows * ncols).reshape((nrows, ncols))
+    bm = BlockMatrix.from_numpy(ndarray, block_size)
+    _assert_eq(bm.tree_matmul(bm.T, splits=split_size), ndarray @ ndarray.T)
 
 
 def test_fill():
