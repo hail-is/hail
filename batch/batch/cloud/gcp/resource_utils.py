@@ -256,6 +256,62 @@ MACHINE_TYPE_TO_PARTS = {
         machine_family='a2',
         worker_type='highgpu',
     ),
+    'a2-highgpu-2g': MachineTypeParts(
+        cores=24,
+        memory=gib_to_bytes(170),
+        gpu_config=GPUConfig(num_gpus=2, gpu_type='a100-40gb'),
+        machine_family='a2',
+        worker_type='highgpu',
+    ),
+    'a2-highgpu-4g': MachineTypeParts(
+        cores=48,
+        memory=gib_to_bytes(340),
+        gpu_config=GPUConfig(num_gpus=4, gpu_type='a100-40gb'),
+        machine_family='a2',
+        worker_type='highgpu',
+    ),
+    'a2-highgpu-8g': MachineTypeParts(
+        cores=96,
+        memory=gib_to_bytes(680),
+        gpu_config=GPUConfig(num_gpus=8, gpu_type='a100-40gb'),
+        machine_family='a2',
+        worker_type='highgpu',
+    ),
+    'a2-megagpu-16g': MachineTypeParts(
+        cores=96,
+        memory=gib_to_bytes(1360),
+        gpu_config=GPUConfig(num_gpus=16, gpu_type='a100-40gb'),
+        machine_family='a2',
+        worker_type='megagpu',
+    ),
+    'a2-ultragpu-1g': MachineTypeParts(
+        cores=12,
+        memory=gib_to_bytes(170),
+        gpu_config=GPUConfig(num_gpus=1, gpu_type='a100-80gb'),
+        machine_family='a2',
+        worker_type='ultragpu',
+    ),
+    'a2-ultragpu-2g': MachineTypeParts(
+        cores=24,
+        memory=gib_to_bytes(340),
+        gpu_config=GPUConfig(num_gpus=2, gpu_type='a100-80gb'),
+        machine_family='a2',
+        worker_type='ultragpu',
+    ),
+    'a2-ultragpu-4g': MachineTypeParts(
+        cores=48,
+        memory=gib_to_bytes(680),
+        gpu_config=GPUConfig(num_gpus=4, gpu_type='a100-80gb'),
+        machine_family='a2',
+        worker_type='ultragpu',
+    ),
+    'a2-ultragpu-8g': MachineTypeParts(
+        cores=96,
+        memory=gib_to_bytes(1360),
+        gpu_config=GPUConfig(num_gpus=8, gpu_type='a100-80gb'),
+        machine_family='a2',
+        worker_type='ultragpu',
+    ),
 }
 
 
@@ -264,6 +320,7 @@ gcp_valid_cores_from_worker_type = {
     'standard': [1, 2, 4, 8, 16, 32, 64, 96],
     'highmem': [2, 4, 8, 16, 32, 64, 96],
     'highgpu': [12, 24, 48, 96],
+    'megagpu': [96],
 }
 
 

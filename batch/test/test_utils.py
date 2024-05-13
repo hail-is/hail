@@ -49,6 +49,15 @@ def test_gcp_machine_memory_per_core_mib():
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 924
         elif machine_parts.machine_family == 'g2' and machine_parts.worker_type == 'standard':
             assert int(machine_parts.memory / machine_parts.cores / 1024**2) == 4096
+        elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'highgpu':
+            assert machine_parts.gpu_config
+            assert int(machine_parts.memory / machine_parts.gpu_config.num_gpus / 1024**3) == 85
+        elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'megagpu':
+            assert machine_parts.gpu_config
+            assert int(machine_parts.memory / machine_parts.gpu_config.num_gpus / 1024**3) == 85
+        elif machine_parts.machine_family == 'a2' and machine_parts.worker_type == 'ultragpu':
+            assert machine_parts.gpu_config
+            assert int(machine_parts.memory / machine_parts.gpu_config.num_gpus / 1024**3) == 170
 
 
 def test_azure_machine_memory_per_core_mib():
