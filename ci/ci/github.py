@@ -876,15 +876,6 @@ class WatchedBranch(Code):
                 else:
                     self.deploy_state = 'failure'
 
-                if not is_test_deployment and self.deploy_state == 'failure':
-                    url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
-                    deploy_failure_message = f"""
-state: {self.deploy_state}
-branch: {self.branch.short_str()}
-sha: {self.sha}
-url: {url}
-"""
-                    await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
                 self.state_changed = True
 
     async def _heal_deploy(self, db: Database, batch_client: BatchClient, frozen: bool):
@@ -987,19 +978,7 @@ mkdir -p {shq(repo_dir)}
                 },
                 callback=CALLBACK_URL,
             )
-            try:
-                config.build(deploy_batch, self, scope='deploy')
-            except Exception as e:
-                deploy_failure_message = f"""
-branch: {self.branch.short_str()}
-sha: {self.sha}
-Deploy config failed to build with exception:
-```python
-{e}
-```
-"""
-                await send_zulip_deploy_failure_message(deploy_failure_message, db, self.sha)
-                raise
+            config.build(deploy_batch, self, scope='deploy')
             await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
