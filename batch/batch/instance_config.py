@@ -44,10 +44,6 @@ class InstanceConfig(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def instance_memory(self) -> int:
         raise NotImplementedError
 
@@ -94,34 +90,33 @@ class InstanceConfig(abc.ABC):
             cost_per_msec += quantity * rate_unit_msec
         return cost_per_msec * 1000 * 60 * 60
 
-    def cost_per_hour(
+    # The price a user pays to rent a portion of this instance
+    def price_per_hour(
         self,
         resource_rates: Dict[str, float],
         cpu_in_mcpu: int,
         memory_in_bytes: int,
         storage_in_gb: int,
     ) -> float:
-        resources = self.quantified_resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
-        return InstanceConfig._cost_per_hour_from_resources(resource_rates, resources)
+        resources_billed_to_user = self.quantified_resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+        return InstanceConfig._cost_per_hour_from_resources(resource_rates, resources_billed_to_user)
 
-    def cost_per_hour_from_cores(
+    def entire_instance_price_per_hour(
         self,
         resource_rates: Dict[str, float],
-        utilized_cores_mcpu: int,
     ) -> float:
-        assert 0 <= utilized_cores_mcpu <= self.cores * 1000
-        if self.job_private:
-            assert utilized_cores_mcpu == self.cores * 1000
-            memory_in_bytes = self.instance_memory()
-        else:
-            memory_in_bytes = self.cores_mcpu_to_memory_bytes(utilized_cores_mcpu)
-        storage_in_gb = 0  # we don't need to account for external storage
-        return self.cost_per_hour(resource_rates, utilized_cores_mcpu, memory_in_bytes, storage_in_gb)
+        return self.price_per_hour(
+            resource_rates,
+            self.cores * 1000,
+            self.instance_memory(),
+            0,  # we don't need to account for external storage
+        )
 
-    def actual_cost_per_hour(self, resource_rates: Dict[str, float]) -> float:
+    # The cost of procuring this instance from the cloud provider
+    def cost_per_hour(self, resource_rates: Dict[str, float]) -> float:
         cpu_in_mcpu = self.cores * 1000
         memory_in_bytes = self.instance_memory()
         storage_in_gb = 0  # we don't need to account for external storage
-        resources = self.quantified_resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
-        resources = [r for r in resources if 'service-fee' not in r['name']]
-        return InstanceConfig._cost_per_hour_from_resources(resource_rates, resources)
+        resources_billed_to_user = self.quantified_resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+        resources_charged_by_the_cloud = [r for r in resources_billed_to_user if 'service-fee' not in r['name']]
+        return InstanceConfig._cost_per_hour_from_resources(resource_rates, resources_charged_by_the_cloud)

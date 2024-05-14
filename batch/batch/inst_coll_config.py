@@ -211,10 +211,9 @@ WHERE pools.name = %s;
 
         return None
 
-    def cost_per_hour(self, resource_rates, product_versions, location, cores_mcpu, memory_bytes, storage_gib):
+    def price_per_hour(self, resource_rates, product_versions, location, cores_mcpu, memory_bytes, storage_gib):
         instance_config = self.instance_config(product_versions, location)
-        cost_per_hour = instance_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
-        return cost_per_hour
+        return instance_config.price_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
 
 
 class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
@@ -330,11 +329,11 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         self.resource_rates = resource_rates
         self.product_versions.update(product_versions_data)
 
-    def select_pool_from_cost(self, cloud, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_cheapest_price_pool(self, cloud, cores_mcpu, memory_bytes, storage_bytes, preemptible):
         assert self.resource_rates is not None
 
         optimal_result = None
-        optimal_cost = None
+        optimal_price = None
         for pool in self.name_pool_config.values():
             if pool.cloud != cloud or pool.preemptible != preemptible:
                 continue
@@ -343,9 +342,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
             if result:
                 maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib = result
 
-                max_regional_maybe_cost = None
+                max_regional_maybe_price = None
                 for location in possible_cloud_locations(pool.cloud):
-                    maybe_cost = pool.cost_per_hour(
+                    maybe_price = pool.price_per_hour(
                         self.resource_rates,
                         self.product_versions,
                         location,
@@ -353,13 +352,13 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                         maybe_memory_bytes,
                         maybe_storage_gib,
                     )
-                    if max_regional_maybe_cost is None or maybe_cost > max_regional_maybe_cost:
-                        max_regional_maybe_cost = maybe_cost
+                    if max_regional_maybe_price is None or maybe_price > max_regional_maybe_price:
+                        max_regional_maybe_price = maybe_price
 
-                if optimal_cost is None or (
-                    max_regional_maybe_cost is not None and max_regional_maybe_cost < optimal_cost
+                if optimal_price is None or (
+                    max_regional_maybe_price is not None and max_regional_maybe_price < optimal_price
                 ):
-                    optimal_cost = max_regional_maybe_cost
+                    optimal_price = max_regional_maybe_price
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
@@ -390,7 +389,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 preemptible=preemptible,
             )
         elif worker_type is None and machine_type is None:
-            result = self.select_pool_from_cost(
+            result = self.select_cheapest_price_pool(
                 cloud=cloud,
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,

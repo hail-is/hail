@@ -3,7 +3,6 @@ from typing import List, Union
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import (
-    gcp_cores_mcpu_to_memory_bytes,
     gcp_machine_type_to_parts,
     machine_type_to_gpu,
     machine_type_to_gpu_num,
@@ -116,9 +115,6 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     def instance_memory(self) -> int:
         return self.machine_type_parts.memory
-
-    def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
-        return gcp_cores_mcpu_to_memory_bytes(mcpu, self._instance_family, self.worker_type())
 
     def region_for(self, location: str) -> str:
         # location = zone
