@@ -58,13 +58,14 @@ object ServiceBackend {
     batchClient: BatchClient,
     batchId: Option[Long],
     jobGroupId: Option[Long],
-    scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+    scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
     rpcConfig: ServiceBackendRPCPayload,
+    env: Map[String, String],
   ): ServiceBackend = {
 
     val flags = HailFeatureFlags.fromMap(rpcConfig.flags)
     val shouldProfile = flags.get("profile") != null
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), Some(flags))
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), Some(flags), env)
 
     val backendContext = new ServiceBackendContext(
       rpcConfig.billing_project,
@@ -81,7 +82,7 @@ object ServiceBackend {
     val backend = new ServiceBackend(
       jarLocation,
       name,
-      new HailClassLoader(getClass().getClassLoader()),
+      theHailClassLoader,
       batchClient,
       batchId,
       jobGroupId,
@@ -160,7 +161,7 @@ class ServiceBackend(
   ): (String, String, Int) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
-    val token = tokenUrlSafe(32)
+    val token = tokenUrlSafe
     val root = s"${backendContext.remoteTmpDir}parallelizeAndComputeWithIndex/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
@@ -446,7 +447,7 @@ object ServiceBackendAPI {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None)
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json"
     )
@@ -475,6 +476,7 @@ object ServiceBackendAPI {
       jobGroupId,
       scratchDir,
       rpcConfig,
+      sys.env,
     )
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {

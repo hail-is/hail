@@ -161,6 +161,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
         ivy"org.scalatest::scalatest-shouldmatchers:3.2.18",
         ivy"org.scalatestplus::testng-7-9:3.2.18.0",
         ivy"org.testng:testng:7.9.0",
+        ivy"org.mockito::mockito-scala:1.17.31",
       )
 
     // needed to force IntelliJ to include resources in the classpath when running tests

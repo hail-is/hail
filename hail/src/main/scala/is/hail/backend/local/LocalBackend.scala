@@ -69,7 +69,7 @@ object LocalBackend {
 
 class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache {
 
-  private[this] val flags = HailFeatureFlags.fromEnv()
+  private[this] val flags = HailFeatureFlags.fromMap(sys.env)
   private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   def getFlag(name: String): String = flags.get(name)
@@ -81,7 +81,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     flags.available
 
   // flags can be set after construction from python
-  def fs: FS = FS.buildRoutes(None, Some(flags))
+  def fs: FS = FS.buildRoutes(None, Some(flags), sys.env)
 
   def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T = {
     val fs = this.fs

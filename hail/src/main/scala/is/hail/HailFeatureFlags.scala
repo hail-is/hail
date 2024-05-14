@@ -42,15 +42,6 @@ object HailFeatureFlags {
     (RequesterPaysConfig.Flags.RequesterPaysProject, "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
   )
 
-  def fromEnv(): HailFeatureFlags =
-    new HailFeatureFlags(
-      mutable.Map(
-        HailFeatureFlags.defaults.mapValues { case (env, default) =>
-          sys.env.getOrElse(env, default)
-        }.toFastSeq: _*
-      )
-    )
-
   def fromMap(m: Map[String, String]): HailFeatureFlags =
     new HailFeatureFlags(
       mutable.Map(

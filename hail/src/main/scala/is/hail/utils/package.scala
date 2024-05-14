@@ -97,6 +97,8 @@ package object utils
     extends Logging with richUtils.Implicits with NumericPairImplicits with utils.NumericImplicits
     with Py4jUtils with ErrorHandling {
 
+  type UtilsType = this.type
+
   def utilsPackageClass = getClass
 
   def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
@@ -947,7 +949,7 @@ package object utils
   def virtualOffsetCompressedOffset(offset: Long): Long =
     offset >> 16
 
-  def tokenUrlSafe(n: Int): String = {
+  def tokenUrlSafe: String = {
     val bytes = new Array[Byte](32)
     val random = new SecureRandom()
     random.nextBytes(bytes)

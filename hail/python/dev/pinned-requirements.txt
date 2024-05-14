@@ -226,6 +226,7 @@ mccabe==0.7.0
     # via pylint
 mistune==3.0.2
     # via nbconvert
+mock==5.1.0
 multidict==6.0.5
     # via
     #   aiohttp
@@ -327,6 +328,7 @@ pytest==7.4.4
     #   pytest-html
     #   pytest-instafail
     #   pytest-metadata
+    #   pytest-mock
     #   pytest-timeout
     #   pytest-xdist
 pytest-asyncio==0.21.2
@@ -336,6 +338,7 @@ pytest-html==1.22.1
 pytest-instafail==0.5.0
 pytest-metadata==3.1.1
     # via pytest-html
+pytest-mock==3.14.0
 pytest-timeout==2.3.1
 pytest-timestamper==0.0.10
 pytest-xdist==2.5.0
