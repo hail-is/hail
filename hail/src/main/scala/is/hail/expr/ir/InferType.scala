@@ -52,7 +52,6 @@ object InferType {
       case _: InitFromSerializedValue => TVoid
       case _: SerializeAggs => TVoid
       case _: DeserializeAggs => TVoid
-      case _: Begin => TVoid
       case Die(_, t, _) => t
       case Trap(child) => TTuple(TTuple(TString, TInt32), child.typ)
       case ConsoleLog(_, result) => result.typ

@@ -464,8 +464,6 @@ object Copy {
         SerializeAggs(startIdx, serIdx, spec, aggSigs)
       case DeserializeAggs(startIdx, serIdx, spec, aggSigs) =>
         DeserializeAggs(startIdx, serIdx, spec, aggSigs)
-      case Begin(_) =>
-        Begin(newChildren.map(_.asInstanceOf[IR]))
       case x @ ApplyAggOp(_, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         assert(args.length == x.nInitArgs + x.nSeqOpArgs)

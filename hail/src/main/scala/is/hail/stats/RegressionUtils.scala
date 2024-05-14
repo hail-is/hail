@@ -57,7 +57,6 @@ object RegressionUtils {
   // IndexedSeq indexed by column, Array by field
   def getColumnVariables(mv: MatrixValue, names: Array[String])
     : IndexedSeq[Array[Option[Double]]] = {
-    val colType = mv.typ.colType
     assert(names.forall(name => mv.typ.colType.field(name).typ == TFloat64))
     val fieldIndices = names.map { name =>
       val field = mv.typ.colType.field(name)

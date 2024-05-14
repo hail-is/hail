@@ -232,7 +232,6 @@ class MatrixIRSuite extends HailSuite {
 
   @Test(dataProvider = "explodeRowsData")
   def testMatrixExplode(path: IndexedSeq[String], collection: IndexedSeq[Integer]): Unit = {
-    val tarray = TArray(TInt32)
     val range = rangeMatrix(5, 2, None)
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))

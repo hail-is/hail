@@ -413,42 +413,100 @@ class LocalBackend(Backend[None]):
 
 
 class ServiceBackend(Backend[bc.Batch]):
-    ANY_REGION: ClassVar[List[str]] = ['any_region']
-
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
     --------
 
-    >>> service_backend = ServiceBackend(billing_project='my-billing-account', remote_tmpdir='gs://my-bucket/temporary-files/') # doctest: +SKIP
-    >>> b = Batch(backend=service_backend) # doctest: +SKIP
+    Create and use a backend that bills to the Hail Batch billing project named "my-billing-account"
+    and stores temporary intermediate files in "gs://my-bucket/temporary-files".
+
+    >>> import hailtop.batch as hb
+    >>> service_backend = hb.ServiceBackend(
+    ...     billing_project='my-billing-account',
+    ...     remote_tmpdir='gs://my-bucket/temporary-files/'
+    ... )  # doctest: +SKIP
+    >>> b = hb.Batch(backend=service_backend)  # doctest: +SKIP
+    >>> j = b.new_job()  # doctest: +SKIP
+    >>> j.command('echo hello world!')  # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
-    >>> service_backend.close() # doctest: +SKIP
 
-    If the Hail configuration parameters batch/billing_project and
-    batch/remote_tmpdir were previously set with ``hailctl config set``, then
-    one may elide the `billing_project` and `remote_tmpdir` parameters.
+    Same as above, but set the billing project and temporary intermediate folders via a
+    configuration file::
 
-    >>> service_backend = ServiceBackend()
-    >>> b = Batch(backend=service_backend)
-    >>> b.run() # doctest: +SKIP
-    >>> service_backend.close()
+        cat >my-batch-script.py >>EOF
+        import hailtop.batch as hb
+        b = hb.Batch(backend=ServiceBackend())
+        j = b.new_job()
+        j.command('echo hello world!')
+        b.run()
+        EOF
+        hailctl config set batch/billing_project my-billing-account
+        hailctl config set batch/remote_tmpdir gs://my-bucket/temporary-files/
+        python3 my-batch-script.py
 
+    Same as above, but also specify the use of the :class:`.ServiceBackend` via configuration file::
+
+        cat >my-batch-script.py >>EOF
+        import hailtop.batch as hb
+        b = hb.Batch()
+        j = b.new_job()
+        j.command('echo hello world!')
+        b.run()
+        EOF
+        hailctl config set batch/billing_project my-billing-account
+        hailctl config set batch/remote_tmpdir gs://my-bucket/temporary-files/
+        hailctl config set batch/backend service
+        python3 my-batch-script.py
+
+    Create a backend which stores temporary intermediate files in
+    "https://my-account.blob.core.windows.net/my-container/tempdir".
+
+    >>> service_backend = hb.ServiceBackend(
+    ...     billing_project='my-billing-account',
+    ...     remote_tmpdir='https://my-account.blob.core.windows.net/my-container/tempdir'
+    ... )  # doctest: +SKIP
+
+    Require all jobs in all batches in this backend to execute in us-central1::
+
+    >>> b = hb.Batch(backend=hb.ServiceBackend(regions=['us-central1']))
+
+    Same as above, but using a configuration file::
+
+        hailctl config set batch/regions us-central1
+        python3 my-batch-script.py
+
+    Same as above, but using the ``HAIL_BATCH_REGIONS`` environment variable::
+
+        export HAIL_BATCH_REGIONS=us-central1
+        python3 my-batch-script.py
+
+    Permit jobs to execute in *either* us-central1 or us-east1::
+
+    >>> b = hb.Batch(backend=hb.ServiceBackend(regions=['us-central1', 'us-east1']))
+
+    Same as above, but using a configuration file::
+
+        hailctl config set batch/regions us-central1,us-east1
+
+    Allow reading or writing to buckets even though they are "cold" storage:
+
+    >>> b = hb.Batch(
+    ...     backend=hb.ServiceBackend(
+    ...         gcs_bucket_allow_list=['cold-bucket', 'cold-bucket2'],
+    ...     ),
+    ... )
 
     Parameters
     ----------
     billing_project:
         Name of billing project to use.
     bucket:
-        Name of bucket to use. Should not include the ``gs://`` prefix. Cannot be used with
-        `remote_tmpdir`. Temporary data will be stored in the "/batch" folder of this
-        bucket. This argument is deprecated. Use `remote_tmpdir` instead.
+        This argument is deprecated. Use `remote_tmpdir` instead.
     remote_tmpdir:
-        Temporary data will be stored in this cloud storage folder. Cannot be used with deprecated
-        argument `bucket`. Paths should match a GCS URI like gs://<BUCKET_NAME>/<PATH> or an ABS
-        URI of the form https://<ACCOUNT_NAME>.blob.core.windows.net/<CONTAINER_NAME>/<PATH>.
+        Temporary data will be stored in this cloud storage folder.
     google_project:
-        DEPRECATED. Please use gcs_requester_pays_configuration.
+        This argument is deprecated. Use `gcs_requester_pays_configuration` instead.
     gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
         If a string is provided, configure the Google Cloud Storage file system to bill usage to the
         project identified by that string. If a tuple is provided, configure the Google Cloud
@@ -458,14 +516,18 @@ class ServiceBackend(Backend[bc.Batch]):
         The authorization token to pass to the batch client.
         Should only be set for user delegation purposes.
     regions:
-        Cloud region(s) to run jobs in. Use py:staticmethod:`.ServiceBackend.supported_regions` to list the
-        available regions to choose from. Use py:attribute:`.ServiceBackend.ANY_REGION` to signify the default is jobs
-        can run in any available region. The default is jobs can run in any region unless a default value has
-        been set with hailctl. An example invocation is `hailctl config set batch/regions "us-central1,us-east1"`.
+        Cloud regions in which jobs may run. :attr:`.ServiceBackend.ANY_REGION` indicates jobs may
+        run in any region. If unspecified or ``None``, the ``batch/regions`` Hail configuration
+        variable is consulted. See examples above. If none of these variables are set, then jobs may
+        run in any region. :meth:`.ServiceBackend.supported_regions` lists the available regions.
     gcs_bucket_allow_list:
         A list of buckets that the :class:`.ServiceBackend` should be permitted to read from or write to, even if their
-        default policy is to use "cold" storage. Should look like ``["bucket1", "bucket2"]``.
+        default policy is to use "cold" storage.
+
     """
+
+    ANY_REGION: ClassVar[List[str]] = ['any_region']
+    """A special value that indicates a job may run in any region."""
 
     @staticmethod
     def supported_regions():

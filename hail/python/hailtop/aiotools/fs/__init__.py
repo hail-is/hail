@@ -1,6 +1,6 @@
 from .fs import AsyncFS, AsyncFSURL, AsyncFSFactory, MultiPartCreate, FileListEntry, FileStatus
 from .copier import Copier, CopyReport, SourceCopier, SourceReport, Transfer, TransferReport
-from .exceptions import UnexpectedEOFError, FileAndDirectoryError
+from .exceptions import UnexpectedEOFError, FileAndDirectoryError, IsABucketError
 from .stream import (
     ReadableStream,
     EmptyReadableStream,
@@ -29,4 +29,5 @@ __all__ = [
     'FileStatus',
     'FileAndDirectoryError',
     'UnexpectedEOFError',
+    'IsABucketError',
 ]

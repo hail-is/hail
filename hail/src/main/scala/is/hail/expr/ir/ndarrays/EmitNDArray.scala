@@ -593,7 +593,7 @@ object EmitNDArray {
                         shape.indices.map(idx => { (cb: EmitCodeBuilder, outerStep: Value[Long]) =>
                           // SlicingIndices is a map from my coordinates to my child's coordinates.
                           val whichSlicingAxis = slicingIndices(idx)
-                          val (start, stop, sliceStep) = slicingValueTriples(idx)
+                          val (_, _, sliceStep) = slicingValueTriples(idx)
                           val innerStep = cb.newLocal[Long](
                             "ndarray_producer_slice_child_step",
                             sliceStep * outerStep,

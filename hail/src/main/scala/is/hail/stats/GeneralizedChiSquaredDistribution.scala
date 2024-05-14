@@ -175,13 +175,13 @@ class DaviesAlgorithm(
   def truncation(_u: Double, _tausq: Double): Double = {
     counter()
     var u = _u
-    var tausq = _tausq
+    val tausq = _tausq
 
     var sum1 = 0.0
     var prod2 = 0.0
     var prod3 = 0.0
     var s = 0
-    var sum2 = (sigsq + tausq) * square(u)
+    val sum2 = (sigsq + tausq) * square(u)
     var prod1 = 2.0 * sum2
     u = 2.0 * u
 
@@ -587,7 +587,7 @@ object GeneralizedChiSquaredDistribution {
     assert(lim >= 0)
     assert(acc >= 0)
 
-    val (value, trace, fault) = new DaviesAlgorithm(c, n, lb, nc, lim, sigma).cdf(acc)
+    val (value, _, fault) = new DaviesAlgorithm(c, n, lb, nc, lim, sigma).cdf(acc)
 
     assert(fault >= 0 && fault <= 2, fault)
 

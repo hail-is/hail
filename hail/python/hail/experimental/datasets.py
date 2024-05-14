@@ -17,7 +17,7 @@ def _read_dataset(path: str) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockM
 
 
 def load_dataset(
-    name: str, version: Optional[str], reference_genome: Optional[str], region: str = 'us', cloud: str = 'gcp'
+    name: str, version: Optional[str], reference_genome: Optional[str], region: str = 'us-central1', cloud: str = 'gcp'
 ) -> Union[hl.Table, hl.MatrixTable, hl.linalg.BlockMatrix]:
     """Load a genetic dataset from Hail's repository.
 
@@ -27,7 +27,7 @@ def load_dataset(
     >>> mt = hl.experimental.load_dataset(name='gnomad_hgdp_1kg_subset_dense',
     ...                                   version='3.1.2',
     ...                                   reference_genome='GRCh38',
-    ...                                   region='us',
+    ...                                   region='us-central1',
     ...                                   cloud='gcp')
 
     Parameters
@@ -41,7 +41,8 @@ def load_dataset(
         Reference genome build, ``'GRCh37'`` or ``'GRCh38'``. Possibly ``None``
         for some datasets.
     region : :class:`str`
-        Specify region for bucket, ``'us'`` or ``'eu'``, (default is ``'us'``).
+        Specify region for bucket, ``'us'``, ``'us-central1'``, or ``'europe-west1'``, (default is
+        ``'us-central1'``).
     cloud : :class:`str`
         Specify if using Google Cloud Platform or Amazon Web Services,
         ``'gcp'`` or ``'aws'`` (default is ``'gcp'``).
@@ -49,14 +50,14 @@ def load_dataset(
     Note
     ----
     The ``'aws'`` `cloud` platform is currently only available for the ``'us'``
-    `region`. If `region` is ``'eu'``, `cloud` must be set to ``'gcp'``.
+    `region`.
 
     Returns
     -------
     :class:`.Table`, :class:`.MatrixTable`, or :class:`.BlockMatrix`
     """
 
-    valid_regions = {'us', 'eu'}
+    valid_regions = {'us', 'us-central1', 'europe-west1'}
     if region not in valid_regions:
         raise ValueError(
             f'Specify valid region parameter,'

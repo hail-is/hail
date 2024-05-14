@@ -57,7 +57,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPStaticSizedDiskResource.create(product_versions, 'pd-ssd', boot_disk_size_gb, region),
             data_disk_resource,
             GCPDynamicSizedDiskResource.create(product_versions, 'pd-ssd', region),
-            GCPIPFeeResource.create(product_versions, 1024),
+            GCPIPFeeResource.create(product_versions, 1024, preemptible),
             GCPServiceFeeResource.create(product_versions),
             GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]

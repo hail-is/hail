@@ -114,6 +114,9 @@ class LocalAsyncFSURL(AsyncFSURL):
     def __init__(self, path: str):
         self._path = path
 
+    def __repr__(self) -> str:
+        return f'LocalAsyncFSURL({self.path})'
+
     @property
     def bucket_parts(self) -> List[str]:
         return []
@@ -132,6 +135,9 @@ class LocalAsyncFSURL(AsyncFSURL):
 
     def with_path(self, path) -> 'LocalAsyncFSURL':
         return LocalAsyncFSURL(path)
+
+    def with_root_path(self) -> 'LocalAsyncFSURL':
+        return self.with_path('/')
 
     def __str__(self) -> str:
         return self._path
@@ -246,7 +252,7 @@ class LocalAsyncFS(AsyncFS):
         return url.startswith('file://') or '://' not in url
 
     @staticmethod
-    def parse_url(url: str) -> LocalAsyncFSURL:
+    def parse_url(url: str, *, error_if_bucket: bool = False) -> LocalAsyncFSURL:
         return LocalAsyncFSURL(LocalAsyncFS._get_path(url))
 
     @staticmethod

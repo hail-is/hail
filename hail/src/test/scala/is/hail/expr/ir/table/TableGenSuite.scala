@@ -20,7 +20,7 @@ class TableGenSuite extends HailSuite {
   implicit val execStrategy = ExecStrategy.lowering
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidContextsType: Unit = {
+  def testWithInvalidContextsType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(contexts = Some(Str("oh noes :'("))).typecheck()
     }
@@ -31,7 +31,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidGlobalsType: Unit = {
+  def testWithInvalidGlobalsType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(
         globals = Some(Str("oh noes :'(")),
@@ -44,7 +44,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidBodyType: Unit = {
+  def testWithInvalidBodyType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(body = Some(Str("oh noes :'("))).typecheck()
     }
@@ -54,7 +54,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidBodyElementType: Unit = {
+  def testWithInvalidBodyElementType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(body =
         Some(MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString)))
@@ -66,7 +66,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidPartitionerKeyType: Unit = {
+  def testWithInvalidPartitionerKeyType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(partitioner =
         Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
@@ -76,7 +76,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithTooLongPartitionerKeyType: Unit = {
+  def testWithTooLongPartitionerKeyType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(partitioner =
         Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
@@ -86,7 +86,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("requiredness"))
-  def testRequiredness: Unit = {
+  def testRequiredness(): Unit = {
     val table = mkTableGen()
     val analysis = Requiredness(table, ctx)
     analysis.lookup(table).required shouldBe true
@@ -94,14 +94,14 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("lowering"))
-  def testLowering: Unit = {
+  def testLowering(): Unit = {
     val table = TestUtils.collect(mkTableGen())
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     assertEvalsTo(lowered, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
   }
 
   @Test(groups = Array("lowering"))
-  def testNumberOfContextsMatchesPartitions: Unit = {
+  def testNumberOfContextsMatchesPartitions(): Unit = {
     val errorId = 42
     val table = TestUtils.collect(mkTableGen(
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
@@ -116,7 +116,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("lowering"))
-  def testRowsAreCorrectlyKeyed: Unit = {
+  def testRowsAreCorrectlyKeyed(): Unit = {
     val errorId = 56
     val table = TestUtils.collect(mkTableGen(
       partitioner = Some(new RVDPartitioner(
@@ -139,14 +139,14 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("optimization", "prune"))
-  def testPruneNoUnusedFields: Unit = {
+  def testPruneNoUnusedFields(): Unit = {
     val start = mkTableGen()
     val pruned = PruneDeadFields(ctx, start)
     pruned.typ shouldBe start.typ
   }
 
   @Test(groups = Array("optimization", "prune"))
-  def testPruneGlobals: Unit = {
+  def testPruneGlobals(): Unit = {
     val cname = "contexts"
     val start = mkTableGen(
       cname = Some(cname),
@@ -165,7 +165,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("optimization", "prune"))
-  def testPruneContexts: Unit = {
+  def testPruneContexts(): Unit = {
     val start = mkTableGen()
     val TableGetGlobals(pruned) = PruneDeadFields(ctx, TableGetGlobals(start))
     pruned.typ should not be start.typ

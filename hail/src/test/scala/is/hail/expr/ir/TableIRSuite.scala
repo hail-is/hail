@@ -914,7 +914,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableWrite(): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
@@ -927,7 +926,6 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testWriteKeyDistinctness(): Unit = {
-    implicit val execStrats = ExecStrategy.interpretOnly
     val rt = TableRange(40, 4)
     val idxRef = GetField(Ref("row", rt.typ.rowType), "idx")
     val at = TableMapRows(
@@ -1581,7 +1579,7 @@ class TableIRSuite extends HailSuite {
     )
   }
 
-  @Test def testRepartitionCostEstimate: Unit = {
+  @Test def testRepartitionCostEstimate(): Unit = {
     val empty = RVDPartitioner.empty(ctx.stateManager, TStruct(Array.empty[Field]))
     val some = RVDPartitioner.unkeyed(ctx.stateManager, _)
 

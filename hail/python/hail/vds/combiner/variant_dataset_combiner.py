@@ -428,19 +428,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             self._job_id += 1
 
     def _write_final(self, vds):
-        fd = VariantDataset.ref_block_max_length_field
-
-        if fd not in vds.reference_data.globals:
-            info("VDS combiner: computing reference block max length...")
-            max_len = vds.reference_data.aggregate_entries(
-                hl.agg.max(vds.reference_data.END + 1 - vds.reference_data.locus.position)
-            )
-            info(f"VDS combiner: max reference block length is {max_len}")
-            vds = VariantDataset(
-                reference_data=vds.reference_data.annotate_globals(**{fd: max_len}), variant_data=vds.variant_data
-            )
-
         vds.write(self._output_path)
+
+        if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
+            info("VDS combiner: computing reference block max length...")
+            hl.vds.store_ref_block_max_length(self._output_path)
 
     def _step_vdses(self):
         current_bin = original_bin = min(self._vdses)
@@ -677,6 +669,19 @@ def new_combiner(
         raise ValueError("at least one  of 'gvcf_paths' or 'vds_paths' must be nonempty")
     if gvcf_paths is None:
         gvcf_paths = []
+    if len(gvcf_paths) > 0:
+        if len(set(gvcf_paths)) != len(gvcf_paths):
+            duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_paths).items() if count > 1]
+            duplicates = '\n    '.join(duplicates)
+            raise ValueError(f'gvcf paths should be unique, the following paths are repeated:{duplicates}')
+        if gvcf_sample_names is not None and len(set(gvcf_sample_names)) != len(gvcf_sample_names):
+            duplicates = [gvcf for gvcf, count in collections.Counter(gvcf_sample_names).items() if count > 1]
+            duplicates = '\n    '.join(duplicates)
+            raise ValueError(
+                "provided sample names ('gvcf_sample_names') should be unique, "
+                f'the following names are repeated:{duplicates}'
+            )
+
     if vds_paths is None:
         vds_paths = []
     if vds_sample_counts is not None and len(vds_paths) != len(vds_sample_counts):

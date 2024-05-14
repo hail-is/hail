@@ -207,6 +207,7 @@ class ServiceBackend(Backend):
         gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
         gcs_bucket_allow_list: Optional[List[str]] = None,
     ):
+        async_exit_stack = AsyncExitStack()
         billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, billing_project, None)
         if billing_project is None:
             raise ValueError(
@@ -221,9 +222,11 @@ class ServiceBackend(Backend):
             gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration},
             gcs_bucket_allow_list=gcs_bucket_allow_list,
         )
+        async_exit_stack.push_async_callback(async_fs.close)
         sync_fs = RouterFS(async_fs)
         if batch_client is None:
             batch_client = await BatchClient.create(billing_project, _token=credentials_token)
+            async_exit_stack.push_async_callback(batch_client.close)
         batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
@@ -288,6 +291,7 @@ class ServiceBackend(Backend):
             worker_cores=worker_cores,
             worker_memory=worker_memory,
             regions=regions,
+            async_exit_stack=async_exit_stack,
         )
         sb._initialize_flags(flags)
         return sb
@@ -308,6 +312,7 @@ class ServiceBackend(Backend):
         worker_cores: Optional[Union[int, str]],
         worker_memory: Optional[str],
         regions: List[str],
+        async_exit_stack: AsyncExitStack,
     ):
         super(ServiceBackend, self).__init__()
         self.billing_project = billing_project
@@ -329,6 +334,7 @@ class ServiceBackend(Backend):
         self.regions = regions
 
         self._batch: Batch = self._create_batch()
+        self._async_exit_stack = async_exit_stack
 
     def _create_batch(self) -> Batch:
         return self._batch_client.create_batch(attributes=self.batch_attributes)
@@ -362,9 +368,7 @@ class ServiceBackend(Backend):
         hail_event_loop().run_until_complete(self._stop())
 
     async def _stop(self):
-        async with AsyncExitStack() as stack:
-            stack.push_async_callback(self._async_fs.close)
-            stack.push_async_callback(self._batch_client.close)
+        await self._async_exit_stack.aclose()
         self.functions = []
         self._registered_ir_function_names = set()
 

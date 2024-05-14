@@ -53,4 +53,10 @@ case class TLocus(rgName: String) extends Type {
     case TLocus(crgName) => rgName == crgName
     case _ => false
   }
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case l: TLocus => rgName == l.rgName
+      case _ => false
+    }
 }

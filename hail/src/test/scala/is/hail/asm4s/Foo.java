@@ -1,6 +1,6 @@
 package is.hail.asm4s;
 
-public class A {
+public class Foo {
     public static int j = 11;
     public int i = 5;
 

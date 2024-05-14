@@ -413,7 +413,7 @@ object NDArrayFunctions extends RegistryFunctions {
           SNDArrayPointerValue
         ]
         val row = cb.newLocal[Long]("rowIdx")
-        val IndexedSeq(nRows, nCols) = newBlock.shapes
+        val IndexedSeq(nRows, _) = newBlock.shapes
         cb.for_(
           cb.assign(row, 0L),
           row < nRows.get,

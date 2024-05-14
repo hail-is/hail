@@ -128,8 +128,13 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
     state.seqOp(cb, elt)
   }
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: TakeRVAS, other: TakeRVAS)
-    : Unit = state.combine(cb, other)
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: TakeRVAS,
+    other: TakeRVAS,
+  ): Unit = state.combine(cb, other)
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
     // deepCopy is handled by state.resultArray

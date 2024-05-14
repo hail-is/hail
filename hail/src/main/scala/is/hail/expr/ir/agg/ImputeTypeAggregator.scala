@@ -184,6 +184,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: ImputeTypeState,
     other: ImputeTypeState,
   ): Unit =

@@ -2,8 +2,8 @@ ARG BASE_IMAGE={{ base_image.image }}
 FROM $BASE_IMAGE AS base
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN curl --remote-name https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-421.0.0-linux-x86_64.tar.gz && \
-    tar -xf google-cloud-sdk-421.0.0-linux-x86_64.tar.gz && \
+RUN curl --remote-name https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-447.0.0-linux-x86_64.tar.gz && \
+    tar -xf google-cloud-sdk-447.0.0-linux-x86_64.tar.gz && \
     curl --remote-name https://dl.k8s.io/release/v1.21.14/bin/linux/amd64/kubectl && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin

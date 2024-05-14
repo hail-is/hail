@@ -20,7 +20,6 @@ import scala.reflect.ClassTag
 
 import java.util
 
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.{Partitioner, SparkContext, TaskContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
@@ -44,7 +43,7 @@ class RVD(
   self =>
   require(crdd.getNumPartitions == partitioner.numPartitions)
 
-  require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
+  require(typ.kType.virtualType isJoinableWith partitioner.kType)
 
   // Basic accessors
 
@@ -1198,7 +1197,6 @@ object RVD {
       def _coerce(typ: RVDType, crdd: CRDD): RVD = empty(execCtx, typ)
     }
 
-    val numPartitions = keys.getNumPartitions
     val keyInfo = getKeyInfo(execCtx, fullType, partitionKey, keys)
 
     if (keyInfo.isEmpty)
@@ -1408,7 +1406,6 @@ object RVD {
       _makeIndexWriter(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
 
     val partDigits = digitsNeeded(nPartitions)
-    val fileDigits = digitsNeeded(rvds.length)
     for (i <- 0 until nRVDs) {
       val path = paths(i)
       fs.mkDir(path + "/rows/rows/parts")
@@ -1456,7 +1453,6 @@ object RVD {
         .par
         .foreach { case (partFiles, i) =>
           val fs = fsBc.value
-          val s = StringUtils.leftPad(i.toString, fileDigits, '0')
           val basePath = paths(i)
           RichContextRDDRegionValue.writeSplitSpecs(
             fs,

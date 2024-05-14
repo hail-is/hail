@@ -384,17 +384,10 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       newPField(name, st),
     )
 
-  private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
-    mutable.Map()
-
-  private[this] val pTypeMap: mutable.Map[PType, Value[_ <: PType]] = mutable.Map()
-
   private[this] type CompareMapKey = (SType, SType)
 
   private[this] val memoizedComparisons: mutable.Map[CompareMapKey, CodeOrdering] =
     mutable.Map[CompareMapKey, CodeOrdering]()
-
-  def numTypes: Int = typMap.size
 
   private[this] val decodedLiteralsField = genFieldThisRef[Array[Long]]("decoded_lits")
 
