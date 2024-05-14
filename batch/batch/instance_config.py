@@ -44,10 +44,6 @@ class InstanceConfig(abc.ABC):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
-        raise NotImplementedError
-
-    @abc.abstractmethod
     def instance_memory(self) -> int:
         raise NotImplementedError
 

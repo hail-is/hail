@@ -4,7 +4,7 @@ from hailtop.utils import filter_none
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import azure_cores_mcpu_to_memory_bytes, azure_machine_type_to_parts
+from .resource_utils import azure_machine_type_to_parts
 from .resources import (
     AzureDynamicSizedDiskResource,
     AzureIPFeeResource,
@@ -84,9 +84,6 @@ class AzureSlimInstanceConfig(InstanceConfig):
 
     def instance_memory(self) -> int:
         return self.machine_type_parts.memory
-
-    def cores_mcpu_to_memory_bytes(self, mcpu: int) -> int:
-        return azure_cores_mcpu_to_memory_bytes(mcpu, self.worker_type())
 
     def region_for(self, location: str) -> str:
         return location
