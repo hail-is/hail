@@ -217,8 +217,6 @@ object Let {
 case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
 
 final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
-//  assert(bindings.map(_.name).areDistinct(), bindings.map(_.name.str))
-
   override lazy val size: Int =
     bindings.length + 1
 }
