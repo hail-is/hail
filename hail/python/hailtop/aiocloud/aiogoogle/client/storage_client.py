@@ -2,12 +2,12 @@ import os
 from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, List, Coroutine
 from types import TracebackType
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
-import sys
 import logging
 import asyncio
 import urllib.parse
 import aiohttp
 import datetime
+from contextlib import AsyncExitStack
 from hailtop import timex
 from hailtop.utils import secret_alnum_string, OnlineBoundedGather2, TransientError, retry_transient_errors
 from hailtop.aiotools.fs import (
@@ -69,39 +69,53 @@ class PageIterator:
         raise StopAsyncIteration
 
 
+async def _cleanup_future(fut: asyncio.Future):
+    if not fut.done():
+        fut.cancel()
+    await asyncio.wait([fut])
+    if not fut.cancelled():
+        if exc := fut.exception():
+            raise exc
+
+
 class InsertObjectStream(WritableStream):
     def __init__(self, it: FeedableAsyncIterable[bytes], request_task: asyncio.Task[aiohttp.ClientResponse]):
         super().__init__()
         self._it = it
         self._request_task = request_task
         self._value = None
+        self._exit_stack = AsyncExitStack()
+
+        async def cleanup_request_task():
+            if not self._request_task.cancelled():
+                try:
+                    async with await self._request_task as response:
+                        self._value = await response.json()
+                except AttributeError as err:
+                    raise ValueError(repr(self._request_task)) from err
+            await _cleanup_future(self._request_task)
+
+        self._exit_stack.push_async_callback(cleanup_request_task)
 
     async def write(self, b):
         assert not self.closed
 
         fut = asyncio.ensure_future(self._it.feed(b))
-        try:
-            await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
-            if fut.done() and not fut.cancelled():
-                if exc := fut.exception():
-                    raise exc
-                return len(b)
-            raise ValueError('request task finished early')
-        finally:
-            fut.cancel()
+        self._exit_stack.push_async_callback(_cleanup_future, fut)
+
+        await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
+        if fut.done():
+            await fut
+            return len(b)
+        raise ValueError('request task finished early')
 
     async def _wait_closed(self):
-        fut = asyncio.ensure_future(self._it.stop())
         try:
+            fut = asyncio.ensure_future(self._it.stop())
+            self._exit_stack.push_async_callback(_cleanup_future, fut)
             await asyncio.wait([fut, self._request_task], return_when=asyncio.FIRST_COMPLETED)
-            async with await self._request_task as resp:
-                self._value = await resp.json()
         finally:
-            if fut.done() and not fut.cancelled():
-                if exc := fut.exception():
-                    raise exc
-            else:
-                fut.cancel()
+            await self._exit_stack.aclose()
 
 
 class _TaskManager:
@@ -119,25 +133,10 @@ class _TaskManager:
     ) -> None:
         assert self._task is not None
 
-        if not self._task.done():
-            if exc_val:
-                self._task.cancel()
-                try:
-                    value = await self._task
-                    if self._closable:
-                        value.close()
-                except:
-                    _, exc, _ = sys.exc_info()
-                    if exc is not exc_val:
-                        log.warning('dropping preempted task exception', exc_info=True)
-            else:
-                value = await self._task
-                if self._closable:
-                    value.close()
+        if self._closable and self._task.done() and not self._task.cancelled():
+            (await self._task).close()
         else:
-            value = await self._task
-            if self._closable:
-                value.close()
+            await _cleanup_future(self._task)
 
 
 class ResumableInsertObjectStream(WritableStream):
@@ -526,7 +525,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
         return self
 
     async def _compose(self, names: List[str], dest_name: str):
-        await self._fs._storage_client.compose(self._bucket, names, dest_name)
+        await retry_transient_errors(self._fs._storage_client.compose, self._bucket, names, dest_name)
 
     async def __aexit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
@@ -560,18 +559,27 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
-                    chunk_tasks = [pool.call(tree_compose, c, n) for c, n in zip(chunks, chunk_names)]
+                    async with AsyncExitStack() as stack:
+                        chunk_tasks = []
+                        for chunk, name in zip(chunks, chunk_names):
+                            fut = pool.call(tree_compose, chunk, name)
+                            stack.push_async_callback(_cleanup_future, fut)
+                            chunk_tasks.append(fut)
 
-                    await pool.wait(chunk_tasks)
+                        await pool.wait(chunk_tasks)
 
                     await self._compose(chunk_names, dest_name)
 
                     for name in chunk_names:
-                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{name}')
+                        await pool.call(
+                            retry_transient_errors, self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{name}'
+                        )
 
                 await tree_compose([self._part_name(i) for i in range(self._num_parts)], self._dest_name)
             finally:
-                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
+                await retry_transient_errors(
+                    self._fs.rmtree, self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}'
+                )
 
 
 class GoogleStorageAsyncFSURL(AsyncFSURL):

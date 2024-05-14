@@ -54,7 +54,7 @@ idna==3.6
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   yarl
-multidict==6.0.4
+multidict==6.0.5
     # via
     #   -c hail/batch/../gear/pinned-requirements.txt
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
@@ -62,7 +62,7 @@ multidict==6.0.4
     #   -c hail/batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-numpy==1.26.3
+numpy==1.26.4
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
@@ -75,7 +75,7 @@ pandas==2.2.0
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
-plotly==5.18.0
+plotly==5.19.0
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   -r hail/batch/requirements.txt
@@ -85,7 +85,7 @@ python-dateutil==2.8.2
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
-pytz==2023.4
+pytz==2024.1
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas
@@ -104,7 +104,7 @@ typing-extensions==4.9.0
     #   -c hail/batch/../hail/python/dev/pinned-requirements.txt
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   aiodocker
-tzdata==2023.4
+tzdata==2024.1
     # via
     #   -c hail/batch/../hail/python/pinned-requirements.txt
     #   pandas

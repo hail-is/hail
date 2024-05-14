@@ -188,7 +188,7 @@ steps:
       valueFrom: hail_ubuntu_image.image
     script: |
       set -ex
-      pip install pip-tools==6.13.0
+      pip install pip-tools==7.4.0
       cd /io/repo
       chmod 755 ./check_pip_requirements.sh
       ./check_pip_requirements.sh \
@@ -1867,7 +1867,7 @@ steps:
       COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
                          auth /api/v1alpha/copy-paste-token \
                          -fsSL \
-                         --retry 3 \
+                         --retry 10 \
                          --retry-delay 5 \
                          -XPOST)
       hailctl auth copy-paste-login "$COPY_PASTE_TOKEN"
@@ -1929,7 +1929,7 @@ steps:
       COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
                          auth /api/v1alpha/copy-paste-token \
                          -fsSL \
-                         --retry 3 \
+                         --retry 10 \
                          --retry-delay 5 \
                          -XPOST)
       sleep $(( 5 * 60 + 1))
@@ -2360,6 +2360,9 @@ steps:
         online: true
       - name: remove-v2-billing-tables
         script: /io/sql/remove-v2-billing-tables.sql
+        online: true
+      - name: finalize-job-groups
+        script: /io/sql/finalize-job-groups.sql
         online: true
     inputs:
       - from: /repo/batch/sql
@@ -3354,22 +3357,24 @@ steps:
       time retry sh millw --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
 
-      bash scripts/release.sh $(cat /io/hail_pip_version) \
-                              $(cat /io/hail_version) \
-                              $(cat /io/git_version) \
-                              origin \
-                              /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
-                              /io/github-oauth \
-                              docker://{{ hailgenetics_hail_image.image }} \
-                              docker://{{ hailgenetics_hailtop_image.image }} \
-                              docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-                              docker://{{ hailgenetics_hail_image_python_3_11.image }} \
-                              docker://{{ hailgenetics_vep_grch37_85_image.image }} \
-                              docker://{{ hailgenetics_vep_grch38_95_image.image }} \
-                              /io/wheel-for-azure/hail-*-py3-none-any.whl \
-                              /io/www.tar.gz \
-                              {{ global.gcp_project }} \
-                              /io/repo/infra/gcp-broad/gcp-ar-cleanup-policy.txt
+      echo Setting arguments and invoking release.sh.
+
+      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      HAIL_VERSION=$(cat /io/hail_version)
+      GIT_VERSION=$(cat /io/git_version)
+      REMOTE=origin
+      WHEEL=/io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl
+      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
+      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }}
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }}
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }}
+      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }}
+      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }}
+      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }}
+      WHEEL_FOR_AZURE=/io/wheel-for-azure/hail-*-py3-none-any.whl
+      WEBSITE_TAR=/io/www.tar.gz
+
+      bash scripts/release.sh
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3976,7 +3981,6 @@ steps:
     scopes:
       - deploy
     script: |
-      gcloud auth activate-service-account --key-file=/gsa-key/key.json
       gcloud artifacts repositories set-cleanup-policies hail \
         --project={{ global.gcp_project }} \
         --location=us \

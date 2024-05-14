@@ -55,7 +55,7 @@ critically depend on experimental functionality.**
 
 ## Version 0.2.128
 
-Released 2024-02-15
+Released 2024-02-16
 
 In GCP, the Hail Annotation DB and Datasets API have moved from multi-regional US and EU buckets to
 regional US-CENTRAL1 and EUROPE-WEST1 buckets. These buckets are requester pays which means unless

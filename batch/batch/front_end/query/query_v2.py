@@ -1,5 +1,7 @@
 from typing import Any, List, Optional, Tuple
 
+from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
+
 from ...exceptions import QueryError
 from .operators import (
     GreaterThanEqualOperator,
@@ -10,19 +12,19 @@ from .operators import (
 )
 from .query import (
     BatchBillingProjectQuery,
-    BatchCostQuery,
-    BatchDurationQuery,
-    BatchEndTimeQuery,
     BatchIdQuery,
-    BatchKeywordQuery,
-    BatchQuotedExactMatchQuery,
-    BatchStartTimeQuery,
     BatchStateQuery,
-    BatchUnquotedPartialMatchQuery,
     BatchUserQuery,
     JobCostQuery,
     JobDurationQuery,
     JobEndTimeQuery,
+    JobGroupCostQuery,
+    JobGroupDurationQuery,
+    JobGroupEndTimeQuery,
+    JobGroupKeywordQuery,
+    JobGroupQuotedExactMatchQuery,
+    JobGroupStartTimeQuery,
+    JobGroupUnquotedPartialMatchQuery,
     JobIdQuery,
     JobInstanceCollectionQuery,
     JobInstanceQuery,
@@ -58,8 +60,8 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
     queries: List[Query] = []
 
     # logic to make time interval queries fast
-    min_start_gt_query: Optional[BatchStartTimeQuery] = None
-    max_end_lt_query: Optional[BatchEndTimeQuery] = None
+    min_start_gt_query: Optional[JobGroupStartTimeQuery] = None
+    max_end_lt_query: Optional[JobGroupEndTimeQuery] = None
 
     if q:
         terms = q.rstrip().lstrip().split('\n')
@@ -69,9 +71,9 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
             if len(statement) == 1:
                 word = statement[0]
                 if word[0] == '"':
-                    queries.append(BatchQuotedExactMatchQuery.parse(word))
+                    queries.append(JobGroupQuotedExactMatchQuery.parse(word))
                 else:
-                    queries.append(BatchUnquotedPartialMatchQuery.parse(word))
+                    queries.append(JobGroupUnquotedPartialMatchQuery.parse(word))
             elif len(statement) == 3:
                 left, op, right = statement
                 if left == 'batch_id':
@@ -83,42 +85,39 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
                 elif left == 'state':
                     queries.append(BatchStateQuery.parse(op, right))
                 elif left == 'start_time':
-                    st_query = BatchStartTimeQuery.parse(op, right)
+                    st_query = JobGroupStartTimeQuery.parse(op, right)
                     queries.append(st_query)
                     if (type(st_query.operator) in [GreaterThanOperator, GreaterThanEqualOperator]) and (
                         min_start_gt_query is None or min_start_gt_query.time_msecs >= st_query.time_msecs
                     ):
                         min_start_gt_query = st_query
                 elif left == 'end_time':
-                    et_query = BatchEndTimeQuery.parse(op, right)
+                    et_query = JobGroupEndTimeQuery.parse(op, right)
                     queries.append(et_query)
                     if (type(et_query.operator) in [LessThanOperator, LessThanEqualOperator]) and (
                         max_end_lt_query is None or max_end_lt_query.time_msecs <= et_query.time_msecs
                     ):
                         max_end_lt_query = et_query
                 elif left == 'duration':
-                    queries.append(BatchDurationQuery.parse(op, right))
+                    queries.append(JobGroupDurationQuery.parse(op, right))
                 elif left == 'cost':
-                    queries.append(BatchCostQuery.parse(op, right))
+                    queries.append(JobGroupCostQuery.parse(op, right))
                 else:
-                    queries.append(BatchKeywordQuery.parse(op, left, right))
+                    queries.append(JobGroupKeywordQuery.parse(op, left, right))
             else:
                 raise QueryError(f'could not parse term "{_term}"')
 
     # this is to make time interval queries fast by using the bounds on both indices
     if min_start_gt_query and max_end_lt_query and min_start_gt_query.time_msecs <= max_end_lt_query.time_msecs:
-        queries.append(BatchStartTimeQuery(max_end_lt_query.operator, max_end_lt_query.time_msecs))
-        queries.append(BatchEndTimeQuery(min_start_gt_query.operator, min_start_gt_query.time_msecs))
+        queries.append(JobGroupStartTimeQuery(max_end_lt_query.operator, max_end_lt_query.time_msecs))
+        queries.append(JobGroupEndTimeQuery(min_start_gt_query.operator, min_start_gt_query.time_msecs))
 
     # batch has already been validated
-    where_conditions = [
-        '(billing_project_users.`user` = %s)',
-        'NOT deleted',
-    ]
-    where_args: List[Any] = [user]
+    where_conditions = ['(billing_project_users.`user` = %s)', 'NOT deleted', 'job_groups.job_group_id = %s']
+    where_args: List[Any] = [user, ROOT_JOB_GROUP_ID]
 
     if last_batch_id is not None:
-        where_conditions.append('(batches.id < %s)')
+        where_conditions.append('(job_groups.batch_id < %s)')
         where_args.append(last_batch_id)
 
     for query in queries:
@@ -128,30 +127,38 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
 
     sql = f"""
 SELECT batches.*,
-  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  cancelled_t.cancelled IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
   cost_t.cost, cost_t.cost_breakdown
-FROM batches
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
-LEFT JOIN job_groups_n_jobs_in_complete_states ON batches.id = job_groups_n_jobs_in_complete_states.id
-LEFT JOIN job_groups_cancelled ON batches.id = job_groups_cancelled.id
+LEFT JOIN job_groups_n_jobs_in_complete_states ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS cancelled_t ON TRUE
 STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
-    SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
-    WHERE batches.id = aggregated_job_group_resources_v3.batch_id
-    GROUP BY batch_id, resource_id
+    WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
+    GROUP BY resource_id
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-  GROUP BY batch_id
 ) AS cost_t ON TRUE
 WHERE {' AND '.join(where_conditions)}
-ORDER BY id DESC
+ORDER BY batches.id DESC
 LIMIT 51;
 """
 
@@ -178,7 +185,9 @@ LIMIT 51;
 # <unquoted-partial-match-query> ::= <str>
 
 
-def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int]) -> Tuple[str, List[Any]]:
+def parse_job_group_jobs_query_v2(
+    batch_id: int, job_group_id: int, q: str, last_job_id: Optional[int], recursive: bool
+) -> Tuple[str, List[Any]]:
     queries: List[Query] = []
 
     # logic to make time interval queries fast
@@ -238,6 +247,19 @@ def parse_batch_jobs_query_v2(batch_id: int, q: str, last_job_id: Optional[int])
     where_conditions = ['(jobs.batch_id = %s AND batch_updates.committed)']
     where_args = [batch_id]
 
+    if recursive:
+        jg_cond = """
+((jobs.batch_id, jobs.job_group_id) IN
+ (SELECT batch_id, job_group_id FROM job_group_self_and_ancestors
+  WHERE batch_id = %s AND ancestor_id = %s))
+"""
+        where_args.extend([batch_id, job_group_id])
+    else:
+        jg_cond = '(jobs.job_group_id = %s)'
+        where_args.append(job_group_id)
+
+    where_conditions.append(jg_cond)
+
     if last_job_id is not None:
         where_conditions.append('(jobs.job_id > %s)')
         where_args.append(last_job_id)
@@ -281,13 +303,12 @@ LEFT JOIN job_attributes
 {attempts_table_join_str}
 LEFT JOIN LATERAL (
 SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-FROM (SELECT aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
   FROM aggregated_job_resources_v3
   WHERE aggregated_job_resources_v3.batch_id = jobs.batch_id AND aggregated_job_resources_v3.job_id = jobs.job_id
-  GROUP BY aggregated_job_resources_v3.batch_id, aggregated_job_resources_v3.job_id, aggregated_job_resources_v3.resource_id
+  GROUP BY aggregated_job_resources_v3.resource_id
 ) AS usage_t
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-GROUP BY usage_t.batch_id, usage_t.job_id
 ) AS cost_t ON TRUE
 WHERE {" AND ".join(where_conditions)}
 LIMIT 50;
