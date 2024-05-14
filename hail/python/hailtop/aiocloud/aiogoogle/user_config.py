@@ -14,8 +14,8 @@ GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
 
 
 def get_gcs_requester_pays_configuration(
-        *,
-        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
+    *,
+    gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
 ) -> Optional[GCSRequesterPaysConfiguration]:
     if gcs_requester_pays_configuration:
         return gcs_requester_pays_configuration
@@ -55,7 +55,7 @@ def get_gcs_requester_pays_configuration(
                 f'When reading GCS requester pays configuration from spark-defaults.conf '
                 f'({spark_conf.conf_path}), no mode is set, so requester pays '
                 f'will be disabled.'
-           )
+            )
         return None
 
     if spark_conf.mode == SparkConfGcsRequesterPaysMode.DISABLED:

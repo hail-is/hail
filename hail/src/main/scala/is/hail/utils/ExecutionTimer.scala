@@ -26,7 +26,9 @@ class TimeBlock(val name: String) {
 
     val selfPrefix = prefix :+ name
 
-    log.info(s"timing ${ selfPrefix.mkString("/") } total ${ formatTime(totalTime) } self ${ formatTime(totalTime - childrenTime ) } children ${ formatTime(childrenTime) } %children ${ formatDouble(childrenTime.toDouble * 100 / totalTime, 2) }%")
+    log.info(s"timing ${selfPrefix.mkString("/")} total ${formatTime(totalTime)} self ${formatTime(
+        totalTime - childrenTime
+      )} children ${formatTime(childrenTime)} %children ${formatDouble(childrenTime.toDouble * 100 / totalTime, 2)}%")
 
     var i = 0
     while (i < children.length) {
@@ -42,7 +44,8 @@ class TimeBlock(val name: String) {
       "total_time" -> totalTime,
       "self_time" -> (totalTime - childrenTime),
       "children_time" -> childrenTime,
-      "children" -> children.map(_.toMap))
+      "children" -> children.map(_.toMap),
+    )
   }
 }
 

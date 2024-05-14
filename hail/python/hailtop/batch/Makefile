@@ -6,4 +6,5 @@ doctest:
 	-r A \
 	--doctest-modules \
 	--ignore=docs/conf.py \
-	--doctest-glob='*.rst'
+	--doctest-glob='*.rst' \
+        --doctest-continue-on-failure

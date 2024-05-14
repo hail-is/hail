@@ -1,6 +1,7 @@
 from hail.genetics import Locus
 import hail as hl
 
+
 def test_constructor():
     l = Locus.parse('1:100')
 

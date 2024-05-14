@@ -15,20 +15,15 @@ class CalledProcessError(Exception):
         self.stderr = outerr[1]
 
     def __str__(self) -> str:
-        return (f'Command {self.argv} returned non-zero exit status {self.returncode}.'
-                f' Output:\n{self._outerr}')
+        return f'Command {self.argv} returned non-zero exit status {self.returncode}.' f' Output:\n{self._outerr}'
 
 
-async def check_exec_output(command: str,
-                            *args: str,
-                            echo: bool = False
-                            ) -> Tuple[bytes, bytes]:
+async def check_exec_output(command: str, *args: str, echo: bool = False) -> Tuple[bytes, bytes]:
     if echo:
         print([command, *args])
     proc = await asyncio.create_subprocess_exec(
-        command, *args,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE)
+        command, *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+    )
     outerr = await proc.communicate()
     assert proc.returncode is not None
     if proc.returncode != 0:

@@ -25,7 +25,6 @@ def test_deduplicate_max_attempts():
 
 
 def test_deduplicate_already_used():
-    mappings, new_ids = deduplicate(['0', '0_1', '0'],
-                                    already_used={'0_1', '0_2'})
+    mappings, new_ids = deduplicate(['0', '0_1', '0'], already_used={'0_1', '0_2'})
     assert mappings == [('0_1', '0_1_1'), ('0', '0_3')]
     assert new_ids == ['0', '0_1_1', '0_3']

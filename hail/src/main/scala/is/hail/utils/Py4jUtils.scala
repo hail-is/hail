@@ -2,13 +2,15 @@ package is.hail.utils
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.io.fs.{FS, FileListEntry, SeekableDataInputStream}
+import is.hail.io.fs.{FS, FileListEntry, FileStatus, SeekableDataInputStream}
 import is.hail.types.virtual.Type
-import org.json4s.JsonAST._
-import org.json4s.jackson.JsonMethods
+
+import scala.collection.JavaConverters._
 
 import java.io.{InputStream, OutputStream}
-import scala.collection.JavaConverters._
+
+import org.json4s.JsonAST._
+import org.json4s.jackson.JsonMethods
 
 trait Py4jUtils {
   def arrayToArrayList[T](arr: Array[T]): java.util.ArrayList[T] = {
@@ -55,30 +57,41 @@ trait Py4jUtils {
     JsonMethods.compact(JArray(statuses.map(fs => fileListEntryToJson(fs)).toList))
   }
 
+  def fileStatus(fs: FS, path: String): String = {
+    val stat = fs.fileStatus(path)
+    JsonMethods.compact(fileStatusToJson(stat))
+  }
+
   def fileListEntry(fs: FS, path: String): String = {
     val stat = fs.fileListEntry(path)
     JsonMethods.compact(fileListEntryToJson(stat))
   }
 
-  private def fileListEntryToJson(fs: FileListEntry): JObject = {
+  private def fileStatusToJson(fs: FileStatus): JObject = {
     JObject(
       "path" -> JString(fs.getPath.toString),
       "size" -> JInt(fs.getLen),
-      "is_dir" -> JBool(fs.isDirectory),
       "is_link" -> JBool(fs.isSymlink),
       "modification_time" ->
         (if (fs.getModificationTime != null)
-          JString(
-            new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ").format(
-              new java.util.Date(fs.getModificationTime)))
-        else
-          JNull),
+           JString(
+             new java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSSZ").format(
+               new java.util.Date(fs.getModificationTime)
+             )
+           )
+         else
+           JNull),
       "owner" -> (
         if (fs.getOwner != null)
           JString(fs.getOwner)
         else
-          JNull))
+          JNull
+      ),
+    )
   }
+
+  private def fileListEntryToJson(fs: FileListEntry): JObject =
+    JObject(fileStatusToJson(fs).obj :+ ("is_dir" -> JBool(fs.isDirectory)))
 
   private val kilo: Long = 1024
   private val mega: Long = kilo * 1024
@@ -98,9 +111,8 @@ trait Py4jUtils {
       formatDigits(bytes, tera) + "T"
   }
 
-  private def formatDigits(n: Long, factor: Long): String = {
+  private def formatDigits(n: Long, factor: Long): String =
     "%.1f".format(n / factor.toDouble)
-  }
 
   def readFile(fs: FS, path: String, buffSize: Int): HadoopSeekablePyReader =
     new HadoopSeekablePyReader(fs.fileListEntry(path), fs.openNoCompression(path), buffSize)
@@ -120,22 +132,18 @@ trait Py4jUtils {
     new HadoopPyWriter(fs.create(path))
   }
 
-  def addSocketAppender(hostname: String, port: Int) {
+  def addSocketAppender(hostname: String, port: Int): Unit =
     StringSocketAppender.get()
       .connect(hostname, port, HailContext.logFormat)
-  }
 
-  def logWarn(msg: String) {
+  def logWarn(msg: String): Unit =
     warn(msg)
-  }
 
-  def logInfo(msg: String) {
+  def logInfo(msg: String): Unit =
     info(msg)
-  }
 
-  def logError(msg: String) {
+  def logError(msg: String): Unit =
     error(msg)
-  }
 
   def makeJSON(t: Type, value: Any): String = {
     val jv = JSONAnnotationImpex.exportAnnotation(value, t)
@@ -158,12 +166,12 @@ class HadoopPyReader(in: InputStream, buffSize: Int) {
       buff.slice(0, bytesRead)
   }
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 }
 
-class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int) extends HadoopPyReader(in, buffSize) {
+class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream, buffSize: Int)
+    extends HadoopPyReader(in, buffSize) {
   def seek(pos: Long, whence: Int): Long = {
     // whence corresponds to python arguments to seek
     // it is validated in python
@@ -185,15 +193,13 @@ class HadoopSeekablePyReader(status: FileListEntry, in: SeekableDataInputStream,
 }
 
 class HadoopPyWriter(out: OutputStream) {
-  def write(b: Array[Byte]) {
+  def write(b: Array[Byte]): Unit =
     out.write(b)
-  }
 
-  def flush() {
+  def flush(): Unit =
     out.flush()
-  }
 
-  def close() {
+  def close(): Unit = {
     out.flush()
     out.close()
   }

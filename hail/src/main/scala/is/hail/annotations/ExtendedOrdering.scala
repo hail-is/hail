@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.utils._
+
 import org.apache.spark.sql.Row
 
 object ExtendedOrdering {
@@ -14,7 +15,8 @@ object ExtendedOrdering {
 
       override def lteqNonnull(x: T, y: T): Boolean = ord.lteq(x.asInstanceOf[S], y.asInstanceOf[S])
 
-      override def equivNonnull(x: T, y: T): Boolean = ord.equiv(x.asInstanceOf[S], y.asInstanceOf[S])
+      override def equivNonnull(x: T, y: T): Boolean =
+        ord.equiv(x.asInstanceOf[S], y.asInstanceOf[S])
     }
   }
 
@@ -91,29 +93,29 @@ object ExtendedOrdering {
       // ord can be null if the element type is a TVariable
       val elemOrd = if (ord != null) ord.toOrdering else null
 
-      def compareNonnull(x: T, y: T): Int = {
+      def compareNonnull(x: T, y: T): Int =
         itOrd.compareNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
-      }
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+        )
 
-      override def ltNonnull(x: T, y: T): Boolean = {
+      override def ltNonnull(x: T, y: T): Boolean =
         itOrd.ltNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
-      }
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+        )
 
-      override def lteqNonnull(x: T, y: T): Boolean = {
+      override def lteqNonnull(x: T, y: T): Boolean =
         itOrd.lteqNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
-      }
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+        )
 
-      override def equivNonnull(x: T, y: T): Boolean = {
+      override def equivNonnull(x: T, y: T): Boolean =
         itOrd.equivNonnull(
           x.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
-          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq)
-      }
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastSeq,
+        )
     }
 
   def setOrdering(ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
@@ -122,29 +124,29 @@ object ExtendedOrdering {
 
       val missingEqual = _missingEqual
 
-      def compareNonnull(x: T, y: T): Int = {
+      def compareNonnull(x: T, y: T): Int =
         saOrd.compareNonnull(
           x.asInstanceOf[Iterable[T]].toArray,
-          y.asInstanceOf[Iterable[T]].toArray)
-      }
+          y.asInstanceOf[Iterable[T]].toArray,
+        )
 
-      override def ltNonnull(x: T, y: T): Boolean = {
+      override def ltNonnull(x: T, y: T): Boolean =
         saOrd.ltNonnull(
           x.asInstanceOf[Iterable[T]].toArray,
-          y.asInstanceOf[Iterable[T]].toArray)
-      }
+          y.asInstanceOf[Iterable[T]].toArray,
+        )
 
-      override def lteqNonnull(x: T, y: T): Boolean = {
+      override def lteqNonnull(x: T, y: T): Boolean =
         saOrd.lteqNonnull(
           x.asInstanceOf[Iterable[T]].toArray,
-          y.asInstanceOf[Iterable[T]].toArray)
-      }
+          y.asInstanceOf[Iterable[T]].toArray,
+        )
 
-      override def equivNonnull(x: T, y: T): Boolean = {
+      override def equivNonnull(x: T, y: T): Boolean =
         saOrd.equivNonnull(
           x.asInstanceOf[Iterable[T]].toArray,
-          y.asInstanceOf[Iterable[T]].toArray)
-      }
+          y.asInstanceOf[Iterable[T]].toArray,
+        )
     }
 
   def mapOrdering(ord: ExtendedOrdering, _missingEqual: Boolean = true): ExtendedOrdering =
@@ -156,31 +158,35 @@ object ExtendedOrdering {
       private def toArrayOfT(x: T): Array[T] =
         x.asInstanceOf[Map[_, _]].iterator.map { case (k, v) => Row(k, v): T }.toArray
 
-      def compareNonnull(x: T, y: T): Int = {
+      def compareNonnull(x: T, y: T): Int =
         saOrd.compareNonnull(
-          toArrayOfT(x), toArrayOfT(y))
-      }
+          toArrayOfT(x),
+          toArrayOfT(y),
+        )
 
-      override def ltNonnull(x: T, y: T): Boolean = {
+      override def ltNonnull(x: T, y: T): Boolean =
         saOrd.ltNonnull(
-          toArrayOfT(x), toArrayOfT(y))
-      }
+          toArrayOfT(x),
+          toArrayOfT(y),
+        )
 
-      override def lteqNonnull(x: T, y: T): Boolean = {
+      override def lteqNonnull(x: T, y: T): Boolean =
         saOrd.lteqNonnull(
-          toArrayOfT(x), toArrayOfT(y))
-      }
+          toArrayOfT(x),
+          toArrayOfT(y),
+        )
 
-      override def equivNonnull(x: T, y: T): Boolean = {
+      override def equivNonnull(x: T, y: T): Boolean =
         saOrd.equivNonnull(
-          toArrayOfT(x), toArrayOfT(y))
-      }
+          toArrayOfT(x),
+          toArrayOfT(y),
+        )
     }
 
-  def rowOrdering(fieldOrd: Array[ExtendedOrdering], _missingEqual: Boolean = true): ExtendedOrdering =
+  def rowOrdering(fieldOrd: Array[ExtendedOrdering], _missingEqual: Boolean = true)
+    : ExtendedOrdering =
     new ExtendedOrdering {
       outer =>
-
       val missingEqual = _missingEqual
 
       override def compareNonnull(x: T, y: T): Int = {
@@ -281,7 +287,7 @@ abstract class ExtendedOrdering extends Serializable {
 
   def ltNonnull(x: T, y: T): Boolean = compareNonnull(x, y) < 0
 
-  def lteqNonnull(x: T, y: T): Boolean  = compareNonnull(x, y) <= 0
+  def lteqNonnull(x: T, y: T): Boolean = compareNonnull(x, y) <= 0
 
   def equivNonnull(x: T, y: T): Boolean = compareNonnull(x, y) == 0
 
@@ -401,7 +407,8 @@ abstract class ExtendedOrdering extends Serializable {
           Integer.compare(xs, ys)
       }
 
-      override def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint): Boolean = {
+      override def lteqWithOverlap(allowedOverlap: Int)(x: IntervalEndpoint, y: IntervalEndpoint)
+        : Boolean = {
         val xp = x.point
         val xs = x.sign
         val yp = y.point

@@ -11,7 +11,14 @@ log = logging.getLogger('compute_client')
 
 
 class GCPOperationError(Exception):
-    def __init__(self, status: int, message: str, error_codes: Optional[List[str]], error_messages: Optional[List[str]], response: Dict[str, Any]):
+    def __init__(
+        self,
+        status: int,
+        message: str,
+        error_codes: Optional[List[str]],
+        error_messages: Optional[List[str]],
+        response: Dict[str, Any],
+    ):
         super().__init__(message)
         self.status = status
         self.message = message
@@ -20,11 +27,19 @@ class GCPOperationError(Exception):
         self.response = response
 
     def __str__(self):
-        return f'GCPOperationError: {self.status}:{self.message} {self.error_codes} {self.error_messages}; {self.response}'
+        return (
+            f'GCPOperationError: {self.status}:{self.message} {self.error_codes} {self.error_messages}; {self.response}'
+        )
 
 
 class PagedIterator:
-    def __init__(self, client: 'GoogleComputeClient', path: str, request_params: Optional[MutableMapping[str, Any]], request_kwargs: Mapping[str, Any]):
+    def __init__(
+        self,
+        client: 'GoogleComputeClient',
+        path: str,
+        request_params: Optional[MutableMapping[str, Any]],
+        request_kwargs: Mapping[str, Any],
+    ):
         assert 'params' not in request_kwargs
         self._client = client
         self._path = path
@@ -88,7 +103,9 @@ class GoogleComputeClient(GoogleBaseClient):
     async def delete_disk(self, path: str, *, params: Optional[MutableMapping[str, Any]] = None, **kwargs):
         return await self.delete(path, params=params, **kwargs)
 
-    async def _request_with_zonal_operations_response(self, request_f, path, maybe_params: Optional[MutableMapping[str, Any]] = None, **kwargs):
+    async def _request_with_zonal_operations_response(
+        self, request_f, path, maybe_params: Optional[MutableMapping[str, Any]] = None, **kwargs
+    ):
         params = maybe_params or {}
         assert 'requestId' not in params
 
@@ -102,8 +119,9 @@ class GoogleComputeClient(GoogleBaseClient):
 
             tries = 0
             while True:
-                result = await self.post(f'/zones/{zone}/operations/{operation_id}/wait',
-                                         timeout=aiohttp.ClientTimeout(total=150))
+                result = await self.post(
+                    f'/zones/{zone}/operations/{operation_id}/wait', timeout=aiohttp.ClientTimeout(total=150)
+                )
                 if result['status'] == 'DONE':
                     error = result.get('error')
                     if error:
@@ -113,11 +131,13 @@ class GoogleComputeClient(GoogleBaseClient):
                         error_codes = [e['code'] for e in error['errors']]
                         error_messages = [e['message'] for e in error['errors']]
 
-                        raise GCPOperationError(result['httpErrorStatusCode'],
-                                                result['httpErrorMessage'],
-                                                error_codes,
-                                                error_messages,
-                                                result)
+                        raise GCPOperationError(
+                            result['httpErrorStatusCode'],
+                            result['httpErrorMessage'],
+                            error_codes,
+                            error_messages,
+                            result,
+                        )
 
                     return result
                 tries += 1

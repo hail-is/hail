@@ -6,29 +6,51 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.physical.stypes.concrete.{SUnreachableInterval, SUnreachableIntervalValue}
 import is.hail.types.virtual.{TInt32, TInterval}
 import is.hail.utils._
+
 import org.testng.annotations.Test
 
 class PIntervalSuite extends PhysicalTestUtils {
-  @Test def copyTests() {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false) {
-      copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64()),
+  @Test def copyTests(): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
+      copyTestExecutor(
+        PCanonicalInterval(PInt64()),
+        PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy,
+        interpret = interpret,
+      )
 
-      copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64()),
+      copyTestExecutor(
+        PCanonicalInterval(PInt64(true)),
+        PCanonicalInterval(PInt64()),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy,
+        interpret = interpret,
+      )
 
-      copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
+      copyTestExecutor(
+        PCanonicalInterval(PInt64(true)),
+        PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy,
+        interpret = interpret,
+      )
 
-      copyTestExecutor(PCanonicalInterval(PInt64()), PCanonicalInterval(PInt64(true)),
+      copyTestExecutor(
+        PCanonicalInterval(PInt64()),
+        PCanonicalInterval(PInt64(true)),
         Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
-        deepCopy = deepCopy, interpret = interpret)
+        deepCopy = deepCopy,
+        interpret = interpret,
+      )
 
-      copyTestExecutor(PCanonicalInterval(PInt64(true)), PCanonicalInterval(PInt64(true)),
-        Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)), deepCopy = deepCopy, interpret = interpret)
+      copyTestExecutor(
+        PCanonicalInterval(PInt64(true)),
+        PCanonicalInterval(PInt64(true)),
+        Interval(IntervalEndpoint(1000L, 1), IntervalEndpoint(1000L, 1)),
+        deepCopy = deepCopy,
+        interpret = interpret,
+      )
     }
 
     runTests(true)

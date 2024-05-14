@@ -27,7 +27,7 @@ def lgt_to_gt(lgt, la):
     local_alleles=expr_array(expr_int32),
     n_alleles=expr_int32,
     fill_value=expr_any,
-    number=enumeration('A', 'R', 'G')
+    number=enumeration('A', 'R', 'G'),
 )
 def local_to_global(array, local_alleles, n_alleles, fill_value, number):
     """Reindex a locally-indexed array to globally-indexed.

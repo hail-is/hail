@@ -3,11 +3,10 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
-import is.hail.types.physical.PSet
-import is.hail.utils._
-import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{classTag, ClassTag}
+
+import org.json4s.jackson.JsonMethods
 
 final case class TSet(elementType: Type) extends TContainer {
   def _toPretty = s"Set[$elementType]"
@@ -33,7 +32,7 @@ final case class TSet(elementType: Type) extends TContainer {
   def _typeCheck(a: Any): Boolean =
     a.isInstanceOf[Set[_]] && a.asInstanceOf[Set[_]].forall(elementType.typeCheck)
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("Set[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
@@ -47,10 +46,10 @@ final case class TSet(elementType: Type) extends TContainer {
       .map { case elt => elementType.showStr(elt) }
       .mkString("{", ",", "}")
 
-
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = Gen.buildableOf[Set](elementType.genValue(sm))
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
+    Gen.buildableOf[Set](elementType.genValue(sm))
 
   override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 

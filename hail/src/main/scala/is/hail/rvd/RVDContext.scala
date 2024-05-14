@@ -2,15 +2,14 @@ package is.hail.rvd
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.backend.HailStateManager
-import is.hail.utils._
 
 import scala.collection.mutable
 
 object RVDContext {
 
   def default(pool: RegionPool) = {
-    val partRegion = Region(pool=pool)
-    val ctx = new RVDContext(partRegion, Region(pool=pool))
+    val partRegion = Region(pool = pool)
+    val ctx = new RVDContext(partRegion, Region(pool = pool))
     ctx.own(partRegion)
     ctx
   }
@@ -20,13 +19,14 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
   private[this] val children = new mutable.HashSet[AutoCloseable]()
 
   private def own(child: AutoCloseable): Unit = children += child
+
   private[this] def disown(child: AutoCloseable): Unit =
     assert(children.remove(child))
 
   own(r)
 
   def freshContext(): RVDContext = {
-    val ctx = new RVDContext(partitionRegion, Region(pool=r.pool))
+    val ctx = new RVDContext(partitionRegion, Region(pool = r.pool))
     own(ctx)
     ctx
   }
@@ -46,9 +46,9 @@ class RVDContext(val partitionRegion: Region, val r: Region) extends AutoCloseab
   def close(): Unit = {
     var e: Exception = null
     children.foreach { child =>
-      try {
+      try
         child.close()
-      } catch {
+      catch {
         case e2: Exception =>
           if (e == null)
             e = e2

@@ -13,36 +13,40 @@ case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)
 
 class PBoolean(override val required: Boolean) extends PType with PPrimitive {
-  lazy val virtualType: TBoolean.type  = TBoolean
+  lazy val virtualType: TBoolean.type = TBoolean
 
   def _asIdent = "bool"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PBoolean")
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+    sb.append("PBoolean")
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int = {
+    def compare(o1: Long, o2: Long): Int =
       java.lang.Boolean.compare(Region.loadBoolean(o1), Region.loadBoolean(o2))
-    }
   }
 
   override def byteSize: Long = 1
 
   def sType: SBoolean.type = SBoolean
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit = {
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SValue): Unit =
     cb += Region.storeBoolean(addr, value.asBoolean.value)
-  }
 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SBooleanValue =
     new SBooleanValue(cb.memoize(Region.loadBoolean(addr)))
 
-  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit =
     Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)
-  }
 }
 
 object PBoolean {
-  def apply(required: Boolean = false): PBoolean = if (required) PBooleanRequired else PBooleanOptional
+  def apply(required: Boolean = false): PBoolean =
+    if (required) PBooleanRequired else PBooleanOptional
 
   def unapply(t: PBoolean): Option[Boolean] = Option(t.required)
 }

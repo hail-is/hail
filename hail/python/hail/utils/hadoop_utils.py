@@ -10,9 +10,7 @@ from hail.utils.java import Env, info
 from hail.typecheck import typecheck, enumeration
 
 
-@typecheck(path=str,
-           mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'),
-           buffer_size=int)
+@typecheck(path=str, mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'), buffer_size=int)
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
     file systems like hdfs, gs, and s3.
@@ -99,8 +97,7 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     return file
 
 
-@typecheck(src=str,
-           dest=str)
+@typecheck(src=str, dest=str)
 def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.

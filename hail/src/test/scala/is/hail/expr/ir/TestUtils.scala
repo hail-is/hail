@@ -8,9 +8,14 @@ object TestUtils {
   def rangeKT: TableIR = TableKeyBy(TableRange(20, 4), FastSeq())
 
   def collect(tir: TableIR): IR =
-    TableAggregate(tir, MakeStruct(FastSeq(
-      "rows" -> IRAggCollect(Ref("row", tir.typ.rowType)),
-      "global" -> Ref("global", tir.typ.globalType))))
+    TableAggregate(
+      tir,
+      MakeStruct(FastSeq(
+        "rows" -> IRAggCollect(Ref("row", tir.typ.rowType)),
+        "global" -> Ref("global", tir.typ.globalType),
+      )),
+    )
+
   def collectNoKey(tir: TableIR): IR = TableCollect(tir)
 
   def toIRInt(i: Integer): IR =
@@ -53,9 +58,9 @@ object TestUtils {
     else
       MakeArray(a.map(s => Literal.coerce(TString, s)), TArray(TString))
 
-  def IRStringArray(a: String*): IR = toIRStringArray(FastSeq(a:_*))
+  def IRStringArray(a: String*): IR = toIRStringArray(FastSeq(a: _*))
 
-  def IRStringSet(a: String*): IR = ToSet(ToStream(toIRStringArray(FastSeq(a:_*))))
+  def IRStringSet(a: String*): IR = ToSet(ToStream(toIRStringArray(FastSeq(a: _*))))
 
   def toIRDoubleArray(a: IndexedSeq[java.lang.Double]): IR =
     if (a == null)
@@ -82,14 +87,14 @@ object TestUtils {
   def toIRSet(a: IndexedSeq[Integer]): IR =
     if (a == null)
       NA(TSet(TInt32))
-  else
+    else
       ToSet(ToStream(toIRArray(a)))
 
   def IRSet(a: Integer*): IR = toIRSet(a.toArray[Integer])
 
   def IRCall(c: Call): IR = invoke("callFromRepr", TCall, I32(c))
 
-    def IRAggCount: IR = {
+  def IRAggCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, FastSeq.empty)
     ApplyAggOp(FastSeq.empty, FastSeq.empty, aggSig)
   }

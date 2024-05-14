@@ -131,12 +131,10 @@ class LocalBatchBuilder:
                 files = []
                 for src, dest in j._input_files:
                     assert src.startswith(prefix), (prefix, src)
-                    files.append(
-                        {
-                            'from': f'/shared{src.removeprefix(prefix)}',
-                            'to': dest,
-                        }
-                    )
+                    files.append({
+                        'from': f'/shared{src.removeprefix(prefix)}',
+                        'to': dest,
+                    })
                 input_cid, input_ok = await docker_run(
                     'docker',
                     'run',
@@ -185,7 +183,7 @@ class LocalBatchBuilder:
                         token = base64.b64decode(secret.data['token']).decode()
                         cert = secret.data['ca.crt']
 
-                        kube_config = f'''
+                        kube_config = f"""
 apiVersion: v1
 clusters:
 - cluster:
@@ -205,7 +203,7 @@ users:
 - name: {namespace}-{name}
   user:
     token: {token}
-'''
+"""
 
                         dot_kube_dir = f'{job_root}/secrets/.kube'
 
@@ -219,9 +217,9 @@ users:
 
                     secrets = j._secrets
                     if secrets:
-                        k8s_secrets = await asyncio.gather(
-                            *[k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets]
-                        )
+                        k8s_secrets = await asyncio.gather(*[
+                            k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets
+                        ])
 
                         for secret, k8s_secret in zip(secrets, k8s_secrets):
                             secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
@@ -267,12 +265,10 @@ users:
                     files = []
                     for src, dest in j._output_files:
                         assert dest.startswith(prefix), (prefix, dest)
-                        files.append(
-                            {
-                                'from': src,
-                                'to': f'/shared{dest.removeprefix(prefix)}',
-                            }
-                        )
+                        files.append({
+                            'from': src,
+                            'to': f'/shared{dest.removeprefix(prefix)}',
+                        })
                     output_cid, output_ok = await docker_run(
                         'docker',
                         'run',
@@ -325,11 +321,11 @@ class Branch(Code):
         return config
 
     def checkout_script(self) -> str:
-        return f'''
+        return f"""
 {clone_or_fetch_script(self.repo_url())}
 
 git checkout {shq(self._sha)}
-'''
+"""
 
     def repo_dir(self) -> str:
         return '.'

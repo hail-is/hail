@@ -3,9 +3,8 @@ package is.hail.utils.richUtils
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical._
 import is.hail.io.OutputBuffer
-import is.hail.types.physical.stypes.{SCode, SValue}
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.virtual._
 
 class RichCodeOutputBuffer(

@@ -1,7 +1,14 @@
 import hail as hl
 from hail.typecheck import typecheck_method
-from hail.expr.expressions import unify_types, unify_types_limited, expr_any, \
-    expr_bool, ExpressionException, construct_expr, expr_str
+from hail.expr.expressions import (
+    unify_types,
+    unify_types_limited,
+    expr_any,
+    expr_bool,
+    ExpressionException,
+    construct_expr,
+    expr_str,
+)
 from hail import ir
 
 
@@ -16,9 +23,7 @@ class ConditionalBuilder(object):
         else:
             r = unify_types_limited(self._ret_type, t)
             if not r:
-                raise TypeError("'then' expressions must have same type, found '{}' and '{}'".format(
-                    self._ret_type, t
-                ))
+                raise TypeError("'then' expressions must have same type, found '{}' and '{}'".format(self._ret_type, t))
 
 
 class SwitchBuilder(ConditionalBuilder):
@@ -103,8 +108,7 @@ class SwitchBuilder(ConditionalBuilder):
         """
         can_compare = unify_types(self._base.dtype, value.dtype)
         if not can_compare:
-            raise TypeError("cannot compare expressions of type '{}' and '{}'".format(
-                self._base.dtype, value.dtype))
+            raise TypeError("cannot compare expressions of type '{}' and '{}'".format(self._base.dtype, value.dtype))
 
         self._unify_type(then.dtype)
         self._cases.append((value, then))
@@ -172,6 +176,7 @@ class SwitchBuilder(ConditionalBuilder):
         if len(self._cases) == 0:
             raise ExpressionException("'or_missing' cannot be called without at least one 'when' call")
         from hail.expr.functions import missing
+
         return self._finish(missing(self._ret_type))
 
     @typecheck_method(message=expr_str)
@@ -310,6 +315,7 @@ class CaseBuilder(ConditionalBuilder):
         if len(self._cases) == 0:
             raise ExpressionException("'or_missing' cannot be called without at least one 'when' call")
         from hail.expr.functions import missing
+
         return self._finish(missing(self._ret_type))
 
     @typecheck_method(message=expr_str)

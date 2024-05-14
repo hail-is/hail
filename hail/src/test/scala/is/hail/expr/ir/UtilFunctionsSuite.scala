@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.types.virtual.{TBoolean, TInt32, TStream}
-import org.scalatest.testng.TestNGSuite
+
 import org.testng.annotations.Test
 
 class UtilFunctionsSuite extends HailSuite {
@@ -11,19 +11,23 @@ class UtilFunctionsSuite extends HailSuite {
 
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)
+
   val folded = StreamFold(
     MakeStream(IndexedSeq(true), TStream(TBoolean)),
-    die, "a", "e",
-    Ref("a", TBoolean) || Ref("e", TBoolean))
+    die,
+    "a",
+    "e",
+    Ref("a", TBoolean) || Ref("e", TBoolean),
+  )
 
-  @Test def shortCircuitOr() {
+  @Test def shortCircuitOr(): Unit = {
     assertEvalsTo(True() || True(), true)
     assertEvalsTo(True() || False(), true)
     assertEvalsTo(False() || True(), true)
     assertEvalsTo(False() || False(), false)
   }
 
-  @Test def shortCircuitOrHandlesMissingness() {
+  @Test def shortCircuitOrHandlesMissingness(): Unit = {
     assertEvalsTo(na || na, null)
     assertEvalsTo(na || True(), true)
     assertEvalsTo(True() || na, true)
@@ -32,8 +36,8 @@ class UtilFunctionsSuite extends HailSuite {
 
   }
 
-  @Test def shortCircuitOrHandlesErrors() {
-    //FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
+  @Test def shortCircuitOrHandlesErrors(): Unit = {
+    // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na || die, "it ded")
     assertCompiledFatal(False() || die, "it ded")
     // FIXME: This needs to be fixed with an interpreter function registry
@@ -49,14 +53,14 @@ class UtilFunctionsSuite extends HailSuite {
     assert(eval(True() || folded) == true)
   }
 
-  @Test def shortCircuitAnd() {
+  @Test def shortCircuitAnd(): Unit = {
     assertEvalsTo(True() && True(), true)
     assertEvalsTo(True() && False(), false)
     assertEvalsTo(False() && True(), false)
     assertEvalsTo(False() && False(), false)
   }
 
-  @Test def shortCircuitAndHandlesMissingness() {
+  @Test def shortCircuitAndHandlesMissingness(): Unit = {
     assertEvalsTo(na && na, null)
     assertEvalsTo(True() && na, null)
     assertEvalsTo(na && True(), null)
@@ -64,7 +68,7 @@ class UtilFunctionsSuite extends HailSuite {
     assertEvalsTo(na && False(), false)
   }
 
-  @Test def shortCircuitAndHandlesErroes() {
+  @Test def shortCircuitAndHandlesErroes(): Unit = {
     // FIXME: interpreter evaluates args for ApplySpecial before invoking the function :-|
     assertCompiledFatal(na && die, "it ded")
     assertCompiledFatal(True() && die, "it ded")
@@ -80,7 +84,7 @@ class UtilFunctionsSuite extends HailSuite {
     assert(eval(False() && folded) == false)
   }
 
-  @Test def testParseFunctionRequiredness() {
+  @Test def testParseFunctionRequiredness(): Unit = {
     assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("123")), 123)
     assertEvalsTo(invoke("toInt32OrMissing", TInt32, Str("foo")), null)
   }

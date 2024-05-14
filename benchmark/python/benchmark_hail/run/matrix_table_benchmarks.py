@@ -67,6 +67,7 @@ def matrix_table_take_entry(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt.GT.take(100)
 
+
 @benchmark(args=profile_25.handle('mt'))
 def matrix_table_entries_show(mt_path):
     mt = hl.read_matrix_table(mt_path)
@@ -199,44 +200,45 @@ def gnomad_coverage_stats(mt_path):
 
     def get_coverage_expr(mt):
         cov_arrays = hl.literal({
-            x:
-                [1, 1, 1, 1, 1, 1, 1, 1, 0] if x >= 50
-                else [1, 1, 1, 1, 1, 1, 1, 0, 0] if x >= 30
-                else ([1] * (i + 2)) + ([0] * (7 - i))
+            x: [1, 1, 1, 1, 1, 1, 1, 1, 0]
+            if x >= 50
+            else [1, 1, 1, 1, 1, 1, 1, 0, 0]
+            if x >= 30
+            else ([1] * (i + 2)) + ([0] * (7 - i))
             for i, x in enumerate(range(5, 100, 5))
         })
 
         return hl.bind(
-            lambda array_expr: hl.struct(
-                **{
-                    f'over_{x}': hl.int32(array_expr[i]) for i, x in enumerate([1, 5, 10, 15, 20, 25, 30, 50, 100])
-                }
+            lambda array_expr: hl.struct(**{
+                f'over_{x}': hl.int32(array_expr[i]) for i, x in enumerate([1, 5, 10, 15, 20, 25, 30, 50, 100])
+            }),
+            hl.agg.array_sum(
+                hl.case()
+                .when(mt.x >= 100, [1, 1, 1, 1, 1, 1, 1, 1, 1])
+                .when(mt.x >= 5, cov_arrays[mt.x - (mt.x % 5)])
+                .when(mt.x >= 1, [1, 0, 0, 0, 0, 0, 0, 0, 0])
+                .default([0, 0, 0, 0, 0, 0, 0, 0, 0])
             ),
-            hl.agg.array_sum(hl.case()
-                             .when(mt.x >= 100, [1, 1, 1, 1, 1, 1, 1, 1, 1])
-                             .when(mt.x >= 5, cov_arrays[mt.x - (mt.x % 5)])
-                             .when(mt.x >= 1, [1, 0, 0, 0, 0, 0, 0, 0, 0])
-                             .default([0, 0, 0, 0, 0, 0, 0, 0, 0])))
+        )
 
-    mt = mt.annotate_rows(mean=hl.agg.mean(mt.x),
-                          median=hl.median(hl.agg.collect(mt.x)),
-                          **get_coverage_expr(mt))
+    mt = mt.annotate_rows(mean=hl.agg.mean(mt.x), median=hl.median(hl.agg.collect(mt.x)), **get_coverage_expr(mt))
     mt.rows()._force_count()
 
 
 @benchmark(args=gnomad_dp_sim.handle())
 def gnomad_coverage_stats_optimized(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt = mt.annotate_rows(mean=hl.agg.mean(mt.x),
-                          count_array=hl.rbind(hl.agg.counter(hl.min(100, mt.x)),
-                                               lambda c: hl.range(0, 100).map(lambda i: c.get(i, 0))))
-    mt = mt.annotate_rows(median=hl.rbind(hl.sum(mt.count_array) / 2, lambda s: hl.find(lambda x: x > s,
-                                                                                        hl.array_scan(
-                                                                                            lambda i, j: i + j,
-                                                                                            0,
-                                                                                            mt.count_array))),
-                          **{f'above_{x}': hl.sum(mt.count_array[x:]) for x in [1, 5, 10, 15, 20, 25, 30, 50, 100]}
-                          )
+    mt = mt.annotate_rows(
+        mean=hl.agg.mean(mt.x),
+        count_array=hl.rbind(hl.agg.counter(hl.min(100, mt.x)), lambda c: hl.range(0, 100).map(lambda i: c.get(i, 0))),
+    )
+    mt = mt.annotate_rows(
+        median=hl.rbind(
+            hl.sum(mt.count_array) / 2,
+            lambda s: hl.find(lambda x: x > s, hl.array_scan(lambda i, j: i + j, 0, mt.count_array)),
+        ),
+        **{f'above_{x}': hl.sum(mt.count_array[x:]) for x in [1, 5, 10, 15, 20, 25, 30, 50, 100]},
+    )
     mt.rows()._force_count()
 
 
@@ -253,38 +255,26 @@ def read_decode_gnomad_coverage(mt_path):
 
 @benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
 def import_bgen_force_count_just_gp(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path,
-                        sample_file=sample_path,
-                        entry_fields=['GP'],
-                        n_partitions=8)
+    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GP'], n_partitions=8)
     mt._force_count_rows()
 
 
 @benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
 def import_bgen_force_count_all(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path,
-                        sample_file=sample_path,
-                        entry_fields=['GT', 'GP', 'dosage'],
-                        n_partitions=8)
+    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GT', 'GP', 'dosage'], n_partitions=8)
     mt._force_count_rows()
 
 
 @benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
 def import_bgen_info_score(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path,
-                        sample_file=sample_path,
-                        entry_fields=['GP'],
-                        n_partitions=8)
+    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GP'], n_partitions=8)
     mt = mt.annotate_rows(info_score=hl.agg.info_score(mt.GP))
     mt.rows().select('info_score')._force_count()
 
 
 @benchmark(args=(sim_ukbb.handle('bgen'), sim_ukbb.handle('sample')))
 def import_bgen_filter_count(bgen_path, sample_path):
-    mt = hl.import_bgen(bgen_path,
-                        sample_file=sample_path,
-                        entry_fields=['GT', 'GP'],
-                        n_partitions=8)
+    mt = hl.import_bgen(bgen_path, sample_file=sample_path, entry_fields=['GT', 'GP'], n_partitions=8)
     mt = mt.filter_rows(mt.alleles == ['A', 'T'])
     mt._force_count_rows()
 
@@ -322,30 +312,38 @@ def large_range_matrix_table_sum():
 def kyle_sex_specific_qc(mt_path):
     mt = hl.read_matrix_table(mt_path)
     mt = mt.annotate_cols(sex=hl.if_else(hl.rand_bool(0.5), 'Male', 'Female'))
-    (num_males, num_females) = mt.aggregate_cols((hl.agg.count_where(mt.sex == 'Male'),
-                                                  hl.agg.count_where(mt.sex == 'Female')))
+    (num_males, num_females) = mt.aggregate_cols((
+        hl.agg.count_where(mt.sex == 'Male'),
+        hl.agg.count_where(mt.sex == 'Female'),
+    ))
     mt = mt.annotate_rows(
         male_hets=hl.agg.count_where(mt.GT.is_het() & (mt.sex == 'Male')),
         male_homvars=hl.agg.count_where(mt.GT.is_hom_var() & (mt.sex == 'Male')),
         male_calls=hl.agg.count_where(hl.is_defined(mt.GT) & (mt.sex == 'Male')),
         female_hets=hl.agg.count_where(mt.GT.is_het() & (mt.sex == 'Female')),
         female_homvars=hl.agg.count_where(mt.GT.is_hom_var() & (mt.sex == 'Female')),
-        female_calls=hl.agg.count_where(hl.is_defined(mt.GT) & (mt.sex == 'Female'))
+        female_calls=hl.agg.count_where(hl.is_defined(mt.GT) & (mt.sex == 'Female')),
     )
 
     mt = mt.annotate_rows(
-        call_rate=(hl.case()
-                   .when(mt.locus.in_y_nonpar(), (mt.male_calls / num_males))
-                   .when(mt.locus.in_x_nonpar(), (mt.male_calls + 2 * mt.female_calls) / (num_males + 2 * num_females))
-                   .default((mt.male_calls + mt.female_calls) / (num_males + num_females))),
-        AC=(hl.case()
+        call_rate=(
+            hl.case()
+            .when(mt.locus.in_y_nonpar(), (mt.male_calls / num_males))
+            .when(mt.locus.in_x_nonpar(), (mt.male_calls + 2 * mt.female_calls) / (num_males + 2 * num_females))
+            .default((mt.male_calls + mt.female_calls) / (num_males + num_females))
+        ),
+        AC=(
+            hl.case()
             .when(mt.locus.in_y_nonpar(), mt.male_homvars)
             .when(mt.locus.in_x_nonpar(), mt.male_homvars + mt.female_hets + 2 * mt.female_homvars)
-            .default(mt.male_hets + 2 * mt.male_homvars + mt.female_hets + 2 * mt.female_homvars)),
-        AN=(hl.case()
+            .default(mt.male_hets + 2 * mt.male_homvars + mt.female_hets + 2 * mt.female_homvars)
+        ),
+        AN=(
+            hl.case()
             .when(mt.locus.in_y_nonpar(), mt.male_calls)
             .when(mt.locus.in_x_nonpar(), mt.male_calls + 2 * mt.female_calls)
-            .default(2 * mt.male_calls + 2 * mt.female_calls))
+            .default(2 * mt.male_calls + 2 * mt.female_calls)
+        ),
     )
 
     mt.rows()._force_count()
@@ -383,5 +381,5 @@ def mt_localize_and_collect(mt_path):
 @benchmark(args=random_doubles.handle("mt"))
 def mt_group_by_memory_usage(mt_path):
     mt = hl.read_matrix_table(mt_path)
-    mt = mt.group_rows_by(new_idx=mt.row_idx % 3).aggregate(x = hl.agg.mean(mt.x))
+    mt = mt.group_rows_by(new_idx=mt.row_idx % 3).aggregate(x=hl.agg.mean(mt.x))
     mt._force_count_rows()

@@ -18,9 +18,8 @@ abstract class HailIterator[@specialized T] {
   def countNonNegative()(implicit ev: Numeric[T]): Int = {
     import ev._
     var count = 0
-    while (hasNext) {
+    while (hasNext)
       if (next() >= ev.zero) count += 1
-    }
     count
   }
 }

@@ -15,7 +15,9 @@ case class TableFilterPartitions(parts: Seq[Int], keep: Boolean) extends TableTo
       tv.rvd.subsetPartitions(parts.toArray)
     else {
       val subtract = parts.toSet
-      tv.rvd.subsetPartitions((0 until tv.rvd.getNumPartitions).filter(i => !subtract.contains(i)).toArray)
+      tv.rvd.subsetPartitions((0 until tv.rvd.getNumPartitions).filter(i =>
+        !subtract.contains(i)
+      ).toArray)
     }
     tv.copy(rvd = newRVD)
   }

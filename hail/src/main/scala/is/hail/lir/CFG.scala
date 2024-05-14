@@ -26,8 +26,8 @@ object CFG {
         case x: SwitchX =>
           edgeTo(x.Ldefault)
           x.Lcases.foreach(edgeTo)
-        case x: ReturnX =>
-        case x: ThrowX =>
+        case _: ReturnX =>
+        case _: ThrowX =>
       }
     }
 
@@ -38,14 +38,15 @@ object CFG {
 class CFG(
   val entry: Int,
   val pred: Array[mutable.Set[Int]],
-  val succ: Array[mutable.Set[Int]]) {
+  val succ: Array[mutable.Set[Int]],
+) {
   def nBlocks: Int = succ.length
 
   def dump(): Unit = {
     println(s"CFG $nBlocks:")
     var i = 0
     while (i < nBlocks) {
-      println(s"  $i: ${ succ(i).mkString(",") }")
+      println(s"  $i: ${succ(i).mkString(",")}")
       i += 1
     }
   }

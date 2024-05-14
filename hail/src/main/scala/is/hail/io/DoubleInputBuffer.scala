@@ -1,22 +1,21 @@
 package is.hail.io
 
-import java.io.{Closeable, InputStream, OutputStream}
-
 import is.hail.annotations.Memory
 import is.hail.utils._
+
+import java.io.{Closeable, InputStream, OutputStream}
 
 final class DoubleInputBuffer(in: InputStream, bufSize: Int) extends Closeable {
   private val buf = new Array[Byte](bufSize)
   private var end: Int = 0
   private var off: Int = 0
 
-  def close() {
+  def close(): Unit =
     in.close()
-  }
 
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
-  def readDoubles(to: Array[Double], toOff0: Int, n0: Int) {
+  def readDoubles(to: Array[Double], toOff0: Int, n0: Int): Unit = {
     assert(toOff0 >= 0)
     assert(n0 >= 0)
     assert(toOff0 <= to.length - n0)
@@ -45,18 +44,17 @@ final class DoubleOutputBuffer(out: OutputStream, bufSize: Int) extends Closeabl
   private val buf: Array[Byte] = new Array[Byte](bufSize)
   private var off: Int = 0
 
-  def close() {
+  def close(): Unit = {
     flush()
     out.close()
   }
 
-  def flush() {
+  def flush(): Unit =
     out.write(buf, 0, off)
-  }
 
   def writeDoubles(from: Array[Double]): Unit = writeDoubles(from, 0, from.length)
 
-  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int) {
+  def writeDoubles(from: Array[Double], fromOff0: Int, n0: Int): Unit = {
     assert(n0 >= 0)
     assert(fromOff0 >= 0)
     assert(fromOff0 <= from.length - n0)

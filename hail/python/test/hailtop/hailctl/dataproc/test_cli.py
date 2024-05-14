@@ -8,7 +8,9 @@ runner = CliRunner(mix_stderr=False)
 
 
 def test_required_gcloud_version_met(gcloud_run, monkeypatch):
-    monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.get_version", Mock(return_value=cli.MINIMUM_REQUIRED_GCLOUD_VERSION))
+    monkeypatch.setattr(
+        "hailtop.hailctl.dataproc.gcloud.get_version", Mock(return_value=cli.MINIMUM_REQUIRED_GCLOUD_VERSION)
+    )
 
     runner.invoke(cli.app, ['list'])
     assert gcloud_run.call_count == 1

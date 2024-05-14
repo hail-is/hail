@@ -1,29 +1,30 @@
 package is.hail.annotations
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import com.esotericsoftware.kryo.io.{Input, Output}
-import is.hail.annotations.UnsafeRow.read
-import is.hail.types.virtual._
 import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus
+
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
+import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
+import com.esotericsoftware.kryo.io.{Input, Output}
 import org.apache.spark.sql.Row
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 trait UnKryoSerializable extends KryoSerializable {
-  def write(kryo: Kryo, output: Output): Unit = {
+  def write(kryo: Kryo, output: Output): Unit =
     throw new NotImplementedException()
-  }
 
-  def read(kryo: Kryo, input: Input): Unit = {
+  def read(kryo: Kryo, input: Input): Unit =
     throw new NotImplementedException()
-  }
 }
 
 class UnsafeIndexedSeq(
   val t: PContainer,
-  val region: Region, val aoff: Long) extends IndexedSeq[Annotation] with UnKryoSerializable {
+  val region: Region,
+  val aoff: Long,
+) extends IndexedSeq[Annotation] with UnKryoSerializable {
 
   val length: Int = t.loadLength(aoff)
 
@@ -52,17 +53,17 @@ object UnsafeRow {
   def readString(boff: Long, t: PString): String =
     new String(readBinary(boff, t.binaryRepresentation))
 
-  def readLocus(offset: Long, t: PLocus): Locus = {
+  def readLocus(offset: Long, t: PLocus): Locus =
     Locus(
       t.contig(offset),
-      t.position(offset))
-  }
+      t.position(offset),
+    )
 
-  def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray = {
+  def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray =
     new UnsafeNDArray(nd, region, offset)
-  }
 
-  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
+  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    read(t, region, offset).asInstanceOf[AnyRef]
 
   def read(t: PType, region: Region, offset: Long): Any = {
     t match {
@@ -97,15 +98,14 @@ object UnsafeRow {
         val includesStart = x.includesStart(offset)
         val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
-      case nd: PNDArray => {
+      case nd: PNDArray =>
         readNDArray(offset, region, nd)
-      }
     }
   }
 }
 
-class UnsafeRow(val t: PBaseStruct,
-  var region: Region, var offset: Long) extends Row with UnKryoSerializable {
+class UnsafeRow(val t: PBaseStruct, var region: Region, var offset: Long)
+    extends Row with UnKryoSerializable {
 
   override def toString: String = {
     if (t.isInstanceOf[PStruct]) {
@@ -149,7 +149,7 @@ class UnsafeRow(val t: PBaseStruct,
 
   def this() = this(null, null, 0)
 
-  def set(newRegion: Region, newOffset: Long) {
+  def set(newRegion: Region, newOffset: Long): Unit = {
     region = newRegion
     offset = newOffset
   }
@@ -158,17 +158,15 @@ class UnsafeRow(val t: PBaseStruct,
 
   def length: Int = t.size
 
-  private def assertDefined(i: Int) {
+  private def assertDefined(i: Int): Unit =
     if (isNullAt(i))
       throw new NullPointerException(s"null value at index $i")
-  }
 
-  def get(i: Int): Any = {
+  def get(i: Int): Any =
     if (isNullAt(i))
       null
     else
       UnsafeRow.read(t.types(i), region, t.loadField(offset, i))
-  }
 
   def copy(): Row = new UnsafeRow(t, region, offset)
 
@@ -210,19 +208,16 @@ class UnsafeRow(val t: PBaseStruct,
     !t.isFieldDefined(offset, i)
   }
 
-  private def writeObject(s: ObjectOutputStream): Unit = {
+  private def writeObject(s: ObjectOutputStream): Unit =
     throw new NotImplementedException()
-  }
 
-  private def readObject(s: ObjectInputStream): Unit = {
+  private def readObject(s: ObjectInputStream): Unit =
     throw new NotImplementedException()
-  }
 }
 
 object SafeRow {
-  def apply(t: PBaseStruct, off: Long): Row = {
+  def apply(t: PBaseStruct, off: Long): Row =
     Annotation.copy(t.virtualType, new UnsafeRow(t, null, off)).asInstanceOf[Row]
-  }
 
   def apply(t: PBaseStruct, rv: RegionValue): Row = SafeRow(t, rv.offset)
 
@@ -237,7 +232,8 @@ object SafeRow {
   def read(t: PType, off: Long): Annotation =
     Annotation.copy(t.virtualType, UnsafeRow.read(t, null, off))
 
-  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, offset).asInstanceOf[AnyRef]
+  def readAnyRef(t: PType, region: Region, offset: Long): AnyRef =
+    read(t, offset).asInstanceOf[AnyRef]
 
   def read(t: PType, rv: RegionValue): Annotation =
     read(t, rv.offset)
@@ -273,36 +269,37 @@ object SafeIndexedSeq {
 
 class SelectFieldsRow(
   private[this] var old: Row,
-  private[this] val fieldMapping: Array[Int]
+  private[this] val fieldMapping: Array[Int],
 ) extends Row {
   def this(
     old: Row,
     oldPType: TStruct,
-    newPType: TStruct
+    newPType: TStruct,
   ) = this(old, newPType.fieldNames.map(name => oldPType.fieldIdx(name)))
 
   def this(
     old: Row,
     oldPType: PStruct,
-    newPType: PStruct
-  ) = {
-    this(old,
+    newPType: PStruct,
+  ) =
+    this(
+      old,
       (require(
         oldPType.fields.length <= old.length &&
           newPType.fields.length <= old.length,
-        s"${oldPType}, ${newPType} ${old.length} $old")
+        s"$oldPType, $newPType ${old.length} $old",
+      )
         ->
-        newPType.fieldNames.map(name => oldPType.fieldIdx(name)))._2
+          newPType.fieldNames.map(name => oldPType.fieldIdx(name)))._2,
     )
-  }
 
-  require(fieldMapping.forall(x => x < old.length),
-    s"${fieldMapping.toSeq}, ${old.length} $old")
+  require(fieldMapping.forall(x => x < old.length), s"${fieldMapping.toSeq}, ${old.length} $old")
 
   override def length = fieldMapping.length
   override def get(i: Int) = old.get(fieldMapping(i))
   override def isNullAt(i: Int) = old.isNullAt(fieldMapping(i))
   override def copy(): Row = new SelectFieldsRow(old.copy(), fieldMapping)
+
   def set(newRow: Row): SelectFieldsRow = {
     old = newRow
     this
@@ -343,7 +340,9 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
     val flat = new Array[Annotation](numElements.toInt)
 
     if (numElements > Int.MaxValue) {
-      throw new IllegalArgumentException(s"Cannot make an UnsafeNDArray with greater than Int.MaxValue entries. Shape was ${shape}")
+      throw new IllegalArgumentException(
+        s"Cannot make an UnsafeNDArray with greater than Int.MaxValue entries. Shape was $shape"
+      )
     }
 
     while (idxIntoFlat < numElements) {
@@ -388,17 +387,17 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
     true
   }
 
-  override def toString: String = {
+  override def toString: String =
     s"UnsafeNDArray of shape (${shape.mkString(", ")}) with elements ${getRowMajorElements()}"
-  }
 }
 
-case class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
+case class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation])
+    extends NDArray {
   assert(shape.foldLeft(1L)(_ * _) == rowMajorElements.size)
   override def getRowMajorElements: IndexedSeq[Annotation] = rowMajorElements
 
   override def lookupElement(indices: IndexedSeq[Long]): Annotation = {
-    val flatIdx = indices.zip(shape).foldLeft(0L){ case (flatIdx, (index, shape)) =>
+    val flatIdx = indices.zip(shape).foldLeft(0L) { case (flatIdx, (index, shape)) =>
       flatIdx + index * shape
     }
     rowMajorElements(flatIdx.toInt)

@@ -34,9 +34,9 @@ def grouped_iterator(n, it):
         yield group
 
 
-VCF_HEADER = '''##fileformat=VCFv4.1
+VCF_HEADER = """##fileformat=VCFv4.1
 #CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-'''
+"""
 
 
 class Variant:
@@ -124,9 +124,11 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                     print(stderr)
 
                 if proc.returncode != 0:
-                    raise ValueError(f'VEP command {vep_cmd} failed with non-zero exit status {proc.returncode}\n'
-                                     f'VEP error output:\n'
-                                     f'{stderr}')
+                    raise ValueError(
+                        f'VEP command {vep_cmd} failed with non-zero exit status {proc.returncode}\n'
+                        f'VEP error output:\n'
+                        f'{stderr}'
+                    )
 
             for line in stdout.split('\n'):
                 line = line.rstrip()
@@ -139,7 +141,9 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                     orig_v = non_star_to_orig_variants.get(str(vep_v))
 
                     if orig_v is None:
-                        raise ValueError(f'VEP output variant {vep_v} not found in original variants. VEP output is {line}')
+                        raise ValueError(
+                            f'VEP output variant {vep_v} not found in original variants. VEP output is {line}'
+                        )
 
                     x = CONSEQUENCE_REGEX.findall(line)
                     if x:
@@ -152,9 +156,7 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                     try:
                         jv = json.loads(line)
                     except json.decoder.JSONDecodeError as e:
-                        msg = f'VEP failed to produce parsable JSON!\n' \
-                            f'json: {line}\n' \
-                            f'error: {e.msg}'
+                        msg = f'VEP failed to produce parsable JSON!\n' f'json: {line}\n' f'error: {e.msg}'
                         if tolerate_parse_error:
                             print(msg)
                             continue
@@ -162,15 +164,15 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
 
                     variant_string = jv.get('input')
                     if variant_string is None:
-                        raise ValueError(f'VEP generated null variant string\n'
-                                         f'json: {line}\n'
-                                         f'parsed: {jv}')
+                        raise ValueError(f'VEP generated null variant string\n' f'json: {line}\n' f'parsed: {jv}')
                     v = Variant.from_vcf_line(variant_string)
                     orig_v = non_star_to_orig_variants.get(str(v))
                     if orig_v is not None:
                         result = (orig_v, line, part_id, block_id)
                     else:
-                        raise ValueError(f'VEP output variant {vep_v} not found in original variants. VEP output is {line}')
+                        raise ValueError(
+                            f'VEP output variant {vep_v} not found in original variants. VEP output is {line}'
+                        )
 
                 results.append(result)
 
@@ -180,14 +182,16 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
     return results
 
 
-def main(action: str,
-         consequence: bool,
-         tolerate_parse_error: bool,
-         block_size: int,
-         input_file: str,
-         output_file: str,
-         part_id: str,
-         vep_cmd: str):
+def main(
+    action: str,
+    consequence: bool,
+    tolerate_parse_error: bool,
+    block_size: int,
+    input_file: str,
+    output_file: str,
+    part_id: str,
+    vep_cmd: str,
+):
     vep_cmd = shlex.split(vep_cmd)
 
     if action == 'csq_header':

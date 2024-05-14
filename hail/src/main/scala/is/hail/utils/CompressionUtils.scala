@@ -1,9 +1,10 @@
 package is.hail.utils
 
-import com.github.luben.zstd.Zstd
 import is.hail.expr.ir.ByteArrayBuilder
 
 import java.util.zip.{Deflater, Inflater}
+
+import com.github.luben.zstd.Zstd
 
 object CompressionUtils {
   def compressZlib(bb: ByteArrayBuilder, input: Array[Byte]): Int = {
@@ -24,7 +25,8 @@ object CompressionUtils {
     val maxSize = Zstd.compressBound(input.length).toInt
     val sizeBefore = bb.size
     bb.ensureCapacity(bb.size + maxSize)
-    val compressedSize = Zstd.compressByteArray(bb.b, sizeBefore, maxSize, input, 0, input.length, 5).toInt
+    val compressedSize =
+      Zstd.compressByteArray(bb.b, sizeBefore, maxSize, input, 0, input.length, 5).toInt
     bb.setSizeUnchecked(sizeBefore + compressedSize)
     compressedSize
   }
@@ -34,9 +36,8 @@ object CompressionUtils {
     val inflater = new Inflater
     inflater.setInput(input)
     var off = 0
-    while (off < expansion.length) {
+    while (off < expansion.length)
       off += inflater.inflate(expansion, off, expansion.length - off)
-    }
     expansion
   }
 

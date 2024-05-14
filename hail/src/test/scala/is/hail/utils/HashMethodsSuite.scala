@@ -1,16 +1,19 @@
 package is.hail.utils
 
 import is.hail.HailSuite
+
 import org.testng.annotations.Test
 
 class HashMethodsSuite extends HailSuite {
-  @Test def testMultGF() {
+  @Test def testMultGF(): Unit = {
     import PolyHash._
 
     // multGF should agree with the Mathematica function
-    // f[a_, b_] := PolynomialRemainder[g[a, b], x^32 + x^7 + x^3 + x^2 + 1, x, Modulus -> 2] /. x -> 2
+    /* f[a_, b_] := PolynomialRemainder[g[a, b], x^32 + x^7 + x^3 + x^2 + 1, x, Modulus -> 2] /. x
+     * -> 2 */
     // where
-    // g[a_, b_] := Expand[FromDigits[IntegerDigits[a, 2], x] * FromDigits[IntegerDigits[b, 2], x], Modulus -> 2]
+    /* g[a_, b_] := Expand[FromDigits[IntegerDigits[a, 2], x] * FromDigits[IntegerDigits[b, 2], x],
+     * Modulus -> 2] */
     val x1 = 3705006673L.toInt
     val y1 = 2551778209L.toInt
     assert(multGF(x1, y1) == 2272553040L.toInt)

@@ -1,5 +1,18 @@
-from typing import (Any, AsyncContextManager, Optional, Type, Set, AsyncIterator, Callable, TypeVar,
-                    Generic, List, Awaitable, Union, Tuple)
+from typing import (
+    Any,
+    AsyncContextManager,
+    Optional,
+    Type,
+    Set,
+    AsyncIterator,
+    Callable,
+    TypeVar,
+    Generic,
+    List,
+    Awaitable,
+    Union,
+    Tuple,
+)
 from typing_extensions import ParamSpec
 from types import TracebackType
 import abc
@@ -14,7 +27,9 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-async def with_exception(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs) -> Union[Tuple[T, None], Tuple[None, Exception]]:
+async def with_exception(
+    f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: P.kwargs
+) -> Union[Tuple[T, None], Tuple[None, Exception]]:
     try:
         return (await f(*args, **kwargs)), None
     except Exception as e:
@@ -23,26 +38,64 @@ async def with_exception(f: Callable[P, Awaitable[T]], *args: P.args, **kwargs: 
 
 class FileStatus(abc.ABC):
     @abc.abstractmethod
+    def basename(self) -> str:
+        """The basename of the object.
+
+        Examples
+        --------
+
+        The basename of all of these objects is "file":
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+        - /folder/file
+        """
+
+    @abc.abstractmethod
+    def url(self) -> str:
+        """The URL of the object without any query parameters.
+
+        Examples
+        --------
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - /folder/file
+
+        Note that the following URL
+
+            https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+
+        becomes
+
+            https://account.blob.core.windows.net/container/folder/file
+
+        """
+
+    @abc.abstractmethod
     async def size(self) -> int:
         pass
 
     @abc.abstractmethod
     def time_created(self) -> datetime.datetime:
-        '''The time the object was created in seconds since the epcoh, UTC.
+        """The time the object was created in seconds since the epcoh, UTC.
 
         Some filesystems do not support creation time. In that case, an error is raised.
 
-        '''
+        """
 
     @abc.abstractmethod
     def time_modified(self) -> datetime.datetime:
-        '''The time the object was last modified in seconds since the epoch, UTC.
+        """The time the object was last modified in seconds since the epoch, UTC.
 
         The meaning of modification time is cloud-defined. In some clouds, it is the creation
         time. In some clouds, it is the more recent of the creation time or the time of the most
         recent metadata modification.
 
-        '''
+        """
 
     @abc.abstractmethod
     async def __getitem__(self, key: str) -> Any:
@@ -51,17 +104,62 @@ class FileStatus(abc.ABC):
 
 class FileListEntry(abc.ABC):
     @abc.abstractmethod
-    def name(self) -> str:
-        pass
+    def basename(self) -> str:
+        """The basename of the object.
+
+        Examples
+        --------
+
+        The basename of all of these objects is "file":
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+        - /folder/file
+        """
 
     @abc.abstractmethod
     async def url(self) -> str:
-        pass
+        """The URL of the object without any query parameters.
+
+        Examples
+        --------
+
+        - s3://bucket/folder/file
+        - gs://bucket/folder/file
+        - https://account.blob.core.windows.net/container/folder/file
+        - /folder/file
+
+        Note that the following URL
+
+            https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+
+        becomes
+
+            https://account.blob.core.windows.net/container/folder/file
+
+        """
 
     async def url_maybe_trailing_slash(self) -> str:
         return await self.url()
 
     async def url_full(self) -> str:
+        """The URL of the object with any query parameters.
+
+        Examples
+        --------
+
+        The only interesting case is for signed URLs in Azure. These are called shared signature tokens or SAS tokens.
+        For example, the following URL
+
+            https://account.blob.core.windows.net/container/folder/file?sv=2023-01-01&sr=bv&sig=abc123&sp=rcw
+
+        is a signed version of this URL
+
+            https://account.blob.core.windows.net/container/folder/file
+
+        """
         return await self.url()
 
     @abc.abstractmethod
@@ -79,18 +177,19 @@ class FileListEntry(abc.ABC):
 
 class MultiPartCreate(abc.ABC):
     @abc.abstractmethod
-    async def create_part(self, number: int, start: int, size_hint: Optional[int] = None) -> AsyncContextManager[WritableStream]:
+    async def create_part(
+        self, number: int, start: int, size_hint: Optional[int] = None
+    ) -> AsyncContextManager[WritableStream]:
         pass
 
     @abc.abstractmethod
-    async def __aenter__(self) -> 'MultiPartCreate':
+    async def __aenter__(self) -> "MultiPartCreate":
         pass
 
     @abc.abstractmethod
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         pass
 
 
@@ -116,12 +215,12 @@ class AsyncFSURL(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def with_path(self, path) -> 'AsyncFSURL':
+    def with_path(self, path) -> "AsyncFSURL":
         pass
 
-    def with_new_path_component(self, new_path_component) -> 'AsyncFSURL':
-        prefix = self.path if self.path.endswith('/') else self.path + '/'
-        suffix = new_path_component[1:] if new_path_component.startswith('/') else new_path_component
+    def with_new_path_component(self, new_path_component) -> "AsyncFSURL":
+        prefix = self.path if self.path.endswith("/") else self.path + "/"
+        suffix = new_path_component[1:] if new_path_component.startswith("/") else new_path_component
         return self.with_path(prefix + suffix)
 
     @abc.abstractmethod
@@ -130,21 +229,28 @@ class AsyncFSURL(abc.ABC):
 
 
 class AsyncFS(abc.ABC):
-    FILE = 'file'
-    DIR = 'dir'
+    FILE = "file"
+    DIR = "dir"
 
-    @property
+    @staticmethod
     @abc.abstractmethod
-    def schemes(self) -> Set[str]:
+    def schemes() -> Set[str]:
         pass
+
+    @staticmethod
+    def copy_part_size(url: str) -> int:  # pylint: disable=unused-argument
+        """Part size when copying using multi-part uploads.  The part size of
+        the destination filesystem is used."""
+        return 128 * 1024 * 1024
 
     @staticmethod
     @abc.abstractmethod
     def valid_url(url: str) -> bool:
         pass
 
+    @staticmethod
     @abc.abstractmethod
-    def parse_url(self, url: str) -> AsyncFSURL:
+    def parse_url(url: str) -> AsyncFSURL:
         pass
 
     @abc.abstractmethod
@@ -154,12 +260,12 @@ class AsyncFS(abc.ABC):
     async def open_from(self, url: str, start: int, *, length: Optional[int] = None) -> ReadableStream:
         if length == 0:
             fs_url = self.parse_url(url)
-            if fs_url.path.endswith('/'):
-                file_url = str(fs_url.with_path(fs_url.path.rstrip('/')))
+            if fs_url.path.endswith("/"):
+                file_url = str(fs_url.with_path(fs_url.path.rstrip("/")))
                 dir_url = str(fs_url)
             else:
                 file_url = str(fs_url)
-                dir_url = str(fs_url.with_path(fs_url.path + '/'))
+                dir_url = str(fs_url.with_path(fs_url.path + "/"))
             isfile, isdir = await asyncio.gather(self.isfile(file_url), self.isdir(dir_url))
             if isfile:
                 if isdir:
@@ -179,11 +285,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def multi_part_create(
-            self,
-            sema: asyncio.Semaphore,
-            url: str,
-            num_parts: int) -> MultiPartCreate:
+    async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
         pass
 
     @abc.abstractmethod
@@ -199,10 +301,9 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def listfiles(self,
-                        url: str,
-                        recursive: bool = False,
-                        exclude_trailing_slash_files: bool = True) -> AsyncIterator[FileListEntry]:
+    async def listfiles(
+        self, url: str, recursive: bool = False, exclude_trailing_slash_files: bool = True
+    ) -> AsyncIterator[FileListEntry]:
         pass
 
     @abc.abstractmethod
@@ -210,10 +311,11 @@ class AsyncFS(abc.ABC):
         pass
 
     async def _staturl_parallel_isfile_isdir(self, url: str) -> str:
-        assert not url.endswith('/')
+        assert not url.endswith("/")
 
         [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
-            with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))
+            with_exception(self.isfile, url), with_exception(self.isdir, url + "/")
+        )
         # raise exception deterministically
         if isfile_exc:
             raise isfile_exc
@@ -248,10 +350,9 @@ class AsyncFS(abc.ABC):
         except FileNotFoundError:
             pass
 
-    async def rmtree(self,
-                     sema: Optional[asyncio.Semaphore],
-                     url: str,
-                     listener: Optional[Callable[[int], None]] = None) -> None:
+    async def rmtree(
+        self, sema: Optional[asyncio.Semaphore], url: str, listener: Optional[Callable[[int], None]] = None
+    ) -> None:
         if listener is None:
             listener = lambda _: None
         if sema is None:
@@ -307,22 +408,16 @@ class AsyncFS(abc.ABC):
     async def close(self) -> None:
         pass
 
-    async def __aenter__(self) -> 'AsyncFS':
+    async def __aenter__(self) -> "AsyncFS":
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         await self.close()
 
-    def copy_part_size(self, url: str) -> int:  # pylint: disable=unused-argument
-        '''Part size when copying using multi-part uploads.  The part size of
-        the destination filesystem is used.'''
-        return 128 * 1024 * 1024
 
-
-T = TypeVar('T', bound=AsyncFS)
+T = TypeVar("T", bound=AsyncFS)
 
 
 class AsyncFSFactory(abc.ABC, Generic[T]):

@@ -17,8 +17,7 @@ class ArrayOfByteArrayInputStream(bytes: Array[Array[Byte]]) extends InputStream
         val readByte = byteInputStreams(currentInputStreamIdx).read()
         if (readByte == -1) {
           currentInputStreamIdx += 1
-        }
-        else {
+        } else {
           foundByte = true
           byteToReturn = readByte
         }
@@ -31,11 +30,12 @@ class ArrayOfByteArrayInputStream(bytes: Array[Array[Byte]]) extends InputStream
     var numBytesRead = 0
     var moreToRead = true
 
-    while(numBytesRead < len && moreToRead) {
+    while (numBytesRead < len && moreToRead) {
       if (currentInputStreamIdx == byteInputStreams.length) {
         moreToRead = false
       } else {
-        val bytesReadInOneCall = byteInputStreams(currentInputStreamIdx).read(b, off + numBytesRead, len - numBytesRead)
+        val bytesReadInOneCall =
+          byteInputStreams(currentInputStreamIdx).read(b, off + numBytesRead, len - numBytesRead)
         if (bytesReadInOneCall == -1) {
           currentInputStreamIdx += 1
         } else {

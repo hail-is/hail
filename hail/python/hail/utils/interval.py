@@ -33,14 +33,17 @@ class Interval(object):
      - :func:`.parse_locus_interval`
     """
 
-    @typecheck_method(start=anytype,
-                      end=anytype,
-                      includes_start=bool,
-                      includes_end=bool,
-                      point_type=nullable(lambda: hl.expr.types.hail_type))
+    @typecheck_method(
+        start=anytype,
+        end=anytype,
+        includes_start=bool,
+        includes_end=bool,
+        point_type=nullable(lambda: hl.expr.types.hail_type),
+    )
     def __init__(self, start, end, includes_start=True, includes_end=False, point_type=None):
         if point_type is None:
             from hail.expr.expressions import impute_type, unify_types_limited
+
             start_type = impute_type(start)
             end_type = impute_type(end)
             point_type = unify_types_limited(start_type, end_type)
@@ -63,16 +66,21 @@ class Interval(object):
         return f'{open}{bounds}{close}'
 
     def __repr__(self):
-        return 'Interval(start={}, end={}, includes_start={}, includes_end={})'\
-            .format(repr(self.start), repr(self.end), repr(self.includes_start), repr(self._includes_end))
+        return 'Interval(start={}, end={}, includes_start={}, includes_end={})'.format(
+            repr(self.start), repr(self.end), repr(self.includes_start), repr(self._includes_end)
+        )
 
     def __eq__(self, other):
-        return ( self._start          == other._start and
-                 self._end            == other._end and
-                 self._includes_start == other._includes_start and
-                 self._includes_end   == other._includes_end
-               ) if isinstance(other, Interval) else NotImplemented
-
+        return (
+            (
+                self._start == other._start
+                and self._end == other._end
+                and self._includes_start == other._includes_start
+                and self._includes_end == other._includes_end
+            )
+            if isinstance(other, Interval)
+            else NotImplemented
+        )
 
     def __hash__(self):
         return hash(self._start) ^ hash(self._end) ^ hash(self._includes_start) ^ hash(self._includes_end)

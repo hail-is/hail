@@ -44,9 +44,8 @@ object SplitLargeBlocks {
   def apply(m: Method): Unit = {
     val blocks = m.findBlocks()
 
-    for (b <- blocks) {
+    for (b <- blocks)
       if (b.approxByteCodeSize() > SplitMethod.TargetMethodSize)
         splitLargeBlock(m, b)
-    }
   }
 }

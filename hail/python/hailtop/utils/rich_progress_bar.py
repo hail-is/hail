@@ -1,6 +1,16 @@
 from typing import Optional, Callable, Tuple, List
 from rich import filesize
-from rich.progress import MofNCompleteColumn, BarColumn, TextColumn, TimeRemainingColumn, TimeElapsedColumn, Progress, ProgressColumn, TaskProgressColumn, Task
+from rich.progress import (
+    MofNCompleteColumn,
+    BarColumn,
+    TextColumn,
+    TimeRemainingColumn,
+    TimeElapsedColumn,
+    Progress,
+    ProgressColumn,
+    TaskProgressColumn,
+    Task,
+)
 from rich.text import Text
 
 
@@ -54,6 +64,7 @@ def make_listener(progress: Progress, tid) -> Callable[[int], None]:
             progress.update(tid, total=total)
         else:
             progress.update(tid, advance=-delta)
+
     return listen
 
 
@@ -114,7 +125,7 @@ class CopyToolProgressBar:
             BytesOrCountOrN(),
             RateColumn(),
             TimeRemainingColumn(),
-            TimeElapsedColumn()
+            TimeElapsedColumn(),
         )
 
     def __enter__(self) -> Progress:
@@ -145,7 +156,7 @@ class BatchProgressBar:
             TaskProgressColumn(),
             MofNCompleteColumn(),
             TimeRemainingColumn(),
-            TimeElapsedColumn()
+            TimeElapsedColumn(),
         )
 
     def __enter__(self) -> 'BatchProgressBar':
@@ -161,7 +172,9 @@ class BatchProgressBar:
         finally:
             self._progress.stop()
 
-    def with_task(self, description: str, *, total: int = 0, disable: bool = False, transient: bool = False) -> 'BatchProgressBarTask':
+    def with_task(
+        self, description: str, *, total: int = 0, disable: bool = False, transient: bool = False
+    ) -> 'BatchProgressBarTask':
         tid = self._progress.add_task(description, total=total, visible=not disable)
         return BatchProgressBarTask(self._progress, tid, transient)
 

@@ -19,7 +19,7 @@ object ForwardRelationalLets {
           usages(name) = (0, 0)
         case RelationalLetBlockMatrix(name, _, _) =>
           usages(name) = (0, 0)
-        case x@RelationalRef(name, _) =>
+        case x @ RelationalRef(name, _) =>
           val (n, nd) = usages(name)
           usages(name) = (n + 1, math.max(nd, nestingDepth.lookup(x)))
         case _ =>
@@ -47,18 +47,30 @@ object ForwardRelationalLets {
           if (shouldForward(usages(name))) {
             m(name) = recur(value).asInstanceOf[IR]
             recur(body)
-          } else RelationalLetTable(name, recur(value).asInstanceOf[IR], recur(body).asInstanceOf[TableIR])
+          } else RelationalLetTable(
+            name,
+            recur(value).asInstanceOf[IR],
+            recur(body).asInstanceOf[TableIR],
+          )
         case RelationalLetMatrixTable(name, value, body) =>
           if (shouldForward(usages(name))) {
             m(name) = recur(value).asInstanceOf[IR]
             recur(body)
-          } else RelationalLetMatrixTable(name, recur(value).asInstanceOf[IR], recur(body).asInstanceOf[MatrixIR])
+          } else RelationalLetMatrixTable(
+            name,
+            recur(value).asInstanceOf[IR],
+            recur(body).asInstanceOf[MatrixIR],
+          )
         case RelationalLetBlockMatrix(name, value, body) =>
           if (shouldForward(usages(name))) {
             m(name) = recur(value).asInstanceOf[IR]
             recur(body)
-          } else RelationalLetBlockMatrix(name, recur(value).asInstanceOf[IR], recur(body).asInstanceOf[BlockMatrixIR])
-        case x@RelationalRef(name, _) =>
+          } else RelationalLetBlockMatrix(
+            name,
+            recur(value).asInstanceOf[IR],
+            recur(body).asInstanceOf[BlockMatrixIR],
+          )
+        case x @ RelationalRef(name, _) =>
           m.getOrElse(name, x)
         case _ => ir1.mapChildren(recur)
       }

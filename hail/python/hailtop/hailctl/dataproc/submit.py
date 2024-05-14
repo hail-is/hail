@@ -48,7 +48,9 @@ def submit(
                                 if os.path.isfile(path) and _filter_pyfile(path):
                                     zipf.write(
                                         os.path.join(root, pyfile),
-                                        os.path.relpath(os.path.join(root, pyfile), os.path.join(hail_script_entry, '..')),
+                                        os.path.relpath(
+                                            os.path.join(root, pyfile), os.path.join(hail_script_entry, '..')
+                                        ),
                                     )
             pyfiles = tfile
 

@@ -2,19 +2,19 @@ package is.hail.expr.ir
 
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.compress.BGzipInputStream
-import is.hail.io.fs.{FS, FileListEntry, Positioned, PositionedInputStream, BGZipCompressionCodec}
-import is.hail.io.tabix.{TabixReader, TabixLineIterator}
+import is.hail.io.fs.{BGZipCompressionCodec, FS, FileStatus, Positioned, PositionedInputStream}
+import is.hail.io.tabix.{TabixLineIterator, TabixReader}
 import is.hail.types.virtual.{TBoolean, TInt32, TInt64, TString, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.Locus
+
+import scala.annotation.meta.param
 
 import org.apache.commons.io.input.{CountingInputStream, ProxyInputStream}
 import org.apache.hadoop.io.compress.SplittableCompressionCodec
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-
-import scala.annotation.meta.param
 
 trait CloseableIterator[T] extends Iterator[T] with AutoCloseable
 
@@ -27,7 +27,8 @@ object CloseableIterator {
 }
 
 object GenericLines {
-  def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean, filePerPartition: Boolean): GenericLines = {
+  def read(fs: FS, contexts: IndexedSeq[Any], gzAsBGZ: Boolean, filePerPartition: Boolean)
+    : GenericLines = {
 
     val body: (FS, Any) => CloseableIterator[GenericLine] = { (fs: FS, context: Any) =>
       val contextRow = context.asInstanceOf[Row]
@@ -50,7 +51,8 @@ object GenericLines {
           } else if (codec == BGZipCompressionCodec) {
             assert(split || filePerPartition)
             splitCompressed = true
-            val bgzIS = new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
+            val bgzIS =
+              new BGzipInputStream(rawIS, start, end, SplittableCompressionCodec.READ_MODE.BYBLOCK)
             new ProxyInputStream(bgzIS) with Positioned {
               def getPosition: Long = bgzIS.getVirtualOffset
             }
@@ -72,7 +74,7 @@ object GenericLines {
 
         private var realEnd =
           if (splitCompressed)
-            -1L  // end really means first block >= end
+            -1L // end really means first block >= end
           else
             end
 
@@ -141,10 +143,12 @@ object GenericLines {
               eol = true
             } else {
               // look for end of line in buf
-              while (bufPos < bufMark && {
-                val c = buf(bufPos)
-                c != '\n' && c != '\r'
-              })
+              while (
+                bufPos < bufMark && {
+                  val c = buf(bufPos)
+                  c != '\n' && c != '\r'
+                }
+              )
                 bufPos += 1
 
               if (bufPos < bufMark) {
@@ -173,10 +177,12 @@ object GenericLines {
               val copySize = linePos.toLong + n
 
               // Maximum array size compatible with common JDK implementations
-              // https://github.com/openjdk/jdk14u/blob/84917a040a81af2863fddc6eace3dda3e31bf4b5/src/java.base/share/classes/jdk/internal/util/ArraysSupport.java#L577
+              /* https://github.com/openjdk/jdk14u/blob/84917a040a81af2863fddc6eace3dda3e31bf4b5/src/java.base/share/classes/jdk/internal/util/ArraysSupport.java#L577 */
               val maxArraySize = Int.MaxValue - 8
               if (copySize > maxArraySize)
-                fatal(s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes")
+                fatal(
+                  s"GenericLines: line size reached: cannot read a line with more than 2^31-1 bytes"
+                )
               val newSize = Math.min(copySize * 2, maxArraySize).toInt
               if (newSize > (1 << 20)) {
                 log.info(s"GenericLines: growing line buffer to $newSize")
@@ -227,12 +233,11 @@ object GenericLines {
           line
         }
 
-        def close(): Unit = {
+        def close(): Unit =
           if (!closed) {
             is.close()
             closed = true
           }
-        }
       }
     }
 
@@ -242,26 +247,27 @@ object GenericLines {
       "file" -> TString,
       "start" -> TInt64,
       "end" -> TInt64,
-      "split" -> TBoolean)
+      "split" -> TBoolean,
+    )
     new GenericLines(
       contextType,
       contexts,
-      body)
+      body,
+    )
   }
-
 
   def read(
     fs: FS,
-    fileListEntries0: IndexedSeq[FileListEntry],
+    fileStatuses0: IndexedSeq[_ <: FileStatus],
     nPartitions: Option[Int],
     blockSizeInMB: Option[Int],
     minPartitions: Option[Int],
     gzAsBGZ: Boolean,
     allowSerialRead: Boolean,
-    filePerPartition: Boolean = false
+    filePerPartition: Boolean = false,
   ): GenericLines = {
-    val fileListEntries = fileListEntries0.zipWithIndex.filter(_._1.getLen > 0)
-    val totalSize = fileListEntries.map(_._1.getLen).sum
+    val fileStatuses = fileStatuses0.zipWithIndex.filter(_._1.getLen > 0)
+    val totalSize = fileStatuses.map(_._1.getLen).sum
 
     var totalPartitions = nPartitions match {
       case Some(nPartitions) => nPartitions
@@ -276,7 +282,7 @@ object GenericLines {
       case None =>
     }
 
-    val contexts = fileListEntries.flatMap { case (fileListEntry, fileNum) =>
+    val contexts = fileStatuses.flatMap { case (fileListEntry, fileNum) =>
       val size = fileListEntry.getLen
       val codec = fs.getCodecFromPath(fileListEntry.getPath, gzAsBGZ)
 
@@ -298,7 +304,7 @@ object GenericLines {
           }
       } else {
         if (!allowSerialRead && !filePerPartition)
-          fatal(s"Cowardly refusing to read file serially: ${ fileListEntry.getPath }.")
+          fatal(s"Cowardly refusing to read file serially: ${fileListEntry.getPath}.")
 
         Iterator.single {
           Row(0, fileNum, fileListEntry.getPath, 0L, size, false)
@@ -309,7 +315,12 @@ object GenericLines {
     GenericLines.read(fs, contexts, gzAsBGZ, filePerPartition)
   }
 
-  def readTabix(fs: FS, path: String, contigMapping: Map[String, String], partitions: IndexedSeq[Interval]): GenericLines = {
+  def readTabix(
+    fs: FS,
+    path: String,
+    contigMapping: Map[String, String],
+    partitions: IndexedSeq[Interval],
+  ): GenericLines = {
     val reverseContigMapping: Map[String, String] =
       contigMapping.toArray
         .groupBy(_._2)
@@ -317,8 +328,8 @@ object GenericLines {
           if (mappings.length > 1)
             fatal(s"contig_recoding may not map multiple contigs to the same target contig, " +
               s"due to ambiguity when querying the tabix index." +
-            s"\n  Duplicate mappings: ${ mappings.map(_._1).mkString(",") } all map to ${ target }")
-            (target, mappings.head._1)
+              s"\n  Duplicate mappings: ${mappings.map(_._1).mkString(",")} all map to $target")
+          (target, mappings.head._1)
         }.toMap
     val contexts = partitions.zipWithIndex.map { case (interval, i) =>
       val start = interval.start.asInstanceOf[Row].getAs[Locus](0)
@@ -368,7 +379,7 @@ object GenericLines {
             val pos = s.substring(t1 + 1, t2).toInt
 
             if (chr != chrom) {
-              throw new RuntimeException(s"bad chromosome! ${chrom}, $s")
+              throw new RuntimeException(s"bad chromosome! $chrom, $s")
             }
             start <= pos && pos <= end
           }
@@ -384,17 +395,15 @@ object GenericLines {
       "file" -> TString,
       "chrom" -> TString,
       "start" -> TInt32,
-      "end" -> TInt32)
+      "end" -> TInt32,
+    )
     new GenericLines(contextType, contexts, body)
   }
 
-  def collect(fs: FS, lines: GenericLines): IndexedSeq[String] = {
+  def collect(fs: FS, lines: GenericLines): IndexedSeq[String] =
     lines.contexts.flatMap { context =>
-      using(lines.body(fs, context)) { it =>
-        it.map(_.toString).toArray
-      }
+      using(lines.body(fs, context))(it => it.map(_.toString).toArray)
     }
-  }
 }
 
 class GenericLine(
@@ -403,7 +412,8 @@ class GenericLine(
   // possibly virtual
   private var _offset: Long,
   var data: Array[Byte],
-  private var _lineLength: Int) {
+  private var _lineLength: Int,
+) {
   def this(file: String, fileNum: Int) = this(file, fileNum, 0, null, 0)
 
   private var _str: String = null
@@ -438,8 +448,8 @@ class GenericLine(
 class GenericLinesRDDPartition(val index: Int, val context: Any) extends Partition
 
 class GenericLinesRDD(
-  @(transient@param) contexts: IndexedSeq[Any],
-  body: (Any) => CloseableIterator[GenericLine]
+  @(transient @param) contexts: IndexedSeq[Any],
+  body: (Any) => CloseableIterator[GenericLine],
 ) extends RDD[GenericLine](SparkBackend.sparkContext("GenericLinesRDD"), Seq()) {
 
   protected def getPartitions: Array[Partition] =
@@ -449,9 +459,7 @@ class GenericLinesRDD(
 
   def compute(split: Partition, context: TaskContext): Iterator[GenericLine] = {
     val it = body(split.asInstanceOf[GenericLinesRDDPartition].context)
-    TaskContext.get.addTaskCompletionListener[Unit] { _ =>
-      it.close()
-    }
+    TaskContext.get.addTaskCompletionListener[Unit](_ => it.close())
     it
   }
 }
@@ -459,7 +467,8 @@ class GenericLinesRDD(
 class GenericLines(
   val contextType: Type,
   val contexts: IndexedSeq[Any],
-  val body: (FS, Any) => CloseableIterator[GenericLine]) {
+  val body: (FS, Any) => CloseableIterator[GenericLine],
+) {
 
   def nPartitions: Int = contexts.length
 

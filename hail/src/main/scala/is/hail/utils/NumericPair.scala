@@ -38,7 +38,6 @@ trait NumericPairImplicits {
     val numeric: scala.math.Numeric[Float] = implicitly[Numeric[Float]]
   }
 
-
   implicit object DoublePair extends NumericPair[Double, java.lang.Double] {
 
     def box(t: Double): java.lang.Double = Double.box(t)

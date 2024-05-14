@@ -46,8 +46,4 @@ with open(f'{image_name}/Dockerfile') as fobj:
     dockerfile = fobj.read()
 
 with open(f'{image_name}/Dockerfile', 'w') as fobj:
-    fobj.write(
-        '\n'.join(
-            [update_version_line(line) for line in dockerfile.split('\n')]
-        )
-    )
+    fobj.write('\n'.join([update_version_line(line) for line in dockerfile.split('\n')]))

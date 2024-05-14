@@ -4,7 +4,7 @@
 -c ../web_common/pinned-requirements.txt
 dictdiffer>=0.8.1,<1
 pandas>=2,<3
-plotly>=5.5.0,<6
+plotly>=5.18.0,<6
 # Worker requirements
 aiodocker>=0.17.0,<1
 aiorwlock>=1.0.0,<2

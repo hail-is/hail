@@ -1,6 +1,10 @@
 package is.hail.utils
 
-case class TextInputFilterAndReplace(filterPattern: Option[String] = None, findPattern: Option[String] = None, replacePattern: Option[String] = None) {
+case class TextInputFilterAndReplace(
+  filterPattern: Option[String] = None,
+  findPattern: Option[String] = None,
+  replacePattern: Option[String] = None,
+) {
   require(!(findPattern.isDefined ^ replacePattern.isDefined))
 
   private val fpRegex = filterPattern.map(_.r).orNull

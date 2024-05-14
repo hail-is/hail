@@ -5,18 +5,18 @@ import datetime
 
 rfc3339_re = re.compile(
     # https://www.rfc-editor.org/rfc/rfc3339#section-5.6
-    '([0-9][0-9][0-9][0-9])'            # YYYY
+    '([0-9][0-9][0-9][0-9])'  # YYYY
     '-'
-    '([0-9][0-9])'                      # MM
+    '([0-9][0-9])'  # MM
     '-'
-    '([0-9][0-9])'                      # DD
-    '[Tt ]'                             # see NOTE in link
-    '([0-9][0-9])'                      # HH
+    '([0-9][0-9])'  # DD
+    '[Tt ]'  # see NOTE in link
+    '([0-9][0-9])'  # HH
     ':'
-    '([0-9][0-9])'                      # MM
+    '([0-9][0-9])'  # MM
     ':'
-    '([0-9][0-9])'                      # SS
-    '(.[0-9][0-9]*)?'                   # optional fractional seconds
+    '([0-9][0-9])'  # SS
+    '(.[0-9][0-9]*)?'  # optional fractional seconds
     '([Zz]|[+-][0-9][0-9]:[0-9][0-9])'  # offset / timezone
 )
 _timezone_cache: Dict[str, datetime.timezone] = {}
@@ -70,5 +70,5 @@ def parse_rfc3339(s: str) -> datetime.datetime:
         minute=int(minute),
         second=int(second),
         microsecond=microsecond,
-        tzinfo=tz
+        tzinfo=tz,
     )

@@ -5,10 +5,9 @@ case class SemanticVersion(major: Int, minor: Int, patch: Int) extends Ordered[S
   assert((minor & 0xff) == minor)
   assert((patch & 0xff) == patch)
 
-  def supports(that: SemanticVersion): Boolean = {
+  def supports(that: SemanticVersion): Boolean =
     major == that.major &&
       that.minor <= minor
-  }
 
   def rep: Int = (major << 16) | (minor << 8) | patch
 

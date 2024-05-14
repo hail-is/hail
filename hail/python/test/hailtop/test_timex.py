@@ -53,7 +53,6 @@ def test_space_instead_of_T():
     expected = datetime.datetime(2022, 12, 27, 16, 48, 6, 404000, tzinfo)
     assert actual == expected
 
-
     actual = timex.parse_rfc3339('2022-12-27 16:48:06.404-04:35')
 
     tzinfo = datetime.timezone(datetime.timedelta(hours=-4, minutes=-35))
@@ -68,13 +67,11 @@ def test_lowercase_T():
     expected = datetime.datetime(2022, 12, 27, 16, 48, 6, 0, tzinfo)
     assert actual == expected
 
-
     actual = timex.parse_rfc3339('2022-12-27t16:48:06.404Z')
 
     tzinfo = datetime.timezone.utc
     expected = datetime.datetime(2022, 12, 27, 16, 48, 6, 404000, tzinfo)
     assert actual == expected
-
 
     actual = timex.parse_rfc3339('2022-12-27t16:48:06.404-04:35')
 
@@ -90,13 +87,11 @@ def test_lowercase_z():
     expected = datetime.datetime(2022, 12, 27, 16, 48, 6, 0, tzinfo)
     assert actual == expected
 
-
     actual = timex.parse_rfc3339('2022-12-27T16:48:06.404z')
 
     tzinfo = datetime.timezone.utc
     expected = datetime.datetime(2022, 12, 27, 16, 48, 6, 404000, tzinfo)
     assert actual == expected
-
 
 
 def test_one_fractional_second_digit():

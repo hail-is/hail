@@ -11,7 +11,10 @@ class Resource:
     """
 
     _uid: str
-    _source: Optional[job.Job]
+
+    @abc.abstractmethod
+    def source(self) -> Optional[job.Job]:
+        pass
 
     @abc.abstractmethod
     def _get_path(self, directory: str) -> str:
@@ -27,6 +30,7 @@ class ResourceFile(Resource, str):
     Class representing a single file resource. There exist two subclasses:
     :class:`.InputResourceFile` and :class:`.JobResourceFile`.
     """
+
     _counter = 0
     _uid_prefix = "__RESOURCE_FILE__"
     _regex_pattern = r"(?P<RESOURCE_FILE>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
@@ -47,7 +51,6 @@ class ResourceFile(Resource, str):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
-        self._source: Optional[job.Job] = None
         self._output_paths: Set[str] = set()
         self._resource_group: Optional[ResourceGroup] = None
 
@@ -56,8 +59,9 @@ class ResourceFile(Resource, str):
 
     def _add_output_path(self, path: str) -> None:
         self._output_paths.add(path)
-        if self._source is not None:
-            self._source._external_outputs.add(self)
+        source = self.source()
+        if source is not None:
+            source._external_outputs.add(self)
 
     def _add_resource_group(self, rg: 'ResourceGroup') -> None:
         self._resource_group = rg
@@ -103,6 +107,9 @@ class InputResourceFile(ResourceFile):
         assert self._value is not None
         return directory + '/inputs/' + self._value
 
+    def source(self) -> None:
+        return None
+
 
 class JobResourceFile(ResourceFile):
     """
@@ -127,10 +134,12 @@ class JobResourceFile(ResourceFile):
     def __init__(self, value, source: job.Job):
         super().__init__(value)
         self._has_extension = False
-        self._source: job.Job = source
+        self._source = source
+
+    def source(self) -> job.Job:
+        return self._source
 
     def _get_path(self, directory: str) -> str:
-        assert self._source is not None
         assert self._value is not None
         return f'{directory}/{self._source._dirname}/{self._value}'
 
@@ -236,6 +245,9 @@ class ResourceGroup(Resource):
             self._resources[name] = resource_file
             resource_file._add_resource_group(self)
 
+    def source(self):
+        return self._source
+
     def _get_path(self, directory: str) -> str:
         subdir = str(self._source._dirname) if self._source else 'inputs'
         return directory + '/' + subdir + '/' + self._root
@@ -246,8 +258,10 @@ class ResourceGroup(Resource):
 
     def _get_resource(self, item: str) -> ResourceFile:
         if item not in self._resources:
-            raise BatchException(f"'{item}' not found in the resource group.\n"
-                                 f"Hint: you must declare each attribute when constructing the resource group.")
+            raise BatchException(
+                f"'{item}' not found in the resource group.\n"
+                f"Hint: you must declare each attribute when constructing the resource group."
+            )
         return self._resources[item]
 
     def __getitem__(self, item: str) -> ResourceFile:
@@ -300,6 +314,7 @@ class PythonResult(Resource, str):
     to be saved. In most cases, you'll want to convert the :class:`.PythonResult`
     to a :class:`.JobResourceFile` in a human-readable format.
     """
+
     _counter = 0
     _uid_prefix = "__PYTHON_RESULT__"
     _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)  # pylint: disable=consider-using-f-string
@@ -320,14 +335,13 @@ class PythonResult(Resource, str):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value
-        self._source: job.PythonJob = source
+        self._source = source
         self._output_paths: Set[str] = set()
         self._json = None
         self._str = None
         self._repr = None
 
     def _get_path(self, directory: str) -> str:
-        assert self._source is not None
         assert self._value is not None
         return f'{directory}/{self._source._dirname}/{self._value}'
 
@@ -348,7 +362,7 @@ class PythonResult(Resource, str):
         """
         Get the job that created the Python result.
         """
-        return cast(job.PythonJob, self._source)
+        return self._source
 
     def as_json(self) -> JobResourceFile:
         """

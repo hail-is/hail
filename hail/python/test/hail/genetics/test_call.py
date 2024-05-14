@@ -87,10 +87,10 @@ class Tests(unittest.TestCase):
         self.assertFalse(c_zeroploid.is_het_non_ref())
         self.assertFalse(c_zeroploid.is_het_ref())
 
-        self.assertRaisesRegex(NotImplementedError,
-                               "Calls with greater than 2 alleles are not supported.",
-                               Call,
-                               [1, 1, 1, 1])
+        self.assertRaisesRegex(
+            NotImplementedError, "Calls with greater than 2 alleles are not supported.", Call, [1, 1, 1, 1]
+        )
+
 
 def test_call_rich_comparison():
     val = Call([0, 0])

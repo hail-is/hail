@@ -7,8 +7,7 @@ class ExportType:
     PARALLEL_HEADER_IN_SHARD = "header_per_shard"
     PARALLEL_COMPOSABLE = "composable"
 
-    checker = enumeration("concatenated", "separate_header", "header_per_shard",
-                          "composable")
+    checker = enumeration("concatenated", "separate_header", "header_per_shard", "composable")
 
     @staticmethod
     def default(export_type):

@@ -35,7 +35,13 @@ class IdentityProviderSpec:
 
 
 class HailCredentials(CloudCredentials):
-    def __init__(self, tokens: Tokens, cloud_credentials: Optional[CloudCredentials], deploy_config: DeployConfig, authorize_target: bool):
+    def __init__(
+        self,
+        tokens: Tokens,
+        cloud_credentials: Optional[CloudCredentials],
+        deploy_config: DeployConfig,
+        authorize_target: bool,
+    ):
         self._tokens = tokens
         self._cloud_credentials = cloud_credentials
         self._deploy_config = deploy_config
@@ -72,7 +78,10 @@ class HailCredentials(CloudCredentials):
     async def _get_hail_token_or_idp_access_token(self, namespace: str) -> Tuple[str, Optional[float]]:
         if self._cloud_credentials is None:
             return self._tokens.namespace_token_with_expiration_or_error(namespace)
-        return self._tokens.namespace_token_with_expiration(namespace) or await self._cloud_credentials.access_token_with_expiration()
+        return (
+            self._tokens.namespace_token_with_expiration(namespace)
+            or await self._cloud_credentials.access_token_with_expiration()
+        )
 
     async def close(self):
         if self._cloud_credentials:
@@ -90,11 +99,16 @@ def hail_credentials(
     tokens_file: Optional[str] = None,
     cloud_credentials_file: Optional[str] = None,
     deploy_config: Optional[DeployConfig] = None,
-    authorize_target: bool = True
+    authorize_target: bool = True,
 ) -> HailCredentials:
     tokens = get_tokens(tokens_file)
     deploy_config = deploy_config or get_deploy_config()
-    return HailCredentials(tokens, get_cloud_credentials_scoped_for_hail(credentials_file=cloud_credentials_file), deploy_config, authorize_target=authorize_target)
+    return HailCredentials(
+        tokens,
+        get_cloud_credentials_scoped_for_hail(credentials_file=cloud_credentials_file),
+        deploy_config,
+        authorize_target=authorize_target,
+    )
 
 
 def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None) -> Optional[CloudCredentials]:
@@ -114,7 +128,9 @@ def get_cloud_credentials_scoped_for_hail(credentials_file: Optional[str] = None
 
     assert spec.idp == IdentityProvider.MICROSOFT
     if spec.oauth2_credentials is not None:
-        return AzureCredentials.from_credentials_data(spec.oauth2_credentials, scopes=[spec.oauth2_credentials['userOauthScope']])
+        return AzureCredentials.from_credentials_data(
+            spec.oauth2_credentials, scopes=[spec.oauth2_credentials['userOauthScope']]
+        )
 
     if 'HAIL_AZURE_OAUTH_SCOPE' in os.environ:
         scopes = [os.environ["HAIL_AZURE_OAUTH_SCOPE"]]
@@ -226,6 +242,7 @@ async def hail_session(**session_kwargs):
     async with hail_credentials() as credentials:
         async with Session(credentials=credentials, **session_kwargs) as session:
             yield session
+
 
 def get_user(username: str) -> dict:
     return async_to_blocking(async_get_user(username))

@@ -13,18 +13,10 @@ def main(args):
 
 def register_main(subparser) -> 'None':
     parser = subparser.add_parser(
-        'create-resources',
-        help='Create benchmark input resources.',
-        description='Create benchmark input resources.'
+        'create-resources', help='Create benchmark input resources.', description='Create benchmark input resources.'
     )
 
-    parser.add_argument("--data-dir", "-d",
-                        type=str,
-                        required=True,
-                        help="Data directory.")
-    parser.add_argument("--group",
-                        type=str,
-                        required=False,
-                        help="Resource group to download.")
+    parser.add_argument("--data-dir", "-d", type=str, required=True, help="Data directory.")
+    parser.add_argument("--group", type=str, required=False, help="Resource group to download.")
 
     parser.set_defaults(main=main)

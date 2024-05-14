@@ -4,9 +4,17 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail import ir
 from hail.backend.spark_backend import SparkBackend
-from hail.expr import (ArrayNumericExpression, BooleanExpression, CallExpression,
-                       Float64Expression, analyze, expr_array, expr_call,
-                       expr_float64, matrix_table_source)
+from hail.expr import (
+    ArrayNumericExpression,
+    BooleanExpression,
+    CallExpression,
+    Float64Expression,
+    analyze,
+    expr_array,
+    expr_call,
+    expr_float64,
+    matrix_table_source,
+)
 from hail.expr.types import tarray
 from hail.linalg import BlockMatrix
 from hail.table import Table
@@ -16,23 +24,27 @@ from hail.utils.java import Env
 from ..pca import _hwe_normalized_blanczos, hwe_normalized_pca
 
 
-@typecheck(call_expr=expr_call,
-           min_individual_maf=numeric,
-           k=nullable(int),
-           scores_expr=nullable(expr_array(expr_float64)),
-           min_kinship=nullable(numeric),
-           statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
-           block_size=nullable(int),
-           include_self_kinship=bool)
-def pc_relate(call_expr: CallExpression,
-              min_individual_maf: float,
-              *,
-              k: Optional[int] = None,
-              scores_expr: Optional[ArrayNumericExpression] = None,
-              min_kinship: Optional[float] = None,
-              statistics: str = 'all',
-              block_size: Optional[int] = None,
-              include_self_kinship: bool = False) -> Table:
+@typecheck(
+    call_expr=expr_call,
+    min_individual_maf=numeric,
+    k=nullable(int),
+    scores_expr=nullable(expr_array(expr_float64)),
+    min_kinship=nullable(numeric),
+    statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
+    block_size=nullable(int),
+    include_self_kinship=bool,
+)
+def pc_relate(
+    call_expr: CallExpression,
+    min_individual_maf: float,
+    *,
+    k: Optional[int] = None,
+    scores_expr: Optional[ArrayNumericExpression] = None,
+    min_kinship: Optional[float] = None,
+    statistics: str = 'all',
+    block_size: Optional[int] = None,
+    include_self_kinship: bool = False,
+) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -301,14 +313,16 @@ def pc_relate(call_expr: CallExpression,
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
     if not isinstance(Env.backend(), SparkBackend):
-        return _pc_relate_bm(call_expr,
-                             min_individual_maf,
-                             k=k,
-                             scores_expr=scores_expr,
-                             min_kinship=min_kinship,
-                             statistics=statistics,
-                             block_size=block_size,
-                             include_self_kinship=include_self_kinship)
+        return _pc_relate_bm(
+            call_expr,
+            min_individual_maf,
+            k=k,
+            scores_expr=scores_expr,
+            min_kinship=min_kinship,
+            statistics=statistics,
+            block_size=block_size,
+            include_self_kinship=include_self_kinship,
+        )
 
     mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
@@ -322,8 +336,7 @@ def pc_relate(call_expr: CallExpression,
     else:
         raise ValueError("pc_relate: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
-    scores_table = mt.select_cols(__scores=scores_expr) \
-        .key_cols_by().select_cols('__scores').cols()
+    scores_table = mt.select_cols(__scores=scores_expr).key_cols_by().select_cols('__scores').cols()
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
@@ -336,17 +349,23 @@ def pc_relate(call_expr: CallExpression,
     if not block_size:
         block_size = BlockMatrix.default_block_size()
 
-    g = BlockMatrix.from_entry_expr(mean_imputed_gt,
-                                    block_size=block_size)
+    g = BlockMatrix.from_entry_expr(mean_imputed_gt, block_size=block_size)
 
     pcs = scores_table.collect(_localize=False).map(lambda x: x.__scores)
 
-    ht = Table(ir.BlockMatrixToTableApply(g._bmir, pcs._ir, {
-        'name': 'PCRelate',
-        'maf': min_individual_maf,
-        'blockSize': block_size,
-        'minKinship': min_kinship,
-        'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]})).persist()
+    ht = Table(
+        ir.BlockMatrixToTableApply(
+            g._bmir,
+            pcs._ir,
+            {
+                'name': 'PCRelate',
+                'maf': min_individual_maf,
+                'blockSize': block_size,
+                'minKinship': min_kinship,
+                'statistics': {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics],
+            },
+        )
+    ).persist()
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -413,12 +432,14 @@ def _dominance_encoding(g: Float64Expression, mu: Float64Expression) -> Float64E
     gd : :class:`.Float64Expression`
         Dominance-coded entry for dominance-coded genotype matrix.
     """
-    gd = hl.case() \
-        .when(hl.is_nan(mu), 0.0) \
-        .when(g == 0.0, mu) \
-        .when(g == 1.0, 0.0) \
-        .when(g == 2.0, 1 - mu) \
+    gd = (
+        hl.case()
+        .when(hl.is_nan(mu), 0.0)
+        .when(g == 0.0, mu)
+        .when(g == 1.0, 0.0)
+        .when(g == 2.0, 1 - mu)
         .or_error('entries in genotype matrix must be 0.0, 1.0, or 2.0')
+    )
     return gd
 
 
@@ -455,26 +476,31 @@ def _replace_nan(M: BlockMatrix, value: float) -> BlockMatrix:
     return M._map_dense(lambda x: hl.if_else(hl.is_nan(x), value, x))
 
 
-@typecheck(call_expr=expr_call,
-           min_individual_maf=numeric,
-           k=nullable(int),
-           scores_expr=nullable(expr_array(expr_float64)),
-           min_kinship=nullable(numeric),
-           statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
-           block_size=nullable(int),
-           include_self_kinship=bool)
-def _pc_relate_bm(call_expr: CallExpression,
-                  min_individual_maf: float,
-                  *,
-                  k: Optional[int] = None,
-                  scores_expr: Optional[ArrayNumericExpression] = None,
-                  min_kinship: Optional[float] = None,
-                  statistics: str = "all",
-                  block_size: Optional[int] = None,
-                  include_self_kinship: bool = False) -> Table:
-    assert (0.0 <= min_individual_maf <= 1.0), \
-        f'invalid argument: min_individual_maf={min_individual_maf}. ' \
+@typecheck(
+    call_expr=expr_call,
+    min_individual_maf=numeric,
+    k=nullable(int),
+    scores_expr=nullable(expr_array(expr_float64)),
+    min_kinship=nullable(numeric),
+    statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
+    block_size=nullable(int),
+    include_self_kinship=bool,
+)
+def _pc_relate_bm(
+    call_expr: CallExpression,
+    min_individual_maf: float,
+    *,
+    k: Optional[int] = None,
+    scores_expr: Optional[ArrayNumericExpression] = None,
+    min_kinship: Optional[float] = None,
+    statistics: str = "all",
+    block_size: Optional[int] = None,
+    include_self_kinship: bool = False,
+) -> Table:
+    assert 0.0 <= min_individual_maf <= 1.0, (
+        f'invalid argument: min_individual_maf={min_individual_maf}. '
         f'Must have min_individual_maf on interval [0.0, 1.0].'
+    )
     mt = matrix_table_source('pc_relate_bm/call_expr', call_expr)
     if k and scores_expr is None:
         eigens, scores, _ = _hwe_normalized_blanczos(call_expr, k, compute_loadings=False, q_iterations=10)
@@ -486,11 +512,9 @@ def _pc_relate_bm(call_expr: CallExpression,
         scores_table = mt.select_cols(__scores=scores_expr).key_cols_by().select_cols('__scores').cols()
         compute_S0 = True
     elif k and scores_expr is not None:
-        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
-                         "must be set, found both")
+        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' " "must be set, found both")
     else:
-        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' "
-                         "must be set, found neither")
+        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' " "must be set, found neither")
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:
@@ -529,9 +553,11 @@ def _pc_relate_bm(call_expr: CallExpression,
     # Compute matrix of individual-specific AF estimates (mu), shape (m, n)
     mu = 0.5 * (BlockMatrix.from_ndarray(V * S, block_size=block_size) @ beta).T
     # Replace entries in mu with NaN if invalid or if corresponding GT is missing (no contribution from that variant)
-    mu = mu._apply_map2(lambda _mu, _g: hl.if_else(_bad_mu(_mu, min_individual_maf) | hl.is_nan(_g), nan, _mu),
-                        g,
-                        sparsity_strategy='NeedsDense')
+    mu = mu._apply_map2(
+        lambda _mu, _g: hl.if_else(_bad_mu(_mu, min_individual_maf) | hl.is_nan(_g), nan, _mu),
+        g,
+        sparsity_strategy='NeedsDense',
+    )
     mu = mu.checkpoint(new_temp_file('pc_relate_bm/mu', 'bm'))
 
     # Compute kinship matrix (phi), shape (n, n)
@@ -541,9 +567,7 @@ def _pc_relate_bm(call_expr: CallExpression,
     phi = _gram(centered_af) / (4.0 * _gram(variance.sqrt()))
     phi = phi.checkpoint(new_temp_file('pc_relate_bm/phi', 'bm'))
     ht = phi.entries().rename({'entry': 'kin'})
-    ht = ht.annotate(k0=hl.missing(hl.tfloat64),
-                     k1=hl.missing(hl.tfloat64),
-                     k2=hl.missing(hl.tfloat64))
+    ht = ht.annotate(k0=hl.missing(hl.tfloat64), k1=hl.missing(hl.tfloat64), k2=hl.missing(hl.tfloat64))
 
     if statistics in ['kin2', 'kin20', 'all']:
         # Compute inbreeding coefficient and dominance encoding of GT matrix
@@ -557,16 +581,16 @@ def _pc_relate_bm(call_expr: CallExpression,
 
         if statistics in ['kin20', 'all']:
             # Get the numerator used in IBD0 (k0) computation (IBS0), compute indicator matrices for homozygotes
-            hom_alt = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 2.0) | hl.is_nan(_mu), 0.0, 1.0),
-                                    mu,
-                                    sparsity_strategy='NeedsDense')
-            hom_ref = g._apply_map2(lambda _g, _mu: hl.if_else((_g != 0.0) | hl.is_nan(_mu), 0.0, 1.0),
-                                    mu,
-                                    sparsity_strategy='NeedsDense')
+            hom_alt = g._apply_map2(
+                lambda _g, _mu: hl.if_else((_g != 2.0) | hl.is_nan(_mu), 0.0, 1.0), mu, sparsity_strategy='NeedsDense'
+            )
+            hom_ref = g._apply_map2(
+                lambda _g, _mu: hl.if_else((_g != 0.0) | hl.is_nan(_mu), 0.0, 1.0), mu, sparsity_strategy='NeedsDense'
+            )
             ibs0 = _AtB_plus_BtA(hom_alt, hom_ref)
 
             # Get the denominator used in IBD0 (k0) computation
-            mu2 = _replace_nan(mu ** 2.0, 0.0)
+            mu2 = _replace_nan(mu**2.0, 0.0)
             one_minus_mu2 = _replace_nan((1.0 - mu) ** 2.0, 0.0)
             k0_denom = _AtB_plus_BtA(mu2, one_minus_mu2)
 
@@ -588,15 +612,11 @@ def _pc_relate_bm(call_expr: CallExpression,
         ht = ht.filter(ht.kin >= min_kinship)
 
     if statistics != 'all':
-        fields_to_drop = {
-            'kin': ['ibd0', 'ibd1', 'ibd2'],
-            'kin2': ['ibd0', 'ibd1'],
-            'kin20': ['ibd1']}
+        fields_to_drop = {'kin': ['ibd0', 'ibd1', 'ibd2'], 'kin2': ['ibd0', 'ibd1'], 'kin20': ['ibd1']}
         ht = ht.drop(*fields_to_drop[statistics])
 
     if not include_self_kinship:
         ht = ht.filter(ht.i == ht.j, keep=False)
 
-    col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(),
-                          dtype=hl.tarray(mt.col_key.dtype))
+    col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=hl.tarray(mt.col_key.dtype))
     return ht.key_by(i=col_keys[hl.int32(ht.i)], j=col_keys[hl.int32(ht.j)])

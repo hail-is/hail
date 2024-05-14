@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.backend.spark.SparkBackend
+
 import org.testng.annotations.Test
 
 class HailContextSuite extends HailSuite {

@@ -55,7 +55,9 @@ def test_pformat_struct_in_struct_some_non_identifiers1():
 
 
 def test_pformat_struct_in_struct_some_non_identifiers2():
-    assert pformat(hl.Struct(**{'x': 3, 'y ': 3, 'z': hl.Struct(a=5)})) == "Struct(**{'x': 3, 'y ': 3, 'z': Struct(a=5)})"
+    assert (
+        pformat(hl.Struct(**{'x': 3, 'y ': 3, 'z': hl.Struct(a=5)})) == "Struct(**{'x': 3, 'y ': 3, 'z': Struct(a=5)})"
+    )
 
 
 def test_pformat_small_struct_in_big_struct():
@@ -81,8 +83,6 @@ Struct(a5=Struct(b0='',
                  b5='ndasdfhjwafdhjskfdshjkfhdjksfhdsjk'))
 """.strip()
     assert pformat(x) == expected
-
-
 
 
 def test_pformat_big_struct_in_small_struct():

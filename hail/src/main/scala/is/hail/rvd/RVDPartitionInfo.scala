@@ -1,11 +1,11 @@
 package is.hail.rvd
 
-import net.sourceforge.jdistlib.rng.MersenneTwister
-
 import is.hail.annotations.{Region, RegionValue, SafeRow, WritableRegionValue}
 import is.hail.backend.HailStateManager
 import is.hail.types.virtual.Type
 import is.hail.utils._
+
+import net.sourceforge.jdistlib.rng.MersenneTwister
 
 case class RVDPartitionInfo(
   partitionIndex: Int,
@@ -15,13 +15,12 @@ case class RVDPartitionInfo(
   // min, max: RegionValue[kType]
   samples: Array[Any],
   sortedness: Int,
-  contextStr: String
+  contextStr: String,
 ) {
   val interval = Interval(min, max, true, true)
 
-  def pretty(t: Type): String = {
+  def pretty(t: Type): String =
     s"partitionIndex=$partitionIndex,size=$size,min=$min,max=$max,samples=${samples.mkString(",")},sortedness=$sortedness"
-  }
 }
 
 object RVDPartitionInfo {
@@ -37,7 +36,7 @@ object RVDPartitionInfo {
     partitionIndex: Int,
     it: Iterator[Long],
     seed: Long,
-    producerContext: RVDContext
+    producerContext: RVDContext,
   ): RVDPartitionInfo = {
     using(RVDContext.default(producerContext.r.pool)) { localctx =>
       val kPType = typ.kType
@@ -108,11 +107,15 @@ object RVDPartitionInfo {
 
       val safe: RegionValue => Any = SafeRow(kPType, _)
 
-      RVDPartitionInfo(partitionIndex, i,
-        safe(minF.value), safe(maxF.value),
+      RVDPartitionInfo(
+        partitionIndex,
+        i,
+        safe(minF.value),
+        safe(maxF.value),
         Array.tabulate[Any](math.min(i, sampleSize).toInt)(i => safe(samples(i).value)),
         sortedness,
-        contextStr)
+        contextStr,
+      )
     }
   }
 }

@@ -15,9 +15,8 @@ final class ObjectArrayStack[T <: AnyRef](hintSize: Int = 16)(implicit tct: Clas
 
   def nonEmpty: Boolean = size_ > 0
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def top: T = {
     assert(size_ > 0)
@@ -26,7 +25,7 @@ final class ObjectArrayStack[T <: AnyRef](hintSize: Int = 16)(implicit tct: Clas
 
   def topOption: Option[T] = if (size_ > 0) Some(top) else None
 
-  def push(x: T) {
+  def push(x: T): Unit = {
     if (size_ == a.length) {
       val newA = new Array[T](size_ * 2)
       System.arraycopy(a, 0, newA, 0, size_)
@@ -44,7 +43,7 @@ final class ObjectArrayStack[T <: AnyRef](hintSize: Int = 16)(implicit tct: Clas
     x
   }
 
-  def update(i: Int, x: T) {
+  def update(i: Int, x: T): Unit = {
     assert(i >= 0 && i < size_)
     a(size_ - i - 1) = x
   }
@@ -70,9 +69,8 @@ final class LongArrayStack(hintSize: Int = 16) {
 
   def nonEmpty: Boolean = size_ > 0
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def top: Long = {
     assert(size_ > 0)
@@ -81,7 +79,7 @@ final class LongArrayStack(hintSize: Int = 16) {
 
   def topOption: Option[Long] = if (size_ > 0) Some(top) else None
 
-  def push(x: Long) {
+  def push(x: Long): Unit = {
     if (size_ == a.length) {
       val newA = new Array[Long](size_ * 2)
       System.arraycopy(a, 0, newA, 0, size_)
@@ -99,7 +97,7 @@ final class LongArrayStack(hintSize: Int = 16) {
     x
   }
 
-  def update(i: Int, x: Long) {
+  def update(i: Int, x: Long): Unit = {
     assert(i >= 0 && i < size_)
     a(size_ - i - 1) = x
   }
@@ -125,9 +123,8 @@ final class IntArrayStack(hintSize: Int = 16) {
 
   def nonEmpty: Boolean = size_ > 0
 
-  def clear(): Unit = {
+  def clear(): Unit =
     size_ = 0
-  }
 
   def top: Int = {
     assert(size_ > 0)
@@ -136,7 +133,7 @@ final class IntArrayStack(hintSize: Int = 16) {
 
   def topOption: Option[Int] = if (size_ > 0) Some(top) else None
 
-  def push(x: Int) {
+  def push(x: Int): Unit = {
     if (size_ == a.length) {
       val newA = new Array[Int](size_ * 2)
       System.arraycopy(a, 0, newA, 0, size_)
@@ -154,7 +151,7 @@ final class IntArrayStack(hintSize: Int = 16) {
     x
   }
 
-  def update(i: Int, x: Int) {
+  def update(i: Int, x: Int): Unit = {
     assert(i >= 0 && i < size_)
     a(size_ - i - 1) = x
   }

@@ -35,15 +35,19 @@ trait PStruct extends PBaseStruct {
 
   def identBase: String = "struct"
 
-  final def selectFields(names: Seq[String]): PCanonicalStruct = PCanonicalStruct(required, names.map(f => f -> field(f).typ): _*)
+  final def selectFields(names: Seq[String]): PCanonicalStruct =
+    PCanonicalStruct(required, names.map(f => f -> field(f).typ): _*)
 
-  final def dropFields(names: Set[String]): PCanonicalStruct = selectFields(fieldNames.filter(!names.contains(_)))
+  final def dropFields(names: Set[String]): PCanonicalStruct =
+    selectFields(fieldNames.filter(!names.contains(_)))
 
-  final def typeAfterSelect(keep: IndexedSeq[Int]): PCanonicalStruct = PCanonicalStruct(required, keep.map(i => fieldNames(i) -> types(i)): _*)
+  final def typeAfterSelect(keep: IndexedSeq[Int]): PCanonicalStruct =
+    PCanonicalStruct(required, keep.map(i => fieldNames(i) -> types(i)): _*)
 
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
-  final def isFieldDefined(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Value[Boolean] =
+  final def isFieldDefined(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String)
+    : Value[Boolean] =
     cb.memoize(!isFieldMissing(cb, offset, fieldName))
 
   def isFieldMissing(cb: EmitCodeBuilder, offset: Code[Long], fieldName: String): Value[Boolean]

@@ -35,16 +35,14 @@ class AzureSlimInstanceConfig(InstanceConfig):
         else:
             data_disk_resource = AzureStaticSizedDiskResource.create(product_versions, 'P', data_disk_size_gb, location)
 
-        resources: List[AzureResource] = filter_none(
-            [
-                AzureVMResource.create(product_versions, machine_type, preemptible, location),
-                AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
-                data_disk_resource,
-                AzureDynamicSizedDiskResource.create(product_versions, 'P', location),
-                AzureIPFeeResource.create(product_versions, 1024),
-                AzureServiceFeeResource.create(product_versions),
-            ]
-        )
+        resources: List[AzureResource] = filter_none([
+            AzureVMResource.create(product_versions, machine_type, preemptible, location),
+            AzureStaticSizedDiskResource.create(product_versions, 'E', boot_disk_size_gb, location),
+            data_disk_resource,
+            AzureDynamicSizedDiskResource.create(product_versions, 'P', location),
+            AzureIPFeeResource.create(product_versions, 1024),
+            AzureServiceFeeResource.create(product_versions),
+        ])
 
         return AzureSlimInstanceConfig(
             machine_type=machine_type,

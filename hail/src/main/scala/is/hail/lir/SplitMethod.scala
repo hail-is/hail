@@ -2,10 +2,11 @@ package is.hail.lir
 
 import is.hail.asm4s._
 import is.hail.utils._
-import org.objectweb.asm.Opcodes._
-import org.objectweb.asm._
 
 import scala.collection.mutable
+
+import org.objectweb.asm._
+import org.objectweb.asm.Opcodes._
 
 class SplitUnreachable() extends Exception()
 
@@ -19,7 +20,7 @@ object SplitMethod {
     locals: Locals,
     cfg: CFG,
     liveness: Liveness,
-    pst: PST
+    pst: PST,
   ): Classx[_] = {
     val split = new SplitMethod(c, m, blocks, locals, cfg, liveness, pst)
     split.split()
@@ -34,14 +35,14 @@ class SplitMethod(
   locals: Locals,
   cfg: CFG,
   liveness: Liveness,
-  pst: PST
+  pst: PST,
 ) {
   def nBlocks: Int = blocks.nBlocks
 
   def nLocals: Int = locals.nLocals
 
   private val blockPartitions = new UnionFind(nBlocks)
-  (0 until nBlocks).foreach { i => blockPartitions.makeSet(i) }
+  (0 until nBlocks).foreach(i => blockPartitions.makeSet(i))
 
   private var methodSize = 0
 
@@ -58,19 +59,23 @@ class SplitMethod(
     }
   }
 
-  private val spillsClass = new Classx(genName("C", s"${ m.name }Spills"), "java/lang/Object", None)
+  private val spillsClass = new Classx(genName("C", s"${m.name}Spills"), "java/lang/Object", None)
+
   private val spillsCtor = {
     val ctor = spillsClass.newMethod("<init>", FastSeq(), UnitInfo)
     val L = new Block()
     ctor.setEntry(L)
     L.append(
-      methodStmt(INVOKESPECIAL,
+      methodStmt(
+        INVOKESPECIAL,
         "java/lang/Object",
         "<init>",
         "()V",
         false,
         UnitInfo,
-        FastSeq(load(ctor.getParam(0)))))
+        FastSeq(load(ctor.getParam(0))),
+      )
+    )
     L.append(returnx())
     ctor
   }
@@ -99,8 +104,14 @@ class SplitMethod(
     val ti = classInfo[SplitUnreachable]
     val tcls = classOf[SplitUnreachable]
     val c = tcls.getDeclaredConstructor()
-    throwx(newInstance(ti,
-      Type.getInternalName(tcls), "<init>", Type.getConstructorDescriptor(c), ti, FastSeq()))
+    throwx(newInstance(
+      ti,
+      Type.getInternalName(tcls),
+      "<init>",
+      Type.getConstructorDescriptor(c),
+      ti,
+      FastSeq(),
+    ))
   }
 
   private val spills = m.newLocal("spills", spillsClass.ti)
@@ -144,12 +155,11 @@ class SplitMethod(
           }
       }
 
-    def getSpills(): ValueX = {
+    def getSpills(): ValueX =
       if (method eq m)
         load(spills)
       else
         load(new Parameter(method, 1, spillsClass.ti))
-    }
 
     def spill(x: X): Unit = {
       x.children.foreach(spill)
@@ -167,10 +177,15 @@ class SplitMethod(
           val f = localField(x.l)
           if (f != null) {
             x.replace(
-              putField(f, getSpills(),
+              putField(
+                f,
+                getSpills(),
                 insn2(IADD)(
                   getField(f, getSpills()),
-                  ldcInsn(x.i, IntInfo))))
+                  ldcInsn(x.i, IntInfo),
+                ),
+              )
+            )
           }
         case x: StoreX =>
           assert(x.l ne spills)
@@ -215,9 +230,8 @@ class SplitMethod(
 
   def spillLocals(): Unit = {
     createSpillFields()
-    for (splitM <- splitMethods) {
+    for (splitM <- splitMethods)
       spillLocals(splitM)
-    }
     spillLocals(m)
   }
 
@@ -226,16 +240,15 @@ class SplitMethod(
       val method = s.containingMethod()
       assert(method != null)
 
-      def getSpills(): ValueX = {
+      def getSpills(): ValueX =
         if (method eq m)
           load(spills)
         else
           load(new Parameter(method, 1, spillsClass.ti))
-      }
 
       val Lafter = new Block()
       Lafter.method = method
-      while (s.next!= null) {
+      while (s.next != null) {
         val n = s.next
         n.remove()
         Lafter.append(n)
@@ -250,10 +263,8 @@ class SplitMethod(
       } else
         Lreturn.append(returnx())
       s.insertAfter(
-        ifx(IFNE,
-          getField(spillReturned, getSpills()),
-          Lreturn,
-          Lafter))
+        ifx(IFNE, getField(spillReturned, getSpills()), Lreturn, Lafter)
+      )
     }
   }
 
@@ -281,9 +292,8 @@ class SplitMethod(
     }
 
     localsToSpill.or(liveness.liveIn(start))
-    for (s <- cfg.succ(end)) {
+    for (s <- cfg.succ(end))
       localsToSpill.or(liveness.liveIn(s))
-    }
 
     // replacement block for region
     val newL = new Block()
@@ -300,9 +310,7 @@ class SplitMethod(
     if (m.entry == Lstart)
       m.setEntry(newL)
 
-    (start to end).foreach { i =>
-      blockPartitions.union(start, i)
-    }
+    (start to end).foreach(i => blockPartitions.union(start, i))
     updatedBlocks(blockPartitions.find(start)) = newL
 
     val returnTI = Lend.last match {
@@ -317,7 +325,7 @@ class SplitMethod(
       case _: ThrowX => UnitInfo
     }
 
-    val splitM = c.newMethod(s"${ m.name }_region${ start }_$end", FastSeq(spillsClass.ti), returnTI)
+    val splitM = c.newMethod(s"${m.name}_region${start}_$end", FastSeq(spillsClass.ti), returnTI)
     splitMethods += splitM
 
     splitM.setEntry(Lstart)
@@ -355,7 +363,8 @@ class SplitMethod(
         if (splitsReturn)
           splitReturnCalls += s
       } else {
-        splitMReturnValue = methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
+        splitMReturnValue =
+          methodInsn(INVOKEVIRTUAL, splitM, Array(load(m.getParam(0)), load(spills)))
         if (splitsReturn) {
           val l = m.newLocal("splitMReturnValue", returnTI)
           val s = store(l, splitMReturnValue)
@@ -397,7 +406,8 @@ class SplitMethod(
             x.setLtrue(Lreturn)
           } else {
             newL.append(
-              ifx(IFNE, splitMReturnValue, x.Ltrue, x.Lfalse))
+              ifx(IFNE, splitMReturnValue, x.Ltrue, x.Lfalse)
+            )
 
             val newLtrue = new Block()
             newLtrue.method = splitM
@@ -456,8 +466,10 @@ class SplitMethod(
     var size = subr.iterator.map(_.size).sum
 
     var changed = true
-    while (changed &&
-      size > SplitMethod.TargetMethodSize) {
+    while (
+      changed &&
+      size > SplitMethod.TargetMethodSize
+    ) {
 
       changed = false
 
@@ -467,10 +479,12 @@ class SplitMethod(
       while (i < subr.size) {
         var s = subr(i).size
         var j = i + 1
-        while (j < subr.size &&
+        while (
+          j < subr.size &&
           subr(j).start == subr(i).end + 1 &&
           pst.splitBlock(subr(i).end) &&
-          (s + subr(j).size < SplitMethod.TargetMethodSize)) {
+          (s + subr(j).size < SplitMethod.TargetMethodSize)
+        ) {
           s += subr(j).size
           j += 1
         }
@@ -485,8 +499,10 @@ class SplitMethod(
       i = sortedsubr.length - 1
       while (i >= 0) {
         val ri = sortedsubr(i)
-        if (ri.size > 20 &&
-          size > SplitMethod.TargetMethodSize) {
+        if (
+          ri.size > 20 &&
+          size > SplitMethod.TargetMethodSize
+        ) {
 
           size -= ri.size
           splitSlice(ri.start, ri.end)
@@ -527,12 +543,8 @@ class SplitMethod(
         regionSize(i) = blockSize(blockPartitions.find(r.start))
       }
       // The PST no longer computes loop regions. See PR #13566 for the removed code.
-      /*
-      if (i != pst.root && pst.loopRegion.get(i)) {
-        splitSlice(r.start, r.end)
-        regionSize(i) = blockSize(blockPartitions.find(r.start))
-      }
-       */
+      /* if (i != pst.root && pst.loopRegion.get(i)) { splitSlice(r.start, r.end) regionSize(i) =
+       * blockSize(blockPartitions.find(r.start)) } */
       i += 1
     }
   }
@@ -552,7 +564,8 @@ class SplitMethod(
       val putParam = putField(
         f,
         load(spills),
-        load(m.getParam(i + 1)))
+        load(m.getParam(i + 1)),
+      )
       x.insertAfter(putParam)
       x = putParam
     }

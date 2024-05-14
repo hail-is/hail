@@ -1,12 +1,12 @@
 package is.hail.utils.richUtils
 
-import java.io.InputStream
 import is.hail.utils._
 
+import java.io.InputStream
+
 class RichInputStream(val in: InputStream) extends AnyVal {
-  def readFully(to: Array[Byte]): Unit = {
+  def readFully(to: Array[Byte]): Unit =
     readFully(to, 0, to.length)
-  }
 
   def readFully(to: Array[Byte], toOff: Int, n: Int): Unit = {
     val nRead = readRepeatedly(to, toOff, n)

@@ -8,5 +8,7 @@ class AzureComputeClient(AzureBaseClient):
         params = kwargs['params']
         if 'api-version' not in params:
             params['api-version'] = '2021-07-01'
-        super().__init__(f'https://management.azure.com/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Compute',
-                         **kwargs)
+        super().__init__(
+            f'https://management.azure.com/subscriptions/{subscription_id}/resourceGroups/{resource_group_name}/providers/Microsoft.Compute',
+            **kwargs,
+        )

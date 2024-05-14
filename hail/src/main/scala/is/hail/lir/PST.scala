@@ -57,7 +57,8 @@ class PSTRegion(
   var end: Int,
   var children: Array[Int],
   // -1 means root, or parent not yet known
-  var parent: Int = -1)
+  var parent: Int = -1,
+)
 
 object PSTResult {
   def unapply(result: PSTResult): Option[(Blocks, CFG, PST)] =
@@ -67,13 +68,13 @@ object PSTResult {
 class PSTResult(
   val blocks: Blocks,
   val cfg: CFG,
-  val pst: PST
+  val pst: PST,
 )
 
 class PSTBuilder(
   m: Method,
   blocks: Blocks,
-  cfg: CFG
+  cfg: CFG,
 ) {
   def nBlocks: Int = blocks.length
 
@@ -153,10 +154,9 @@ class PSTBuilder(
   private def linearize(): Unit = {
     val pending = Array.tabulate(nBlocks) { i =>
       var n = 0
-      for (p <- cfg.pred(i)) {
+      for (p <- cfg.pred(i))
         if (!backEdges(p -> i))
           n += 1
-      }
       n
     }
     var k = 0
@@ -249,7 +249,7 @@ class PSTBuilder(
     val maxTarget = maxTargetLE(end)
     val minSource = minSourceGE(start)
     (maxTarget == -1 || maxTarget <= start) &&
-      (minSource == -1 || minSource >= end)
+    (minSource == -1 || minSource >= end)
   }
 
   private val splitBlock = new java.util.BitSet(nBlocks)
@@ -285,9 +285,11 @@ class PSTBuilder(
   }
 
   private def addRoot(): Int = {
-    if (frontier.size == 1 &&
+    if (
+      frontier.size == 1 &&
       regions(frontier(0)).start == 0 &&
-      regions(frontier(0)).end == nBlocks - 1) {
+      regions(frontier(0)).end == nBlocks - 1
+    ) {
       frontier(0)
     } else {
       val c = regions.length
@@ -488,7 +490,8 @@ class PSTBuilder(
     val pst = new PST(
       newSplitBlock.result(),
       newRegions,
-      newRoot)
+      newRoot,
+    )
     new PSTResult(newBlocks, newCFG, pst)
   }
 }
@@ -503,7 +506,7 @@ object PST {
 class PST(
   val splitBlock: Array[Boolean],
   val regions: Array[PSTRegion],
-  val root: Int
+  val root: Int,
 ) {
   def nBlocks: Int = splitBlock.length
 
@@ -513,23 +516,22 @@ class PST(
     println(s"PST $nRegions:")
 
     def fmt(i: Int): String =
-      s"${ if (i > 0 && splitBlock(i - 1)) "<" else "" }$i${ if (splitBlock(i)) ">" else "" }"
+      s"${if (i > 0 && splitBlock(i - 1)) "<" else ""}$i${if (splitBlock(i)) ">" else ""}"
 
     println(" regions:")
     var i = 0
     while (i < nRegions) {
       val r = regions(i)
-      println(s"  $i: ${ fmt(r.start) } ${ fmt(r.end) } ${ r.parent } ${ r.children.mkString(",") }")
+      println(s"  $i: ${fmt(r.start)} ${fmt(r.end)} ${r.parent} ${r.children.mkString(",")}")
       i += 1
     }
 
     println(" children:")
     def printTree(i: Int, depth: Int): Unit = {
       val r = regions(i)
-      println(s"${ " " * depth }$i: ${ fmt(r.start) } ${ fmt(r.end) }")
-      for (c <- regions(i).children) {
+      println(s"${" " * depth}$i: ${fmt(r.start)} ${fmt(r.end)}")
+      for (c <- regions(i).children)
         printTree(c, depth + 2)
-      }
     }
 
     i = 0

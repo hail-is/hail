@@ -8,16 +8,16 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
     region.invoke[Long, Long, Long]("allocate", alignment, n)
 
-  def clearRegion(): Code[Unit] = {
+  def clearRegion(): Code[Unit] =
     region.invoke[Unit]("clear")
-  }
 
   def getMemory(): Code[RegionMemory] = region.invoke[RegionMemory]("getMemory")
 
   def trackAndIncrementReferenceCountOf(other: Code[Region]): Code[Unit] =
     region.invoke[Region, Unit]("addReferenceTo", other)
 
-  def takeOwnershipOfAndClear(other: Code[Region]): Code[Unit] = other.invoke[Region, Unit]("move", region)
+  def takeOwnershipOfAndClear(other: Code[Region]): Code[Unit] =
+    other.invoke[Region, Unit]("move", region)
 
   def setNumParents(n: Code[Int]): Code[Unit] =
     region.invoke[Int, Unit]("setNumParents", n)
@@ -38,11 +38,14 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
 
   def invalidate(): Code[Unit] = region.invoke[Unit]("invalidate")
 
-  def getNewRegion(blockSize: Code[Int]): Code[Unit] = region.invoke[Int, Unit]("getNewRegion", blockSize)
+  def getNewRegion(blockSize: Code[Int]): Code[Unit] =
+    region.invoke[Int, Unit]("getNewRegion", blockSize)
 
-  def storeJavaObject(obj: Code[AnyRef]): Code[Int] = region.invoke[AnyRef, Int]("storeJavaObject", obj)
+  def storeJavaObject(obj: Code[AnyRef]): Code[Int] =
+    region.invoke[AnyRef, Int]("storeJavaObject", obj)
 
-  def lookupJavaObject(idx: Code[Int]): Code[AnyRef] = region.invoke[Int, AnyRef]("lookupJavaObject", idx)
+  def lookupJavaObject(idx: Code[Int]): Code[AnyRef] =
+    region.invoke[Int, AnyRef]("lookupJavaObject", idx)
 
   def getPool(): Code[RegionPool] = region.invoke[RegionPool]("getPool")
 

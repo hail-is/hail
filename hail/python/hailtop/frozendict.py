@@ -25,6 +25,7 @@ class frozendict(Mapping, Generic[T, U]):
     python does not.
 
     """
+
     def __init__(self, d: Dict[T, U]):
         self.d = d.copy()
 

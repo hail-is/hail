@@ -9,24 +9,26 @@ import org.apache.hadoop.util.Progressable
 
 class ByteArrayOutputFormat extends FileOutputFormat[NullWritable, BytesOnlyWritable] {
 
-  class ByteArrayRecordWriter(out: DataOutputStream) extends RecordWriter[NullWritable, BytesOnlyWritable] {
+  class ByteArrayRecordWriter(out: DataOutputStream)
+      extends RecordWriter[NullWritable, BytesOnlyWritable] {
 
-    def write(key: NullWritable, value: BytesOnlyWritable) {
+    def write(key: NullWritable, value: BytesOnlyWritable): Unit =
       if (value != null)
         value.write(out)
-    }
 
-    def close(reporter: Reporter) {
+    def close(reporter: Reporter): Unit =
       out.close()
-    }
   }
 
-  override def getRecordWriter(ignored: FileSystem, job: JobConf,
-    name: String, progress: Progressable): RecordWriter[NullWritable, BytesOnlyWritable] = {
+  override def getRecordWriter(
+    ignored: FileSystem,
+    job: JobConf,
+    name: String,
+    progress: Progressable,
+  ): RecordWriter[NullWritable, BytesOnlyWritable] = {
     val file: Path = FileOutputFormat.getTaskOutputPath(job, name)
     val fs: FileSystem = file.getFileSystem(job)
     val fileOut: FSDataOutputStream = fs.create(file, progress)
     new ByteArrayRecordWriter(fileOut)
   }
 }
-

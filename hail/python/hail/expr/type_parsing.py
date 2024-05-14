@@ -3,8 +3,7 @@ from hail.expr.nat import NatVariable
 from . import types
 from hail.utils.java import unescape_parsable
 
-type_grammar = Grammar(
-    r"""
+type_grammar = Grammar(r"""
     type = _ (array / ndarray / set / dict / struct / union / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void / variable) _
     variable = "?" simple_identifier (":" simple_identifier)?
     void = "void" / "tvoid"
@@ -154,8 +153,7 @@ class TypeConstructor(NodeVisitor):
 
 type_node_visitor = TypeConstructor()
 
-vcf_type_grammar = Grammar(
-    r"""
+vcf_type_grammar = Grammar(r"""
     type = _ (array / set / int32 / int64 / float32 / float64 / str / bool / call / struct) _
     int64 = "Int64"
     int32 = "Int32"

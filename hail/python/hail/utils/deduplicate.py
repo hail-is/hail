@@ -2,10 +2,7 @@ from typing import Tuple, Optional, Iterable, List
 
 
 def deduplicate(
-        ids: Iterable[str],
-        *,
-        max_attempts: Optional[int] = None,
-        already_used: Optional[Iterable[str]] = None
+    ids: Iterable[str], *, max_attempts: Optional[int] = None, already_used: Optional[Iterable[str]] = None
 ) -> Tuple[List[Tuple[str, str]], List[str]]:
     """Deduplicate the strings in `ids`.
 
@@ -45,8 +42,7 @@ def deduplicate(
         while s_ in uniques:
             i += 1
             if max_attempts and i > max_attempts:
-                raise RecursionError(
-                    f'cannot deduplicate {s} after {max_attempts} attempts')
+                raise RecursionError(f'cannot deduplicate {s} after {max_attempts} attempts')
             s_ = fmt(s, i)
 
         if s_ != s:

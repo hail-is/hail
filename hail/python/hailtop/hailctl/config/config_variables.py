@@ -29,7 +29,8 @@ def config_variables():
                 help_msg='Allowed buckets when using requester pays in GCS',
                 validation=(
                     lambda x: re.fullmatch(r'[^:/\s]+(,[^:/\s]+)*', x) is not None,
-                    'should be comma separated list of bucket names'),
+                    'should be comma separated list of bucket names',
+                ),
             ),
             ConfigVariable.GCS_BUCKET_ALLOW_LIST: ConfigVariableInfo(
                 help_msg=(
@@ -38,26 +39,36 @@ def config_variables():
                 validation=(
                     # See https://cloud.google.com/storage/docs/buckets#naming for bucket naming requirements.
                     lambda x: re.fullmatch(r'^[-\.\w]+(,[-\.\w]+)*$', x) is not None,
-                    "should match the pattern 'bucket1,bucket2,bucket3'."
+                    "should match the pattern 'bucket1,bucket2,bucket3'.",
                 ),
             ),
             ConfigVariable.BATCH_BUCKET: ConfigVariableInfo(
                 help_msg='Deprecated - Name of GCS bucket to use as a temporary scratch directory',
-                validation=(lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
-                            'should be valid Google Bucket identifier, with no gs:// prefix'),
+                validation=(
+                    lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
+                    'should be valid Google Bucket identifier, with no gs:// prefix',
+                ),
             ),
             ConfigVariable.BATCH_REMOTE_TMPDIR: ConfigVariableInfo(
                 help_msg='Cloud storage URI to use as a temporary scratch directory',
-                validation=(RouterAsyncFS.valid_url, 'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/'),
+                validation=(
+                    RouterAsyncFS.valid_url,
+                    'should be valid cloud storage URI such as gs://my-bucket/batch-tmp/',
+                ),
             ),
             ConfigVariable.BATCH_REGIONS: ConfigVariableInfo(
                 help_msg='Comma-separated list of regions to run jobs in',
                 validation=(
-                    lambda x: re.fullmatch(r'[^\s]+(,[^\s]+)*', x) is not None, 'should be comma separated list of regions'),
+                    lambda x: re.fullmatch(r'[^\s]+(,[^\s]+)*', x) is not None,
+                    'should be comma separated list of regions',
+                ),
             ),
             ConfigVariable.BATCH_BILLING_PROJECT: ConfigVariableInfo(
                 help_msg='Batch billing project',
-                validation=(lambda x: re.fullmatch(r'[^:/\s]+', x) is not None, 'should be valid Batch billing project name'),
+                validation=(
+                    lambda x: re.fullmatch(r'[^:/\s]+', x) is not None,
+                    'should be valid Batch billing project name',
+                ),
             ),
             ConfigVariable.BATCH_BACKEND: ConfigVariableInfo(
                 help_msg='Backend to use. One of local or service.',
@@ -65,31 +76,45 @@ def config_variables():
             ),
             ConfigVariable.QUERY_BACKEND: ConfigVariableInfo(
                 help_msg='Backend to use for Hail Query. One of spark, local, batch.',
-                validation=(lambda x: x in ('local', 'spark', 'batch'), 'should be one of "local", "spark", or "batch"'),
+                validation=(
+                    lambda x: x in ('local', 'spark', 'batch'),
+                    'should be one of "local", "spark", or "batch"',
+                ),
             ),
             ConfigVariable.QUERY_JAR_URL: ConfigVariableInfo(
                 help_msg='Cloud storage URI to a Query JAR',
-                validation=(RouterAsyncFS.valid_url, 'should be valid cloud storage URI such as gs://my-bucket/jars/sha.jar')
+                validation=(
+                    RouterAsyncFS.valid_url,
+                    'should be valid cloud storage URI such as gs://my-bucket/jars/sha.jar',
+                ),
             ),
             ConfigVariable.QUERY_BATCH_DRIVER_CORES: ConfigVariableInfo(
                 help_msg='Cores specification for the query driver',
-                validation=(lambda x: re.fullmatch(CPU_REGEXPAT, x) is not None,
-                            'should be an integer which is a power of two from 1 to 16 inclusive'),
+                validation=(
+                    lambda x: re.fullmatch(CPU_REGEXPAT, x) is not None,
+                    'should be an integer which is a power of two from 1 to 16 inclusive',
+                ),
             ),
             ConfigVariable.QUERY_BATCH_WORKER_CORES: ConfigVariableInfo(
                 help_msg='Cores specification for the query worker',
-                validation=(lambda x: re.fullmatch(CPU_REGEXPAT, x) is not None,
-                            'should be an integer which is a power of two from 1 to 16 inclusive'),
+                validation=(
+                    lambda x: re.fullmatch(CPU_REGEXPAT, x) is not None,
+                    'should be an integer which is a power of two from 1 to 16 inclusive',
+                ),
             ),
             ConfigVariable.QUERY_BATCH_DRIVER_MEMORY: ConfigVariableInfo(
                 help_msg='Memory specification for the query driver',
-                validation=(lambda x: re.fullmatch(MEMORY_REGEXPAT, x) is not None or x in ('standard', 'lowmem', 'highmem'),
-                            'should be a valid string specifying memory "[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?" or one of standard, lowmem, highmem'),
+                validation=(
+                    lambda x: re.fullmatch(MEMORY_REGEXPAT, x) is not None or x in ('standard', 'lowmem', 'highmem'),
+                    'should be a valid string specifying memory "[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?" or one of standard, lowmem, highmem',
+                ),
             ),
             ConfigVariable.QUERY_BATCH_WORKER_MEMORY: ConfigVariableInfo(
                 help_msg='Memory specification for the query worker',
-                validation=(lambda x: re.fullmatch(MEMORY_REGEXPAT, x) is not None or x in ('standard', 'lowmem', 'highmem'),
-                            'should be a valid string specifying memory "[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?" or one of standard, lowmem, highmem'),
+                validation=(
+                    lambda x: re.fullmatch(MEMORY_REGEXPAT, x) is not None or x in ('standard', 'lowmem', 'highmem'),
+                    'should be a valid string specifying memory "[+]?((?:[0-9]*[.])?[0-9]+)([KMGTP][i]?)?B?" or one of standard, lowmem, highmem',
+                ),
             ),
             ConfigVariable.QUERY_NAME_PREFIX: ConfigVariableInfo(
                 help_msg='Name used when displaying query progress in a progress bar',

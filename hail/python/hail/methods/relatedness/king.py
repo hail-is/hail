@@ -232,7 +232,7 @@ def king(call_expr, *, block_size=None):
         is_hom_ref: hl.float(hl.or_else(mt[call].is_hom_ref(), 0)),
         is_het: hl.float(hl.or_else(mt[call].is_het(), 0)),
         is_hom_var: hl.float(hl.or_else(mt[call].is_hom_var(), 0)),
-        is_defined: hl.float(hl.is_defined(mt[call]))
+        is_defined: hl.float(hl.is_defined(mt[call])),
     })
     ref = hl.linalg.BlockMatrix.from_entry_expr(mt[is_hom_ref], block_size=block_size)
     het = hl.linalg.BlockMatrix.from_entry_expr(mt[is_het], block_size=block_size)
@@ -257,16 +257,14 @@ def king(call_expr, *, block_size=None):
     kinship_between = het_hom_balance.rename({'element': 'het_hom_balance'})
     kinship_between = kinship_between.annotate_entries(
         n_hets_row=n_hets_for_rows[kinship_between.row_key, kinship_between.col_key].element,
-        n_hets_col=n_hets_for_cols[kinship_between.row_key, kinship_between.col_key].element
+        n_hets_col=n_hets_for_cols[kinship_between.row_key, kinship_between.col_key].element,
     )
 
     col_index_field = Env.get_uid()
     col_key = mt.col_key
     cols = mt.add_col_index(col_index_field).key_cols_by(col_index_field).cols()
 
-    kinship_between = kinship_between.key_cols_by(
-        **cols[kinship_between.col_idx].select(*col_key)
-    )
+    kinship_between = kinship_between.key_cols_by(**cols[kinship_between.col_idx].select(*col_key))
 
     renaming, _ = deduplicate(list(col_key), already_used=set(col_key))
     assert len(renaming) == len(col_key)
@@ -276,19 +274,17 @@ def king(call_expr, *, block_size=None):
     )
 
     kinship_between = kinship_between.annotate_entries(
-        min_n_hets=hl.min(kinship_between.n_hets_row,
-                          kinship_between.n_hets_col)
+        min_n_hets=hl.min(kinship_between.n_hets_row, kinship_between.n_hets_col)
     )
-    return kinship_between.select_entries(
-        phi=(
-            0.5
-        ) + (
-            (
-                2 * kinship_between.het_hom_balance +
-                - kinship_between.n_hets_row
-                - kinship_between.n_hets_col
-            ) / (
-                4 * kinship_between.min_n_hets
+    return (
+        kinship_between.select_entries(
+            phi=(0.5)
+            + (
+                (2 * kinship_between.het_hom_balance + -kinship_between.n_hets_row - kinship_between.n_hets_col)
+                / (4 * kinship_between.min_n_hets)
             )
         )
-    ).select_rows().select_cols().select_globals()
+        .select_rows()
+        .select_cols()
+        .select_globals()
+    )

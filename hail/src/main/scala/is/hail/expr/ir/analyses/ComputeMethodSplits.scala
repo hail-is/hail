@@ -1,6 +1,5 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 
@@ -12,7 +11,9 @@ object ComputeMethodSplits {
     require(splitThreshold > 0, s"invalid method_split_ir_limit")
 
     def recurAndComputeSizeUnderneath(x: IR): Int = {
-      val sizeUnderneath = x.children.iterator.map { case child: IR => recurAndComputeSizeUnderneath(child) }.sum
+      val sizeUnderneath = x.children.iterator.map { case child: IR =>
+        recurAndComputeSizeUnderneath(child)
+      }.sum
 
       val shouldSplit = !controlFlowPreventsSplit.contains(x) && (x match {
         case _: TailLoop => true

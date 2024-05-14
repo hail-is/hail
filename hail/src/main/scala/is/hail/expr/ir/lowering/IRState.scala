@@ -1,6 +1,8 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, RelationalLet, RelationalRef, TableKeyBy, TableKeyByAndAggregate, TableOrderBy}
+import is.hail.expr.ir.{
+  BaseIR, RelationalLet, RelationalRef, TableKeyBy, TableKeyByAndAggregate, TableOrderBy,
+}
 
 trait IRState {
 
@@ -10,7 +12,7 @@ trait IRState {
 
   final def verify(ir: BaseIR): Unit = {
     if (!rules.forall(_.allows(ir)))
-      throw new RuntimeException(s"lowered state ${ this.getClass.getCanonicalName } forbids IR $ir")
+      throw new RuntimeException(s"lowered state ${this.getClass.getCanonicalName} forbids IR $ir")
     ir.children.foreach(verify)
   }
 

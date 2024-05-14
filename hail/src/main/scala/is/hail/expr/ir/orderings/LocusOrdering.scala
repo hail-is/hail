@@ -17,7 +17,8 @@ object LocusOrdering {
 
           require(t1.rg == t2.rg)
 
-          override def _compareNonnull(cb: EmitCodeBuilder, lhsc: SValue, rhsc: SValue): Value[Int] = {
+          override def _compareNonnull(cb: EmitCodeBuilder, lhsc: SValue, rhsc: SValue)
+            : Value[Int] = {
             val codeRG = cb.emb.getReferenceGenome(t1.rg)
             val lhs: SLocusValue = lhsc.asLocus
             val rhs: SLocusValue = rhsc.asLocus
@@ -30,13 +31,25 @@ object LocusOrdering {
             val strcmp = CodeOrdering.makeOrdering(lhsContigType, rhsContigType, ecb)
 
             val ret = cb.newLocal[Int]("locus_cmp_ret", 0)
-            cb.if_(strcmp.compareNonnull(cb, lhsContig, rhsContig).ceq(0), {
-              cb.assign(ret, Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
-                "compare", lhs.position(cb), rhs.position(cb)))
-            }, {
-              cb.assign(ret, codeRG.invoke[String, String, Int](
-                "compare", lhsContig.loadString(cb).get, rhsContig.loadString(cb).get))
-            })
+            cb.if_(
+              strcmp.compareNonnull(cb, lhsContig, rhsContig).ceq(0),
+              cb.assign(
+                ret,
+                Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
+                  "compare",
+                  lhs.position(cb),
+                  rhs.position(cb),
+                ),
+              ),
+              cb.assign(
+                ret,
+                codeRG.invoke[String, String, Int](
+                  "compare",
+                  lhsContig.loadString(cb).get,
+                  rhsContig.loadString(cb).get,
+                ),
+              ),
+            )
             ret
           }
         }

@@ -1,19 +1,19 @@
 package is.hail.stats
 
-import breeze.linalg._
-import breeze.numerics._
 import is.hail.types.virtual.{TFloat64, TStruct}
 
+import breeze.linalg._
+import breeze.numerics._
 
 object PoissonRegressionTest {
   val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> PoissonScoreTest)
 }
 
-
 object PoissonScoreTest extends GLMTest {
   val schema: TStruct = TStruct(
     ("chi_sq_stat", TFloat64),
-    ("p_value", TFloat64))
+    ("p_value", TFloat64),
+  )
 
   def test(
     X: DenseMatrix[Double],
@@ -21,7 +21,7 @@ object PoissonScoreTest extends GLMTest {
     nullFit: GLMFit,
     link: String,
     maxIter: Int,
-    tol: Double
+    tol: Double,
   ): GLMTestResult[ScoreStats] = {
     require(link == "poisson")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
@@ -55,8 +55,8 @@ object PoissonScoreTest extends GLMTest {
 
         Some(ScoreStats(chi2, p))
       } catch {
-        case e: breeze.linalg.MatrixSingularException => None
-        case e: breeze.linalg.NotConvergedException => None
+        case _: breeze.linalg.MatrixSingularException => None
+        case _: breeze.linalg.NotConvergedException => None
       }
     }
 
@@ -64,8 +64,8 @@ object PoissonScoreTest extends GLMTest {
   }
 }
 
-
-class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) extends GeneralLinearModel {
+class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double])
+    extends GeneralLinearModel {
   require(y.length == X.rows)
 
   val n: Int = X.rows
@@ -133,12 +133,13 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ext
           fisher := X.t * (X(::, *) *:* mu)
         }
       } catch {
-        case e: breeze.linalg.MatrixSingularException => exploded = true
-        case e: breeze.linalg.NotConvergedException => exploded = true
+        case _: breeze.linalg.MatrixSingularException => exploded = true
+        case _: breeze.linalg.NotConvergedException => exploded = true
       }
     }
 
-    // dropping constant that depends only on y: -sum(breeze.numerics.lgamma(DenseVector(y.data.filter(_ != 0.0))))
+    /* dropping constant that depends only on y:
+     * -sum(breeze.numerics.lgamma(DenseVector(y.data.filter(_ != 0.0)))) */
     val logLkhd = (y dot breeze.numerics.log(mu)) - sum(mu)
 
     GLMFit(b, Some(score), Some(fisher), logLkhd, iter, converged, exploded)

@@ -45,11 +45,11 @@ Building the Docs and Website
 
 Install build dependencies listed in the `docs style guide <https://github.com/hail-is/hail/blob/main/hail/python/hail/docs/style-guide.txt>`_.
 
-Build without testing the documentation examples::
+Build without rendering the notebooks (which is slow)::
 
-    make hail-docs-no-test
+    make hail-docs-do-not-render-notebooks
 
-Build while testing the documentation examples (significantly slower)::
+Build while rendering the notebooks::
 
     make hail-docs
 

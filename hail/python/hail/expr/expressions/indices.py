@@ -30,6 +30,7 @@ class Indices(object):
             else:
                 if ind.source is not None and ind.source is not src:
                     from . import ExpressionException
+
                     raise ExpressionException()
 
             axes = axes.union(ind.axes)
@@ -72,6 +73,7 @@ class Aggregation(object):
     def __init__(self, *exprs):
         self.exprs = exprs
         from ..expressions import unify_all
+
         indices, agg = unify_all(*exprs)
         self.nested = agg
         self.indices = indices

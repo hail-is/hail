@@ -5,9 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
-import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -31,13 +31,19 @@ class EBinary(override val required: Boolean) extends EType {
 
     v.st match {
       case SBinaryPointer(_) => writeCanonicalBinary(v.asInstanceOf[SBinaryPointerValue])
-      case SStringPointer(_) => writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr())
+      case SStringPointer(_) =>
+        writeCanonicalBinary(v.asInstanceOf[SStringPointerValue].binaryRepr())
       case _: SBinary => writeBytes(v.asInstanceOf[SBinaryValue].loadBytes(cb))
       case _: SString => writeBytes(v.asString.toBytes(cb).loadBytes(cb))
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SValue = {
+  override def _buildDecoder(
+    cb: EmitCodeBuilder,
+    t: Type,
+    region: Value[Region],
+    in: Value[InputBuffer],
+  ): SValue = {
     val t1 = decodedSType(t)
     val pt = t1 match {
       case SStringPointer(t) => t.binaryRepresentation
@@ -55,9 +61,8 @@ class EBinary(override val required: Boolean) extends EType {
     }
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit =
     cb += in.skipBytes(in.readInt())
-  }
 
   def _decodedSType(requestedType: Type): SType = requestedType match {
     case TBinary => SBinaryPointer(PCanonicalBinary(false))

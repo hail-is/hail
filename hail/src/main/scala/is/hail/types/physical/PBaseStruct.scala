@@ -9,12 +9,11 @@ import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.utils._
 
 object PBaseStruct {
-  def alignment(types: Array[PType]): Long = {
+  def alignment(types: Array[PType]): Long =
     if (types.isEmpty)
       1
     else
       types.map(_.alignment).max
-  }
 }
 
 abstract class PBaseStruct extends PType {
@@ -44,9 +43,8 @@ abstract class PBaseStruct extends PType {
 
   def size: Int = fields.length
 
-  def isIsomorphicTo(other: PBaseStruct) = {
+  def isIsomorphicTo(other: PBaseStruct) =
     this.fields.size == other.fields.size && this.isCompatibleWith(other)
-  }
 
   def _toPretty: String = {
     val sb = new StringBuilder
@@ -60,9 +58,7 @@ abstract class PBaseStruct extends PType {
     val sb = new StringBuilder
     sb.append(identBase)
     sb.append("_of_")
-    types.foreachBetween { ty =>
-      sb.append(ty.asIdent)
-    } {
+    types.foreachBetween(ty => sb.append(ty.asIdent)) {
       sb.append("AND")
     }
     sb.append("END")
@@ -73,7 +69,7 @@ abstract class PBaseStruct extends PType {
     size <= other.size && isCompatibleWith(other)
 
   def isCompatibleWith(other: PBaseStruct): Boolean =
-    fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
+    fields.zip(other.fields).forall { case (l, r) => l.typ isOfType r.typ }
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
     unsafeOrdering(sm, this)
@@ -83,7 +79,7 @@ abstract class PBaseStruct extends PType {
 
     val right = rightType.asInstanceOf[PBaseStruct]
     val fieldOrderings: Array[UnsafeOrdering] =
-      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(sm, r)}
+      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(sm, r) }
 
     new UnsafeOrdering {
       def compare(o1: Long, o2: Long): Int = {
@@ -117,7 +113,8 @@ abstract class PBaseStruct extends PType {
 
   def initialize(structAddress: Long, setMissing: Boolean = false): Unit
 
-  def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean = false): Unit
+  def stagedInitialize(cb: EmitCodeBuilder, structAddress: Code[Long], setMissing: Boolean = false)
+    : Unit
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean
 
@@ -148,10 +145,9 @@ abstract class PBaseStruct extends PType {
 
   override lazy val containsPointers: Boolean = types.exists(_.containsPointers)
 
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = {
+  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     if (types.isEmpty) {
       Gen.const(Annotation.empty)
     } else
       Gen.uniformSequence(types.map(t => t.genValue(sm))).map(a => Annotation(a: _*))
-  }
 }

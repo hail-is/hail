@@ -12,7 +12,8 @@ import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
-class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) extends AggregatorState {
+class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilder[_])
+    extends AggregatorState {
   private val elemType = elemVType.canonicalPType
 
   val r = kb.genFieldThisRef[Region]()
@@ -24,25 +25,36 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
   override def regionSize: Region.Size = Region.REGULAR
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.if_(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
-      cb += region.invalidate()
-    })
+    cb.if_(
+      region.isNull, {
+        cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
+        cb += region.invalidate()
+      },
+    )
 
   def newState(cb: EmitCodeBuilder, off: Value[Long]): Unit = cb += region.getNewRegion(regionSize)
 
-  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Value[Long]): Unit = {
+  override def load(
+    cb: EmitCodeBuilder,
+    regionLoader: (EmitCodeBuilder, Value[Region]) => Unit,
+    src: Value[Long],
+  ): Unit = {
     regionLoader(cb, region)
     bll.load(cb, src)
   }
 
-  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Value[Long]): Unit = {
-    cb.if_(region.isValid,
-      {
+  override def store(
+    cb: EmitCodeBuilder,
+    regionStorer: (EmitCodeBuilder, Value[Region]) => Unit,
+    dest: Value[Long],
+  ): Unit = {
+    cb.if_(
+      region.isValid, {
         regionStorer(cb, region)
         bll.store(cb, dest)
         cb += region.invalidate()
-      })
+      },
+    )
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Value[Long]): Unit = {
@@ -52,14 +64,13 @@ class CollectAggState(val elemVType: VirtualTypeWithReq, val kb: EmitClassBuilde
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    { (cb, ib) => bll.serialize(cb, region, ib) }
+    (cb, ib) => bll.serialize(cb, region, ib)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    { (cb, ib) =>
+    (cb, ib) =>
       bll.init(cb, region)
       bll.deserialize(cb, region, ib)
-    }
   }
 }
 
@@ -76,15 +87,21 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
     state.bll.init(cb, state.region)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit =
     state.bll.push(cb, state.region, seq(0))
-  }
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: CollectAggState, other: CollectAggState): Unit =
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    state: CollectAggState,
+    other: CollectAggState,
+  ): Unit =
     state.bll.append(cb, state.region, other.bll)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode = {
+  protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode =
     // deepCopy is handled by the blocked linked list
-    IEmitCode.present(cb, state.bll.resultArray(cb, region, resultEmitType.storageType.asInstanceOf[PCanonicalArray]))
-  }
+    IEmitCode.present(
+      cb,
+      state.bll.resultArray(cb, region, resultEmitType.storageType.asInstanceOf[PCanonicalArray]),
+    )
 }

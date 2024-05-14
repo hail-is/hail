@@ -8,18 +8,22 @@ object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) = {
     val i = Ref(genUID(), TInt32)
 
-    If(IsNA(set),
+    If(
+      IsNA(set),
       NA(TBoolean),
-      Let(FastSeq(i.name -> LowerBoundOnOrderedCollection(set, elem, onKey = false)),
-        If(i.ceq(ArrayLen(CastToArray(set))),
+      Let(
+        FastSeq(i.name -> LowerBoundOnOrderedCollection(set, elem, onKey = false)),
+        If(
+          i.ceq(ArrayLen(CastToArray(set))),
           False(),
-          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem))))
+          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem),
+        ),
+      ),
+    )
   }
 
-  def registerAll() {
-    registerIR1("toSet", TArray(tv("T")), TSet(tv("T"))) { (_, a, _) =>
-      ToSet(ToStream(a))
-    }
+  def registerAll(): Unit = {
+    registerIR1("toSet", TArray(tv("T")), TSet(tv("T")))((_, a, _) => ToSet(ToStream(a)))
 
     registerIR1("isEmpty", TSet(tv("T")), TBoolean) { (_, s, _) =>
       ArrayFunctions.isEmpty(CastToArray(s))
@@ -34,7 +38,9 @@ object SetFunctions extends RegistryFunctions {
         StreamFilter(
           ToStream(s),
           x,
-          ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v)))
+          ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v),
+        )
+      )
     }
 
     registerIR2("add", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v, _) =>
@@ -44,7 +50,9 @@ object SetFunctions extends RegistryFunctions {
         StreamFlatMap(
           MakeStream(FastSeq(CastToArray(s), MakeArray(FastSeq(v), TArray(t))), TStream(TArray(t))),
           x,
-          ToStream(Ref(x, TArray(t)))))
+          ToStream(Ref(x, TArray(t))),
+        )
+      )
     }
 
     registerIR2("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2, _) =>
@@ -54,32 +62,45 @@ object SetFunctions extends RegistryFunctions {
         StreamFlatMap(
           MakeStream(FastSeq(CastToArray(s1), CastToArray(s2)), TStream(TArray(t))),
           x,
-          ToStream(Ref(x, TArray(t)))))
+          ToStream(Ref(x, TArray(t))),
+        )
+      )
     }
 
     registerIR2("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2, _) =>
       val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
-        StreamFilter(ToStream(s1), x,
-          contains(s2, Ref(x, t))))
+        StreamFilter(ToStream(s1), x, contains(s2, Ref(x, t)))
+      )
     }
 
     registerIR2("difference", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2, _) =>
       val t = s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
-        StreamFilter(ToStream(s1), x,
-          ApplyUnaryPrimOp(Bang, contains(s2, Ref(x, t)))))
+        StreamFilter(ToStream(s1), x, ApplyUnaryPrimOp(Bang, contains(s2, Ref(x, t))))
+      )
     }
 
     registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w, errorID) =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
-      StreamFold(ToStream(s), True(), a, x,
+      StreamFold(
+        ToStream(s),
+        True(),
+        a,
+        x,
         // FIXME short circuit
-        ApplySpecial("land", FastSeq(), FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))), TBoolean, errorID))
+        ApplySpecial(
+          "land",
+          FastSeq(),
+          FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))),
+          TBoolean,
+          errorID,
+        ),
+      )
     }
 
     registerIR1("median", TSet(tnum("T")), tv("T")) { (_, s, _) =>
@@ -92,15 +113,25 @@ object SetFunctions extends RegistryFunctions {
       val len: IR = ArrayLen(a)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(FastSeq(a.name -> CastToArray(s)),
-        If(IsNA(a),
+      Let(
+        FastSeq(a.name -> CastToArray(s)),
+        If(
+          IsNA(a),
           NA(t),
-          Let(FastSeq(size.name -> If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len))),
-            If(size.ceq(0),
+          Let(
+            FastSeq(size.name -> If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len))),
+            If(
+              size.ceq(0),
               NA(t),
-              If(invoke("mod", TInt32, size, 2).cne(0),
+              If(
+                invoke("mod", TInt32, size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
-                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
+                div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)),
+              ),
+            ),
+          ),
+        ),
+      )
     }
   }
 }

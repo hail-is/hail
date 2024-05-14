@@ -15,10 +15,11 @@ class GroupedTableTests(unittest.TestCase):
 
         expected = (
             hl.Table.parallelize(
-                [{'group': True, 'sum': 1, 'max': 1},
-                 {'group': False, 'sum': 5, 'max': 3}],
-                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32)
-            ).annotate_globals(glob=5).key_by('group')
+                [{'group': True, 'sum': 1, 'max': 1}, {'group': False, 'sum': 5, 'max': 3}],
+                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32),
+            )
+            .annotate_globals(glob=5)
+            .key_by('group')
         )
 
         self.assertTrue(result._same(expected))
@@ -33,15 +34,17 @@ class GroupedTableTests(unittest.TestCase):
 
         ht = ht.annotate_globals(glob=5)
         grouped = ht.group_by(group=ht2[ht.idx].idx2 < 2)
-        result = grouped.aggregate(sum=hl.agg.sum(ht2[ht.idx].idx2 + ht.glob) + ht.glob - 15,
-                                   max=hl.agg.max(ht2[ht.idx].idx2))
+        result = grouped.aggregate(
+            sum=hl.agg.sum(ht2[ht.idx].idx2 + ht.glob) + ht.glob - 15, max=hl.agg.max(ht2[ht.idx].idx2)
+        )
 
         expected = (
             hl.Table.parallelize(
-                [{'group': True, 'sum': 1, 'max': 1},
-                 {'group': False, 'sum': 5, 'max': 3}],
-                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32)
-            ).annotate_globals(glob=5).key_by('group')
+                [{'group': True, 'sum': 1, 'max': 1}, {'group': False, 'sum': 5, 'max': 3}],
+                hl.tstruct(group=hl.tbool, sum=hl.tint64, max=hl.tint32),
+            )
+            .annotate_globals(glob=5)
+            .key_by('group')
         )
 
         self.assertTrue(result._same(expected))

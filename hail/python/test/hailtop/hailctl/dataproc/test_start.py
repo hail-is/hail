@@ -24,10 +24,13 @@ def test_cluster_project(gcloud_run):
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
-@pytest.mark.parametrize("location_arg", [
-    "--region=europe-north1",
-    "--zone=us-central1-b",
-])
+@pytest.mark.parametrize(
+    "location_arg",
+    [
+        "--region=europe-north1",
+        "--zone=us-central1-b",
+    ],
+)
 def test_cluster_location(gcloud_run, location_arg):
     runner.invoke(cli.app, ['start', location_arg, 'test-cluster'])
     assert location_arg in gcloud_run.call_args[0][0]
@@ -48,29 +51,28 @@ def test_workers_configuration(gcloud_run):
     assert "--num-workers=4" in gcloud_run.call_args[0][0]
 
 
-@pytest.mark.parametrize("workers_arg", [
-    "--num-secondary-workers=8",
-    "--num-preemptible-workers=8"
-])
+@pytest.mark.parametrize("workers_arg", ["--num-secondary-workers=8", "--num-preemptible-workers=8"])
 def test_secondary_workers_configuration(gcloud_run, workers_arg):
     runner.invoke(cli.app, ['start', workers_arg, 'test-cluster'])
     assert "--num-secondary-workers=8" in gcloud_run.call_args[0][0]
 
 
-@pytest.mark.parametrize("machine_arg", [
-    "--master-machine-type=n1-highmem-16",
-    "--worker-machine-type=n1-standard-32",
-])
+@pytest.mark.parametrize(
+    "machine_arg",
+    [
+        "--master-machine-type=n1-highmem-16",
+        "--worker-machine-type=n1-standard-32",
+    ],
+)
 def test_machine_type_configuration(gcloud_run, machine_arg):
     runner.invoke(cli.app, ['start', machine_arg, 'test-cluster'])
     assert machine_arg in gcloud_run.call_args[0][0]
 
 
-@pytest.mark.parametrize("machine_arg", [
-    "--master-boot-disk-size=250",
-    "--worker-boot-disk-size=200",
-    "--secondary-worker-boot-disk-size=100"
-])
+@pytest.mark.parametrize(
+    "machine_arg",
+    ["--master-boot-disk-size=250", "--worker-boot-disk-size=200", "--secondary-worker-boot-disk-size=100"],
+)
 def test_boot_disk_size_configuration(gcloud_run, machine_arg):
     runner.invoke(cli.app, ['start', machine_arg, 'test-cluster'])
     assert f"{machine_arg}GB" in gcloud_run.call_args[0][0]
@@ -87,11 +89,14 @@ def test_vep_defaults_to_larger_worker_boot_disk(gcloud_run):
     assert "--secondary-worker-boot-disk-size=200GB" in gcloud_run.call_args[0][0]
 
 
-@pytest.mark.parametrize("requester_pays_arg", [
-    "--requester-pays-allow-all",
-    "--requester-pays-allow-buckets=example-bucket",
-    "--requester-pays-allow-annotation-db",
-])
+@pytest.mark.parametrize(
+    "requester_pays_arg",
+    [
+        "--requester-pays-allow-all",
+        "--requester-pays-allow-buckets=example-bucket",
+        "--requester-pays-allow-annotation-db",
+    ],
+)
 def test_requester_pays_project_configuration(gcloud_run, gcloud_config, requester_pays_arg):
     gcloud_config["project"] = "foo-project"
 
@@ -104,11 +109,14 @@ def test_requester_pays_project_configuration(gcloud_run, gcloud_config, request
     assert "spark:spark.hadoop.fs.gs.requester.pays.project.id=bar-project" in properties
 
 
-@pytest.mark.parametrize("requester_pays_arg,expected_mode", [
-    ("--requester-pays-allow-all", "AUTO"),
-    ("--requester-pays-allow-buckets=example-bucket", "CUSTOM"),
-    ("--requester-pays-allow-annotation-db", "CUSTOM"),
-])
+@pytest.mark.parametrize(
+    "requester_pays_arg,expected_mode",
+    [
+        ("--requester-pays-allow-all", "AUTO"),
+        ("--requester-pays-allow-buckets=example-bucket", "CUSTOM"),
+        ("--requester-pays-allow-annotation-db", "CUSTOM"),
+    ],
+)
 def test_requester_pays_mode_configuration(gcloud_run, requester_pays_arg, expected_mode):
     runner.invoke(cli.app, ['start', 'test-cluster', requester_pays_arg])
     properties = next(arg for arg in gcloud_run.call_args[0][0] if arg.startswith("--properties="))
@@ -121,10 +129,13 @@ def test_requester_pays_buckets_configuration(gcloud_run):
     assert f"spark:spark.hadoop.fs.gs.requester.pays.buckets=foo,bar" in properties
 
 
-@pytest.mark.parametrize("scheduled_deletion_arg", [
-    "--max-idle=30m",
-    "--max-age=1h",
-])
+@pytest.mark.parametrize(
+    "scheduled_deletion_arg",
+    [
+        "--max-idle=30m",
+        "--max-age=1h",
+    ],
+)
 def test_scheduled_deletion_configuration(gcloud_run, scheduled_deletion_arg):
     runner.invoke(cli.app, ['start', scheduled_deletion_arg, 'test-cluster'])
     assert scheduled_deletion_arg in gcloud_run.call_args[0][0]

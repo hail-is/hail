@@ -6,9 +6,19 @@ from hail.expr.functions import array as aarray
 from hail.expr.types import HailType, tfloat64, tfloat32, ttuple, tndarray
 from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
-    expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
-    expr_numeric, Int64Expression, cast_expr, construct_expr, expr_bool,
-    unify_all)
+    expr_int32,
+    expr_int64,
+    expr_tuple,
+    expr_any,
+    expr_array,
+    expr_ndarray,
+    expr_numeric,
+    Int64Expression,
+    cast_expr,
+    construct_expr,
+    expr_bool,
+    unify_all,
+)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, NDArrayEigh, Apply
 
@@ -139,34 +149,34 @@ def full(shape, value, dtype=None):
 def zeros(shape, dtype=tfloat64):
     """Creates a hail :class:`.NDArrayNumericExpression` full of zeros.
 
-       Examples
-       --------
+    Examples
+    --------
 
-       Create a 5 by 7 NDArray of type :py:data:`.tfloat64` zeros.
+    Create a 5 by 7 NDArray of type :py:data:`.tfloat64` zeros.
 
-       >>> hl.nd.zeros((5, 7))
+    >>> hl.nd.zeros((5, 7))
 
-       It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
+    It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
-       >>> hl.nd.zeros((5, 7), dtype=hl.tfloat32)
+    >>> hl.nd.zeros((5, 7), dtype=hl.tfloat32)
 
 
-       Parameters
-       ----------
-       shape : `tuple` or :class:`.TupleExpression`
-            Desired shape.
-       dtype : :class:`.HailType`
-            Desired hail type.  Default: `float64`.
+    Parameters
+    ----------
+    shape : `tuple` or :class:`.TupleExpression`
+         Desired shape.
+    dtype : :class:`.HailType`
+         Desired hail type.  Default: `float64`.
 
-       See Also
-       --------
-       :func:`.full`
+    See Also
+    --------
+    :func:`.full`
 
-       Returns
-       -------
-       :class:`.NDArrayNumericExpression`
-           ndarray of the specified size full of zeros.
-       """
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`
+        ndarray of the specified size full of zeros.
+    """
     return full(shape, 0, dtype)
 
 
@@ -174,35 +184,35 @@ def zeros(shape, dtype=tfloat64):
 def ones(shape, dtype=tfloat64):
     """Creates a hail :class:`.NDArrayNumericExpression` full of ones.
 
-       Examples
-       --------
+    Examples
+    --------
 
-       Create a 5 by 7 NDArray of type :py:data:`.tfloat64` ones.
+    Create a 5 by 7 NDArray of type :py:data:`.tfloat64` ones.
 
-       >>> hl.nd.ones((5, 7))
+    >>> hl.nd.ones((5, 7))
 
-       It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
+    It is possible to specify a type other than :py:data:`.tfloat64` with the `dtype` argument.
 
-       >>> hl.nd.ones((5, 7), dtype=hl.tfloat32)
-
-
-       Parameters
-       ----------
-       shape : `tuple` or :class:`.TupleExpression`
-            Desired shape.
-       dtype : :class:`.HailType`
-            Desired hail type.  Default: `float64`.
+    >>> hl.nd.ones((5, 7), dtype=hl.tfloat32)
 
 
-       See Also
-       --------
-       :func:`.full`
+    Parameters
+    ----------
+    shape : `tuple` or :class:`.TupleExpression`
+         Desired shape.
+    dtype : :class:`.HailType`
+         Desired hail type.  Default: `float64`.
 
-       Returns
-       -------
-       :class:`.NDArrayNumericExpression`
-           ndarray of the specified size full of ones.
-       """
+
+    See Also
+    --------
+    :func:`.full`
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`
+        ndarray of the specified size full of ones.
+    """
     return full(shape, 1, dtype)
 
 
@@ -422,7 +432,11 @@ def svd(nd, full_matrices=True, compute_uv=True):
     float_nd = nd.map(lambda x: hl.float64(x))
     ir = NDArraySVD(float_nd._ir, full_matrices, compute_uv)
 
-    return_type = ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2)) if compute_uv else tndarray(tfloat64, 1)
+    return_type = (
+        ttuple(tndarray(tfloat64, 2), tndarray(tfloat64, 1), tndarray(tfloat64, 2))
+        if compute_uv
+        else tndarray(tfloat64, 1)
+    )
     return construct_expr(ir, return_type, nd._indices, nd._aggregations)
 
 
@@ -515,7 +529,9 @@ def concatenate(nds, axis=0):
             element_types = {t.element_type for t in typs}
             if len(element_types) != 1:
                 argument_element_types_str = ", ".join(str(nd.dtype.element_type) for nd in nds)
-                raise ValueError(f'hl.nd.concatenate: ndarrays must have same element types, found these element types: ({argument_element_types_str})')
+                raise ValueError(
+                    f'hl.nd.concatenate: ndarrays must have same element types, found these element types: ({argument_element_types_str})'
+                )
 
             ndims = {t.ndim for t in typs}
             assert len(ndims) != 1
@@ -574,11 +590,11 @@ def eye(N, M=None, dtype=hl.tfloat64):
     else:
         n_col = hl.int32(M)
 
-    return hl.nd.array(hl.range(0, n_row * n_col).map(
-        lambda i: hl.if_else((i // n_col) == (i % n_col),
-                             hl.literal(1, dtype),
-                             hl.literal(0, dtype))
-    )).reshape((n_row, n_col))
+    return hl.nd.array(
+        hl.range(0, n_row * n_col).map(
+            lambda i: hl.if_else((i // n_col) == (i % n_col), hl.literal(1, dtype), hl.literal(0, dtype))
+        )
+    ).reshape((n_row, n_col))
 
 
 @typecheck(N=expr_numeric, dtype=HailType)
@@ -748,8 +764,9 @@ def maximum(nd1, nd2):
     """
 
     if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
-        return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
-                        hl.float64(float("NaN")), hl.if_else(a > b, a, b)))
+        return nd1.map2(
+            nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b), hl.float64(float("NaN")), hl.if_else(a > b, a, b))
+        )
     return nd1.map2(nd2, lambda a, b: hl.if_else(a > b, a, b))
 
 
@@ -790,6 +807,7 @@ def minimum(nd1, nd2):
     """
 
     if (nd1.dtype.element_type or nd2.dtype.element_type) == (tfloat64 or tfloat32):
-        return nd1.map2(nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b),
-                        hl.float64(float("NaN")), hl.if_else(a < b, a, b)))
+        return nd1.map2(
+            nd2, lambda a, b: hl.if_else(hl.is_nan(a) | hl.is_nan(b), hl.float64(float("NaN")), hl.if_else(a < b, a, b))
+        )
     return nd1.map2(nd2, lambda a, b: hl.if_else(a < b, a, b))

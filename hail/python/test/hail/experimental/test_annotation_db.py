@@ -23,24 +23,26 @@ class TestAnnotationDB:
                 'description': 'now with unique rows!',
                 'url': 'https://example.com',
                 'annotation_db': {'key_properties': ['unique']},
-                'versions': [{
-                    'url': {"aws": {"eu": fname, "us": fname},
-                            "gcp": {"eu": fname, "us": fname}},
-                    'version': 'v1',
-                    'reference_genome': 'GRCh37'
-                }]
+                'versions': [
+                    {
+                        'url': {"aws": {"eu": fname, "us": fname}, "gcp": {"eu": fname, "us": fname}},
+                        'version': 'v1',
+                        'reference_genome': 'GRCh37',
+                    }
+                ],
             },
             'nonunique_dataset': {
                 'description': 'non-unique rows :(',
                 'url': 'https://example.net',
                 'annotation_db': {'key_properties': []},
-                'versions': [{
-                    'url': {"aws": {"eu": fname, "us": fname},
-                            "gcp": {"eu": fname, "us": fname}},
-                    'version': 'v1',
-                    'reference_genome': 'GRCh37'
-                }]
-            }
+                'versions': [
+                    {
+                        'url': {"aws": {"eu": fname, "us": fname}, "gcp": {"eu": fname, "us": fname}},
+                        'version': 'v1',
+                        'reference_genome': 'GRCh37',
+                    }
+                ],
+            },
         }
 
         yield db_json
