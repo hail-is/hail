@@ -213,3 +213,7 @@ trait PArrayBackedContainer extends PContainer {
   ): Unit =
     Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
 }
+
+trait PCanonicalArrayBackedContainer extends PArrayBackedContainer {
+  def arrayRep: PCanonicalArray
+}

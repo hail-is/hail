@@ -159,11 +159,7 @@ final case class EStructOfArrays(
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = v match {
     case sv: SIndexablePointerValue =>
-      val pArray = sv.st.pType match {
-        case t: PCanonicalArray => t
-        case t: PCanonicalSet => t.arrayRep
-        case t: PCanonicalDict => t.arrayRep
-      }
+      val pArray = sv.st.pType.asInstanceOf[PCanonicalArrayBackedContainer].arrayRep
       val r: Value[Region] = // scratch region
         cb.memoize(cb.emb.ecb.pool().invoke[Region]("getRegion"))
       cb += out.writeInt(sv.length)
