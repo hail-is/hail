@@ -519,7 +519,7 @@ case class SparseContexts(
   }
 
   def mapDense(ib: IRBuilder)(f: (IR, IR, IR) => IR): DenseContexts = {
-    val newContexts = ib.memoize(flatMapIR(rangeIR(nCols)) { j =>
+    val newContexts = ib.memoize(ToArray(flatMapIR(rangeIR(nCols)) { j =>
       bindIRs(ArrayRef(rowPos, j), ArrayRef(rowPos, j + 1)) { case Seq(start, end) =>
         val allIdxs = mapIR(rangeIR(nRows))(i => makestruct("idx" -> i))
         val idxedExisting = mapIR(rangeIR(start, end)) { pos =>
@@ -532,7 +532,7 @@ case class SparseContexts(
             f(i, j, context)
         }
       }
-    })
+    }))
     DenseContexts(nRows, nCols, newContexts)
   }
 
@@ -718,7 +718,7 @@ class BlockMatrixStage2 private (
             IsNA(oldContext),
             MakeNDArray.fill(
               zero(typ.elementType),
-              FastSeq(GetField(oldContext, "nRows"), GetField(oldContext, "nCols")),
+              FastSeq(GetField(context, "nRows"), GetField(context, "nCols")),
               False(),
             ),
             blockIR(oldContext),
