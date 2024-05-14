@@ -102,11 +102,7 @@ class ClientSession:
 
         assert 'connector' not in kwargs
 
-        if timeout is None:
-            timeout = aiohttp.ClientTimeout(total=20)
-        if isinstance(timeout, (float, int)):
-            timeout = aiohttp.ClientTimeout(total=timeout)
-        configuration_of_timeout = configuration_of(ConfigVariable.HTTP_TIMEOUT_IN_SECONDS, timeout, 5)
+        configuration_of_timeout = configuration_of(ConfigVariable.HTTP_TIMEOUT_IN_SECONDS, timeout, 20)
         del timeout
 
         if isinstance(configuration_of_timeout, str):
