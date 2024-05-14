@@ -280,4 +280,13 @@ class BlockMatrixIRSuite extends HailSuite {
 
     assertBMEvalsTo(BlockMatrixRead(BlockMatrixNativeReader(ctx.fs, path)), expected)
   }
+
+  @Test def testBlockMatrixDensify(): Unit = {
+    val dense = fill(1, nRows = 10, nCols = 10, blockSize = 5)
+    val sparse = BlockMatrixSparsify(dense, PerBlockSparsifier(FastSeq(0, 1, 2)))
+    val densified = BlockMatrixDensify(sparse)
+    val expected = BDM.fill(10, 10)(1.0)
+    expected(5 until 10, 5 until 10) := BDM.fill(5, 5)(0.0)
+    assertBMEvalsTo(densified, expected)
+  }
 }
