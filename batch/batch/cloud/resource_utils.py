@@ -18,7 +18,7 @@ from .gcp.resource_utils import (
     gcp_machine_type_to_cores_and_memory_bytes,
     gcp_memory_to_worker_type,
     gcp_requested_to_actual_storage_bytes,
-    gcp_valid_cores_from_worker_type,
+    gcp_valid_cores_for_pool_worker_type,
     gcp_valid_machine_types,
 )
 
@@ -33,7 +33,7 @@ def possible_cores_from_worker_type(cloud: str, worker_type: str) -> List[int]:
     if cloud == 'azure':
         return azure_valid_cores_from_worker_type[worker_type]
     assert cloud == 'gcp'
-    return gcp_valid_cores_from_worker_type[worker_type]
+    return gcp_valid_cores_for_pool_worker_type[worker_type]
 
 
 def valid_machine_types(cloud: str) -> List[str]:
