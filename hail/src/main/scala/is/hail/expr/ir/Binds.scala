@@ -35,7 +35,7 @@ object AggEnv {
 }
 
 object Binds {
-  def apply(x: IR, v: String, i: Int): Boolean = {
+  def apply(x: IR, v: Name, i: Int): Boolean = {
     val bindings = Bindings.get(x, i)
     bindings.all.zipWithIndex.exists { case ((name, _), i) =>
       name == v && bindings.eval.contains(i)
@@ -44,14 +44,14 @@ object Binds {
 }
 
 final case class Bindings[+T](
-  all: IndexedSeq[(String, T)],
+  all: IndexedSeq[(Name, T)],
   eval: IndexedSeq[Int],
   agg: AggEnv,
   scan: AggEnv,
   relational: IndexedSeq[Int],
   dropEval: Boolean,
 ) {
-  def map[U](f: (String, T) => U): Bindings[U] =
+  def map[U](f: (Name, T) => U): Bindings[U] =
     copy(all = all.map { case (n, t) => (n, f(n, t)) })
 
   def allEmpty: Boolean =
@@ -63,7 +63,7 @@ final case class Bindings[+T](
 
 object Bindings {
   def apply[T](
-    bindings: IndexedSeq[(String, T)] = FastSeq.empty,
+    bindings: IndexedSeq[(Name, T)] = FastSeq.empty,
     eval: IndexedSeq[Int] = FastSeq.empty,
     agg: AggEnv = AggEnv.NoOp,
     scan: AggEnv = AggEnv.NoOp,
@@ -91,7 +91,7 @@ object Bindings {
 
   // Create a `Bindings` which cannot see anything bound in the enclosing context.
   private def inFreshScope(
-    bindings: IndexedSeq[(String, Type)] = FastSeq.empty,
+    bindings: IndexedSeq[(Name, Type)] = FastSeq.empty,
     eval: IndexedSeq[Int] = FastSeq.empty,
     agg: Option[IndexedSeq[Int]] = None,
     scan: Option[IndexedSeq[Int]] = None,
@@ -113,7 +113,7 @@ object Bindings {
     ir match {
       case MatrixMapRows(child, _) if i == 1 =>
         Bindings.inFreshScope(
-          child.typ.entryBindings :+ "n_cols" -> TInt32,
+          child.typ.entryBindings :+ Name("n_cols") -> TInt32,
           eval = rowInEntryBindings :+ 4,
           agg = Some(entryBindings),
           scan = Some(rowInEntryBindings),
@@ -122,7 +122,7 @@ object Bindings {
         Bindings.inFreshScope(child.typ.rowBindings)
       case MatrixMapCols(child, _, _) if i == 1 =>
         Bindings.inFreshScope(
-          child.typ.entryBindings :+ "n_rows" -> TInt64,
+          child.typ.entryBindings :+ Name("n_rows") -> TInt64,
           eval = colInEntryBindings :+ 4,
           agg = Some(entryBindings),
           scan = Some(colInEntryBindings),

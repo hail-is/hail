@@ -4,7 +4,7 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, _}
+import is.hail.utils.{toRichIterable, FastSeq}
 import is.hail.variant.Call2
 
 import org.apache.spark.sql.Row
@@ -44,12 +44,12 @@ class AggregatorsSuite extends HailSuite {
       a.map(i => Row(i)),
       expected,
       initOpArgs,
-      seqOpArgs = FastSeq(Ref("x", t)),
+      seqOpArgs = FastSeq(Ref(Name("x"), t)),
     )
   }
 
   @Test def nestedAgg(): Unit = {
-    val agg = ToArray(StreamMap(StreamRange(0, 10, 1), "elt", ApplyAggOp(Count())()))
+    val agg = ToArray(mapIR(StreamRange(0, 10, 1))(_ => ApplyAggOp(Count())()))
     assertEvalsTo(
       agg,
       (FastSeq(1, 2).map(i => Row(i)), TStruct("x" -> TInt32)),
@@ -254,7 +254,7 @@ class AggregatorsSuite extends HailSuite {
     assertEvalsTo(
       ApplyAggOp(
         FastSeq(),
-        FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64), Ref("b", TFloat64))),
+        FastSeq(ApplyBinaryPrimOp(Multiply(), Ref(Name("a"), TFloat64), Ref(Name("b"), TFloat64))),
         aggSig,
       ),
       (
@@ -276,14 +276,9 @@ class AggregatorsSuite extends HailSuite {
     val structType = TStruct("foo" -> TArray(eltType))
 
     assertEvalsTo(
-      AggArrayPerElement(
-        Ref("foo", TArray(eltType)),
-        "elt",
-        "_",
-        ApplyAggOp(FastSeq(), FastSeq(Ref("elt", eltType)), aggSig),
-        None,
-        isScan = false,
-      ),
+      aggArrayPerElement(Ref(Name("foo"), TArray(eltType))) { (elt, _) =>
+        ApplyAggOp(FastSeq(), FastSeq(elt), aggSig)
+      },
       (aggregable, structType),
       expected,
     )
@@ -386,7 +381,7 @@ class AggregatorsSuite extends HailSuite {
       a,
       expected,
       initOpArgs = FastSeq(I32(n)),
-      seqOpArgs = FastSeq(Ref("x", aggType), Ref("y", keyType)),
+      seqOpArgs = FastSeq(Ref(Name("x"), aggType), Ref(Name("y"), keyType)),
     )
   }
 
@@ -952,7 +947,7 @@ class AggregatorsSuite extends HailSuite {
   def keyedCount(): Unit = {
     runKeyedAggregator(
       Count(),
-      Ref("k", TInt32),
+      Ref(Name("k"), TInt32),
       TStruct("k" -> TInt32),
       FastSeq(Row(1), Row(2), Row(3), Row(1), Row(1), Row(null), Row(null)),
       Map(1 -> 3L, 2 -> 1L, 3 -> 1L, (null, 2L)),
@@ -962,7 +957,7 @@ class AggregatorsSuite extends HailSuite {
 
     runKeyedAggregator(
       Count(),
-      Ref("k", TBoolean),
+      Ref(Name("k"), TBoolean),
       TStruct("k" -> TBoolean),
       FastSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),
       Map(true -> 3L, false -> 2L, (null, 2L)),
@@ -973,7 +968,7 @@ class AggregatorsSuite extends HailSuite {
     // test struct as key
     runKeyedAggregator(
       Count(),
-      Ref("k", TStruct("a" -> TBoolean)),
+      Ref(Name("k"), TStruct("a" -> TBoolean)),
       TStruct("k" -> TStruct("a" -> TBoolean)),
       FastSeq(
         Row(Row(true)),
@@ -994,7 +989,7 @@ class AggregatorsSuite extends HailSuite {
   def keyedCollect(): Unit = {
     runKeyedAggregator(
       Collect(),
-      Ref("k", TBoolean),
+      Ref(Name("k"), TBoolean),
       TStruct("k" -> TBoolean, "v" -> TInt32),
       FastSeq(
         Row(true, 5),
@@ -1007,7 +1002,7 @@ class AggregatorsSuite extends HailSuite {
       ),
       Map(true -> FastSeq(5, 3, null), false -> FastSeq(0, null), (null, FastSeq(null, 2))),
       FastSeq(),
-      FastSeq(Ref("v", TInt32)),
+      FastSeq(Ref(Name("v"), TInt32)),
     )
   }
 
@@ -1015,7 +1010,7 @@ class AggregatorsSuite extends HailSuite {
   def keyedCallStats(): Unit = {
     runKeyedAggregator(
       CallStats(),
-      Ref("k", TBoolean),
+      Ref(Name("k"), TBoolean),
       TStruct("k" -> TBoolean, "v" -> TCall),
       FastSeq(
         Row(true, null),
@@ -1030,7 +1025,7 @@ class AggregatorsSuite extends HailSuite {
         false -> Row(FastSeq(2, 2), FastSeq(0.5, 0.5), 4, FastSeq(1, 1)),
       ),
       FastSeq(I32(2)),
-      FastSeq(Ref("v", TCall)),
+      FastSeq(Ref(Name("v"), TCall)),
     )
   }
 
@@ -1038,7 +1033,7 @@ class AggregatorsSuite extends HailSuite {
   def keyedTakeBy(): Unit = {
     runKeyedAggregator(
       TakeBy(),
-      Ref("k", TString),
+      Ref(Name("k"), TString),
       TStruct("k" -> TString, "x" -> TFloat64, "y" -> TInt32),
       FastSeq(
         Row("case", 0.2, 5),
@@ -1050,7 +1045,7 @@ class AggregatorsSuite extends HailSuite {
       ),
       Map("case" -> FastSeq(0.2, 0.3), "control" -> FastSeq(0.4, 0.5), (null, FastSeq(1.0))),
       FastSeq(I32(2)),
-      FastSeq(Ref("x", TFloat64), Ref("y", TInt32)),
+      FastSeq(Ref(Name("x"), TFloat64), Ref(Name("y"), TInt32)),
     )
   }
 
@@ -1066,12 +1061,12 @@ class AggregatorsSuite extends HailSuite {
     val aggSig = AggSignature(Collect(), FastSeq(), FastSeq(TInt32))
     assertEvalsTo(
       AggGroupBy(
-        Ref("k1", TString),
+        Ref(Name("k1"), TString),
         AggGroupBy(
-          Ref("k2", TBoolean),
+          Ref(Name("k2"), TBoolean),
           ApplyAggOp(
             FastSeq(),
-            FastSeq(Ref("x", TInt32)),
+            FastSeq(Ref(Name("x"), TInt32)),
             aggSig,
           ),
           false,
@@ -1105,12 +1100,12 @@ class AggregatorsSuite extends HailSuite {
     val aggSig = AggSignature(CallStats(), FastSeq(TInt32), FastSeq(TCall))
     assertEvalsTo(
       AggGroupBy(
-        Ref("k1", TString),
+        Ref(Name("k1"), TString),
         AggGroupBy(
-          Ref("k2", TString),
+          Ref(Name("k2"), TString),
           ApplyAggOp(
             FastSeq(I32(2)),
-            FastSeq(Ref("g", TCall)),
+            FastSeq(Ref(Name("g"), TCall)),
             aggSig,
           ),
           false,
@@ -1141,12 +1136,12 @@ class AggregatorsSuite extends HailSuite {
     val aggSig = AggSignature(TakeBy(), FastSeq(TInt32), FastSeq(TFloat64, TInt32))
     assertEvalsTo(
       AggGroupBy(
-        Ref("k1", TString),
+        Ref(Name("k1"), TString),
         AggGroupBy(
-          Ref("k2", TString),
+          Ref(Name("k2"), TString),
           ApplyAggOp(
             FastSeq(I32(2)),
-            FastSeq(Ref("x", TFloat64), Ref("y", TInt32)),
+            FastSeq(Ref(Name("x"), TFloat64), Ref(Name("y"), TInt32)),
             aggSig,
           ),
           false,
@@ -1174,14 +1169,14 @@ class AggregatorsSuite extends HailSuite {
     val aggSig = AggSignature(Collect(), FastSeq(), FastSeq(TInt32))
     assertEvalsTo(
       AggGroupBy(
-        Ref("k1", TString),
+        Ref(Name("k1"), TString),
         AggGroupBy(
-          Ref("k2", TString),
+          Ref(Name("k2"), TString),
           AggGroupBy(
-            Ref("k3", TBoolean),
+            Ref(Name("k3"), TBoolean),
             ApplyAggOp(
               FastSeq(),
-              FastSeq(Ref("x", TInt32)),
+              FastSeq(Ref(Name("x"), TInt32)),
               aggSig,
             ),
             false,
@@ -1202,7 +1197,11 @@ class AggregatorsSuite extends HailSuite {
       FastSeq(),
       FastSeq(),
       FastSeq(10),
-      seqOpArgs = FastSeq(Ref("x", TFloat64), Ref("y", TFloat64), Ref("label", TArray(TString))),
+      seqOpArgs = FastSeq(
+        Ref(Name("x"), TFloat64),
+        Ref(Name("y"), TFloat64),
+        Ref(Name("label"), TArray(TString)),
+      ),
     )
   }
 
@@ -1213,8 +1212,8 @@ class AggregatorsSuite extends HailSuite {
 
     assertEvalsTo(
       AggFilter(
-        Ref("x", TBoolean),
-        ApplyAggOp(FastSeq(), FastSeq(Ref("y", TInt64)), aggSig),
+        Ref(Name("x"), TBoolean),
+        ApplyAggOp(FastSeq(), FastSeq(Ref(Name("y"), TInt64)), aggSig),
         false,
       ),
       (agg, aggType),
@@ -1233,12 +1232,9 @@ class AggregatorsSuite extends HailSuite {
     )
 
     assertEvalsTo(
-      AggExplode(
-        ToStream(Ref("x", TArray(TInt64))),
-        "y",
-        ApplyAggOp(FastSeq(), FastSeq(Ref("y", TInt64)), aggSig),
-        false,
-      ),
+      aggExplodeIR(ToStream(Ref(Name("x"), TArray(TInt64))), false) { y =>
+        ApplyAggOp(FastSeq(), FastSeq(y), aggSig)
+      },
       (agg, aggType),
       15L,
     )
@@ -1254,18 +1250,15 @@ class AggregatorsSuite extends HailSuite {
 
       TableAggregate(
         ht,
-        AggArrayPerElement(
-          GetField(Ref("row", ht.typ.rowType), "aRange"),
-          "elt",
-          "_'",
+        aggArrayPerElement(
+          GetField(Ref(TableIR.rowName, ht.typ.rowType), "aRange")
+        ) { (elt, _) =>
           ApplyAggOp(
             FastSeq(),
-            FastSeq(Cast(Ref("elt", TInt32), TInt64)),
+            FastSeq(Cast(elt, TInt64)),
             AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
-          ),
-          None,
-          false,
-        ),
+          )
+        },
       )
     }
 
@@ -1284,25 +1277,23 @@ class AggregatorsSuite extends HailSuite {
 
       TableAggregate(
         ht,
-        AggArrayPerElement(
-          GetField(Ref("row", ht.typ.rowType), "aRange"),
-          "elt",
-          "_'",
+        aggArrayPerElement(
+          GetField(Ref(TableIR.rowName, ht.typ.rowType), "aRange"),
+          knownLength,
+        ) { (elt, _) =>
           ApplyAggOp(
             FastSeq(),
-            FastSeq(Cast(Ref("elt", TInt32), TInt64)),
+            FastSeq(Cast(elt, TInt64)),
             AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
-          ),
-          knownLength,
-          false,
-        ),
+          )
+        },
       )
     }
 
     assertEvalsTo(getAgg(10, 10, None), null)
     assertEvalsTo(getAgg(10, 10, Some(1)), FastSeq(0L))
     assertEvalsTo(
-      getAgg(10, 10, Some(GetField(Ref("global", TStruct("m" -> TInt32)), "m"))),
+      getAgg(10, 10, Some(GetField(Ref(TableIR.globalName, TStruct("m" -> TInt32)), "m"))),
       Array.fill(10)(0L).toFastSeq,
     )
   }
@@ -1330,36 +1321,16 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def testFoldAgg(): Unit = {
-    val barRef = Ref("bar", TInt32)
-    val bazRef = Ref("baz", TInt32)
-
-    val myIR = StreamAgg(
-      mapIR(rangeIR(100))(idx => makestruct(("idx", idx), ("unused", idx + idx))),
-      "foo",
-      AggFold(
-        I32(0),
-        Ref("bar", TInt32) + GetField(
-          Ref("foo", TStruct("idx" -> TInt32, "unused" -> TInt32)),
-          "idx",
-        ),
-        barRef + bazRef,
-        "bar",
-        "baz",
-        false,
-      ),
-    )
+    val myIR = streamAggIR(
+      mapIR(rangeIR(100))(idx => makestruct(("idx", idx), ("unused", idx + idx)))
+    )(foo => aggFoldIR(I32(0))(_ + GetField(foo, "idx"))(_ + _))
     assertEvalsTo(myIR, 4950)
 
     val myTableIR = TableAggregate(
       TableRange(100, 5),
-      AggFold(
-        I32(0),
-        Ref("bar", TInt32) + GetField(Ref("row", TStruct("idx" -> TInt32)), "idx"),
-        barRef + bazRef,
-        "bar",
-        "baz",
-        false,
-      ),
+      aggFoldIR(I32(0)) { bar =>
+        bar + GetField(Ref(TableIR.rowName, TStruct("idx" -> TInt32)), "idx")
+      }(_ + _),
     )
 
     val analyses = LoweringAnalyses.apply(myTableIR, ctx)
@@ -1369,24 +1340,15 @@ class AggregatorsSuite extends HailSuite {
   }
 
   @Test def testFoldScan(): Unit = {
-    val barRef = Ref("bar", TInt32)
-    val bazRef = Ref("baz", TInt32)
+    val foo = Ref(freshName(), TStruct("idx" -> TInt32, "unused" -> TInt32))
 
-    val myIR = ToArray(StreamAggScan(
-      mapIR(rangeIR(10))(idx => makestruct(("idx", idx), ("unused", idx + idx))),
-      "foo",
-      AggFold(
-        I32(0),
-        Ref("bar", TInt32) + GetField(
-          Ref("foo", TStruct("idx" -> TInt32, "unused" -> TInt32)),
-          "idx",
-        ),
-        barRef + bazRef,
-        "bar",
-        "baz",
-        true,
-      ),
-    ))
+    val myIR = ToArray(
+      StreamAggScan(
+        mapIR(rangeIR(10))(idx => makestruct(("idx", idx), ("unused", idx + idx))),
+        foo.name,
+        aggFoldIR(I32(0), isScan = true)(bar => bar + GetField(foo, "idx"))(_ + _),
+      )
+    )
     assertEvalsTo(myIR, IndexedSeq(0, 0, 1, 3, 6, 10, 15, 21, 28, 36))
   }
 }

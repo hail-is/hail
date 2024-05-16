@@ -11,8 +11,8 @@ object TestUtils {
     TableAggregate(
       tir,
       MakeStruct(FastSeq(
-        "rows" -> IRAggCollect(Ref("row", tir.typ.rowType)),
-        "global" -> Ref("global", tir.typ.globalType),
+        "rows" -> IRAggCollect(Ref(TableIR.rowName, tir.typ.rowType)),
+        "global" -> Ref(TableIR.globalName, tir.typ.globalType),
       )),
     )
 

@@ -3,7 +3,7 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{
-  EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref,
+  EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Name, Ref,
   RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor,
   StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin,
 }
@@ -133,7 +133,7 @@ object StreamUtils {
     }
   }
 
-  private[ir] def multiplicity(root: IR, refName: String): Int = {
+  private[ir] def multiplicity(root: IR, refName: Name): Int = {
     var uses = 0
 
     // assumes no name collisions, a bit hacky...
@@ -176,7 +176,7 @@ object StreamUtils {
     uses min 2
   }
 
-  def isIterationLinear(ir: IR, refName: String): Boolean =
+  def isIterationLinear(ir: IR, refName: Name): Boolean =
     multiplicity(ir, refName) <= 1
 
   abstract class StreamMultiMergeBase(

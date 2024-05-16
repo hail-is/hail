@@ -9,12 +9,12 @@ object LiftRelationalValues {
 
   def apply(ir0: BaseIR): BaseIR = {
 
-    def rewrite(ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)], memo: mutable.Map[IR, String])
+    def rewrite(ir: BaseIR, ab: BoxedArrayBuilder[(Name, IR)], memo: mutable.Map[IR, Name])
       : BaseIR = ir match {
       case RelationalLet(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
+        val ab2 = new BoxedArrayBuilder[(Name, IR)]
+        val memo2 = mutable.Map.empty[IR, Name]
         val body2 = rewrite(body, ab2, memo2).asInstanceOf[IR]
         RelationalLet(
           name,
@@ -25,8 +25,8 @@ object LiftRelationalValues {
         )
       case RelationalLetTable(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
+        val ab2 = new BoxedArrayBuilder[(Name, IR)]
+        val memo2 = mutable.Map.empty[IR, Name]
         val body2 = rewrite(body, ab2, memo2).asInstanceOf[TableIR]
         RelationalLetTable(
           name,
@@ -37,8 +37,8 @@ object LiftRelationalValues {
         )
       case RelationalLetMatrixTable(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
+        val ab2 = new BoxedArrayBuilder[(Name, IR)]
+        val memo2 = mutable.Map.empty[IR, Name]
         val body2 = rewrite(body, ab2, memo2).asInstanceOf[MatrixIR]
         RelationalLetMatrixTable(
           name,
@@ -49,8 +49,8 @@ object LiftRelationalValues {
         )
       case RelationalLetBlockMatrix(name, value, body) =>
         val value2 = rewrite(value, ab, memo).asInstanceOf[IR]
-        val ab2 = new BoxedArrayBuilder[(String, IR)]
-        val memo2 = mutable.Map.empty[IR, String]
+        val ab2 = new BoxedArrayBuilder[(Name, IR)]
+        val memo2 = mutable.Map.empty[IR, Name]
         val body2 = rewrite(body, ab2, memo2).asInstanceOf[BlockMatrixIR]
         RelationalLetBlockMatrix(
           name,
@@ -63,7 +63,7 @@ object LiftRelationalValues {
         val name = memo.get(child) match {
           case Some(name) => name
           case None =>
-            val name = genUID()
+            val name = freshName()
             val newChild = rewrite(child, ab, memo).asInstanceOf[IR]
             ab += ((name, newChild))
             memo(child) = name
@@ -77,7 +77,7 @@ object LiftRelationalValues {
           | _: TableCollect
           | _: BlockMatrixCollect
           | _: TableGetGlobals) if ir.typ != TVoid =>
-        val ref = RelationalRef(genUID(), ir.asInstanceOf[IR].typ)
+        val ref = RelationalRef(freshName(), ir.asInstanceOf[IR].typ)
         val newChild = ir.mapChildren(rewrite(_, ab, memo))
         ab += ((ref.name, newChild.asInstanceOf[IR]))
         ref
@@ -85,8 +85,8 @@ object LiftRelationalValues {
         x.mapChildren(rewrite(_, ab, memo))
     }
 
-    val ab = new BoxedArrayBuilder[(String, IR)]
-    val memo = mutable.Map.empty[IR, String]
+    val ab = new BoxedArrayBuilder[(Name, IR)]
+    val memo = mutable.Map.empty[IR, Name]
     rewrite(ir0, ab, memo) match {
       case rw: IR => ab.result().foldRight[IR](rw) { case ((name, value), acc) =>
           RelationalLet(name, value, acc)

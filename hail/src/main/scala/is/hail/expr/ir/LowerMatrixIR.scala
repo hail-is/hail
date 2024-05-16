@@ -13,7 +13,7 @@ object LowerMatrixIR {
   val entriesField: Symbol = Symbol(entriesFieldName)
 
   def apply(ctx: ExecuteContext, ir: IR): IR = {
-    val ab = new BoxedArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(Name, IR)]
     val l1 = lower(ctx, ir, ab)
     ab.result().foldRight[IR](l1) { case ((ident, value), body) =>
       RelationalLet(ident, value, body)
@@ -21,7 +21,7 @@ object LowerMatrixIR {
   }
 
   def apply(ctx: ExecuteContext, tir: TableIR): TableIR = {
-    val ab = new BoxedArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(Name, IR)]
     val l1 = lower(ctx, tir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
       RelationalLetTable(ident, value, body)
@@ -29,7 +29,7 @@ object LowerMatrixIR {
   }
 
   def apply(ctx: ExecuteContext, mir: MatrixIR): TableIR = {
-    val ab = new BoxedArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(Name, IR)]
 
     val l1 = lower(ctx, mir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) =>
@@ -38,7 +38,7 @@ object LowerMatrixIR {
   }
 
   def apply(ctx: ExecuteContext, bmir: BlockMatrixIR): BlockMatrixIR = {
-    val ab = new BoxedArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(Name, IR)]
 
     val l1 = lower(ctx, bmir, ab)
     ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) =>
@@ -49,7 +49,7 @@ object LowerMatrixIR {
   private[this] def lowerChildren(
     ctx: ExecuteContext,
     ir: BaseIR,
-    ab: BoxedArrayBuilder[(String, IR)],
+    ab: BoxedArrayBuilder[(Name, IR)],
   ): BaseIR = {
     ir.mapChildren {
       case tir: TableIR => lower(ctx, tir, ab)
@@ -61,49 +61,59 @@ object LowerMatrixIR {
   }
 
   def colVals(tir: TableIR): IR =
-    GetField(Ref("global", tir.typ.globalType), colsFieldName)
+    GetField(Ref(TableIR.globalName, tir.typ.globalType), colsFieldName)
 
   def globals(tir: TableIR): IR =
     SelectFields(
-      Ref("global", tir.typ.globalType),
+      Ref(TableIR.globalName, tir.typ.globalType),
       tir.typ.globalType.fieldNames.diff(FastSeq(colsFieldName)),
     )
 
   def nCols(tir: TableIR): IR = ArrayLen(colVals(tir))
 
   def entries(tir: TableIR): IR =
-    GetField(Ref("row", tir.typ.rowType), entriesFieldName)
+    GetField(Ref(TableIR.rowName, tir.typ.rowType), entriesFieldName)
 
   import is.hail.expr.ir.DeprecatedIRBuilder._
 
   def matrixSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
     val e = Env[IRProxy](
-      "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
-      "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*),
+      MatrixIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+      MatrixIR.rowName -> 'row.selectFields(child.typ.rowType.fieldNames: _*),
     )
     BindingEnv(e, agg = Some(e), scan = Some(e))
   }
 
   def matrixGlobalSubstEnv(child: MatrixIR): BindingEnv[IRProxy] = {
-    val e = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
+    val e =
+      Env[IRProxy](MatrixIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
     BindingEnv(e, agg = Some(e), scan = Some(e))
   }
 
   def matrixSubstEnvIR(child: MatrixIR, lowered: TableIR): BindingEnv[IR] = {
     val e = Env[IR](
-      "global" -> SelectFields(
-        Ref("global", lowered.typ.globalType),
+      MatrixIR.globalName -> SelectFields(
+        Ref(TableIR.globalName, lowered.typ.globalType),
         child.typ.globalType.fieldNames,
       ),
-      "va" -> SelectFields(Ref("row", lowered.typ.rowType), child.typ.rowType.fieldNames),
+      MatrixIR.rowName -> SelectFields(
+        Ref(TableIR.rowName, lowered.typ.rowType),
+        child.typ.rowType.fieldNames,
+      ),
     )
     BindingEnv(e, agg = Some(e), scan = Some(e))
   }
 
+  private def bindingsToStruct(bindings: IndexedSeq[(Name, IR)]): MakeStruct =
+    MakeStruct(bindings.map { case (n, ir) => n.str -> ir })
+
+  private def unwrapStruct(bindings: IndexedSeq[(Name, IR)], struct: Ref): IndexedSeq[(Name, IR)] =
+    bindings.map { case (name, _) => name -> GetField(struct, name.str) }
+
   private[this] def lower(
     ctx: ExecuteContext,
     mir: MatrixIR,
-    liftedRelationalLets: BoxedArrayBuilder[(String, IR)],
+    liftedRelationalLets: BoxedArrayBuilder[(Name, IR)],
   ): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
@@ -115,8 +125,8 @@ object LowerMatrixIR {
 
       case CastTableToMatrix(child, entries, cols, _) =>
         val lc = lower(ctx, child, liftedRelationalLets)
-        val row = Ref("row", lc.typ.rowType)
-        val glob = Ref("global", lc.typ.globalType)
+        val row = Ref(TableIR.rowName, lc.typ.rowType)
+        val glob = Ref(TableIR.globalName, lc.typ.globalType)
         TableMapRows(
           lc,
           bindIR(GetField(row, entries)) { entries =>
@@ -248,7 +258,7 @@ object LowerMatrixIR {
             subst(
               lower(ctx, newGlobals, liftedRelationalLets),
               BindingEnv(Env[IRProxy](
-                "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*)
+                TableIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*)
               )),
             )
               .insertFields(colsField -> 'global(colsField))
@@ -256,87 +266,83 @@ object LowerMatrixIR {
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): IRProxy = {
-          def lift(ir: IR, builder: BoxedArrayBuilder[(String, IR)]): IR = ir match {
+          def lift(ir: IR, builder: BoxedArrayBuilder[(Name, IR)]): IR = ir match {
             case a: ApplyScanOp =>
-              val s = genUID()
+              val s = freshName()
               builder += ((s, a))
               Ref(s, a.typ)
 
             case a @ AggFold(_, _, _, _, _, true) =>
-              val s = genUID()
+              val s = freshName()
               builder += ((s, a))
               Ref(s, a.typ)
 
             case AggFilter(filt, body, true) =>
-              val ab = new BoxedArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
-              val structResult = MakeStruct(aggs)
-              val uid = Ref(genUID(), structResult.typ)
+              val structResult = bindingsToStruct(aggs)
+              val uid = Ref(freshName(), structResult.typ)
               builder += (uid.name -> AggFilter(filt, structResult, true))
-              Let(aggs.map { case (name, _) => name -> GetField(uid, name) }, liftedBody)
+              Let(unwrapStruct(aggs, uid), liftedBody)
 
             case AggExplode(a, name, body, true) =>
-              val ab = new BoxedArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
-              val structResult = MakeStruct(aggs)
-              val uid = Ref(genUID(), structResult.typ)
+              val structResult = bindingsToStruct(aggs)
+              val uid = Ref(freshName(), structResult.typ)
               builder += (uid.name -> AggExplode(a, name, structResult, true))
-              Let(aggs.map { case (name, _) => name -> GetField(uid, name) }, liftedBody)
+              Let(unwrapStruct(aggs, uid), liftedBody)
 
             case AggGroupBy(a, body, true) =>
-              val ab = new BoxedArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
               val aggs = ab.result()
 
-              val aggIR = AggGroupBy(a, MakeStruct(aggs), true)
-              val uid = Ref(genUID(), aggIR.typ)
+              val aggIR = AggGroupBy(a, bindingsToStruct(aggs), true)
+              val uid = Ref(freshName(), aggIR.typ)
               builder += (uid.name -> aggIR)
-              val valueUID = genUID()
               val elementType = aggIR.typ.asInstanceOf[TDict].elementType
               val valueType = elementType.types(1)
+              val valueUID = Ref(freshName(), valueType)
               ToDict(mapIR(ToStream(uid)) { eltUID =>
                 Let(
-                  (valueUID -> GetField(eltUID, "value")) +:
-                    aggs.map { case (name, _) => name -> GetField(Ref(valueUID, valueType), name) },
+                  (valueUID.name -> GetField(eltUID, "value")) +: unwrapStruct(aggs, valueUID),
                   MakeTuple.ordered(FastSeq(GetField(eltUID, "key"), liftedBody)),
                 )
               })
 
             case AggArrayPerElement(a, elementName, indexName, body, knownLength, true) =>
-              val ab = new BoxedArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(Name, IR)]
               val liftedBody = lift(body, ab)
 
               val aggs = ab.result()
-              val aggIR =
-                AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, true)
-              val uid = Ref(genUID(), aggIR.typ)
+              val aggBody = bindingsToStruct(aggs)
+              val aggIR = AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, true)
+              val uid = Ref(freshName(), aggIR.typ)
               builder += (uid.name -> aggIR)
 
               ToArray(mapIR(ToStream(uid)) { eltUID =>
-                Let(aggs.map { case (name, _) => name -> GetField(eltUID, name) }, liftedBody)
+                Let(unwrapStruct(aggs, eltUID), liftedBody)
               })
 
             case Block(bindings, body) =>
               val newBindings = new BoxedArrayBuilder[Binding]
-              def go(i: Int, builder: BoxedArrayBuilder[(String, IR)]): IR = {
+              def go(i: Int, builder: BoxedArrayBuilder[(Name, IR)]): IR = {
                 if (i == bindings.length) {
                   lift(body, builder)
                 } else bindings(i) match {
                   case Binding(name, value, Scope.SCAN) =>
-                    val ab = new BoxedArrayBuilder[(String, IR)]
+                    val ab = new BoxedArrayBuilder[(Name, IR)]
                     val liftedBody = go(i + 1, ab)
                     val aggs = ab.result()
-                    val structResult = MakeStruct(aggs)
-                    val uid = genUID()
-                    builder += (uid -> Block(
-                      FastSeq(Binding(name, value, Scope.EVAL)),
-                      structResult,
-                    ))
-                    newBindings ++= aggs.map { case (name, _) =>
-                      Binding(name, GetField(Ref(uid, structResult.typ), name), Scope.EVAL)
-                    }
+                    val structResult = bindingsToStruct(aggs)
+                    val uid = Ref(freshName(), structResult.typ)
+                    builder += (uid.name -> Let(FastSeq(name -> value), structResult))
+                    newBindings ++= unwrapStruct(aggs, uid).map(b =>
+                      Binding(b._1, b._2, Scope.EVAL)
+                    )
                     liftedBody
                   case Binding(name, value, scope) =>
                     newBindings += Binding(name, lift(value, builder), scope)
@@ -350,13 +356,13 @@ object LowerMatrixIR {
               MapIR(lift(_, builder))(ir)
           }
 
-          val ab = new BoxedArrayBuilder[(String, IR)]
+          val ab = new BoxedArrayBuilder[(Name, IR)]
           val b0 = lift(ir, ab)
 
           val scans = ab.result().toFastSeq
-          val scanStruct = MakeStruct(scans)
+          val scanStruct = MakeStruct(scans.map { case (n, ir) => n.str -> ir })
 
-          val scanResultRef = Ref(genUID(), scanStruct.typ)
+          val scanResultRef = Ref(freshName(), scanStruct.typ)
 
           val b1 = if (ContainsAgg(b0)) {
             irRange(0, 'row(entriesField).len)
@@ -370,7 +376,7 @@ object LowerMatrixIR {
           letDyn(
             ((scanResultRef.name, irToProxy(scanStruct))
               +: scans.map { case (name, _) =>
-                name -> irToProxy(GetField(scanResultRef, name))
+                name -> irToProxy(GetField(scanResultRef, name.str))
               }): _*
           )(b1)
         }
@@ -386,21 +392,21 @@ object LowerMatrixIR {
 
         def lift(
           ir: IR,
-          scanBindings: BoxedArrayBuilder[(String, IR)],
-          aggBindings: BoxedArrayBuilder[(String, IR)],
+          scanBindings: BoxedArrayBuilder[(Name, IR)],
+          aggBindings: BoxedArrayBuilder[(Name, IR)],
         ): IR = ir match {
           case a: ApplyScanOp =>
-            val s = genUID()
+            val s = freshName()
             scanBindings += ((s, a))
             Ref(s, a.typ)
 
           case a: ApplyAggOp =>
-            val s = genUID()
+            val s = freshName()
             aggBindings += ((s, a))
             Ref(s, a.typ)
 
           case a @ AggFold(_, _, _, _, _, isScan) =>
-            val s = genUID()
+            val s = freshName()
             if (isScan) {
               scanBindings += ((s, a))
             } else {
@@ -409,41 +415,41 @@ object LowerMatrixIR {
             Ref(s, a.typ)
 
           case AggFilter(filt, body, isScan) =>
-            val ab = new BoxedArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
-            val structResult = MakeStruct(aggs)
+            val structResult = MakeStruct(aggs.map { case (n, ir) => n.str -> ir })
 
-            val uid = Ref(genUID(), structResult.typ)
+            val uid = Ref(freshName(), structResult.typ)
             builder += (uid.name -> AggFilter(filt, structResult, isScan))
-            Let(aggs.map { case (name, _) => name -> GetField(uid, name) }, liftedBody)
+            Let(aggs.map { case (name, _) => name -> GetField(uid, name.str) }, liftedBody)
 
           case AggExplode(a, name, body, isScan) =>
-            val ab = new BoxedArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
-            val structResult = MakeStruct(aggs)
-            val uid = Ref(genUID(), structResult.typ)
+            val structResult = MakeStruct(aggs.map { case (n, ir) => n.str -> ir })
+            val uid = Ref(freshName(), structResult.typ)
             builder += (uid.name -> AggExplode(a, name, structResult, isScan))
-            Let(aggs.map { case (name, _) => name -> GetField(uid, name) }, liftedBody)
+            Let(aggs.map { case (name, _) => name -> GetField(uid, name.str) }, liftedBody)
 
           case AggGroupBy(a, body, isScan) =>
-            val ab = new BoxedArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
-            val aggIR = AggGroupBy(a, MakeStruct(aggs), isScan)
-            val uid = Ref(genUID(), aggIR.typ)
+            val aggIR = AggGroupBy(a, MakeStruct(aggs.map { case (n, ir) => n.str -> ir }), isScan)
+            val uid = Ref(freshName(), aggIR.typ)
             builder += (uid.name -> aggIR)
-            val valueUID = genUID()
+            val valueUID = freshName()
             val elementType = aggIR.typ.asInstanceOf[TDict].elementType
             val valueType = elementType.types(1)
             ToDict(mapIR(ToStream(uid)) { eltUID =>
@@ -453,7 +459,7 @@ object LowerMatrixIR {
                   Let(
                     (valueUID -> GetField(eltUID, "value")) +:
                       aggs.map { case (name, _) =>
-                        name -> GetField(Ref(valueUID, valueType), name)
+                        name -> GetField(Ref(valueUID, valueType), name.str)
                       },
                     liftedBody,
                   ),
@@ -462,26 +468,27 @@ object LowerMatrixIR {
             })
 
           case AggArrayPerElement(a, elementName, indexName, body, knownLength, isScan) =>
-            val ab = new BoxedArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(Name, IR)]
             val (liftedBody, builder) =
               if (isScan) (lift(body, ab, aggBindings), scanBindings)
               else (lift(body, scanBindings, ab), aggBindings)
 
             val aggs = ab.result()
+            val aggBody = MakeStruct(aggs.map { case (n, ir) => n.str -> ir })
             val aggIR =
-              AggArrayPerElement(a, elementName, indexName, MakeStruct(aggs), knownLength, isScan)
-            val uid = Ref(genUID(), aggIR.typ)
+              AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, isScan)
+            val uid = Ref(freshName(), aggIR.typ)
             builder += (uid.name -> aggIR)
             ToArray(mapIR(ToStream(uid)) { eltUID =>
-              Let(aggs.map { case (name, _) => name -> GetField(eltUID, name) }, liftedBody)
+              Let(aggs.map { case (name, _) => name -> GetField(eltUID, name.str) }, liftedBody)
             })
 
           case Block(bindings, body) =>
             var newBindings = Seq[Binding]()
             def go(
               i: Int,
-              scanBindings: BoxedArrayBuilder[(String, IR)],
-              aggBindings: BoxedArrayBuilder[(String, IR)],
+              scanBindings: BoxedArrayBuilder[(Name, IR)],
+              aggBindings: BoxedArrayBuilder[(Name, IR)],
             ): IR = {
               if (i == bindings.length) {
                 lift(body, scanBindings, aggBindings)
@@ -492,7 +499,7 @@ object LowerMatrixIR {
                   newBindings = Binding(name, lifted, Scope.EVAL) +: newBindings
                   liftedBody
                 case Binding(name, value, scope) =>
-                  val ab = new BoxedArrayBuilder[(String, IR)]
+                  val ab = new BoxedArrayBuilder[(Name, IR)]
                   val liftedBody = if (scope == Scope.SCAN)
                     go(i + 1, ab, aggBindings)
                   else
@@ -501,12 +508,12 @@ object LowerMatrixIR {
                   val builder = if (scope == Scope.SCAN) scanBindings else aggBindings
 
                   val aggs = ab.result()
-                  val structResult = MakeStruct(aggs)
+                  val structResult = MakeStruct(aggs.map { case (n, ir) => n.str -> ir })
 
-                  val uid = genUID()
+                  val uid = freshName()
                   builder += (uid -> Block(FastSeq(Binding(name, value, scope)), structResult))
                   newBindings = aggs.map { case (name, _) =>
-                    Binding(name, GetField(Ref(uid, structResult.typ), name), Scope.EVAL)
+                    Binding(name, GetField(Ref(uid, structResult.typ), name.str), Scope.EVAL)
                   } ++ newBindings
                   liftedBody
               }
@@ -521,8 +528,8 @@ object LowerMatrixIR {
             MapIR(lift(_, scanBindings, aggBindings))(ir)
         }
 
-        val scanBuilder = new BoxedArrayBuilder[(String, IR)]
-        val aggBuilder = new BoxedArrayBuilder[(String, IR)]
+        val scanBuilder = new BoxedArrayBuilder[(Name, IR)]
+        val aggBuilder = new BoxedArrayBuilder[(Name, IR)]
 
         val b0 = lift(
           Subst(lower(ctx, newCol, liftedRelationalLets), matrixSubstEnvIR(child, loweredChild)),
@@ -532,8 +539,8 @@ object LowerMatrixIR {
         val aggs = aggBuilder.result()
         val scans = scanBuilder.result()
 
-        val idx = Ref(genUID(), TInt32)
-        val idxSym = Symbol(idx.name)
+        val idx = Ref(freshName(), TInt32)
+        val idxSym = Symbol(idx.name.str)
 
         val noOp: (IRProxy => IRProxy, IRProxy => IRProxy) = (identity[IRProxy], identity[IRProxy])
 
@@ -543,7 +550,7 @@ object LowerMatrixIR {
         ) = if (aggs.isEmpty)
           noOp
         else {
-          val aggStruct = MakeStruct(aggs)
+          val aggStruct = MakeStruct(aggs.map { case (n, ir) => n.str -> ir })
 
           val aggResult = loweredChild.aggregate(
             aggLet(va = 'row.selectFields(child.typ.rowType.fieldNames: _*)) {
@@ -567,33 +574,33 @@ object LowerMatrixIR {
             }
           )
 
-          val ident = genUID()
+          val ident = freshName()
           liftedRelationalLets += ((ident, aggResult))
 
-          val aggResultRef = Ref(genUID(), aggResult.typ)
+          val aggResultRef = Ref(freshName(), aggResult.typ)
           val aggResultElementRef = Ref(
-            genUID(),
+            freshName(),
             aggResult.typ.asInstanceOf[TStruct]
               .fieldType("array_aggs")
               .asInstanceOf[TArray].elementType,
           )
 
-          val bindResult: IRProxy => IRProxy = let.applyDynamicNamed("apply")((
+          val bindResult: IRProxy => IRProxy = letDyn((
             aggResultRef.name,
             irToProxy(RelationalRef(ident, aggResult.typ)),
           )).apply(_)
           val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
-            let.applyDynamicNamed("apply")((
+            letDyn((
               aggResultRef.name,
               irToProxy(RelationalRef(ident, aggResult.typ)),
             ))
               .apply(let(
-                n_rows = Symbol(aggResultRef.name)('count),
-                array_aggs = Symbol(aggResultRef.name)('array_aggs),
+                n_rows = Symbol(aggResultRef.name.str)('count),
+                array_aggs = Symbol(aggResultRef.name.str)('array_aggs),
               ) {
-                let.applyDynamicNamed("apply")((aggResultElementRef.name, 'array_aggs(idx))) {
+                letDyn((aggResultElementRef.name, 'array_aggs(idx))) {
                   aggs.foldLeft[IRProxy](x) { case (acc, (name, _)) =>
-                    let.applyDynamicNamed("apply")((name, GetField(aggResultElementRef, name)))(acc)
+                    letDyn((name, GetField(aggResultElementRef, name.str)))(acc)
                   }
                 }
               })
@@ -606,27 +613,27 @@ object LowerMatrixIR {
         ) = if (scans.isEmpty)
           noOp
         else {
-          val scanStruct = MakeStruct(scans)
+          val scanStruct = bindingsToStruct(scans)
 
           val scanResultArray = ToArray(StreamAggScan(
-            ToStream(GetField(Ref("global", loweredChild.typ.globalType), colsFieldName)),
-            "sa",
+            ToStream(GetField(Ref(TableIR.globalName, loweredChild.typ.globalType), colsFieldName)),
+            MatrixIR.colName,
             scanStruct,
           ))
 
-          val scanResultRef = Ref(genUID(), scanResultArray.typ)
+          val scanResultRef = Ref(freshName(), scanResultArray.typ)
           val scanResultElementRef =
-            Ref(genUID(), scanResultArray.typ.asInstanceOf[TArray].elementType)
+            Ref(freshName(), scanResultArray.typ.asInstanceOf[TArray].elementType)
 
           val bindResult: IRProxy => IRProxy =
-            let.applyDynamicNamed("apply")((scanResultRef.name, scanResultArray)).apply(_)
+            letDyn((scanResultRef.name, scanResultArray)).apply(_)
           val bodyResult: IRProxy => IRProxy = (x: IRProxy) =>
-            let.applyDynamicNamed("apply")((
+            letDyn((
               scanResultElementRef.name,
               ArrayRef(scanResultRef, idx),
             ))(
               scans.foldLeft[IRProxy](x) { case (acc, (name, _)) =>
-                let.applyDynamicNamed("apply")((name, GetField(scanResultElementRef, name)))(acc)
+                letDyn((name, GetField(scanResultElementRef, name.str)))(acc)
               }
             )
           (bindResult, bodyResult)
@@ -699,20 +706,26 @@ object LowerMatrixIR {
         TableMapRows(
           loweredChild,
           InsertFields(
-            Ref("row", rt),
+            Ref(TableIR.rowName, rt),
             FastSeq((
               entriesFieldName,
               ToArray(StreamZip(
                 FastSeq(
-                  ToStream(GetField(Ref("row", rt), entriesFieldName)),
-                  ToStream(GetField(Ref("global", gt), colsFieldName)),
+                  ToStream(GetField(Ref(TableIR.rowName, rt), entriesFieldName)),
+                  ToStream(GetField(Ref(TableIR.globalName, gt), colsFieldName)),
                 ),
-                FastSeq("g", "sa"),
+                FastSeq(MatrixIR.entryName, MatrixIR.colName),
                 Subst(
                   lower(ctx, newEntries, liftedRelationalLets),
                   BindingEnv(Env(
-                    "global" -> SelectFields(Ref("global", gt), child.typ.globalType.fieldNames),
-                    "va" -> SelectFields(Ref("row", rt), child.typ.rowType.fieldNames),
+                    MatrixIR.globalName -> SelectFields(
+                      Ref(TableIR.globalName, gt),
+                      child.typ.globalType.fieldNames,
+                    ),
+                    MatrixIR.rowName -> SelectFields(
+                      Ref(TableIR.rowName, rt),
+                      child.typ.rowType.fieldNames,
+                    ),
                   )),
                 ),
                 ArrayZipBehavior.AssumeSameLength,
@@ -859,10 +872,12 @@ object LowerMatrixIR {
         val aggElementIdx = Symbol(genUID())
 
         val e1 = Env[IRProxy](
-          "global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
-          "va" -> 'row.selectFields(child.typ.rowType.fieldNames: _*),
+          MatrixIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*),
+          MatrixIR.rowName -> 'row.selectFields(child.typ.rowType.fieldNames: _*),
         )
-        val e2 = Env[IRProxy]("global" -> 'global.selectFields(child.typ.globalType.fieldNames: _*))
+        val e2 = Env[IRProxy](
+          MatrixIR.globalName -> 'global.selectFields(child.typ.globalType.fieldNames: _*)
+        )
         val ceSub = subst(lower(ctx, colExpr, liftedRelationalLets), BindingEnv(e2, agg = Some(e1)))
         val eeSub =
           subst(lower(ctx, entryExpr, liftedRelationalLets), BindingEnv(e1, agg = Some(e1)))
@@ -918,7 +933,7 @@ object LowerMatrixIR {
   private[this] def lower(
     ctx: ExecuteContext,
     tir: TableIR,
-    ab: BoxedArrayBuilder[(String, IR)],
+    ab: BoxedArrayBuilder[(Name, IR)],
   ): TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
@@ -1052,7 +1067,7 @@ object LowerMatrixIR {
   private[this] def lower(
     ctx: ExecuteContext,
     bmir: BlockMatrixIR,
-    ab: BoxedArrayBuilder[(String, IR)],
+    ab: BoxedArrayBuilder[(Name, IR)],
   ): BlockMatrixIR = {
     val lowered = bmir match {
       case noMatrixChildren => lowerChildren(ctx, noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
@@ -1064,7 +1079,7 @@ object LowerMatrixIR {
   private[this] def lower(
     ctx: ExecuteContext,
     ir: IR,
-    ab: BoxedArrayBuilder[(String, IR)],
+    ab: BoxedArrayBuilder[(Name, IR)],
   ): IR = {
     val lowered = ir match {
       case MatrixToValueApply(child, function) => TableToValueApply(
@@ -1097,8 +1112,8 @@ object LowerMatrixIR {
           aggExplodeIR(
             filterIR(
               zip2(
-                ToStream(GetField(Ref("row", lc.typ.rowType), entriesFieldName)),
-                ToStream(GetField(Ref("global", lc.typ.globalType), colsFieldName)),
+                ToStream(GetField(Ref(TableIR.rowName, lc.typ.rowType), entriesFieldName)),
+                ToStream(GetField(Ref(TableIR.globalName, lc.typ.globalType), colsFieldName)),
                 ArrayZipBehavior.AssertSameLength,
               ) { case (e, c) =>
                 MakeTuple.ordered(FastSeq(e, c))
@@ -1106,10 +1121,10 @@ object LowerMatrixIR {
             )(filterTuple => ApplyUnaryPrimOp(Bang, IsNA(GetTupleElement(filterTuple, 0))))
           ) { explodedTuple =>
             AggLet(
-              "g",
+              MatrixIR.entryName,
               GetTupleElement(explodedTuple, 0),
               AggLet(
-                "sa",
+                MatrixIR.colName,
                 GetTupleElement(explodedTuple, 1),
                 Subst(query, matrixSubstEnvIR(child, lc)),
                 isScan = false,

@@ -379,15 +379,10 @@ class OrderingSuite extends HailSuite {
       a <- TArray(telt).genNonmissingValue(sm)
     } yield (telt, a)
     val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row] @unchecked) =>
-      val tdict = TDict(telt.types(0), telt.types(1))
       val array: IndexedSeq[Row] = a ++ a
       val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
       assertEvalsTo(
-        ToArray(StreamMap(
-          ToStream(In(0, TArray(telt))),
-          "x",
-          GetField(Ref("x", tdict.elementType), "key"),
-        )),
+        ToArray(mapIR(ToStream(In(0, TArray(telt))))(GetField(_, "key"))),
         FastSeq(array -> TArray(telt)),
         expected = expectedMap.keys.toFastSeq.sorted(telt.types(0).ordering(sm).toOrdering),
       )
@@ -599,22 +594,18 @@ class OrderingSuite extends HailSuite {
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
     assertEvalsTo(
-      StreamFold(
-        ToStream(set1),
-        True(),
-        "accumulator",
-        "setelt",
+      foldIR(ToStream(set1), True()) { (acc, elt) =>
         ApplySpecial(
           "land",
           FastSeq(),
           FastSeq(
-            Ref("accumulator", TBoolean),
-            invoke("contains", TBoolean, set2, Ref("setelt", TInt32)),
+            acc,
+            invoke("contains", TBoolean, set2, elt),
           ),
           TBoolean,
           ErrorIDs.NO_ERROR,
-        ),
-      ),
+        )
+      },
       true,
     )
   }

@@ -103,10 +103,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   }
 
   def addBindingRelations(node: BaseIR): Unit = {
-    val refMap: Map[String, IndexedSeq[RefEquality[BaseRef]]] =
+    val refMap: Map[Name, IndexedSeq[RefEquality[BaseRef]]] =
       usesAndDefs.uses(node).toFastSeq.groupBy(_.t.name)
     def addElementBinding(
-      name: String,
+      name: Name,
       d: IR,
       makeOptional: Boolean = false,
       makeRequired: Boolean = false,
@@ -129,7 +129,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       }
     }
 
-    def addBlockMatrixElementBinding(name: String, d: BlockMatrixIR, makeOptional: Boolean = false)
+    def addBlockMatrixElementBinding(name: Name, d: BlockMatrixIR, makeOptional: Boolean = false)
       : Unit = {
       if (refMap.contains(name)) {
         val uses = refMap(name)
@@ -144,7 +144,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       }
     }
 
-    def addBindings(name: String, ds: Array[IR]): Unit =
+    def addBindings(name: Name, ds: Array[IR]): Unit =
       if (refMap.contains(name)) {
         val uses = refMap(name)
         uses.foreach(u => defs.bind(u, ds.map(lookup).toArray[BaseTypeWithRequiredness]))
@@ -153,19 +153,18 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
       }
 
-    def addBinding(name: String, ds: IR): Unit =
+    def addBinding(name: Name, ds: IR): Unit =
       addBindings(name, Array(ds))
 
     def addTableBinding(table: TableIR): Unit = {
-      if (refMap.contains("row"))
-        refMap("row").foreach { u =>
-          defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType))
-        }
-      if (refMap.contains("global"))
-        refMap("global").foreach { u =>
-          defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType))
-        }
-      val refs = refMap.getOrElse("row", FastSeq()) ++ refMap.getOrElse("global", FastSeq())
+      refMap.get(TableIR.rowName).foreach(_.foreach { u =>
+        defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType))
+      })
+      refMap.get(TableIR.globalName).foreach(_.foreach { u =>
+        defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType))
+      })
+      val refs = refMap.getOrElse(TableIR.rowName, FastSeq()) ++
+        refMap.getOrElse(TableIR.globalName, FastSeq())
       dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
     }
     node match {

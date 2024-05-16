@@ -2,7 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
+import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder, Name}
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
@@ -416,7 +416,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   def typeAfterSelect(keep: IndexedSeq[Int]): TStruct =
     TStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  def toEnv: Env[Type] = Env(fields.map(f => (f.name, f.typ)): _*)
+  def toEnv: Env[Type] = Env(fields.map(f => (Name(f.name), f.typ)): _*)
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     if (this == subtype)

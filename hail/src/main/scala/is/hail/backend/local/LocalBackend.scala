@@ -334,7 +334,9 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
         IRParser.parse_value_ir(
           s,
           IRParserEnvironment(ctx, persistedIR.toMap),
-          BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*),
+          BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
+            Name(n) -> IRParser.parseType(t)
+          }.toSeq: _*),
         )
       }
     }

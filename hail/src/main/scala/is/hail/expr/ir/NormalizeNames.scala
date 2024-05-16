@@ -3,34 +3,55 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.utils.StackSafe._
 
-import scala.annotation.nowarn
+import scala.annotation.{nowarn, tailrec}
 
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
   var count: Int = 0
 
-  def gen(): String = {
+  @tailrec private def gen(freeVariables: Set[Name]): Name = {
     count += 1
-    normFunction(count)
+    val name = Name(normFunction(count))
+    if (freeVariables.contains(name)) {
+      gen(freeVariables)
+    } else {
+      name
+    }
   }
 
-  def apply(ctx: ExecuteContext, ir: IR, env: Env[String]): IR =
-    normalizeIR(ir.noSharing(ctx), BindingEnv(env)).run().asInstanceOf[IR]
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
+    val env = BindingEnv[Name](agg = Some(Env.empty), scan = Some(Env.empty))
+    ir match {
+      case ir: IR =>
+        val freeVariables: Set[Name] = if (allowFreeVariables) {
+          val env = FreeVariables(ir, true, true)
+          env.eval.m.keySet union
+            env.agg.map(_.m.keySet).getOrElse(Set.empty) union
+            env.scan.map(_.m.keySet).getOrElse(Set.empty) union
+            env.relational.m.keySet
+        } else {
+          Set.empty
+        }
+        normalizeIR(ir.noSharing(ctx), env, freeVariables = freeVariables).run().asInstanceOf[IR]
+      case _ =>
+        normalizeIR(ir.noSharing(ctx), env).run()
+    }
+  }
 
-  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[String]): IR =
-    normalizeIR(ir.noSharing(ctx), env).run().asInstanceOf[IR]
-
-  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    normalizeIR(ir.noSharing(ctx), BindingEnv(agg = Some(Env.empty), scan = Some(Env.empty))).run()
-
-  private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array())
-    : StackFrame[BaseIR] = {
+  private def normalizeIR(
+    ir: BaseIR,
+    env: BindingEnv[Name],
+    context: Array[String] = Array(),
+    freeVariables: Set[Name] = Set.empty,
+  ): StackFrame[BaseIR] = {
 
     @nowarn("cat=unused-locals&msg=default argument")
-    def normalizeBaseIR(next: BaseIR, env: BindingEnv[String] = env): StackFrame[BaseIR] =
+    def normalizeBaseIR(next: BaseIR, env: BindingEnv[Name] = env): StackFrame[BaseIR] =
       call(normalizeIR(next, env, context :+ ir.getClass().getName()))
 
-    def normalize(next: IR, env: BindingEnv[String] = env): StackFrame[IR] =
+    def normalize(next: IR, env: BindingEnv[Name] = env): StackFrame[IR] =
       call(normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]])
+
+    def gen(): Name = this.gen(freeVariables)
 
     ir match {
       case Block(bindings, body) =>
@@ -57,7 +78,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case None =>
             if (!allowFreeVariables)
               throw new RuntimeException(
-                s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}"
+                s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x.str)}"
               )
             else
               name
@@ -69,7 +90,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
           case None =>
             if (!allowFreeVariables)
               throw new RuntimeException(
-                s"found free loop variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}"
+                s"found free loop variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x.str)}"
               )
             else
               name
@@ -278,7 +299,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       case RelationalRef(name, typ) =>
         val newName = env.relational.lookupOption(name).getOrElse(
           if (!allowFreeVariables) throw new RuntimeException(
-            s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x)}"
+            s"found free variable in normalize: $name, ${context.reverse.mkString(", ")}; ${env.pretty(x => x.str)}"
           )
           else name
         )

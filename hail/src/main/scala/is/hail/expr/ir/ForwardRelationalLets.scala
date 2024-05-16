@@ -5,7 +5,7 @@ import scala.collection.mutable
 object ForwardRelationalLets {
   def apply(ir0: BaseIR): BaseIR = {
 
-    val usages = mutable.HashMap.empty[String, (Int, Int)]
+    val usages = mutable.HashMap.empty[Name, (Int, Int)]
 
     val nestingDepth = NestingDepth(ir0)
 
@@ -35,7 +35,7 @@ object ForwardRelationalLets {
     if (!usages.valuesIterator.exists(shouldForward))
       ir0
     else {
-      val m = mutable.HashMap.empty[String, IR]
+      val m = mutable.HashMap.empty[Name, IR]
 
       def recur(ir1: BaseIR): BaseIR = ir1 match {
         case RelationalLet(name, value, body) =>

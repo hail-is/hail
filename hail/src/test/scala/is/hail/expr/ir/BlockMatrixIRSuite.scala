@@ -34,15 +34,11 @@ class BlockMatrixIRSuite extends HailSuite {
   implicit val execStrats: Set[ExecStrategy] = ExecStrategy.allRelational
 
   def makeMap2(left: BlockMatrixIR, right: BlockMatrixIR, op: BinaryOp, strategy: SparsityStrategy)
-    : BlockMatrixMap2 =
-    BlockMatrixMap2(
-      left,
-      right,
-      "l",
-      "r",
-      ApplyBinaryPrimOp(op, Ref("l", TFloat64), Ref("r", TFloat64)),
-      strategy,
-    )
+    : BlockMatrixMap2 = {
+    val l = Ref(freshName(), TFloat64)
+    val r = Ref(freshName(), TFloat64)
+    BlockMatrixMap2(left, right, l.name, r.name, ApplyBinaryPrimOp(op, l, r), strategy)
+  }
 
   @Test def testBlockMatrixWriteRead(): Unit = {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.interpretOnly
@@ -59,24 +55,25 @@ class BlockMatrixIRSuite extends HailSuite {
   }
 
   @Test def testBlockMatrixMap(): Unit = {
+    val element = Ref(freshName(), TFloat64)
     val sqrtIR = BlockMatrixMap(
       ones,
-      "element",
-      Apply("sqrt", FastSeq(), FastSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR),
+      element.name,
+      Apply("sqrt", FastSeq(), FastSeq(element), TFloat64, ErrorIDs.NO_ERROR),
       false,
     )
     val negIR =
-      BlockMatrixMap(ones, "element", ApplyUnaryPrimOp(Negate, Ref("element", TFloat64)), false)
+      BlockMatrixMap(ones, element.name, ApplyUnaryPrimOp(Negate, element), false)
     val logIR = BlockMatrixMap(
       ones,
-      "element",
-      Apply("log", FastSeq(), FastSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR),
+      element.name,
+      Apply("log", FastSeq(), FastSeq(element), TFloat64, ErrorIDs.NO_ERROR),
       true,
     )
     val absIR = BlockMatrixMap(
       ones,
-      "element",
-      Apply("abs", FastSeq(), FastSeq(Ref("element", TFloat64)), TFloat64, ErrorIDs.NO_ERROR),
+      element.name,
+      Apply("abs", FastSeq(), FastSeq(element), TFloat64, ErrorIDs.NO_ERROR),
       false,
     )
 
@@ -213,26 +210,14 @@ class BlockMatrixIRSuite extends HailSuite {
     val gaussian = BlockMatrixRandom(0, gaussian = true, shape = Array(5L, 6L), blockSize = 3)
     val uniform = BlockMatrixRandom(0, gaussian = false, shape = Array(5L, 6L), blockSize = 3)
 
+    val l = Ref(freshName(), TFloat64)
+    val r = Ref(freshName(), TFloat64)
     assertBMEvalsTo(
-      BlockMatrixMap2(
-        gaussian,
-        gaussian,
-        "l",
-        "r",
-        Ref("l", TFloat64) - Ref("r", TFloat64),
-        NeedsDense,
-      ),
+      BlockMatrixMap2(gaussian, gaussian, l.name, r.name, l - r, NeedsDense),
       BDM.fill(5, 6)(0.0),
     )
     assertBMEvalsTo(
-      BlockMatrixMap2(
-        uniform,
-        uniform,
-        "l",
-        "r",
-        Ref("l", TFloat64) - Ref("r", TFloat64),
-        NeedsDense,
-      ),
+      BlockMatrixMap2(uniform, uniform, l.name, r.name, l - r, NeedsDense),
       BDM.fill(5, 6)(0.0),
     )
   }

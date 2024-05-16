@@ -31,7 +31,12 @@ object ExtractIntervalFilters {
         (
           ir match {
             case TableFilter(child, pred) =>
-              extractPartitionFilters(ctx, pred, Ref("row", child.typ.rowType), child.typ.key)
+              extractPartitionFilters(
+                ctx,
+                pred,
+                Ref(TableIR.rowName, child.typ.rowType),
+                child.typ.key,
+              )
                 .map { case (newCond, intervals) =>
                   log.info(
                     s"generated TableFilterIntervals node with ${intervals.length} intervals:\n  " +
@@ -43,7 +48,7 @@ object ExtractIntervalFilters {
             case MatrixFilterRows(child, pred) => extractPartitionFilters(
                 ctx,
                 pred,
-                Ref("va", child.typ.rowType),
+                Ref(MatrixIR.rowName, child.typ.rowType),
                 child.typ.rowKey,
               ).map { case (newCond, intervals) =>
                 log.info(
@@ -688,10 +693,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   }
 
   case class AbstractEnv(keySet: KeySet, env: Env[AbstractValue]) {
-    def apply(name: String): AbstractValue =
+    def apply(name: Name): AbstractValue =
       env.lookupOption(name).getOrElse(AbstractLattice.top)
 
-    def bind(bindings: (String, AbstractValue)*): AbstractEnv =
+    def bind(bindings: (Name, AbstractValue)*): AbstractEnv =
       copy(env = env.bind(bindings.filter(_._2 != AbstractLattice.top): _*))
 
     def restrict(k: KeySet): AbstractEnv =
@@ -760,7 +765,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   def analyze(
     x: IR,
-    rowName: String,
+    rowName: Name,
     rw: Option[Rewrites] = None,
     constraint: KeySet = KeySetLattice.top,
   ): KeySet = {

@@ -42,6 +42,11 @@ object MatrixIR {
     val requestedType = reader.fullMatrixTypeWithoutUIDs
     MatrixRead(requestedType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
+
+  val globalName: Name = Name("global")
+  val rowName: Name = Name("va")
+  val colName: Name = Name("sa")
+  val entryName: Name = Name("g")
 }
 
 sealed abstract class MatrixIR extends BaseIR {
@@ -201,7 +206,7 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
       tr = TableMapRows(
         tr,
         InsertFields(
-          Ref("row", tr.typ.rowType),
+          Ref(TableIR.rowName, tr.typ.rowType),
           FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(
             FastSeq(),
             TArray(requestedType.entryType),
@@ -211,7 +216,7 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
       tr = TableMapGlobals(
         tr,
         InsertFields(
-          Ref("global", tr.typ.globalType),
+          Ref(TableIR.globalName, tr.typ.globalType),
           FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(
             FastSeq(),
             TArray(requestedType.colType),
@@ -298,7 +303,7 @@ class MatrixNativeReader(
       tr = TableMapGlobals(
         tr,
         InsertFields(
-          Ref("global", tr.typ.globalType),
+          Ref(TableIR.globalName, tr.typ.globalType),
           FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(
             FastSeq(),
             TArray(requestedType.colType),
@@ -308,7 +313,7 @@ class MatrixNativeReader(
       TableMapRows(
         tr,
         InsertFields(
-          Ref("row", tr.typ.rowType),
+          Ref(TableIR.rowName, tr.typ.rowType),
           FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(
             FastSeq(),
             TArray(requestedType.entryType),
@@ -343,7 +348,7 @@ class MatrixNativeReader(
           },
           TArray(contextType),
         )
-        val elt = Ref(genUID(), contextType)
+        val elt = Ref(freshName(), contextType)
         StreamFlatMap(
           partNames,
           elt.name,
@@ -358,7 +363,7 @@ class MatrixNativeReader(
       TableMapGlobals(
         tr,
         InsertFields(
-          Ref("global", tr.typ.globalType),
+          Ref(TableIR.globalName, tr.typ.globalType),
           FastSeq(LowerMatrixIR.colsFieldName -> ToArray(cols)),
         ),
       )
@@ -1194,7 +1199,7 @@ case class MatrixFilterIntervals(child: MatrixIR, intervals: IndexedSeq[Interval
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 }
 
-case class RelationalLetMatrixTable(name: String, value: IR, body: MatrixIR) extends MatrixIR {
+case class RelationalLetMatrixTable(name: Name, value: IR, body: MatrixIR) extends MatrixIR {
   def typ: MatrixType = body.typ
 
   def childrenSeq: IndexedSeq[BaseIR] = Array(value, body)
