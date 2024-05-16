@@ -43,7 +43,7 @@ sealed trait IR extends BaseIR {
   protected lazy val childrenSeq: IndexedSeq[BaseIR] =
     Children(this)
 
-  override protected def copy(newChildren: IndexedSeq[BaseIR]): IR =
+  override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
   override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]
@@ -217,6 +217,8 @@ object Let {
 case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
 
 final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
+//  assert(bindings.map(_.name).areDistinct(), bindings.map(_.name.str))
+
   override lazy val size: Int =
     bindings.length + 1
 }
