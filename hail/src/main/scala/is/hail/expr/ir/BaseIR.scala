@@ -17,6 +17,8 @@ abstract class BaseIR {
 
   def children: Iterable[BaseIR] = childrenSeq
 
+  def getChild(idx: Int): BaseIR = childrenSeq(idx)
+
   protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BaseIR
 
   def deepCopy(): this.type =

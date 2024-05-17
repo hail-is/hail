@@ -220,10 +220,10 @@ object DeprecatedIRBuilder {
 
     def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
 
-    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = insertFieldsList(fields)
+    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = insertFieldsList(fields.toFastSeq)
 
     def insertFieldsList(
-      fields: Seq[(Symbol, IRProxy)],
+      fields: IndexedSeq[(Symbol, IRProxy)],
       ordering: Option[IndexedSeq[String]] = None,
     ): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) }, ordering)

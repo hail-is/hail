@@ -285,7 +285,7 @@ class TableIRSuite extends HailSuite {
     val t = rangeKT
     val oldRow = Ref(TableIR.rowName, t.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
+    val newRow = InsertFields(oldRow, FastSeq("idx2" -> IRScanCount))
     val newTable = TableMapRows(t, newRow)
     val expected = Array.tabulate(20)(i => Row(i, i.toLong)).toFastSeq
     assertEvalsTo(
@@ -302,7 +302,7 @@ class TableIRSuite extends HailSuite {
     val t = rangeKT
     val oldRow = Ref(TableIR.rowName, t.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
+    val newRow = InsertFields(oldRow, FastSeq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
     val newTable = TableMapRows(t, newRow)
 
     val expected = Array.tabulate(20)(i => Row(i, Array.range(0, i).toFastSeq)).toFastSeq
@@ -1155,7 +1155,7 @@ class TableIRSuite extends HailSuite {
     var ir: IR = rangeIR(5)
     ir = StreamGrouped(ir, 2)
     ir = ToArray(mapIR(ir)(ToArray))
-    ir = InsertFields(Ref(TableIR.rowName, tir.typ.rowType), Seq("foo" -> ir))
+    ir = InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("foo" -> ir))
     tir = TableMapRows(tir, ir)
     assertEvalsTo(
       collect(tir),
