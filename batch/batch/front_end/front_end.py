@@ -392,7 +392,7 @@ async def get_completed_batches_ordered_by_completed_time(request, userdata):
     wheres = [
         'billing_project_users.`user` = %s',
         'billing_project_users.billing_project = batches.billing_project',
-        'time_completed IS NOT NULL',
+        'batches.time_completed IS NOT NULL',
         'NOT deleted',
     ]
 
@@ -411,32 +411,32 @@ async def get_completed_batches_ordered_by_completed_time(request, userdata):
 
     sql = f"""
 SELECT batches.*,
-  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  cancelled_t.cancelled IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
   cost_t.*
-FROM batches
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
 LEFT JOIN billing_projects
     ON batches.billing_project = billing_projects.name
 LEFT JOIN job_groups_n_jobs_in_complete_states
-    ON batches.id = job_groups_n_jobs_in_complete_states.id
+       ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN job_groups_cancelled
-    ON batches.id = job_groups_cancelled.id
+       ON batches.id = job_groups_cancelled.id AND job_groups_cancelled.job_group_id = %s
 STRAIGHT_JOIN billing_project_users
     ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
-    SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-    FROM (
-      SELECT batch_id, resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
-      FROM aggregated_job_group_resources_v3
-      WHERE batches.id = aggregated_job_group_resources_v3.batch_id
-      GROUP BY batch_id, resource_id
-    ) AS usage_t
-    LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
-    GROUP BY batch_id
-  ) AS cost_t ON TRUE
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+  FROM (
+    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+    FROM aggregated_job_group_resources_v3
+    WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
+    GROUP BY resource_id
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
+) AS cost_t ON TRUE
 WHERE
     {' AND '.join(wheres)}
 ORDER BY time_completed DESC
@@ -444,7 +444,7 @@ LIMIT %s;
     """
 
     records = [
-        batch async for batch in db.select_and_fetchall(sql, (*where_args, limit), query_name='get_completed_batches')
+        batch async for batch in db.select_and_fetchall(sql, (ROOT_JOB_GROUP_ID, *where_args, limit), query_name='get_completed_batches')
     ]
     # this comes out as a timestamp (rather than a formed date)
     last_completed_timestamp = records[-1]['time_completed']
