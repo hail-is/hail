@@ -415,11 +415,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pus
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
-module "ukbb" {
-  count = var.deploy_ukbb ? 1 : 0
-  source = "../k8s/ukbb"
-}
-
 module "auth_gsa_secret" {
   source = "./gsa_k8s_secret"
   name = "auth"
