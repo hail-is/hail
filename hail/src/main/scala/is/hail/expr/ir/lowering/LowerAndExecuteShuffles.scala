@@ -35,11 +35,10 @@ object LowerAndExecuteShuffles {
 
         case t @ TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
-          val resultUID = genUID()
 
           val req = Requiredness(t, ctx)
 
-          val aggs = Extract(expr, resultUID, req)
+          val aggs = Extract(expr, req)
           val postAggIR = aggs.postAggIR
           val init = aggs.init
           val seq = aggs.seqPerElt
@@ -170,7 +169,7 @@ object LowerAndExecuteShuffles {
                   )),
                   Let(
                     FastSeq(
-                      resultUID -> ResultOp.makeTuple(aggs.aggs),
+                      aggs.resultRef.name -> ResultOp.makeTuple(aggs.aggs),
                       postAggUID -> postAggIR,
                       resultFromTakeUID -> result,
                     ), {

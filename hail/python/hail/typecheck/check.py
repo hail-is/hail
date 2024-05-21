@@ -458,8 +458,8 @@ anyfunc = AnyFuncChecker()
 def transformed(*tcs):
     fs = []
     for tc, f in tcs:
-        tc = only(tc)
-        fs.append((tc, f))
+        _tc = only(tc)
+        fs.append((_tc, f))
     return CoercionChecker(*fs)
 
 

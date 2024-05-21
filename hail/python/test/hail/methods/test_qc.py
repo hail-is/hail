@@ -330,7 +330,6 @@ class Tests(unittest.TestCase):
 
     def test_charr(self):
         mt = hl.import_vcf(resource('sample.vcf'))
-        es = mt.select_rows().entries()
         charr = hl.compute_charr(mt, ref_AF=0.9)
         d = charr.aggregate(hl.dict(hl.agg.collect((charr.s, charr.charr))))
 
@@ -370,10 +369,12 @@ class Tests(unittest.TestCase):
         )
         hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch38_95, csq=True)
 
-        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('\|')[:8])).rows()
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split(r'\|')[:8])
+        ).rows()
 
         actual = (
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('\|')[:8]))
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split(r'\|')[:8]))
             .rows()
             .drop('vep_csq_header')
         )

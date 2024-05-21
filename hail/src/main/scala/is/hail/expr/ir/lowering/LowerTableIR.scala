@@ -823,8 +823,7 @@ object LowerTableIR {
         lower(child).collectWithGlobals("table_collect")
 
       case TableAggregate(child, query) =>
-        val resultUID = genUID()
-        val aggs = agg.Extract(query, resultUID, analyses.requirednessAnalysis, false)
+        val aggs = agg.Extract(query, analyses.requirednessAnalysis, false)
 
         def results: IR = ResultOp.makeTuple(aggs.aggs)
 
@@ -973,7 +972,7 @@ object LowerTableIR {
             )) { finalParts =>
               RunAgg(
                 combineGroup(finalParts, true),
-                Let(FastSeq("global" -> globals, resultUID -> results), aggs.postAggIR),
+                Let(FastSeq("global" -> globals, aggs.resultRef.name -> results), aggs.postAggIR),
                 aggs.states,
               )
             }
@@ -1005,7 +1004,7 @@ object LowerTableIR {
                     })
                   },
                 )),
-                Let(FastSeq(resultUID -> results), aggs.postAggIR),
+                Let(FastSeq(aggs.resultRef.name -> results), aggs.postAggIR),
                 aggs.states,
               ),
             )
@@ -1661,8 +1660,7 @@ object LowerTableIR {
             )
           }
         } else {
-          val resultUID = genUID()
-          val aggs = agg.Extract(newRow, resultUID, analyses.requirednessAnalysis, isScan = true)
+          val aggs = agg.Extract(newRow, analyses.requirednessAnalysis, isScan = true)
 
           val results: IR = ResultOp.makeTuple(aggs.aggs)
           val initState = RunAgg(
@@ -2010,7 +2008,7 @@ object LowerTableIR {
                           InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
                         }),
                         aggs.seqPerElt,
-                        Let(FastSeq(resultUID -> results), aggs.postAggIR),
+                        Let(FastSeq(aggs.resultRef.name -> results), aggs.postAggIR),
                         aggs.states,
                       ),
                     )

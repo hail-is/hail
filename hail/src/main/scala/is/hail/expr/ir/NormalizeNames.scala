@@ -33,22 +33,23 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
       call(normalizeIR(next, env, context :+ ir.getClass().getName()).asInstanceOf[StackFrame[IR]])
 
     ir match {
-      case Let(bindings, body) =>
-        val newBindings: Array[(String, IR)] =
-          Array.ofDim(bindings.length)
+      case Block(bindings, body) =>
+        val newBindings: Array[Binding] = Array.ofDim(bindings.length)
 
         for {
           (env, _) <- bindings.foldLeft(done((env, 0))) {
-            case (get, (name, value)) =>
+            case (get, Binding(name, value, scope)) =>
               for {
                 (env, idx) <- get
-                newValue <- normalize(value, env)
-                newName = gen()
-                _ = newBindings(idx) = newName -> newValue
-              } yield (env.bindEval(name, newName), idx + 1)
+                newValue <- normalize(value, env.promoteScope(scope))
+              } yield {
+                val newName = gen()
+                newBindings(idx) = Binding(newName, newValue, scope)
+                (env.bindInScope(name, newName, scope), idx + 1)
+              }
           }
           newBody <- normalize(body, env)
-        } yield Let(newBindings, newBody)
+        } yield Block(newBindings, newBody)
 
       case Ref(name, typ) =>
         val newName = env.eval.lookupOption(name) match {
@@ -76,16 +77,6 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
         for {
           newArgs <- args.mapRecur(v => normalize(v))
         } yield Recur(newName, newArgs, typ)
-      case AggLet(name, value, body, isScan) =>
-        val newName = gen()
-        val (valueEnv, bodyEnv) = if (isScan)
-          env.promoteScan -> env.bindScan(name, newName)
-        else
-          env.promoteAgg -> env.bindAgg(name, newName)
-        for {
-          newValue <- normalize(value, valueEnv)
-          newBody <- normalize(body, bodyEnv)
-        } yield AggLet(newName, newValue, newBody, isScan)
       case TailLoop(name, args, resultType, body) =>
         val newFName = gen()
         val newNames = Array.tabulate(args.length)(i => gen())
@@ -295,7 +286,10 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
 
       case x =>
         x.mapChildrenWithIndexStackSafe { (child, i) =>
-          normalizeBaseIR(child, ChildBindings.transformed(x, i, env, { case (name, _) => name }))
+          normalizeBaseIR(
+            child,
+            Bindings.segregated(x, i, env).mapNewBindings((name, _) => name).unified,
+          )
         }
     }
   }

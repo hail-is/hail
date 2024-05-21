@@ -64,7 +64,7 @@ def load_dataset(
     if region not in valid_regions:
         raise ValueError(
             f'Specify valid region parameter,'
-            f' received: region={repr(region)}.\n'
+            f' received: region={region!r}.\n'
             f'Valid region values are {valid_regions}.'
         )
 
@@ -72,7 +72,7 @@ def load_dataset(
     if cloud not in valid_clouds:
         raise ValueError(
             f'Specify valid cloud parameter,'
-            f' received: cloud={repr(cloud)}.\n'
+            f' received: cloud={cloud!r}.\n'
             f'Valid cloud platforms are {valid_clouds}.'
         )
 
@@ -88,29 +88,27 @@ def load_dataset(
     versions = set(dataset['version'] for dataset in datasets[name]['versions'])
     if version not in versions:
         raise ValueError(
-            f'Version {repr(version)} not available for dataset' f' {repr(name)}.\n' f'Available versions: {versions}.'
+            f'Version {version!r} not available for dataset' f' {name!r}.\n' f'Available versions: {versions}.'
         )
 
     reference_genomes = set(dataset['reference_genome'] for dataset in datasets[name]['versions'])
     if reference_genome not in reference_genomes:
         raise ValueError(
-            f'Reference genome build {repr(reference_genome)} not'
-            f' available for dataset {repr(name)}.\n'
+            f'Reference genome build {reference_genome!r} not'
+            f' available for dataset {name!r}.\n'
             f'Available reference genome builds:'
             f' {reference_genomes}.'
         )
 
     clouds = set(k for dataset in datasets[name]['versions'] for k in dataset['url'].keys())
     if cloud not in clouds:
-        raise ValueError(
-            f'Cloud platform {repr(cloud)} not available for dataset {name}.\nAvailable platforms: {clouds}.'
-        )
+        raise ValueError(f'Cloud platform {cloud!r} not available for dataset {name}.\nAvailable platforms: {clouds}.')
 
     regions = set(k for dataset in datasets[name]['versions'] for k in dataset['url'][cloud].keys())
     if region not in regions:
         raise ValueError(
-            f'Region {repr(region)} not available for dataset'
-            f' {repr(name)} on cloud platform {repr(cloud)}.\n'
+            f'Region {region!r} not available for dataset'
+            f' {name!r} on cloud platform {cloud!r}.\n'
             f'Available regions: {regions}.'
         )
 

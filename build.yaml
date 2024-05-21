@@ -1367,7 +1367,7 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
-    name: hail-benchmark-image
+    name: hail_benchmark_image
     dockerFile: /io/repo/benchmark/Dockerfile
     contextPath: /io/repo
     publishAs: hail-benchmark
@@ -1618,47 +1618,6 @@ steps:
       - make_docs
     clouds:
       - gcp
-  - kind: buildImage2
-    name: query_build_image
-    dockerFile: /io/query/Dockerfile.query-build
-    contextPath: /io/query
-    publishAs: query-build
-    inputs:
-      - from: /repo/query
-        to: /io/query
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
-  - kind: runImage
-    name: build_native_query
-    image:
-      valueFrom: query_build_image.image
-    script: |
-      set -ex
-      export LLVM_DIR=/usr/lib/llvm-15
-      cd /io/repo/query
-      mkdir build
-      cd build
-      cmake .. \
-        -G Ninja \
-        -DCMAKE_C_COMPILER=$LLVM_DIR/bin/clang \
-        -DCMAKE_CXX_COMPILER=$LLVM_DIR/bin/clang++ \
-        -DCMAKE_C_FLAGS=-Werror \
-        -DCMAKE_CXX_FLAGS=-Werror \
-        -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-        -DMLIR_DIR=$LLVM_DIR/lib/cmake/mlir \
-        -DHAIL_USE_CLANG_TIDY=ON
-      ninja
-      ninja check-hail
-    resources:
-      memory: standard
-      cpu: '4'
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - query_build_image
-      - merge_code
   - kind: deploy
     name: deploy_grafana
     namespace:
@@ -3255,6 +3214,8 @@ steps:
     name: test_dataproc-37
     image:
       valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
     script: |
       set -ex
 
@@ -3296,6 +3257,8 @@ steps:
     name: test_dataproc-38
     image:
       valueFrom: ci_utils_image.image
+    resources:
+      preemptible: False
     script: |
       set -ex
 
@@ -3350,34 +3313,38 @@ steps:
       export GIT_ASKPASS=/io/git-askpass
 
       cd /io/repo/hail
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
 
-      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
           echo "tag $HAIL_PIP_VERSION already exists"
+          echo '0' > /io/release-hail-flag
           exit 0
       fi
 
-      time retry sh millw --version
-      make wheel upload-artifacts DEPLOY_REMOTE=origin HAIL_RELEASE_MODE=1
+      # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
+      # use `assume-old` to prevent `mill` from rebuilding the "SHADOW_JAR"
+      make upload-artifacts DEPLOY_REMOTE=origin \
+        --assume-old=out/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
-      HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
-      HAIL_VERSION=$(cat /io/hail_version)
-      GIT_VERSION=$(cat /io/git_version)
-      REMOTE=origin
-      WHEEL=/io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl
-      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
-      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }}
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }}
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }}
-      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }}
-      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }}
-      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }}
-      AZURE_WHEEL=/io/azure-wheel/hail-*-py3-none-any.whl
-      WEBSITE_TAR=/io/www.tar.gz
-
+      HAIL_VERSION=$(cat /io/hail_version) \
+      WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl" \
+      GIT_VERSION=$(cat /io/git_version) \
+      REMOTE=origin \
+      GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
+      HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }} \
+      HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
+      HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }} \
+      HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
+      AZURE_WHEEL=/io/azure-wheel/hail-*-py3-none-any.whl \
+      WEBSITE_TAR=/io/www.tar.gz \
       bash scripts/release.sh
+
+      echo '1' > /io/release-hail-flag
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3387,10 +3354,15 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
+      - from: /hail.jar
+        to: /io/repo/hail/out/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
         to: /io/www.tar.gz
+    outputs:
+      - from: /io/release-hail-flag
+        to: /release-hail-flag
     secrets:
       - name: pypi-credentials
         namespace:
@@ -3421,7 +3393,17 @@ steps:
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
+      - build_hail_jar_and_wheel
       - build_azure_wheel
+      - test_hail_java
+      - test_hail_python_local_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
+      - test_hail_scala_fs
+      - test_hail_services_java
+      - test_hail_spark_conf_requester_pays_parsing
+      - test_dataproc-37
+      - test_dataproc-38
       - make_docs
     clouds:
       - gcp
@@ -3684,6 +3666,67 @@ steps:
       - hail_run_image
       - build_hail_test_artifacts
       - deploy_batch
+  - kind: runImage
+    name: start_hail_benchmark
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
+    dependsOn:
+      - default_ns
+      - hail_dev_image
+      - hail_benchmark_image
+      - test_hail_java
+      - test_hail_python_local_backend
+      - test_hail_python_service_backend_gcp
+      - test_hail_python_service_backend_azure
+      - test_hail_scala_fs
+      - test_hail_services_java
+      - test_hail_spark_conf_requester_pays_parsing
+      - release
+    image:
+      valueFrom: hail_dev_image.image
+    inputs:
+      - from: /repo/benchmark
+        to: /io/repo/benchmark
+      - from: /hail_version
+        to: /io/hail_version
+      - from: /release-hail-flag
+        to: /io/release-hail-flag
+    script: |
+      set -ex
+
+      # only run benchmarks iff we've published a new release
+      if [[ $(< /io/release-hail-flag) != '1' ]]
+      then
+          echo 'Skipping benchmarks (no new release published).'
+          exit 0
+      fi
+
+      pushd /io/repo/benchmark
+
+      IMAGE={{ hail_benchmark_image.image }}
+
+      BUCKET=hail-benchmarks-2
+      HAIL_VERSION=$(cat /io/hail_version)
+      RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}/${HAIL_VERSION}"
+
+      REPLICATES=5
+      ITERATIONS=5
+
+      export HAIL_BATCH_REGIONS={{ global.gcp_region }}
+      export HAIL_BATCH_BILLING_PROJECT=benchmark
+      export HAIL_BATCH_REMOTE_TMPDIR={{ ci_storage_uri }}/{{ token }}
+
+      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
+          $IMAGE \
+          $RESULTS_PREFIX \
+          $HAIL_VERSION \
+          $REPLICATES \
+          $ITERATIONS \
+          start
+
   - kind: runImage
     name: cancel_all_running_test_batches
     image:

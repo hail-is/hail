@@ -53,7 +53,7 @@ class GGPlot:
         self.add_default_scales(aes)
 
     def __add__(self, other):
-        assert isinstance(other, FigureAttribute) or isinstance(other, Aesthetic)
+        assert isinstance(other, (FigureAttribute, Aesthetic))
 
         copied = self.copy()
         if isinstance(other, Geom):
@@ -109,11 +109,10 @@ class GGPlot:
                         "The 'shape' aesthetic does not support continuous "
                         "types. Specify values of a discrete type instead."
                     )
+                elif is_continuous:
+                    self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
                 else:
-                    if is_continuous:
-                        self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
-                    else:
-                        self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
+                    self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
 
     def copy(self):
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales, self.facet)
