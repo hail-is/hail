@@ -19,7 +19,7 @@ pycparser==2.22
     # via cffi
 pyjwt==2.8.0
     # via gidgethub
-requests==2.31.0
+requests==2.32.0
     # via zulip
 typing-extensions==4.11.0
     # via zulip

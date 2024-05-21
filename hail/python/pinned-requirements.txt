@@ -145,7 +145,7 @@ pyyaml==6.0.1
     # via bokeh
 regex==2024.4.28
     # via parsimonious
-requests==2.31.0
+requests==2.32.0
     # via
     #   azure-core
     #   msal
