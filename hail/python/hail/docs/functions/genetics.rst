@@ -31,6 +31,7 @@ Genetics functions
     is_valid_locus
     contig_length
     allele_type
+    numeric_allele_type
     pl_dosage
     gp_dosage
     get_sequence
@@ -65,6 +66,7 @@ Genetics functions
 .. autofunction:: is_valid_locus
 .. autofunction:: contig_length
 .. autofunction:: allele_type
+.. autofunction:: numeric_allele_type
 .. autofunction:: pl_dosage
 .. autofunction:: gp_dosage
 .. autofunction:: get_sequence

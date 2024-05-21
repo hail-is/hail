@@ -29,12 +29,12 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
 
 from gear import (
-    AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
     Transaction,
     UserData,
     check_csrf_token,
+    get_authenticator,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -57,7 +57,6 @@ from hailtop.batch_client.types import (
 )
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
     cost_str,
     dump_all_stacktraces,
@@ -132,7 +131,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthServiceAuthenticator()
+auth = get_authenticator()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -1077,6 +1076,11 @@ async def create_job_groups(request: web.Request, userdata: UserData) -> web.Res
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_group_specs = await json_request(request)
+    try:
+        validate_job_groups(job_group_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     await _create_job_groups(db, batch_id, update_id, user, job_group_specs)
     return web.Response()
 
@@ -1101,6 +1105,11 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
@@ -1117,6 +1126,11 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
@@ -1225,8 +1239,6 @@ VALUES (%s, %s, %s, %s);
 async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: str, job_group_specs: List[dict]):
     assert len(job_group_specs) > 0
 
-    validate_job_groups(job_group_specs)
-
     @transaction(db)
     async def insert(tx):
         record = await tx.execute_and_fetchone(
@@ -1333,11 +1345,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     batch_format_version = BatchFormatVersion(record['format_version'])
     update_start_job_id = int(record['start_job_id'])
     update_start_job_group_id = int(record['start_job_group_id'])
-
-    try:
-        validate_and_clean_jobs(job_specs)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
 
     spec_writer = SpecWriter(file_store, batch_id)
 
@@ -1533,24 +1540,24 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         spec['secrets'] = secrets
 
-        secrets.append({
-            'namespace': DEFAULT_NAMESPACE,
-            'name': userdata['hail_credentials_secret_name'],
-            'mount_path': '/gsa-key',
-            'mount_in_copy': True,
-        })
-
         env = spec.get('env')
         if not env:
             env = []
             spec['env'] = env
         assert isinstance(spec['env'], list)
 
-        if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-            spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+        if not os.environ.get('HAIL_TERRA'):
+            secrets.append({
+                'namespace': DEFAULT_NAMESPACE,
+                'name': userdata['hail_credentials_secret_name'],
+                'mount_path': '/gsa-key',
+                'mount_in_copy': True,
+            })
+            if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
-        if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-            spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+            if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
         cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
         if cloudfuse:
@@ -1563,6 +1570,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                     )
 
         if spec.get('mount_tokens', False):
+            # Clients stopped using `mount_tokens` prior to the introduction of terra deployments
+            assert not os.environ.get('HAIL_TERRA', False)
             secrets.append({
                 'namespace': DEFAULT_NAMESPACE,
                 'name': userdata['tokens_secret_name'],
@@ -1641,138 +1650,127 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
     async def insert_jobs_into_db(tx):
         try:
-            try:
-                await tx.execute_many(
-                    """
+            await tx.execute_many(
+                """
 INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
-                    jobs_args,
-                    query_name='insert_jobs',
+                jobs_args,
+                query_name='insert_jobs',
+            )
+        except pymysql.err.IntegrityError as err:
+            # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+            if err.args[0] == 1062:
+                log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted')
+                return
+            raise
+        except pymysql.err.OperationalError as err:
+            if err.args[0] == 1644 and err.args[1] == 'job group has already been cancelled':
+                raise web.HTTPBadRequest(
+                    text=f'bunch contains job where the job group has already been cancelled ({(batch_id, jobs_args[0][1])})'
                 )
-            except pymysql.err.IntegrityError as err:
-                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                if err.args[0] == 1062:
-                    log.info(f'bunch containing job {(batch_id, jobs_args[0][1])} already inserted')
-                    return
-                raise
-            except pymysql.err.OperationalError as err:
-                if err.args[0] == 1644 and err.args[1] == 'job group has already been cancelled':
-                    raise web.HTTPBadRequest(
-                        text=f'bunch contains job where the job group has already been cancelled ({(batch_id, jobs_args[0][1])})'
-                    )
-                raise
+            raise
 
-            try:
-                await tx.execute_many(
-                    """
+        try:
+            await tx.execute_many(
+                """
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 """,
-                    job_parents_args,
-                    query_name='insert_job_parents',
-                )
-            except pymysql.err.IntegrityError as err:
-                # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
-                if err.args[0] == 1062:
-                    raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({job_parents_args})')
-                raise
+                job_parents_args,
+                query_name='insert_job_parents',
+            )
+        except pymysql.err.IntegrityError as err:
+            # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
+            if err.args[0] == 1062:
+                raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({job_parents_args})')
+            raise
 
-            await tx.execute_many(
-                """
+        await tx.execute_many(
+            """
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 """,
-                job_attributes_args,
-                query_name='insert_job_attributes',
-            )
+            job_attributes_args,
+            query_name='insert_job_attributes',
+        )
 
-            await tx.execute_many(
-                """
+        await tx.execute_many(
+            """
 INSERT INTO jobs_telemetry (batch_id, job_id, time_ready)
 VALUES (%s, %s, %s);
 """,
-                jobs_telemetry_args,
-                query_name='insert_jobs_telemetry',
-            )
+            jobs_telemetry_args,
+            query_name='insert_jobs_telemetry',
+        )
 
-            job_groups_inst_coll_staging_args = [
-                (
-                    batch_id,
-                    update_id,
-                    inst_coll,
-                    rand_token,
-                    resources['n_jobs'],
-                    resources['n_ready_jobs'],
-                    resources['ready_cores_mcpu'],
-                    batch_id,
-                    icr_job_group_id,
-                )
-                for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
-            ]
-            #  job_groups_inst_coll_staging tracks the num of resources recursively for all children job groups
-            await tx.execute_many(
-                """
+        job_groups_inst_coll_staging_args = [
+            (
+                batch_id,
+                update_id,
+                inst_coll,
+                rand_token,
+                resources['n_jobs'],
+                resources['n_ready_jobs'],
+                resources['ready_cores_mcpu'],
+                batch_id,
+                icr_job_group_id,
+            )
+            for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
+        ]
+        #  job_groups_inst_coll_staging tracks the num of resources recursively for all children job groups
+        await tx.execute_many(
+            """
 INSERT INTO job_groups_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 SELECT %s, %s, ancestor_id, %s, %s, %s, %s, %s
 FROM job_group_self_and_ancestors
 WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE
-  n_jobs = n_jobs + VALUES(n_jobs),
-  n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
-  ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
+n_jobs = n_jobs + VALUES(n_jobs),
+n_ready_jobs = n_ready_jobs + VALUES(n_ready_jobs),
+ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
 """,
-                job_groups_inst_coll_staging_args,
-                query_name='insert_job_groups_inst_coll_staging',
-            )
+            job_groups_inst_coll_staging_args,
+            query_name='insert_job_groups_inst_coll_staging',
+        )
 
-            job_group_inst_coll_cancellable_resources_args = [
-                (
-                    batch_id,
-                    update_id,
-                    inst_coll,
-                    rand_token,
-                    resources['n_ready_cancellable_jobs'],
-                    resources['ready_cancellable_cores_mcpu'],
-                    batch_id,
-                    icr_job_group_id,
-                )
-                for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
-            ]
-            #  job_group_inst_coll_cancellable_resources tracks the num of resources recursively for all children job groups
-            await tx.execute_many(
-                """
+        job_group_inst_coll_cancellable_resources_args = [
+            (
+                batch_id,
+                update_id,
+                inst_coll,
+                rand_token,
+                resources['n_ready_cancellable_jobs'],
+                resources['ready_cancellable_cores_mcpu'],
+                batch_id,
+                icr_job_group_id,
+            )
+            for (icr_job_group_id, inst_coll), resources in inst_coll_resources.items()
+        ]
+        #  job_group_inst_coll_cancellable_resources tracks the num of resources recursively for all children job groups
+        await tx.execute_many(
+            """
 INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 SELECT %s, %s, ancestor_id, %s, %s, %s, %s
 FROM job_group_self_and_ancestors
 WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE
-  n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
-  ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
+n_ready_cancellable_jobs = n_ready_cancellable_jobs + VALUES(n_ready_cancellable_jobs),
+ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + VALUES(ready_cancellable_cores_mcpu);
 """,
-                job_group_inst_coll_cancellable_resources_args,
-                query_name='insert_inst_coll_cancellable_resources',
-            )
+            job_group_inst_coll_cancellable_resources_args,
+            query_name='insert_inst_coll_cancellable_resources',
+        )
 
-            if batch_format_version.has_full_spec_in_cloud():
-                await tx.execute_update(
-                    """
+        if batch_format_version.has_full_spec_in_cloud():
+            await tx.execute_update(
+                """
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 """,
-                    (batch_id, spec_writer.token, bunch_start_job_id),
-                    query_name='insert_batch_bunches',
-                )
-        except asyncio.CancelledError:
-            raise
-        except web.HTTPException:
-            raise
-        except Exception as err:
-            raise ValueError(
-                f'encountered exception while inserting a bunch'
-                f'jobs_args={json.dumps(jobs_args)}'
-                f'job_parents_args={json.dumps(job_parents_args)}'
-            ) from err
+                (batch_id, spec_writer.token, bunch_start_job_id),
+                query_name='insert_batch_bunches',
+            )
 
     @transaction(db)
     async def write_and_insert(tx):
@@ -1780,7 +1778,18 @@ VALUES (%s, %s, %s);
         # must rollback. See https://github.com/hail-is/hail-production-issues/issues/9
         await asyncio.gather(write_spec_to_cloud(), insert_jobs_into_db(tx))
 
-    await write_and_insert()
+    try:
+        await write_and_insert()
+    except asyncio.CancelledError:
+        raise
+    except web.HTTPException:
+        raise
+    except Exception as err:
+        raise ValueError(
+            f'encountered exception while inserting a bunch'
+            f'jobs_args={json.dumps(jobs_args)}'
+            f'job_parents_args={json.dumps(job_parents_args)}'
+        ) from err
 
     return web.Response()
 
@@ -1797,6 +1806,13 @@ async def create_batch_fast(request, userdata):
     batch_spec = batch_and_bunch['batch']
     jobs = batch_and_bunch['bunch']
     job_groups = batch_and_bunch.get('job_groups', [])
+
+    try:
+        validate_batch(batch_spec)
+        validate_and_clean_jobs(jobs)
+        validate_job_groups(job_groups)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
 
     batch_id = await _create_batch(batch_spec, userdata, db)
 
@@ -1834,6 +1850,11 @@ async def create_batch(request, userdata):
     db: Database = app['db']
 
     batch_spec = await json_request(request)
+    try:
+        validate_batch(batch_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     n_job_groups = batch_spec.get('n_job_groups', 0)
@@ -1856,11 +1877,6 @@ async def create_batch(request, userdata):
 
 
 async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
-    try:
-        validate_batch(batch_spec)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
-
     user = userdata['username']
 
     # restrict to what's necessary; in particular, drop the session
@@ -1983,6 +1999,8 @@ async def update_batch_fast(request, userdata):
 
     try:
         validate_batch_update(update_spec)
+        validate_and_clean_jobs(jobs)
+        validate_job_groups(job_groups)
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
@@ -2068,7 +2086,8 @@ async def _create_batch_update(
             """
 SELECT update_id, start_job_id, start_job_group_id
 FROM batch_updates
-WHERE batch_id = %s AND token = %s;
+WHERE batch_id = %s AND token = %s
+FOR UPDATE;
 """,
             (batch_id, update_token),
         )
@@ -2107,7 +2126,8 @@ SELECT update_id, start_job_id, n_jobs, start_job_group_id, n_job_groups
 FROM batch_updates
 WHERE batch_id = %s
 ORDER BY update_id DESC
-LIMIT 1;
+LIMIT 1
+FOR UPDATE;
 """,
             (batch_id,),
         )
@@ -3717,5 +3737,5 @@ def run():
         host='0.0.0.0',
         port=int(os.environ['PORT']),
         access_log_class=BatchFrontEndAccessLogger,
-        ssl_context=internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

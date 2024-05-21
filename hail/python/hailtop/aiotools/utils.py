@@ -1,8 +1,7 @@
-from typing import Deque, TypeVar, AsyncIterator, Iterator
+import asyncio
 import collections
 from contextlib import contextmanager
-import asyncio
-
+from typing import AsyncIterator, Deque, Iterator, TypeVar
 
 _T = TypeVar('_T')
 

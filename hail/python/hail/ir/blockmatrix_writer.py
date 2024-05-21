@@ -1,8 +1,8 @@
 import abc
 import json
 
-from ..typecheck import typecheck_method, sequenceof, nullable, enumeration
-from ..expr.types import tvoid, tstr
+from ..expr.types import tstr, tvoid
+from ..typecheck import enumeration, nullable, sequenceof, typecheck_method
 from ..utils.misc import escape_str
 
 

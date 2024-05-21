@@ -174,7 +174,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     if (iec.st.isRealizable) memoizeField(iec, name)
     else {
       assert(iec.st.isInstanceOf[SStream])
-      if (iec.required) EmitValue(None, iec.get(this, ""))
+      if (iec.required) EmitValue(None, iec.getOrFatal(this, s"'$name' cannot be missing."))
       else {
         val m = emb.genFieldThisRef[Boolean](name + "_missing")
         iec.consume(this, assign(m, true), _ => assign(m, false))
@@ -227,7 +227,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
           val castEc = (ec.required, et.required) match {
             case (true, false) => ec.setOptional
             case (false, true) =>
-              EmitCode.fromI(emb)(cb => IEmitCode.present(cb, ec.toI(cb).get(cb)))
+              EmitCode.fromI(emb)(cb => IEmitCode.present(cb, ec.toI(cb).getOrAssert(cb)))
             case _ => ec
           }
           val castEv = memoize(castEc, "_invoke")

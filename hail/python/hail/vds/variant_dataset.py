@@ -1,12 +1,11 @@
+import json
 import os
 
 import hail as hl
+from hail.genetics import ReferenceGenome
 from hail.matrixtable import MatrixTable
 from hail.typecheck import typecheck_method
 from hail.utils.java import info, warning
-from hail.genetics import ReferenceGenome
-
-import json
 
 extra_ref_globals_file = 'extra_reference_globals.json'
 

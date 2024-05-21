@@ -1,9 +1,11 @@
+import asyncio
+import logging
 import sys
 import time
 from typing import Awaitable, List, TypeVar
-import logging
-import asyncio
+
 import aiohttp
+
 from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
 

@@ -2,11 +2,10 @@ package is.hail.io.fs
 
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.services.retryTransientErrors
-import is.hail.shadedazure.com.azure.core.credential.{AzureSasCredential, TokenCredential}
+import is.hail.shadedazure.com.azure.core.credential.AzureSasCredential
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
 import is.hail.shadedazure.com.azure.identity.{
-  ClientSecretCredential, ClientSecretCredentialBuilder, DefaultAzureCredential,
-  DefaultAzureCredentialBuilder,
+  ClientSecretCredentialBuilder, DefaultAzureCredentialBuilder,
 }
 import is.hail.shadedazure.com.azure.storage.blob.{
   BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,
@@ -50,11 +49,14 @@ class AzureStorageFSURL(
 
   def getPath: String = path
 
-  override def toString(): String = {
+  def base: String = {
     val pathPart = if (path == "") "" else s"/$path"
-    val sasTokenPart = sasToken.getOrElse("")
+    prefix + pathPart
+  }
 
-    prefix + pathPart + sasTokenPart
+  override def toString(): String = {
+    val sasTokenPart = sasToken.getOrElse("")
+    this.base + sasTokenPart
   }
 }
 
@@ -114,14 +116,30 @@ object AzureStorageFileListEntry {
     new BlobStorageFileListEntry(url.toString, null, 0, true)
 }
 
-class AzureBlobServiceClientCache(
-  credential: TokenCredential,
-  val httpClientOptions: HttpClientOptions,
-) {
+class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
+  type URL = AzureStorageFSURL
+
   private[this] lazy val clients =
     mutable.Map[(String, String, Option[String]), BlobServiceClient]()
 
-  def getServiceClient(url: AzureStorageFSURL): BlobServiceClient = {
+  private lazy val credential = credentialsJSON match {
+    case None =>
+      new DefaultAzureCredentialBuilder().build()
+    case Some(keyData) =>
+      implicit val formats: Formats = defaultJSONFormats
+      val kvs = JsonMethods.parse(keyData)
+      val appId = (kvs \ "appId").extract[String]
+      val password = (kvs \ "password").extract[String]
+      val tenant = (kvs \ "tenant").extract[String]
+
+      new ClientSecretCredentialBuilder()
+        .clientId(appId)
+        .clientSecret(password)
+        .tenantId(tenant)
+        .build()
+  }
+
+  def getServiceClient(url: URL): BlobServiceClient = {
     val k = (url.account, url.container, url.sasToken)
 
     clients.get(k) match {
@@ -149,10 +167,6 @@ class AzureBlobServiceClientCache(
       .buildClient()
     clients += ((url.account, url.container, url.sasToken) -> blobServiceClient)
   }
-}
-
-class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
-  type URL = AzureStorageFSURL
 
   override def parseUrl(filename: String): URL = AzureStorageFS.parseUrl(filename)
 
@@ -179,7 +193,7 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
         f
       catch {
         case e: BlobStorageException if e.getStatusCode == 401 =>
-          serviceClientCache.setPublicAccessServiceClient(url)
+          setPublicAccessServiceClient(url)
           f
       }
     }
@@ -191,37 +205,18 @@ class AzureStorageFS(val credentialsJSON: Option[String] = None) extends FS {
     .setConnectionIdleTimeout(Duration.ofSeconds(5))
     .setWriteTimeout(Duration.ofSeconds(5))
 
-  private lazy val serviceClientCache = credentialsJSON match {
-    case None =>
-      val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
-      new AzureBlobServiceClientCache(credential, httpClientOptions)
-    case Some(keyData) =>
-      implicit val formats: Formats = defaultJSONFormats
-      val kvs = JsonMethods.parse(keyData)
-      val appId = (kvs \ "appId").extract[String]
-      val password = (kvs \ "password").extract[String]
-      val tenant = (kvs \ "tenant").extract[String]
-
-      val clientSecretCredential: ClientSecretCredential = new ClientSecretCredentialBuilder()
-        .clientId(appId)
-        .clientSecret(password)
-        .tenantId(tenant)
-        .build()
-      new AzureBlobServiceClientCache(clientSecretCredential, httpClientOptions)
-  }
-
   // Set to max timeout for blob storage of 30 seconds
   /* https://docs.microsoft.com/en-us/rest/api/storageservices/setting-timeouts-for-blob-service-operations */
   private val timeout = Duration.ofSeconds(30)
 
   def getBlobClient(url: URL): BlobClient = retryTransientErrors {
-    serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container).getBlobClient(
+    getServiceClient(url).getBlobContainerClient(url.container).getBlobClient(
       url.path
     )
   }
 
   def getContainerClient(url: URL): BlobContainerClient = retryTransientErrors {
-    serviceClientCache.getServiceClient(url).getBlobContainerClient(url.container)
+    getServiceClient(url).getBlobContainerClient(url.container)
   }
 
   def openNoCompression(url: URL): SeekableDataInputStream = handlePublicAccessError(url) {

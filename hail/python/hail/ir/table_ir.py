@@ -1,24 +1,23 @@
 from typing import Optional
+
 import hail as hl
 from hail.expr.types import dtype, tint32, tint64, tstruct
-from hail.ir.base_ir import BaseIR, IR, TableIR
-import hail.ir.ir as ir
-from hail.ir.utils import modify_deep_field, zip_with_index, default_row_uid, default_col_uid
-from hail.ir.ir import unify_uid_types, pad_uid, concat_uids
-from hail.typecheck import typecheck_method, nullable, sequenceof
+from hail.ir import ir
+from hail.ir.base_ir import IR, BaseIR, TableIR
+from hail.ir.ir import concat_uids, pad_uid, unify_uid_types
+from hail.ir.utils import default_col_uid, default_row_uid, modify_deep_field, zip_with_index
+from hail.typecheck import nullable, sequenceof, typecheck_method
 from hail.utils import FatalError
 from hail.utils.interval import Interval
 from hail.utils.java import Env
-from hail.utils.misc import escape_str, parsable_strings, escape_id
 from hail.utils.jsonx import dump_json
+from hail.utils.misc import escape_id, escape_str, parsable_strings
 
 
 def unpack_uid(new_row_type, uid_field_name):
     new_row = ir.Ref('row', new_row_type)
-    if uid_field_name in new_row_type.fields:
-        uid = ir.GetField(new_row, uid_field_name)
-    else:
-        uid = ir.NA(tint64)
+    assert uid_field_name in new_row_type.fields
+    uid = ir.GetField(new_row, uid_field_name)
     return uid, ir.SelectFields(new_row, [field for field in new_row_type.fields if not field == uid_field_name])
 
 
@@ -463,7 +462,7 @@ class MatrixEntriesTable(TableIR):
                 ir.Ref('va', child.typ.row_type), [field for field in child.typ.row_type if field != temp_row_uid]
             ),
         )
-        return TableRename(MatrixEntriesTable(child), {'__entry_uid': default_row_uid}, {})
+        return TableRename(MatrixEntriesTable(child), {'__entry_uid': uid_field_name}, {})
 
     def _compute_type(self, deep_typecheck):
         self.child.compute_type(deep_typecheck)

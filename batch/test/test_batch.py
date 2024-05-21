@@ -27,6 +27,9 @@ from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, create_batch, le
 deploy_config = get_deploy_config()
 
 
+skip_if_terra = pytest.mark.skipif(os.environ.get('HAIL_TERRA', False), reason="doesn't work yet on terra")
+
+
 @pytest.fixture
 def client():
     client = BatchClient('test')
@@ -148,6 +151,13 @@ def test_invalid_resource_requests(client: BatchClient):
         b.submit()
 
 
+def test_invalid_job_group_attributes(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'foo': 1})
+    with pytest.raises(httpx.ClientResponseError, match=".*foo.* is not <class 'str'>"):
+        b.submit()
+
+
 def test_out_of_memory(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -157,6 +167,7 @@ def test_out_of_memory(client: BatchClient):
     assert j._get_out_of_memory(status, 'main'), str((status, b.debug_info()))
 
 
+@skip_if_terra
 def test_out_of_storage(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -168,6 +179,7 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@skip_if_terra
 def test_quota_applies_to_volume(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -195,6 +207,7 @@ def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@skip_if_terra
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25', 'storage': '10Gi'}
@@ -233,6 +246,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+# Transitively is not valid for terra
 @skip_in_azure
 def test_attached_disk(client: BatchClient):
     b = create_batch(client)
@@ -1481,6 +1495,7 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+# Transitively is not valid for terra
 @skip_in_azure
 @pytest.mark.timeout(10 * 60)
 def test_gpu_accesibility_g2(client: BatchClient):

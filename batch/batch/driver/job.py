@@ -3,6 +3,7 @@ import base64
 import collections
 import json
 import logging
+import os
 import traceback
 from typing import TYPE_CHECKING, Dict, List
 
@@ -436,12 +437,11 @@ async def job_config(app, record):
 
     userdata = json.loads(record['userdata'])
 
+    gsa_key = None
     secrets = job_spec.get('secrets', [])
     k8s_secrets = await asyncio.gather(*[
         k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets
     ])
-
-    gsa_key = None
 
     # backwards compatibility
     gsa_key_secret_name = userdata.get('hail_credentials_secret_name') or userdata['gsa_key_secret_name']
@@ -451,7 +451,10 @@ async def job_config(app, record):
             gsa_key = k8s_secret.data
         secret['data'] = k8s_secret.data
 
-    assert gsa_key
+    if os.environ.get('HAIL_TERRA'):
+        assert not gsa_key
+    else:
+        assert gsa_key
 
     service_account = job_spec.get('service_account')
     if service_account:
@@ -571,7 +574,7 @@ async def schedule_job(app, record, instance):
         log.exception(f'while making job config for job {id} with attempt id {attempt_id}')
 
         await mark_job_errored(
-            app, job_group_id, batch_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
+            app, batch_id, job_group_id, job_id, attempt_id, record['user'], format_version, traceback.format_exc()
         )
         raise
 

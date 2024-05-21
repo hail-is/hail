@@ -1,22 +1,22 @@
-from typing import Any, Optional, Type, BinaryIO, cast, Set, AsyncIterator, Callable, Dict, List, Iterator
-from types import TracebackType
-import os
-import os.path
-import io
-import stat
 import asyncio
 import datetime
+import io
+import os
+import os.path
+import stat
+import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager
-import urllib.parse
+from types import TracebackType
+from typing import Any, AsyncIterator, BinaryIO, Callable, Dict, Iterator, List, Optional, Set, Type, cast
 
-from ..utils import blocking_to_async, OnlineBoundedGather2
+from ..utils import OnlineBoundedGather2, blocking_to_async
 from .fs import (
-    FileStatus,
-    FileListEntry,
-    MultiPartCreate,
     AsyncFS,
     AsyncFSURL,
+    FileListEntry,
+    FileStatus,
+    MultiPartCreate,
     ReadableStream,
     WritableStream,
     blocking_readable_stream_to_async,

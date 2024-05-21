@@ -1,7 +1,9 @@
-import time
-from typing import Optional, overload, Union
 import datetime
+import time
+from typing import Optional, Union, overload
+
 import dateutil.parser
+
 from ..humanizex import naturaldelta_msec
 
 

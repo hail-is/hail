@@ -451,12 +451,15 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def get(
+  def getOrFatal(
     cb: EmitCodeBuilder,
-    errorMsg: Code[String] = s"expected non-missing",
+    errorMsg: Code[String],
     errorID: Code[Int] = const(ErrorIDs.NO_ERROR),
   ): A =
     handle(cb, cb._fatalWithError(errorID, errorMsg))
+
+  def getOrAssert(cb: EmitCodeBuilder, debugMsg: Code[String] = const("expected non-missing")): A =
+    handle(cb, cb._assert(false, debugMsg))
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
@@ -623,7 +626,7 @@ class EmitSettable(
 
   def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
     if (required)
-      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${vs.st}"))
+      cb.assign(vs, iec.getOrFatal(cb, s"Required EmitSettable cannot be missing ${vs.st}"))
     else
       iec.consume(
         cb,
@@ -1674,14 +1677,16 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             grpIdx < outerSize, {
               cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
               cb.assign(withinGrpIdx, 0)
-              val firstStruct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
+              val firstStruct =
+                sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
               val key = EmitCode.fromI(mb)(cb => firstStruct.loadField(cb, 0))
               val group = EmitCode.fromI(mb) { cb =>
                 val (addElt, finishInner) = innerType
                   .constructFromFunctions(cb, region, groupSize, deepCopy = false)
                 cb.while_(
                   withinGrpIdx < groupSize, {
-                    val struct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
+                    val struct =
+                      sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
                     addElt(cb, struct.loadField(cb, 1))
                     cb.assign(eltIdx, eltIdx + 1)
                     cb.assign(withinGrpIdx, withinGrpIdx + 1)
@@ -1703,15 +1708,15 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         IEmitCode.present(cb, SRNGStateStaticSizeValue(cb))
 
       case RNGSplit(state, dynBitstring) =>
-        val stateValue = emitI(state).get(cb)
-        val tupleOrLong = emitI(dynBitstring).get(cb)
+        val stateValue = emitI(state).getOrAssert(cb)
+        val tupleOrLong = emitI(dynBitstring).getOrAssert(cb)
         val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
           Array(tupleOrLong.asInt64.value)
         } else {
           val tuple = tupleOrLong.asBaseStruct
           Array.tabulate(tuple.st.size) { i =>
             tuple.loadField(cb, i)
-              .get(cb, "RNGSplit tuple components are required")
+              .getOrFatal(cb, "RNGSplit tuple components are required")
               .asInt64
               .value
           }
@@ -1787,7 +1792,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                   val shapeValues = (0 until nDims).map { i =>
                     val shape = SingleCodeSCode.fromSCode(
                       cb,
-                      shapeTupleValue.loadField(cb, i).get(cb),
+                      shapeTupleValue.loadField(cb, i).getOrAssert(cb),
                       region,
                     )
                     cb.newLocal[Long](s"make_ndarray_shape_$i", coerce[Long](shape.code))
@@ -1837,7 +1842,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                       val shapeValues = (0 until nDims).map { i =>
                         cb.newLocal[Long](
                           s"make_ndarray_shape_$i",
-                          shapeTupleValue.loadField(cb, i).get(cb).asLong.value,
+                          shapeTupleValue.loadField(cb, i).getOrAssert(cb).asLong.value,
                         )
                       }
 
@@ -2777,7 +2782,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case x @ ApplySeeded(_, args, rngState, staticUID, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
-        val state = emitI(rngState).get(cb)
+        val state = emitI(rngState).getOrAssert(cb)
         val impl = x.implementation
         assert(impl.unify(Array.empty[Type], x.argTypes, rt))
         val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
@@ -3048,7 +3053,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case WriteValue(value, path, writer, stagingFile) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val s = stagingFile.map(emitI(_).get(cb).asString)
+            val s = stagingFile.map(emitI(_).getOrAssert(cb).asString)
             val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
             writer.writeValue(cb, v, os)
             cb += os.invoke[Unit]("close")
@@ -3606,7 +3611,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       }
 
       val iec = emitter.emitI(ir, cb, newEnv, None)
-      iec.get(cb, "Result of sorting function cannot be missing").asBoolean.value
+      iec.getOrFatal(cb, "Result of sorting function cannot be missing").asBoolean.value
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) =>
       cb.memoize(cb.invokeCode[Boolean](sort, cb.this_, region, l, r))

@@ -1,7 +1,7 @@
 import re
 from collections import Counter
 
-from hail.typecheck import typecheck_method, nullable, sequenceof
+from hail.typecheck import nullable, sequenceof, typecheck_method
 from hail.utils.java import Env, FatalError, warning
 
 

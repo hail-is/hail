@@ -391,11 +391,11 @@ case class PartitionNativeWriter(
     context: EmitCode,
     region: Value[Region],
   ): IEmitCode = {
-    val ctx = context.toI(cb).get(cb)
+    val ctx = context.toI(cb).getOrAssert(cb)
     val consumer = new StreamConsumer(ctx, cb, region)
     consumer.setup()
     stream.memoryManagedConsume(region, cb) { cb =>
-      val element = stream.element.toI(cb).get(cb, "row can't be missing")
+      val element = stream.element.toI(cb).getOrFatal(cb, "row can't be missing")
       consumer.consumeElement(cb, element, stream.elementRegion)
     }
     IEmitCode.present(cb, consumer.result())
@@ -411,14 +411,14 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     region: Value[Region],
   ): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
+    val a = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
     val partFiles = cb.newLocal[Array[String]]("partFiles")
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.while_(
       i < n, {
-        val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asString
+        val s = a.loadElement(cb, i).getOrFatal(cb, "file name can't be missing!").asString
         cb += partFiles.update(i, s.loadString(cb))
         cb.assign(i, i + 1)
       },
@@ -486,7 +486,7 @@ case class TableSpecWriter(
 
     val hasKey = !this.typ.keyType.fields.isEmpty
 
-    val a = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
+    val a = writeAnnotations.getOrFatal(cb, "write annotations can't be missing!").asIndexable
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
 
     val idxOfFirstKeyField =
@@ -503,8 +503,11 @@ case class TableSpecWriter(
     cb.while_(
       i < n, {
         val curElement =
-          a.loadElement(cb, i).get(cb, "writeMetadata annotation can't be missing").asBaseStruct
-        val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").get(
+          a.loadElement(cb, i).getOrFatal(
+            cb,
+            "writeMetadata annotation can't be missing",
+          ).asBaseStruct
+        val count = curElement.asBaseStruct.loadField(cb, "partitionCounts").getOrFatal(
           cb,
           "part count can't be missing!",
         ).asLong.value
@@ -513,7 +516,7 @@ case class TableSpecWriter(
           // Only nonempty partitions affect first, last, and distinctlyKeyed.
           cb.if_(
             count cne 0L, {
-              val curFirst = curElement.loadField(cb, "firstKey").get(
+              val curFirst = curElement.loadField(cb, "firstKey").getOrFatal(
                 cb,
                 const("firstKey of curElement can't be missing, part size was ") concat count.toS,
               )
@@ -530,7 +533,7 @@ case class TableSpecWriter(
               ).asInstanceOf[Value[Boolean]]
 
               val partWasDistinctlyKeyed =
-                curElement.loadField(cb, "distinctlyKeyed").get(cb).asBoolean.value
+                curElement.loadField(cb, "distinctlyKeyed").getOrAssert(cb).asBoolean.value
               cb.assign(
                 distinctlyKeyed,
                 distinctlyKeyed && partWasDistinctlyKeyed && notEqualToLast,
@@ -812,7 +815,7 @@ case class TableTextFinalizer(
     : Unit = {
     val ctx: ExecuteContext = cb.emb.ctx
     val ext = ctx.fs.getCodecExtension(outputPath)
-    val partPaths = writeAnnotations.get(cb, "write annotations cannot be missing!")
+    val partPaths = writeAnnotations.getOrFatal(cb, "write annotations cannot be missing!")
     val files = partPaths.castTo(cb, region, SJavaArrayString(true), false).asInstanceOf[
       SJavaArrayStringValue
     ].array
@@ -1069,12 +1072,12 @@ class PartitionNativeFanoutWriter(
     context: EmitCode,
     region: Value[Region],
   ): IEmitCode = {
-    val ctx = context.toI(cb).get(cb)
+    val ctx = context.toI(cb).getOrAssert(cb)
     val consumers = targets.map(target => new target.rowWriter.StreamConsumer(ctx, cb, region))
 
     consumers.foreach(_.setup())
     stream.memoryManagedConsume(region, cb) { cb =>
-      val row = stream.element.toI(cb).get(cb, "row can't be missing")
+      val row = stream.element.toI(cb).getOrFatal(cb, "row can't be missing")
 
       (consumers zip targets).foreach { case (consumer, target) =>
         consumer.consumeElement(
