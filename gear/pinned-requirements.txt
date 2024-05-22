@@ -26,7 +26,7 @@ frozenlist==1.4.1
     #   aiosignal
 google-api-core==2.19.0
     # via google-api-python-client
-google-api-python-client==2.127.0
+google-api-python-client==2.129.0
     # via google-cloud-profiler
 google-auth==2.29.0
     # via
@@ -71,7 +71,7 @@ pyasn1==0.6.0
     #   rsa
 pyasn1-modules==0.4.0
     # via google-auth
-pymysql==1.1.0
+pymysql==1.1.1
     # via aiomysql
 pyparsing==3.1.2
     # via httplib2
@@ -79,13 +79,13 @@ python-dateutil==2.9.0.post0
     # via kubernetes-asyncio
 pyyaml==6.0.1
     # via kubernetes-asyncio
-requests==2.31.0
+requests==2.32.2
     # via
     #   google-api-core
     #   google-cloud-profiler
 rsa==4.9
     # via google-auth
-setuptools==69.5.1
+setuptools==70.0.0
     # via kubernetes-asyncio
 six==1.16.0
     # via
