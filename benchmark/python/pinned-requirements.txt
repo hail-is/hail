@@ -10,7 +10,7 @@ importlib-resources==6.4.0
     # via matplotlib
 kiwisolver==1.4.5
     # via matplotlib
-matplotlib==3.8.4
+matplotlib==3.9.0
 numpy==1.26.4
     # via
     #   contourpy
@@ -25,5 +25,5 @@ python-dateutil==2.9.0.post0
     # via matplotlib
 six==1.16.0
     # via python-dateutil
-zipp==3.18.1
+zipp==3.18.2
     # via importlib-resources
