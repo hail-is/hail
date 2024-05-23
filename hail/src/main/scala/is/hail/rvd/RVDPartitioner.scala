@@ -200,7 +200,7 @@ class RVDPartitioner(
   }
 
   def intersect(other: RVDPartitioner): RVDPartitioner = {
-    if (!kType.isIsomorphicTo(other.kType))
+    if (!kType.isJoinableWith(other.kType))
       throw new AssertionError(s"key types not isomorphic: $kType, ${other.kType}")
 
     new RVDPartitioner(

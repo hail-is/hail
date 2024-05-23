@@ -31,7 +31,7 @@ class RichDenseMatrixDoubleSuite extends HailSuite {
     val mT = m.t
     RichDenseMatrixDouble.exportToDoubles(fs, fileT, mT, forceRowMajor = true)
     val lmT2 = RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 50, rowMajor = true)
-    assert(mT === mT)
+    assert(mT === lmT2)
 
     TestUtils.interceptFatal("Premature") {
       RichDenseMatrixDouble.importFromDoubles(fs, fileT, 100, 100, rowMajor = true)

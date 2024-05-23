@@ -135,7 +135,6 @@ object StringEscapeUtils {
   def unescapeString(str: String, sb: StringBuilder): String = {
     sb.clear()
 
-    val sz = str.length()
     var hadSlash = false
     var inUnicode = false
     lazy val unicode = new StringBuilder(capacity = 4)

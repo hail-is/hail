@@ -123,8 +123,12 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
 
-  private lazy val representation = TStruct(
-    ("shape", shapeType),
-    ("data", TArray(elementType)),
-  )
+  override def isIsomorphicTo(t: Type): Boolean =
+    t match {
+      case nda: TNDArray =>
+        (elementType isIsomorphicTo nda.elementType) &&
+        nDimsBase == nda.nDimsBase
+      case _ =>
+        false
+    }
 }

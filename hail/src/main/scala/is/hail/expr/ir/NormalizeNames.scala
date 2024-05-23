@@ -3,6 +3,8 @@ package is.hail.expr.ir
 import is.hail.backend.ExecuteContext
 import is.hail.utils.StackSafe._
 
+import scala.annotation.nowarn
+
 class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = false) {
   var count: Int = 0
 
@@ -23,6 +25,7 @@ class NormalizeNames(normFunction: Int => String, allowFreeVariables: Boolean = 
   private def normalizeIR(ir: BaseIR, env: BindingEnv[String], context: Array[String] = Array())
     : StackFrame[BaseIR] = {
 
+    @nowarn("cat=unused-locals&msg=default argument")
     def normalizeBaseIR(next: BaseIR, env: BindingEnv[String] = env): StackFrame[BaseIR] =
       call(normalizeIR(next, env, context :+ ir.getClass().getName()))
 

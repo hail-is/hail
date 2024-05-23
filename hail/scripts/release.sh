@@ -4,13 +4,34 @@ set -ex
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+usage() {
+cat << EOF
+USAGE:
+$(basename "$0") \\
+  HAIL_PIP_VERSION \\
+  HAIL_VERSION \\
+  GIT_VERSION \\
+  REMOTE \\
+  WHEEL \\
+  GITHUB_OAUTH_HEADER_FILE \\
+  HAIL_GENETICS_HAIL_IMAGE \\
+  HAIL_GENETICS_HAIL_IMAGE_PY_3_10 \\
+  HAIL_GENETICS_HAIL_IMAGE_PY_3_11 \\
+  HAIL_GENETICS_HAILTOP_IMAGE \\
+  HAIL_GENETICS_VEP_GRCH37_85_IMAGE \\
+  HAIL_GENETICS_VEP_GRCH38_95_IMAGE \\
+  WHEEL_FOR_AZURE \\
+  WEBSITE_TAR
+EOF
+}
+
 retry() {
     "$@" ||
         (sleep 2 && "$@") ||
         (sleep 5 && "$@");
 }
 
-[[ $# -eq 16 ]] || (echo "./release.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAIL_IMAGE_PY_3_10 HAIL_GENETICS_HAIL_IMAGE_PY_3_11 HAIL_GENETICS_HAILTOP_IMAGE HAIL_GENETICS_VEP_GRCH37_85_IMAGE HAIL_GENETICS_VEP_GRCH38_95_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR GCP_PROJECT GCP_AR_CLEANUP_POLICY" ; exit 1)
+[[ $# -eq 14 ]] || usage; exit 1
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
@@ -26,8 +47,6 @@ HAIL_GENETICS_VEP_GRCH37_85_IMAGE=${11}
 HAIL_GENETICS_VEP_GRCH38_95_IMAGE=${12}
 WHEEL_FOR_AZURE=${13}
 WEBSITE_TAR=${14}
-GCP_PROJECT=${15}
-GCP_AR_CLEANUP_POLICY=${16}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE_PY_3_10 || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE_PY_3_10" ; exit 1)
@@ -115,11 +134,6 @@ wheel_for_azure_url=gs://hail-common/azure-hdinsight-wheels/$(basename $WHEEL_FO
 gcloud storage cp $WHEEL_FOR_AZURE $wheel_for_azure_url
 gcloud storage objects update $wheel_for_azure_url --temporary-hold
 
-# update docs sha
-cloud_sha_location=gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt
-printf "$GIT_VERSION" | gcloud storage cp  - $cloud_sha_location
-gcloud storage objects update -r $cloud_sha_location --add-acl-grant=entity=AllUsers,role=READER
-
 # deploy datasets (annotation db) json
 datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
 gcloud storage cp python/hail/experimental/datasets.json $datasets_json_url
@@ -160,9 +174,3 @@ make_pr_for() {
 
 make_pr_for terra-jupyter-hail
 make_pr_for terra-jupyter-aou
-
-gcloud artifacts repositories set-cleanup-policies hail \
-    --project=$GCP_PROJECT \
-    --location=us \
-    --policy=$GCP_AR_CLEANUP_POLICY \
-    --no-dry-run

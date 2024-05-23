@@ -202,6 +202,7 @@ class DensifyAggregator(val arrayVType: VirtualTypeWithReq) extends StagedAggreg
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: DensifyState,
     other: DensifyState,
   ): Unit = state.combine(cb, other)

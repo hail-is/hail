@@ -226,6 +226,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: ArrayElementState,
     other: ArrayElementState,
   ): Unit = {
@@ -250,7 +251,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         other.load(cb)
         state.load(cb)
       },
-      state.nested.toCode((i, s) => nestedAggs(i).combOp(ctx, cb, s, other.nested(i))),
+      state.nested.toCode((i, s) => nestedAggs(i).combOp(ctx, cb, region, s, other.nested(i))),
     )
   }
 
@@ -338,6 +339,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: ArrayElementState,
     other: ArrayElementState,
   ): Unit =

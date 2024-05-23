@@ -9,6 +9,14 @@ _config_variables = None
 ConfigVariableInfo = namedtuple('ConfigVariableInfo', ['help_msg', 'validation'])
 
 
+def _is_float_str(x: str) -> bool:
+    try:
+        float(x)
+        return True
+    except ValueError:
+        return False
+
+
 def config_variables():
     from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
@@ -123,6 +131,10 @@ def config_variables():
             ConfigVariable.QUERY_DISABLE_PROGRESS_BAR: ConfigVariableInfo(
                 help_msg='Disable the progress bar with a value of 1. Enable the progress bar with a value of 0',
                 validation=(lambda x: x in ('0', '1'), 'should be a value of 0 or 1'),
+            ),
+            ConfigVariable.HTTP_TIMEOUT_IN_SECONDS: ConfigVariableInfo(
+                help_msg='The default timeout for HTTP requests in seconds.',
+                validation=(_is_float_str, 'should be a float or an int like 42.42 or 42'),
             ),
         }
 

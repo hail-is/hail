@@ -1,17 +1,16 @@
 #!/bin/bash
 
-if [[ $# -ne 1 ]]
+if [[ $# -ne 0 ]]
 then
     cat <<EOF
 Usage:
-    test-gcp.sh DATAPROC_VERSION
+    test-gcp.sh
 EOF
     exit -1
 fi
 
 set -ex
 
-DATAPROC_VERSION=$1
 ID=$(cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 CLUSTER=cluster-ci-$ID
 MASTER=$CLUSTER-m
@@ -23,19 +22,16 @@ if ! (type gcloud > /dev/null); then
 fi
 
 function cleanup {
-  gcloud --project broad-ctsa -q dataproc clusters delete --async $CLUSTER
+    hailctl dataproc stop $CLUSTER
 }
 trap cleanup EXIT SIGINT
 
-gcloud --project broad-ctsa dataproc clusters create $CLUSTER \
+hailctl dataproc start $CLUSTER \
+    --project broad-ctsa \
     --zone $ZONE \
-    --master-machine-type n1-standard-2 \
-    --master-boot-disk-size 100 \
-    --num-workers 2 \
-    --worker-machine-type n1-standard-2 \
-    --worker-boot-disk-size 100 \
-    --image-version ${DATAPROC_VERSION} \
-    --initialization-actions 'gs://hail-dataproc-deps/initialization-actions.sh'
+    --subnet=default \
+    --bucket=gs://hail-dataproc-staging-bucket-us-central1 \
+    --temp-bucket=gs://hail-dataproc-temp-bucket-us-central1
 
 # copy up necessary files
 gcloud --project broad-ctsa compute scp \

@@ -51,8 +51,6 @@ object BgenRDDPartitions extends Logging {
     nPartitions: Option[Int],
     keyType: Type,
   ): IndexedSeq[FilePartitionInfo] = {
-    val fs = ctx.fs
-
     val fileRangeBounds = checkFilesDisjoint(ctx, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering(ctx.stateManager)
 

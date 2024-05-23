@@ -19,11 +19,13 @@ class GoogleExpiringAccessToken:
     def from_dict(data: dict) -> 'GoogleExpiringAccessToken':
         now = time.time()
         token = data['access_token']
-        expiry_time = now + data['expires_in'] // 2
-        return GoogleExpiringAccessToken(token, expiry_time)
+        expires_in = data['expires_in']
+        expiry_time = now + expires_in // 2
+        return GoogleExpiringAccessToken(token, expires_in, expiry_time)
 
-    def __init__(self, token, expiry_time: int):
+    def __init__(self, token, expires_in: int, expiry_time: int):
         self.token = token
+        self.expires_in = expires_in
         self._expiry_time = expiry_time
 
     def expired(self) -> bool:
@@ -171,12 +173,16 @@ class GoogleApplicationDefaultCredentials(GoogleCredentials):
 # https://developers.google.com/identity/protocols/oauth2/service-account
 # studying `gcloud --log-http print-access-token` was also useful
 class GoogleServiceAccountCredentials(GoogleCredentials):
-    def __init__(self, key, **kwargs):
+    def __init__(self, key: dict, **kwargs):
         super().__init__(**kwargs)
         self.key = key
 
     def __str__(self):
         return f'GoogleServiceAccountCredentials for {self.key["client_email"]}'
+
+    @property
+    def email(self) -> str:
+        return self.key['client_email']
 
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         now = int(time.time())

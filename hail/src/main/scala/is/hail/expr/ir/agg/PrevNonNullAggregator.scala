@@ -32,6 +32,7 @@ class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: TypedRegionBackedAggState,
     other: TypedRegionBackedAggState,
   ): Unit =

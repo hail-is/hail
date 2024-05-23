@@ -6,7 +6,6 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.io.bgen.BGENFunctions
-import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -307,8 +306,6 @@ object RegistryHelpers {
 abstract class RegistryFunctions {
 
   def registerAll(): Unit
-
-  private val boxes = mutable.Map[String, Box[Type]]()
 
   def tv(name: String): TVariable =
     TVariable(name)

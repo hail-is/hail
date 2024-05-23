@@ -18,7 +18,7 @@ class MemoryLeakSuite extends HailSuite {
       val lit = Literal(TSet(TString), (0 until litSize).map(_.toString).toSet)
       val queries = Literal(TArray(TString), (0 until size).map(_.toString).toFastSeq)
       ExecuteContext.scoped() { ctx =>
-        val r = eval(
+        eval(
           ToArray(
             mapIR(ToStream(queries))(r => ir.invoke("contains", TBoolean, lit, r))
           ),

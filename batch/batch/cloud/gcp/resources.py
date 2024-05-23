@@ -270,8 +270,9 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
     TYPE = 'gcp_ip_fee'
 
     @staticmethod
-    def product_name(base: int) -> str:
-        return f'ip-fee/{base}'
+    def product_name(base: int, preemptible: bool) -> str:
+        preemptible_str = 'preemptible' if preemptible else 'nonpreemptible'
+        return f'ip-fee/{preemptible_str}/{base}'
 
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPIPFeeResource':
@@ -279,8 +280,8 @@ class GCPIPFeeResource(IPFeeResourceMixin, GCPResource):
         return GCPIPFeeResource(data['name'])
 
     @staticmethod
-    def create(product_versions: ProductVersions, base: int) -> 'GCPIPFeeResource':
-        product = GCPIPFeeResource.product_name(base)
+    def create(product_versions: ProductVersions, base: int, preemptible: bool) -> 'GCPIPFeeResource':
+        product = GCPIPFeeResource.product_name(base, preemptible)
         name = product_versions.resource_name(product)
         assert name, product
         return GCPIPFeeResource(name)

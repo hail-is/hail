@@ -133,8 +133,6 @@ object Skat {
       q, dof, evals, noncentrality, s, iterations, accuracy,
     )
     val x = result.value
-    val nIntegrations = result.nIterations
-    val converged = result.converged
     val fault = result.fault
     val pval = 1 - x
 
@@ -204,7 +202,7 @@ case class Skat(
           s"sample; found ${badVals.length} ${plural(badVals.length, "violation")} starting with ${badVals(0)}")
     }
 
-    val (keyGsWeightRdd, keyType) =
+    val (keyGsWeightRdd, _) =
       computeKeyGsWeightRdd(mv, xField, completeColIdx, keyField, weightField)
 
     val backend = HailContext.backend

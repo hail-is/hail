@@ -23,6 +23,7 @@ hail-ubuntu-image:
 	$(MAKE) -C ../ $@
 
 HAIL_WHEEL := ../hail/build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+$(HAIL_WHEEL): export HAIL_RELEASE_MODE=1
 $(HAIL_WHEEL): FORCE
 	$(MAKE) -C ../hail wheel
 

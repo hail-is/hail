@@ -99,8 +99,9 @@ class NDArrayMultiplyAddAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAgg
   override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    state: State,
-    other: State,
+    region: Value[Region],
+    state: TypedRegionBackedAggState,
+    other: TypedRegionBackedAggState,
   ): Unit = {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarraymutiply_add_agg_comb_op")
 

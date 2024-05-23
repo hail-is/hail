@@ -73,6 +73,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
   override protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: TypedRegionBackedAggState,
     other: TypedRegionBackedAggState,
   ): Unit = {

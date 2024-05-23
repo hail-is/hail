@@ -371,7 +371,6 @@ class PNDArraySuite extends PhysicalTestUtils {
     val fb = EmitFunctionBuilder[Region, Region, Region, Long](ctx, "ref_count_test")
     val codeRegion1 = fb.getCodeParam[Region](1)
     val codeRegion2 = fb.getCodeParam[Region](2)
-    val codeRegion3 = fb.getCodeParam[Region](3)
 
     try {
       fb.emitWithBuilder { cb =>
@@ -386,7 +385,7 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
         val (_, snd2Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)
-        val snd2 = snd2Finisher(cb)
+        snd2Finisher(cb)
         cb.assign(r2PointerToNDAddress1, nd.store(cb, codeRegion2, snd1, true))
 
         // Return the 1st ndarray

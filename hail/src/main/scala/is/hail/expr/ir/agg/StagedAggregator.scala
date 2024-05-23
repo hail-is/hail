@@ -18,7 +18,13 @@ abstract class StagedAggregator {
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit
 
-  protected def _combOp(ctx: ExecuteContext, cb: EmitCodeBuilder, state: State, other: State): Unit
+  protected def _combOp(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    state: State,
+    other: State,
+  ): Unit
 
   protected def _result(cb: EmitCodeBuilder, state: State, region: Value[Region]): IEmitCode
 
@@ -31,9 +37,11 @@ abstract class StagedAggregator {
   def combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: AggregatorState,
     other: AggregatorState,
-  ) = _combOp(ctx, cb, state.asInstanceOf[State], other.asInstanceOf[State])
+  ): Unit =
+    _combOp(ctx, cb, region, state.asInstanceOf[State], other.asInstanceOf[State])
 
   def result(cb: EmitCodeBuilder, state: AggregatorState, region: Value[Region]): IEmitCode =
     _result(cb, state.asInstanceOf[State], region)

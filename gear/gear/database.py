@@ -28,6 +28,7 @@ log = logging.getLogger('gear.database')
 # 2003 - Can't connect to MySQL server on ...
 # 2013 - Lost connection to MySQL server during query ([Errno 104] Connection reset by peer)
 operational_error_retry_codes = (1040, 1213, 2003, 2013)
+operational_error_log_level = {1213: logging.INFO}
 # 1205 - Lock wait timeout exceeded; try restarting transaction
 internal_error_retry_codes = (1205,)
 
@@ -54,7 +55,8 @@ def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Aw
                     raise
             except pymysql.err.OperationalError as e:
                 if e.args[0] in operational_error_retry_codes:
-                    log.warning(
+                    log.log(
+                        operational_error_log_level.get(e.args[0], logging.WARNING),
                         f'encountered pymysql error, retrying {e}',
                         exc_info=True,
                         extra={'full_stacktrace': '\n'.join(traceback.format_stack())},

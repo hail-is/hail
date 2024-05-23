@@ -283,6 +283,7 @@ class ReservoirSampleAggregator(typ: VirtualTypeWithReq) extends StagedAggregato
   protected def _combOp(
     ctx: ExecuteContext,
     cb: EmitCodeBuilder,
+    region: Value[Region],
     state: ReservoirSampleRVAS,
     other: ReservoirSampleRVAS,
   ): Unit = state.combine(cb, other)

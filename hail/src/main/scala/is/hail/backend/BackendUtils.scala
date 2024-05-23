@@ -10,6 +10,7 @@ import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
 
+import scala.annotation.nowarn
 import scala.util.Try
 
 object BackendUtils {
@@ -93,6 +94,7 @@ class BackendUtils(
 
       results
     case Some(cachedResults) =>
+      @nowarn("cat=unused-pat-vars&msg=pattern var c")
       val remainingContexts =
         for {
           c @ (_, k) <- contexts.zipWithIndex

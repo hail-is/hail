@@ -2593,7 +2593,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   override def typecheck(): Unit = {
     assert(left.typ.key.length >= joinKey)
     assert(right.typ.key.length >= joinKey)
-    assert(left.typ.keyType.truncate(joinKey) isIsomorphicTo right.typ.keyType.truncate(joinKey))
+    assert(left.typ.keyType.truncate(joinKey) isJoinableWith right.typ.keyType.truncate(joinKey))
     assert(
       left.typ.globalType.fieldNames.toSet
         .intersect(right.typ.globalType.fieldNames.toSet)
@@ -3511,7 +3511,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
         0,
       ))
 
-    val (len, l) = Compile[AsmFunction2RegionLongInt](
+    val (_, l) = Compile[AsmFunction2RegionLongInt](
       ctx,
       FastSeq((
         "row",
@@ -3972,7 +3972,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
           var current: Long = 0
           val rowKey: WritableRegionValue = WritableRegionValue(sm, keyType, ctx.freshRegion())
           val consumerRegion: Region = ctx.region
-          val newRV = RegionValue(consumerRegion)
 
           def hasNext: Boolean = {
             if (isEnd || (current == 0 && !it.hasNext)) {

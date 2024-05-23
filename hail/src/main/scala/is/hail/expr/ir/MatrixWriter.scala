@@ -1011,7 +1011,6 @@ case class VCFPartitionWriter(
         _writeB(cb, v.toBytes(cb).loadBytes(cb))
       case v: SCallValue =>
         val ploidy = v.ploidy(cb)
-        val phased = v.isPhased(cb)
         cb.if_(ploidy.ceq(0), cb._fatal("VCF spec does not support 0-ploid calls."))
         cb.if_(ploidy.ceq(1), cb._fatal("VCF spec does not support phased haploid calls."))
         val c = v.canonicalCall(cb)

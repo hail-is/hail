@@ -702,7 +702,7 @@ object Interpret {
             tcoerce[TStruct](tcoerce[TStream](left.typ).elementType).select(lKey)
           val (rKeyTyp, rGetKey) =
             tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).select(rKey)
-          assert(lKeyTyp isIsomorphicTo rKeyTyp)
+          assert(lKeyTyp isJoinableWith rKeyTyp)
           val keyOrd = TBaseStruct.getJoinOrdering(ctx.stateManager, lKeyTyp.types)
 
           def compF(lelt: Any, relt: Any): Int =
@@ -763,8 +763,6 @@ object Interpret {
           }
         }
         ()
-      case Begin(xs) =>
-        xs.foreach(x => interpret(x))
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (_, fieldIR) => interpret(fieldIR, env, args) })
       case SelectFields(old, fields) =>

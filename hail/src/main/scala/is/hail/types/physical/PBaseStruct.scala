@@ -43,7 +43,7 @@ abstract class PBaseStruct extends PType {
 
   def size: Int = fields.length
 
-  def isIsomorphicTo(other: PBaseStruct) =
+  def isIsomorphicTo(other: PBaseStruct): Boolean =
     this.fields.size == other.fields.size && this.isCompatibleWith(other)
 
   def _toPretty: String = {

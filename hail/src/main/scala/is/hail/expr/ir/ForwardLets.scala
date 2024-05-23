@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.types.virtual.TVoid
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.collection.Set
@@ -14,15 +15,17 @@ object ForwardLets {
     def rewrite(ir: BaseIR, env: BindingEnv[IR]): BaseIR = {
 
       def shouldForward(value: IR, refs: Set[RefEquality[BaseRef]], base: IR): Boolean = {
-        value.isInstanceOf[Ref] ||
-        value.isInstanceOf[In] ||
-        (IsConstant(value) && !value.isInstanceOf[Str]) ||
-        refs.isEmpty ||
-        (refs.size == 1 &&
-          nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
-          !ContainsScan(value) &&
-          !ContainsAgg(value)) &&
-        !ContainsAggIntermediate(value)
+        IsPure(value) && (
+          value.isInstanceOf[Ref] ||
+            value.isInstanceOf[In] ||
+            (IsConstant(value) && !value.isInstanceOf[Str]) ||
+            refs.isEmpty ||
+            (refs.size == 1 &&
+              nestingDepth.lookup(refs.head) == nestingDepth.lookup(base) &&
+              !ContainsScan(value) &&
+              !ContainsAgg(value)) &&
+            !ContainsAggIntermediate(value)
+        )
       }
 
       ir match {
@@ -31,9 +34,15 @@ object ForwardLets {
           val refs = uses(ir)
           val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
             val rewriteValue = rewrite(value, env).asInstanceOf[IR]
-            if (shouldForward(rewriteValue, refs.filter(_.t.name == name), l))
+            if (
+              rewriteValue.typ != TVoid
+              && shouldForward(rewriteValue, refs.filter(_.t.name == name), l)
+            ) {
               env.bindEval(name -> rewriteValue)
-            else { keep += (name -> rewriteValue); env }
+            } else {
+              keep += (name -> rewriteValue)
+              env
+            }
           }
 
           val newBody = rewrite(body, newEnv).asInstanceOf[IR]

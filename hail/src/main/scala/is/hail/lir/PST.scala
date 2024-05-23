@@ -315,7 +315,7 @@ class PSTBuilder(
   // find regions in [start, end]
   // no edges from [0, start) target (start, end]
   private def findRegions(start: Int, end: Int): Unit = {
-    var regionStarts = new IntArrayBuilder()
+    val regionStarts = new IntArrayBuilder()
     regionStarts += start
 
     // find subregions of [start, end]

@@ -27,4 +27,7 @@ case object TBinary extends Type {
           java.lang.Byte.toUnsignedInt(y.asInstanceOf[Byte]),
         )
     })
+
+  override def isIsomorphicTo(t: Type): Boolean =
+    this == t
 }

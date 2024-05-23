@@ -284,7 +284,6 @@ docker run \
 -v /sys/fs/cgroup:/sys/fs/cgroup \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
--p 5000:5000 \
 --device /dev/fuse \
 --device $XFS_DEVICE \
 --device /dev \
