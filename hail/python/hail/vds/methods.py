@@ -59,15 +59,12 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        if call_field in ref:
-            ref_call_field = call_field
-        else:
-            ref_call_field = 'GT' if 'GT' in ref else 'LGT'
-
-        if ref_call_field not in ref:
-            ref = ref.annotate(**{call_field: hl.call(0, 0)})
         if call_field not in ref:
-            ref = ref.transmute(**{call_field: ref[ref_call_field]})
+            ref_call_field = 'GT' if 'GT' in ref else 'LGT'
+            if ref_call_field not in ref:
+                ref = ref.annotate(**{call_field: hl.call(0, 0)})
+            else:
+                ref = ref.transmute(**{call_field: ref[ref_call_field]})
 
         # call_field is now in both ref and var
         shared_fields = set(f for f in ref.dtype if f in var.dtype)
