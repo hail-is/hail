@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.types.virtual._
 import is.hail.utils._
+
 import org.apache.spark.sql.Row
 
 object Annotation {
@@ -33,14 +34,21 @@ object Annotation {
 
       case t: TInterval =>
         val i = a.asInstanceOf[Interval]
-        i.copy(start = Annotation.copy(t.pointType, i.start), end = Annotation.copy(t.pointType, i.end))
+        i.copy(
+          start = Annotation.copy(t.pointType, i.start),
+          end = Annotation.copy(t.pointType, i.end),
+        )
 
       case t: TNDArray =>
         val nd = a.asInstanceOf[NDArray]
         val rme = nd.getRowMajorElements()
-        SafeNDArray(nd.shape, Array.tabulate(rme.length)(i => Annotation.copy(t.elementType, rme(i))).toFastSeq)
+        SafeNDArray(
+          nd.shape,
+          Array.tabulate(rme.length)(i => Annotation.copy(t.elementType, rme(i))).toFastSeq,
+        )
 
-      case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => a
+      case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary =>
+        a
     }
   }
 }

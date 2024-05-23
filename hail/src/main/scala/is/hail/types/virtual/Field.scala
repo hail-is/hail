@@ -9,7 +9,7 @@ final case class Field(name: String, typ: Type, index: Int) {
       typ.unify(cf.typ) &&
       index == cf.index
 
-  def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
       sb.append(prettyIdentifier(name))
       sb.append(":")

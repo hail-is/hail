@@ -53,44 +53,40 @@ def create_key_and_cert(p):
     extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
     extfile.close()
     echo_check_call(['cat', extfile.name])
-    echo_check_call(
-        [
-            'openssl',
-            'x509',
-            '-req',
-            '-in',
-            csr_file,
-            '-CA',
-            root_cert_file,
-            '-CAkey',
-            root_key_file,
-            '-extfile',
-            extfile.name,
-            '-CAcreateserial',
-            '-out',
-            cert_file,
-            '-days',
-            '365',
-            '-sha256',
-        ]
-    )
-    echo_check_call(
-        [
-            'openssl',
-            'pkcs12',
-            '-export',
-            '-inkey',
-            key_file,
-            '-in',
-            cert_file,
-            '-name',
-            f'{name}-key-store',
-            '-out',
-            key_store_file,
-            '-passout',
-            'pass:dummypw',
-        ]
-    )
+    echo_check_call([
+        'openssl',
+        'x509',
+        '-req',
+        '-in',
+        csr_file,
+        '-CA',
+        root_cert_file,
+        '-CAkey',
+        root_key_file,
+        '-extfile',
+        extfile.name,
+        '-CAcreateserial',
+        '-out',
+        cert_file,
+        '-days',
+        '365',
+        '-sha256',
+    ])
+    echo_check_call([
+        'openssl',
+        'pkcs12',
+        '-export',
+        '-inkey',
+        key_file,
+        '-in',
+        cert_file,
+        '-name',
+        f'{name}-key-store',
+        '-out',
+        key_store_file,
+        '-passout',
+        'pass:dummypw',
+    ])
     return {'key': key_file, 'cert': cert_file, 'key_store': key_store_file}
 
 
@@ -101,21 +97,19 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
             shutil.copyfileobj(root_cert, out)
-    echo_check_call(
-        [
-            'keytool',
-            '-noprompt',
-            '-import',
-            '-alias',
-            f'{trust_type}-cert',
-            '-file',
-            trust_file,
-            '-keystore',
-            trust_store_file,
-            '-storepass',
-            'dummypw',
-        ]
-    )
+    echo_check_call([
+        'keytool',
+        '-noprompt',
+        '-import',
+        '-alias',
+        f'{trust_type}-cert',
+        '-file',
+        trust_file,
+        '-keystore',
+        trust_store_file,
+        '-storepass',
+        'dummypw',
+    ])
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 

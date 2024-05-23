@@ -2,8 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.utils.FastSeq
-import net.sourceforge.jdistlib.rng.RandomEngine
+
 import net.sourceforge.jdistlib.{Beta, Gamma, HyperGeometric, Poisson}
+import net.sourceforge.jdistlib.rng.RandomEngine
 import org.apache.commons.math3.random.RandomGenerator
 
 object Threefry {
@@ -11,22 +12,28 @@ object Threefry {
   val finalBlockNoPadTweak = -2L
   val finalBlockPaddedTweak = -3L
 
-  val keyConst = 0x1BD11BDAA9FC1A22L
+  val keyConst = 0x1bd11bdaa9fc1a22L
 
   val rotConsts = Array(
     Array(14, 16),
     Array(52, 57),
     Array(23, 40),
-    Array( 5, 37),
+    Array(5, 37),
     Array(25, 33),
     Array(46, 12),
     Array(58, 22),
-    Array(32, 32))
+    Array(32, 32),
+  )
 
   val defaultNumRounds = 20
 
   val defaultKey: IndexedSeq[Long] =
-    expandKey(FastSeq(0x215d6dfdb7dfdf6bL, 0x045cfa043329c49fL, 0x9ec75a93692444ddL, 0x1284681663220f1cL))
+    expandKey(FastSeq(
+      0x215d6dfdb7dfdf6bL,
+      0x045cfa043329c49fL,
+      0x9ec75a93692444ddL,
+      0x1284681663220f1cL,
+    ))
 
   def expandKey(k: IndexedSeq[Long]): IndexedSeq[Long] = {
     assert(k.length == 4)
@@ -34,9 +41,8 @@ object Threefry {
     k :+ k4
   }
 
-  def rotL(i: Value[Long], n: Value[Int]): Code[Long] = {
+  def rotL(i: Value[Long], n: Value[Int]): Code[Long] =
     (i << n) | (i >>> -n)
-  }
 
   def mix(cb: CodeBuilderLike, x0: Settable[Long], x1: Settable[Long], n: Int): Unit = {
     cb.assign(x0, x0 + x1)
@@ -44,7 +50,8 @@ object Threefry {
     cb.assign(x1, x0 ^ x1)
   }
 
-  def injectKey(key: IndexedSeq[Long], tweak: IndexedSeq[Long], block: Array[Long], s: Int): Unit = {
+  def injectKey(key: IndexedSeq[Long], tweak: IndexedSeq[Long], block: Array[Long], s: Int)
+    : Unit = {
     assert(tweak.length == 3)
     assert(key.length == 5)
     assert(block.length == 4)
@@ -54,11 +61,12 @@ object Threefry {
     block(3) += key((s + 3) % 5) + s.toLong
   }
 
-  def injectKey(cb: CodeBuilderLike,
+  def injectKey(
+    cb: CodeBuilderLike,
     key: IndexedSeq[Long],
     tweak: IndexedSeq[Value[Long]],
     block: IndexedSeq[Settable[Long]],
-    s: Int
+    s: Int,
   ): Unit = {
     cb.assign(block(0), block(0) + key(s % 5))
     cb.assign(block(1), block(1) + const(key((s + 1) % 5)) + tweak(s % 3))
@@ -72,7 +80,16 @@ object Threefry {
     x(3) = tmp
   }
 
-  def encryptUnrolled(k0: Long, k1: Long, k2: Long, k3: Long, k4: Long, t0: Long, t1: Long, x: Array[Long]): Unit = {
+  def encryptUnrolled(
+    k0: Long,
+    k1: Long,
+    k2: Long,
+    k3: Long,
+    k4: Long,
+    t0: Long,
+    t1: Long,
+    x: Array[Long],
+  ): Unit = {
     import java.lang.Long.rotateLeft
     var x0 = x(0); var x1 = x(1); var x2 = x(2); var x3 = x(3)
     val t2 = t0 ^ t1
@@ -183,18 +200,20 @@ object Threefry {
       injectKey(k, t, x, rounds / 4)
   }
 
-  def encrypt(cb: CodeBuilderLike,
+  def encrypt(
+    cb: CodeBuilderLike,
     k: IndexedSeq[Long],
     t: IndexedSeq[Value[Long]],
-    x: IndexedSeq[Settable[Long]]
+    x: IndexedSeq[Settable[Long]],
   ): Unit =
     encrypt(cb, k, t, x, defaultNumRounds)
 
-  def encrypt(cb: CodeBuilderLike,
+  def encrypt(
+    cb: CodeBuilderLike,
     k: IndexedSeq[Long],
     _t: IndexedSeq[Value[Long]],
     _x: IndexedSeq[Settable[Long]],
-    rounds: Int
+    rounds: Int,
   ): Unit = {
     assert(k.length == 5)
     assert(_t.length == 2)
@@ -207,7 +226,7 @@ object Threefry {
         injectKey(cb, k, t, x, d / 4)
 
       for (j <- 0 until 2)
-        mix(cb, x(2*j), x(2*j+1), rotConsts(d % 8)(j))
+        mix(cb, x(2 * j), x(2 * j + 1), rotConsts(d % 8)(j))
 
       permute(x)
     }
@@ -216,8 +235,17 @@ object Threefry {
       injectKey(cb, k, t, x, rounds / 4)
   }
 
-  def debugPrint(cb: EmitCodeBuilder, x: IndexedSeq[Settable[Long]], info: String) {
-    cb.println(s"[$info]=\n\t", x(0).toString, "  ", x(1).toString, "  ", x(2).toString, "  ", x(3).toString)
+  def debugPrint(cb: EmitCodeBuilder, x: IndexedSeq[Settable[Long]], info: String): Unit = {
+    cb.println(
+      s"[$info]=\n\t",
+      x(0).toString,
+      "  ",
+      x(1).toString,
+      "  ",
+      x(2).toString,
+      "  ",
+      x(3).toString,
+    )
   }
 
   def pmac(sum: Array[Long], message: IndexedSeq[Long]): Array[Long] = {
@@ -261,9 +289,8 @@ object Threefry {
       sum(3) ^= x(3)
       i += 4
     }
-    for (j <- 0 until 4) {
+    for (j <- 0 until 4)
       sum(j) ^= message(i + j)
-    }
     val finalTweak = if (padded) Threefry.finalBlockPaddedTweak else Threefry.finalBlockNoPadTweak
 
     (sum, finalTweak)
@@ -332,8 +359,18 @@ object ThreefryRandomEngine {
   def apply(): ThreefryRandomEngine = {
     val key = Threefry.defaultKey
     new ThreefryRandomEngine(
-      key(0), key(1), key(2), key(3), key(4),
-      0, 0, 0, 0, 0, 0)
+      key(0),
+      key(1),
+      key(2),
+      key(3),
+      key(4),
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+    )
   }
 
   def apply(nonce: Long, staticID: Long, message: IndexedSeq[Long]): ThreefryRandomEngine = {
@@ -347,9 +384,18 @@ object ThreefryRandomEngine {
     val rand = new java.util.Random()
     val key = Threefry.expandKey(Array.fill(4)(rand.nextLong()))
     new ThreefryRandomEngine(
-      key(0), key(1), key(2), key(3), key(4),
-      rand.nextLong(), rand.nextLong(), rand.nextLong(), rand.nextLong(),
-      0, 0)
+      key(0),
+      key(1),
+      key(2),
+      key(3),
+      key(4),
+      rand.nextLong(),
+      rand.nextLong(),
+      rand.nextLong(),
+      rand.nextLong(),
+      0,
+      0,
+    )
   }
 }
 
@@ -364,7 +410,7 @@ class ThreefryRandomEngine(
   var state2: Long,
   var state3: Long,
   var counter: Long,
-  var tweak: Long
+  var tweak: Long,
 ) extends RandomEngine with RandomGenerator {
   val buffer: Array[Long] = Array.ofDim[Long](4)
   var usedInts: Int = 8
@@ -440,14 +486,15 @@ class ThreefryRandomEngine(
   // Uses approach from https://github.com/apple/swift/pull/39143
   override def nextInt(n: Int): Int = {
     val nL = n.toLong
-    val mult = nL * (nextInt().toLong & 0xFFFFFFFFL)
+    val mult = nL * (nextInt().toLong & 0xffffffffL)
     val result = (mult >>> 32).toInt
-    val fraction = mult & 0xFFFFFFFFL
+    val fraction = mult & 0xffffffffL
 
     // optional early return, benchmark to decide if it helps
     if (fraction < ((1L << 32) - nL)) return result
 
-    val multHigh = (((nL * (nextInt().toLong & 0xFFFFFFFFL)) >>> 32) + (nL * (nextInt().toLong & 0xFFFFFFFFL))) >>> 32
+    val multHigh =
+      (((nL * (nextInt().toLong & 0xffffffffL)) >>> 32) + (nL * (nextInt().toLong & 0xffffffffL))) >>> 32
     val sum = fraction + multHigh
     val carry = (sum >>> 32).toInt
     result + carry

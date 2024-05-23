@@ -2,8 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.HailSuite
 import is.hail.asm4s._
-import is.hail.types.physical.stypes.concrete.{SCanonicalRNGStateSettable, SCanonicalRNGStateValue, SRNGState, SRNGStateStaticSizeValue}
+import is.hail.types.physical.stypes.concrete.{
+  SCanonicalRNGStateSettable, SCanonicalRNGStateValue, SRNGState, SRNGStateStaticSizeValue,
+}
 import is.hail.utils.FastSeq
+
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.testng.annotations.Test
 
@@ -14,15 +17,17 @@ class RandomSuite extends HailSuite {
       Array(0x0L, 0x0L, 0x0L, 0x0L),
       Array(0x0L, 0x0L),
       Array(0x0L, 0x0L, 0x0L, 0x0L),
-      Array(0x09218EBDE6C85537L, 0x55941F5266D86105L, 0x4BD25E16282434DCL, 0xEE29EC846BD2E40BL)
-    ), (
-      Array(0x1716151413121110L, 0x1F1E1D1C1B1A1918L, 0x2726252423222120L, 0x2F2E2D2C2B2A2928L),
-      Array(0x0706050403020100L, 0x0F0E0D0C0B0A0908L),
-      Array(0xF8F9FAFBFCFDFEFFL, 0xF0F1F2F3F4F5F6F7L, 0xE8E9EAEBECEDEEEFL, 0xE0E1E2E3E4E5E6E7L),
-      Array(0x008CF75D18C19DA0L, 0x1D7D14BE2266E7D8L, 0x5D09E0E985FE673BL, 0xB4A5480C6039B172L)
-    ))
+      Array(0x09218ebde6c85537L, 0x55941f5266d86105L, 0x4bd25e16282434dcL, 0xee29ec846bd2e40bL),
+    ),
+    (
+      Array(0x1716151413121110L, 0x1f1e1d1c1b1a1918L, 0x2726252423222120L, 0x2f2e2d2c2b2a2928L),
+      Array(0x0706050403020100L, 0x0f0e0d0c0b0a0908L),
+      Array(0xf8f9fafbfcfdfeffL, 0xf0f1f2f3f4f5f6f7L, 0xe8e9eaebecedeeefL, 0xe0e1e2e3e4e5e6e7L),
+      Array(0x008cf75d18c19da0L, 0x1d7d14be2266e7d8L, 0x5d09e0e985fe673bL, 0xb4a5480c6039b172L),
+    ),
+  )
 
-  @Test def testThreefry() {
+  @Test def testThreefry(): Unit = {
     for {
       (key, tweak, input, expected) <- threefryTestCases
     } {
@@ -35,8 +40,15 @@ class RandomSuite extends HailSuite {
 
       x = input.clone()
       Threefry.encryptUnrolled(
-        expandedKey(0), expandedKey(1), expandedKey(2), expandedKey(3), expandedKey(4),
-        tweak(0), tweak(1), x)
+        expandedKey(0),
+        expandedKey(1),
+        expandedKey(2),
+        expandedKey(3),
+        expandedKey(4),
+        tweak(0),
+        tweak(1),
+        x,
+      )
       assert(x sameElements expected)
 
       x = input.clone()
@@ -50,9 +62,8 @@ class RandomSuite extends HailSuite {
     f.emb.emitWithBuilder { cb =>
       val message = f.mb.getArg[Array[Long]](1)
       var state = SRNGStateStaticSizeValue(cb)
-      for (i <- 0 until size) {
+      for (i <- 0 until size)
         state = state.splitDyn(cb, cb.memoize(message(i)))
-      }
       state = state.splitStatic(cb, staticID)
 
       val result = state.rand(cb)
@@ -67,18 +78,20 @@ class RandomSuite extends HailSuite {
     f.result()(new HailClassLoader(getClass.getClassLoader))
   }
 
-  def pmacEngineStagedStaticSize(staticID: Long, size: Int): AsmFunction1[Array[Long], ThreefryRandomEngine] = {
+  def pmacEngineStagedStaticSize(staticID: Long, size: Int)
+    : AsmFunction1[Array[Long], ThreefryRandomEngine] = {
     val f = EmitFunctionBuilder[Array[Long], ThreefryRandomEngine](ctx, "pmacStaticSize")
     f.emb.emitWithBuilder { cb =>
       val message = f.mb.getArg[Array[Long]](1)
       var state = SRNGStateStaticSizeValue(cb)
-      for (i <- 0 until size) {
+      for (i <- 0 until size)
         state = state.splitDyn(cb, cb.memoize(message(i)))
-      }
       state = state.splitStatic(cb, staticID)
 
       val engine = cb.memoize(Code.invokeScalaObject0[ThreefryRandomEngine](
-        ThreefryRandomEngine.getClass, "apply"))
+        ThreefryRandomEngine.getClass,
+        "apply",
+      ))
       state.copyIntoEngine(cb, engine)
       engine
     }
@@ -93,9 +106,12 @@ class RandomSuite extends HailSuite {
       cb.assign(state, SCanonicalRNGStateValue(cb))
       val i = cb.newLocal[Int]("i", 0)
       val len = cb.memoize(message.length())
-      cb.for_({}, i < len, cb.assign(i, i + 1), {
-        cb.assign(state, state.splitDyn(cb, cb.memoize(message(i))))
-      })
+      cb.for_(
+        {},
+        i < len,
+        cb.assign(i, i + 1),
+        cb.assign(state, state.splitDyn(cb, cb.memoize(message(i)))),
+      )
       cb.assign(state, state.splitStatic(cb, staticID))
 
       val result = state.rand(cb)
@@ -118,13 +134,18 @@ class RandomSuite extends HailSuite {
       cb.assign(state, SCanonicalRNGStateValue(cb))
       val i = cb.newLocal[Int]("i", 0)
       val len = cb.memoize(message.length())
-      cb.for_({}, i < len, cb.assign(i, i + 1), {
-        cb.assign(state, state.splitDyn(cb, cb.memoize(message(i))))
-      })
+      cb.for_(
+        {},
+        i < len,
+        cb.assign(i, i + 1),
+        cb.assign(state, state.splitDyn(cb, cb.memoize(message(i)))),
+      )
       cb.assign(state, state.splitStatic(cb, staticID))
 
       val engine = cb.memoize(Code.invokeScalaObject0[ThreefryRandomEngine](
-        ThreefryRandomEngine.getClass, "apply"))
+        ThreefryRandomEngine.getClass,
+        "apply",
+      ))
       state.copyIntoEngine(cb, engine)
       engine
     }
@@ -135,10 +156,10 @@ class RandomSuite extends HailSuite {
     (Array[Long](), 0L),
     (Array[Long](100, 101), 10L),
     (Array[Long](100, 101, 102, 103), 20L),
-    (Array[Long](100, 101, 102, 103, 104), 30L)
+    (Array[Long](100, 101, 102, 103, 104), 30L),
   )
 
-  @Test def testPMAC() {
+  @Test def testPMAC(): Unit = {
     for {
       (message, staticID) <- pmacTestCases
     } {
@@ -150,7 +171,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testPMACHash() {
+  @Test def testPMACHash(): Unit = {
     for {
       (message, _) <- pmacTestCases
     } {
@@ -163,7 +184,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testRandomEngine() {
+  @Test def testRandomEngine(): Unit = {
     for {
       (message, staticID) <- pmacTestCases
     } {
@@ -188,7 +209,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  def runChiSquareTest(samples: Int, buckets: Int)(sample: => Int) {
+  def runChiSquareTest(samples: Int, buckets: Int)(sample: => Int): Unit = {
     val chiSquareDist = new ChiSquaredDistribution(buckets - 1)
     val expected = samples.toDouble / buckets
     var numRuns = 0
@@ -202,13 +223,14 @@ class RandomSuite extends HailSuite {
       val chisquare = counts.map(observed => math.pow(observed - expected, 2) / expected).sum
       val pvalue = 1 - chiSquareDist.cumulativeProbability(chisquare)
       numRuns += 1
-      geometricMean = math.pow(geometricMean, (numRuns - 1).toDouble / numRuns) * math.pow(pvalue, 1.0 / numRuns)
+      geometricMean =
+        math.pow(geometricMean, (numRuns - 1).toDouble / numRuns) * math.pow(pvalue, 1.0 / numRuns)
     }
     assert(geometricMean >= passThreshold, s"failed after $numRuns runs with pvalue $geometricMean")
     println(s"passed after $numRuns runs with pvalue $geometricMean")
   }
 
-  @Test def testRandomInt() {
+  @Test def testRandomInt(): Unit = {
     val n = 1 << 25
     val k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -217,7 +239,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testBoundedUniformInt() {
+  @Test def testBoundedUniformInt(): Unit = {
     var n = 1 << 25
     var k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -226,13 +248,13 @@ class RandomSuite extends HailSuite {
     }
 
     n = 30000000
-    k = math.pow(n, 3.0/5).toInt
+    k = math.pow(n, 3.0 / 5).toInt
     runChiSquareTest(n, k) {
       rand.nextInt(k)
     }
   }
 
-  @Test def testBoundedUniformLong() {
+  @Test def testBoundedUniformLong(): Unit = {
     var n = 1 << 25
     var k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -241,13 +263,13 @@ class RandomSuite extends HailSuite {
     }
 
     n = 30000000
-    k = math.pow(n, 3.0/5).toInt
+    k = math.pow(n, 3.0 / 5).toInt
     runChiSquareTest(n, k) {
       rand.nextLong(k).toInt
     }
   }
 
-  @Test def testUniformDouble() {
+  @Test def testUniformDouble(): Unit = {
     val n = 1 << 25
     val k = 1 << 15
     val rand = ThreefryRandomEngine.randState()
@@ -258,7 +280,7 @@ class RandomSuite extends HailSuite {
     }
   }
 
-  @Test def testUniformFloat() {
+  @Test def testUniformFloat(): Unit = {
     val n = 1 << 25
     val k = 1 << 15
     val rand = ThreefryRandomEngine.randState()

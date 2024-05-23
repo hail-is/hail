@@ -1,15 +1,9 @@
 package is.hail.io.plink
 
-import java.io.{OutputStream, OutputStreamWriter}
-import is.hail.HailContext
-import is.hail.annotations.Region
-import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.MatrixValue
-import is.hail.types._
-import is.hail.types.physical.{PString, PStruct}
-import is.hail.variant._
 import is.hail.utils._
-import org.apache.spark.TaskContext
+import is.hail.variant._
+
+import java.io.OutputStream
 
 object ExportPlink {
   val bedHeader = Array[Byte](108, 27, 1)
@@ -20,13 +14,21 @@ object ExportPlink {
     def alleles: Array[String] = Array(a0, a1)
 
     if (spaceRegex.findFirstIn(contig).isDefined)
-      fatal(s"Invalid contig found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$contig'")
+      fatal(
+        s"Invalid contig found at '${VariantMethods.locusAllelesToString(locus, alleles)}' -- no white space allowed: '$contig'"
+      )
     if (spaceRegex.findFirstIn(a0).isDefined)
-      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$a0'")
+      fatal(
+        s"Invalid allele found at '${VariantMethods.locusAllelesToString(locus, alleles)}' -- no white space allowed: '$a0'"
+      )
     if (spaceRegex.findFirstIn(a1).isDefined)
-      fatal(s"Invalid allele found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$a1'")
+      fatal(
+        s"Invalid allele found at '${VariantMethods.locusAllelesToString(locus, alleles)}' -- no white space allowed: '$a1'"
+      )
     if (spaceRegex.findFirstIn(varid).isDefined)
-      fatal(s"Invalid 'varid' found at '${ VariantMethods.locusAllelesToString(locus, alleles) }' -- no white space allowed: '$varid'")
+      fatal(
+        s"Invalid 'varid' found at '${VariantMethods.locusAllelesToString(locus, alleles)}' -- no white space allowed: '$varid'"
+      )
   }
 }
 
@@ -45,15 +47,14 @@ class BitPacker(nBitsPerItem: Int, os: OutputStream) extends Serializable {
 
   def +=(i: Int) = add(i)
 
-  private def write() {
+  private def write(): Unit =
     while (nBitsStaged >= 8) {
       os.write(data.toByte)
       data = data >>> 8
       nBitsStaged -= 8
     }
-  }
 
-  def flush() {
+  def flush(): Unit = {
     if (nBitsStaged > 0)
       os.write(data.toByte)
     data = 0L

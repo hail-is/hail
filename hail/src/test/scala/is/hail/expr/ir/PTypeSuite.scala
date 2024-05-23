@@ -6,13 +6,14 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+
 import org.apache.spark.sql.Row
 import org.json4s.jackson.Serialization
 import org.testng.annotations.{DataProvider, Test}
 
 class PTypeSuite extends HailSuite {
 
-  @DataProvider(name="ptypes")
+  @DataProvider(name = "ptypes")
   def ptypes(): Array[Array[Any]] = {
     Array[PType](
       PInt32(true),
@@ -30,16 +31,21 @@ class PTypeSuite extends HailSuite {
       PCanonicalSet(PInt32Required, false),
       PCanonicalDict(PInt32Required, PCanonicalString(true), true),
       PCanonicalInterval(PInt32Optional, false),
-      PCanonicalTuple(FastSeq(PTupleField(1, PInt32Required), PTupleField(3, PCanonicalString(false))), true),
-      PCanonicalStruct(FastSeq(PField("foo", PInt32Required, 0), PField("bar", PCanonicalString(false), 1)), true)
+      PCanonicalTuple(
+        FastSeq(PTupleField(1, PInt32Required), PTupleField(3, PCanonicalString(false))),
+        true,
+      ),
+      PCanonicalStruct(
+        FastSeq(PField("foo", PInt32Required, 0), PField("bar", PCanonicalString(false), 1)),
+        true,
+      ),
     ).map(t => Array(t: Any))
   }
 
-  @Test def testPTypesDataProvider(): Unit = {
+  @Test def testPTypesDataProvider(): Unit =
     ptypes()
-  }
 
-  @Test(dataProvider="ptypes")
+  @Test(dataProvider = "ptypes")
   def testSerialization(ptype: PType): Unit = {
     implicit val formats = AbstractRVDSpec.formats
     val s = Serialization.write(ptype)
@@ -54,7 +60,10 @@ class PTypeSuite extends HailSuite {
     assert(PType.literalPType(TArray(TInt32), FastSeq(1, null)) == PCanonicalArray(PInt32(), true))
     assert(PType.literalPType(TArray(TInt32), FastSeq(1, 5)) == PCanonicalArray(PInt32(true), true))
 
-    assert(PType.literalPType(TInterval(TInt32), Interval(5, null, false, true)) == PCanonicalInterval(PInt32(), true))
+    assert(PType.literalPType(
+      TInterval(TInt32),
+      Interval(5, null, false, true),
+    ) == PCanonicalInterval(PInt32(), true))
 
     val p = TStruct("a" -> TInt32, "b" -> TInt32)
     val d = TDict(p, p)
@@ -62,6 +71,7 @@ class PTypeSuite extends HailSuite {
       PCanonicalDict(
         PCanonicalStruct(true, "a" -> PInt32(true), "b" -> PInt32()),
         PCanonicalStruct(true, "a" -> PInt32(), "b" -> PInt32(true)),
-        true))
+        true,
+      ))
   }
 }

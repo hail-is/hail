@@ -8,7 +8,7 @@ import jinja2
 from aiohttp import web
 from prometheus_async.aio.web import server_stats  # type: ignore
 
-from gear import AuthServiceAuthenticator, monitor_endpoints_middleware, setup_aiohttp_session
+from gear import AuthServiceAuthenticator, CommonAiohttpAppKeys, monitor_endpoints_middleware, setup_aiohttp_session
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -103,11 +103,11 @@ for fname in os.listdir(f'{MODULE_PATH}/pages'):
 
 
 async def on_startup(app):
-    app['client_session'] = httpx.client_session()
+    app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
 
 
 async def on_cleanup(app):
-    await app['client_session'].close()
+    await app[CommonAiohttpAppKeys.CLIENT_SESSION].close()
 
 
 def run(local_mode):

@@ -1,23 +1,23 @@
 package is.hail.backend.service
 
-import java.util
-import java.io._
-import java.nio.charset._
-import java.util.{concurrent => javaConcurrent}
-
-import is.hail.asm4s._
 import is.hail.{HAIL_REVISION, HailContext}
+import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
-import org.apache.commons.io.IOUtils
-import org.apache.log4j.Logger
 
 import scala.collection.mutable
-import scala.concurrent.duration.{Duration, MILLISECONDS}
-import scala.concurrent.{Future, Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
 import scala.util.control.NonFatal
+
+import java.io._
+import java.nio.charset._
+import java.util
+import java.util.{concurrent => javaConcurrent}
+
+import org.apache.log4j.Logger
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -33,9 +33,9 @@ class WorkerTimer() {
   import WorkerTimer._
 
   var startTimes: mutable.Map[String, Long] = mutable.Map()
-  def start(label: String): Unit = {
+
+  def start(label: String): Unit =
     startTimes.put(label, System.nanoTime())
-  }
 
   def end(label: String): Unit = {
     val endTime = System.nanoTime()
@@ -54,7 +54,7 @@ class WorkerTimer() {
 // For more context, see: https://github.com/scala/bug/issues/9237#issuecomment-292436652
 object ExplicitClassLoaderInputStream {
   val primClasses: util.HashMap[String, Class[_]] = {
-    val m = new util.HashMap[String, Class[_]](8, 1.0F)
+    val m = new util.HashMap[String, Class[_]](8, 1.0f)
     m.put("boolean", Boolean.getClass)
     m.put("byte", Byte.getClass)
     m.put("char", Char.getClass)
@@ -67,7 +67,9 @@ object ExplicitClassLoaderInputStream {
     m
   }
 }
-class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader) extends ObjectInputStream(is) {
+
+class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader)
+    extends ObjectInputStream(is) {
 
   override def resolveClass(desc: ObjectStreamClass): Class[_] = {
     val name = desc.getName
@@ -84,8 +86,10 @@ class ExplicitClassLoaderInputStream(is: InputStream, cl: ClassLoader) extends O
 object Worker {
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val myRevision = HAIL_REVISION
-  private[this] implicit val ec = ExecutionContext.fromExecutorService(
-    javaConcurrent.Executors.newCachedThreadPool())
+
+  implicit private[this] val ec = ExecutionContext.fromExecutorService(
+    javaConcurrent.Executors.newCachedThreadPool()
+  )
 
   private[this] def writeString(out: DataOutputStream, s: String): Unit = {
     val bytes = s.getBytes(StandardCharsets.UTF_8)
@@ -97,7 +101,7 @@ object Worker {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
     if (argv.length != 7) {
-      throw new IllegalArgumentException(s"expected seven arguments, not: ${ argv.length }")
+      throw new IllegalArgumentException(s"expected seven arguments, not: ${argv.length}")
     }
     val scratchDir = argv(0)
     val logFile = argv(1)
@@ -110,7 +114,8 @@ object Worker {
     val timer = new WorkerTimer()
 
     val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/secrets/deploy-config/deploy-config.json")
+      s"$scratchDir/secrets/deploy-config/deploy-config.json"
+    )
     DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
 
@@ -122,18 +127,18 @@ object Worker {
     timer.start("readInputs")
     val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
 
-    def open(x: String): SeekableDataInputStream = {
+    def open(x: String): SeekableDataInputStream =
       fs.openNoCompression(x)
-    }
 
-    def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit = {
+    def write(x: String)(writer: PositionedDataOutputStream => Unit): Unit =
       fs.writePDOS(x)(writer)
-    }
 
     val fFuture = Future {
       retryTransientErrors {
         using(new ExplicitClassLoaderInputStream(open(s"$root/f"), theHailClassLoader)) { is =>
-          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]]
+          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[
+            Byte
+          ]]
         }
       }
     }
@@ -159,19 +164,40 @@ object Worker {
     timer.start("executeFunction")
 
     if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None, null, null, null, null)
+      HailContext.get.backend = new ServiceBackend(
+        null,
+        null,
+        new HailClassLoader(getClass().getClassLoader()),
+        null,
+        None,
+        null,
+        null,
+        null,
+        null,
+      )
     } else {
       HailContext(
         // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(null, null, new HailClassLoader(getClass().getClassLoader()), null, None, null, null, null, null))
+        new ServiceBackend(
+          null,
+          null,
+          new HailClassLoader(getClass().getClassLoader()),
+          null,
+          None,
+          null,
+          null,
+          null,
+          null,
+        )
+      )
     }
 
     val result = using(new ServiceTaskContext(i)) { htc =>
-      try {
+      try
         retryTransientErrors {
           Right(f(context, htc, theHailClassLoader, fs))
         }
-      } catch {
+      catch {
         case NonFatal(err) => Left(err)
       }
     }
@@ -186,7 +212,8 @@ object Worker {
             dos.writeBoolean(true)
             dos.write(bytes)
           case Left(throwableWhileExecutingUserCode) =>
-            val (shortMessage, expandedMessage, errorId) = handleForPython(throwableWhileExecutingUserCode)
+            val (shortMessage, expandedMessage, errorId) =
+              handleForPython(throwableWhileExecutingUserCode)
             dos.writeBoolean(false)
             writeString(dos, shortMessage)
             writeString(dos, expandedMessage)

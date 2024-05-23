@@ -6,7 +6,7 @@ IP := $(shell kubectl get secret global-config --template={{.data.ip}} | base64 
 SHA := $(shell git rev-parse --short=12 HEAD)
 
 envoy-xds-config:
-	HAIL_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/gateway/cds.yaml.out ${HAIL}/gateway/rds.yaml.out
+	HAIL_PRODUCTION_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/gateway/cds.yaml.out ${HAIL}/gateway/rds.yaml.out
 	kubectl -n default create configmap gateway-xds-config \
 		--from-file=cds.yaml=cds.yaml.out \
 		--from-file=rds.yaml=rds.yaml.out \

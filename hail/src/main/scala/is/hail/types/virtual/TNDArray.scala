@@ -1,13 +1,13 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray, UnsafeIndexedSeq}
+import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray}
 import is.hail.backend.HailStateManager
-import is.hail.expr.{Nat, NatBase}
 import is.hail.check.Gen
-import is.hail.types.physical.PNDArray
-import org.apache.spark.sql.Row
+import is.hail.expr.{Nat, NatBase}
 
-import scala.reflect.{ClassTag, classTag}
+import scala.reflect.{classTag, ClassTag}
+
+import org.apache.spark.sql.Row
 
 object TNDArray {
   def matMulNDims(l: Int, r: Int): Int = {
@@ -26,16 +26,18 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     nDimsBase.asInstanceOf[Nat].n
   }
 
-  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean = {
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
+    : Boolean = {
     if (a1 == null || a2 == null) {
       a1 == a2
-    }
-    else {
+    } else {
       val aNd1 = a1.asInstanceOf[NDArray]
       val aNd2 = a2.asInstanceOf[NDArray]
 
       val sameShape = aNd1.shape == aNd2.shape
-      val sameData = aNd1.getRowMajorElements().zip(aNd2.getRowMajorElements()).forall{ case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute)}
+      val sameData = aNd1.getRowMajorElements().zip(aNd2.getRowMajorElements()).forall {
+        case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute)
+      }
 
       sameShape && sameData
     }
@@ -51,7 +53,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   def _toPretty = s"NDArray[$elementType,$nDims]"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
     sb.append("NDArray[")
     elementType.pretty(sb, indent, compact)
     sb.append(",")
@@ -60,16 +62,17 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   }
 
   override def str(a: Annotation): String = {
-    if (a == null) "NA" else {
+    if (a == null) "NA"
+    else {
       val aNd = a.asInstanceOf[NDArray]
       val shape = aNd.shape
       val data = aNd.getRowMajorElements()
 
-      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Long], sb: StringBuilder):Unit  = {
+      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Long], sb: StringBuilder)
+        : Unit = {
         if (shape.isEmpty) {
           sb.append(data.next().toString)
-        }
-        else {
+        } else {
           sb.append("[")
           val howMany = shape.head
           var repeat = 0
@@ -89,16 +92,16 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
       val prettyData = stringBuilder.result()
       val prettyShape = "(" + shape.mkString(", ") + ")"
 
-      s"ndarray{shape=${prettyShape}, data=${prettyData}}"
+      s"ndarray{shape=$prettyShape, data=$prettyData}"
     }
   }
 
-  override def unify(concrete: Type): Boolean = {
+  override def unify(concrete: Type): Boolean =
     concrete match {
-      case TNDArray(cElementType, cNDims) => elementType.unify(cElementType) && nDimsBase.unify(cNDims)
+      case TNDArray(cElementType, cNDims) =>
+        elementType.unify(cElementType) && nDimsBase.unify(cNDims)
       case _ => false
     }
-  }
 
   override def clear(): Unit = {
     elementType.clear()
@@ -109,11 +112,9 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  def _typeCheck(a: Annotation): Boolean = { a match {
+  def _typeCheck(a: Annotation): Boolean = a match {
     case nd: NDArray => nd.forall(e => elementType.typeCheck(e))
     case _ => false
-  }
-
   }
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
@@ -124,6 +125,6 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   private lazy val representation = TStruct(
     ("shape", shapeType),
-    ("data", TArray(elementType))
+    ("data", TArray(elementType)),
   )
 }

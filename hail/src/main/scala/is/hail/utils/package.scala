@@ -4,33 +4,34 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
-import org.apache.commons.io.output.TeeOutputStream
-import org.apache.commons.lang3.StringUtils
-import org.apache.hadoop.fs.PathIOException
-import org.apache.hadoop.mapred.FileSplit
-import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
-import org.apache.log4j.Level
-import org.apache.spark.sql.Row
-import org.apache.spark.{Partition, TaskContext}
-import org.json4s.JsonAST.{JArray, JString}
-import org.json4s.jackson.Serialization
-import org.json4s.reflect.TypeInfo
-import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
+
+import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
+import scala.collection.generic.CanBuildFrom
+import scala.collection.mutable.ArrayBuffer
+import scala.language.higherKinds
+import scala.reflect.ClassTag
+import scala.util.{Failure, Success, Try}
 
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
 import java.security.SecureRandom
 import java.text.SimpleDateFormat
-import java.util.concurrent.ExecutorService
 import java.util.{Base64, Date}
-import scala.collection.generic.CanBuildFrom
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.{GenTraversableOnce, TraversableOnce, mutable}
-import scala.language.{higherKinds, implicitConversions}
-import scala.reflect.ClassTag
-import scala.util.{Failure, Success, Try}
+import java.util.concurrent.ExecutorService
+
+import org.apache.commons.io.output.TeeOutputStream
+import org.apache.commons.lang3.StringUtils
+import org.apache.hadoop.fs.PathIOException
+import org.apache.hadoop.mapred.FileSplit
+import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
+import org.apache.log4j.Level
+import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
+import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
+import org.json4s.JsonAST.{JArray, JString}
+import org.json4s.jackson.Serialization
+import org.json4s.reflect.TypeInfo
 
 package utils {
   trait Truncatable {
@@ -51,21 +52,28 @@ package utils {
   }
 
   sealed trait AnyFailAllFail[C[_]] {
-    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Option[C[T]] = {
+    def apply[T](ts: TraversableOnce[Option[T]])(implicit cbf: CanBuildFrom[Nothing, T, C[T]])
+      : Option[C[T]] = {
       val b = cbf()
-      for (t <- ts) {
+      for (t <- ts)
         if (t.isEmpty)
           return None
         else
           b += t.get
-      }
       Some(b.result())
     }
   }
 
   sealed trait MapAccumulate[C[_], U] {
-    def apply[T, S](a: Iterable[T], z: S)(f: (T, S) => (U, S))
-      (implicit uct: ClassTag[U], cbf: CanBuildFrom[Nothing, U, C[U]]): C[U] = {
+    def apply[T, S](
+      a: Iterable[T],
+      z: S,
+    )(
+      f: (T, S) => (U, S)
+    )(implicit
+      uct: ClassTag[U],
+      cbf: CanBuildFrom[Nothing, U, C[U]],
+    ): C[U] = {
       val b = cbf()
       var acc = z
       for ((x, i) <- a.zipWithIndex) {
@@ -78,23 +86,19 @@ package utils {
   }
 }
 
-package object utils extends Logging
-  with richUtils.Implicits
-  with NumericPairImplicits
-  with utils.NumericImplicits
-  with Py4jUtils
-  with ErrorHandling {
+package object utils
+    extends Logging with richUtils.Implicits with NumericPairImplicits with utils.NumericImplicits
+    with Py4jUtils with ErrorHandling {
 
   def utilsPackageClass = getClass
 
   def getStderrAndLogOutputStream[T](implicit tct: ClassTag[T]): OutputStream =
     new TeeOutputStream(new LoggerOutputStream(log, Level.ERROR), System.err)
 
-  def format(s: String, substitutions: Any*): String = {
+  def format(s: String, substitutions: Any*): String =
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
-      str.replace(s"@${ i + 1 }", value.toString)
+      str.replace(s"@${i + 1}", value.toString)
     }
-  }
 
   def coerceToInt(l: Long): Int = {
     if (l > Int.MaxValue || l < Int.MinValue)
@@ -107,7 +111,7 @@ package object utils extends Logging
     fileListEntries: Array[FileListEntry],
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
-    maxSizeMB: Int = 128
+    maxSizeMB: Int = 128,
   ) = {
     if (fileListEntries.isEmpty)
       fatal(s"arguments refer to no files: ${globPaths.toIndexedSeq}.")
@@ -124,8 +128,8 @@ package object utils extends Logging
     fileListEntry: FileListEntry,
     forceGZ: Boolean,
     gzAsBGZ: Boolean,
-    maxSizeMB: Int = 128
-  ) {
+    maxSizeMB: Int = 128,
+  ): Unit = {
     if (!forceGZ && !gzAsBGZ)
       fatal(
         s"""Cannot load file '${fileListEntry.getPath}'
@@ -133,15 +137,17 @@ package object utils extends Logging
            |  If the file is actually block gzipped (even though its extension is .gz),
            |  use the 'force_bgz' argument to treat all .gz file extensions as .bgz.
            |  If you are sure that you want to load a non-block-gzipped file serially
-           |  on one core, use the 'force' argument.""".stripMargin)
+           |  on one core, use the 'force' argument.""".stripMargin
+      )
     else if (!gzAsBGZ) {
       val fileSize = fileListEntry.getLen
       if (fileSize > 1024 * 1024 * maxSizeMB)
         warn(
-          s"""file '${fileListEntry.getPath}' is ${ readableBytes(fileSize) }
+          s"""file '${fileListEntry.getPath}' is ${readableBytes(fileSize)}
              |  It will be loaded serially (on one core) due to usage of the 'force' argument.
              |  If it is actually block-gzipped, either rename to .bgz or use the 'force_bgz'
-             |  argument.""".stripMargin)
+             |  argument.""".stripMargin
+        )
     }
   }
 
@@ -169,11 +175,11 @@ package object utils extends Logging
     math.ceil(math.log(nPartitions) / math.log(branchingFactor)).toInt
   }
 
-  def simpleAssert(p: Boolean) {
+  def simpleAssert(p: Boolean): Unit =
     if (!p) throw new AssertionError
-  }
 
-  def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A]): Unit =
+  def optionCheckInRangeInclusive[A](low: A, high: A)(name: String, a: A)(implicit ord: Ordering[A])
+    : Unit =
     if (ord.lt(a, low) || ord.gt(a, high)) {
       fatal(s"$name cannot lie outside [$low, $high]: $a")
     }
@@ -205,8 +211,7 @@ package object utils extends Logging
       val tMins = (tMilliseconds / msPerMinute).toInt
       val tSec = (tMilliseconds % msPerMinute) / 1e3
       ("%d" + "m" + "%.1f" + "s").format(tMins, tSec)
-    }
-    else {
+    } else {
       val tHrs = (tMilliseconds / msPerHour).toInt
       val tMins = ((tMilliseconds % msPerHour) / msPerMinute).toInt
       val tSec = (tMilliseconds % msPerMinute) / 1e3
@@ -249,7 +254,6 @@ package object utils extends Logging
     else
       (tib, "TiB")
 
-
     val num = formatDouble(absds.toDouble / div.toDouble, precision)
     s"$num $suffix"
   }
@@ -260,12 +264,11 @@ package object utils extends Logging
     else
       None
 
-  def nullIfNot(p: Boolean, x: Any): Any = {
+  def nullIfNot(p: Boolean, x: Any): Any =
     if (p)
       x
     else
       null
-  }
 
   def divOption(num: Double, denom: Double): Option[Double] =
     someIf(denom != 0, num / denom)
@@ -281,13 +284,11 @@ package object utils extends Logging
   def D_epsilon(a: Double, b: Double, tolerance: Double = defaultTolerance): Double =
     math.max(java.lang.Double.MIN_NORMAL, tolerance * math.max(math.abs(a), math.abs(b)))
 
-  def D_==(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean = {
+  def D_==(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     a == b || math.abs(a - b) <= D_epsilon(a, b, tolerance)
-  }
 
-  def D_!=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean = {
+  def D_!=(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     !(a == b) && math.abs(a - b) > D_epsilon(a, b, tolerance)
-  }
 
   def D_<(a: Double, b: Double, tolerance: Double = defaultTolerance): Boolean =
     !(a == b) && a - b < -D_epsilon(a, b, tolerance)
@@ -328,6 +329,7 @@ package object utils extends Logging
   def rowIterator(r: Row): Iterator[Any] = new Iterator[Any] {
     var idx: Int = 0
     def hasNext: Boolean = idx < r.size
+
     def next: Any = {
       val a = r(idx)
       idx += 1
@@ -340,14 +342,13 @@ package object utils extends Logging
     .resize(12)
     .filter(s => !s.isEmpty)
 
-  def prettyIdentifier(str: String): String = {
+  def prettyIdentifier(str: String): String =
     if (str.matches("""[_a-zA-Z]\w*"""))
       str
     else
-      s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
-  }
+      s"`${StringEscapeUtils.escapeString(str, backticked = true)}`"
 
-  def formatDouble(d: Double, precision: Int): String = s"%.${ precision }f".format(d)
+  def formatDouble(d: Double, precision: Int): String = s"%.${precision}f".format(d)
 
   def uriPath(uri: String): String = new URI(uri).getPath
 
@@ -369,17 +370,30 @@ package object utils extends Logging
   def mapAccumulate[C[_], U] =
     mapAccumulateInstance.asInstanceOf[MapAccumulate[C, U]]
 
-  /**
-    * An abstraction for building an {@code Array} of known size. Guarantees a left-to-right traversal
+  /** An abstraction for building an {@code Array} of known size. Guarantees a left-to-right
+    * traversal
     *
-    * @param xs      the thing to iterate over
-    * @param size    the size of array to allocate
-    * @param key     given the source value and its source index, yield the target index
-    * @param combine given the target value, the target index, the source value, and the source index, compute the new target value
+    * @param xs
+    *   the thing to iterate over
+    * @param size
+    *   the size of array to allocate
+    * @param key
+    *   given the source value and its source index, yield the target index
+    * @param combine
+    *   given the target value, the target index, the source value, and the source index, compute
+    *   the new target value
     * @tparam A
     * @tparam B
     */
-  def coalesce[A, B: ClassTag](xs: GenTraversableOnce[A])(size: Int, key: (A, Int) => Int, z: B)(combine: (B, A) => B): Array[B] = {
+  def coalesce[A, B: ClassTag](
+    xs: GenTraversableOnce[A]
+  )(
+    size: Int,
+    key: (A, Int) => Int,
+    z: B,
+  )(
+    combine: (B, A) => B
+  ): Array[B] = {
     val a = Array.fill(size)(z)
 
     for ((x, idx) <- xs.toIterator.zipWithIndex) {
@@ -396,9 +410,8 @@ package object utils extends Logging
       val newline = System.lineSeparator()
       val sb = new StringBuilder
       sb ++= "The maps do not have the same entries:" + newline
-      for (failure <- failures) {
-        sb ++= s"  At key ${ failure._1 }, the left map has ${ failure._2 } and the right map has ${ failure._3 }" + newline
-      }
+      for (failure <- failures)
+        sb ++= s"  At key ${failure._1}, the left map has ${failure._2} and the right map has ${failure._3}" + newline
       sb ++= s"  The left map is: $l" + newline
       sb ++= s"  The right map is: $r" + newline
       sb.result()
@@ -407,11 +420,12 @@ package object utils extends Logging
     if (l.keySet != r.keySet) {
       println(
         s"""The maps do not have the same keys.
-           |  These keys are unique to the left-hand map: ${ l.keySet -- r.keySet }
-           |  These keys are unique to the right-hand map: ${ r.keySet -- l.keySet }
+           |  These keys are unique to the left-hand map: ${l.keySet -- r.keySet}
+           |  These keys are unique to the right-hand map: ${r.keySet -- l.keySet}
            |  The left map is: $l
            |  The right map is: $r
-      """.stripMargin)
+      """.stripMargin
+      )
       false
     } else {
       val fs = Array.newBuilder[(K, V, V)]
@@ -450,9 +464,9 @@ package object utils extends Logging
   }
 
   def lookupMethod(c: Class[_], method: String): Method = {
-    try {
+    try
       c.getDeclaredMethod(method)
-    } catch {
+    catch {
       case _: Exception =>
         assert(c != classOf[java.lang.Object])
         lookupMethod(c.getSuperclass, method)
@@ -464,15 +478,16 @@ package object utils extends Logging
     m.invoke(obj, args: _*)
   }
 
-  /*
-   * Use reflection to get the path of a partition coming from a Parquet read.  This requires accessing Spark
-   * internal interfaces.  It works with Spark 1 and 2 and doesn't depend on the location of the Parquet
-   * package (parquet vs org.apache.parquet) which can vary between distributions.
-   */
+  /* Use reflection to get the path of a partition coming from a Parquet read. This requires
+   * accessing Spark internal interfaces. It works with Spark 1 and 2 and doesn't depend on the
+   * location of the Parquet package (parquet vs org.apache.parquet) which can vary between
+   * distributions. */
   def partitionPath(p: Partition): String = {
     p.getClass.getCanonicalName match {
       case "org.apache.spark.rdd.SqlNewHadoopPartition" =>
-        val split = invokeMethod(invokeMethod(p, "serializableHadoopSplit"), "value").asInstanceOf[NewFileSplit]
+        val split = invokeMethod(invokeMethod(p, "serializableHadoopSplit"), "value").asInstanceOf[
+          NewFileSplit
+        ]
         split.getPath.getName
 
       case "org.apache.spark.sql.execution.datasources.FilePartition" =>
@@ -535,11 +550,11 @@ package object utils extends Logging
 
   def roundWithConstantSum(a: Array[Double]): Array[Int] = {
     val withFloors = a.zipWithIndex.map { case (d, i) => (i, d, math.floor(d)) }
-    val totalFractional = (withFloors.map { case (i, orig, floor) => orig - floor }.sum + 0.5).toInt
+    val totalFractional = (withFloors.map { case (_, orig, floor) => orig - floor }.sum + 0.5).toInt
     withFloors
       .sortBy { case (_, orig, floor) => floor - orig }
       .zipWithIndex
-      .map { case ((i, orig, floor), iSort) =>
+      .map { case ((i, orig, _), iSort) =>
         if (iSort < totalFractional)
           (i, math.ceil(orig))
         else
@@ -608,12 +623,13 @@ package object utils extends Logging
   def partSuffix(ctx: TaskContext): String = {
     val rng = new java.security.SecureRandom()
     val fileUUID = new java.util.UUID(rng.nextLong(), rng.nextLong())
-    s"${ ctx.stageId() }-${ ctx.partitionId() }-${ ctx.attemptNumber() }-$fileUUID"
+    s"${ctx.stageId()}-${ctx.partitionId()}-${ctx.attemptNumber()}-$fileUUID"
   }
 
-  def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${ partFile(d, i) }-${ partSuffix(ctx) }"
+  def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${partFile(d, i)}-${partSuffix(ctx)}"
 
-  def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
+  def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_))
+    : (Array[String], Array[(String, String)]) = {
     val b = new BoxedArrayBuilder[String]
 
     val uniques = new mutable.HashSet[String]()
@@ -644,18 +660,20 @@ package object utils extends Logging
 
   def using[R <: AutoCloseable, T](r: R)(consume: (R) => T): T = {
     var caught = false
-    try {
+    try
       consume(r)
-    } catch {
+    catch {
       case original: Exception =>
         caught = true
-        try {
+        try
           r.close()
-        } catch {
+        catch {
           case duringClose: Exception =>
             if (original == duringClose) {
-              log.info(s"""The exact same exception object, ${original}, was thrown by both
-                          |the consumer and the close method. I will throw the original.""".stripMargin)
+              log.info(
+                s"""The exact same exception object, $original, was thrown by both
+                   |the consumer and the close method. I will throw the original.""".stripMargin
+              )
               throw original
             } else {
               duringClose.addSuppressed(original)
@@ -663,11 +681,10 @@ package object utils extends Logging
             }
         }
         throw original
-    } finally {
+    } finally
       if (!caught) {
         r.close()
       }
-    }
   }
 
   def singletonElement[T](it: Iterator[T]): T = {
@@ -723,13 +740,12 @@ package object utils extends Logging
     parts
   }
 
-  def matchErrorToNone[T, U](f: (T) => U): (T) => Option[U] = (x: T) => {
-    try {
+  def matchErrorToNone[T, U](f: (T) => U): (T) => Option[U] = (x: T) =>
+    try
       Some(f(x))
-    } catch {
+    catch {
       case _: MatchError => None
     }
-  }
 
   def charRegex(c: Char): String = {
     // See: https://docs.oracle.com/javase/tutorial/essential/regex/literals.html
@@ -741,19 +757,17 @@ package object utils extends Logging
       s
   }
 
-  def ordMax[T](left: T, right: T, ord: ExtendedOrdering): T = {
+  def ordMax[T](left: T, right: T, ord: ExtendedOrdering): T =
     if (ord.gt(left, right))
       left
     else
       right
-  }
 
-  def ordMin[T](left: T, right: T, ord: ExtendedOrdering): T = {
+  def ordMin[T](left: T, right: T, ord: ExtendedOrdering): T =
     if (ord.lt(left, right))
       left
     else
       right
-  }
 
   def makeJavaMap[K, V](x: TraversableOnce[(K, V)]): java.util.HashMap[K, V] = {
     val m = new java.util.HashMap[K, V]
@@ -769,8 +783,9 @@ package object utils extends Logging
 
   def toMapFast[T, K, V](
     ts: TraversableOnce[T]
-  )(key: T => K,
-    value: T => V
+  )(
+    key: T => K,
+    value: T => V,
   ): collection.Map[K, V] = {
     val it = ts.toIterator
     val m = mutable.Map[K, V]()
@@ -783,11 +798,12 @@ package object utils extends Logging
 
   def toMapIfUnique[K, K2, V](
     kvs: Traversable[(K, V)]
-  )(keyBy: K => K2
+  )(
+    keyBy: K => K2
   ): Either[Map[K2, Traversable[K]], Map[K2, V]] = {
     val grouped = kvs.groupBy(x => keyBy(x._1))
 
-    val dupes = grouped.filter { case (k, m) => m.size != 1 }
+    val dupes = grouped.filter { case (_, m) => m.size != 1 }
 
     if (dupes.nonEmpty) {
       Left(dupes.map { case (k, m) => k -> m.map(_._1) })
@@ -798,11 +814,11 @@ package object utils extends Logging
     }
   }
 
-  def dumpClassLoader(cl: ClassLoader) {
-    System.err.println(s"ClassLoader ${ cl.getClass.getCanonicalName }:")
+  def dumpClassLoader(cl: ClassLoader): Unit = {
+    System.err.println(s"ClassLoader ${cl.getClass.getCanonicalName}:")
     cl match {
       case cl: URLClassLoader =>
-        System.err.println(s"  ${ cl.getURLs.mkString(" ") }")
+        System.err.println(s"  ${cl.getURLs.mkString(" ")}")
       case _ =>
         System.err.println("  non-URLClassLoader")
     }
@@ -817,52 +833,60 @@ package object utils extends Logging
     using(new OutputStreamWriter(fs.create(path + "/README.txt"))) { out =>
       out.write(
         s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
-           |  Written with version ${ HailContext.get.version }
-           |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
+           |  Written with version ${HailContext.get.version}
+           |  Created at ${dateFormat.format(new Date())}""".stripMargin
+      )
     }
   }
 
-  def decompress(input: Array[Byte], size: Int): Array[Byte] = CompressionUtils.decompressZlib(input, size)
+  def decompress(input: Array[Byte], size: Int): Array[Byte] =
+    CompressionUtils.decompressZlib(input, size)
 
-  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int = CompressionUtils.compressZlib(bb, input)
+  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int =
+    CompressionUtils.compressZlib(bb, input)
 
-  def unwrappedApply[U, T](f: (U, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
-    f(s, ts(0))
-  }
+  def unwrappedApply[U, T](f: (U, T) => T): (U, Seq[T]) => T =
+    if (f == null) null else { (s, ts) => f(s, ts(0)) }
 
-  def unwrappedApply[U, T](f: (U, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T) => T): (U, Seq[T]) => T = if (f == null) null
+  else { (s, ts) =>
     val Seq(t1, t2) = ts
     f(s, t1, t2)
   }
 
-  def unwrappedApply[U, T](f: (U, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null
+  else { (s, ts) =>
     val Seq(t1, t2, t3) = ts
     f(s, t1, t2, t3)
   }
 
-  def unwrappedApply[U, T](f: (U, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null
+  else { (s, ts) =>
     val Seq(t1, t2, t3, t4) = ts
     f(s, t1, t2, t3, t4)
   }
 
-  def unwrappedApply[U, T](f: (U, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null
+  else { (s, ts) =>
     val Seq(t1, t2, t3, t4, t5) = ts
     f(s, t1, t2, t3, t4, t5)
   }
 
-  def unwrappedApply[U, T](f: (U, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null
+  else { (s, ts) =>
     val Seq(arg1, arg2, arg3, arg4, arg5, arg6) = ts
     f(s, arg1, arg2, arg3, arg4, arg5, arg6)
   }
 
-  def unwrappedApply[U, T](f: (U, T, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null else { (s, ts) =>
+  def unwrappedApply[U, T](f: (U, T, T, T, T, T, T, T) => T): (U, Seq[T]) => T = if (f == null) null
+  else { (s, ts) =>
     val Seq(arg1, arg2, arg3, arg4, arg5, arg6, arg7) = ts
     f(s, arg1, arg2, arg3, arg4, arg5, arg6, arg7)
   }
 
   def drainInputStreamToOutputStream(
     is: InputStream,
-    os: OutputStream
+    os: OutputStream,
   ): Unit = {
     val buffer = new Array[Byte](1024)
     var length = is.read(buffer)
@@ -910,13 +934,11 @@ package object utils extends Logging
     (fileOffset << 16) | blockOffset
   }
 
-  def virtualOffsetBlockOffset(offset: Long): Int = {
-    (offset & 0xFFFF).toInt
-  }
+  def virtualOffsetBlockOffset(offset: Long): Int =
+    (offset & 0xffff).toInt
 
-  def virtualOffsetCompressedOffset(offset: Long): Long = {
+  def virtualOffsetCompressedOffset(offset: Long): Long =
     offset >> 16
-  }
 
   def tokenUrlSafe(n: Int): String = {
     val bytes = new Array[Byte](32)
@@ -926,7 +948,12 @@ package object utils extends Logging
   }
 
   // mutates byteOffsets and returns the byte size
-  def getByteSizeAndOffsets(byteSize: Array[Long], alignment: Array[Long], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
+  def getByteSizeAndOffsets(
+    byteSize: Array[Long],
+    alignment: Array[Long],
+    nMissingBytes: Long,
+    byteOffsets: Array[Long],
+  ): Long = {
     assert(byteSize.length == alignment.length)
     assert(byteOffsets.length == byteSize.length)
     val bp = new BytePacker()
@@ -953,15 +980,12 @@ package object utils extends Logging
     offset
   }
 
-  /**
-   * Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`.
-   */
+  /** Merge the sorted `IndexedSeq`s `xs` and `ys` using comparison function `lt`. */
   def merge[A](xs: IndexedSeq[A], ys: IndexedSeq[A], lt: (A, A) => Boolean): IndexedSeq[A] =
     (xs.length, ys.length) match {
       case (0, _) => ys
       case (_, 0) => xs
       case (n, m) =>
-
         val res = new ArrayBuffer[A](n + m)
 
         var i = 0
@@ -976,28 +1000,27 @@ package object utils extends Logging
           }
         }
 
-        for (k <- i until n) {
+        for (k <- i until n)
           res += xs(k)
-        }
 
-        for (k <- j until m) {
+        for (k <- j until m)
           res += ys(k)
-        }
 
         res
     }
 
-
-  /**
-   * Run (task, key) pairs on the `executor`, returning some `F` of the
-   * failures and an `IndexedSeq` of the successes with their corresponding
-   * key.
-   */
-  def runAll[F[_], A](executor: ExecutorService)
-                     (accum: (F[Throwable], (Throwable, Int)) => F[Throwable])
-                     (init: F[Throwable])
-                     (tasks: IndexedSeq[(() => A, Int)])
-  : (F[Throwable], IndexedSeq[(A, Int)]) = {
+  /** Run (task, key) pairs on the `executor`, returning some `F` of the failures and an
+    * `IndexedSeq` of the successes with their corresponding key.
+    */
+  def runAll[F[_], A](
+    executor: ExecutorService
+  )(
+    accum: (F[Throwable], (Throwable, Int)) => F[Throwable]
+  )(
+    init: F[Throwable]
+  )(
+    tasks: IndexedSeq[(() => A, Int)]
+  ): (F[Throwable], IndexedSeq[(A, Int)]) = {
 
     var err = init
     val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
@@ -1020,7 +1043,7 @@ package object utils extends Logging
   def runAllKeepFirstError[A](
     executor: ExecutorService
   ): IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
-    runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) } (None)
+    runAll[Option, A](executor) { case (opt, (e, _)) => opt.orElse(Some(e)) }(None)
 }
 
 // FIXME: probably resolved in 3.6 https://github.com/json4s/json4s/commit/fc96a92e1aa3e9e3f97e2e91f94907fdfff6010d
@@ -1033,11 +1056,13 @@ object GenericIndexedSeqSerializer extends Serializer[IndexedSeq[_]] {
 
   override def deserialize(implicit format: Formats) = {
     case (TypeInfo(IndexedSeqClass, parameterizedType), JArray(xs)) =>
-      val typeInfo = TypeInfo(parameterizedType
-        .map(_.getActualTypeArguments()(0))
-        .getOrElse(throw new RuntimeException("No type parameter info for type IndexedSeq"))
-        .asInstanceOf[Class[_]],
-        None)
+      val typeInfo = TypeInfo(
+        parameterizedType
+          .map(_.getActualTypeArguments()(0))
+          .getOrElse(throw new RuntimeException("No type parameter info for type IndexedSeq"))
+          .asInstanceOf[Class[_]],
+        None,
+      )
       xs.map(x => Extraction.extract(x, typeInfo)).toArray[Any]
   }
 }

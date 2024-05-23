@@ -1,5 +1,19 @@
-from typing import (Any, Callable, TypeVar, Awaitable, Mapping, Optional, Type, List, Dict,
-                    Iterable, Tuple, AsyncIterator, Iterator, Union)
+from typing import (
+    Any,
+    Callable,
+    TypeVar,
+    Awaitable,
+    Mapping,
+    Optional,
+    Type,
+    List,
+    Dict,
+    Iterable,
+    Tuple,
+    AsyncIterator,
+    Iterator,
+    Union,
+)
 from typing import Literal, Sequence
 from typing_extensions import ParamSpec
 from types import TracebackType
@@ -51,9 +65,7 @@ P = ParamSpec("P")
 
 
 def unpack_comma_delimited_inputs(inputs: List[str]) -> List[str]:
-    return [s.strip()
-            for comma_separated_steps in inputs
-            for s in comma_separated_steps.split(',') if s.strip()]
+    return [s.strip() for comma_separated_steps in inputs for s in comma_separated_steps.split(',') if s.strip()]
 
 
 def unpack_key_value_inputs(inputs: List[str]) -> Dict[str, str]:
@@ -139,8 +151,9 @@ def partition(k: int, ls: Sequence[T]) -> Iterable[Sequence[T]]:
     def generator():
         start = 0
         for part in parts:
-            yield ls[start:start + part]
+            yield ls[start : start + part]
             start += part
+
     return generator()
 
 
@@ -175,30 +188,26 @@ def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
             break
 
 
-async def blocking_to_async(thread_pool: concurrent.futures.Executor,
-                            fun: Callable[..., T],
-                            *args,
-                            **kwargs) -> T:
-    return await asyncio.get_running_loop().run_in_executor(
-        thread_pool, lambda: fun(*args, **kwargs))
+async def blocking_to_async(thread_pool: concurrent.futures.Executor, fun: Callable[..., T], *args, **kwargs) -> T:
+    return await asyncio.get_running_loop().run_in_executor(thread_pool, lambda: fun(*args, **kwargs))
 
 
-async def bounded_gather(*pfs: Callable[[], Awaitable[T]],
-                         parallelism: int = 10,
-                         return_exceptions: bool = False,
-                         cancel_on_error = False,
-                         ) -> List[T]:
+async def bounded_gather(
+    *pfs: Callable[[], Awaitable[T]],
+    parallelism: int = 10,
+    return_exceptions: bool = False,
+    cancel_on_error=False,
+) -> List[T]:
     return await bounded_gather2(
-        asyncio.Semaphore(parallelism),
-        *pfs,
-        return_exceptions=return_exceptions,
-        cancel_on_error=cancel_on_error
+        asyncio.Semaphore(parallelism), *pfs, return_exceptions=return_exceptions, cancel_on_error=cancel_on_error
     )
 
 
 class AsyncWorkerPool:
     def __init__(self, parallelism, queue_size=1000):
-        self._queue: asyncio.Queue[Tuple[Callable, Tuple[Any, ...], Mapping[str, Any]]] = asyncio.Queue(maxsize=queue_size)
+        self._queue: asyncio.Queue[Tuple[Callable, Tuple[Any, ...], Mapping[str, Any]]] = asyncio.Queue(
+            maxsize=queue_size
+        )
         self.workers = {asyncio.ensure_future(self._worker()) for _ in range(parallelism)}
 
     async def _worker(self):
@@ -261,10 +270,9 @@ class WaitableSharedPool:
     async def __aenter__(self) -> 'WaitableSharedPool':
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         await self.wait()
 
 
@@ -276,10 +284,9 @@ class WithoutSemaphore:
         self._sema.release()
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         await self._sema.acquire()
 
 
@@ -288,7 +295,7 @@ class PoolShutdownError(Exception):
 
 
 class OnlineBoundedGather2:
-    '''`OnlineBoundedGather2` provides the capability to run background
+    """`OnlineBoundedGather2` provides the capability to run background
     tasks with bounded parallelism.  It is a context manager, and
     waits for all background tasks to complete on exit.
 
@@ -307,7 +314,7 @@ class OnlineBoundedGather2:
     a background task or into the context manager exit, is raised by
     the context manager exit, and any further exceptions are logged
     and otherwise discarded.
-    '''
+    """
 
     def __init__(self, sema: asyncio.Semaphore):
         self._counter = 0
@@ -322,11 +329,11 @@ class OnlineBoundedGather2:
         self._exception: Optional[BaseException] = None
 
     async def _shutdown(self) -> None:
-        '''Shut down the pool.
+        """Shut down the pool.
 
         Cancel all pending tasks and wait for them to complete.
         Subsequent calls to call will raise `PoolShutdownError`.
-        '''
+        """
 
         if self._pending is None:
             return
@@ -344,13 +351,13 @@ class OnlineBoundedGather2:
         self._done_event.set()
 
     def call(self, f, *args, **kwargs) -> asyncio.Task:
-        '''Invoke a function as a background task.
+        """Invoke a function as a background task.
 
         Return the task, which can be used to wait on (using
         `OnlineBoundedGather2.wait()`) or cancel the task (using
         `asyncio.Task.cancel()`).  Note, waiting on a task using
         `asyncio.wait()` directly can lead to deadlock.
-        '''
+        """
 
         if self._pending is None:
             raise PoolShutdownError
@@ -386,14 +393,14 @@ class OnlineBoundedGather2:
         return t
 
     async def wait(self, tasks: List[asyncio.Task]) -> None:
-        '''Wait for a list of tasks returned to complete.
+        """Wait for a list of tasks returned to complete.
 
         The tasks should be tasks returned from
         `OnlineBoundedGather2.call()`.  They can be a subset of the
         running tasks, `OnlineBoundedGather2.wait()` can be called
         multiple times, and additional tasks can be submitted to the
         pool after waiting.
-        '''
+        """
 
         async with WithoutSemaphore(self._sema):
             await asyncio.wait(tasks)
@@ -401,10 +408,9 @@ class OnlineBoundedGather2:
     async def __aenter__(self) -> 'OnlineBoundedGather2':
         return self
 
-    async def __aexit__(self,
-                        exc_type: Optional[Type[BaseException]],
-                        exc_val: Optional[BaseException],
-                        exc_tb: Optional[TracebackType]) -> None:
+    async def __aexit__(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
         if exc_val:
             if self._exception is None:
                 self._exception = exc_val
@@ -427,10 +433,9 @@ class OnlineBoundedGather2:
 
 
 async def bounded_gather2_return_exceptions(
-        sema: asyncio.Semaphore,
-        *pfs: Callable[[], Awaitable[T]]
+    sema: asyncio.Semaphore, *pfs: Callable[[], Awaitable[T]]
 ) -> List[Union[Tuple[T, None], Tuple[None, Optional[BaseException]]]]:
-    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    """Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the desired level of parallelism.
 
@@ -438,7 +443,8 @@ async def bounded_gather2_return_exceptions(
     the pair `(value, None)` if the partial function returned value or
     `(None, exc)` if the partial function raised the exception `exc`.
 
-    '''
+    """
+
     async def run_with_sema_return_exceptions(pf: Callable[[], Awaitable[T]]):
         try:
             async with sema:
@@ -453,11 +459,9 @@ async def bounded_gather2_return_exceptions(
 
 
 async def bounded_gather2_raise_exceptions(
-        sema: asyncio.Semaphore,
-        *pfs: Callable[[], Awaitable[T]],
-        cancel_on_error: bool = False
+    sema: asyncio.Semaphore, *pfs: Callable[[], Awaitable[T]], cancel_on_error: bool = False
 ) -> List[T]:
-    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    """Run the partial functions `pfs` as tasks with parallelism bounded
     by `sema`, which should be `asyncio.Semaphore` whose initial value
     is the level of parallelism.
 
@@ -470,7 +474,8 @@ async def bounded_gather2_raise_exceptions(
     functions continue to run with bounded parallelism.  If
     cancel_on_error is True, the unfinished tasks are all cancelled.
 
-    '''
+    """
+
     async def run_with_sema(pf: Callable[[], Awaitable[T]]):
         async with sema:
             return await pf()
@@ -500,10 +505,10 @@ async def bounded_gather2_raise_exceptions(
 
 
 async def bounded_gather2(
-        sema: asyncio.Semaphore,
-        *pfs: Callable[[], Awaitable[T]],
-        return_exceptions: bool = False,
-        cancel_on_error: bool = False
+    sema: asyncio.Semaphore,
+    *pfs: Callable[[], Awaitable[T]],
+    return_exceptions: bool = False,
+    cancel_on_error: bool = False,
 ) -> List[T]:
     if return_exceptions:
         if cancel_on_error:
@@ -527,6 +532,7 @@ if os.environ.get('HAIL_DONT_RETRY_500') == '1':
 RETRYABLE_ERRNOS = {
     # these should match (where an equivalent exists) nettyRetryableErrorNumbers in
     # is/hail/services/package.scala
+    errno.EADDRNOTAVAIL,
     errno.ETIMEDOUT,
     errno.ECONNREFUSED,
     errno.EHOSTUNREACH,
@@ -551,10 +557,9 @@ def is_limited_retries_error(e: BaseException) -> bool:
     # provider can manifest as this exception *and* that manifestation is indistinguishable from a
     # true error.
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
+
     if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
-        return (e.status == 404
-                and 'azurecr.io' in e.message
-                and 'not found: manifest unknown: ' in e.message)
+        return e.status == 404 and 'azurecr.io' in e.message and 'not found: manifest unknown: ' in e.message
     if isinstance(e, hailtop.httpx.ClientResponseError):
         return e.status == 400 and any(msg in e.body for msg in RETRY_ONCE_BAD_REQUEST_ERROR_MESSAGES)
     if isinstance(e, ConnectionResetError):
@@ -615,16 +620,18 @@ def is_transient_error(e: BaseException) -> bool:
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
     import hailtop.aiocloud.aiogoogle.client.compute_client  # pylint: disable=import-outside-toplevel,cyclic-import
     import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
-    if (isinstance(e, aiohttp.ClientResponseError)
-            and e.status in RETRYABLE_HTTP_STATUS_CODES):
+
+    if isinstance(e, aiohttp.ClientResponseError) and e.status in RETRYABLE_HTTP_STATUS_CODES:
         return True
-    if (isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
-            and e.error_codes is not None
-            and 'QUOTA_EXCEEDED' in e.error_codes):
+    if (
+        isinstance(e, hailtop.aiocloud.aiogoogle.client.compute_client.GCPOperationError)
+        and e.error_codes is not None
+        and 'QUOTA_EXCEEDED' in e.error_codes
+    ):
         return True
-    if (isinstance(e, hailtop.httpx.ClientResponseError)
-            and (e.status in RETRYABLE_HTTP_STATUS_CODES
-                 or e.status == 403 and 'rateLimitExceeded' in e.body)):
+    if isinstance(e, hailtop.httpx.ClientResponseError) and (
+        e.status in RETRYABLE_HTTP_STATUS_CODES or e.status == 403 and 'rateLimitExceeded' in e.body
+    ):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
@@ -632,17 +639,14 @@ def is_transient_error(e: BaseException) -> bool:
         return True
     if isinstance(e, asyncio.TimeoutError):
         return True
-    if (isinstance(e, aiohttp.ClientConnectorError)
-            and is_transient_error(e.os_error)):
+    if isinstance(e, aiohttp.ClientConnectorError) and is_transient_error(e.os_error):
         return True
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
-    if (isinstance(e, aiohttp.ClientPayloadError)
-            and e.args[0] == "Response payload is not completed"):
+    if isinstance(e, aiohttp.ClientPayloadError) and e.args[0] == "Response payload is not completed":
         return True
-    if (isinstance(e, aiohttp.ClientOSError)
-            and 'sslv3 alert bad record mac' in e.strerror):
+    if isinstance(e, aiohttp.ClientOSError) and 'sslv3 alert bad record mac' in e.strerror:
         # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
         #
         # This appears to be a symptom of Google rate-limiting as of 2023-10-15
@@ -666,7 +670,10 @@ def is_transient_error(e: BaseException) -> bool:
     if aiodocker is not None and isinstance(e, aiodocker.exceptions.DockerError):
         if e.status == 500 and 'Invalid repository name' in e.message:
             return False
-        if e.status == 500 and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message:
+        if (
+            e.status == 500
+            and 'Permission "artifactregistry.repositories.downloadArtifacts" denied on resource' in e.message
+        ):
             return False
         if e.status == 500 and 'denied: retrieving permissions failed' in e.message:
             return False
@@ -696,9 +703,7 @@ DEFAULT_BASE_DELAY_MS = 1_000
 
 
 def delay_ms_for_try(
-    tries: int,
-    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
-    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+    tries: int, base_delay_ms: int = DEFAULT_BASE_DELAY_MS, max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 ) -> int:
     # Based on AWS' recommendations:
     # - https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/
@@ -710,17 +715,13 @@ def delay_ms_for_try(
 
 
 async def sleep_before_try(
-    tries: int,
-    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
-    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+    tries: int, base_delay_ms: int = DEFAULT_BASE_DELAY_MS, max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 ):
     await asyncio.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
 
 
 def sync_sleep_before_try(
-    tries: int,
-    base_delay_ms: int = DEFAULT_BASE_DELAY_MS,
-    max_delay_ms: int = DEFAULT_MAX_DELAY_MS
+    tries: int, base_delay_ms: int = DEFAULT_BASE_DELAY_MS, max_delay_ms: int = DEFAULT_MAX_DELAY_MS
 ):
     time.sleep(delay_ms_for_try(tries, base_delay_ms, max_delay_ms) / 1000.0)
 
@@ -740,6 +741,7 @@ def retry_all_errors(msg: Optional[str] = None, error_logging_interval: int = 10
                 if msg and tries % error_logging_interval == 0:
                     log.exception(msg, stack_info=True)
             await sleep_before_try(tries)
+
     return _wrapper
 
 
@@ -760,6 +762,7 @@ def retry_all_errors_n_times(max_errors: int = 10, msg: Optional[str] = None, er
                 if tries >= max_errors:
                     raise
             await sleep_before_try(tries)
+
     return _wrapper
 
 
@@ -767,11 +770,15 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
     return await retry_transient_errors_with_debug_string('', 0, f, *args, **kwargs)
 
 
-async def retry_transient_errors_with_delayed_warnings(warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def retry_transient_errors_with_delayed_warnings(
+    warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs
+) -> T:
     return await retry_transient_errors_with_debug_string('', warning_delay_msecs, f, *args, **kwargs)
 
 
-async def retry_transient_errors_with_debug_string(debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def retry_transient_errors_with_debug_string(
+    debug_string: str, warning_delay_msecs: int, f: Callable[..., Awaitable[T]], *args, **kwargs
+) -> T:
     start_time = time_msecs()
     tries = 0
     while True:
@@ -793,14 +800,19 @@ async def retry_transient_errors_with_debug_string(debug_string: str, warning_de
             else:
                 log_warnings = (time_msecs() - start_time >= warning_delay_msecs) or not is_delayed_warning_error(e)
                 if log_warnings and tries == 2:
-                    log.warning(f'A transient error occured. We will automatically retry. Do not be alarmed. '
-                                f'We have thus far seen {tries} transient errors (next delay: '
-                                f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}')
+                    log.warning(
+                        f'A transient error occured. We will automatically retry. Do not be alarmed. '
+                        f'We have thus far seen {tries} transient errors (next delay: '
+                        f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}'
+                    )
                 elif log_warnings and tries % 10 == 0:
                     st = ''.join(traceback.format_stack())
-                    log.warning(f'A transient error occured. We will automatically retry. '
-                                f'We have thus far seen {tries} transient errors (next delay: '
-                                f'{delay}s). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}', exc_info=True)
+                    log.warning(
+                        f'A transient error occured. We will automatically retry. '
+                        f'We have thus far seen {tries} transient errors (next delay: '
+                        f'{delay}s). The stack trace for this call is {st}. The most recent error was {type(e)} {e}. {debug_string}',
+                        exc_info=True,
+                    )
         await asyncio.sleep(delay)
 
 
@@ -815,7 +827,9 @@ def sync_retry_transient_errors(f: Callable[..., T], *args, **kwargs) -> T:
             tries += 1
             if tries % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'Encountered {tries} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(
+                    f'Encountered {tries} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True
+                )
             if is_transient_error(e):
                 pass
             else:
@@ -825,15 +839,12 @@ def sync_retry_transient_errors(f: Callable[..., T], *args, **kwargs) -> T:
 
 def retry_response_returning_functions(fun, *args, **kwargs):
     tries = 0
-    response = sync_retry_transient_errors(
-        fun, *args, **kwargs)
+    response = sync_retry_transient_errors(fun, *args, **kwargs)
     while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
         tries += 1
         if tries % 10 == 0:
-            log.warning(f'encountered {tries} bad status codes, most recent '
-                        f'one was {response.status_code}')
-        response = sync_retry_transient_errors(
-            fun, *args, **kwargs)
+            log.warning(f'encountered {tries} bad status codes, most recent ' f'one was {response.status_code}')
+        response = sync_retry_transient_errors(fun, *args, **kwargs)
         sync_sleep_before_try(tries)
     return response
 
@@ -854,13 +865,11 @@ class TimeoutHTTPAdapter(HTTPAdapter):
         self.timeout = timeout
         super().__init__(max_retries=max_retries)
 
-    def init_poolmanager(self, connections, maxsize, block=False):
+    def init_poolmanager(self, connections, maxsize, block=False, **pool_kwargs):
+        assert len(pool_kwargs) == 0
         self.poolmanager = PoolManager(
-            num_pools=connections,
-            maxsize=maxsize,
-            block=block,
-            retries=self.max_retries,
-            timeout=self.timeout)
+            num_pools=connections, maxsize=maxsize, block=block, retries=self.max_retries, timeout=self.timeout
+        )
 
 
 async def collect_aiter(aiter: AsyncIterator[T]) -> List[T]:
@@ -892,9 +901,7 @@ async def retry_long_running(name: str, f: Callable[P, Awaitable[T]], *args: P.a
             await asyncio.sleep(t)
 
             ran_for_secs = (end_time - start_time) * 1000
-            delay_secs = min(
-                max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
-                30.0)
+            delay_secs = min(max(0.1, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)), 30.0)
 
 
 async def run_if_changed(changed: asyncio.Event, f: Callable[..., Awaitable[bool]], *args, **kwargs):
@@ -926,6 +933,7 @@ async def periodically_call(period: Union[int, float], f: Callable[..., Awaitabl
         while True:
             await f(*args, **kwargs)
             await asyncio.sleep(period)
+
     await retry_long_running(f.__name__, loop)
 
 
@@ -935,6 +943,7 @@ async def periodically_call_with_dynamic_sleep(period: Callable[[], Union[int, f
         while True:
             await f(*args, **kwargs)
             await asyncio.sleep(period())
+
     await retry_long_running(f.__name__, loop)
 
 
@@ -995,8 +1004,8 @@ def url_scheme(url: str) -> str:
 
 def url_and_params(url: str) -> Tuple[str, Dict[str, str]]:
     """Strip the query parameters from `url` and parse them into a dictionary.
-       Assumes that all query parameters are used only once, so have only one
-       value.
+    Assumes that all query parameters are used only once, so have only one
+    value.
     """
     parsed = urllib.parse.urlparse(url)
     params = {k: v[0] for k, v in urllib.parse.parse_qs(parsed.query).items()}
@@ -1067,15 +1076,13 @@ class Notice:
 def find_spark_home() -> str:
     spark_home = os.environ.get('SPARK_HOME')
     if spark_home is None:
-        find_spark_home = subprocess.run('find_spark_home.py',
-                                         capture_output=True,
-                                         check=False)
+        find_spark_home = subprocess.run('find_spark_home.py', capture_output=True, check=False)
         if find_spark_home.returncode != 0:
-            raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
+            raise ValueError(f"""SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
 STDOUT:
 {find_spark_home.stdout!r}
 STDERR:
-{find_spark_home.stderr!r}''')
+{find_spark_home.stderr!r}""")
         spark_home = find_spark_home.stdout.decode().strip()
     return spark_home
 

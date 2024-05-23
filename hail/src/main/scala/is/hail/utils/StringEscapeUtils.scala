@@ -6,9 +6,12 @@ object StringEscapeUtils {
 
   def hex(ch: Char): String = Integer.toHexString(ch).toUpperCase(Locale.ENGLISH)
 
-  def escapeStringSimple(str: String, escapeChar: Char,
+  def escapeStringSimple(
+    str: String,
+    escapeChar: Char,
     escapeFirst: (Char) => Boolean,
-    escape: (Char) => Boolean): String = {
+    escape: (Char) => Boolean,
+  ): String = {
     val sb = new StringBuilder
     var i: Int = 0
     while (i < str.length) {
@@ -95,8 +98,7 @@ object StringEscapeUtils {
           case _ =>
             if (ch > 0xf) {
               sb.append("\\u00" + hex(ch))
-            }
-            else {
+            } else {
               sb.append("\\u000" + hex(ch))
             }
         }
@@ -127,7 +129,8 @@ object StringEscapeUtils {
     sb.result()
   }
 
-  def unescapeString(str: String): String = unescapeString(str, new StringBuilder(capacity = str.length))
+  def unescapeString(str: String): String =
+    unescapeString(str, new StringBuilder(capacity = str.length))
 
   def unescapeString(str: String, sb: StringBuilder): String = {
     sb.clear()
@@ -154,7 +157,7 @@ object StringEscapeUtils {
             inUnicode = false
             hadSlash = false
           } catch {
-            case nfe: NumberFormatException =>
+            case _: NumberFormatException =>
               fatal("Unable to parse unicode value: " + unicode)
           }
         }

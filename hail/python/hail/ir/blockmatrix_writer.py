@@ -29,22 +29,26 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
         self.stage_locally = stage_locally
 
     def render(self):
-        writer = {'name': 'BlockMatrixNativeWriter',
-                  'path': self.path,
-                  'overwrite': self.overwrite,
-                  'forceRowMajor': self.force_row_major,
-                  'stageLocally': self.stage_locally}
+        writer = {
+            'name': 'BlockMatrixNativeWriter',
+            'path': self.path,
+            'overwrite': self.overwrite,
+            'forceRowMajor': self.force_row_major,
+            'stageLocally': self.stage_locally,
+        }
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tvoid
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixNativeWriter) and \
-            self.path == other.path and \
-            self.overwrite == other.overwrite and \
-            self.force_row_major == other.force_row_major and \
-            self.stage_locally == other.stage_locally
+        return (
+            isinstance(other, BlockMatrixNativeWriter)
+            and self.path == other.path
+            and self.overwrite == other.overwrite
+            and self.force_row_major == other.force_row_major
+            and self.stage_locally == other.stage_locally
+        )
 
 
 class BlockMatrixBinaryWriter(BlockMatrixWriter):
@@ -53,23 +57,18 @@ class BlockMatrixBinaryWriter(BlockMatrixWriter):
         self.path = path
 
     def render(self):
-        writer = {'name': 'BlockMatrixBinaryWriter',
-                  'path': self.path}
+        writer = {'name': 'BlockMatrixBinaryWriter', 'path': self.path}
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tstr
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixBinaryWriter) and \
-            self.path == other.path
+        return isinstance(other, BlockMatrixBinaryWriter) and self.path == other.path
 
 
 class BlockMatrixRectanglesWriter(BlockMatrixWriter):
-    @typecheck_method(path=str,
-                      rectangles=sequenceof(sequenceof(int)),
-                      delimiter=str,
-                      binary=bool)
+    @typecheck_method(path=str, rectangles=sequenceof(sequenceof(int)), delimiter=str, binary=bool)
     def __init__(self, path, rectangles, delimiter, binary):
         self.path = path
         self.rectangles = rectangles
@@ -77,22 +76,26 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
         self.binary = binary
 
     def render(self):
-        writer = {'name': 'BlockMatrixRectanglesWriter',
-                  'path': self.path,
-                  'rectangles': self.rectangles,
-                  'delimiter': self.delimiter,
-                  'binary': self.binary}
+        writer = {
+            'name': 'BlockMatrixRectanglesWriter',
+            'path': self.path,
+            'rectangles': self.rectangles,
+            'delimiter': self.delimiter,
+            'binary': self.binary,
+        }
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tvoid
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixRectanglesWriter) and \
-            self.path == other.path and \
-            self.rectangles == other.rectangles and \
-            self.delimiter == other.delimiter and \
-            self.binary == other.binary
+        return (
+            isinstance(other, BlockMatrixRectanglesWriter)
+            and self.path == other.path
+            and self.rectangles == other.rectangles
+            and self.delimiter == other.delimiter
+            and self.binary == other.binary
+        )
 
 
 class BlockMatrixMultiWriter(object):
@@ -115,23 +118,30 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
         self.overwrite = overwrite
 
     def render(self):
-        writer = {'name': 'BlockMatrixBinaryMultiWriter',
-                  'prefix': self.prefix,
-                  'overwrite': self.overwrite}
+        writer = {'name': 'BlockMatrixBinaryMultiWriter', 'prefix': self.prefix, 'overwrite': self.overwrite}
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tvoid
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixBinaryMultiWriter) and \
-            self.prefix == other.prefix and \
-            self.overwrite == other.overwrite
+        return (
+            isinstance(other, BlockMatrixBinaryMultiWriter)
+            and self.prefix == other.prefix
+            and self.overwrite == other.overwrite
+        )
 
 
 class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
-    @typecheck_method(prefix=str, overwrite=bool, delimiter=str, header=nullable(str), add_index=bool,
-                      compression=nullable(enumeration('gz', 'bgz')), custom_filenames=nullable(sequenceof(str)))
+    @typecheck_method(
+        prefix=str,
+        overwrite=bool,
+        delimiter=str,
+        header=nullable(str),
+        add_index=bool,
+        compression=nullable(enumeration('gz', 'bgz')),
+        custom_filenames=nullable(sequenceof(str)),
+    )
     def __init__(self, prefix, overwrite, delimiter, header, add_index, compression, custom_filenames):
         self.prefix = prefix
         self.overwrite = overwrite
@@ -142,28 +152,32 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
         self.custom_filenames = custom_filenames
 
     def render(self):
-        writer = {'name': 'BlockMatrixTextMultiWriter',
-                  'prefix': self.prefix,
-                  'overwrite': self.overwrite,
-                  'delimiter': self.delimiter,
-                  'header': self.header,
-                  'addIndex': self.add_index,
-                  'compression': self.compression,
-                  'customFilenames': self.custom_filenames}
+        writer = {
+            'name': 'BlockMatrixTextMultiWriter',
+            'prefix': self.prefix,
+            'overwrite': self.overwrite,
+            'delimiter': self.delimiter,
+            'header': self.header,
+            'addIndex': self.add_index,
+            'compression': self.compression,
+            'customFilenames': self.custom_filenames,
+        }
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tvoid
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixTextMultiWriter) and \
-            self.prefix == other.prefix and \
-            self.overwrite == other.overwrite and \
-            self.delimiter == other.overwrite and \
-            self.header == other.header and \
-            self.add_index == other.add_index and \
-            self.compression == other.compression and \
-            self.custom_filenames == other.custom_filenames
+        return (
+            isinstance(other, BlockMatrixTextMultiWriter)
+            and self.prefix == other.prefix
+            and self.overwrite == other.overwrite
+            and self.delimiter == other.overwrite
+            and self.header == other.header
+            and self.add_index == other.add_index
+            and self.compression == other.compression
+            and self.custom_filenames == other.custom_filenames
+        )
 
 
 class BlockMatrixPersistWriter(BlockMatrixWriter):
@@ -173,18 +187,18 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
         self.storage_level = storage_level
 
     def render(self):
-        writer = {'name': 'BlockMatrixPersistWriter',
-                  'id': self.id,
-                  'storageLevel': self.storage_level}
+        writer = {'name': 'BlockMatrixPersistWriter', 'id': self.id, 'storageLevel': self.storage_level}
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tvoid
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixPersistWriter) and \
-            self.id == other.id and \
-            self.storage_level == other.storage_level
+        return (
+            isinstance(other, BlockMatrixPersistWriter)
+            and self.id == other.id
+            and self.storage_level == other.storage_level
+        )
 
 
 class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
@@ -196,19 +210,23 @@ class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
         self.stage_locally = stage_locally
 
     def render(self):
-        writer = {'name': 'BlockMatrixNativeMultiWriter',
-                  'prefix': self.prefix,
-                  'overwrite': self.overwrite,
-                  'forceRowMajor': self.force_row_major,
-                  'stageLocally': self.stage_locally}
+        writer = {
+            'name': 'BlockMatrixNativeMultiWriter',
+            'prefix': self.prefix,
+            'overwrite': self.overwrite,
+            'forceRowMajor': self.force_row_major,
+            'stageLocally': self.stage_locally,
+        }
         return escape_str(json.dumps(writer))
 
     def _type(self):
         return tvoid
 
     def __eq__(self, other):
-        return isinstance(other, BlockMatrixNativeMultiWriter) and \
-            self.prefix == other.prefix and \
-            self.overwrite == other.overwrite and \
-            self.force_row_major == other.force_row_major and \
-            self.stage_locally == other.stage_locally
+        return (
+            isinstance(other, BlockMatrixNativeMultiWriter)
+            and self.prefix == other.prefix
+            and self.overwrite == other.overwrite
+            and self.force_row_major == other.force_row_major
+            and self.stage_locally == other.stage_locally
+        )

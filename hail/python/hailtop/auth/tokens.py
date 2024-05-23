@@ -21,13 +21,13 @@ def session_id_decode_from_str(session_id_str: str) -> bytes:
 class NotLoggedInError(Exception):
     def __init__(self, ns_arg):
         super().__init__()
-        self.message = f'''
+        self.message = f"""
 You are not authenticated.  Please log in with:
 
   $ hailctl auth login {ns_arg}
 
 to obtain new credentials.
-'''
+"""
 
     def __str__(self):
         return self.message
@@ -37,11 +37,14 @@ class Tokens(collections.abc.MutableMapping):
     @staticmethod
     def get_tokens_file() -> str:
         default_enduser_token_file = os.path.expanduser('~/.hail/tokens.json')
-        return first_extant_file(
-            os.environ.get('HAIL_TOKENS_FILE'),
-            default_enduser_token_file,
-            '/user-tokens/tokens.json',
-        ) or default_enduser_token_file
+        return (
+            first_extant_file(
+                os.environ.get('HAIL_TOKENS_FILE'),
+                default_enduser_token_file,
+                '/user-tokens/tokens.json',
+            )
+            or default_enduser_token_file
+        )
 
     @staticmethod
     def default_tokens() -> 'Tokens':
@@ -100,13 +103,7 @@ class Tokens(collections.abc.MutableMapping):
     def write(self) -> None:
         # restrict permissions to user
         with os.fdopen(
-                os.open(
-                    self.get_tokens_file(),
-                    os.O_CREAT | os.O_WRONLY | os.O_TRUNC,
-                    0o600
-                ),
-                'w',
-                encoding='utf-8'
+            os.open(self.get_tokens_file(), os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600), 'w', encoding='utf-8'
         ) as f:
             json.dump(self._tokens, f)
 

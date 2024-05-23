@@ -4,12 +4,7 @@ import hail as hl
 from hail.utils.java import Env
 from hail.backend.backend import Backend
 from hail.backend.spark_backend import SparkBackend
-from test.hail.helpers import (skip_unless_spark_backend,
-                               hl_init_for_test,
-                               hl_stop_for_test,
-                               qobtest,
-                               with_flags
-                               )
+from test.hail.helpers import skip_unless_spark_backend, hl_init_for_test, hl_stop_for_test, qobtest, with_flags
 
 
 def _scala_map_str_to_tuple_str_str_to_dict(scala) -> Dict[str, Tuple[Optional[str], Optional[str]]]:
@@ -57,8 +52,8 @@ def test_tmpdir_runs():
 
 
 def test_get_flags():
-     assert hl._get_flags() == {}
-     assert list(hl._get_flags('use_new_shuffle')) == ['use_new_shuffle']
+    assert hl._get_flags() == {}
+    assert list(hl._get_flags('use_new_shuffle')) == ['use_new_shuffle']
 
 
 @skip_unless_spark_backend(reason='requires JVM')
@@ -72,23 +67,17 @@ def test_flags_same_in_scala_and_python():
 
 def test_fast_restarts_feature():
     def is_featured_off():
-        return hl._get_flags('use_fast_restarts', 'cachedir') == {
-            'use_fast_restarts': None,
-            'cachedir': None
-        }
+        return hl._get_flags('use_fast_restarts', 'cachedir') == {'use_fast_restarts': None, 'cachedir': None}
 
     @with_flags(use_fast_restarts='1')
     def uses_fast_restarts():
-        return hl._get_flags('use_fast_restarts', 'cachedir') == {
-            'use_fast_restarts': '1',
-            'cachedir': None
-        }
+        return hl._get_flags('use_fast_restarts', 'cachedir') == {'use_fast_restarts': '1', 'cachedir': None}
 
     @with_flags(use_fast_restarts='1', cachedir='gs://my-bucket/object-prefix')
     def uses_cachedir():
         return hl._get_flags('use_fast_restarts', 'cachedir') == {
             'use_fast_restarts': '1',
-            'cachedir': 'gs://my-bucket/object-prefix'
+            'cachedir': 'gs://my-bucket/object-prefix',
         }
 
     assert is_featured_off()

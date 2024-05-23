@@ -1,6 +1,8 @@
 package is.hail.expr
 
-import is.hail.expr.ir.{BaseIR, BlockMatrixRead, BlockMatrixWrite, MatrixRead, MatrixWrite, TableRead, TableWrite}
+import is.hail.expr.ir.{
+  BaseIR, BlockMatrixRead, BlockMatrixWrite, MatrixRead, MatrixWrite, TableRead, TableWrite,
+}
 import is.hail.utils._
 
 case class ValidateState(writeFilePaths: Set[String])
@@ -16,14 +18,14 @@ object Validate {
   private def validate(ir: BaseIR, state: ValidateState): Unit = {
     ir match {
       case tr: TableRead => tr.tr.pathsUsed.foreach { path =>
-        if (state.writeFilePaths.contains(path))
-          fileReadWriteError(path)
-      }
+          if (state.writeFilePaths.contains(path))
+            fileReadWriteError(path)
+        }
       case mr: MatrixRead => mr.reader.pathsUsed.foreach { path =>
-        if (state.writeFilePaths.contains(path))
-          fileReadWriteError(path)
-      }
-      case bmr: BlockMatrixRead =>
+          if (state.writeFilePaths.contains(path))
+            fileReadWriteError(path)
+        }
+      case _: BlockMatrixRead =>
       case tw: TableWrite =>
         val newState = state.copy(writeFilePaths = state.writeFilePaths + tw.writer.path)
         validate(tw.child, newState)

@@ -23,19 +23,19 @@ async def add_deployed_services(
 ):
     expiration = expiration_time.strftime('%Y-%m-%d %H:%M:%S') if expiration_time else None
     await db.execute_insertone(
-        '''
+        """
 INSERT INTO active_namespaces (`namespace`, `expiration_time`)
 VALUES (%s, %s) as new_ns
 ON DUPLICATE KEY UPDATE expiration_time = new_ns.expiration_time
-        ''',
+        """,
         (namespace, expiration),
     )
     await db.execute_many(
-        '''
+        """
 INSERT INTO deployed_services (`namespace`, `service`)
 VALUES (%s, %s)
 ON DUPLICATE KEY UPDATE namespace = namespace;
-''',
+""",
         [(namespace, service) for service in services],
     )
 
@@ -64,15 +64,13 @@ def gcp_service_logging_url(
 ) -> str:
     service_queries = []
     for service in services:
-        service_queries.append(
-            f'''
+        service_queries.append(f"""
 (
 resource.type="k8s_container"
 resource.labels.namespace_name="{namespace}"
 resource.labels.container_name="{service}"
 )
-'''
-        )
+""")
 
     query = ' OR '.join(service_queries)
 
@@ -87,13 +85,13 @@ resource.labels.container_name="{service}"
 def gcp_worker_logging_url(
     project: str, namespace: str, start_time: str, end_time: Optional[str], severity: Optional[List[str]]
 ) -> str:
-    query = f'''
+    query = f"""
 (
 resource.type="gce_instance"
 logName:"worker"
 labels.namespace="{namespace}"
 )
-'''
+"""
 
     if severity is not None:
         query += severity_query_str(severity)

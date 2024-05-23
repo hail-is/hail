@@ -51,10 +51,10 @@ async def insert_user_if_not_exists(app, username, login_id, is_developer, is_se
             namespace_name = None
 
         return await tx.execute_insertone(
-            '''
+            """
     INSERT INTO users (state, username, login_id, is_developer, is_service_account, hail_identity, hail_credentials_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-    ''',
+    """,
             (
                 'creating',
                 username,

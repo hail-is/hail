@@ -4,9 +4,8 @@ import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.types.virtual.{TArray, TCall, TInt32, TStruct}
 import is.hail.utils._
-import org.apache.spark.sql.Row
 
-import scala.language.implicitConversions
+import org.apache.spark.sql.Row
 
 object GenotypeType extends Enumeration {
   type GenotypeType = Value
@@ -23,12 +22,11 @@ object AllelePair {
     j | (k << 16)
   }
 
-  def fromNonNormalized(j: Int, k: Int): Int = {
+  def fromNonNormalized(j: Int, k: Int): Int =
     if (j <= k)
       AllelePair(j, k)
     else
       AllelePair(k, j)
-  }
 
   def j(p: Int): Int = p & 0xffff
   def k(p: Int): Int = (p >> 16) & 0xffff
@@ -45,7 +43,8 @@ object Genotype {
     "AD" -> TArray(TInt32),
     "DP" -> TInt32,
     "GQ" -> TInt32,
-    "PL" -> TArray(TInt32))
+    "PL" -> TArray(TInt32),
+  )
 
   def call(g: Annotation): Option[Call] = {
     if (g == null)
@@ -61,15 +60,29 @@ object Genotype {
 
   def apply(c: BoxedCall): Annotation = Annotation(c, null, null, null, null)
 
-  def apply(c: BoxedCall, ad: Array[Int], dp: java.lang.Integer, gq: java.lang.Integer, pl: Array[Int]): Annotation =
+  def apply(
+    c: BoxedCall,
+    ad: Array[Int],
+    dp: java.lang.Integer,
+    gq: java.lang.Integer,
+    pl: Array[Int],
+  ): Annotation =
     Annotation(c, ad: IndexedSeq[Int], dp, gq, pl: IndexedSeq[Int])
 
-  def apply(c: Option[Call] = None,
+  def apply(
+    c: Option[Call] = None,
     ad: Option[Array[Int]] = None,
     dp: Option[Int] = None,
     gq: Option[Int] = None,
-    pl: Option[Array[Int]] = None): Annotation =
-    Annotation(c.orNull, ad.map(adx => adx: IndexedSeq[Int]).orNull, dp.orNull, gq.orNull, pl.map(plx => plx: IndexedSeq[Int]).orNull)
+    pl: Option[Array[Int]] = None,
+  ): Annotation =
+    Annotation(
+      c.orNull,
+      ad.map(adx => adx: IndexedSeq[Int]).orNull,
+      dp.orNull,
+      gq.orNull,
+      pl.map(plx => plx: IndexedSeq[Int]).orNull,
+    )
 
   def gqFromPL(pl: Array[Int]): Int = {
     var m = 99
@@ -127,7 +140,9 @@ object Genotype {
 
   val maxPhredInTable = 8192
 
-  lazy val phredToLinearConversionTable: Array[Double] = (0 to maxPhredInTable).map { i => math.pow(10, i / -10.0) }.toArray
+  lazy val phredToLinearConversionTable: Array[Double] = (0 to maxPhredInTable).map { i =>
+    math.pow(10, i / -10.0)
+  }.toArray
 
   def phredToLinear(i: Int): Double =
     if (i < maxPhredInTable) phredToLinearConversionTable(i) else math.pow(10, i / -10.0)
@@ -140,15 +155,44 @@ object Genotype {
     (p1 + 2 * p2) / (p0 + p1 + p2)
   }
 
-  val smallAllelePair: Array[Int] = Array(AllelePair(0, 0), AllelePair(0, 1), AllelePair(1, 1),
-    AllelePair(0, 2), AllelePair(1, 2), AllelePair(2, 2),
-    AllelePair(0, 3), AllelePair(1, 3), AllelePair(2, 3), AllelePair(3, 3),
-    AllelePair(0, 4), AllelePair(1, 4), AllelePair(2, 4), AllelePair(3, 4), AllelePair(4, 4),
-    AllelePair(0, 5), AllelePair(1, 5), AllelePair(2, 5), AllelePair(3, 5), AllelePair(4, 5), AllelePair(5, 5),
-    AllelePair(0, 6), AllelePair(1, 6), AllelePair(2, 6), AllelePair(3, 6), AllelePair(4, 6), AllelePair(5, 6),
+  val smallAllelePair: Array[Int] = Array(
+    AllelePair(0, 0),
+    AllelePair(0, 1),
+    AllelePair(1, 1),
+    AllelePair(0, 2),
+    AllelePair(1, 2),
+    AllelePair(2, 2),
+    AllelePair(0, 3),
+    AllelePair(1, 3),
+    AllelePair(2, 3),
+    AllelePair(3, 3),
+    AllelePair(0, 4),
+    AllelePair(1, 4),
+    AllelePair(2, 4),
+    AllelePair(3, 4),
+    AllelePair(4, 4),
+    AllelePair(0, 5),
+    AllelePair(1, 5),
+    AllelePair(2, 5),
+    AllelePair(3, 5),
+    AllelePair(4, 5),
+    AllelePair(5, 5),
+    AllelePair(0, 6),
+    AllelePair(1, 6),
+    AllelePair(2, 6),
+    AllelePair(3, 6),
+    AllelePair(4, 6),
+    AllelePair(5, 6),
     AllelePair(6, 6),
-    AllelePair(0, 7), AllelePair(1, 7), AllelePair(2, 7), AllelePair(3, 7), AllelePair(4, 7),
-    AllelePair(5, 7), AllelePair(6, 7), AllelePair(7, 7))
+    AllelePair(0, 7),
+    AllelePair(1, 7),
+    AllelePair(2, 7),
+    AllelePair(3, 7),
+    AllelePair(4, 7),
+    AllelePair(5, 7),
+    AllelePair(6, 7),
+    AllelePair(7, 7),
+  )
 
   val smallAlleleJ: Array[Int] = smallAllelePair.map(AllelePair.j)
   val smallAlleleK: Array[Int] = smallAllelePair.map(AllelePair.k)
@@ -175,12 +219,11 @@ object Genotype {
     AllelePair(j, k)
   }
 
-  def allelePair(i: Int): Int = {
+  def allelePair(i: Int): Int =
     if (i < smallAllelePair.length)
       smallAllelePair(i)
     else
       allelePairSqrt(i)
-  }
 
   def diploidGtIndex(j: Int, k: Int): Int = {
     if (j < 0 | j > k) {
@@ -191,26 +234,26 @@ object Genotype {
 
   def diploidGtIndex(p: Int): Int = diploidGtIndex(AllelePair.j(p), AllelePair.k(p))
 
-  def diploidGtIndexWithSwap(i: Int, j: Int): Int = {
+  def diploidGtIndexWithSwap(i: Int, j: Int): Int =
     if (j < i)
       diploidGtIndex(j, i)
     else
       diploidGtIndex(i, j)
-  }
 
   def genExtremeNonmissing(nAlleles: Int): Gen[Annotation] = {
     val m = Int.MaxValue / (nAlleles + 1)
     val nGenotypes = triangle(nAlleles)
-    val gg = for (c: Option[Call] <- Gen.option(Call.genUnphasedDiploid(nAlleles));
-      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles, Gen.choose(0, m)));
-      dp <- Gen.option(Gen.choose(0, m));
-      gq <- Gen.option(Gen.choose(0, 10000));
+    val gg = for {
+      c: Option[Call] <- Gen.option(Call.genUnphasedDiploid(nAlleles))
+      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles, Gen.choose(0, m)))
+      dp <- Gen.option(Gen.choose(0, m))
+      gq <- Gen.option(Gen.choose(0, 10000))
       pl <- Gen.oneOfGen(
         Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, m))),
-        Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 100))))) yield {
-      c.foreach { c =>
-        pl.foreach { pla => pla(Call.unphasedDiploidGtIndex(c)) = 0 }
-      }
+        Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 100))),
+      )
+    } yield {
+      c.foreach(c => pl.foreach(pla => pla(Call.unphasedDiploidGtIndex(c)) = 0))
       pl.foreach { pla =>
         val m = pla.min
         var i = 0
@@ -219,35 +262,41 @@ object Genotype {
           i += 1
         }
       }
-      val g = Annotation(c.orNull,
+      val g = Annotation(
+        c.orNull,
         ad.map(a => a: IndexedSeq[Int]).orNull,
         dp.map(_ + ad.map(_.sum).getOrElse(0)).orNull,
         gq.orNull,
-        pl.map(a => a: IndexedSeq[Int]).orNull)
+        pl.map(a => a: IndexedSeq[Int]).orNull,
+      )
       g
     }
     gg
   }
 
-  def genExtreme(nAlleles: Int): Gen[Annotation] = {
+  def genExtreme(nAlleles: Int): Gen[Annotation] =
     Gen.frequency(
       (100, genExtremeNonmissing(nAlleles)),
-      (1, Gen.const(null)))
-  }
+      (1, Gen.const(null)),
+    )
 
   def genRealisticNonmissing(nAlleles: Int): Gen[Annotation] = {
     val nGenotypes = triangle(nAlleles)
-    val gg = for (callRate <- Gen.choose(0d, 1d);
-      alleleFrequencies <- Gen.buildableOfN[Array](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
-        .map { rawWeights =>
-        val sum = rawWeights.sum
-        rawWeights.map(_ / sum)
-      };
-      c <- Gen.option(Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
-        .map { case (gti, gtj) => Call2(gti, gtj) }, callRate);
-      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles,
-        Gen.choose(0, 50)));
-      dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d));
+    val gg = for {
+      callRate <- Gen.choose(0d, 1d)
+      alleleFrequencies <-
+        Gen.buildableOfN[Array](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
+          .map { rawWeights =>
+            val sum = rawWeights.sum
+            rawWeights.map(_ / sum)
+          }
+      c <- Gen.option(
+        Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
+          .map { case (gti, gtj) => Call2(gti, gtj) },
+        callRate,
+      )
+      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles, Gen.choose(0, 50)))
+      dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d))
       pl <- Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 1000)).map { arr =>
         c match {
           case Some(x) =>
@@ -257,19 +306,17 @@ object Genotype {
             val min = arr.min
             arr.map(_ - min)
         }
-      });
+      })
       gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
-    ) yield
-      Annotation(c.orNull, ad.map(a => a: IndexedSeq[Int]).orNull, dp.orNull, gq.orNull, pl.map(a => a: IndexedSeq[Int]).orNull)
+    } yield Annotation(c.orNull, ad.map(a => a: IndexedSeq[Int]).orNull, dp.orNull, gq.orNull, pl.map(a => a: IndexedSeq[Int]).orNull)
     gg
   }
 
-  def genRealistic(nAlleles: Int): Gen[Annotation] = {
+  def genRealistic(nAlleles: Int): Gen[Annotation] =
     Gen.frequency(
       (100, genRealisticNonmissing(nAlleles)),
-      (1, Gen.const(null)))
-  }
-
+      (1, Gen.const(null)),
+    )
 
   def genGenericCallAndProbabilitiesGenotype(nAlleles: Int): Gen[Annotation] = {
     val nGenotypes = triangle(nAlleles)
@@ -277,10 +324,12 @@ object Genotype {
       val c = gp.flatMap(a => Option(uniqueMaxIndex(a))).map(Call2.fromUnphasedDiploidGtIndex(_))
       Row(
         c.orNull,
-        gp.map(gpx => gpx.map(p => p.toDouble / 32768): IndexedSeq[Double]).orNull)
+        gp.map(gpx => gpx.map(p => p.toDouble / 32768): IndexedSeq[Double]).orNull,
+      )
     }
     Gen.frequency(
       (100, gg),
-      (1, Gen.const(null)))
+      (1, Gen.const(null)),
+    )
   }
 }

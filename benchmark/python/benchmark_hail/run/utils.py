@@ -43,6 +43,7 @@ def timeout_signal(time_in_seconds):
     try:
         yield
     finally:
+
         def no_op(signum, frame):
             pass
 
@@ -75,8 +76,9 @@ class Benchmark:
 
 
 class RunConfig:
-    def __init__(self, n_iter, handler, noisy, timeout, dry_run, data_dir, cores, verbose, log,
-                 profiler_path, profile, prof_fmt):
+    def __init__(
+        self, n_iter, handler, noisy, timeout, dry_run, data_dir, cores, verbose, log, profiler_path, profile, prof_fmt
+    ):
         self.n_iter = n_iter
         self.handler = handler
         self.noisy = noisy
@@ -118,8 +120,9 @@ def ensure_resources(data_dir, resources):
 
 def _ensure_initialized():
     if not _initialized:
-        raise AssertionError("Hail benchmark environment not initialized. "
-                             "Are you running benchmark from the main module?")
+        raise AssertionError(
+            "Hail benchmark environment not initialized. " "Are you running benchmark from the main module?"
+        )
 
 
 def stop():
@@ -150,11 +153,13 @@ def initialize(config):
             f'{fmt_arg},'
             f'file=bench-profile-{config.profile}-%t.{filetype},'
             'interval=1ms,'
-            'framebuf=15000000')
+            'framebuf=15000000'
+        )
 
         _init_args['spark_conf'] = {
             'spark.driver.extraJavaOptions': prof_args,
-            'spark.executor.extraJavaOptions': prof_args}
+            'spark.executor.extraJavaOptions': prof_args,
+        }
 
     hl.init(**_init_args)
     _initialized = True
@@ -243,17 +248,19 @@ def _run(benchmark: Benchmark, config: RunConfig, context):
         except Exception as e:  # pylint: disable=broad-except
             if config.noisy:
                 logging.error(f'run ${i + 1}: Caught exception: {e}')
-            config.handler({'name': benchmark.name,
-                            'failed': True})
+            config.handler({'name': benchmark.name, 'failed': True})
             return
 
     from hail.utils.java import Env
+
     peak_task_memory = get_peak_task_memory(Env.hc()._log)
-    config.handler({'name': benchmark.name,
-                    'failed': False,
-                    'timed_out': timed_out,
-                    'times': times,
-                    'peak_task_memory': [peak_task_memory]})
+    config.handler({
+        'name': benchmark.name,
+        'failed': False,
+        'timed_out': timed_out,
+        'times': times,
+        'peak_task_memory': [peak_task_memory],
+    })
 
 
 def run_all(config: RunConfig):

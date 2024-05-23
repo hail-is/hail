@@ -10,6 +10,7 @@ endif
 
 DOMAIN = $(eval DOMAIN := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.domain}} | base64 --decode))$(DOMAIN)
 CLOUD = $(eval CLOUD := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.cloud}} | base64 --decode))$(CLOUD)
+AZURE_SUBSCRIPTION_ID = $(eval AZURE_SUBSCRIPTION_ID := $$(shell kubectl -n $(NAMESPACE) get secret global-config --template={{.data.azure_subscription_id}} | base64 --decode))$(AZURE_SUBSCRIPTION_ID)
 
 ifeq ($(NAMESPACE),default)
 SCOPE = deploy

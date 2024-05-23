@@ -3,7 +3,7 @@ package is.hail.utils.richUtils
 import scala.collection.mutable
 
 class RichStringBuilder(val sb: mutable.StringBuilder) extends AnyVal {
-  def tsvAppend(a: Any) {
+  def tsvAppend(a: Any): Unit = {
     a match {
       case null | None => sb.append("NA")
       case Some(x) => tsvAppend(x)

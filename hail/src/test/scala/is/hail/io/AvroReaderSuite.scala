@@ -1,10 +1,11 @@
 package is.hail.io
 
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.ir.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
-import is.hail.utils.{FastSeq, fatal, using}
-import is.hail.{ExecStrategy, HailSuite}
+import is.hail.utils.{fatal, using, FastSeq}
+
 import org.apache.avro.SchemaBuilder
 import org.apache.avro.file.DataFileWriter
 import org.apache.avro.generic.{GenericDatumWriter, GenericRecord, GenericRecordBuilder}
@@ -28,19 +29,19 @@ class AvroReaderSuite extends HailSuite {
     Row(1, 1L, 1.0f, 1.0d, ""),
     Row(-1, -1L, -1.0f, -1.0d, "minus one"),
     Row(Int.MaxValue, Long.MaxValue, Float.MaxValue, Double.MaxValue, null),
-    Row(Int.MinValue, null, Float.MinPositiveValue, Double.MinPositiveValue, "MINIMUM STRING")
+    Row(Int.MinValue, null, Float.MinPositiveValue, Double.MinPositiveValue, "MINIMUM STRING"),
   )
 
   private val partitionReader = AvroPartitionReader(testSchema, "rowUID")
 
   def makeRecord(row: Row): GenericRecord = row match {
     case Row(int, long, float, double, string) => new GenericRecordBuilder(testSchema)
-      .set("an_int", int)
-      .set("an_optional_long", long)
-      .set("a_float", float)
-      .set("a_double", double)
-      .set("an_optional_string", string)
-      .build()
+        .set("an_int", int)
+        .set("an_optional_long", long)
+        .set("a_float", float)
+        .set("a_double", double)
+        .set("an_optional_string", string)
+        .build()
     case _ => fatal("invalid row")
   }
 
@@ -48,10 +49,12 @@ class AvroReaderSuite extends HailSuite {
     val avroFile = ctx.createTmpPath("avro_test", "avro")
 
     using(fs.create(avroFile)) { os =>
-      using(new DataFileWriter[GenericRecord](new GenericDatumWriter(testSchema)).create(testSchema, os)) { dw =>
-        for (row <- testValue) {
+      using(new DataFileWriter[GenericRecord](new GenericDatumWriter(testSchema)).create(
+        testSchema,
+        os,
+      )) { dw =>
+        for (row <- testValue)
           dw.append(makeRecord(row))
-        }
       }
     }
 
@@ -63,8 +66,9 @@ class AvroReaderSuite extends HailSuite {
     val ir = ToArray(ReadPartition(
       MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
       partitionReader.fullRowType,
-      partitionReader))
-    val testValueWithUIDs = testValue.zipWithIndex.map { case(x, i) =>
+      partitionReader,
+    ))
+    val testValueWithUIDs = testValue.zipWithIndex.map { case (x, i) =>
       Row(x(0), x(1), x(2), x(3), x(4), Row(0L, i.toLong))
     }
     assertEvalsTo(ir, testValueWithUIDs)
@@ -75,7 +79,8 @@ class AvroReaderSuite extends HailSuite {
     val ir = ToArray(ReadPartition(
       MakeStruct(Array("partitionPath" -> Str(avroFile), "partitionIndex" -> I64(0))),
       partitionReader.fullRowType.typeAfterSelect(FastSeq(0, 2, 4)),
-      partitionReader))
+      partitionReader,
+    ))
     val expected = testValue.map { case Row(int, _, float, _, string) => Row(int, float, string) }
     assertEvalsTo(ir, expected)
   }

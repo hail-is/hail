@@ -3,10 +3,8 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TInterval
-import is.hail.utils._
 
 abstract class PInterval extends PType {
   val pointType: PType
@@ -16,6 +14,7 @@ abstract class PInterval extends PType {
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering(sm)
+
       def compare(o1: Long, o2: Long): Int = {
         val sdef1 = startDefined(o1)
         if (sdef1 == startDefined(o2)) {
@@ -30,10 +29,13 @@ abstract class PInterval extends PType {
                   val includesE1 = includesEnd(o1)
                   if (includesE1 == includesEnd(o2)) {
                     0
-                  } else if (includesE1) 1 else -1
+                  } else if (includesE1) 1
+                  else -1
                 } else cmp
-              } else if (edef1) -1 else 1
-            } else if (includesS1) -1 else 1
+              } else if (edef1) -1
+              else 1
+            } else if (includesS1) -1
+            else 1
           } else cmp
         } else {
           if (sdef1) -1 else 1
@@ -44,6 +46,7 @@ abstract class PInterval extends PType {
   def endPrimaryUnsafeOrdering(sm: HailStateManager): UnsafeOrdering =
     new UnsafeOrdering {
       private val pOrd = pointType.unsafeOrdering(sm)
+
       def compare(o1: Long, o2: Long): Int = {
         val edef1 = endDefined(o1)
         if (edef1 == endDefined(o2)) {
@@ -58,10 +61,13 @@ abstract class PInterval extends PType {
                   val includesS1 = includesStart(o1)
                   if (includesS1 == includesStart(o2)) {
                     0
-                  } else if (includesS1) 1 else -1
+                  } else if (includesS1) 1
+                  else -1
                 } else cmp
-              } else if (sdef1) -1 else 1
-            } else if (includesE1) -1 else 1
+              } else if (sdef1) -1
+              else 1
+            } else if (includesE1) -1
+            else 1
           } else cmp
         } else {
           if (edef1) -1 else 1

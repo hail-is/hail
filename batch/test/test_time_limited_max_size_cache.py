@@ -4,9 +4,6 @@ import pytest
 
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
-pytestmark = pytest.mark.asyncio
-
-
 one_second_ns = 1000 * 1000 * 1000
 one_day_ns = 24 * 60 * 60 * one_second_ns
 

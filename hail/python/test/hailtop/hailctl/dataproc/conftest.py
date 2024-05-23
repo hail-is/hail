@@ -25,7 +25,9 @@ def gcloud_run():
 def patch_gcloud(monkeypatch, gcloud_run, gcloud_config):
     """Automatically replace gcloud functions with mocks."""
     monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.run", gcloud_run)
-    monkeypatch.setattr("hailtop.hailctl.dataproc.gcloud.get_version", Mock(return_value=MINIMUM_REQUIRED_GCLOUD_VERSION))
+    monkeypatch.setattr(
+        "hailtop.hailctl.dataproc.gcloud.get_version", Mock(return_value=MINIMUM_REQUIRED_GCLOUD_VERSION)
+    )
 
     def mock_gcloud_get_config(setting):
         return gcloud_config.get(setting, None)

@@ -21,31 +21,53 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = representation.unsafeOrdering(sm) // this was a terrible idea
+  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+    representation.unsafeOrdering(sm) // this was a terrible idea
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalCall(required)
+  def setRequired(required: Boolean) =
+    if (required == this.required) this else PCanonicalCall(required)
 
-  override def unstagedStoreAtAddress(sm: HailStateManager, addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  override def unstagedStoreAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Unit =
     srcPType match {
       case pt: PCanonicalCall =>
-        representation.unstagedStoreAtAddress(sm, addr, region, pt.representation, srcAddress, deepCopy)
+        representation.unstagedStoreAtAddress(
+          sm,
+          addr,
+          region,
+          pt.representation,
+          srcAddress,
+          deepCopy,
+        )
     }
-  }
 
   override def containsPointers: Boolean = representation.containsPointers
 
-  override def _copyFromAddress(sm: HailStateManager, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+  override def _copyFromAddress(
+    sm: HailStateManager,
+    region: Region,
+    srcPType: PType,
+    srcAddress: Long,
+    deepCopy: Boolean,
+  ): Long =
     srcPType match {
-      case pt: PCanonicalCall => representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
+      case pt: PCanonicalCall =>
+        representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
     }
-  }
 
   def sType: SCall = SCanonicalCall
 
   def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SCanonicalCallValue =
     new SCanonicalCallValue(cb.memoize(Region.loadInt(addr)))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): Value[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+    : Value[Long] = {
     value.st match {
       case SCanonicalCall =>
         val newAddr = cb.memoize(region.allocate(representation.alignment, representation.byteSize))
@@ -54,19 +76,29 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SValue, deepCopy: Boolean): Unit = {
+  def storeAtAddress(
+    cb: EmitCodeBuilder,
+    addr: Code[Long],
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): Unit =
     cb += Region.storeInt(addr, value.asCall.canonicalCall(cb))
-  }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)
 
-  override def unstagedLoadFromNested(addr: Long): Long = representation.unstagedLoadFromNested(addr)
+  override def unstagedLoadFromNested(addr: Long): Long =
+    representation.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long = {
+  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+    : Long =
     representation.unstagedStoreJavaObject(sm, annotation, region)
-  }
 
-  override def unstagedStoreJavaObjectAtAddress(sm: HailStateManager, addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(
+    sm: HailStateManager,
+    addr: Long,
+    annotation: Annotation,
+    region: Region,
+  ): Unit =
     representation.unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
-  }
 }

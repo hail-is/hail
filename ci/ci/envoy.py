@@ -4,7 +4,7 @@ from typing import Dict, List
 
 import yaml
 
-DOMAIN = os.environ['HAIL_DOMAIN']
+DOMAIN = os.environ['HAIL_PRODUCTION_DOMAIN']
 
 
 def create_rds_response(

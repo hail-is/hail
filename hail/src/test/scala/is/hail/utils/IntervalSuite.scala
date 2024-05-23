@@ -2,14 +2,14 @@ package is.hail.utils
 
 import is.hail.HailSuite
 import is.hail.annotations.ExtendedOrdering
-import is.hail.backend.HailStateManager
-import is.hail.types.virtual.{TInt32, TStruct}
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.rvd.RVDPartitioner
+import is.hail.types.virtual.{TInt32, TStruct}
+
 import org.apache.spark.sql.Row
 import org.testng.Assert._
-import org.testng.annotations.{BeforeMethod, Test}
-import is.hail.backend.ExecuteContext
 import org.testng.ITestContext
+import org.testng.annotations.{BeforeMethod, Test}
 
 class IntervalSuite extends HailSuite {
 
@@ -44,97 +44,143 @@ class IntervalSuite extends HailSuite {
       }
   }
 
-
-  @Test def interval_agrees_with_set_interval_greater_than_point() {
-    for (set_interval <- test_intervals; p <- points) {
+  @Test def interval_agrees_with_set_interval_greater_than_point(): Unit = {
+    for {
+      set_interval <- test_intervals
+      p <- points
+    } {
       val interval = set_interval.interval
-      assertEquals(interval.isAbovePosition(pord, p), set_interval.doubledPointSet.forall(dp => dp > 2 * p))
+      assertEquals(
+        interval.isAbovePosition(pord, p),
+        set_interval.doubledPointSet.forall(dp => dp > 2 * p),
+      )
     }
   }
 
-  @Test def interval_agrees_with_set_interval_less_than_point() {
-    for (set_interval <- test_intervals; p <- points) {
+  @Test def interval_agrees_with_set_interval_less_than_point(): Unit = {
+    for {
+      set_interval <- test_intervals
+      p <- points
+    } {
       val interval = set_interval.interval
-      assertEquals(interval.isBelowPosition(pord, p), set_interval.doubledPointSet.forall(dp => dp < 2 * p))
+      assertEquals(
+        interval.isBelowPosition(pord, p),
+        set_interval.doubledPointSet.forall(dp => dp < 2 * p),
+      )
     }
   }
 
-  @Test def interval_agrees_with_set_interval_contains() {
-    for (set_interval <- test_intervals; p <- points) {
+  @Test def interval_agrees_with_set_interval_contains(): Unit = {
+    for {
+      set_interval <- test_intervals
+      p <- points
+    } {
       val interval = set_interval.interval
       assertEquals(interval.contains(pord, p), set_interval.contains(p))
     }
   }
 
-  @Test def interval_agrees_with_set_interval_includes() {
-    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+  @Test def interval_agrees_with_set_interval_includes(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assertEquals(interval1.includes(pord, interval2), set_interval1.includes(set_interval2))
     }
   }
 
-  @Test def interval_agrees_with_set_interval_probably_overlaps() {
-    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+  @Test def interval_agrees_with_set_interval_probably_overlaps(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.overlaps(pord, interval2), set_interval1.probablyOverlaps(set_interval2))
+      assertEquals(
+        interval1.overlaps(pord, interval2),
+        set_interval1.probablyOverlaps(set_interval2),
+      )
     }
   }
 
-  @Test def interval_agrees_with_set_interval_definitely_disjoint() {
-    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+  @Test def interval_agrees_with_set_interval_definitely_disjoint(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.isDisjointFrom(pord, interval2), set_interval1.definitelyDisjoint(set_interval2))
+      assertEquals(
+        interval1.isDisjointFrom(pord, interval2),
+        set_interval1.definitelyDisjoint(set_interval2),
+      )
     }
   }
 
-  @Test def interval_agrees_with_set_interval_disjoint_greater_than() {
-    for {set_interval1 <- test_intervals
-    set_interval2 <- test_intervals} {
+  @Test def interval_agrees_with_set_interval_disjoint_greater_than(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assertEquals(interval1.isAbove(pord, interval2), set_interval1.isAboveInterval(set_interval2))
     }
   }
 
-  @Test def interval_agrees_with_set_interval_disjoint_less_than() {
-    for {set_interval1 <- test_intervals
-    set_interval2 <- test_intervals} {
+  @Test def interval_agrees_with_set_interval_disjoint_less_than(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assertEquals(interval1.isBelow(pord, interval2), set_interval1.isBelowInterval(set_interval2))
     }
   }
 
-  @Test def interval_agrees_with_set_interval_mergeable() {
-    for {set_interval1 <- test_intervals
-    set_interval2 <- test_intervals} {
+  @Test def interval_agrees_with_set_interval_mergeable(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
       assertEquals(interval1.canMergeWith(pord, interval2), set_interval1.mergeable(set_interval2))
     }
   }
 
-  @Test def interval_agrees_with_set_interval_merge() {
-    for {set_interval1 <- test_intervals
-    set_interval2 <- test_intervals} {
+  @Test def interval_agrees_with_set_interval_merge(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.merge(pord, interval2), set_interval1.union(set_interval2).map(_.interval))
+      assertEquals(
+        interval1.merge(pord, interval2),
+        set_interval1.union(set_interval2).map(_.interval),
+      )
     }
   }
 
-  @Test def interval_agrees_with_set_interval_intersect() {
-    for (set_interval1 <- test_intervals; set_interval2 <- test_intervals) {
+  @Test def interval_agrees_with_set_interval_intersect(): Unit = {
+    for {
+      set_interval1 <- test_intervals
+      set_interval2 <- test_intervals
+    } {
       val interval1 = set_interval1.interval
       val interval2 = set_interval2.interval
-      assertEquals(interval1.intersect(pord, interval2), set_interval1.intersect(set_interval2).map(_.interval))
+      assertEquals(
+        interval1.intersect(pord, interval2),
+        set_interval1.intersect(set_interval2).map(_.interval),
+      )
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_contains() {
+  @Test def interval_tree_agrees_with_set_interval_tree_contains(): Unit = {
     for {
       set_itree <- test_itrees
       p <- points
@@ -144,7 +190,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps() {
+  @Test def interval_tree_agrees_with_set_interval_tree_probably_overlaps(): Unit = {
     for {
       set_itree <- test_itrees
       set_interval <- test_intervals
@@ -155,7 +201,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_definitely_disjoint() {
+  @Test def interval_tree_agrees_with_set_interval_tree_definitely_disjoint(): Unit = {
     for {
       set_itree <- test_itrees
       set_interval <- test_intervals
@@ -166,7 +212,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_query_values() {
+  @Test def interval_tree_agrees_with_set_interval_tree_query_values(): Unit = {
     for {
       set_itree <- test_itrees
       point <- points
@@ -178,7 +224,7 @@ class IntervalSuite extends HailSuite {
     }
   }
 
-  @Test def interval_tree_agrees_with_set_interval_tree_query_overlapping_values() {
+  @Test def interval_tree_agrees_with_set_interval_tree_query_overlapping_values(): Unit = {
     for {
       set_itree <- test_itrees
       set_interval <- test_intervals
@@ -216,11 +262,13 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
   def includes(other: SetInterval): Boolean =
     (other.doubledPointSet -- this.doubledPointSet).isEmpty
 
-  def probablyOverlaps(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).nonEmpty
+  def probablyOverlaps(other: SetInterval): Boolean =
+    doubledPointSet.intersect(other.doubledPointSet).nonEmpty
 
   def definitelyEmpty(): Boolean = doubledPointSet.isEmpty
 
-  def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
+  def definitelyDisjoint(other: SetInterval): Boolean =
+    doubledPointSet.intersect(other.doubledPointSet).isEmpty
 
   def isAboveInterval(other: SetInterval): Boolean =
     doubledPointSet.forall(p1 => other.doubledPointSet.forall(p2 => p1 > p2))
@@ -249,8 +297,7 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
       val start = combined.min(pord.toOrdering)
       val end = combined.max(pord.toOrdering)
       Some(SetInterval(start / 2, (end + 1) / 2, start % 2 == 0, end % 2 == 0))
-    }
-    else None
+    } else None
   }
 
   def intersect(other: SetInterval): Option[SetInterval] = {
@@ -275,21 +322,26 @@ case class SetIntervalTree(ctx: ExecuteContext, annotations: Array[(SetInterval,
 
   val (intervals, values) = annotations.unzip
 
-  val intervalTree: RVDPartitioner = new RVDPartitioner(ctx.stateManager, TStruct(("i", TInt32)), intervals.map(_.rowInterval))
+  val intervalTree: RVDPartitioner =
+    new RVDPartitioner(ctx.stateManager, TStruct(("i", TInt32)), intervals.map(_.rowInterval))
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
-  def probablyOverlaps(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).nonEmpty
+  def probablyOverlaps(other: SetInterval): Boolean =
+    doubledPointSet.intersect(other.doubledPointSet).nonEmpty
 
   def definitelyEmpty(): Boolean = doubledPointSet.isEmpty
 
-  def definitelyDisjoint(other: SetInterval): Boolean = doubledPointSet.intersect(other.doubledPointSet).isEmpty
+  def definitelyDisjoint(other: SetInterval): Boolean =
+    doubledPointSet.intersect(other.doubledPointSet).isEmpty
 
-  def queryIntervals(point: Int): Set[Interval] = intervals.filter(_.contains(point)).map(_.interval).toSet
+  def queryIntervals(point: Int): Set[Interval] =
+    intervals.filter(_.contains(point)).map(_.interval).toSet
 
   def queryValues(point: Int): Set[Int] = annotations.filter(_._1.contains(point)).map(_._2).toSet
 
-  def queryProbablyOverlappingValues(interval: SetInterval): Set[Int] = annotations.filter(_._1.probablyOverlaps(interval)).map(_._2).toSet
+  def queryProbablyOverlappingValues(interval: SetInterval): Set[Int] =
+    annotations.filter(_._1.probablyOverlaps(interval)).map(_._2).toSet
 
   override val toString: String = intervals.map(_.interval).mkString(", ")
 }

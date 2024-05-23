@@ -10,7 +10,12 @@ import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils.FastSeq
 
 object SStackInterval {
-  def construct(start: EmitValue, end: EmitValue, includesStart: Value[Boolean], includesEnd: Value[Boolean]): SStackIntervalValue = {
+  def construct(
+    start: EmitValue,
+    end: EmitValue,
+    includesStart: Value[Boolean],
+    includesEnd: Value[Boolean],
+  ): SStackIntervalValue = {
     assert(start.emitType == end.emitType)
     new SStackIntervalValue(SStackInterval(start.emitType), start, end, includesStart, includesEnd)
   }
@@ -18,25 +23,33 @@ object SStackInterval {
 
 final case class SStackInterval(pointEmitType: EmitType) extends SInterval {
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue =
+  override def _coerceOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): SValue =
     value match {
-      case value: SStackIntervalValue => new SStackIntervalValue(this, 
-        pointEmitType.coerceOrCopy(cb, region, value.start, deepCopy),
-        pointEmitType.coerceOrCopy(cb, region, value.end, deepCopy),
-        value.includesStart,
-        value.includesEnd
-      )
+      case value: SStackIntervalValue => new SStackIntervalValue(
+          this,
+          pointEmitType.coerceOrCopy(cb, region, value.start, deepCopy),
+          pointEmitType.coerceOrCopy(cb, region, value.end, deepCopy),
+          value.includesStart,
+          value.includesEnd,
+        )
       case value: SIntervalValue =>
-        new SStackIntervalValue(this,
+        new SStackIntervalValue(
+          this,
           pointEmitType.coerceOrCopy(cb, region, cb.memoize(value.loadStart(cb)), deepCopy),
           pointEmitType.coerceOrCopy(cb, region, cb.memoize(value.loadEnd(cb)), deepCopy),
           value.includesStart,
-          value.includesEnd
-        ) 
+          value.includesEnd,
+        )
     }
 
-
-  override def castRename(t: Type): SType = SStackInterval(pointEmitType.copy(st = pointType.castRename(t.asInstanceOf[TInterval].pointType)))
+  override def castRename(t: Type): SType = SStackInterval(pointEmitType.copy(st =
+    pointType.castRename(t.asInstanceOf[TInterval].pointType)
+  ))
 
   override lazy val virtualType: Type = TInterval(pointEmitType.virtualType)
 
@@ -48,21 +61,25 @@ final case class SStackInterval(pointEmitType: EmitType) extends SInterval {
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SStackIntervalSettable = {
     val pointNSettables = pointEmitType.nSettables
     assert(settables.length == 2 * pointNSettables + 2)
-    new SStackIntervalSettable(this, 
+    new SStackIntervalSettable(
+      this,
       pointEmitType.fromSettables(settables.slice(0, pointNSettables)),
       pointEmitType.fromSettables(settables.slice(pointNSettables, 2 * pointNSettables)),
       coerce[Boolean](settables(pointNSettables * 2)),
-      coerce[Boolean](settables(pointNSettables * 2 + 1)))
+      coerce[Boolean](settables(pointNSettables * 2 + 1)),
+    )
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SStackIntervalValue = {
     val pointNValues = pointEmitType.nSettables
     assert(values.length == 2 * pointNValues + 2)
-    new SStackIntervalValue(this,
+    new SStackIntervalValue(
+      this,
       pointEmitType.fromValues(values.slice(0, pointNValues)),
       pointEmitType.fromValues(values.slice(pointNValues, 2 * pointNValues)),
       coerce[Boolean](values(pointNValues * 2)),
-      coerce[Boolean](values(pointNValues * 2 + 1)))
+      coerce[Boolean](values(pointNValues * 2 + 1)),
+    )
   }
 
   override def pointType: SType = pointEmitType.st
@@ -79,10 +96,12 @@ class SStackIntervalValue(
   val start: EmitValue,
   val end: EmitValue,
   val includesStart: Value[Boolean],
-  val includesEnd: Value[Boolean]
+  val includesEnd: Value[Boolean],
 ) extends SIntervalValue {
   require(start.emitType == end.emitType && start.emitType == st.pointEmitType)
-  override lazy val valueTuple: IndexedSeq[Value[_]] = start.valueTuple() ++ end.valueTuple() ++ FastSeq(includesStart, includesEnd)
+
+  override lazy val valueTuple: IndexedSeq[Value[_]] =
+    start.valueTuple() ++ end.valueTuple() ++ FastSeq(includesStart, includesEnd)
 
   override def loadStart(cb: EmitCodeBuilder): IEmitCode = start.toI(cb)
 
@@ -98,9 +117,10 @@ final class SStackIntervalSettable(
   override val start: EmitSettable,
   override val end: EmitSettable,
   override val includesStart: Settable[Boolean],
-  override val includesEnd: Settable[Boolean]
+  override val includesEnd: Settable[Boolean],
 ) extends SStackIntervalValue(st, start, end, includesStart, includesEnd) with SSettable {
-  override lazy val settableTuple: IndexedSeq[Settable[_]] = start.settableTuple() ++ end.settableTuple() ++ FastSeq(includesStart, includesEnd)
+  override lazy val settableTuple: IndexedSeq[Settable[_]] =
+    start.settableTuple() ++ end.settableTuple() ++ FastSeq(includesStart, includesEnd)
 
   override def store(cb: EmitCodeBuilder, v: SValue): Unit = v match {
     case v: SStackIntervalValue =>

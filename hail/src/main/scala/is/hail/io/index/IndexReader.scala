@@ -1,41 +1,48 @@
 package is.hail.io.index
 
+import is.hail.annotations._
+import is.hail.asm4s.HailClassLoader
+import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.io._
+import is.hail.io.fs.FS
+import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
+import is.hail.utils._
+
 import java.io.InputStream
 import java.util
 import java.util.Map.Entry
-import is.hail.asm4s.HailClassLoader
-import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.types.virtual.{TStruct, Type, TypeSerializer}
-import is.hail.expr.ir.IRParser
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.io._
-import is.hail.io.bgen.BgenSettings
-import is.hail.utils._
-import is.hail.io.fs.FS
-import is.hail.rvd.{AbstractIndexSpec, AbstractRVDSpec, PartitionBoundOrdering}
-import org.apache.hadoop.fs.FSDataInputStream
+
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, NoTypeHints}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.Formats
+import org.json4s.jackson.JsonMethods
 
 object IndexReaderBuilder {
-  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
+  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec)
+    : (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
     val (keyType, annotationType) = spec.types
-    val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
-    val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
+    val (leafPType: PStruct, leafDec) =
+      spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
+    val (intPType: PStruct, intDec) =
+      spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
     withDecoders(ctx, leafDec, intDec, keyType, annotationType, leafPType, intPType)
   }
 
   def withDecoders(
     ctx: ExecuteContext,
-    leafDec: (InputStream, HailClassLoader) => Decoder, intDec: (InputStream, HailClassLoader) => Decoder,
-    keyType: Type, annotationType: Type,
-    leafPType: PStruct, intPType: PStruct
+    leafDec: (InputStream, HailClassLoader) => Decoder,
+    intDec: (InputStream, HailClassLoader) => Decoder,
+    keyType: Type,
+    annotationType: Type,
+    leafPType: PStruct,
+    intPType: PStruct,
   ): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
     val sm = ctx.stateManager
-    (theHailClassLoader, fs, path, cacheCapacity, pool) => new IndexReader(
-      theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType, leafPType, intPType, pool, sm)
+    (theHailClassLoader, fs, path, cacheCapacity, pool) =>
+      new IndexReader(
+        theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType,
+        leafPType, intPType, pool, sm)
   }
 }
 
@@ -43,7 +50,7 @@ object IndexReader {
   def readUntyped(fs: FS, path: String): IndexMetadataUntypedJSON = {
     val jv = using(fs.open(path + "/metadata.json.gz")) { in =>
       JsonMethods.parse(in)
-        .removeField{ case (f, _) => f == "keyType" || f == "annotationType" }
+        .removeField { case (f, _) => f == "keyType" || f == "annotationType" }
     }
     implicit val formats: Formats = defaultJSONFormats
     jv.extract[IndexMetadataUntypedJSON]
@@ -55,13 +62,12 @@ object IndexReader {
   }
 
   def readTypes(fs: FS, path: String): (Type, Type) = {
-    val jv = using(fs.open(path + "/metadata.json.gz")) { in => JsonMethods.parse(in) }
+    val jv = using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
     implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
 }
-
 
 class IndexReader(
   theHailClassLoader: HailClassLoader,
@@ -75,7 +81,7 @@ class IndexReader(
   val leafPType: PStruct,
   val internalPType: PStruct,
   val pool: RegionPool,
-  val sm: HailStateManager
+  val sm: HailStateManager,
 ) extends AutoCloseable {
   private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
@@ -83,6 +89,7 @@ class IndexReader(
   val nKeys = metadata.nKeys
   val attributes = metadata.attributes
   val indexRelativePath = metadata.indexPath
+
   val ordering = keyType match {
     case ts: TStruct => PartitionBoundOrdering(sm, ts)
     case t => t.ordering(sm)
@@ -92,15 +99,17 @@ class IndexReader(
   private val leafDecoder = leafDecoderBuilder(is, theHailClassLoader)
   private val internalDecoder = internalDecoderBuilder(is, theHailClassLoader)
 
-  private val region = Region(pool=pool)
+  private val region = Region(pool = pool)
   private val rv = RegionValue(region)
 
   private var cacheHits = 0L
   private var cacheMisses = 0L
 
-  @transient private[this] lazy val cache = new util.LinkedHashMap[Long, IndexNode](cacheCapacity, 0.75f, true) {
-    override def removeEldestEntry(eldest: Entry[Long, IndexNode]): Boolean = size() > cacheCapacity
-  }
+  @transient private[this] lazy val cache =
+    new util.LinkedHashMap[Long, IndexNode](cacheCapacity, 0.75f, true) {
+      override def removeEldestEntry(eldest: Entry[Long, IndexNode]): Boolean =
+        size() > cacheCapacity
+    }
 
   private[io] def readInternalNode(offset: Long): InternalNode = {
     if (cache.containsKey(offset)) {
@@ -147,12 +156,13 @@ class IndexReader(
     }
   }
 
-  private[io] def lowerBound(key: Annotation): Long = {
-    if (nKeys == 0 || ordering.lteq(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
+  private[io] def lowerBound(key: Annotation): Long =
+    if (
+      nKeys == 0 || ordering.lteq(key, readInternalNode(metadata.rootOffset).children.head.firstKey)
+    )
       0
     else
       lowerBound(key, height - 1, metadata.rootOffset)
-  }
 
   private def upperBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
@@ -168,12 +178,13 @@ class IndexReader(
     }
   }
 
-  private[io] def upperBound(key: Annotation): Long = {
-    if (nKeys == 0 || ordering.lt(key, readInternalNode(metadata.rootOffset).children.head.firstKey))
+  private[io] def upperBound(key: Annotation): Long =
+    if (
+      nKeys == 0 || ordering.lt(key, readInternalNode(metadata.rootOffset).children.head.firstKey)
+    )
       0
     else
       upperBound(key, height - 1, metadata.rootOffset)
-  }
 
   private def getLeafNode(index: Long, level: Int, offset: Long): LeafNode = {
     if (level == 0) {
@@ -206,11 +217,15 @@ class IndexReader(
     node.children(localIdx.toInt)
   }
 
-  def boundsByInterval(interval: Interval): (Long, Long) = {
+  def boundsByInterval(interval: Interval): (Long, Long) =
     boundsByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
-  }
 
-  def boundsByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): (Long, Long) = {
+  def boundsByInterval(
+    start: Annotation,
+    end: Annotation,
+    includesStart: Boolean,
+    includesEnd: Boolean,
+  ): (Long, Long) = {
     require(Interval.isValid(ordering, start, end, includesStart, includesEnd))
     val startIdx = if (includesStart) lowerBound(start) else upperBound(start)
     val endIdx = if (includesEnd) upperBound(end) else lowerBound(end)
@@ -220,7 +235,12 @@ class IndexReader(
   def queryByInterval(interval: Interval): Iterator[LeafChild] =
     queryByInterval(interval.start, interval.end, interval.includesStart, interval.includesEnd)
 
-  def queryByInterval(start: Annotation, end: Annotation, includesStart: Boolean, includesEnd: Boolean): Iterator[LeafChild] = {
+  def queryByInterval(
+    start: Annotation,
+    end: Annotation,
+    includesStart: Boolean,
+    includesEnd: Boolean,
+  ): Iterator[LeafChild] = {
     val (startIdx, endIdx) = boundsByInterval(start, end, includesStart, includesEnd)
     iterator(startIdx, endIdx)
   }
@@ -250,7 +270,7 @@ class IndexReader(
 
     def hasNext: Boolean = pos < end
 
-    def seek(key: Annotation) {
+    def seek(key: Annotation): Unit = {
       val newPos = lowerBound(key)
       assert(newPos >= pos)
       localPos += (newPos - pos).toInt
@@ -264,11 +284,11 @@ class IndexReader(
   def iterateUntil(key: Annotation): Iterator[LeafChild] =
     iterator(0, lowerBound(key))
 
-  def close() {
+  def close(): Unit = {
     leafDecoder.close()
     internalDecoder.close()
-    log.info(s"Index reader cache queries: ${ cacheHits + cacheMisses }")
-    log.info(s"Index reader cache hit rate: ${ cacheHits.toDouble / (cacheHits + cacheMisses) }")
+    log.info(s"Index reader cache queries: ${cacheHits + cacheMisses}")
+    log.info(s"Index reader cache hit rate: ${cacheHits.toDouble / (cacheHits + cacheMisses)}")
   }
 }
 
@@ -277,11 +297,14 @@ final case class InternalChild(
   firstIndex: Long,
   firstKey: Annotation,
   firstRecordOffset: Long,
-  firstAnnotation: Annotation)
+  firstAnnotation: Annotation,
+)
 
 object InternalNode {
   def apply(r: Row): InternalNode = {
-    val children = r.get(0).asInstanceOf[IndexedSeq[Row]].map(r => InternalChild(r.getLong(0), r.getLong(1), r.get(2), r.getLong(3), r.get(4)))
+    val children = r.get(0).asInstanceOf[IndexedSeq[Row]].map(r =>
+      InternalChild(r.getLong(0), r.getLong(1), r.get(2), r.getLong(3), r.get(4))
+    )
     InternalNode(children)
   }
 }
@@ -296,7 +319,8 @@ final case class InternalNode(children: IndexedSeq[InternalChild]) extends Index
 final case class LeafChild(
   key: Annotation,
   recordOffset: Long,
-  annotation: Annotation) {
+  annotation: Annotation,
+) {
 
   def longChild(j: Int): Long = annotation.asInstanceOf[Row].getAs[Long](j)
 }
@@ -304,13 +328,15 @@ final case class LeafChild(
 object LeafNode {
   def apply(r: Row): LeafNode = {
     val firstKeyIndex = r.getLong(0)
-    val keys = r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => LeafChild(r.get(0), r.getLong(1), r.get(2)))
+    val keys =
+      r.get(1).asInstanceOf[IndexedSeq[Row]].map(r => LeafChild(r.get(0), r.getLong(1), r.get(2)))
     LeafNode(firstKeyIndex, keys)
   }
 }
 
 final case class LeafNode(
   firstIndex: Long,
-  children: IndexedSeq[LeafChild]) extends IndexNode
+  children: IndexedSeq[LeafChild],
+) extends IndexNode
 
 sealed trait IndexNode

@@ -1,15 +1,17 @@
 package is.hail.io
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
 import is.hail.annotations.{Region, RegionValue}
-import is.hail.asm4s.{Code, HailClassLoader, theHailClassLoaderForSparkWorkers}
+import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, Code, HailClassLoader}
 import is.hail.backend.ExecuteContext
+import is.hail.sparkextras.ContextRDD
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PType
 import is.hail.types.virtual.Type
-import is.hail.sparkextras.ContextRDD
+import is.hail.utils.{using, ArrayOfByteArrayOutputStream}
 import is.hail.utils.prettyPrint.ArrayOfByteArrayInputStream
-import is.hail.utils.{ArrayOfByteArrayOutputStream, using}
+
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, InputStream, OutputStream}
+
 import org.apache.spark.rdd.RDD
 
 trait AbstractTypedCodecSpec extends Spec {
@@ -31,7 +33,8 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def decodedPType(): PType = encodedType.decodedPType(encodedVirtualType)
 
-  def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputStream, HailClassLoader) => Decoder)
+  def buildDecoder(ctx: ExecuteContext, requestedType: Type)
+    : (PType, (InputStream, HailClassLoader) => Decoder)
 
   def encode(ctx: ExecuteContext, t: PType, offset: Long): Array[Byte] = {
     val baos = new ByteArrayOutputStream()
@@ -39,9 +42,8 @@ trait AbstractTypedCodecSpec extends Spec {
     baos.toByteArray
   }
 
-  def encode(ctx: ExecuteContext, t: PType, offset: Long, os: OutputStream): Unit = {
+  def encode(ctx: ExecuteContext, t: PType, offset: Long, os: OutputStream): Unit =
     using(buildEncoder(ctx, t)(os, ctx.theHailClassLoader))(_.writeRegionValue(offset))
-  }
 
   def encodeArrays(ctx: ExecuteContext, t: PType, offset: Long): Array[Array[Byte]] = {
     val baos = new ArrayOfByteArrayOutputStream()
@@ -49,13 +51,19 @@ trait AbstractTypedCodecSpec extends Spec {
     baos.toByteArrays()
   }
 
-  def decode(ctx: ExecuteContext, requestedType: Type, bytes: Array[Byte], region: Region): (PType, Long) = {
+  def decode(ctx: ExecuteContext, requestedType: Type, bytes: Array[Byte], region: Region)
+    : (PType, Long) = {
     val bais = new ByteArrayInputStream(bytes)
     val (pt, dec) = buildDecoder(ctx, requestedType)
     (pt, dec(bais, ctx.theHailClassLoader).readRegionValue(region))
   }
 
-  def decodeArrays(ctx: ExecuteContext, requestedType: Type, bytes: Array[Array[Byte]], region: Region): (PType, Long) = {
+  def decodeArrays(
+    ctx: ExecuteContext,
+    requestedType: Type,
+    bytes: Array[Array[Byte]],
+    region: Region,
+  ): (PType, Long) = {
     val bais = new ArrayOfByteArrayInputStream(bytes)
     val (pt, dec) = buildDecoder(ctx, requestedType)
     (pt, dec(bais, ctx.theHailClassLoader).readRegionValue(region))
@@ -66,11 +74,15 @@ trait AbstractTypedCodecSpec extends Spec {
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
 
   // FIXME: is there a better place for this to live?
-  def decodeRDD(ctx: ExecuteContext, requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[Long]) = {
+  def decodeRDD(ctx: ExecuteContext, requestedType: Type, bytes: RDD[Array[Byte]])
+    : (PType, ContextRDD[Long]) = {
     val (pt, dec) = buildDecoder(ctx, requestedType)
-    (pt, ContextRDD.weaken(bytes).cmapPartitions { (ctx, it) =>
-      RegionValue.fromBytes(theHailClassLoaderForSparkWorkers, dec, ctx.region, it)
-    })
+    (
+      pt,
+      ContextRDD.weaken(bytes).cmapPartitions { (ctx, it) =>
+        RegionValue.fromBytes(theHailClassLoaderForSparkWorkers, dec, ctx.region, it)
+      },
+    )
   }
 
   override def toString: String = super[Spec].toString

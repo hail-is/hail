@@ -16,7 +16,6 @@ class TracingInputStream(
     b
   }
 
-  override def close(): Unit = {
+  override def close(): Unit =
     in.close()
-  }
 }

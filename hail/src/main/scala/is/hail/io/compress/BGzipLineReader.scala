@@ -1,15 +1,13 @@
 package is.hail.io.compress
 
-import java.nio.charset.StandardCharsets
-
 import is.hail.io.fs.FS
+
+import java.nio.charset.StandardCharsets
 
 final class BGzipLineReader(
   private val fs: FS,
-  private val filePath: String
-)
-  extends java.lang.AutoCloseable
-{
+  private val filePath: String,
+) extends java.lang.AutoCloseable {
   private var is = new BGzipInputStream(fs.openNoCompression(filePath))
 
   // The line iterator buffer and associated state, we use this to avoid making
@@ -34,9 +32,8 @@ final class BGzipLineReader(
 
   private var virtualFileOffsetAtLastRead = 0L
 
-  def getVirtualOffset: Long = {
+  def getVirtualOffset: Long =
     virtualFileOffsetAtLastRead + (bufferCursor - bufferPositionAtLastRead)
-  }
 
   def virtualSeek(l: Long): Unit = {
     is.virtualSeek(l)
@@ -74,9 +71,8 @@ final class BGzipLineReader(
 
     while (true) {
       var str: String = null
-      while (bufferCursor < bufferLen && buffer(bufferCursor) != '\n') {
+      while (bufferCursor < bufferLen && buffer(bufferCursor) != '\n')
         bufferCursor += 1
-      }
 
       if (bufferCursor == bufferLen) { // no newline before end of buffer
         if (bufferEOF) {
@@ -121,10 +117,9 @@ final class BGzipLineReader(
     throw new AssertionError()
   }
 
-  override def close(): Unit = {
+  override def close(): Unit =
     if (is != null) {
       is.close()
       is = null
     }
-  }
 }

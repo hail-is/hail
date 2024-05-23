@@ -4,9 +4,9 @@ import scala.util.{Failure, Success, Try}
 
 object TryAll {
   def apply[K](f: => K): Try[K] =
-    try {
+    try
       Success(f)
-    } catch {
+    catch {
       case e: Throwable => Failure(e)
     }
 }

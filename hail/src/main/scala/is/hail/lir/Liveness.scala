@@ -6,7 +6,7 @@ object Liveness {
   def apply(
     blocks: Blocks,
     locals: Locals,
-    cfg: CFG
+    cfg: CFG,
   ): Liveness = {
     val nBlocks = blocks.nBlocks
 
@@ -85,4 +85,5 @@ object Liveness {
 }
 
 class Liveness(
-  val liveIn: Array[java.util.BitSet])
+  val liveIn: Array[java.util.BitSet]
+)

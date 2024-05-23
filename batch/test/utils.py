@@ -11,13 +11,11 @@ HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgene
 
 
 @overload
-def create_batch(client: bc.BatchClient, **kwargs) -> bc.Batch:
-    ...
+def create_batch(client: bc.BatchClient, **kwargs) -> bc.Batch: ...
 
 
 @overload
-def create_batch(client: aiobc.BatchClient, **kwargs) -> aiobc.Batch:
-    ...
+def create_batch(client: aiobc.BatchClient, **kwargs) -> aiobc.Batch: ...
 
 
 def create_batch(client: Union[bc.BatchClient, aiobc.BatchClient], **kwargs) -> Union[bc.Batch, aiobc.Batch]:

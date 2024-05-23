@@ -1,9 +1,7 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBuilder}
-import is.hail.types.physical.{PCanonicalNDArray, PNDArray}
+import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder}
 import is.hail.utils._
-
 
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private[this] val usedBlocks = new LongArrayBuilder(4)
@@ -16,7 +14,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private[this] var offsetWithinBlock: Long = _
 //  var stackTrace: Option[IndexedSeq[StackTraceElement]] = None
 
-  // blockThreshold and blockByteSize are mutable because RegionMemory objects are reused with different sizes
+  /* blockThreshold and blockByteSize are mutable because RegionMemory objects are reused with
+   * different sizes */
   protected[annotations] var blockSize: Region.Size = -1
   private[this] var blockThreshold: Long = _
   private[this] var blockByteSize: Long = _
@@ -31,18 +30,17 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     idx
   }
 
-  def lookupJavaObject(idx: Int): AnyRef = {
+  def lookupJavaObject(idx: Int): AnyRef =
     jObjects(idx)
-  }
 
   def dumpMemoryInfo(): String = {
     s"""
        |Blocks Used = ${usedBlocks.size}, Chunks used = ${bigChunks.size}
        |Block Info:
-       |  BlockSize = ${blockSize} ($blockByteSize bytes)
+       |  BlockSize = $blockSize ($blockByteSize bytes)
        |  Current Block Info:
-       |    Current Block Address: ${currentBlock}
-       |    Offset Within Block:   ${offsetWithinBlock}
+       |    Current Block Address: $currentBlock
+       |    Offset Within Block:   $offsetWithinBlock
        |  Used Blocks Info:
        |    BlockStarts: ${usedBlocks.result().toIndexedSeq}
        |""".stripMargin
@@ -50,7 +48,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   def allocateNewBlock(): Unit = {
     val newBlock = pool.getBlock(blockSize)
-    // don't add currentBlock to usedBlocks until pool.getBlock returns successfully (could throw OOM exception)
+    /* don't add currentBlock to usedBlocks until pool.getBlock returns successfully (could throw
+     * OOM exception) */
     if (currentBlock != 0)
       usedBlocks.add(currentBlock)
     currentBlock = newBlock
@@ -60,7 +59,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def allocateBigChunk(size: Long): Long = {
     val ret = pool.getChunk(size)
-    val chunkPointer = ret._1  // Match expressions allocate https://github.com/hail-is/hail/pull/13794
+    val chunkPointer =
+      ret._1 // Match expressions allocate https://github.com/hail-is/hail/pull/13794
     val chunkSize = ret._2
     bigChunks.add(chunkPointer)
     totalChunkMemory += chunkSize
@@ -181,13 +181,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     }
   }
 
-  private def free(): Unit = {
+  private def free(): Unit =
     if (!isFreed) {
       freeMemory()
       pool.reclaim(this)
     }
 //    stackTrace = None
-  }
 
   def getReferenceCount: Long = referenceCount
 
@@ -227,9 +226,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     offsetWithinBlock = 0L
   }
 
-  def close(): Unit = {
+  def close(): Unit =
     free()
-  }
 
   def numChunks: Int = bigChunks.size
 
@@ -289,7 +287,9 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   def allocateSharedChunk(size: Long): Long = {
     if (size < 0L) {
-      throw new IllegalArgumentException(s"Can't request ndarray of negative memory size, got ${size}")
+      throw new IllegalArgumentException(
+        s"Can't request ndarray of negative memory size, got $size"
+      )
     }
 
     val extra = Region.sharedChunkHeaderBytes
@@ -310,7 +310,6 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     Region.storeSharedChunkRefCount(alloc, curRefCount + 1L)
   }
 
-  def listNDArrayRefs(): IndexedSeq[Long] = {
+  def listNDArrayRefs(): IndexedSeq[Long] =
     this.ndarrayRefs.result().toIndexedSeq
-  }
 }

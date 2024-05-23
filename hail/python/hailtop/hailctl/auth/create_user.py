@@ -19,7 +19,9 @@ async def polling_create_user(
     wait: bool = False,
 ):
     try:
-        await async_create_user(username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name)
+        await async_create_user(
+            username, login_id, developer, service_account, hail_identity, hail_credentials_secret_name
+        )
 
         if not wait:
             return
@@ -33,7 +35,7 @@ async def polling_create_user(
                     return
                 assert user['state'] == 'creating'
                 tries += 1
-                await sleep_before_try(tries, base_delay_ms = 5_000)
+                await sleep_before_try(tries, base_delay_ms=5_000)
 
         await _poll()
     except Exception as e:

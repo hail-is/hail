@@ -28,10 +28,10 @@ class ReadableStream(abc.ABC):
     async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
-    async def seek(self, offset, whence):
+    async def seek(self, offset, whence) -> int:
         raise OSError
 
-    def seekable(self):
+    def seekable(self) -> bool:
         return False
 
     def tell(self) -> int:
@@ -60,9 +60,11 @@ class ReadableStream(abc.ABC):
         return self
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         await self.wait_closed()
 
 
@@ -113,9 +115,11 @@ class WritableStream(abc.ABC):
         return self
 
     async def __aexit__(
-            self, exc_type: Optional[Type[BaseException]] = None,
-            exc_value: Optional[BaseException] = None,
-            exc_traceback: Optional[TracebackType] = None) -> None:
+        self,
+        exc_type: Optional[Type[BaseException]] = None,
+        exc_value: Optional[BaseException] = None,
+        exc_traceback: Optional[TracebackType] = None,
+    ) -> None:
         await self.wait_closed()
 
 
@@ -136,8 +140,8 @@ class _ReadableStreamFromBlocking(ReadableStream):
             return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
 
-    async def seek(self, offset, whence):
-        self._f.seek(offset, whence)
+    async def seek(self, offset, whence) -> int:
+        return self._f.seek(offset, whence)
 
     def seekable(self):
         return True
@@ -238,7 +242,7 @@ class BlockingQueueReadableStream(io.RawIOBase, _Closable):
                 self._unread = memoryview(self._unread)
 
             n = min(len(self._unread) - self._off, len(b) - total)
-            b[total:total + n] = self._unread[self._off:self._off + n]
+            b[total : total + n] = self._unread[self._off : self._off + n]
             self._off += n
             total += n
             assert total == len(b) or self._off == len(self._unread)
@@ -320,7 +324,7 @@ class BlockingCollect(_Closable):
                 n = new_n
             assert k <= n - off
 
-            buf[off:off + k] = b
+            buf[off : off + k] = b
             off += k
 
 

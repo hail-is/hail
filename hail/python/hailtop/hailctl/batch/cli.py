@@ -40,13 +40,13 @@ def list(
     full: bool = False,
     output: ExtendedOutputFormatOption = ExtendedOutputFormat.GRID,
 ):
-    '''List batches.'''
+    """List batches."""
     list_batches.list(query, limit, before, full, output)
 
 
 @app.command()
 def get(batch_id: int, output: StructuredFormatOption = StructuredFormat.YAML):
-    '''Get information on the batch with id BATCH_ID.'''
+    """Get information on the batch with id BATCH_ID."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -59,7 +59,7 @@ def get(batch_id: int, output: StructuredFormatOption = StructuredFormat.YAML):
 
 @app.command()
 def cancel(batch_id: int):
-    '''Cancel the batch with id BATCH_ID.'''
+    """Cancel the batch with id BATCH_ID."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -73,7 +73,7 @@ def cancel(batch_id: int):
 
 @app.command()
 def delete(batch_id: int):
-    '''Delete the batch with id BATCH_ID.'''
+    """Delete the batch with id BATCH_ID."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -98,7 +98,7 @@ def log(
     container: Ann[Optional[JobContainer], Opt(help='Container name of the desired job')] = None,
     output: StructuredFormatOption = StructuredFormat.YAML,
 ):
-    '''Get the log for the job with id JOB_ID in the batch with id BATCH_ID.'''
+    """Get the log for the job with id JOB_ID in the batch with id BATCH_ID."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -119,7 +119,7 @@ def wait(
     quiet: Ann[bool, Opt('--quiet', '-q', help='Do not print a progress bar for the batch.')] = False,
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
 ):
-    '''Wait for the batch with id BATCH_ID to complete, then print status.'''
+    """Wait for the batch with id BATCH_ID to complete, then print status."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -138,7 +138,7 @@ def wait(
 
 @app.command()
 def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredFormat.YAML):
-    '''Get the status and specification for the job with id JOB_ID in the batch with id BATCH_ID.'''
+    """Get the status and specification for the job with id JOB_ID in the batch with id BATCH_ID."""
     from hailtop.batch_client.client import BatchClient  # pylint: disable=import-outside-toplevel
 
     with BatchClient('') as client:
@@ -146,12 +146,11 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
 
         if job is not None:
             assert job._status
-            print(make_formatter(output)([
-                cast(
-                    Dict[str, Any],  # https://stackoverflow.com/q/71986632/6823256
-                    job._status
+            print(
+                make_formatter(output)(
+                    [cast(Dict[str, Any], job._status)]  # https://stackoverflow.com/q/71986632/6823256
                 )
-            ]))
+            )
         else:
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 
@@ -160,7 +159,9 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
 def submit(
     ctx: typer.Context,
     script: str,
-    arguments: Ann[Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')] = None,
+    arguments: Ann[
+        Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
+    ] = None,
     files: Ann[
         Optional[List[str]], Opt(help='Files or directories to add to the working directory of the job.')
     ] = None,
@@ -168,19 +169,17 @@ def submit(
     image_name: Ann[Optional[str], Opt(help='Name of Docker image for the job (default: hailgenetics/hail)')] = None,
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
 ):
-    '''Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.
+    """Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.
 
     If you wish to pass option-like arguments you should use "--". For example:
 
 
 
     $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
-    '''
+    """
     asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
 
 
 @app.command('init', help='Initialize a Hail Batch environment.')
-def initialize(
-        verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False
-):
+def initialize(verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False):
     asyncio.run(async_basic_initialize(verbose=verbose))

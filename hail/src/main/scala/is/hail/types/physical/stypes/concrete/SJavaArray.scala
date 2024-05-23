@@ -3,9 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PString, PType}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue, SStringValue}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PString, PType}
 import is.hail.types.virtual.{TArray, TString, Type}
 import is.hail.utils.FastSeq
 
@@ -36,11 +36,16 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
   override def elementEmitType: EmitType = EmitType(elementType, elementRequired)
 
-  override def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean): SValue = {
+  override def _coerceOrCopy(
+    cb: EmitCodeBuilder,
+    region: Value[Region],
+    value: SValue,
+    deepCopy: Boolean,
+  ): SValue = {
     value.st match {
-      case SJavaArrayString(_) => new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
+      case SJavaArrayString(_) =>
+        new SJavaArrayStringValue(this, value.asInstanceOf[SJavaArrayStringValue].array)
       case SIndexablePointer(pc) if pc.elementType.isInstanceOf[PString] =>
-
         val sv = value.asInstanceOf[SIndexableValue]
         val len = sv.loadLength()
         val array = cb.memoize[Array[String]](Code.newArray[String](len))
@@ -50,12 +55,19 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
               cb += (array(i) = v.loadString(cb))
             }
           case (false, r) =>
-            sv.forEachDefinedOrMissing(cb)({ case (cb, i) =>
-              if (r)
-                cb._fatal("requiredness mismatch: found missing value at index ", i.toS, s" coercing ${ sv.st } to $this")
-            }, { case (cb, i, elt) =>
-              cb += (array(i) = elt.asString.loadString(cb))
-            })
+            sv.forEachDefinedOrMissing(cb)(
+              { case (cb, i) =>
+                if (r)
+                  cb._fatal(
+                    "requiredness mismatch: found missing value at index ",
+                    i.toS,
+                    s" coercing ${sv.st} to $this",
+                  )
+              },
+              { case (cb, i, elt) =>
+                cb += (array(i) = elt.asString.loadString(cb))
+              },
+            )
           case (false, false) =>
         }
         new SJavaArrayStringValue(this, array)
@@ -65,12 +77,12 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastSeq(arrayInfo[String])
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SJavaArrayStringSettable = {
-    val IndexedSeq(a: Settable[Array[String]@unchecked]) = settables
+    val IndexedSeq(a: Settable[Array[String] @unchecked]) = settables
     new SJavaArrayStringSettable(this, a)
   }
 
   override def fromValues(values: IndexedSeq[Value[_]]): SJavaArrayStringValue = {
-    val IndexedSeq(a: Value[Array[String]@unchecked]) = values
+    val IndexedSeq(a: Value[Array[String] @unchecked]) = values
     new SJavaArrayStringValue(this, a)
   }
 
@@ -80,7 +92,7 @@ final case class SJavaArrayString(elementRequired: Boolean) extends SContainer {
 
 class SJavaArrayStringValue(
   val st: SJavaArrayString,
-  val array: Value[Array[String]]
+  val array: Value[Array[String]],
 ) extends SIndexableValue {
   override lazy val valueTuple: IndexedSeq[Value[_]] = FastSeq(array)
 
@@ -93,39 +105,37 @@ class SJavaArrayStringValue(
       IEmitCode.present(cb, new SJavaStringValue(cb.memoize(array(i))))
     else {
       val iv = cb.memoize(i)
-      IEmitCode(cb,
-        isElementMissing(cb, iv),
-        new SJavaStringValue(cb.memoize(array(iv))))
+      IEmitCode(cb, isElementMissing(cb, iv), new SJavaStringValue(cb.memoize(array(iv))))
     }
   }
 
   override def isElementMissing(cb: EmitCodeBuilder, i: Code[Int]): Value[Boolean] =
     cb.memoize(array(i).isNull)
 
-  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] = {
+  override def hasMissingValues(cb: EmitCodeBuilder): Value[Boolean] =
     if (st.elementRequired)
       const(false)
     else
-      cb.memoize(Code.invokeScalaObject1[Array[String], Boolean](SJavaArrayHelpers.getClass, "hasNulls", array))
-  }
+      cb.memoize(Code.invokeScalaObject1[Array[String], Boolean](
+        SJavaArrayHelpers.getClass,
+        "hasNulls",
+        array,
+      ))
 
   override def castToArray(cb: EmitCodeBuilder): SIndexableValue = this
 }
 
 object SJavaArrayStringSettable {
-  def apply(sb: SettableBuilder, st: SJavaArrayString, name: String): SJavaArrayStringSettable = {
-    new SJavaArrayStringSettable(st,
-      sb.newSettable[Array[String]](s"${ name }_arr"))
-  }
+  def apply(sb: SettableBuilder, st: SJavaArrayString, name: String): SJavaArrayStringSettable =
+    new SJavaArrayStringSettable(st, sb.newSettable[Array[String]](s"${name}_arr"))
 }
 
 final class SJavaArrayStringSettable(
   st: SJavaArrayString,
-  override val array: Settable[Array[String]]
+  override val array: Settable[Array[String]],
 ) extends SJavaArrayStringValue(st, array) with SSettable {
   override def settableTuple(): IndexedSeq[Settable[_]] = FastSeq(array)
 
-  override def store(cb: EmitCodeBuilder, v: SValue): Unit = {
+  override def store(cb: EmitCodeBuilder, v: SValue): Unit =
     cb.assign(array, v.asInstanceOf[SJavaArrayStringValue].array)
-  }
 }

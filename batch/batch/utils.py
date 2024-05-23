@@ -134,7 +134,7 @@ async def query_billing_projects_with_cost(db, user=None, billing_project=None) 
     else:
         where_condition = ''
 
-    sql = f'''
+    sql = f"""
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
   users, `limit`, COALESCE(cost_t.cost, 0) AS accrued_cost
@@ -160,7 +160,7 @@ LEFT JOIN LATERAL (
 ) AS cost_t ON TRUE
 {where_condition}
 LOCK IN SHARE MODE;
-'''
+"""
 
     billing_projects = []
     async for record in db.execute_and_fetchall(sql, tuple(args)):
@@ -189,7 +189,7 @@ async def query_billing_projects_without_cost(
     else:
         where_condition = ''
 
-    sql = f'''
+    sql = f"""
 SELECT billing_projects.name as billing_project,
   billing_projects.`status` as `status`,
   users, `limit`
@@ -203,7 +203,7 @@ LEFT JOIN LATERAL (
 ) AS t ON TRUE
 {where_condition}
 LOCK IN SHARE MODE;
-'''
+"""
 
     billing_projects = []
     async for record in db.execute_and_fetchall(sql, tuple(args)):
@@ -229,13 +229,11 @@ def regions_to_bits_rep(selected_regions, all_regions_mapping):
 
 
 @overload
-def regions_bits_rep_to_regions(regions_bits_rep: None, all_regions_mapping: Dict[str, int]) -> None:
-    ...
+def regions_bits_rep_to_regions(regions_bits_rep: None, all_regions_mapping: Dict[str, int]) -> None: ...
 
 
 @overload
-def regions_bits_rep_to_regions(regions_bits_rep: int, all_regions_mapping: Dict[str, int]) -> List[str]:
-    ...
+def regions_bits_rep_to_regions(regions_bits_rep: int, all_regions_mapping: Dict[str, int]) -> List[str]: ...
 
 
 def regions_bits_rep_to_regions(

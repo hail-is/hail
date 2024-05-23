@@ -1,29 +1,34 @@
 package is.hail.io
 
-import java.io._
-import is.hail.asm4s.{HailClassLoader, theHailClassLoaderForSparkWorkers}
 import is.hail.annotations._
+import is.hail.asm4s.{theHailClassLoaderForSparkWorkers, HailClassLoader}
 import is.hail.backend.ExecuteContext
 import is.hail.backend.spark.SparkTaskContext
-import is.hail.types.physical._
 import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
-import is.hail.rvd.{AbstractIndexSpec, IndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.rvd.{AbstractIndexSpec, MakeRVDSpec, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras._
+import is.hail.types.physical._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+
+import java.io._
+
+import org.apache.spark.{ExposedMetrics, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{ExposedMetrics, TaskContext}
-
-import scala.reflect.ClassTag
 
 object RichContextRDDRegionValue {
   def writeRowsPartition(
     makeEnc: (OutputStream, HailClassLoader) => Encoder,
     indexKeyFieldIndices: Array[Int] = null,
-    rowType: PStruct = null
-  )(ctx: RVDContext, it: Iterator[Long], os: OutputStream, iw: IndexWriter): (Long, Long) = {
+    rowType: PStruct = null,
+  )(
+    ctx: RVDContext,
+    it: Iterator[Long],
+    os: OutputStream,
+    iw: IndexWriter,
+  ): (Long, Long) = {
     val context = TaskContext.get
     val outputMetrics =
       if (context != null)
@@ -80,7 +85,7 @@ object RichContextRDDRegionValue {
     stageLocally: Boolean,
     makeIndexWriter: (String, RegionPool) => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
-    makeEntriesEnc: (OutputStream) => Encoder
+    makeEntriesEnc: (OutputStream) => Encoder,
   ): FileWriteMetadata = {
     val fullRowType = t.rowType
 
@@ -92,8 +97,10 @@ object RichContextRDDRegionValue {
     val finalIdxPath = path + "/index/" + f + ".idx"
     val (rowsPartPath, entriesPartPath, idxPath) =
       if (stageLocally) {
-        val rowsPartPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-rows-part")
-        val entriesPartPath = ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-entries-part")
+        val rowsPartPath =
+          ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-rows-part")
+        val entriesPartPath =
+          ExecuteContext.createTmpPathNoCleanup(localTmpdir, "write-split-staged-entries-part")
         val idxPath = rowsPartPath + ".idx"
         context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
           fs.delete(rowsPartPath, recursive = false)
@@ -107,7 +114,6 @@ object RichContextRDDRegionValue {
     val (rowCount, totalBytesWritten) = using(fs.create(rowsPartPath)) { rowsOS =>
       val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
       using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
-
         using(fs.create(entriesPartPath)) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
@@ -130,7 +136,10 @@ object RichContextRDDRegionValue {
 
                 rowCount += 1
 
-                ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
+                ExposedMetrics.setBytes(
+                  outputMetrics,
+                  trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten,
+                )
                 ExposedMetrics.setRecords(outputMetrics, 2 * rowCount)
               }
 
@@ -140,7 +149,8 @@ object RichContextRDDRegionValue {
               rowsEN.flush()
               entriesEN.flush()
 
-              val totalBytesWritten = trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten + iw.trackedOS().bytesWritten
+              val totalBytesWritten =
+                trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten + iw.trackedOS().bytesWritten
               ExposedMetrics.setBytes(outputMetrics, totalBytesWritten)
 
               (rowCount, totalBytesWritten)
@@ -171,13 +181,17 @@ object RichContextRDDRegionValue {
     rowsRVType: PStruct,
     entriesRVType: PStruct,
     partFiles: Array[String],
-    partitioner: RVDPartitioner
-  ) {
+    partitioner: RVDPartitioner,
+  ): Unit = {
     val rowsSpec = MakeRVDSpec(rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)
     rowsSpec.write(fs, path + "/rows/rows")
 
-    val entriesSpec = MakeRVDSpec(entriesCodecSpec, partFiles,
-      RVDPartitioner.unkeyed(partitioner.sm, partitioner.numPartitions), entriesIndexSpec)
+    val entriesSpec = MakeRVDSpec(
+      entriesCodecSpec,
+      partFiles,
+      RVDPartitioner.unkeyed(partitioner.sm, partitioner.numPartitions),
+      entriesIndexSpec,
+    )
     entriesSpec.write(fs, path + "/entries/rows")
   }
 }
@@ -186,7 +200,7 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
   def boundary: ContextRDD[Long] =
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
-      val it = part.flatMap(_ (producerCtx))
+      val it = part.flatMap(_(producerCtx))
       new Iterator[Long]() {
         private[this] var cleared: Boolean = false
 
@@ -209,10 +223,10 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     }
 
   def toCRDDRegionValue: ContextRDD[RegionValue] =
-    boundary.cmapPartitionsWithContext((ctx, part) => {
+    boundary.cmapPartitionsWithContext { (ctx, part) =>
       val rv = RegionValue(ctx.r)
-      part(ctx).map(ptr => { rv.setOffset(ptr); rv })
-    })
+      part(ctx).map { ptr => rv.setOffset(ptr); rv }
+    }
 
   def writeRows(
     ctx: ExecuteContext,
@@ -220,33 +234,33 @@ class RichContextRDDLong(val crdd: ContextRDD[Long]) extends AnyVal {
     idxRelPath: String,
     t: RVDType,
     stageLocally: Boolean,
-    encoding: AbstractTypedCodecSpec
+    encoding: AbstractTypedCodecSpec,
   ): Array[FileWriteMetadata] = {
     crdd.writePartitions(
       ctx,
       path,
       idxRelPath,
-      stageLocally,
-      {
-        val f1= IndexWriter.builder(ctx, t.kType, +PCanonicalStruct())
+      stageLocally, {
+        val f1 = IndexWriter.builder(ctx, t.kType, +PCanonicalStruct())
         f1(_, theHailClassLoaderForSparkWorkers, SparkTaskContext.get(), _)
       },
       RichContextRDDRegionValue.writeRowsPartition(
         encoding.buildEncoder(ctx, t.rowType),
         t.kFieldIdx,
-        t.rowType) _)
+        t.rowType,
+      ) _,
+    )
   }
 
-  def toRows(rowType: PStruct): RDD[Row] = {
+  def toRows(rowType: PStruct): RDD[Row] =
     crdd.cmap((ctx, ptr) => SafeRow(rowType, ptr)).run
-  }
 }
 
 class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVal {
   def boundary: ContextRDD[RegionValue] =
     crdd.cmapPartitionsAndContext { (consumerCtx, part) =>
       val producerCtx = consumerCtx.freshContext
-      val it = part.flatMap(_ (producerCtx))
+      val it = part.flatMap(_(producerCtx))
       new Iterator[RegionValue]() {
         private[this] var cleared: Boolean = false
 
@@ -279,7 +293,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
 
   def cleanupRegions: ContextRDD[RegionValue] = {
     crdd.cmapPartitionsAndContext { (ctx, part) =>
-      val it = part.flatMap(_ (ctx))
+      val it = part.flatMap(_(ctx))
       new Iterator[RegionValue]() {
         private[this] var cleared: Boolean = false
 
@@ -302,8 +316,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RegionValue]) extends AnyVa
     }
   }
 
-
-  def toRows(rowType: PStruct): RDD[Row] = {
+  def toRows(rowType: PStruct): RDD[Row] =
     crdd.run.map(rv => SafeRow(rowType, rv.offset))
-  }
 }

@@ -1,18 +1,14 @@
 package is.hail.methods
 
-import breeze.linalg.{Vector => BVector}
-import is.hail.annotations.{Annotation, Region, RegionPool, RegionValue, RegionValueBuilder}
-import is.hail.backend.HailTaskContext
-import is.hail.backend.spark.SparkTaskContext
-import is.hail.check.Prop._
+import is.hail.{HailSuite, TestUtils}
+import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.ir.{Interpret, LongArrayBuilder, MatrixValue, TableValue}
-import is.hail.types._
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual.{TArray, TString, TStruct}
+import is.hail.check.Prop._
+import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.{HailSuite, TestUtils}
+
+import breeze.linalg.{Vector => BVector}
 import org.apache.spark.rdd.RDD
 import org.testng.annotations.Test
 
@@ -25,35 +21,38 @@ object LocalLDPruneSuite {
     val alleles = Array("A", "T")
     val nSamples = calls.length
     val builder = new BitPackedVectorBuilder(nSamples)
-    for (call <- calls) {
+    for (call <- calls)
       if (call == null)
         builder.addMissing()
       else
         builder.addGT(call)
-    }
 
     Option(builder.finish(locus, alleles))
   }
 
   def correlationMatrixGT(gts: Array[Iterable[Annotation]]) = correlationMatrix(gts.map { gts =>
-    gts.map { gt => Genotype.call(gt).map(c => c: BoxedCall).orNull }.toArray
+    gts.map(gt => Genotype.call(gt).map(c => c: BoxedCall).orNull).toArray
   })
 
   def correlationMatrix(gts: Array[Array[BoxedCall]]) = {
-    val bvi = gts.map { gs => LocalLDPruneSuite.fromCalls(gs.toIndexedSeq) }
-    val r2 = for (i <- bvi.indices; j <- bvi.indices) yield {
-      (bvi(i), bvi(j)) match {
+    val bvi = gts.map(gs => LocalLDPruneSuite.fromCalls(gs.toIndexedSeq))
+    val r2 =
+      for {
+        i <- bvi.indices
+        j <- bvi.indices
+      } yield (bvi(i), bvi(j)) match {
         case (Some(x), Some(y)) =>
           Some(LocalLDPrune.computeR2(x, y))
         case _ => None
       }
-    }
     val nVariants = bvi.length
     new MultiArray2(nVariants, nVariants, r2.toArray)
   }
 
   def estimateMemoryRequirements(nVariants: Long, nSamples: Int, memoryPerCore: Long): Int = {
-    val bytesPerVariant = math.ceil(8 * nSamples.toDouble / BitPackedVector.GENOTYPES_PER_PACK).toLong + variantByteOverhead
+    val bytesPerVariant = math.ceil(
+      8 * nSamples.toDouble / BitPackedVector.GENOTYPES_PER_PACK
+    ).toLong + variantByteOverhead
     val memoryAvailPerCore = memoryPerCore * fractionMemoryToUse
 
     val maxQueueSize = math.max(1, math.ceil(memoryAvailPerCore / bytesPerVariant).toInt)
@@ -110,18 +109,24 @@ object LocalLDPruneSuite {
 class LocalLDPruneSuite extends HailSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
-  lazy val mt = Interpret(TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)),
-    ctx, false).toMatrixValue(Array("s"))
+
+  lazy val mt = Interpret(
+    TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)),
+    ctx,
+    false,
+  ).toMatrixValue(Array("s"))
 
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
     mt.rvd.count(),
     mt.nCols,
-    memoryPerCoreBytes)
+    memoryPerCoreBytes,
+  )
 
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
 
   def getLocallyPrunedRDDWithGT(
-    unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue
+    unprunedMatrixTable: MatrixValue,
+    locallyPrunedTable: TableValue,
   ): RDD[(Locus, Any, Iterable[Annotation])] = {
     val mtLocusIndex = unprunedMatrixTable.rvRowPType.index("locus").get
     val mtAllelesIndex = unprunedMatrixTable.rvRowPType.index("alleles").get
@@ -131,21 +136,35 @@ class LocalLDPruneSuite extends HailSuite {
     val allelesIndex = locallyPrunedTable.rvd.rowType.fieldIdx("alleles")
 
     val locallyPrunedVariants = locallyPrunedTable.rdd.mapPartitions(
-      it => it.map(row => (row.get(locusIndex), row.get(allelesIndex))), preservesPartitioning = true).collectAsSet()
+      it => it.map(row => (row.get(locusIndex), row.get(allelesIndex))),
+      preservesPartitioning = true,
+    ).collectAsSet()
 
     unprunedMatrixTable.rvd.toRows.map { r =>
-      (r.getAs[Locus](mtLocusIndex), r.getAs[Any](mtAllelesIndex), r.getAs[Iterable[Annotation]](mtEntriesIndex))
-    }.filter { case (locus, alleles, gs) => locallyPrunedVariants.contains((locus, alleles)) }
+      (
+        r.getAs[Locus](mtLocusIndex),
+        r.getAs[Any](mtAllelesIndex),
+        r.getAs[Iterable[Annotation]](mtEntriesIndex),
+      )
+    }.filter { case (locus, alleles, _) => locallyPrunedVariants.contains((locus, alleles)) }
   }
 
-  def isGloballyUncorrelated(unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue, r2Threshold: Double,
-    windowSize: Int): Boolean = {
+  def isGloballyUncorrelated(
+    unprunedMatrixTable: MatrixValue,
+    locallyPrunedTable: TableValue,
+    r2Threshold: Double,
+    windowSize: Int,
+  ): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
     val nSamples = unprunedMatrixTable.nCols
 
-    val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map { case (locus, alleles, gs) => gs }.collect())
-    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, alleles, gs), i) => (i.toInt, locus) }.collectAsMap()
+    val r2Matrix = LocalLDPruneSuite.correlationMatrixGT(locallyPrunedRDD.map {
+      case (_, _, gs) => gs
+    }.collect())
+    val variantMap = locallyPrunedRDD.zipWithIndex.map { case ((locus, _, _), i) =>
+      (i.toInt, locus)
+    }.collectAsMap()
 
     r2Matrix.indices.forall { case (i, j) =>
       val locus1 = variantMap(i)
@@ -153,59 +172,73 @@ class LocalLDPruneSuite extends HailSuite {
       val r2 = r2Matrix(i, j)
 
       locus1 == locus2 ||
-        locus1.contig != locus2.contig ||
-        (locus1.contig == locus2.contig && math.abs(locus1.position - locus2.position) > windowSize) ||
-        r2.exists(_ < r2Threshold)
+      locus1.contig != locus2.contig ||
+      (locus1.contig == locus2.contig && math.abs(
+        locus1.position - locus2.position
+      ) > windowSize) ||
+      r2.exists(_ < r2Threshold)
     }
   }
 
-  def isLocallyUncorrelated(unprunedMatrixTable: MatrixValue, locallyPrunedTable: TableValue, r2Threshold: Double,
-    windowSize: Int): Boolean = {
+  def isLocallyUncorrelated(
+    unprunedMatrixTable: MatrixValue,
+    locallyPrunedTable: TableValue,
+    r2Threshold: Double,
+    windowSize: Int,
+  ): Boolean = {
 
     val locallyPrunedRDD = getLocallyPrunedRDDWithGT(unprunedMatrixTable, locallyPrunedTable)
     val nSamples = unprunedMatrixTable.nCols
 
     val locallyUncorrelated = {
-      locallyPrunedRDD.mapPartitions(it => {
-        // bind function for serialization
-        val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]]) =>
-          LocalLDPruneSuite.correlationMatrixGT(gts)
+      locallyPrunedRDD.mapPartitions(
+        it => {
+          // bind function for serialization
+          val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]]) =>
+            LocalLDPruneSuite.correlationMatrixGT(gts)
 
-        val (it1, it2) = it.duplicate
-        val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) => gs }.toArray)
-        val localVariantMap = it2.zipWithIndex.map { case ((locus, alleles, gs), i) => (i, locus) }.toMap
+          val (it1, it2) = it.duplicate
+          val localR2Matrix = computeCorrelationMatrix(it1.map { case (_, _, gs) =>
+            gs
+          }.toArray)
+          val localVariantMap = it2.zipWithIndex.map { case ((locus, _, _), i) =>
+            (i, locus)
+          }.toMap
 
-        val uncorrelated = localR2Matrix.indices.forall { case (i, j) =>
-          val locus1 = localVariantMap(i)
-          val locus2 = localVariantMap(j)
-          val r2 = localR2Matrix(i, j)
+          val uncorrelated = localR2Matrix.indices.forall { case (i, j) =>
+            val locus1 = localVariantMap(i)
+            val locus2 = localVariantMap(j)
+            val r2 = localR2Matrix(i, j)
 
-          locus1 == locus2 ||
+            locus1 == locus2 ||
             locus1.contig != locus2.contig ||
-            (locus1.contig == locus2.contig && math.abs(locus1.position - locus2.position) > windowSize) ||
+            (locus1.contig == locus2.contig && math.abs(
+              locus1.position - locus2.position
+            ) > windowSize) ||
             r2.exists(_ < r2Threshold)
-        }
+          }
 
-        Iterator(uncorrelated)
-      }, preservesPartitioning = true)
+          Iterator(uncorrelated)
+        },
+        preservesPartitioning = true,
+      )
     }
 
     locallyUncorrelated.fold(true)((bool1, bool2) => bool1 && bool2)
   }
 
-  @Test def testBitPackUnpack() {
+  @Test def testBitPackUnpack(): Unit = {
     val calls1 = Array(-1, 0, 1, 2, 1, 1, 0, 0, 0, 0, 2, 2, -1, -1, -1, -1).map(toC2)
     val calls2 = Array(0, 1, 2, 2, 2, 0, -1, -1).map(toC2)
     val calls3 = calls1 ++ Array.ofDim[Int](32 - calls1.length).map(toC2) ++ calls2
 
-    for (calls <- Array(calls1, calls2, calls3)) {
+    for (calls <- Array(calls1, calls2, calls3))
       assert(LocalLDPruneSuite.fromCalls(calls).forall { bpv =>
         bpv.unpack().map(toC2(_)) sameElements calls
       })
-    }
   }
 
-  @Test def testR2() {
+  @Test def testR2(): Unit = {
     val calls = Array(
       Array(1, 0, 0, 0, 0, 0, 0, 0).map(toC2),
       Array(1, 1, 1, 1, 1, 1, 1, 1).map(toC2),
@@ -213,12 +246,16 @@ class LocalLDPruneSuite extends HailSuite {
       Array(1, 0, 0, 0, 1, 1, 1, 1).map(toC2),
       Array(1, 0, 0, 0, 1, 1, 2, 2).map(toC2),
       Array(1, 0, 1, 1, 2, 2, 0, 1).map(toC2),
-      Array(1, 0, 1, 0, 2, 2, 1, 1).map(toC2)
+      Array(1, 0, 1, 0, 2, 2, 1, 1).map(toC2),
     )
 
-    val actualR2 = new MultiArray2(7, 7, fs.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
-      line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
-    }.value).toArray))
+    val actualR2 = new MultiArray2(
+      7,
+      7,
+      fs.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
+        line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
+      }.value).toArray),
+    )
 
     val computedR2 = LocalLDPruneSuite.correlationMatrix(calls)
 
@@ -249,13 +286,14 @@ class LocalLDPruneSuite extends HailSuite {
   }
 
   object Spec extends Properties("LDPrune") {
-    val vectorGen = for (nSamples: Int <- Gen.choose(1, 1000);
-    v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2));
-    v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
-    ) yield (nSamples, v1, v2)
+    val vectorGen = for {
+      nSamples: Int <- Gen.choose(1, 1000)
+      v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
+      v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
+    } yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
-      forAll(vectorGen) { case (nSamples: Int, v1: Array[BoxedCall], _) =>
+      forAll(vectorGen) { case (_: Int, v1: Array[BoxedCall], _) =>
         val bpv = LocalLDPruneSuite.fromCalls(v1)
 
         bpv match {
@@ -269,8 +307,10 @@ class LocalLDPruneSuite extends HailSuite {
         val bv1 = LocalLDPruneSuite.fromCalls(v1)
         val bv2 = LocalLDPruneSuite.fromCalls(v2)
 
-        val sgs1 = LocalLDPruneSuite.normalizedHardCalls(v1).map(math.sqrt(1d / nSamples) * BVector(_))
-        val sgs2 = LocalLDPruneSuite.normalizedHardCalls(v2).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs1 =
+          LocalLDPruneSuite.normalizedHardCalls(v1).map(math.sqrt(1d / nSamples) * BVector(_))
+        val sgs2 =
+          LocalLDPruneSuite.normalizedHardCalls(v2).map(math.sqrt(1d / nSamples) * BVector(_))
 
         (bv1, bv2, sgs1, sgs2) match {
           case (Some(a), Some(b), Some(c: BVector[Double]), Some(d: BVector[Double])) =>
@@ -278,7 +318,8 @@ class LocalLDPruneSuite extends HailSuite {
             val r2Breeze = rBreeze * rBreeze
             val r2BitPacked = LocalLDPrune.computeR2(a, b)
 
-            val isSame = D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
+            val isSame =
+              D_==(r2BitPacked, r2Breeze) && D_>=(r2BitPacked, 0d) && D_<=(r2BitPacked, 1d)
             if (!isSame) {
               println(s"breeze=$r2Breeze bitPacked=$r2BitPacked nSamples=$nSamples")
             }
@@ -288,12 +329,12 @@ class LocalLDPruneSuite extends HailSuite {
       }
   }
 
-  @Test def testRandom() {
+  @Test def testRandom(): Unit =
     Spec.check()
-  }
 
-  @Test def testIsLocallyUncorrelated() {
-    val locallyPrunedVariantsTable = LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
+  @Test def testIsLocallyUncorrelated(): Unit = {
+    val locallyPrunedVariantsTable =
+      LocalLDPrune(ctx, mt, r2Threshold = 0.2, windowSize = 1000000, maxQueueSize = maxQueueSize)
     assert(isLocallyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(mt, locallyPrunedVariantsTable, 0.2, 1000000))
   }

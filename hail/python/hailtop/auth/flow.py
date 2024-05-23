@@ -22,11 +22,7 @@ log = logging.getLogger('auth')
 
 
 class FlowResult:
-    def __init__(self,
-                 login_id: str,
-                 unverified_email: str,
-                 organization_id: Optional[str],
-                 token: Mapping[Any, Any]):
+    def __init__(self, login_id: str, unverified_email: str, organization_id: Optional[str], token: Mapping[Any, Any]):
         self.login_id = login_id
         self.unverified_email = unverified_email
         self.organization_id = organization_id  # In Azure, a Tenant ID. In Google, a domain name.
@@ -65,18 +61,21 @@ class Flow(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]) -> None:
         """Revokes the OAuth2 credentials on the user's machine."""
         raise NotImplementedError
 
     @staticmethod
     @abc.abstractmethod
-    async def get_identity_uid_from_access_token(session: httpx.ClientSession, access_token: str, *, oauth2_client: dict) -> Optional[str]:
+    async def get_identity_uid_from_access_token(
+        session: httpx.ClientSession, access_token: str, *, oauth2_client: dict
+    ) -> Optional[str]:
         """
         Validate a user-provided access token. If the token is valid, return the identity
         to which it belongs. If it is not valid, return None.
         """
         raise NotImplementedError
+
 
 class GoogleFlow(Flow):
     scopes: ClassVar[List[str]] = [
@@ -113,7 +112,8 @@ class GoogleFlow(Flow):
         flow.redirect_uri = flow_dict['callback_uri']
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request()  # type: ignore
+            flow.credentials.id_token,  # type: ignore
+            google.auth.transport.requests.Request(),  # type: ignore
         )
         email = token['email']
         return FlowResult(email, email, token.get('hd'), token)
@@ -130,16 +130,18 @@ class GoogleFlow(Flow):
         }
 
     @staticmethod
-    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]) -> None:
         async with httpx.client_session() as session:
             await session.post(
                 'https://oauth2.googleapis.com/revoke',
                 params={'token': oauth2_credentials['refresh_token']},
-                headers={'content-type': 'application/x-www-form-urlencoded'}
+                headers={'content-type': 'application/x-www-form-urlencoded'},
             )
 
     @staticmethod
-    async def get_identity_uid_from_access_token(session: httpx.ClientSession, access_token: str, *, oauth2_client: dict) -> Optional[str]:
+    async def get_identity_uid_from_access_token(
+        session: httpx.ClientSession, access_token: str, *, oauth2_client: dict
+    ) -> Optional[str]:
         oauth2_client_audience = oauth2_client['installed']['client_id']
         try:
             userinfo = await retry_transient_errors(
@@ -187,9 +189,9 @@ class AzureFlow(Flow):
     def initiate_flow(self, redirect_uri: str) -> dict:
         flow = self._client.initiate_auth_code_flow(
             scopes=[],  # confusingly, scopes=[] is the only way to get the openid, profile, and
-                        # offline_access scopes
-                        # https://github.com/AzureAD/microsoft-authentication-library-for-python/blob/dev/msal/application.py#L568-L580
-            redirect_uri=redirect_uri
+            # offline_access scopes
+            # https://github.com/AzureAD/microsoft-authentication-library-for-python/blob/dev/msal/application.py#L568-L580
+            redirect_uri=redirect_uri,
         )
         return {
             'flow': flow,
@@ -214,7 +216,7 @@ class AzureFlow(Flow):
             token['id_token_claims']['oid'],
             token['id_token_claims']['preferred_username'],
             token['id_token_claims']['tid'],
-            token
+            token,
         )
 
     @staticmethod
@@ -226,7 +228,7 @@ class AzureFlow(Flow):
         return {**oauth2_client, 'refreshToken': credentials['refresh_token']}
 
     @staticmethod
-    async def logout_installed_app(_: Dict[str, Any]):
+    async def logout_installed_app(oauth2_credentials: Dict[str, Any]):
         # AAD does not support revocation of a single refresh token,
         # only all refresh tokens issued to all applications for a particular
         # user, which we neither wish nor should have the permissions
@@ -235,7 +237,9 @@ class AzureFlow(Flow):
         pass
 
     @staticmethod
-    async def get_identity_uid_from_access_token(session: httpx.ClientSession, access_token: str, *, oauth2_client: dict) -> Optional[str]:
+    async def get_identity_uid_from_access_token(
+        session: httpx.ClientSession, access_token: str, *, oauth2_client: dict
+    ) -> Optional[str]:
         audience = oauth2_client['appIdentifierUri']
 
         try:
@@ -253,7 +257,13 @@ class AzureFlow(Flow):
             jwk = next(key for key in AzureFlow._aad_keys if key['kid'] == kid)
             der_cert = base64.b64decode(jwk['x5c'][0])
             cert = x509.load_der_x509_certificate(der_cert)
-            pem_key = cert.public_key().public_bytes(encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo).decode()
+            pem_key = (
+                cert.public_key()
+                .public_bytes(
+                    encoding=serialization.Encoding.PEM, format=serialization.PublicFormat.SubjectPublicKeyInfo
+                )
+                .decode()
+            )
 
             decoded = jwt.decode(access_token, pem_key, algorithms=['RS256'], audience=audience)
             return decoded['oid']

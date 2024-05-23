@@ -7,12 +7,11 @@ class UnionFind(initialCapacity: Int = 32) {
 
   def size: Int = count
 
-  private def ensure(i: Int) {
+  private def ensure(i: Int): Unit = {
     if (i >= a.length) {
       var newLength = a.length << 1
-      while (i >= newLength) {
+      while (i >= newLength)
         newLength = newLength << 1
-      }
       val a2 = new Array[Int](newLength)
       Array.copy(a, 0, a2, 0, a.length)
       a = a2
@@ -22,7 +21,7 @@ class UnionFind(initialCapacity: Int = 32) {
     }
   }
 
-  def makeSet(i: Int) {
+  def makeSet(i: Int): Unit = {
     ensure(i)
     a(i) = i
     count += 1
@@ -31,9 +30,8 @@ class UnionFind(initialCapacity: Int = 32) {
   def find(x: Int): Int = {
     require(x < a.length)
     var representative = x
-    while (representative != a(representative)) {
+    while (representative != a(representative))
       representative = a(representative)
-    }
     var current = x
     while (representative != current) {
       val temp = a(current)
@@ -43,7 +41,7 @@ class UnionFind(initialCapacity: Int = 32) {
     current
   }
 
-  def union(x: Int, y: Int) {
+  def union(x: Int, y: Int): Unit = {
     val xroot = find(x)
     val yroot = find(y)
 

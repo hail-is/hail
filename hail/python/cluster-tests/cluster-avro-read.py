@@ -1,4 +1,5 @@
 import hail as hl
+
 avro_file = 'gs://hail-common/test-resources/weather.avro'
 from avro.datafile import DataFileReader
 from avro.io import DatumReader

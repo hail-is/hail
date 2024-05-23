@@ -23,7 +23,6 @@ def test_humanize():
     assert naturaldelta(0.001) == '1ms'
     assert naturaldelta(0.000001) == '1μs'
 
-
     assert naturaldelta_msec(15 * 24 * 60 * 60 * 1000) == '2 weeks 1 day'
     assert naturaldelta_msec(200_000) == '3 minutes 20s'
     assert naturaldelta_msec(120_000) == '2 minutes'

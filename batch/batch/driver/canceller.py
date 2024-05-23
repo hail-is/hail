@@ -75,12 +75,12 @@ class Canceller:
 
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user, CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_ready_jobs > 0;
-''',
+""",
         )
         user_n_cancelled_ready_jobs = {record['user']: record['n_cancelled_ready_jobs'] async for record in records}
 
@@ -95,35 +95,35 @@ HAVING n_cancelled_ready_jobs > 0;
 
         async def user_cancelled_ready_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
-                '''
+                """
 SELECT batches.id, job_groups_cancelled.id IS NOT NULL AS cancelled
 FROM batches
 LEFT JOIN job_groups_cancelled
        ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 if batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
 LIMIT %s;
-''',
+""",
                         (batch['id'], remaining.value),
                     ):
                         record['batch_id'] = batch['id']
                         yield record
                 else:
                     async for record in self.db.select_and_fetchall(
-                        '''
+                        """
 SELECT jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
 LIMIT %s;
-''',
+""",
                         (batch['id'], remaining.value),
                     ):
                         record['batch_id'] = batch['id']
@@ -161,12 +161,12 @@ LIMIT %s;
 
     async def cancel_cancelled_creating_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user, CAST(COALESCE(SUM(n_cancelled_creating_jobs), 0) AS SIGNED) AS n_cancelled_creating_jobs
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_creating_jobs > 0;
-''',
+""",
         )
         user_n_cancelled_creating_jobs = {
             record['user']: record['n_cancelled_creating_jobs'] async for record in records
@@ -183,24 +183,24 @@ HAVING n_cancelled_creating_jobs > 0;
 
         async def user_cancelled_creating_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
-                '''
+                """
 SELECT batches.id
 FROM batches
 INNER JOIN job_groups_cancelled
         ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 async for record in self.db.select_and_fetchall(
-                    '''
+                    """
 SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE jobs.batch_id = %s AND state = 'Creating' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
-''',
+""",
                     (batch['id'], remaining.value),
                 ):
                     record['batch_id'] = batch['id']
@@ -260,12 +260,12 @@ LIMIT %s;
 
     async def cancel_cancelled_running_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
-            '''
+            """
 SELECT user, CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
 FROM user_inst_coll_resources
 GROUP BY user
 HAVING n_cancelled_running_jobs > 0;
-''',
+""",
         )
         user_n_cancelled_running_jobs = {record['user']: record['n_cancelled_running_jobs'] async for record in records}
 
@@ -280,24 +280,24 @@ HAVING n_cancelled_running_jobs > 0;
 
         async def user_cancelled_running_jobs(user, remaining) -> AsyncIterator[Dict[str, Any]]:
             async for batch in self.db.select_and_fetchall(
-                '''
+                """
 SELECT batches.id
 FROM batches
 INNER JOIN job_groups_cancelled
         ON batches.id = job_groups_cancelled.id
 WHERE user = %s AND `state` = 'running';
-''',
+""",
                 (user,),
             ):
                 async for record in self.db.select_and_fetchall(
-                    '''
+                    """
 SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
 LIMIT %s;
-''',
+""",
                     (batch['id'], remaining.value),
                 ):
                     record['batch_id'] = batch['id']
@@ -336,7 +336,7 @@ LIMIT %s;
         n_unscheduled = 0
 
         async for record in self.db.select_and_fetchall(
-            '''
+            """
 SELECT attempts.*
 FROM attempts
 INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
@@ -347,7 +347,7 @@ WHERE attempts.start_time IS NOT NULL
   AND instances.`state` = 'active'
 ORDER BY attempts.start_time ASC
 LIMIT 300;
-''',
+""",
         ):
             batch_id = record['batch_id']
             job_id = record['job_id']

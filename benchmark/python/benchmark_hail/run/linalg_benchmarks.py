@@ -48,8 +48,9 @@ def blockmatrix_write_from_entry_expr_range_mt():
 def blockmatrix_write_from_entry_expr_range_mt_standardize():
     mt = hl.utils.range_matrix_table(40_000, 40_000, n_partitions=4)
     path = hl.utils.new_temp_file(extension='bm')
-    hl.linalg.BlockMatrix.write_from_entry_expr(mt.row_idx + mt.col_idx, path, mean_impute=True, center=True,
-                                                normalize=True)
+    hl.linalg.BlockMatrix.write_from_entry_expr(
+        mt.row_idx + mt.col_idx, path, mean_impute=True, center=True, normalize=True
+    )
     return lambda: recursive_delete(path)
 
 

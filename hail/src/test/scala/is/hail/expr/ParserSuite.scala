@@ -1,9 +1,10 @@
 package is.hail.expr
 
 import is.hail.HailSuite
+
 import org.testng.annotations.Test
 
-class ParserSuite extends HailSuite{
+class ParserSuite extends HailSuite {
   @Test def testOneOfLiteral(): Unit = {
     val strings = Array("A", "B", "AB", "AA", "CAD", "EF")
     val p = Parser.oneOfLiteral(strings)

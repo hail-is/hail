@@ -21,5 +21,6 @@ object TableStageDependency {
 }
 
 case class TableStageDependency(deps: IndexedSeq[DependencySource]) {
-  def union(other: TableStageDependency): TableStageDependency = TableStageDependency.union(FastSeq(this, other))
+  def union(other: TableStageDependency): TableStageDependency =
+    TableStageDependency.union(FastSeq(this, other))
 }

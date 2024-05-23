@@ -4,7 +4,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class ArrayStackSuite extends TestNGSuite {
-  @Test def test() {
+  @Test def test(): Unit = {
     val s = new IntArrayStack(4)
     assert(s.isEmpty)
     assert(!s.nonEmpty)

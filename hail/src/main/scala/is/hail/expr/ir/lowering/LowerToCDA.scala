@@ -11,21 +11,34 @@ object LowerToCDA {
     lower(ir, typesToLower, ctx, analyses)
   }
 
-  def lower(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, analyses: LoweringAnalyses): IR = ir match {
+  def lower(
+    ir: IR,
+    typesToLower: DArrayLowering.Type,
+    ctx: ExecuteContext,
+    analyses: LoweringAnalyses,
+  ): IR = ir match {
     case node if node.children.forall(_.isInstanceOf[IR]) =>
       ir.mapChildren { case c: IR => lower(c, typesToLower, ctx, analyses) }
 
-    case node if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n => n.isInstanceOf[TableIR] || n.isInstanceOf[IR]) =>
+    case node
+        if node.children.exists(n => n.isInstanceOf[TableIR]) && node.children.forall(n =>
+          n.isInstanceOf[TableIR] || n.isInstanceOf[IR]
+        ) =>
       LowerTableIR(ir, typesToLower, ctx, analyses)
 
-    case node if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n => n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]) =>
+    case node
+        if node.children.exists(n => n.isInstanceOf[BlockMatrixIR]) && node.children.forall(n =>
+          n.isInstanceOf[BlockMatrixIR] || n.isInstanceOf[IR]
+        ) =>
       LowerBlockMatrixIR(ir, typesToLower, ctx, analyses)
 
     case node if node.children.exists(_.isInstanceOf[MatrixIR]) =>
-      throw new LowererUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(ctx, node) }")
+      throw new LowererUnsupportedOperation(
+        s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${Pretty(ctx, node)}"
+      )
 
     case node =>
-      throw new LowererUnsupportedOperation(s"Cannot lower: \n${ Pretty(ctx, node) }")
+      throw new LowererUnsupportedOperation(s"Cannot lower: \n${Pretty(ctx, node)}")
   }
 }
 

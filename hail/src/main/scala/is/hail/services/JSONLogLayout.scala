@@ -1,15 +1,15 @@
 package is.hail.services
 
+import scala.collection.mutable.ArrayBuffer
+
+import java.io.StringWriter
 import java.text._
 import java.util.function._
-import java.nio.charset.StandardCharsets
-import java.io.StringWriter
 
-import org.json4s._
 import org.apache.log4j._
 import org.apache.log4j.spi._
+import org.json4s._
 import org.json4s.jackson.JsonMethods
-import scala.collection.mutable.ArrayBuffer
 
 class DateFormatter {
   private[this] val fmt = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
@@ -54,22 +54,28 @@ class JSONLogLayout extends Layout {
     fields += JField("logger_name", JString(event.getLoggerName()))
 
     val mdcFields = new ArrayBuffer[JField]()
-    mdc.forEach(new BiConsumer[Any, Any]() { def accept(key: Any, value: Any): Unit = {
-      mdcFields += JField(key.toString, JString(value.toString))
-    } })
-    fields += JField("mdc", JObject(mdcFields:_*))
+    mdc.forEach(new BiConsumer[Any, Any]() {
+      def accept(key: Any, value: Any): Unit =
+        mdcFields += JField(key.toString, JString(value.toString))
+    })
+    fields += JField("mdc", JObject(mdcFields: _*))
 
     fields += JField("ndc", JString(ndc))
     fields += JField("severity", JString(event.getLevel().toString()))
     fields += JField("thread_name", JString(threadName))
 
     if (throwableInfo != null) {
-      fields += JField("exception_class", JString(throwableInfo.getThrowable().getClass().getCanonicalName()))
+      fields += JField(
+        "exception_class",
+        JString(throwableInfo.getThrowable().getClass().getCanonicalName()),
+      )
       fields += JField("exception_message", JString(throwableInfo.getThrowable().getMessage()))
-      fields += JField("exception_stacktrace", JString(formatException(throwableInfo.getThrowable())))
+      fields += JField(
+        "exception_stacktrace",
+        JString(formatException(throwableInfo.getThrowable())),
+      )
     }
-    val jsonEvent = JObject(fields:_*)
-
+    val jsonEvent = JObject(fields: _*)
 
     val sw = new StringWriter()
     JsonMethods.mapper.writeValue(sw, jsonEvent)

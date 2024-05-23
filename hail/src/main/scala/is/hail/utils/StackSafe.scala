@@ -34,14 +34,14 @@ object StackSafe {
 
   private class ContCell[A, B](val f: A => StackFrame[B], var next: ContCell[B, _] = null)
 
-  private final case class Done[A](result: A) extends StackFrame[A]
+  final private case class Done[A](result: A) extends StackFrame[A]
 
-  private final case class Thunk[A](force: () => StackFrame[A]) extends StackFrame[A]
+  final private case class Thunk[A](force: () => StackFrame[A]) extends StackFrame[A]
 
-  private final class More[A, B](
+  final private class More[A, B](
     _next: StackFrame[A],
     _contHead: ContCell[A, _],
-    _contTail: ContCell[_, B]
+    _contTail: ContCell[_, B],
   ) extends StackFrame[B] {
     // type erased locals allow mutating to different type parameters, then
     // casting `this` if needed
@@ -57,9 +57,9 @@ object StackSafe {
       if (contHead == null) next.asInstanceOf[StackFrame[B]]
       else next match {
         case Done(result) =>
-            nextTE = contHead.f(result)
-            contHeadTE = contHead.next
-            this
+          nextTE = contHead.f(result)
+          contHeadTE = contHead.next
+          this
         case thunk: Thunk[A] =>
           nextTE = thunk.force()
           this
@@ -83,19 +83,19 @@ object StackSafe {
     }
   }
 
-  implicit class RichIndexedSeq[A](val s: IndexedSeq[A]) extends AnyVal {
-    def mapRecur[B, That](f: A => StackFrame[B])(implicit bf: CanBuildFrom[IndexedSeq[A], B, That]): StackFrame[That] = {
+  implicit class RichIndexedSeq[A](private val s: IndexedSeq[A]) extends AnyVal {
+    def mapRecur[B, That](f: A => StackFrame[B])(implicit bf: CanBuildFrom[IndexedSeq[A], B, That])
+      : StackFrame[That] = {
       val builder = bf(s)
       builder.sizeHint(s)
       var i = 0
       var cont: B => StackFrame[That] = null
-      def loop(): StackFrame[That] = {
+      def loop(): StackFrame[That] =
         if (i < s.size) {
           f(s(i)).flatMap(cont)
         } else {
           done(builder.result)
         }
-      }
       cont = { b =>
         builder += b
         i += 1
@@ -105,19 +105,19 @@ object StackSafe {
     }
   }
 
-  implicit class RichArray[A](val a: Array[A]) extends AnyVal {
-    def mapRecur[B](f: A => StackFrame[B])(implicit bf: CanBuildFrom[Array[A], B, Array[B]]): StackFrame[Array[B]] = {
+  implicit class RichArray[A](private val a: Array[A]) extends AnyVal {
+    def mapRecur[B](f: A => StackFrame[B])(implicit bf: CanBuildFrom[Array[A], B, Array[B]])
+      : StackFrame[Array[B]] = {
       val builder = bf(a)
       builder.sizeHint(a)
       var i = 0
       var cont: B => StackFrame[Array[B]] = null
-      def loop(): StackFrame[Array[B]] = {
+      def loop(): StackFrame[Array[B]] =
         if (i < a.size) {
           f(a(i)).flatMap(cont)
         } else {
           done(builder.result)
         }
-      }
       cont = { b =>
         builder += b
         i += 1
@@ -127,40 +127,37 @@ object StackSafe {
     }
   }
 
-  implicit class RichOption[A](val o: Option[A]) extends AnyVal {
-    def mapRecur[B](f: A => StackFrame[B]): StackFrame[Option[B]] = {
+  implicit class RichOption[A](private val o: Option[A]) extends AnyVal {
+    def mapRecur[B](f: A => StackFrame[B]): StackFrame[Option[B]] =
       o match {
         case None => done(None)
         case Some(a) => call(f(a)).map(b => Some(b))
       }
-    }
   }
 
-  implicit class RichIterator[A](val i: Iterable[A]) extends AnyVal {
+  implicit class RichIterator[A](private val i: Iterable[A]) extends AnyVal {
     def foreachRecur(f: A => StackFrame[Unit]): StackFrame[Unit] = {
       val it = i.iterator
-      def loop(): StackFrame[Unit] = {
+      def loop(): StackFrame[Unit] =
         if (it.hasNext) {
-          f(it.next()).flatMap { _ => call(loop()) }
+          f(it.next()).flatMap(_ => call(loop()))
         } else {
           done(())
         }
-      }
       loop()
     }
   }
 
-  implicit class RichIteratorStackFrame[A](val i: Iterator[StackFrame[A]]) extends AnyVal {
+  implicit class RichIteratorStackFrame[A](private val i: Iterator[StackFrame[A]]) extends AnyVal {
     def collectRecur(implicit bf: CanBuild[A, Array[A]]): StackFrame[IndexedSeq[A]] = {
       val builder = bf()
       var cont: A => StackFrame[IndexedSeq[A]] = null
-      def loop(): StackFrame[IndexedSeq[A]] = {
+      def loop(): StackFrame[IndexedSeq[A]] =
         if (i.hasNext) {
           i.next().flatMap(cont)
         } else {
           done(builder.result())
         }
-      }
       cont = { a =>
         builder += a
         call(loop())
@@ -169,18 +166,18 @@ object StackSafe {
     }
   }
 
-  def fillArray[A](n: Int)(body: => StackFrame[A])(implicit bf: CanBuild[A, Array[A]]): StackFrame[Array[A]] = {
+  def fillArray[A](n: Int)(body: => StackFrame[A])(implicit bf: CanBuild[A, Array[A]])
+    : StackFrame[Array[A]] = {
     val builder = bf()
     builder.sizeHint(n)
     var i = 0
     var cont: A => StackFrame[Array[A]] = null
-    def loop(): StackFrame[Array[A]] = {
+    def loop(): StackFrame[Array[A]] =
       if (i < n) {
         body.flatMap(cont)
       } else {
         done(builder.result)
       }
-    }
     cont = { a =>
       builder += a
       i += 1

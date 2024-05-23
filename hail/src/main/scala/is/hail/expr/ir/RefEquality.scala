@@ -23,12 +23,12 @@ object Memo {
   def empty[T]: Memo[T] = new Memo[T](new mutable.HashMap[RefEquality[BaseIR], T])
 }
 
-class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
+class Memo[T] private (val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def bind(ir: BaseIR, t: T): Memo[T] = bind(RefEquality(ir), t)
 
   def bind(ir: RefEquality[BaseIR], t: T): Memo[T] = {
     if (m.contains(ir))
-      throw new RuntimeException(s"IR already in memo: ${ ir.t }")
+      throw new RuntimeException(s"IR already in memo: ${ir.t}")
     m += ir -> t
     this
   }
@@ -58,9 +58,8 @@ class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def delete(ir: BaseIR): Unit = delete(RefEquality(ir))
   def delete(ir: RefEquality[BaseIR]): Unit = m -= ir
 
-  override def toString: String = s"Memo(${m})"
+  override def toString: String = s"Memo($m)"
 }
-
 
 object HasIRSharing {
   def apply(ctx: ExecuteContext)(ir: BaseIR): Boolean = {

@@ -1,13 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
-import is.hail.utils.FastSeq
+
 import org.testng.annotations.Test
-import org.scalatest.testng.TestNGSuite
 
 class SetFunctionsSuite extends HailSuite {
   val naa = NA(TArray(TInt32))
@@ -15,7 +13,7 @@ class SetFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  @Test def toSet() {
+  @Test def toSet(): Unit = {
     assertEvalsTo(IRSet(3, 7), Set(3, 7))
     assertEvalsTo(IRSet(3, null, 7), Set(null, 3, 7))
     assertEvalsTo(nas, null)
@@ -25,7 +23,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("toSet", TSet(TInt32), naa), null)
   }
 
-  @Test def isEmpty() {
+  @Test def isEmpty(): Unit = {
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, 7)), false)
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet(3, null, 7)), false)
     assertEvalsTo(invoke("isEmpty", TBoolean, IRSet()), true)
@@ -33,7 +31,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("isEmpty", TBoolean, nas), null)
   }
 
-  @Test def contains() {
+  @Test def contains(): Unit = {
     val s = IRSet(3, null, 7)
     val swoutna = IRSet(3, 7)
 
@@ -47,7 +45,7 @@ class SetFunctionsSuite extends HailSuite {
     assert(eval(invoke("contains", TBoolean, IRSet(), 3)) == false)
   }
 
-  @Test def remove() {
+  @Test def remove(): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("remove", TSet(TInt32), s, I32(3)), Set(null, 7))
     assertEvalsTo(invoke("remove", TSet(TInt32), s, I32(4)), Set(null, 3, 7))
@@ -55,7 +53,7 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("remove", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(3, 7))
   }
 
-  @Test def add() {
+  @Test def add(): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("add", TSet(TInt32), s, I32(3)), Set(null, 3, 7))
     assertEvalsTo(invoke("add", TSet(TInt32), s, I32(4)), Set(null, 3, 4, 7))
@@ -64,30 +62,44 @@ class SetFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)), Set(null, 3, 7))
   }
 
-  @Test def isSubset() {
+  @Test def isSubset(): Unit = {
     val s = IRSet(3, null, 7)
     assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("add", TSet(TInt32), s, I32(4))), true)
-    assertEvalsTo(invoke("isSubset", TBoolean, IRSet(3, 7), invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32))), true)
+    assertEvalsTo(
+      invoke(
+        "isSubset",
+        TBoolean,
+        IRSet(3, 7),
+        invoke("add", TSet(TInt32), IRSet(3, 7), NA(TInt32)),
+      ),
+      true,
+    )
     assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, I32(3))), false)
-    assertEvalsTo(invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, NA(TInt32))), false)
+    assertEvalsTo(
+      invoke("isSubset", TBoolean, s, invoke("remove", TSet(TInt32), s, NA(TInt32))),
+      false,
+    )
   }
 
-  @Test def union() {
+  @Test def union(): Unit = {
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 3, 7, 8))
     assertEvalsTo(invoke("union", TSet(TInt32), IRSet(3, 7), IRSet(3, 8, null)), Set(null, 3, 7, 8))
   }
 
-  @Test def intersection() {
+  @Test def intersection(): Unit = {
     assertEvalsTo(invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(3))
-    assertEvalsTo(invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)), Set(null, 3))
+    assertEvalsTo(
+      invoke("intersection", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)),
+      Set(null, 3),
+    )
   }
 
-  @Test def difference() {
+  @Test def difference(): Unit = {
     assertEvalsTo(invoke("difference", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8)), Set(null, 7))
     assertEvalsTo(invoke("difference", TSet(TInt32), IRSet(3, null, 7), IRSet(3, 8, null)), Set(7))
   }
 
-  @Test def median() {
+  @Test def median(): Unit = {
     assertEvalsTo(invoke("median", TInt32, IRSet(5)), 5)
     assertEvalsTo(invoke("median", TInt32, IRSet(5, null)), 5)
     assertEvalsTo(invoke("median", TInt32, IRSet(3, 7)), 5)

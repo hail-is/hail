@@ -20,7 +20,7 @@ two statements below produce identical tables:
 
 For example, to compute a cumulative sum for a row field in a table:
 
-    >>> ht_scan = ht.select(ht.ID, ht.Z, cum_sum=hl.scan.sum(ht.Z))
+    >>> ht_scan = ht.select(ht.Z, cum_sum=hl.scan.sum(ht.Z))
     >>> ht_scan.show()
     +-------+-------+---------+
     |    ID |     Z | cum_sum |

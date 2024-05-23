@@ -12,19 +12,20 @@ import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant}
+
+import scala.collection.JavaConverters._
+import scala.collection.mutable
+
+import java.io.{FileInputStream, IOException}
+import java.util.Properties
+
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
-import java.io.{FileInputStream, IOException}
-import java.util.Properties
-import scala.collection.JavaConverters._
-import scala.collection.mutable
-
-
 object Nirvana {
 
-  //For Nirnava v2.0.8
+  // For Nirnava v2.0.8
 
   val nirvanaSignature = TStruct(
     "chromosome" -> TString,
@@ -50,7 +51,7 @@ object Nirvana {
       "validated" -> TBoolean,
       "phenotypes" -> TArray(TString),
       "phenotypeIds" -> TArray(TString),
-      "reciprocalOverlap" -> TFloat64
+      "reciprocalOverlap" -> TFloat64,
     )),
     "dgv" -> TArray(TStruct(
       "chromosome" -> TString,
@@ -62,7 +63,7 @@ object Nirvana {
       "sampleSize" -> TInt32,
       "observedGains" -> TInt32,
       "observedLosses" -> TInt32,
-      "reciprocalOverlap" -> TFloat64
+      "reciprocalOverlap" -> TFloat64,
     )),
     "oneKg" -> TArray(TStruct(
       "chromosome" -> TString,
@@ -84,7 +85,7 @@ object Nirvana {
       "sampleSizeSas" -> TInt32,
       "observedGains" -> TInt32,
       "observedLosses" -> TInt32,
-      "reciprocalOverlap" -> TFloat64
+      "reciprocalOverlap" -> TFloat64,
     )),
     "cosmic" -> TArray(TStruct(
       "id" -> TInt32,
@@ -93,9 +94,9 @@ object Nirvana {
       "end" -> TInt32,
       "variantType" -> TString,
       "copyNumber" -> TInt32,
-      "cancerTypes" -> TArray(TTuple(TString,TInt32)),
-      "tissues" -> TArray(TTuple(TString,TInt32)),
-      "reciprocalOverlap" -> TFloat64
+      "cancerTypes" -> TArray(TTuple(TString, TInt32)),
+      "tissues" -> TArray(TTuple(TString, TInt32)),
+      "reciprocalOverlap" -> TFloat64,
     )),
     "variants" -> TArray(TStruct(
       "altAllele" -> TString,
@@ -113,7 +114,7 @@ object Nirvana {
       "regulatoryRegions" -> TArray(TStruct(
         "id" -> TString,
         "type" -> TString,
-        "consequence" -> TSet(TString)
+        "consequence" -> TSet(TString),
       )),
       "clinvar" -> TArray(TStruct(
         "id" -> TString,
@@ -128,7 +129,7 @@ object Nirvana {
         "orphanetIds" -> TArray(TString),
         "significance" -> TString,
         "lastUpdatedDate" -> TString,
-        "pubMedIds" -> TArray(TString)
+        "pubMedIds" -> TArray(TString),
       )),
       "cosmic" -> TArray(TStruct(
         "id" -> TString,
@@ -140,8 +141,8 @@ object Nirvana {
         "studies" -> TArray(TStruct(
           "id" -> TInt32,
           "histology" -> TString,
-          "primarySite" -> TString
-        ))
+          "primarySite" -> TString,
+        )),
       )),
       "dbsnp" -> TStruct("ids" -> TArray(TString)),
       "gnomad" -> TStruct(
@@ -178,7 +179,7 @@ object Nirvana {
         "asjAc" -> TInt32,
         "asjAn" -> TInt32,
         "asjHc" -> TInt32,
-        "failedFilter" -> TBoolean
+        "failedFilter" -> TBoolean,
       ),
       "gnomadExome" -> TStruct(
         "coverage" -> TString,
@@ -218,18 +219,18 @@ object Nirvana {
         "sasAc" -> TInt32,
         "sasAn" -> TInt32,
         "sasHc" -> TInt32,
-        "failedFilter" -> TBoolean
+        "failedFilter" -> TBoolean,
       ),
       "topmed" -> TStruct(
         "failedFilter" -> TBoolean,
         "allAc" -> TInt32,
         "allAn" -> TInt32,
         "allAf" -> TFloat64,
-        "allHc" -> TInt32
+        "allHc" -> TInt32,
       ),
       "globalAllele" -> TStruct(
         "globalMinorAllele" -> TString,
-        "globalMinorAlleleFrequency" -> TFloat64
+        "globalMinorAlleleFrequency" -> TFloat64,
       ),
       "oneKg" -> TStruct(
         "ancestralAllele" -> TString,
@@ -250,12 +251,12 @@ object Nirvana {
         "eurAn" -> TInt32,
         "sasAf" -> TFloat64,
         "sasAc" -> TInt32,
-        "sasAn" -> TInt32
+        "sasAn" -> TInt32,
       ),
       "mitomap" -> TArray(TStruct(
         "refAllele" -> TString,
         "altAllele" -> TString,
-        "diseases"  -> TArray(TString),
+        "diseases" -> TArray(TString),
         "hasHomoplasmy" -> TBoolean,
         "hasHeteroplasmy" -> TBoolean,
         "status" -> TString,
@@ -265,7 +266,7 @@ object Nirvana {
         "chromosome" -> TString,
         "begin" -> TInt32,
         "end" -> TInt32,
-        "variantType" -> TString
+        "variantType" -> TString,
       )),
       "transcripts" -> TStruct(
         "refSeq" -> TArray(TStruct(
@@ -288,7 +289,7 @@ object Nirvana {
           "proteinId" -> TString,
           "proteinPos" -> TString,
           "siftScore" -> TFloat64,
-          "siftPrediction" -> TString
+          "siftPrediction" -> TString,
         )),
         "ensembl" -> TArray(TStruct(
           "transcript" -> TString,
@@ -310,10 +311,10 @@ object Nirvana {
           "proteinId" -> TString,
           "proteinPos" -> TString,
           "siftScore" -> TFloat64,
-          "siftPrediction" -> TString
-        ))
+          "siftPrediction" -> TString,
+        )),
       ),
-      "overlappingGenes" -> TArray(TString)
+      "overlappingGenes" -> TArray(TString),
     )),
     "genes" -> TArray(TStruct(
       "name" -> TString,
@@ -326,23 +327,23 @@ object Nirvana {
           "phenotype" -> TString,
           "mapping" -> TString,
           "inheritance" -> TArray(TString),
-          "comments" -> TString
-        ))
+          "comments" -> TString,
+        )),
       )),
       "exac" -> TStruct(
         "pLi" -> TFloat64,
         "pRec" -> TFloat64,
-        "pNull" -> TFloat64
-      )
-    ))
+        "pNull" -> TFloat64,
+      ),
+    )),
   )
 
-  def printContext(w: (String) => Unit) {
+  def printContext(w: (String) => Unit): Unit = {
     w("##fileformat=VCFv4.1")
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(vaSignature: PType)(w: (String) => Unit, v: (Locus, Array[String])) {
+  def printElement(vaSignature: PType)(w: (String) => Unit, v: (Locus, Array[String])): Unit = {
     val (locus, alleles) = v
 
     val sb = new StringBuilder()
@@ -362,16 +363,17 @@ object Nirvana {
     assert(tv.typ.key == FastSeq("locus", "alleles"))
     assert(tv.typ.rowType.size == 2)
 
-    val properties = try {
-      val p = new Properties()
-      val is = new FileInputStream(config)
-      p.load(is)
-      is.close()
-      p
-    } catch {
-      case e: IOException =>
-        fatal(s"could not open file: ${ e.getMessage }")
-    }
+    val properties =
+      try {
+        val p = new Properties()
+        val is = new FileInputStream(config)
+        p.load(is)
+        is.close()
+        p
+      } catch {
+        case e: IOException =>
+          fatal(s"could not open file: ${e.getMessage}")
+      }
 
     val dotnet = properties.getProperty("hail.nirvana.dotnet", "dotnet")
 
@@ -383,9 +385,11 @@ object Nirvana {
 
     val cache = properties.getProperty("hail.nirvana.cache")
 
-
-    val supplementaryAnnotationDirectoryOpt = Option(properties.getProperty("hail.nirvana.supplementaryAnnotationDirectory"))
-    val supplementaryAnnotationDirectory = if (supplementaryAnnotationDirectoryOpt.isEmpty) List[String]() else List("--sd", supplementaryAnnotationDirectoryOpt.get)
+    val supplementaryAnnotationDirectoryOpt =
+      Option(properties.getProperty("hail.nirvana.supplementaryAnnotationDirectory"))
+    val supplementaryAnnotationDirectory = if (supplementaryAnnotationDirectoryOpt.isEmpty)
+      List[String]()
+    else List("--sd", supplementaryAnnotationDirectoryOpt.get)
 
     val reference = properties.getProperty("hail.nirvana.reference")
 
@@ -428,16 +432,19 @@ object Nirvana {
         }
           .grouped(localBlockSize)
           .flatMap { block =>
-            val (jt, err, proc) = block.iterator.pipe(pb,
-              printContext,
-              printElement(localRowType),
-              _ => ())
+            val (jt, err, proc) =
+              block.iterator.pipe(pb, printContext, printElement(localRowType), _ => ())
             // The filter is because every other output line is a comma.
             val kt = jt.filter(_.startsWith("{\"chromosome")).map { s =>
-              val a = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(s), nirvanaSignature, warnContext = warnContext)
-              val locus = Locus(contigQuery(a).asInstanceOf[String],
-                startQuery(a).asInstanceOf[Int])
-              val alleles = refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[IndexedSeq[String]]
+              val a = JSONAnnotationImpex.importAnnotation(
+                JsonMethods.parse(s),
+                nirvanaSignature,
+                warnContext = warnContext,
+              )
+              val locus =
+                Locus(contigQuery(a).asInstanceOf[String], startQuery(a).asInstanceOf[Int])
+              val alleles =
+                refQuery(a).asInstanceOf[String] +: altsQuery(a).asInstanceOf[IndexedSeq[String]]
               (Annotation(locus, alleles), a)
             }
 
@@ -446,13 +453,16 @@ object Nirvana {
 
             val rc = proc.waitFor()
             if (rc != 0)
-              fatal(s"nirvana command failed with non-zero exit status $rc\n\tError:\n${err.toString}")
+              fatal(
+                s"nirvana command failed with non-zero exit status $rc\n\tError:\n${err.toString}"
+              )
 
             r
           }
       }
 
-    val nirvanaRVDType = prev.typ.copy(rowType = prev.rowPType.appendKey("nirvana", PType.canonical(nirvanaSignature)))
+    val nirvanaRVDType =
+      prev.typ.copy(rowType = prev.rowPType.appendKey("nirvana", PType.canonical(nirvanaSignature)))
 
     val nirvanaRowType = nirvanaRVDType.rowType
 
@@ -472,13 +482,15 @@ object Nirvana {
 
           rvb.end()
         }
-      }).persist(ctx, StorageLevel.MEMORY_AND_DISK)
+      },
+    ).persist(ctx, StorageLevel.MEMORY_AND_DISK)
 
-      TableValue(ctx,
-        TableType(nirvanaRowType.virtualType, FastSeq("locus", "alleles"), TStruct.empty),
-        BroadcastRow.empty(ctx),
-        nirvanaRVD
-      )
+    TableValue(
+      ctx,
+      TableType(nirvanaRowType.virtualType, FastSeq("locus", "alleles"), TStruct.empty),
+      BroadcastRow.empty(ctx),
+      nirvanaRVD,
+    )
   }
 }
 
@@ -486,12 +498,15 @@ case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTable
   override def typ(childType: TableType): TableType = {
     assert(childType.key == FastSeq("locus", "alleles"))
     assert(childType.rowType.size == 2)
-    TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
+    TableType(
+      childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature),
+      childType.key,
+      childType.globalType,
+    )
   }
 
   def preservesPartitionCounts: Boolean = false
 
-  def execute(ctx: ExecuteContext, tv: TableValue): TableValue = {
+  def execute(ctx: ExecuteContext, tv: TableValue): TableValue =
     Nirvana.annotate(ctx, tv, config, blockSize)
-  }
 }

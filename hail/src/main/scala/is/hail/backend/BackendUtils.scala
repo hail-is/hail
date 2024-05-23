@@ -16,11 +16,14 @@ object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
 }
 
-class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, Region) => BackendUtils.F)]) {
+class BackendUtils(
+  mods: Array[(String, (HailClassLoader, FS, HailTaskContext, Region) => BackendUtils.F)]
+) {
 
   import BackendUtils.F
 
-  private[this] val loadedModules: Map[String, (HailClassLoader, FS, HailTaskContext, Region) => F] = mods.toMap
+  private[this] val loadedModules
+    : Map[String, (HailClassLoader, FS, HailTaskContext, Region) => F] = mods.toMap
 
   def getModule(id: String): (HailClassLoader, FS, HailTaskContext, Region) => F = loadedModules(id)
 
@@ -44,7 +47,7 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
     globals: Array[Byte],
     stageName: String,
     semhash: Option[SemanticHash.Type],
-    tsd: Option[TableStageDependency]
+    tsd: Option[TableStageDependency],
   ): Array[Array[Byte]] = lookupSemanticHashResults(backendContext, stageName, semhash) match {
     case None =>
       if (contexts.isEmpty)
@@ -76,24 +79,23 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
         backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, stageName, tsd) {
           (ctx, htc, theHailClassLoader, fs) =>
-          val fsConfig = fsConfigBC.value
-          val gs = globalsBC.value
-          fs.setConfiguration(fsConfig)
-          htc.getRegionPool().scopedRegion { region =>
-            f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
-          }
+            val fsConfig = fsConfigBC.value
+            val gs = globalsBC.value
+            fs.setConfiguration(fsConfig)
+            htc.getRegionPool().scopedRegion { region =>
+              f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
+            }
         }
       }
 
       log.info(s"[collectDArray|$stageName]: executed ${contexts.length} tasks " +
-        s"in ${formatTime(System.nanoTime() - t)}"
-      )
+        s"in ${formatTime(System.nanoTime() - t)}")
 
       results
     case Some(cachedResults) =>
       val remainingContexts =
         for {
-          c@(_, k) <- contexts.zipWithIndex
+          c @ (_, k) <- contexts.zipWithIndex
           if !cachedResults.containsOrdered[Int](k, _ < _, _._2)
         } yield c
       val results =
@@ -130,23 +132,24 @@ class BackendUtils(mods: Array[(String, (HailClassLoader, FS, HailTaskContext, R
                 val globalsBC = backend.broadcast(globals)
                 val fsConfigBC = backend.broadcast(fs.getConfiguration())
                 val (failureOpt, successes) =
-                  backend.parallelizeAndComputeWithIndexReturnAllErrors(backendContext, fs, remainingContexts, stageName, tsd) {
+                  backend.parallelizeAndComputeWithIndexReturnAllErrors(backendContext, fs,
+                    remainingContexts, stageName, tsd) {
                     (ctx, htc, theHailClassLoader, fs) =>
-                    val fsConfig = fsConfigBC.value
-                    val gs = globalsBC.value
-                    fs.setConfiguration(fsConfig)
-                    htc.getRegionPool().scopedRegion { region =>
-                      f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
-                    }
+                      val fsConfig = fsConfigBC.value
+                      val gs = globalsBC.value
+                      fs.setConfiguration(fsConfig)
+                      htc.getRegionPool().scopedRegion { region =>
+                        f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
+                      }
                   }
                 (failureOpt, successes)
             }
 
           log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks " +
-            s"in ${formatTime(System.nanoTime() - t)}"
-          )
+            s"in ${formatTime(System.nanoTime() - t)}")
 
-          val results = merge[(Array[Byte], Int)](cachedResults, successes.sortBy(_._2), _._2 < _._2)
+          val results =
+            merge[(Array[Byte], Int)](cachedResults, successes.sortBy(_._2), _._2 < _._2)
           semhash.foreach(s => backendContext.executionCache.put(s, results))
           failureOpt.foreach(throw _)
 

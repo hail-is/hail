@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+
 import org.testng.annotations.Test
 
 class EncodedLiteralSuite extends HailSuite {

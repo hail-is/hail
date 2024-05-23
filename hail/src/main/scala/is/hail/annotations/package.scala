@@ -8,7 +8,7 @@ package annotations {
 
 package object annotations {
 
-  type  Annotation = Any
+  type Annotation = Any
 
   type Deleter = (Annotation) => Annotation
 

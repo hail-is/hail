@@ -6,11 +6,7 @@ import zipfile
 from urllib.request import urlretrieve
 from hailtop.utils import sync_retry_transient_errors
 
-__all__ = [
-    'get_1kg',
-    'get_hgdp',
-    'get_movie_lens'
-]
+__all__ = ['get_1kg', 'get_hgdp', 'get_movie_lens']
 
 resources = {
     '1kg_annotations': 'https://storage.googleapis.com/hail-tutorial/1kg_annotations.txt',
@@ -70,16 +66,17 @@ def get_1kg(output_dir, overwrite: bool = False):
     sample_annotations_path = os.path.join(output_dir, '1kg_annotations.txt')
     gene_annotations_path = os.path.join(output_dir, 'ensembl_gene_annotations.txt')
 
-    if (overwrite
-            or not _dir_exists(fs, matrix_table_path)
-            or not _file_exists(fs, sample_annotations_path)
-            or not _file_exists(fs, vcf_path)
-            or not _file_exists(fs, gene_annotations_path)):
+    if (
+        overwrite
+        or not _dir_exists(fs, matrix_table_path)
+        or not _file_exists(fs, sample_annotations_path)
+        or not _file_exists(fs, vcf_path)
+        or not _file_exists(fs, gene_annotations_path)
+    ):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
-        info(f'downloading 1KG VCF ...\n'
-             f'  Source: {source}')
+        info(f'downloading 1KG VCF ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, resources['1kg_matrix_table'], tmp_vcf)
         cluster_readable_vcf = _copy_to_tmp(fs, local_path_uri(tmp_vcf), extension='vcf.bgz')
         info('importing VCF and writing to matrix table...')
@@ -87,14 +84,12 @@ def get_1kg(output_dir, overwrite: bool = False):
 
         tmp_sample_annot = os.path.join(tmp_dir, '1kg_annotations.txt')
         source = resources['1kg_annotations']
-        info(f'downloading 1KG annotations ...\n'
-             f'  Source: {source}')
+        info(f'downloading 1KG annotations ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_sample_annot)
 
         tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
         source = resources['1kg_ensembl_gene_annotations']
-        info(f'downloading Ensembl gene annotations ...\n'
-             f'  Source: {source}')
+        info(f'downloading Ensembl gene annotations ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_gene_annot)
 
         hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)
@@ -131,31 +126,32 @@ def get_hgdp(output_dir, overwrite: bool = False):
     sample_annotations_path = os.path.join(output_dir, 'HGDP_annotations.txt')
     gene_annotations_path = os.path.join(output_dir, 'ensembl_gene_annotations.txt')
 
-    if (overwrite
-            or not _dir_exists(fs, matrix_table_path)
-            or not _file_exists(fs, sample_annotations_path)
-            or not _file_exists(fs, vcf_path)
-            or not _file_exists(fs, gene_annotations_path)):
+    if (
+        overwrite
+        or not _dir_exists(fs, matrix_table_path)
+        or not _file_exists(fs, sample_annotations_path)
+        or not _file_exists(fs, vcf_path)
+        or not _file_exists(fs, gene_annotations_path)
+    ):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, 'HGDP.vcf.bgz')
         source = resources['HGDP_matrix_table']
-        info(f'downloading HGDP VCF ...\n'
-             f'  Source: {source}')
+        info(f'downloading HGDP VCF ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, resources['HGDP_matrix_table'], tmp_vcf)
         cluster_readable_vcf = _copy_to_tmp(fs, local_path_uri(tmp_vcf), extension='vcf.bgz')
         info('importing VCF and writing to matrix table...')
-        hl.import_vcf(cluster_readable_vcf, min_partitions=16, reference_genome='GRCh38').write(matrix_table_path, overwrite=True)
+        hl.import_vcf(cluster_readable_vcf, min_partitions=16, reference_genome='GRCh38').write(
+            matrix_table_path, overwrite=True
+        )
 
         tmp_sample_annot = os.path.join(tmp_dir, 'HGDP_annotations.txt')
         source = resources['HGDP_annotations']
-        info(f'downloading HGDP annotations ...\n'
-             f'  Source: {source}')
+        info(f'downloading HGDP annotations ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_sample_annot)
 
         tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
         source = resources['HGDP_ensembl_gene_annotations']
-        info(f'downloading Ensembl gene annotations ...\n'
-             f'  Source: {source}')
+        info(f'downloading Ensembl gene annotations ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_gene_annot)
 
         hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)
@@ -194,8 +190,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         init_temp_dir()
         source = resources['movie_lens_100k']
         tmp_path = os.path.join(tmp_dir, 'ml-100k.zip')
-        info(f'downloading MovieLens-100k data ...\n'
-             f'  Source: {source}')
+        info(f'downloading MovieLens-100k data ...\n' f'  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_path)
         with zipfile.ZipFile(tmp_path, 'r') as z:
             z.extractall(tmp_dir)
@@ -203,9 +198,9 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         user_table_path = os.path.join(tmp_dir, 'ml-100k', 'u.user')
         movie_table_path = os.path.join(tmp_dir, 'ml-100k', 'u.item')
         ratings_table_path = os.path.join(tmp_dir, 'ml-100k', 'u.data')
-        assert (os.path.exists(user_table_path))
-        assert (os.path.exists(movie_table_path))
-        assert (os.path.exists(ratings_table_path))
+        assert os.path.exists(user_table_path)
+        assert os.path.exists(movie_table_path)
+        assert os.path.exists(ratings_table_path)
 
         user_cluster_readable = _copy_to_tmp(fs, local_path_uri(user_table_path), extension='txt')
         movie_cluster_readable = _copy_to_tmp(fs, local_path_uri(movie_table_path), 'txt')
@@ -213,12 +208,26 @@ def get_movie_lens(output_dir, overwrite: bool = False):
 
         [movies_path, ratings_path, users_path] = paths
 
-        genres = ['Action', 'Adventure', 'Animation',
-                  "Children's", 'Comedy', 'Crime',
-                  'Documentary', 'Drama', 'Fantasy',
-                  'Film-Noir', 'Horror', 'Musical',
-                  'Mystery', 'Romance', 'Sci-Fi',
-                  'Thriller', 'War', 'Western']
+        genres = [
+            'Action',
+            'Adventure',
+            'Animation',
+            "Children's",
+            'Comedy',
+            'Crime',
+            'Documentary',
+            'Drama',
+            'Fantasy',
+            'Film-Noir',
+            'Horror',
+            'Musical',
+            'Mystery',
+            'Romance',
+            'Sci-Fi',
+            'Thriller',
+            'War',
+            'Western',
+        ]
 
         # utility functions for importing movies
         def field_to_array(ds, field):
@@ -234,14 +243,16 @@ def get_movie_lens(output_dir, overwrite: bool = False):
 
         users = rename_columns(
             hl.import_table(user_cluster_readable, key=['f0'], no_header=True, impute=True, delimiter='|'),
-            ['id', 'age', 'sex', 'occupation', 'zipcode'])
+            ['id', 'age', 'sex', 'occupation', 'zipcode'],
+        )
         users.write(users_path, overwrite=True)
 
         info(f'importing movies table and writing to {movies_path} ...')
 
         movies = hl.import_table(movie_cluster_readable, key=['f0'], no_header=True, impute=True, delimiter='|')
-        movies = rename_columns(movies,
-                                ['id', 'title', 'release date', 'video release date', 'IMDb URL', 'unknown'] + genres)
+        movies = rename_columns(
+            movies, ['id', 'title', 'release date', 'video release date', 'IMDb URL', 'unknown'] + genres
+        )
         movies = movies.drop('release date', 'video release date', 'unknown', 'IMDb URL')
         movies = movies.transmute(genres=fields_to_array(movies, genres))
         movies.write(movies_path, overwrite=True)
@@ -249,8 +260,7 @@ def get_movie_lens(output_dir, overwrite: bool = False):
         info(f'importing ratings table and writing to {ratings_path} ...')
 
         ratings = hl.import_table(ratings_cluster_readable, no_header=True, impute=True)
-        ratings = rename_columns(ratings,
-                                 ['user_id', 'movie_id', 'rating', 'timestamp'])
+        ratings = rename_columns(ratings, ['user_id', 'movie_id', 'rating', 'timestamp'])
         ratings = ratings.drop('timestamp')
         ratings.write(ratings_path, overwrite=True)
 

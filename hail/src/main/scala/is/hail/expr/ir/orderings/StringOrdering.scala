@@ -19,7 +19,7 @@ object StringOrdering {
             val bcode1 = x.asInstanceOf[SStringPointerValue]
             val bcode2 = y.asInstanceOf[SStringPointerValue]
             val ord = BinaryOrdering.make(bcode1.binaryRepr.st, bcode2.binaryRepr.st, ecb)
-            ord.compareNonnull(cb, bcode1.binaryRepr, bcode2.binaryRepr)
+            ord._compareNonnull(cb, bcode1.binaryRepr, bcode2.binaryRepr)
           }
         }
 
@@ -29,9 +29,11 @@ object StringOrdering {
           override val type1: SString = t1
           override val type2: SString = t2
 
-          override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] = {
-            cb.memoize(x.asString.loadString(cb).invoke[String, Int]("compareTo", y.asString.loadString(cb)))
-          }
+          override def _compareNonnull(cb: EmitCodeBuilder, x: SValue, y: SValue): Value[Int] =
+            cb.memoize(x.asString.loadString(cb).invoke[String, Int](
+              "compareTo",
+              y.asString.loadString(cb),
+            ))
         }
     }
   }

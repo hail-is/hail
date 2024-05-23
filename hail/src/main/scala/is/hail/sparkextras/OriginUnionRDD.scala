@@ -1,26 +1,29 @@
 package is.hail.sparkextras
 
-import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
-import org.apache.spark.rdd.RDD
-
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.ClassTag
+
+import org.apache.spark.{Dependency, Partition, RangeDependency, SparkContext, TaskContext}
+import org.apache.spark.rdd.RDD
 
 private[hail] class OriginUnionPartition(
   val index: Int,
   val originIdx: Int,
-  val originPart: Partition
+  val originPart: Partition,
 ) extends Partition
 
 class OriginUnionRDD[T: ClassTag, S: ClassTag](
   sc: SparkContext,
   var rdds: IndexedSeq[RDD[T]],
-  f: (Int, Int, Iterator[T]) => Iterator[S]
+  f: (Int, Int, Iterator[T]) => Iterator[S],
 ) extends RDD[S](sc, Nil) {
   override def getPartitions: Array[Partition] = {
     val arr = new Array[Partition](rdds.map(_.partitions.length).sum)
     var i = 0
-    for ((rdd, rddIdx) <- rdds.zipWithIndex; part <- rdd.partitions) {
+    for {
+      (rdd, rddIdx) <- rdds.zipWithIndex
+      part <- rdd.partitions
+    } {
       arr(i) = new OriginUnionPartition(i, rddIdx, part)
       i += 1
     }
@@ -42,7 +45,7 @@ class OriginUnionRDD[T: ClassTag, S: ClassTag](
     f(p.originIdx, p.originPart.index, parent[T](p.originIdx).iterator(p.originPart, tc))
   }
 
-  override def clearDependencies() {
+  override def clearDependencies(): Unit = {
     super.clearDependencies()
     rdds = null
   }

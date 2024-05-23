@@ -1,7 +1,7 @@
 package is.hail.types
 
 abstract class BaseType {
-  override final def toString: String = {
+  final override def toString: String = {
     val sb = new StringBuilder
     pyString(sb)
     sb.result()
@@ -13,7 +13,7 @@ abstract class BaseType {
     sb.result()
   }
 
-  def pretty(sb: StringBuilder, indent: Int, compact: Boolean)
+  def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit
 
   def parsableString(): String = toPrettyString(compact = true)
 

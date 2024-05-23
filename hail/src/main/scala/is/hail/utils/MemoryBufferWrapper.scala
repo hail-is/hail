@@ -23,7 +23,6 @@ final class MemoryWriterWrapper {
 
   def length(): Int = mb.end
 
-  def copyToAddress(addr: Long): Unit = {
+  def copyToAddress(addr: Long): Unit =
     mb.readBytes(addr, mb.end)
-  }
 }

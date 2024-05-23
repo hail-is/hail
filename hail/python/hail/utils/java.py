@@ -27,10 +27,7 @@ class FatalError(Exception):
 
         better_stack_trace = error_sources[0]._stack_trace
         error_message = str(self)
-        message_and_trace = (f'{error_message}\n'
-                             '------------\n'
-                             'Hail stack trace:\n'
-                             f'{better_stack_trace}')
+        message_and_trace = f'{error_message}\n' '------------\n' 'Hail stack trace:\n' f'{better_stack_trace}'
         return HailUserError(message_and_trace)
 
 
@@ -63,6 +60,7 @@ class Env:
             sys.stderr.write("Initializing Hail with default parameters...\n")
             sys.stderr.flush()
             from ..context import init
+
             init()
 
         assert Env._hc is not None
@@ -77,6 +75,7 @@ class Env:
             backend_name = choose_backend()
             if backend_name == 'service':
                 from hail.context import init_batch
+
                 await init_batch()
             else:
                 return Env.hc()
@@ -90,22 +89,22 @@ class Env:
     @staticmethod
     def py4j_backend(op):
         from hail.backend.py4j_backend import Py4JBackend
+
         b = Env.backend()
         if isinstance(b, Py4JBackend):
             return b
         else:
-            raise NotImplementedError(
-                f"{b.__class__.__name__} doesn't support {op}, only Py4JBackend")
+            raise NotImplementedError(f"{b.__class__.__name__} doesn't support {op}, only Py4JBackend")
 
     @staticmethod
     def spark_backend(op):
         from hail.backend.spark_backend import SparkBackend
+
         b = Env.backend()
         if isinstance(b, SparkBackend):
             return b
         else:
-            raise NotImplementedError(
-                f"{b.__class__.__name__} doesn't support {op}, only SparkBackend")
+            raise NotImplementedError(f"{b.__class__.__name__} doesn't support {op}, only SparkBackend")
 
     @staticmethod
     def fs():
@@ -121,13 +120,14 @@ class Env:
     def dummy_table():
         if Env._dummy_table is None:
             import hail
+
             Env._dummy_table = hail.utils.range_table(1, 1).key_by().cache()
         return Env._dummy_table
 
     @staticmethod
     def next_static_rng_uid():
         result = Env._static_rng_uid
-        assert(result <= 0x7FFF_FFFF_FFFF_FFFF)
+        assert result <= 0x7FFF_FFFF_FFFF_FFFF
         Env._static_rng_uid += 1
         return result
 

@@ -1,10 +1,10 @@
 package is.hail.lir
 
+import is.hail.utils.StringEscapeUtils.escapeString
+
 import java.io.{StringWriter, Writer}
 
 import org.objectweb.asm
-
-import is.hail.utils.StringEscapeUtils.escapeString
 
 class Builder(var n: Int, out: Writer, val printSourceLineNumbers: Boolean = false) {
   var lineNumber: Int = 0
@@ -28,9 +28,8 @@ class Builder(var n: Int, out: Writer, val printSourceLineNumbers: Boolean = fal
     out.write(s)
   }
 
-  def appendToLastLine(s: String): Unit = {
+  def appendToLastLine(s: String): Unit =
     out.write(s)
-  }
 }
 
 object Pretty {
@@ -78,42 +77,37 @@ object Pretty {
   def fmt(c: Classx[_], b: Builder, saveLineNumbers: Boolean): Unit = {
     // FIXME interfaces
     if (b.printSourceLineNumbers) {
-      c.sourceFile.foreach { sf =>
-        b += s"source file: ${ sf }"
-      }
+      c.sourceFile.foreach(sf => b += s"source file: $sf")
     }
-    b += s"class ${ c.name } extends ${ c.superName }"
+    b += s"class ${c.name} extends ${c.superName}"
 
     b.indent {
-      for (f <- c.fields) {
-        b += s"field ${ f.name } ${ f.ti.desc }"
-      }
+      for (f <- c.fields)
+        b += s"field ${f.name} ${f.ti.desc}"
       b += ""
-      for (m <- c.methods) {
+      for (m <- c.methods)
         fmt(m, b, saveLineNumbers)
-      }
     }
   }
 
   def fmt(m: Method, b: Builder, saveLineNumbers: Boolean): Unit = {
     val blocks = m.findBlocks()
 
-    b += s"def ${ m.name } (${ m.parameterTypeInfo.map(_.desc).mkString(",") })${ m.returnTypeInfo.desc }"
+    b += s"def ${m.name} (${m.parameterTypeInfo.map(_.desc).mkString(",")})${m.returnTypeInfo.desc}"
 
-    val label: Block => String = b => s"L${ blocks.index(b) }"
+    val label: Block => String = b => s"L${blocks.index(b)}"
 
     b.indent {
-      b += s"entry L${ blocks.index(m.entry) }"
-      for (ell <- blocks) {
+      b += s"entry L${blocks.index(m.entry)}"
+      for (ell <- blocks)
         fmt(ell, label, b, saveLineNumbers)
-      }
     }
 
     b += ""
   }
 
   def fmt(L: Block, label: Block => String, b: Builder, saveLineNumbers: Boolean): Unit = {
-    b += s"${ label(L) }:"
+    b += s"${label(L)}:"
 
     b.indent {
       var x = L.first
@@ -134,45 +128,44 @@ object Pretty {
     if (saveLineNumbers)
       x.lineNumber = b.lineNumber
     b.indent {
-      for (c <- x.children) {
+      for (c <- x.children)
         if (c != null)
           fmt(c, label, b, saveLineNumbers)
         else
           b += "null"
-      }
       b.appendToLastLine(")")
     }
   }
 
   def header(x: X, label: Block => String): String = x match {
-    case x: IfX => s"${ asm.util.Printer.OPCODES(x.op) } ${ label(x.Ltrue) } ${ label(x.Lfalse) }"
+    case x: IfX => s"${asm.util.Printer.OPCODES(x.op)} ${label(x.Ltrue)} ${label(x.Lfalse)}"
     case x: GotoX =>
       if (x.L != null)
         label(x.L)
       else
         "null"
-    case x: SwitchX => s"${ label(x.Ldefault) } (${ x.Lcases.map(label).mkString(" ") })"
+    case x: SwitchX => s"${label(x.Ldefault)} (${x.Lcases.map(label).mkString(" ")})"
     case x: LdcX =>
       val lit = x.a match {
         case s: String => s""""${escapeString(s)}""""
         case a => a.toString
       }
-      s"$lit ${ x.ti }"
+      s"$lit ${x.ti}"
     case x: InsnX => asm.util.Printer.OPCODES(x.op)
     case x: StoreX => x.l.toString
-    case x: IincX => s"${ x.l.toString } ${ x.i }"
+    case x: IincX => s"${x.l.toString} ${x.i}"
     case x: PutFieldX =>
-      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.f }"
+      s"${asm.util.Printer.OPCODES(x.op)} ${x.f}"
     case x: GetFieldX =>
-      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.f }"
-    case x: NewInstanceX => s"${ x.ti.iname } ${ x.ctor }"
+      s"${asm.util.Printer.OPCODES(x.op)} ${x.f}"
+    case x: NewInstanceX => s"${x.ti.iname} ${x.ctor}"
     case x: TypeInsnX =>
-      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.ti.iname }"
+      s"${asm.util.Printer.OPCODES(x.op)} ${x.ti.iname}"
     case x: NewArrayX => x.eti.desc
     case x: MethodX =>
-      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.method }"
+      s"${asm.util.Printer.OPCODES(x.op)} ${x.method}"
     case x: MethodStmtX =>
-      s"${ asm.util.Printer.OPCODES(x.op) } ${ x.method }"
+      s"${asm.util.Printer.OPCODES(x.op)} ${x.method}"
     case x: LoadX => x.l.toString
     case x: StmtOpX => asm.util.Printer.OPCODES(x.op)
     case _ =>

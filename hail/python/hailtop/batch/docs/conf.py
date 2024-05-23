@@ -127,6 +127,7 @@ intersphinx_mapping = {'python': ('https://docs.python.org/3.9', None)}
 
 # -- Extension configuration -------------------------------------------------
 
+
 def get_class_that_defined_method(meth):
     if inspect.ismethod(meth):
         for cls in inspect.getmro(meth.__self__.__class__):
@@ -134,8 +135,7 @@ def get_class_that_defined_method(meth):
                 return cls
         meth = meth.__func__  # fallback to __qualname__ parsing
     if inspect.isfunction(meth):
-        cls = getattr(inspect.getmodule(meth),
-                      meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
+        cls = getattr(inspect.getmodule(meth), meth.__qualname__.split('.<locals>', 1)[0].rsplit('.', 1)[0])
         if isinstance(cls, type):
             return cls
     return getattr(meth, '__objclass__', None)  # handle special descriptor objects
@@ -149,19 +149,37 @@ def has_docstring(obj):
 
 
 def autodoc_skip_member(app, what, name, obj, skip, options):
-    exclusions = ('__delattr__', '__dict__', '__dir__', '__doc__', '__format__',
-                  '__getattribute__', '__hash__', '__init__',
-                  '__init_subclass__', '__new__', '__reduce__', '__reduce_ex__',
-                  '__repr__', '__setattr__', '__sizeof__', '__str__',
-                  '__subclasshook__', '__weakref__', 'maketrans')
+    exclusions = (
+        '__delattr__',
+        '__dict__',
+        '__dir__',
+        '__doc__',
+        '__format__',
+        '__getattribute__',
+        '__hash__',
+        '__init__',
+        '__init_subclass__',
+        '__new__',
+        '__reduce__',
+        '__reduce_ex__',
+        '__repr__',
+        '__setattr__',
+        '__sizeof__',
+        '__str__',
+        '__subclasshook__',
+        '__weakref__',
+        'maketrans',
+    )
 
     excluded_classes = ('str',)
 
     cls = get_class_that_defined_method(obj)
 
-    exclude = (name in exclusions
-               or (name.startswith('_') and not has_docstring(obj))
-               or (cls and cls.__name__ in excluded_classes))
+    exclude = (
+        name in exclusions
+        or (name.startswith('_') and not has_docstring(obj))
+        or (cls and cls.__name__ in excluded_classes)
+    )
 
     return exclude
 

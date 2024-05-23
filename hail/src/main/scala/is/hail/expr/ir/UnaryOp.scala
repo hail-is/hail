@@ -1,20 +1,18 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr._
-import is.hail.types._
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.{typeToTypeInfo, PType}
+import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual._
 import is.hail.utils._
 
 object UnaryOp {
 
   private val returnType: ((UnaryOp, Type)) => Option[Type] = lift {
-    case (Negate, t@(TInt32 | TInt64 | TFloat32 | TFloat64)) => t
+    case (Negate, t @ (TInt32 | TInt64 | TFloat32 | TFloat64)) => t
     case (Bang, TBoolean) => TBoolean
-    case (BitNot, t@(TInt32 | TInt64)) => t
+    case (BitNot, t @ (TInt32 | TInt64)) => t
     case (BitCount, TInt32 | TInt64) => TInt32
   }
 
