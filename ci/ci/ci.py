@@ -606,7 +606,7 @@ async def prod_deploy(request, userdata):
         developers=[],
     )
     watched_branch.sha = params['sha']
-    await watched_branch._start_deploy(db=app['db'], batch_client=app['batch_client'], steps=steps)
+    await watched_branch._start_deploy(db=app[AppKeys.DB], batch_client=app[AppKeys.BATCH_CLIENT], steps=steps)
 
     batch = watched_branch.deploy_batch
     if not isinstance(batch, MergeFailureBatch):
