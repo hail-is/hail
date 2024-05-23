@@ -67,11 +67,11 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         if ref_call_field not in ref:
             ref = ref.annotate(**{call_field: hl.call(0, 0)})
         if call_field not in ref:
-            ref = ref.annotate(**{call_field: ref[ref_call_field]})
+            ref = ref.transmute(**{call_field: ref[ref_call_field]})
 
-        shared_fields = [call_field, *list(f for f in ref.dtype if f in var.dtype)]
-        shared_field_set = set(shared_fields)
-        var_fields = [f for f in var.dtype if f not in shared_field_set]
+        # call_field is now in both ref and var
+        shared_fields = set(f for f in ref.dtype if f in var.dtype)
+        var_fields = set(var.dtype) - shared_fields
 
         return hl.if_else(
             hl.is_defined(var),
