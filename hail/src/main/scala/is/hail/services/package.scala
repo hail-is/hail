@@ -64,7 +64,9 @@ package object services {
           if e.getMessage != null && e.getMessage == Constants.STREAM_CLOSED =>
         true
       case e: SocketException
-          if e.getMessage != null && (e.getMessage.contains("Connection reset") || e.getMessage.contains("Unexpected end of file")) =>
+          if e.getMessage != null && (e.getMessage.contains(
+            "Connection reset"
+          ) || e.getMessage.contains("Unexpected end of file")) =>
         true
       case e: HttpResponseException
           if e.getStatusCode() == 400 && e.getMessage != null && (
