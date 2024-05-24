@@ -1,4 +1,4 @@
-{% from "components/utils.html" import submit_button %}
+{% from "utils.html" import submit_button %}
 {% macro table_search(component_name, endpoint) %}
 <form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}">
   <div class='basis-2/3'>

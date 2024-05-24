@@ -1,53 +1,76 @@
+{% from "utils.html" import submit_button, danger_button %}
 {% extends "layout.html" %}
 {% block title %}Users{% endblock %}
 {% block content %}
-  <h1>Create User</h1>
-  <form action="{{ base_path }}/users" method="POST">
-    <div>Username: <input required name="username" /></div>
-    <div>Login ID: <input name="login_id" /></div>
-    <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
-    <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-    <button>
-      Create
-    </button>
-  </form>
+<div class='w-full md:w-2/5 flex flex-col md:flex-row justify-between'>
+  <div>
+    <h1 class='text-2xl font-light mb-4'>Create User</h1>
+    <form action="{{ base_path }}/users" method="POST">
+      <div class='flex-col space-y-2'>
+        <div class='flex justify-between space-x-4'>
+          <span>Username</span>
+          <input class='border rounded-sm p-1 text-sm' required name="username" />
+        </div>
+        <div class='flex justify-between space-x-4'>
+          <span>Login ID</span>
+          <input class='border rounded-sm p-1 text-sm' name="login_id" />
+        </div>
+        <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
+        <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+        <div class='flex justify-end'>
+          {{ submit_button('Create') }}
+        </div>
+      </div>
+    </form>
+  </div>
+  <div>
+    <h1 class='text-2xl font-light mb-4'>Delete User</h1>
+    <form action="{{ base_path }}/users/delete" method="POST">
+      <div class='flex-col space-y-2'>
+        <div class='flex justify-between space-x-4'>
+          <span>User ID</span>
+          <input class='border rounded-sm p-1 text-sm' required name="id" />
+        </div>
+        <div class='flex justify-between space-x-4'>
+          <span>Username</span>
+          <input class='border rounded-sm p-1 text-sm' required name="username" />
+        </div>
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+        <div class='flex justify-end'>
+          {{ danger_button('Delete') }}
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
 
-  <h1>Delete User</h1>
-  <form action="{{ base_path }}/users/delete" method="POST">
-    <div>User ID: <input name="id" /></div>
-    <div>Username: <input name="username" /></div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-    <button  class="dangerous">
-      Delete
-    </button>
-  </form>
-
-  <h1>Users</h1>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Username</th>
-        <th>Login ID</th>
-        <th>Hail Identity</th>
-        <th>State</th>
-        <th>Developer</th>
-        <th>Robot</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for user in users %}
-      <tr>
-        <td class="numeric-cell">{{ user['id'] }}</td>
-        <td>{{ user['username'] }}</td>
-        <td>{{ user['login_id'] }}</td>
-        <td>{{ user['hail_identity'] }}</td>
-        <td>{{ user['state'] }}</td>
-        <td class="numeric-cell">{{ user['is_developer'] }}</td>
-        <td class="numeric-cell">{{ user['is_service_account'] }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<br />
+<h1 class='text-2xl font-light mb-4'>Users</h1>
+<table class="table-auto">
+  <thead>
+    <tr>
+      <th class='h-12 bg-slate-200 font-light rounded-tl pl-2'>ID</th>
+      <th class='h-12 bg-slate-200 font-light '>Username</th>
+      <th class='h-12 bg-slate-200 font-light '>Login ID</th>
+      <th class='h-12 bg-slate-200 font-light '>Hail Identity</th>
+      <th class='h-12 bg-slate-200 font-light '>State</th>
+      <th class='h-12 bg-slate-200 font-light '>Developer</th>
+      <th class='h-12 bg-slate-200 font-light rounded-tr pr-2'>Robot</th>
+    </tr>
+  </thead>
+  <tbody class='border border-collapse border-slate-50'>
+    {% for user in users %}
+    <tr class='bg-slate-50 font-light'>
+      <td class='text-center'>{{ user['id'] }}</td>
+      <td>{{ user['username'] }}</td>
+      <td>{{ user['login_id'] }}</td>
+      <td>{{ user['hail_identity'] }}</td>
+      <td>{{ user['state'] }}</td>
+      <td class='text-center'>{{ user['is_developer'] }}</td>
+      <td class='text-center'>{{ user['is_service_account'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}
