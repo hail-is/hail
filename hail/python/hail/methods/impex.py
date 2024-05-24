@@ -1272,15 +1272,15 @@ def import_bgen(
 
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
-        if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
+        if isinstance(variants, (StructExpression, LocusExpression)):
             if isinstance(variants, LocusExpression):
                 variants = hl.struct(locus=variants)
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
                 raise TypeError(
                     "'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                    + f"\tFound: {repr(variants.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n"
+                    + f"\tFound: {variants.dtype!r}\n"
+                    + f"\tExpected: {expected_vtype!r}\n"
                 )
 
             uid = Env.get_uid()
@@ -1294,8 +1294,8 @@ def import_bgen(
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
                 raise TypeError(
                     "'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                    + f"\tFound: {repr(variants.key.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n"
+                    + f"\tFound: {variants.key.dtype!r}\n"
+                    + f"\tExpected: {expected_vtype!r}\n"
                 )
             variants = variants.select()
         else:
@@ -1317,7 +1317,7 @@ def import_bgen(
                             variants = hl.Table.parallelize(variants, schema=expected_vtype, key=['locus', 'alleles'])
             except Exception:
                 raise TypeError(
-                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}"
+                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {expected_vtype!r}"
                 )
 
         vir = variants._tir
@@ -1450,7 +1450,6 @@ def import_gen(
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
-    contig_recoding = contig_recoding
     if contig_recoding is None:
         contig_recoding = hl.empty_dict(hl.tstr, hl.tstr)
     else:
@@ -1473,15 +1472,14 @@ def import_gen(
     varid = gen_table.data[last_rowf_idx - 4]
     if rg is None:
         locus = hl.struct(contig=contig_holder, position=position)
+    elif skip_invalid_loci:
+        locus = hl.if_else(
+            hl.is_valid_locus(contig_holder, position, rg),
+            hl.locus(contig_holder, position, rg),
+            hl.missing(hl.tlocus(rg)),
+        )
     else:
-        if skip_invalid_loci:
-            locus = hl.if_else(
-                hl.is_valid_locus(contig_holder, position, rg),
-                hl.locus(contig_holder, position, rg),
-                hl.missing(hl.tlocus(rg)),
-            )
-        else:
-            locus = hl.locus(contig_holder, position, rg)
+        locus = hl.locus(contig_holder, position, rg)
 
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
     gen_table = gen_table.annotate(
@@ -1813,7 +1811,7 @@ def import_table(
         if renamings:
             hl.utils.warning(
                 f'import_table: renamed the following {plural("field", len(renamings))} to avoid name conflicts:'
-                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renamings)
+                + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renamings)
             )
 
     ht = ht.annotate(
@@ -2209,9 +2207,7 @@ def import_matrix_table(
 
                 row_fields_string = '\n'.join(
                     list(
-                        it.starmap(
-                            lambda row_field, row_type: f"      '{row_field}': {str(row_type)}", row_fields.items()
-                        )
+                        it.starmap(lambda row_field, row_type: f"      '{row_field}': {row_type!s}", row_fields.items())
                     )
                 )
                 header_fields_string = "\n      ".join(map(lambda field: f"'{field}'", header_dict['row_fields']))
@@ -2276,7 +2272,7 @@ def import_matrix_table(
             hl.missing(hail_type),
             hl.case()
             .when(~hl.is_missing(parsed_type), parsed_type)
-            .or_error(error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)),
+            .or_error(error_msg(row, idx, f"error parsing value into {hail_type!s}" + error_clarify_msg)),
         )
 
     num_of_row_fields = len(row_fields.keys())
@@ -2306,7 +2302,7 @@ def import_matrix_table(
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError(
                 f'import_matrix_table expects field types to be one of:'
-                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'"
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {k!r} had type '{v}'"
             )
 
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:

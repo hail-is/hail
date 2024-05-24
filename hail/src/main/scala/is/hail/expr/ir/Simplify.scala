@@ -291,7 +291,7 @@ object Simplify {
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
     case StreamLen(MakeStream(args, _, _)) => I32(args.length)
-    case StreamLen(Let(bindings, body)) => Let(bindings, StreamLen(body))
+    case StreamLen(Block(bindings, body)) => Block(bindings, StreamLen(body))
     case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
     case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
     case StreamLen(StreamGrouped(a, groupSize)) =>
@@ -355,8 +355,8 @@ object Simplify {
 
     case ToStream(ToArray(s), false) if s.typ.isInstanceOf[TStream] => s
 
-    case ToStream(Let(bindings, ToArray(x)), false) if x.typ.isInstanceOf[TStream] =>
-      Let(bindings, x)
+    case ToStream(Block(bindings, ToArray(x)), false) if x.typ.isInstanceOf[TStream] =>
+      Block(bindings, x)
 
     case MakeNDArray(ToArray(someStream), shape, rowMajor, errorId) =>
       MakeNDArray(someStream, shape, rowMajor, errorId)
@@ -416,38 +416,48 @@ object Simplify {
     case InsertFields(SelectFields(old, _), Seq(), Some(insertFieldOrder)) =>
       SelectFields(old, insertFieldOrder)
 
-    case Let(Seq(), body) =>
+    case Block(Seq(), body) =>
       body
 
-    case Let(xs, Let(ys, body)) =>
-      Let(xs ++ ys, body)
+    case Block(xs, Block(ys, body)) =>
+      Block(xs ++ ys, body)
 
     // assumes `NormalizeNames` has been run before this.
-    case Let(Let.Nested(before, after), body) =>
-      def numBindings(b: (String, IR)): Int =
-        b._2 match {
-          case let: Let => 1 + let.bindings.length
+    case Block(Block.Nested(i, bindings), body) =>
+      def numBindings(b: Binding): Int =
+        b.value match {
+          case let: Block => 1 + let.bindings.length
           case _ => 1
         }
 
       val newBindings =
-        new BoxedArrayBuilder[(String, IR)](
-          after.foldLeft(before.length)((sum, binding) => sum + numBindings(binding))
+        new BoxedArrayBuilder[Binding](
+          bindings.foldLeft(0)((sum, binding) => sum + numBindings(binding))
         )
 
-      newBindings ++= before
+      newBindings ++= bindings.view.take(i)
 
-      after.foreach {
-        case (name: String, ir: Let) =>
-          newBindings ++= ir.bindings
-          newBindings += name -> ir.body
-        case (name, value) =>
-          newBindings += name -> value
+      bindings.view.drop(i).foreach {
+        case Binding(name, ir: Block, scope) =>
+          newBindings ++= (if (scope == Scope.EVAL) ir.bindings
+                           else ir.bindings.map {
+                             case Binding(name, value, Scope.EVAL) => Binding(name, value, scope)
+                             case _ => fatal("Simplify: found nested Agg bindings")
+                           })
+          newBindings += Binding(name, ir.body, scope)
+        case binding => newBindings += binding
       }
 
-      Let(newBindings.underlying(), body)
+      Block(newBindings.underlying(), body)
 
-    case Let(Let.Insert(before, (name, x @ InsertFields(old, newFields, _)) +: after), body)
+    case Block(
+          Block.Insert(
+            before,
+            Binding(name, x @ InsertFields(old, newFields, _), Scope.EVAL),
+            after,
+          ),
+          body,
+        )
         if x.typ.size < 500 && {
           val r = Ref(name, x.typ)
           val nfSet = newFields.map(_._1).toSet
@@ -468,7 +478,7 @@ object Simplify {
                 }
           }
 
-          allRefsCanBePassedThrough(Let(after.toFastSeq, body))
+          allRefsCanBePassedThrough(Block(after.toFastSeq, body))
         } =>
       val fieldNames = newFields.map(_._1).toArray
       val newFieldMap = newFields.toMap
@@ -510,11 +520,13 @@ object Simplify {
           }
       }
 
-      Let(
-        before.toFastSeq ++ fieldNames.map(f => newFieldRefs(f).name -> newFieldMap(f)) ++ FastSeq(
-          name -> old
+      Block(
+        before.toFastSeq ++ fieldNames.map(f =>
+          Binding(newFieldRefs(f).name, newFieldMap(f))
+        ) ++ FastSeq(
+          Binding(name, old)
         ),
-        rewrite(Let(after.toFastSeq, body)),
+        rewrite(Block(after.toFastSeq, body)),
       )
 
     case SelectFields(old, fields) if tcoerce[TStruct](old.typ).fieldNames sameElements fields =>
@@ -749,7 +761,10 @@ object Simplify {
           def canBeLifted(x: IR): Boolean = x match {
             case _: TableAggregate => true
             case _: MatrixAggregate => true
-            case AggLet(_, _, _, false) => false
+            case Block(bindings, _) if bindings.exists {
+                  case Binding(_, _, Scope.AGG) => true
+                  case _ => false
+                } => false
             case x if IsAggResult(x) => false
             case other => other.children.forall {
                 case child: IR => canBeLifted(child)
@@ -763,7 +778,10 @@ object Simplify {
           def canBeLifted(x: IR): Boolean = x match {
             case _: TableAggregate => true
             case _: MatrixAggregate => true
-            case AggLet(_, _, _, true) => false
+            case Block(bindings, _) if bindings.exists {
+                  case Binding(_, _, Scope.SCAN) => true
+                  case _ => false
+                } => false
             case x if IsScanResult(x) => false
             case other => other.children.forall {
                 case child: IR => canBeLifted(child)
@@ -1203,10 +1221,8 @@ object Simplify {
       MatrixMapGlobals(child, bindIR(ng1)(uid => Subst(ng2, BindingEnv(Env("global" -> uid)))))
 
     /* Note: the following MMR and MMC fusing rules are much weaker than they could be. If they
-     * contain aggregations */
-    /* but those aggregations that mention "row" / "sa" but do not depend on the updated value, we
-     * should locally */
-    // prune and fuse anyway.
+     * contain aggregations but those aggregations that mention "row" / "sa" but do not depend on
+     * the updated value, we should locally prune and fuse anyway. */
     case MatrixMapRows(MatrixMapRows(child, newRow1), newRow2)
         if !Mentions.inAggOrScan(newRow2, "va")
           && !Exists.inIR(

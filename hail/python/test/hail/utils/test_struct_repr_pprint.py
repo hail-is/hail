@@ -86,18 +86,6 @@ Struct(a5=Struct(b0='',
     assert pformat(x) == expected
 
 
-def test_pformat_big_struct_in_small_struct():
-    x = hl.Struct(a5=hl.Struct(b0='', b1='na', b2='nana', b3='nanana', b5='ndasdfhjwafdhjskfdshjkfhdjksfhdsjk'))
-    expected = """
-Struct(a5=Struct(b0='',
-                 b1='na',
-                 b2='nana',
-                 b3='nanana',
-                 b5='ndasdfhjwafdhjskfdshjkfhdjksfhdsjk'))
-""".strip()
-    assert pformat(x) == expected
-
-
 def test_array_of_struct_all_identifier():
     expected = """
 [Struct(x=3243),

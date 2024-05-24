@@ -91,8 +91,8 @@ case object SemanticHash extends Logging {
       case a: AggGroupBy =>
         buffer += a.isScan.toByte
 
-      case a: AggLet =>
-        buffer += a.isScan.toByte
+      case Block(bindings, _) =>
+        for (b <- bindings) buffer += b.scope.toByte
 
       case a: AggArrayPerElement =>
         buffer += a.isScan.toByte
@@ -312,7 +312,7 @@ case object SemanticHash extends Logging {
           _: If |
           _: InsertFields |
           _: IsNA |
-          _: Let |
+          _: Block |
           _: LiftMeOut |
           _: MakeArray |
           _: MakeNDArray |

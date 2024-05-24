@@ -46,8 +46,6 @@ class ValueIRTests(unittest.TestCase):
         a = ir.Ref('a', env['a'])
         st = ir.Ref('st', env['st'])
         whitenStream = ir.Ref('whitenStream')
-        mat = ir.Ref('mat')
-        aa = ir.Ref('aa', env['aa'])
         sta = ir.Ref('sta', env['sta'])
         sts = ir.Ref('sts', env['sts'])
         da = ir.Ref('da', env['da'])
@@ -55,7 +53,7 @@ class ValueIRTests(unittest.TestCase):
         v = ir.Ref('v', env['v'])
         s = ir.Ref('s', env['s'])
         t = ir.Ref('t', env['t'])
-        call = ir.Ref('call', env['call'])
+        ir.Ref('call', env['call'])
         rngState = ir.RNGStateLiteral()
 
         table = ir.TableRange(5, 3)
@@ -459,7 +457,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         backend.execute(ir.BlockMatrixWrite(bmir, ir.BlockMatrixPersistWriter('x', 'MEMORY_ONLY')))
         persist = ir.BlockMatrixRead(ir.BlockMatrixPersistReader('x', bmir))
 
-        for x in self.blockmatrix_irs() + [persist]:
+        for x in [*self.blockmatrix_irs(), persist]:
             backend._parse_blockmatrix_ir(str(x))
 
 
@@ -504,7 +502,7 @@ class CSETests(unittest.TestCase):
     def test_cse(self):
         x = ir.I32(5)
         x = ir.ApplyBinaryPrimOp('+', x, x)
-        expected = '(Let __cse_1 (I32 5)' ' (ApplyBinaryPrimOp `+`' ' (Ref __cse_1)' ' (Ref __cse_1)))'
+        expected = '(Let eval __cse_1 (I32 5)' ' (ApplyBinaryPrimOp `+`' ' (Ref __cse_1)' ' (Ref __cse_1)))'
         assert expected == CSERenderer()(x)
 
     def test_cse_debug(self):
@@ -519,10 +517,10 @@ class CSETests(unittest.TestCase):
         prod = ir.ApplyBinaryPrimOp('*', sum, sum)
         cond = ir.If(ir.ApplyComparisonOp('EQ', prod, x), sum, x)
         expected = (
-            '(Let __cse_1 (I32 5)'
-            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            '(Let eval __cse_1 (I32 5)'
+            ' (Let eval __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
             ' (If (ApplyComparisonOp EQ (ApplyBinaryPrimOp `*` (Ref __cse_2) (Ref __cse_2)) (Ref __cse_1))'
-            ' (Let __cse_3 (I32 5)'
+            ' (Let eval __cse_3 (I32 5)'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))'
             ' (I32 5))))'
         )
@@ -534,9 +532,9 @@ class CSETests(unittest.TestCase):
         a2 = ir.ToArray(x)
         t = ir.MakeTuple([a1, a2])
         expected_re = (
-            '(Let __cse_1 (I32 0)'
-            ' (Let __cse_2 (I32 10)'
-            ' (Let __cse_3 (I32 1)'
+            '(Let eval __cse_1 (I32 0)'
+            ' (Let eval __cse_2 (I32 10)'
+            ' (Let eval __cse_3 (I32 1)'
             ' (MakeTuple (0 1)'
             ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))'
             ' (ToArray (StreamRange [0-9]+ False (Ref __cse_1) (Ref __cse_2) (Ref __cse_3)))))))'
@@ -551,8 +549,8 @@ class CSETests(unittest.TestCase):
         prod = ir.ApplyBinaryPrimOp('*', sum, y)
         div = ir.ApplyBinaryPrimOp('/', prod, sum)
         expected = (
-            '(Let __cse_1 (I32 5)'
-            ' (Let __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            '(Let eval __cse_1 (I32 5)'
+            ' (Let eval __cse_2 (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
             ' (ApplyBinaryPrimOp `/`'
             ' (ApplyBinaryPrimOp `*`'
             ' (Ref __cse_2)'
@@ -569,7 +567,7 @@ class CSETests(unittest.TestCase):
         cond = ir.If(ir.TrueIR(), prod, outer_repeated)
         expected = (
             '(If (True)'
-            ' (Let __cse_1 (I32 1)'
+            ' (Let eval __cse_1 (I32 1)'
             ' (ApplyBinaryPrimOp `*`'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
             ' (I32 5)))'
@@ -583,11 +581,11 @@ class CSETests(unittest.TestCase):
         inner = ir.Let('row', sum, sum)
         outer = ir.Let('row', ir.I32(5), inner)
         expected = (
-            '(Let __cse_2 (I32 2)'
-            ' (Let row (I32 5)'
-            ' (Let __cse_1 (ApplyBinaryPrimOp `*` (Ref row) (Ref __cse_2))'
-            ' (Let row (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
-            ' (Let __cse_3 (ApplyBinaryPrimOp `*` (Ref row) (Ref __cse_2))'
+            '(Let eval __cse_2 (I32 2)'
+            ' (Let eval row (I32 5)'
+            ' (Let eval __cse_1 (ApplyBinaryPrimOp `*` (Ref row) (Ref __cse_2))'
+            ' (Let eval row (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
+            ' (Let eval __cse_3 (ApplyBinaryPrimOp `*` (Ref row) (Ref __cse_2))'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))'
         )
         assert expected == CSERenderer()(outer)
@@ -604,11 +602,11 @@ class CSETests(unittest.TestCase):
             '(TableAggregate (TableRange 5 1)'
             ' (AggLet __cse_1 False (GetField idx (Ref row))'
             ' (AggLet __cse_3 False (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
-            ' (Let __cse_2 (ApplyAggOp AggOp () ((Ref __cse_3)))'
+            ' (Let eval __cse_2 (ApplyAggOp AggOp () ((Ref __cse_3)))'
             ' (MakeTuple (0 1)'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))'
             ' (AggFilter False (True)'
-            ' (Let __cse_4 (ApplyAggOp AggOp () ((Ref __cse_3)))'
+            ' (Let eval __cse_4 (ApplyAggOp AggOp () ((Ref __cse_3)))'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_4) (Ref __cse_4)))))))))'
         )
         assert expected == CSERenderer()(table_agg)
@@ -619,12 +617,12 @@ class CSETests(unittest.TestCase):
         agg = ir.ApplyAggOp('CallStats', [sum], [sum])
         top = ir.ApplyBinaryPrimOp('+', sum, agg)
         expected = (
-            '(Let __cse_1 (I32 5)'
+            '(Let eval __cse_1 (I32 5)'
             ' (AggLet __cse_3 False (I32 5)'
             ' (ApplyBinaryPrimOp `+`'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))'
             ' (ApplyAggOp CallStats'
-            ' ((Let __cse_2 (I32 5)'
+            ' ((Let eval __cse_2 (I32 5)'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_2) (Ref __cse_2))))'
             ' ((ApplyBinaryPrimOp `+` (Ref __cse_3) (Ref __cse_3)))))))'
         )
@@ -636,7 +634,7 @@ class CSETests(unittest.TestCase):
         agglet = ir.AggLet('foo', ir.I32(2), sum, False)
         expected = (
             '(AggLet foo False (I32 2)'
-            ' (Let __cse_1 (ApplyAggOp AggOp () ((Ref foo)))'
+            ' (Let eval __cse_1 (ApplyAggOp AggOp () ((Ref foo)))'
             ' (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1))))'
         )
         assert expected == CSERenderer()(agglet)

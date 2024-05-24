@@ -157,8 +157,7 @@ LEFT JOIN LATERAL (
   ) AS usage_t
   LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
 ) AS cost_t ON TRUE
-{where_condition}
-LOCK IN SHARE MODE;
+{where_condition};
 """
 
     billing_projects = []

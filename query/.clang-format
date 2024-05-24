@@ -1,7 +1,0 @@
-BasedOnStyle: LLVM
-ColumnLimit: 100
-
-AlignOperands: AlignAfterOperator
-AlwaysBreakTemplateDeclarations: Yes
-BreakBeforeBinaryOperators: NonAssignment
-QualifierAlignment: Right

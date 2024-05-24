@@ -33,11 +33,6 @@ def test_cumulative_histogram():
 
 
 def test_histogram2d():
-    ht = hl.utils.range_matrix_table(100)
-    hl.plot.histogram2d(ht.idx, ht.col_idx)
-
-
-def test_histogram2d():
     ht = hl.utils.range_table(100)
     hl.plot.histogram2d(ht.idx, ht.idx * ht.idx)
 

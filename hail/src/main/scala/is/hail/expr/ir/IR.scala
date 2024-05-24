@@ -189,25 +189,53 @@ final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
     2 + cases.length
 }
 
-final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
+object AggLet {
+  def apply(name: String, value: IR, body: IR, isScan: Boolean): IR = {
+    val scope = if (isScan) Scope.SCAN else Scope.AGG
+    Block(FastSeq(Binding(name, value, scope)), body)
+  }
+}
 
-final case class Let(bindings: IndexedSeq[(String, IR)], body: IR) extends IR {
+object Let {
+  def apply(bindings: IndexedSeq[(String, IR)], body: IR): Block =
+    Block(
+      bindings.map { case (name, value) => Binding(name, value) },
+      body,
+    )
+
+  def void(bindings: IndexedSeq[(String, IR)]): IR = {
+    if (bindings.isEmpty) {
+      Void()
+    } else {
+      assert(bindings.last._2.typ == TVoid)
+      Let(bindings.init, bindings.last._2)
+    }
+  }
+
+}
+
+case class Binding(name: String, value: IR, scope: Int = Scope.EVAL)
+
+final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
   override lazy val size: Int =
     bindings.length + 1
 }
 
-object Let {
-  case class Extract(p: ((String, IR)) => Boolean) {
-    def unapply(bindings: IndexedSeq[(String, IR)])
-      : Option[(IndexedSeq[(String, IR)], IndexedSeq[(String, IR)])] = {
-      val idx = bindings.indexWhere(p)
-      if (idx == -1) None else Some(bindings.splitAt(idx))
+object Block {
+  object Insert {
+    def unapply(bindings: IndexedSeq[Binding])
+      : Option[(IndexedSeq[Binding], Binding, IndexedSeq[Binding])] = {
+      val idx = bindings.indexWhere(_.value.isInstanceOf[InsertFields])
+      if (idx == -1) None else Some((bindings.take(idx), bindings(idx), bindings.drop(idx + 1)))
     }
   }
 
-  object Nested extends Extract(_._2.isInstanceOf[Let])
-  object Insert extends Extract(_._2.isInstanceOf[InsertFields])
-
+  object Nested {
+    def unapply(bindings: IndexedSeq[Binding]): Option[(Int, IndexedSeq[Binding])] = {
+      val idx = bindings.indexWhere(_.value.isInstanceOf[Block])
+      if (idx == -1) None else Some((idx, bindings))
+    }
+  }
 }
 
 sealed abstract class BaseRef extends IR with TrivialIR {
