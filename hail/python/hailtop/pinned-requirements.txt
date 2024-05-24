@@ -106,7 +106,7 @@ nest-asyncio==1.6.0
     # via -r hail/hail/python/hailtop/requirements.txt
 oauthlib==3.2.2
     # via requests-oauthlib
-orjson==3.9.12
+orjson==3.9.11
     # via -r hail/hail/python/hailtop/requirements.txt
 packaging==23.2
     # via msal-extensions
