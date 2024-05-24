@@ -1,59 +1,59 @@
 import difflib
-from functools import wraps, update_wrapper
+from functools import update_wrapper, wraps
 
 import hail as hl
+from hail import ir
 from hail.expr import (
-    ExpressionException,
-    Expression,
+    Aggregation,
     ArrayExpression,
-    SetExpression,
     BooleanExpression,
-    Int64Expression,
-    NumericExpression,
     DictExpression,
-    StructExpression,
+    Expression,
+    ExpressionException,
     Float64Expression,
-    StringExpression,
+    Indices,
+    Int64Expression,
     NDArrayNumericExpression,
+    NumericExpression,
+    SetExpression,
+    StringExpression,
+    StructExpression,
+    cast_expr,
+    construct_expr,
     expr_any,
-    expr_oneof,
     expr_array,
-    expr_set,
     expr_bool,
-    expr_numeric,
+    expr_call,
+    expr_float64,
     expr_int32,
     expr_int64,
-    expr_float64,
-    expr_call,
-    expr_str,
     expr_ndarray,
-    unify_all,
-    construct_expr,
-    Indices,
-    Aggregation,
+    expr_numeric,
+    expr_oneof,
+    expr_set,
+    expr_str,
     to_expr,
+    unify_all,
     unify_types,
-    cast_expr,
-)
-from hail.expr.types import (
-    hail_type,
-    tint32,
-    tint64,
-    tfloat32,
-    tfloat64,
-    tbool,
-    tcall,
-    tset,
-    tarray,
-    tstruct,
-    tdict,
-    ttuple,
-    tstr,
 )
 from hail.expr.expressions.typed_expressions import construct_variable
-from hail.expr.functions import rbind, float32, _quantile_from_cdf, _result_from_raw_cdf
-import hail.ir as ir
-from hail.typecheck import TypeChecker, typecheck_method, typecheck, sequenceof, func_spec, identity, nullable, oneof
+from hail.expr.functions import _quantile_from_cdf, _result_from_raw_cdf, float32, rbind
+from hail.expr.types import (
+    hail_type,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
+    tfloat32,
+    tfloat64,
+    tint32,
+    tint64,
+    tset,
+    tstr,
+    tstruct,
+    ttuple,
+)
+from hail.typecheck import TypeChecker, func_spec, identity, nullable, oneof, sequenceof, typecheck, typecheck_method
 from hail.utils import wrap_to_list
 from hail.utils.java import Env
 

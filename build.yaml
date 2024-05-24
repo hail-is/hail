@@ -825,7 +825,7 @@ steps:
       - base_image
       - merge_code
   - kind: runImage
-    name: build_wheel_for_azure
+    name: build_azure_wheel
     image:
       valueFrom: base_image.image
     resources:
@@ -2364,6 +2364,9 @@ steps:
       - name: finalize-job-groups
         script: /io/sql/finalize-job-groups.sql
         online: true
+      - name: fix-mark-job-complete-deadlocks
+        script: /io/sql/fix-mark-job-complete-deadlocks.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -3371,7 +3374,7 @@ steps:
       HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }}
       HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }}
       HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }}
-      WHEEL_FOR_AZURE=/io/wheel-for-azure/hail-*-py3-none-any.whl
+      AZURE_WHEEL=/io/azure-wheel/hail-*-py3-none-any.whl
       WEBSITE_TAR=/io/www.tar.gz
 
       bash scripts/release.sh
@@ -3385,7 +3388,7 @@ steps:
       - from: /repo
         to: /io/repo
       - from: /azure-wheel
-        to: /io/wheel-for-azure
+        to: /io/azure-wheel
       - from: /www.tar.gz
         to: /io/www.tar.gz
     secrets:
@@ -3418,7 +3421,7 @@ steps:
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
-      - build_wheel_for_azure
+      - build_azure_wheel
       - make_docs
     clouds:
       - gcp

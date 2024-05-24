@@ -1,11 +1,12 @@
+import csv
+import io
 import json
 from enum import Enum
-import yaml
-import csv
-from typing import Any, List, Dict, Callable, Annotated as Ann
-import tabulate
-import io
+from typing import Annotated as Ann
+from typing import Any, Callable, Dict, List
 
+import tabulate
+import yaml
 from typer import Option as Opt
 
 TableData = List[Dict[str, Any]]

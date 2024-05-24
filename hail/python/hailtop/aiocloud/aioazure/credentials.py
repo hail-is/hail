@@ -1,18 +1,17 @@
 import concurrent.futures
-import os
 import json
-import time
 import logging
-
+import os
+import time
 from types import TracebackType
-from typing import Any, List, Optional, Type, Union, Tuple, Dict
-from azure.identity.aio import DefaultAzureCredential, ClientSecretCredential
-from azure.core.credentials import AccessToken
-from azure.core.credentials_async import AsyncTokenCredential
+from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import msal
+from azure.core.credentials import AccessToken
+from azure.core.credentials_async import AsyncTokenCredential
+from azure.identity.aio import ClientSecretCredential, DefaultAzureCredential
 
-from hailtop.utils import first_extant_file, blocking_to_async
+from hailtop.utils import blocking_to_async, first_extant_file
 
 from ..common.credentials import CloudCredentials
 

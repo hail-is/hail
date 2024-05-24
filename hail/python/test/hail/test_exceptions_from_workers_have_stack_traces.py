@@ -1,8 +1,10 @@
-import hail as hl
-import pytest
 import re
 
+import pytest
+
+import hail as hl
 from hail.utils.java import FatalError
+
 from .helpers import qobtest
 
 

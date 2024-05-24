@@ -164,10 +164,10 @@ object IntervalFunctions extends RegistryFunctions {
     rhs: SBaseStructValue,
     rSign: Value[Int],
   ): Value[Int] = {
-    val lStruct = lhs.loadField(cb, 0).get(cb).asBaseStruct
-    val lLength = lhs.loadField(cb, 1).get(cb).asInt.value
-    val rStruct = rhs.loadField(cb, 0).get(cb).asBaseStruct
-    val rLength = rhs.loadField(cb, 1).get(cb).asInt.value
+    val lStruct = lhs.loadField(cb, 0).getOrAssert(cb).asBaseStruct
+    val lLength = lhs.loadField(cb, 1).getOrAssert(cb).asInt.value
+    val rStruct = rhs.loadField(cb, 0).getOrAssert(cb).asBaseStruct
+    val rLength = rhs.loadField(cb, 1).getOrAssert(cb).asInt.value
     _partitionIntervalEndpointCompare(cb, lStruct, lLength, lSign, rStruct, rLength, rSign)
   }
 
@@ -177,8 +177,8 @@ object IntervalFunctions extends RegistryFunctions {
     intervalEndpoint: SBaseStructValue,
     leansRight: Code[Boolean],
   ): Value[Int] = {
-    val endpoint = intervalEndpoint.loadField(cb, 0).get(cb).asBaseStruct
-    val endpointLength = intervalEndpoint.loadField(cb, 1).get(cb).asInt.value
+    val endpoint = intervalEndpoint.loadField(cb, 0).getOrAssert(cb).asBaseStruct
+    val endpointLength = intervalEndpoint.loadField(cb, 1).getOrAssert(cb).asInt.value
     val sign = cb.memoize((leansRight.toI << 1) - 1)
     _partitionIntervalEndpointCompare(cb, point, point.st.size, 0, endpoint, endpointLength, sign)
   }
@@ -189,13 +189,13 @@ object IntervalFunctions extends RegistryFunctions {
     interval: SIntervalValue,
   ): Value[Int] = {
     val start = interval.loadStart(cb)
-      .get(cb, "partition intervals cannot have missing endpoints")
+      .getOrFatal(cb, "partition intervals cannot have missing endpoints")
       .asBaseStruct
     cb.if_(
       compareStructWithPartitionIntervalEndpoint(cb, point, start, !interval.includesStart) < 0,
       primitive(const(-1)), {
         val end = interval.loadEnd(cb)
-          .get(cb, "partition intervals cannot have missing endpoints")
+          .getOrFatal(cb, "partition intervals cannot have missing endpoints")
           .asBaseStruct
         cb.if_(
           compareStructWithPartitionIntervalEndpoint(cb, point, end, interval.includesEnd) < 0,
@@ -213,18 +213,34 @@ object IntervalFunctions extends RegistryFunctions {
     errorID: Value[Int],
   ): (Value[Int], Value[Int]) = {
     val needleStart = query.loadStart(cb)
-      .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+      .getOrFatal(
+        cb,
+        "partitionerFindIntervalRange assumes non-missing interval endpoints",
+        errorID,
+      )
       .asBaseStruct
     val needleEnd = query.loadEnd(cb)
-      .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+      .getOrFatal(
+        cb,
+        "partitionerFindIntervalRange assumes non-missing interval endpoints",
+        errorID,
+      )
       .asBaseStruct
 
     def ltNeedle(interval: IEmitCode): Code[Boolean] = {
       val intervalVal = interval
-        .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+        .getOrFatal(
+          cb,
+          "partitionerFindIntervalRange: partition intervals cannot be missing",
+          errorID,
+        )
         .asInterval
       val intervalEnd = intervalVal.loadEnd(cb)
-        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+        .getOrFatal(
+          cb,
+          "partitionerFindIntervalRange assumes non-missing interval endpoints",
+          errorID,
+        )
         .asBaseStruct
       val c = partitionIntervalEndpointCompare(
         cb,
@@ -238,10 +254,18 @@ object IntervalFunctions extends RegistryFunctions {
 
     def gtNeedle(interval: IEmitCode): Code[Boolean] = {
       val intervalVal = interval
-        .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+        .getOrFatal(
+          cb,
+          "partitionerFindIntervalRange: partition intervals cannot be missing",
+          errorID,
+        )
         .asInterval
       val intervalStart = intervalVal.loadStart(cb)
-        .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+        .getOrFatal(
+          cb,
+          "partitionerFindIntervalRange assumes non-missing interval endpoints",
+          errorID,
+        )
         .asBaseStruct
       val c = partitionIntervalEndpointCompare(
         cb,
@@ -431,10 +455,14 @@ object IntervalFunctions extends RegistryFunctions {
     ) { case (_, cb, _, intervals, point, errorID) =>
       val compare = BinarySearch.Comparator.fromCompare { intervalEC =>
         val interval = intervalEC
-          .get(cb, "sortedNonOverlappingIntervalsContain assumes non-missing intervals", errorID)
+          .getOrFatal(
+            cb,
+            "sortedNonOverlappingIntervalsContain assumes non-missing intervals",
+            errorID,
+          )
           .asInterval
         intervalPointCompare(cb, interval, point)
-          .get(
+          .getOrFatal(
             cb,
             "sortedNonOverlappingIntervalsContain assumes non-missing interval endpoints",
             errorID,
@@ -456,10 +484,18 @@ object IntervalFunctions extends RegistryFunctions {
     ) { case (_, cb, _, intervals: SIndexableValue, point: SBaseStructValue, errorID) =>
       def ltNeedle(interval: IEmitCode): Code[Boolean] = {
         val intervalVal = interval
-          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+          .getOrFatal(
+            cb,
+            "partitionerFindIntervalRange: partition intervals cannot be missing",
+            errorID,
+          )
           .asInterval
         val intervalEnd = intervalVal.loadEnd(cb)
-          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+          .getOrFatal(
+            cb,
+            "partitionerFindIntervalRange assumes non-missing interval endpoints",
+            errorID,
+          )
           .asBaseStruct
         val c = compareStructWithPartitionIntervalEndpoint(
           cb,
@@ -471,10 +507,18 @@ object IntervalFunctions extends RegistryFunctions {
       }
       def gtNeedle(interval: IEmitCode): Code[Boolean] = {
         val intervalVal = interval
-          .get(cb, "partitionerFindIntervalRange: partition intervals cannot be missing", errorID)
+          .getOrFatal(
+            cb,
+            "partitionerFindIntervalRange: partition intervals cannot be missing",
+            errorID,
+          )
           .asInterval
         val intervalStart = intervalVal.loadStart(cb)
-          .get(cb, "partitionerFindIntervalRange assumes non-missing interval endpoints", errorID)
+          .getOrFatal(
+            cb,
+            "partitionerFindIntervalRange assumes non-missing interval endpoints",
+            errorID,
+          )
           .asBaseStruct
         val c = compareStructWithPartitionIntervalEndpoint(
           cb,
@@ -572,7 +616,7 @@ object IntervalFunctions extends RegistryFunctions {
       (_, _, _) => SBoolean,
     ) {
       case (_, cb, _, interval: SIntervalValue, point: SBaseStructValue, _) =>
-        val leftTuple = interval.loadStart(cb).get(cb).asBaseStruct
+        val leftTuple = interval.loadStart(cb).getOrAssert(cb).asBaseStruct
 
         val includesLeft = interval.includesStart
         val pointGTLeft =
@@ -583,7 +627,7 @@ object IntervalFunctions extends RegistryFunctions {
         cb.if_(
           isContained, {
             // check right endpoint
-            val rightTuple = interval.loadEnd(cb).get(cb).asBaseStruct
+            val rightTuple = interval.loadEnd(cb).getOrAssert(cb).asBaseStruct
 
             val includesRight = interval.includesEnd
             val pointLTRight =

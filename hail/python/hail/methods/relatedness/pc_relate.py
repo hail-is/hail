@@ -21,6 +21,7 @@ from hail.table import Table
 from hail.typecheck import enumeration, nullable, numeric, typecheck
 from hail.utils import new_temp_file
 from hail.utils.java import Env
+
 from ..pca import _hwe_normalized_blanczos, hwe_normalized_pca
 
 

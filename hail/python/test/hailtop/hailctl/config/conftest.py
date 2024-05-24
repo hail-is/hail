@@ -1,6 +1,6 @@
-import pytest
 import tempfile
 
+import pytest
 from typer.testing import CliRunner
 
 

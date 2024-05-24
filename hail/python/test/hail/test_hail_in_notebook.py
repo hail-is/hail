@@ -1,6 +1,8 @@
-from hailtop.utils.process import sync_check_exec
 import os
 import pathlib
+
+from hailtop.utils.process import sync_check_exec
+
 from .helpers import skip_when_local_backend
 
 

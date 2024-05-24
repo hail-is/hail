@@ -173,7 +173,7 @@ object EmitNDArray {
                     elemRef,
                     EmitCode.present(cb.emb, childProducer.loadElementAtCurrentAddr(cb)),
                   )
-                  bodyEC.toI(cb).get(cb, "NDArray map body cannot be missing")
+                  bodyEC.toI(cb).getOrFatal(cb, "NDArray map body cannot be missing")
                 }
               }
             }
@@ -227,7 +227,7 @@ object EmitNDArray {
                       EmitCode.present(cb.emb, rightBroadcasted.loadElementAtCurrentAddr(cb)),
                     )
 
-                    bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing", errorID)
+                    bodyEC.toI(cb).getOrFatal(cb, "NDArrayMap2 body cannot be missing", errorID)
                   }
                 }
               }
@@ -284,7 +284,7 @@ object EmitNDArray {
                 (0 until outputNDims).foreach { i =>
                   cb.assign(
                     tempShapeElement,
-                    tupleValue.loadField(cb, i).get(
+                    tupleValue.loadField(cb, i).getOrFatal(
                       cb,
                       "Can't reshape if elements of reshape tuple are missing.",
                       errorID,
@@ -330,7 +330,7 @@ object EmitNDArray {
                 (0 until outputNDims).foreach { i =>
                   cb.assign(
                     tempShapeElement,
-                    tupleValue.loadField(cb, i).get(
+                    tupleValue.loadField(cb, i).getOrFatal(
                       cb,
                       "Can't reshape if elements of reshape tuple are missing.",
                       errorID,
@@ -371,7 +371,7 @@ object EmitNDArray {
               IEmitCode(
                 cb,
                 ndsArraySValue.hasMissingValues(cb), {
-                  val firstND = ndsArraySValue.loadElement(cb, 0).get(cb).asNDArray
+                  val firstND = ndsArraySValue.loadElement(cb, 0).getOrAssert(cb).asNDArray
 
                   // compute array of sizes along concat axis, and total size of concat axis
                   val arrayLongPType = PCanonicalArray(PInt64(), true)
@@ -390,7 +390,9 @@ object EmitNDArray {
                   // compute index of first input which has non-zero concat axis size
                   val firstNonEmpty = cb.newLocal[Int]("ndarray_concat_first_nonempty", 0)
                   cb.while_(
-                    stagedArrayOfSizes.loadElement(cb, firstNonEmpty).get(cb).asInt64.value.ceq(0L),
+                    stagedArrayOfSizes.loadElement(cb, firstNonEmpty).getOrAssert(
+                      cb
+                    ).asInt64.value.ceq(0L),
                     cb.assign(firstNonEmpty, firstNonEmpty + 1),
                   )
 
@@ -466,7 +468,7 @@ object EmitNDArray {
                               curIdxVar >= stagedArrayOfSizes.loadElement(
                                 cb,
                                 currentNDArrayIdx,
-                              ).get(cb).asInt64.value,
+                              ).getOrAssert(cb).asInt64.value,
                             )
                             cb.while_(
                               shouldLoop, {
@@ -475,7 +477,7 @@ object EmitNDArray {
                                   curIdxVar - stagedArrayOfSizes.loadElement(
                                     cb,
                                     currentNDArrayIdx,
-                                  ).get(cb).asInt64.value,
+                                  ).getOrAssert(cb).asInt64.value,
                                 )
                                 cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
                                 cb.if_(
@@ -485,7 +487,7 @@ object EmitNDArray {
                                     curIdxVar >= stagedArrayOfSizes.loadElement(
                                       cb,
                                       currentNDArrayIdx,
-                                    ).get(cb).asInt64.value,
+                                    ).getOrAssert(cb).asInt64.value,
                                   ),
                                   cb.assign(shouldLoop, false),
                                 )
@@ -498,7 +500,7 @@ object EmitNDArray {
 
                     override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SValue = {
                       val currentNDArray =
-                        ndsArraySValue.loadElement(cb, currentNDArrayIdx).get(cb).asNDArray
+                        ndsArraySValue.loadElement(cb, currentNDArrayIdx).getOrAssert(cb).asNDArray
                       currentNDArray.loadElement(idxVars, cb)
                     }
                   }
@@ -661,7 +663,7 @@ object EmitNDArray {
                         }, {
                           val startPoint = cb.newLocal[Long](
                             "ndarray_producer_filter_init_axis",
-                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(
+                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(
                               cb,
                               s"NDArrayFilter: can't filter on missing index (axis=$idx)",
                             ).asLong.value,
@@ -679,15 +681,17 @@ object EmitNDArray {
                           childProducer.stepAxis(idx)(cb, step)
                           cb.assign(idxVars(idx), idxVars(idx) + step)
                         }, {
-                          val currentPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(
-                            cb,
-                            s"NDArrayFilter: can't filter on missing index (axis=$idx)",
-                          ).asLong.value
+                          val currentPos =
+                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(
+                              cb,
+                              s"NDArrayFilter: can't filter on missing index (axis=$idx)",
+                            ).asLong.value
                           cb.assign(idxVars(idx), idxVars(idx) + step)
-                          val newPos = filtPValues(idx).loadElement(cb, idxVars(idx).toI).get(
-                            cb,
-                            s"NDArrayFilter: can't filter on missing index (axis=$idx)",
-                          ).asLong.value
+                          val newPos =
+                            filtPValues(idx).loadElement(cb, idxVars(idx).toI).getOrFatal(
+                              cb,
+                              s"NDArrayFilter: can't filter on missing index (axis=$idx)",
+                            ).asLong.value
                           val stepSize = cb.newLocal[Long](
                             "ndarray_producer_filter_step_size",
                             newPos - currentPos,

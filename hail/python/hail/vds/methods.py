@@ -1,14 +1,11 @@
-from typing import Sequence
-
 import hail as hl
 from hail import ir
-from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str, expr_bool
+from hail.expr import expr_any, expr_array, expr_bool, expr_interval, expr_locus, expr_str
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_first_key_field_locus
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration, func_spec, dictof
+from hail.typecheck import dictof, enumeration, func_spec, nullable, oneof, sequenceof, typecheck
 from hail.utils.java import Env, info, warning
-from hail.utils.misc import divide_null, new_temp_file, wrap_to_list
+from hail.utils.misc import new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
 
 
@@ -186,206 +183,6 @@ def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> '
     return ht._unlocalize_entries('_entries', '_var_cols', list(vds.variant_data.col_key))
 
 
-@typecheck(vds=VariantDataset, gq_bins=sequenceof(int), dp_bins=sequenceof(int), dp_field=nullable(str))
-def sample_qc(
-    vds: 'VariantDataset',
-    *,
-    gq_bins: 'Sequence[int]' = (0, 20, 60),
-    dp_bins: 'Sequence[int]' = (0, 1, 10, 20, 30),
-    dp_field=None,
-) -> 'Table':
-    """Compute sample quality metrics about a :class:`.VariantDataset`.
-
-    If the `dp_field` parameter is not specified, the ``DP`` is used for depth
-    if present. If no ``DP`` field is present, the ``MIN_DP`` field is used. If no ``DP``
-    or ``MIN_DP`` field is present, no depth statistics will be calculated.
-
-    Parameters
-    ----------
-    vds : :class:`.VariantDataset`
-        Dataset in VariantDataset representation.
-    name : :obj:`str`
-        Name for resulting field.
-    gq_bins : :class:`tuple` of :obj:`int`
-        Tuple containing cutoffs for genotype quality (GQ) scores.
-    dp_bins : :class:`tuple` of :obj:`int`
-        Tuple containing cutoffs for depth (DP) scores.
-    dp_field : :obj:`str`
-        Name of depth field. If not supplied, DP or MIN_DP will be used, in that order.
-
-    Returns
-    -------
-    :class:`.Table`
-        Hail Table of results, keyed by sample.
-    """
-
-    require_first_key_field_locus(vds.reference_data, 'sample_qc')
-    require_first_key_field_locus(vds.variant_data, 'sample_qc')
-
-    ref = vds.reference_data
-
-    if 'DP' in ref.entry:
-        ref_dp_field_to_use = 'DP'
-    elif 'MIN_DP' in ref.entry:
-        ref_dp_field_to_use = 'MIN_DP'
-    else:
-        ref_dp_field_to_use = dp_field
-
-    from hail.expr.functions import _num_allele_type, _allele_types
-
-    allele_types = _allele_types[:]
-    allele_types.extend(['Transition', 'Transversion'])
-    allele_enum = {i: v for i, v in enumerate(allele_types)}
-    allele_ints = {v: k for k, v in allele_enum.items()}
-
-    def allele_type(ref, alt):
-        return hl.bind(
-            lambda at: hl.if_else(
-                at == allele_ints['SNP'],
-                hl.if_else(hl.is_transition(ref, alt), allele_ints['Transition'], allele_ints['Transversion']),
-                at,
-            ),
-            _num_allele_type(ref, alt),
-        )
-
-    variant_ac = Env.get_uid()
-    variant_atypes = Env.get_uid()
-
-    vmt = vds.variant_data
-    if 'GT' not in vmt.entry:
-        vmt = vmt.annotate_entries(GT=hl.vds.lgt_to_gt(vmt.LGT, vmt.LA))
-
-    vmt = vmt.annotate_rows(**{
-        variant_ac: hl.agg.call_stats(vmt.GT, vmt.alleles).AC,
-        variant_atypes: vmt.alleles[1:].map(lambda alt: allele_type(vmt.alleles[0], alt)),
-    })
-
-    bound_exprs = {}
-
-    bound_exprs['n_het'] = hl.agg.count_where(vmt['GT'].is_het())
-    bound_exprs['n_hom_var'] = hl.agg.count_where(vmt['GT'].is_hom_var())
-    bound_exprs['n_singleton'] = hl.agg.sum(
-        hl.rbind(
-            vmt['GT'],
-            lambda gt: hl.sum(
-                hl.range(0, gt.ploidy).map(
-                    lambda i: hl.rbind(gt[i], lambda gti: (gti != 0) & (vmt[variant_ac][gti] == 1))
-                )
-            ),
-        )
-    )
-    bound_exprs['n_singleton_ti'] = hl.agg.sum(
-        hl.rbind(
-            vmt['GT'],
-            lambda gt: hl.sum(
-                hl.range(0, gt.ploidy).map(
-                    lambda i: hl.rbind(
-                        gt[i],
-                        lambda gti: (gti != 0)
-                        & (vmt[variant_ac][gti] == 1)
-                        & (vmt[variant_atypes][gti - 1] == allele_ints['Transition']),
-                    )
-                )
-            ),
-        )
-    )
-    bound_exprs['n_singleton_tv'] = hl.agg.sum(
-        hl.rbind(
-            vmt['GT'],
-            lambda gt: hl.sum(
-                hl.range(0, gt.ploidy).map(
-                    lambda i: hl.rbind(
-                        gt[i],
-                        lambda gti: (gti != 0)
-                        & (vmt[variant_ac][gti] == 1)
-                        & (vmt[variant_atypes][gti - 1] == allele_ints['Transversion']),
-                    )
-                )
-            ),
-        )
-    )
-
-    bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))),
-        (
-            hl.range(0, vmt['GT'].ploidy)
-            .map(lambda i: vmt['GT'][i])
-            .filter(lambda allele_idx: allele_idx > 0)
-            .map(lambda allele_idx: vmt[variant_atypes][allele_idx - 1])
-        ),
-    )
-
-    dp_exprs = {}
-    if ref_dp_field_to_use is not None and 'DP' in vmt.entry:
-        dp_exprs['dp'] = hl.tuple(hl.agg.count_where(vmt.DP >= x) for x in dp_bins)
-
-    gq_dp_exprs = hl.struct(**{'gq': hl.tuple(hl.agg.count_where(vmt.GQ >= x) for x in gq_bins)}, **dp_exprs)
-
-    result_struct = hl.rbind(
-        hl.struct(**bound_exprs),
-        lambda x: hl.rbind(
-            hl.struct(**{
-                'gq_dp_exprs': gq_dp_exprs,
-                'n_het': x.n_het,
-                'n_hom_var': x.n_hom_var,
-                'n_non_ref': x.n_het + x.n_hom_var,
-                'n_singleton': x.n_singleton,
-                'n_singleton_ti': x.n_singleton_ti,
-                'n_singleton_tv': x.n_singleton_tv,
-                'n_snp': (
-                    x.allele_type_counts[allele_ints['Transition']] + x.allele_type_counts[allele_ints['Transversion']]
-                ),
-                'n_insertion': x.allele_type_counts[allele_ints['Insertion']],
-                'n_deletion': x.allele_type_counts[allele_ints['Deletion']],
-                'n_transition': x.allele_type_counts[allele_ints['Transition']],
-                'n_transversion': x.allele_type_counts[allele_ints['Transversion']],
-                'n_star': x.allele_type_counts[allele_ints['Star']],
-            }),
-            lambda s: s.annotate(
-                r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
-                r_ti_tv_singleton=divide_null(hl.float64(s.n_singleton_ti), s.n_singleton_tv),
-                r_het_hom_var=divide_null(hl.float64(s.n_het), s.n_hom_var),
-                r_insertion_deletion=divide_null(hl.float64(s.n_insertion), s.n_deletion),
-            ),
-        ),
-    )
-    variant_results = vmt.select_cols(**result_struct).cols()
-
-    rmt = vds.reference_data
-
-    ref_dp_expr = {}
-    if ref_dp_field_to_use is not None:
-        ref_dp_expr['ref_bases_over_dp_threshold'] = hl.tuple(
-            hl.agg.filter(rmt[ref_dp_field_to_use] >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in dp_bins
-        )
-    ref_results = rmt.select_cols(
-        ref_bases_over_gq_threshold=hl.tuple(
-            hl.agg.filter(rmt.GQ >= x, hl.agg.sum(1 + rmt.END - rmt.locus.position)) for x in gq_bins
-        ),
-        **ref_dp_expr,
-    ).cols()
-
-    joined = ref_results[variant_results.key]
-
-    joined_dp_expr = {}
-    dp_bins_field = {}
-    if ref_dp_field_to_use is not None:
-        joined_dp_expr['bases_over_dp_threshold'] = hl.tuple(
-            x + y for x, y in zip(variant_results.gq_dp_exprs.dp, joined.ref_bases_over_dp_threshold)
-        )
-        dp_bins_field['dp_bins'] = hl.tuple(dp_bins)
-
-    joined_results = variant_results.transmute(
-        bases_over_gq_threshold=hl.tuple(
-            x + y for x, y in zip(variant_results.gq_dp_exprs.gq, joined.ref_bases_over_gq_threshold)
-        ),
-        **joined_dp_expr,
-    )
-
-    joined_results = joined_results.annotate_globals(gq_bins=hl.tuple(gq_bins), **dp_bins_field)
-    return joined_results
-
-
 @typecheck(vds=VariantDataset, samples=oneof(Table, expr_array(expr_str)), keep=bool, remove_dead_alleles=bool)
 def filter_samples(
     vds: 'VariantDataset', samples, *, keep: bool = True, remove_dead_alleles: bool = False
@@ -530,7 +327,7 @@ def impute_sex_chr_ploidy_from_interval_coverage(
 )
 def impute_sex_chromosome_ploidy(
     vds: VariantDataset, calling_intervals, normalization_contig: str, use_variant_dataset: bool = False
-) -> hl.Table:
+) -> Table:
     """Impute sex chromosome ploidy from depth of reference or variant data within calling intervals.
 
     Returns a :class:`.Table` with sample ID keys, with the following fields:
@@ -947,7 +744,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 )
 def interval_coverage(
     vds: VariantDataset,
-    intervals: hl.Table,
+    intervals: Table,
     gq_thresholds=(
         0,
         10,

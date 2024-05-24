@@ -89,7 +89,15 @@ Instructions:
    use_artifact_registry = false
    ```
 
-- You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub events:
+- You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub
+  events. Note that `github_oauth_token` is not necessarily an OAuth2 access token. In fact, it
+  should be a fine-grained personal access token. The currently public documentation on fine-grained
+  access tokens is not very good. Check this [page in
+  `github/docs`](https://github.com/github/docs/blob/main/content/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens.md)
+  for information on how to create a personal access token that is privileged to access the
+  `hail-is` organization. Note in particular that personal access tokens have a "resource owner"
+  field which is fixed at creation time. The token can only read or write to repositories owned by
+  the "resource owner".
 
   ```json
   {

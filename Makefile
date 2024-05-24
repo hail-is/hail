@@ -39,10 +39,12 @@ check-all: check-hail check-services
 
 .PHONY: check-hail-fast
 check-hail-fast:
-	ruff check hail/python/hail
-	ruff check hail/python/hailtop
+	ruff check hail
 	ruff format hail --diff
 	$(PYTHON) -m pyright hail/python/hailtop
+
+	ruff check hail/python/test/hailtop/batch
+	$(PYTHON) -m pyright hail/python/test/hailtop/batch
 
 .PHONY: pylint-hailtop
 pylint-hailtop:
@@ -51,7 +53,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && sh millw __.checkFormat
+	cd hail && sh millw __.checkFormat + __.fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)

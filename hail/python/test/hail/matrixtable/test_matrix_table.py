@@ -1,14 +1,27 @@
 import math
 import operator
 import random
+import unittest
+
 import pytest
 
 import hail as hl
-import hail.ir as ir
 import hail.expr.aggregators as agg
+from hail import ir
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from ..helpers import *
+
+from ..helpers import (
+    convert_struct_to_dict,
+    create_all_values_matrix_table,
+    fails_local_backend,
+    fails_service_backend,
+    get_dataset,
+    qobtest,
+    resource,
+    schema_eq,
+    test_timeout,
+)
 
 
 class Tests(unittest.TestCase):
@@ -2339,3 +2352,10 @@ def test_upcast_tuples():
     t = t.annotate_cols(x=t.foo[1])
     t = t.drop('foo')
     t.cols().collect()
+
+
+def test_sample_entries():
+    mt = hl.utils.range_matrix_table(10, 10)
+    ht = mt.entries()
+    ht = ht.sample(0.5)
+    ht._force_count()

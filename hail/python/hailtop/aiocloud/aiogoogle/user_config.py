@@ -1,14 +1,13 @@
-from typing import Optional, List, Union, Tuple
 import os
 import warnings
-from jproperties import Properties
-from enum import Enum
 from dataclasses import dataclass
+from enum import Enum
+from typing import List, Optional, Tuple, Union
 
+from jproperties import Properties
 
 from hailtop.config.user_config import configuration_of
 from hailtop.config.variables import ConfigVariable
-
 
 GCSRequesterPaysConfiguration = Union[str, Tuple[str, List[str]]]
 

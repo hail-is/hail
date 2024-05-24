@@ -1,7 +1,7 @@
 package is.hail.asm4s
 
-import is.hail.lir
-import is.hail.utils.toRichIterable
+import is.hail.{lir, HAIL_BUILD_CONFIGURATION}
+import is.hail.utils.{toRichIterable, Traceback}
 
 import org.objectweb.asm.Opcodes.{INVOKESTATIC, INVOKEVIRTUAL}
 
@@ -271,7 +271,13 @@ trait CodeBuilderLike {
     append(Code._throw[T, Unit](cerr))
 
   def _assert(cond: => Code[Boolean], message: Code[String]): Unit =
-    if_(cond, {}, _throw(Code.newInstance[AssertionError, java.lang.Object](message)))
+    if (HAIL_BUILD_CONFIGURATION.isDebug) {
+      val traceback = mb.cb.modb.getObject[Throwable](new Traceback().fillInStackTrace())
+      val assertion = Code.newInstance[AssertionError, String, Throwable](message, traceback)
+      if_(cond, {}, _throw(assertion))
+    } else {
+      if_(cond, {}, _throw(Code.newInstance[AssertionError, String](message)))
+    }
 }
 
 class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {

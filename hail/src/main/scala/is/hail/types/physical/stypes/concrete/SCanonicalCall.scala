@@ -139,7 +139,7 @@ class SCanonicalCallValue(val call: Value[Int]) extends SCallValue {
           " local alleles",
         ),
       )
-      localAlleles.loadElement(cb, av).get(
+      localAlleles.loadElement(cb, av).getOrFatal(
         cb,
         const("lgt_to_gt: found missing value in local alleles at index ").concat(av.toS),
         errorID = errorID,

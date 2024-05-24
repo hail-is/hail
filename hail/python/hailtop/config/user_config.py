@@ -1,9 +1,9 @@
-from typing import Optional, Union, TypeVar
+import configparser
 import os
 import re
-import configparser
 import warnings
 from pathlib import Path
+from typing import Optional, TypeVar, Union
 
 from .variables import ConfigVariable
 

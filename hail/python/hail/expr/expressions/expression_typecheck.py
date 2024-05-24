@@ -1,29 +1,28 @@
 import abc
-from typing import Optional, Dict, Any, TypeVar, List
+from typing import Any, Dict, List, Optional, TypeVar
 
 import hail as hl
 from hail.expr.expressions import Expression, ExpressionException, to_expr
 from hail.expr.types import (
     HailType,
-    tint32,
-    tint64,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
     tfloat32,
     tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tstream,
-    tndarray,
-    tset,
-    tdict,
-    tstruct,
-    tunion,
-    ttuple,
+    tint32,
+    tint64,
     tinterval,
     tlocus,
-    tcall,
+    tndarray,
+    tset,
+    tstr,
+    tstream,
+    tstruct,
+    ttuple,
+    tunion,
 )
-
 from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.utils.java import escape_parsable
 

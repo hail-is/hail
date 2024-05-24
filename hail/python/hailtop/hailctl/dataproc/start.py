@@ -1,10 +1,9 @@
 import re
 from enum import Enum
+from shlex import quote as shq
+from typing import List, Optional
 
 import yaml
-
-from typing import Optional, List
-from shlex import quote as shq
 
 from . import gcloud
 from .cluster_config import ClusterConfig

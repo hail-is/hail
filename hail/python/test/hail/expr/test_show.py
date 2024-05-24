@@ -1,7 +1,5 @@
 import hail as hl
 
-from ..helpers import test_timeout
-
 
 def test_show_1():
     mt = hl.balding_nichols_model(3, 10, 10)

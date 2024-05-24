@@ -1,20 +1,21 @@
 from typing import Optional
+
 import hail as hl
 from hail.expr.types import HailType, tint64
+from hail.ir import ir
 from hail.ir.base_ir import BaseIR, MatrixIR
 from hail.ir.utils import (
+    default_col_uid,
+    default_row_uid,
     modify_deep_field,
+    unpack_col_uid,
+    unpack_row_uid,
     zip_with_index,
     zip_with_index_field,
-    default_row_uid,
-    default_col_uid,
-    unpack_row_uid,
-    unpack_col_uid,
 )
-import hail.ir.ir as ir
-from hail.utils.misc import escape_str, parsable_strings, escape_id
-from hail.utils.jsonx import dump_json
 from hail.utils.java import Env
+from hail.utils.jsonx import dump_json
+from hail.utils.misc import escape_id, escape_str, parsable_strings
 
 
 class MatrixAggregateRowsByKey(MatrixIR):

@@ -1,109 +1,109 @@
-import operator
 import builtins
 import functools
-from typing import Union, Optional, Any, Callable, Iterable, TypeVar
-import pandas as pd
+import operator
+from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
+import numpy as np
+import pandas as pd
 from deprecated import deprecated
 
 import hail
 import hail as hl
+from hail import ir
 from hail.expr.expressions import (
-    Expression,
     ArrayExpression,
-    StreamExpression,
-    SetExpression,
-    Int32Expression,
-    Int64Expression,
-    Float32Expression,
-    Float64Expression,
-    DictExpression,
-    StructExpression,
-    LocusExpression,
-    StringExpression,
-    IntervalExpression,
     ArrayNumericExpression,
     BooleanExpression,
     CallExpression,
-    TupleExpression,
+    DictExpression,
+    Expression,
     ExpressionException,
+    Float32Expression,
+    Float64Expression,
+    Int32Expression,
+    Int64Expression,
+    IntervalExpression,
+    LocusExpression,
     NumericExpression,
-    unify_all,
-    construct_expr,
-    to_expr,
-    unify_exprs,
-    impute_type,
-    construct_variable,
+    SetExpression,
+    StreamExpression,
+    StringExpression,
+    StructExpression,
+    TupleExpression,
     apply_expr,
+    cast_expr,
     coercer_from_dtype,
-    unify_types_limited,
-    expr_array,
+    construct_expr,
+    construct_variable,
     expr_any,
-    expr_struct,
-    expr_int32,
-    expr_int64,
+    expr_array,
+    expr_bool,
+    expr_call,
+    expr_dict,
     expr_float32,
     expr_float64,
-    expr_oneof,
-    expr_bool,
-    expr_tuple,
-    expr_dict,
-    expr_str,
-    expr_stream,
-    expr_set,
-    expr_call,
-    expr_locus,
+    expr_int32,
+    expr_int64,
     expr_interval,
+    expr_locus,
     expr_ndarray,
     expr_numeric,
-    cast_expr,
+    expr_oneof,
+    expr_set,
+    expr_str,
+    expr_stream,
+    expr_struct,
+    expr_tuple,
+    impute_type,
+    to_expr,
+    unify_all,
+    unify_exprs,
+    unify_types_limited,
 )
 from hail.expr.types import (
     HailType,
     hail_type,
-    tint32,
-    tint64,
-    tfloat32,
-    tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tstream,
-    tset,
-    tdict,
-    tstruct,
-    tlocus,
-    tinterval,
-    tcall,
-    ttuple,
-    tndarray,
-    trngstate,
-    is_primitive,
-    is_numeric,
-    is_int32,
-    is_int64,
     is_float32,
     is_float64,
+    is_int32,
+    is_int64,
+    is_numeric,
+    is_primitive,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
+    tfloat32,
+    tfloat64,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
+    tndarray,
+    trngstate,
+    tset,
+    tstr,
+    tstream,
+    tstruct,
+    ttuple,
 )
-from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
-import hail.ir as ir
+from hail.genetics.allele_type import AlleleType
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import (
-    typecheck,
-    nullable,
+    anyfunc,
     anytype,
-    enumeration,
-    tupleof,
-    func_spec,
-    oneof,
     arg_check,
     args_check,
-    anyfunc,
+    enumeration,
+    func_spec,
+    nullable,
+    oneof,
     sequenceof,
+    tupleof,
+    typecheck,
 )
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
-
-import numpy as np
 
 Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
 Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
@@ -821,6 +821,84 @@ def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     """
     ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64)
     return _func("contingency_table_test", ret_type, c1, c2, c3, c4, min_cell_count)
+
+
+# We use 64-bit integers.
+# It is relatively easy to encounter an integer overflow bug with 32-bit integers.
+@typecheck(a=expr_array(expr_int64), b=expr_array(expr_int64), c=expr_array(expr_int64), d=expr_array(expr_int64))
+def cochran_mantel_haenszel_test(
+    a: Union[tarray, list], b: Union[tarray, list], c: Union[tarray, list], d: Union[tarray, list]
+) -> StructExpression:
+    """Perform the Cochran-Mantel-Haenszel test for association.
+
+    Examples
+    --------
+    >>> a = [56, 61, 73, 71]
+    >>> b = [69, 257, 65, 48]
+    >>> c = [40, 57, 71, 55]
+    >>> d = [77, 301, 79, 48]
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=5.0496881823306765, p_value=0.024630370456863417)
+
+    >>> mt = ds.filter_rows(mt.locus == hl.Locus(20, 10633237))
+    >>> mt.count_rows()
+    1
+    >>> a, b, c, d = mt.aggregate_entries(
+    ...     hl.tuple([
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)])
+    ...     ])
+    ... )
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=0.2188830334629822, p_value=0.6398923118508772)
+
+    Notes
+    -----
+    See the `Wikipedia article <https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics>`_
+    for more details.
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the upper-left cell in the contingency tables.
+    b : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the upper-right cell in the contingency tables.
+    c : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the lower-left cell in the contingency tables.
+    d : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the lower-right cell in the contingency tables.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        A :class:`.tstruct` expression with two fields, `test_statistic`
+        (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
+    """
+    # The variable names below correspond to the notation used in the Wikipedia article.
+    # https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics
+    n1 = hl.zip(a, b).map(lambda ab: ab[0] + ab[1])
+    n2 = hl.zip(c, d).map(lambda cd: cd[0] + cd[1])
+    m1 = hl.zip(a, c).map(lambda ac: ac[0] + ac[1])
+    m2 = hl.zip(b, d).map(lambda bd: bd[0] + bd[1])
+    t = hl.zip(n1, n2).map(lambda nn: nn[0] + nn[1])
+
+    def numerator_term(a, n1, m1, t):
+        return a - n1 * m1 / t
+
+    # The numerator comes from the link below, not from the Wikipedia article.
+    # https://www.biostathandbook.com/cmh.html
+    numerator = (hl.abs(hl.sum(hl.zip(a, n1, m1, t).map(lambda tup: numerator_term(*tup)))) - 0.5) ** 2
+
+    def denominator_term(n1, n2, m1, m2, t):
+        return n1 * n2 * m1 * m2 / (t**3 - t**2)
+
+    denominator = hl.sum(hl.zip(n1, n2, m1, m2, t).map(lambda tup: denominator_term(*tup)))
+
+    test_statistic = numerator / denominator
+    p_value = pchisqtail(test_statistic, 1)
+    return struct(test_statistic=test_statistic, p_value=p_value)
 
 
 @typecheck(
@@ -3278,16 +3356,26 @@ def corr(x, y) -> Float64Expression:
     return _func("corr", tfloat64, x, y)
 
 
-_base_regex = "^([ACGTNM])+$"
-_symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
-_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
-_allele_enum = {i: v for i, v in builtins.enumerate(_allele_types)}
-_allele_ints = {v: k for k, v in _allele_enum.items()}
-
-
 @typecheck(ref=expr_str, alt=expr_str)
 @ir.udf(tstr, tstr)
-def _num_allele_type(ref, alt) -> Int32Expression:
+def numeric_allele_type(ref, alt) -> Int32Expression:
+    """Returns the type of the polymorphism as an integer. The value returned
+    is the integer value of :class:`.AlleleType` representing that kind of
+    polymorphism.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.numeric_allele_type('A', 'T')) == AlleleType.SNP
+    True
+
+    Notes
+    -----
+    The values of :class:`.AlleleType` are not stable and thus should not be
+    relied upon across hail versions.
+    """
+    _base_regex = "^([ACGTNM])+$"
+    _symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
     return hl.bind(
         lambda r, a: hl.if_else(
             r.matches(_base_regex),
@@ -3299,22 +3387,31 @@ def _num_allele_type(ref, alt) -> Int32Expression:
                     r.length() == a.length(),
                     hl.if_else(
                         r.length() == 1,
-                        hl.if_else(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
-                        hl.if_else(hamming(r, a) == 1, _allele_ints['SNP'], _allele_ints['MNP']),
+                        hl.if_else(r != a, AlleleType.SNP, AlleleType.UNKNOWN),
+                        hl.if_else(hamming(r, a) == 1, AlleleType.SNP, AlleleType.MNP),
                     ),
                 )
-                .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]), _allele_ints["Insertion"])
-                .when((r[0] == a[0]) & r.endswith(a[1:]), _allele_ints["Deletion"])
-                .default(_allele_ints['Complex']),
+                .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]), AlleleType.INSERTION)
+                .when((r[0] == a[0]) & r.endswith(a[1:]), AlleleType.DELETION)
+                .default(AlleleType.COMPLEX),
             )
-            .when(a == '*', _allele_ints['Star'])
-            .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-            .default(_allele_ints['Unknown']),
-            _allele_ints['Unknown'],
+            .when(a == '*', AlleleType.STAR)
+            .when(a.matches(_symbolic_regex), AlleleType.SYMBOLIC)
+            .default(AlleleType.UNKNOWN),
+            AlleleType.UNKNOWN,
         ),
         ref,
         alt,
     )
+
+
+@deprecated(version='0.2.129', reason="Replaced by the public numeric_allele_type")
+@typecheck(ref=expr_str, alt=expr_str)
+def _num_allele_type(ref, alt) -> Int32Expression:
+    """Provided for backwards compatibility, don't use it in new code, or
+    within the hail library itself
+    """
+    return numeric_allele_type(ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3338,7 +3435,7 @@ def is_snp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["SNP"]
+    return numeric_allele_type(ref, alt) == AlleleType.SNP
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3362,7 +3459,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["MNP"]
+    return numeric_allele_type(ref, alt) == AlleleType.MNP
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3458,7 +3555,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Insertion"]
+    return numeric_allele_type(ref, alt) == AlleleType.INSERTION
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3482,7 +3579,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Deletion"]
+    return numeric_allele_type(ref, alt) == AlleleType.DELETION
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3506,9 +3603,7 @@ def is_indel(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return hl.bind(
-        lambda t: (t == _allele_ints["Insertion"]) | (t == _allele_ints["Deletion"]), _num_allele_type(ref, alt)
-    )
+    return hl.bind(lambda t: (t == AlleleType.INSERTION) | (t == AlleleType.DELETION), numeric_allele_type(ref, alt))
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3532,7 +3627,7 @@ def is_star(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Star"]
+    return numeric_allele_type(ref, alt) == AlleleType.STAR
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3556,7 +3651,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Complex"]
+    return numeric_allele_type(ref, alt) == AlleleType.COMPLEX
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3624,7 +3719,7 @@ def allele_type(ref, alt) -> StringExpression:
     -------
     :class:`.StringExpression`
     """
-    return hl.literal(_allele_types)[_num_allele_type(ref, alt)]
+    return hl.literal(AlleleType.strings())[numeric_allele_type(ref, alt)]
 
 
 @typecheck(s1=expr_str, s2=expr_str)

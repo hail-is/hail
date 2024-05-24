@@ -1,14 +1,14 @@
-from typing import Callable, TypeVar
-from typing_extensions import ParamSpec
 import os
-from timeit import default_timer as timer
 import unittest
+from timeit import default_timer as timer
+from typing import Callable, TypeVar
+
 import pytest
-from hailtop.hail_decorator import decorator
+from typing_extensions import ParamSpec
 
-from hail.utils.java import choose_backend
 import hail as hl
-
+from hail.utils.java import choose_backend
+from hailtop.hail_decorator import decorator
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')

@@ -1,7 +1,6 @@
+import datetime
 import json
 import sys
-import datetime
-
 
 assert len(sys.argv) == 3, sys.argv
 hail_pip_version = sys.argv[1]
