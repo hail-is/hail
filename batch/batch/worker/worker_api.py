@@ -1,5 +1,6 @@
 import abc
-from typing import Dict, List, TypedDict, Union
+import ssl
+from typing import Dict, List, Optional, TypedDict, Union
 
 from aiohttp import web
 
@@ -47,6 +48,10 @@ class CloudWorkerAPI(abc.ABC):
 
     @abc.abstractmethod
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def worker_ssl_context(self, namespace: str) -> Optional[ssl.SSLContext]:
         raise NotImplementedError
 
     @abc.abstractmethod

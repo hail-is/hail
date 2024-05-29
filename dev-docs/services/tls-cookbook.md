@@ -125,6 +125,7 @@ kubectl create secret generic \
 make -C $HAIL/hail python/hailtop/hail_version
 
 PYTHONPATH=$HAIL/hail/python \
+HAIL_PROJECT=hail-vdc \
         python3 $HAIL/tls/create_certs.py \
         default \
         $HAIL/tls/config.yaml \

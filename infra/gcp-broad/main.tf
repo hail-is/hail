@@ -524,6 +524,7 @@ module "ci_gsa_secret" {
   project = var.gcp_project
   iam_roles = [
     "cloudprofiler.agent",
+    "secretmanager.admin"
   ]
 }
 
@@ -680,6 +681,7 @@ resource "google_project_iam_member" "batch_agent_iam_member" {
     "logging.logWriter",
     "storage.objectCreator",
     "storage.objectViewer",
+    "secretmanager.secretAccessor",
   ])
 
   project = var.gcp_project

@@ -143,9 +143,9 @@ class DeployConfig:
         log.info(f'serving paths at {base_path}')
         return root_app
 
-    def client_ssl_context(self) -> ssl.SSLContext:
+    def client_ssl_context(self, *, check_hostname: bool = True) -> ssl.SSLContext:
         if self._location == 'k8s':
-            return internal_client_ssl_context()
+            return internal_client_ssl_context(check_hostname=check_hostname)
         # no encryption on the internal gateway
         return external_client_ssl_context()
 

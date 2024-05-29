@@ -3186,6 +3186,7 @@ class Worker:
         return json_response(body)
 
     async def run(self):
+        assert CLOUD_WORKER_API
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
         app.add_routes([
             web.post('/api/v1alpha/kill', self.kill),
@@ -3201,7 +3202,9 @@ class Worker:
 
         app_runner = web.AppRunner(app, access_log_class=BatchWorkerAccessLogger)
         await app_runner.setup()
-        site = web.TCPSite(app_runner, IP_ADDRESS, 5000)
+        worker_ssl_context = await CLOUD_WORKER_API.worker_ssl_context(NAMESPACE)
+        port = 443 if worker_ssl_context is not None else 5000
+        site = web.TCPSite(app_runner, IP_ADDRESS, port, ssl_context=worker_ssl_context)
         await site.start()
 
         try:
