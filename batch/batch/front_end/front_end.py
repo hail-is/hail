@@ -422,8 +422,11 @@ LEFT JOIN billing_projects
     ON batches.billing_project = billing_projects.name
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-LEFT JOIN job_groups_cancelled
-       ON batches.id = job_groups_cancelled.id AND job_groups_cancelled.job_group_id = %s
+LEFT JOIN (
+  SELECT id, 1 AS cancelled
+  FROM job_groups_cancelled
+  WHERE job_group_id = %s
+) AS cancelled_t ON batches.id = cancelled_t.id
 STRAIGHT_JOIN billing_project_users
     ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
