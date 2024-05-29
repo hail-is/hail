@@ -406,7 +406,7 @@ async def get_completed_batches_ordered_by_completed_time(request, userdata):
     last_completed_timestamp = request.query.get('last_completed_timestamp')
     if last_completed_timestamp:
         where_args.append(int(last_completed_timestamp))
-        wheres.append('time_completed < %s')
+        wheres.append('batches.time_completed < %s')
 
     sql = f"""
 SELECT batches.*,
@@ -441,7 +441,7 @@ LEFT JOIN LATERAL (
 ) AS cost_t ON TRUE
 WHERE
     {' AND '.join(wheres)}
-ORDER BY time_completed DESC
+ORDER BY batches.time_completed DESC
 LIMIT %s;
     """
 
