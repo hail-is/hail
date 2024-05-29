@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List, TypedDict, Union
+from typing import Dict, List, Optional, TypedDict, Union
 
 from aiohttp import web
 
@@ -47,6 +47,10 @@ class CloudWorkerAPI(abc.ABC):
 
     @abc.abstractmethod
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    async def identity_uid(self, token: str) -> Optional[str]:
         raise NotImplementedError
 
     @abc.abstractmethod

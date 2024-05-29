@@ -11,6 +11,7 @@ from aiohttp import web
 from hailtop import httpx
 from hailtop.aiocloud import aioazure
 from hailtop.auth.auth import IdentityProvider
+from hailtop.auth.flow import AzureFlow
 from hailtop.utils import check_exec_output, retry_transient_errors, time_msecs
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
@@ -21,19 +22,29 @@ from .disk import AzureDisk
 class AzureWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '168.63.129.16'
 
+    # async because ClientSession must be created inside a running event loop
     @staticmethod
-    def from_env():
+    async def from_env():
         subscription_id = os.environ['SUBSCRIPTION_ID']
         resource_group = os.environ['RESOURCE_GROUP']
         acr_url = os.environ['DOCKER_PREFIX']
         hail_oauth_scope = os.environ['HAIL_AZURE_OAUTH_SCOPE']
         assert acr_url.endswith('azurecr.io'), acr_url
-        return AzureWorkerAPI(subscription_id, resource_group, acr_url, hail_oauth_scope)
+        http_session = httpx.client_session()
+        return AzureWorkerAPI(subscription_id, resource_group, acr_url, hail_oauth_scope, http_session)
 
-    def __init__(self, subscription_id: str, resource_group: str, acr_url: str, hail_oauth_scope: str):
+    def __init__(
+        self,
+        subscription_id: str,
+        resource_group: str,
+        acr_url: str,
+        hail_oauth_scope: str,
+        http_session: httpx.ClientSession,
+    ):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.hail_oauth_scope = hail_oauth_scope
+        self._http_session = http_session
         self.azure_credentials = aioazure.AzureCredentials.default_credentials()
         self.acr_refresh_token = AcrRefreshToken(acr_url, self.azure_credentials)
         self._blobfuse_credential_files: Dict[str, str] = {}
@@ -66,6 +77,12 @@ class AzureWorkerAPI(CloudWorkerAPI):
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
+
+    async def identity_uid(self, token: str) -> Optional[str]:
+        hail_oauth_config = {'appIdentifierUri': self.hail_oauth_scope}
+        return await AzureFlow.get_identity_uid_from_access_token(
+            self._http_session, token, oauth2_client=hail_oauth_config
+        )
 
     def _blobfuse_credentials(self, credentials: Dict[str, str], account: str, container: str) -> str:
         credentials = orjson.loads(base64.b64decode(credentials['key.json']).decode())
@@ -136,7 +153,7 @@ containerName {container}
             del self._blobfuse_credential_files[mount_base_path_data]
 
     async def close(self):
-        pass
+        await self._http_session.close()
 
     def __str__(self):
         return f'subscription_id={self.subscription_id} resource_group={self.resource_group}'

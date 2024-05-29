@@ -186,6 +186,10 @@ class GoogleServiceAccountCredentials(GoogleCredentials):
     def email(self) -> str:
         return self.key['client_email']
 
+    @property
+    def identity_uid(self) -> str:
+        return self.key['client_id']
+
     async def _get_access_token(self) -> GoogleExpiringAccessToken:
         now = int(time.time())
         scope = ' '.join(self._scopes)

@@ -6,7 +6,8 @@ from typing import Dict, Optional
 
 import aiohttp
 
-from gear import CommonAiohttpAppKeys, Database, transaction
+from gear import Database, transaction
+from hailtop.aiocloud.common import Session
 from hailtop.humanizex import naturaldelta_msec
 from hailtop.utils import retry_transient_errors, time_msecs, time_msecs_str
 
@@ -132,7 +133,7 @@ VALUES (%s, %s);
         instance_config: InstanceConfig,
     ):
         self.db: Database = app['db']
-        self.client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
+        self.client_session: Session = app['worker_client_session']
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state
@@ -278,7 +279,7 @@ VALUES (%s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
+                async with await self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
                     actual_name = (await resp.json()).get('name')
                     if actual_name and actual_name != self.name:
                         return False

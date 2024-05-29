@@ -47,6 +47,7 @@ from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools, dictfix, httpx, uvloopx, version
+from hailtop.aiocloud.common import Session
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
@@ -467,7 +468,11 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     state = job_record['state']
     if state == 'Running':
         return await _get_job_container_log_from_worker(
-            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
+            app[AppKeys.WORKER_CLIENT_SESSION],
+            batch_id,
+            job_id,
+            container,
+            job_record['ip_address'],
         )
 
     attempt_id = attempt_id_from_spec(job_record)
@@ -3443,6 +3448,7 @@ class BatchFrontEndAccessLogger(AccessLogger):
 
 class AppKeys(CommonAiohttpAppKeys):
     QOB_JAR_RESOLUTION_CACHE = web.AppKey('qob_jar_resolution_cache', TimeLimitedMaxSizeCache[Tuple[str, str], str])
+    WORKER_CLIENT_SESSION = web.AppKey('worker_client_session', Session)
 
 
 async def on_startup(app):
@@ -3468,7 +3474,8 @@ SELECT instance_id, n_tokens, frozen FROM globals;
     app['instance_id'] = instance_id
 
     app['hail_credentials'] = hail_credentials()
-    exit_stack.push_async_callback(app['hail_credentials'].close)
+    app[AppKeys.WORKER_CLIENT_SESSION] = Session(credentials=app['hail_credentials'])
+    exit_stack.push_async_callback(app[AppKeys.WORKER_CLIENT_SESSION].close)
 
     app['frozen'] = row['frozen']
 

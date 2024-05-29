@@ -140,9 +140,9 @@ class GoogleFlow(Flow):
 
     @staticmethod
     async def get_identity_uid_from_access_token(
-        session: httpx.ClientSession, access_token: str, *, oauth2_client: dict
+        session: httpx.ClientSession, access_token: str, *, oauth2_client: Optional[dict]
     ) -> Optional[str]:
-        oauth2_client_audience = oauth2_client['installed']['client_id']
+        oauth2_client_audience = oauth2_client['installed']['client_id'] if oauth2_client else None
         try:
             userinfo = await retry_transient_errors(
                 session.get_read_json,
@@ -238,7 +238,10 @@ class AzureFlow(Flow):
 
     @staticmethod
     async def get_identity_uid_from_access_token(
-        session: httpx.ClientSession, access_token: str, *, oauth2_client: dict
+        session: httpx.ClientSession,
+        access_token: str,
+        *,
+        oauth2_client: dict,
     ) -> Optional[str]:
         audience = oauth2_client['appIdentifierUri']
 
