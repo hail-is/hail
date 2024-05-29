@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from collections import deque
 from functools import wraps
 from typing import Any, Deque, Dict, List, Optional, Set, Tuple, overload
@@ -27,6 +28,13 @@ def authorization_token(request):
     if not session_id:
         return None
     return session_id
+
+
+def instance_base_url(version: int, ip_address: str) -> str:
+    # TODO Azure
+    if version < 30 or os.getenv('HAIL_TERRA') or os.getenv('CLOUD') == 'azure':
+        return f'http://{ip_address}:5000'
+    return f'https://{ip_address}'
 
 
 def add_metadata_to_request(fun):
