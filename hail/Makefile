@@ -208,7 +208,6 @@ pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
 	cd python && \
           HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
           HAIL_QUERY_BACKEND=batch \
-          HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
           HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
           HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
           HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
@@ -367,7 +366,6 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
 	hailctl config set query/backend batch
-	hailctl config set query/jar_url $$(cat upload-qob-jar)
 	hailctl dev config set default_namespace $(NAMESPACE)
 
 .PHONY: install
