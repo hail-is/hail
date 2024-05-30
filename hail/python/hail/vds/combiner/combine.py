@@ -118,8 +118,8 @@ def make_reference_stream(stream, entry_to_keep: Collection[str]):
 
     def make_entry_struct(e, row):
         handled_fields = dict()
-        # we drop PL by default, but if `entry_to_keep` has it then PL needs to be
-        # turned into LPL
+        # we drop PL/PGT by default, but if `entry_to_keep` has them, we need to
+        # convert them to local versions for consistency.
         handled_names = {'AD', 'GT', 'PGT', 'PL'}
 
         if 'GT' in entry_to_keep:
@@ -253,8 +253,8 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep: Collection[str])
 
     def make_entry_struct(e, row):
         handled_fields = dict()
-        # we drop PL by default, but if `entry_to_keep` has it then PL needs to be
-        # turned into LPL
+        # we drop PL/PGT by default, but if `entry_to_keep` has them, we need to
+        # convert them to local versions for consistency.
         handled_names = {'AD', 'GT', 'PGT', 'PL'}
 
         if 'GT' in entry_to_keep:
