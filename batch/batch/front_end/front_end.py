@@ -324,7 +324,7 @@ async def _query_batch_jobs_for_billing(request, batch_id):
 
     job_resources_cost_sql = f'''
     SELECT agg.job_id, r.resource, agg.`usage`, r.rate * agg.`usage` as total
-    FROM aggregated_job_resources_v2 agg
+    FROM aggregated_job_resources_v3 agg
     INNER JOIN resources r ON r.resource_id = agg.resource_id
     WHERE agg.batch_id = %s AND agg.{job_condition}
     '''
