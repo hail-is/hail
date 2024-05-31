@@ -104,24 +104,33 @@ def make_benchmark_trial(
 
     j.env('BENCHMARK_TRIAL_ID', str(trial))
 
-    j.command('mkdir -p benchmark-resources')
+    # If the benchmarks fail, we always want this file to exist otherwise
+    # later combine jobs will fail when localising.
     j.command(f'touch {j.ofile}')
-    j.command(f"""\
-python3 -m pytest {path} \
-    -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
-    --log-cli-level=INFO \
-    -s \
-    -r A \
-    -vv \
-    --instafail \
-    --durations=50 \
-    --timeout=1800 \
-    --override-ini=tmp_path_retention_count=0 \
-    --override-ini=tmp_path_retention_policy=failed \
-    --output={j.ofile} \
-    --data-dir=benchmark-resources \
-    -k {benchmark_name}
-""")
+    j.command('mkdir -p benchmark-resources')
+    j.command(
+        ' '.join([
+            f'python3 -m pytest {path}',
+            '-Werror:::hail -Werror:::hailtop -Werror::ResourceWarning',
+            '--log-cli-level=ERROR',
+            '-s',
+            '-r A',
+            '-vv',
+            '--instafail',
+            '--durations=50',
+            '--timeout=1800',
+            # pytest keeps 3 test sessions worth of temp files by default.
+            # some benchmarks generate very large output files which can quickly
+            # fill the tmpfs and so we'll make pytest always delete tmp files
+            # immediately when tmp_path fixtures are torn-down.
+            '--override-ini=tmp_path_retention_count=0',
+            '--override-ini=tmp_path_retention_policy=failed',
+            f'--output={j.ofile}',
+            '--data-dir=benchmark-resources',
+            f'-k {benchmark_name}',
+        ])
+    )
+
     return j.ofile
 
 

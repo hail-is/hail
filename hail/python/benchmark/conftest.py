@@ -4,6 +4,9 @@ import pytest
 
 from benchmark.tools import init_logging
 
+# hooks that customise command line arguments must be implemented in the top-level conftest.py
+# See https://docs.pytest.org/en/7.1.x/reference/reference.html#pytest.hookspec.pytest_addoption
+
 
 @pytest.hookimpl
 def pytest_addoption(parser):
