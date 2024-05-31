@@ -29,7 +29,7 @@ def __download(data_dir, filename):
     # Note: the below does not work on batch due to docker/ssl problems
     # dest = os.path.join(data_dir, filename)
     # urlretrieve(url, dest)
-    subprocess.check_call(['curl', f'--output={data_dir / filename}', '-s', url])
+    subprocess.check_call(['curl', url, '-s', '--output', f'{data_dir / filename}'])
     logging.info(f'done: {filename}')
 
 
