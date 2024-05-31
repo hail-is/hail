@@ -8,19 +8,20 @@ SHADOW_JAR=$3
 PATH_FILE=$4
 
 
-TOKEN=$(cat /dev/urandom 2> /dev/null | LC_ALL=C tr -dc 'a-z0-9' 2> /dev/null | head -c 12)
-QUERY_STORAGE_URI=$(kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
-TEST_STORAGE_URI=$(kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
-
 if [[ "${NAMESPACE}" == "default" ]]; then
-    if [[ "${UPLOAD_RELEASE_JAR}" == "true" ]]; then
-	JAR_LOCATION="${QUERY_STORAGE_URI}/jars/${REVISION}.jar"
-    else
-	JAR_LOCATION="${QUERY_STORAGE_URI}/jars/$(whoami)/${TOKEN}/${REVISION}.jar"
-    fi
+    JAR_PREFIX=$(kubectl get secret global-config --template={{.data.query_storage_uri}} | base64 --decode)
 else
-    JAR_LOCATION="${TEST_STORAGE_URI}/${NAMESPACE}/jars/${TOKEN}/${REVISION}.jar"
+    BUCKET=$(kubectl get secret global-config --template={{.data.test_storage_uri}} | base64 --decode)
+    JAR_PREFIX="${BUCKET}/${NAMESPACE}"
 fi
+
+if [[ "${UPLOAD_RELEASE_JAR}" == "true" ]]; then
+    JAR_DIR="jars"
+else
+    JAR_DIR="jars/dev"
+fi
+
+JAR_LOCATION="${JAR_PREFIX}/${JAR_DIR}/${REVISION}.jar"
 
 python3 -m hailtop.aiotools.copy \
 	-vvv \

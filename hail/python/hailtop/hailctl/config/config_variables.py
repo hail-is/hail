@@ -88,13 +88,6 @@ def config_variables():
                     'should be one of "local", "spark", or "batch"',
                 ),
             ),
-            ConfigVariable.QUERY_JAR_URL: ConfigVariableInfo(
-                help_msg='Cloud storage URI to a Query JAR',
-                validation=(
-                    RouterAsyncFS.valid_url,
-                    'should be valid cloud storage URI such as gs://my-bucket/jars/sha.jar',
-                ),
-            ),
             ConfigVariable.QUERY_BATCH_DRIVER_CORES: ConfigVariableInfo(
                 help_msg='Cores specification for the query driver',
                 validation=(
