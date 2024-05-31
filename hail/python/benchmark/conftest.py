@@ -22,7 +22,7 @@ def pytest_addoption(parser):
         const='cpu',
         default=None,
     )
-    parser.addoption('--profiler-path', type=str, help='path tp aysnc profiler', default=None)
+    parser.addoption('--profiler-path', type=str, help='path to aysnc profiler', default=None)
     parser.addoption('--profiler-fmt', choices=['html', 'flame', 'jfr'], help='Choose profiler output.', default='html')
 
 
