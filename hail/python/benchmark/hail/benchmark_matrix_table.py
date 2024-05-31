@@ -279,24 +279,21 @@ def benchmark_import_bgen_filter_count(sim_ukb_bgen, sim_ukb_sample):
 
 @benchmark()
 def benchmark_export_range_matrix_table_entry_field_p100(tmp_path):
-    f = str(tmp_path / 'result.txt')
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
     mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
-    mt.x.export(f)
+    mt.x.export(str(tmp_path / 'result.txt'))
 
 
 @benchmark()
 def benchmark_export_range_matrix_table_row_p100(tmp_path):
-    f = str(tmp_path / 'result.txt')
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-    mt.row.export(f)
+    mt.row.export(str(tmp_path / 'result.txt'))
 
 
 @benchmark()
 def benchmark_export_range_matrix_table_col_p100(tmp_path):
-    f = str(tmp_path / 'result.txt')
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
-    mt.col.export(f)
+    mt.col.export(str(tmp_path / 'result.txt'))
 
 
 @benchmark()

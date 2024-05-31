@@ -6,6 +6,7 @@ import random
 import time
 from argparse import ArgumentParser, Namespace
 from getpass import getuser
+from itertools import count
 from os import path as P
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -64,7 +65,6 @@ def build_and_push_benchmark_image(hail_dev_image: str, artifact_uri: str, tag: 
 # syntax=docker/dockerfile:1.7-labs
 FROM --platform=linux/amd64 {hail_dev_image}
 
-RUN hail-apt-get-install wget
 COPY python/pytest.ini .
 COPY --exclude=**/__pycache__ --exclude=**/.pytest_cache python/benchmark benchmark
 COPY --exclude=**/__pycache__ --exclude=**/.pytest_cache python/test test
@@ -150,7 +150,7 @@ def combine(output: Resource, files: List[Resource]) -> None:
 
     logging.info(f'combining {len(files)} files')
 
-    jsonl = [line for f in files if (p := Path(f)).exists() for line in read_jsonl(p)]
+    jsonl = [line for f in files for line in read_jsonl(Path(f))]
     jsonl.sort(key=lambda r: (r['path'], r['name'], r['trial']))
 
     logging.info(f'Writing combine output to {output}')
@@ -176,11 +176,9 @@ def combine_results_as_tree(b: Batch, branch_factor: int, results: List[Resource
     phase_i = 1
 
     while len(results) > 1:
-        job_id = 0
         results = [
             (make_combine_job(b, f'phase{phase_i}_job{job_id}', files) if len(files) > 1 else files[0])
-            for files in chunk(branch_factor, results)
-            if (job_id := job_id + 1)
+            for files, job_id in zip(chunk(branch_factor, results), count(1))
         ]
         phase_i += 1
 

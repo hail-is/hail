@@ -25,17 +25,16 @@ def benchmark_compile_2k_merge(empty_gvcf, tmp_path):
 
 @benchmark()
 def benchmark_python_only_10k_transform(empty_gvcf):
-    vcf = import_vcf(empty_gvcf)
-    vcfs = [vcf] * 10_000
-    _ = [transform_gvcf(vcf, []) for vcf in vcfs]
+    for vcf in [import_vcf(empty_gvcf)] * 10_000:
+        transform_gvcf(vcf, [])
 
 
 @benchmark()
 def benchmark_python_only_10k_combine(empty_gvcf):
     vcf = import_vcf(empty_gvcf)
     mt = transform_gvcf(vcf, [])
-    mts = [mt] * 10_000
-    _ = [combine_variant_datasets(mts) for mts in chunk(COMBINE_GVCF_MAX, mts)]
+    for mts in chunk(COMBINE_GVCF_MAX, [mt] * 10_000):
+        combine_variant_datasets(mts)
 
 
 @benchmark()
