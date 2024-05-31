@@ -62,16 +62,21 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        shared_fields = [call_field] + list(f for f in ref.dtype if f in var.dtype)
-        shared_field_set = set(shared_fields)
-        var_fields = [f for f in var.dtype if f not in shared_field_set]
+        if call_field not in ref:
+            ref_call_field = 'GT' if 'GT' in ref else 'LGT'
+            if ref_call_field not in ref:
+                ref = ref.annotate(**{call_field: hl.call(0, 0)})
+            else:
+                ref = ref.annotate(**{call_field: ref[ref_call_field]})
+
+        # call_field is now in both ref and var
+        ref_set, var_set = set(ref.dtype), set(var.dtype)
+        shared_fields, var_fields = var_set & ref_set, var_set - ref_set
 
         return hl.if_else(
             hl.is_defined(var),
             var.select(*shared_fields, *var_fields),
-            ref.annotate(**{call_field: hl.call(0, 0)}).select(
-                *shared_fields, **{f: hl.missing(var[f].dtype) for f in var_fields}
-            ),
+            ref.select(*shared_fields, **{f: hl.missing(var[f].dtype) for f in var_fields}),
         )
 
     dr = dr.annotate(
@@ -141,7 +146,7 @@ def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> '
             for k, t in merged_schema.items():
                 if k == 'LA':
                     ref_block_selector[k] = hl.literal([0])
-                elif k in ('LGT', 'GT'):
+                elif k in ('LGT', 'GT') and k not in r:
                     ref_block_selector[k] = hl.call(0, 0)
                 else:
                     ref_block_selector[k] = r[k] if k in r else hl.missing(t)

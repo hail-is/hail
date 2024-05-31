@@ -786,7 +786,9 @@ def new_combiner(
     if vds_paths:
         # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
         vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
-        vds_ref_entry = set(vds.reference_data.entry) - {'END'}
+        vds_ref_entry = set(
+            name[1:] if name in ('LGT', 'LPGT') else name for name in vds.reference_data.entry if name != 'END'
+        )
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
                 "Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
@@ -798,9 +800,11 @@ def new_combiner(
 
         # sync up call_fields and call fields present in the VDS
         all_entry_types = chain(vds.reference_data._type.entry_type.items(), vds.variant_data._type.entry_type.items())
-        vds_call_fields = {name for name, typ in all_entry_types if typ == hl.tcall} - {'LGT', 'GT'}
-        if 'LPGT' in vds_call_fields:
-            vds_call_fields = (vds_call_fields - {'LPGT'}) | {'PGT'}
+        vds_call_fields = {
+            name[1:] if name == 'LPGT' else name
+            for name, typ in all_entry_types
+            if typ == hl.tcall and name not in ('LGT', 'GT')
+        }
         if set(call_fields) != vds_call_fields:
             warning(
                 "Mismatch between 'call_fields' and VDS call fields. "
@@ -822,7 +826,7 @@ def new_combiner(
         gvcf_type = mt._type
         if gvcf_reference_entry_fields_to_keep is None:
             rmt = mt.filter_rows(hl.is_defined(mt.info.END))
-            gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'GT', 'PGT', 'PL'}
+            gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'PGT', 'PL'}
         if vds is None:
             vds = transform_gvcf(
                 mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep

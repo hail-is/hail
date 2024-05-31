@@ -113,10 +113,14 @@ def make_reference_stream(stream, entry_to_keep: Collection[str]):
 
     def make_entry_struct(e, row):
         handled_fields = dict()
-        # we drop PL by default, but if `entry_to_keep` has it then PL needs to be
-        # turned into LPL
-        handled_names = {'AD', 'PL'}
+        # we drop PL/PGT by default, but if `entry_to_keep` has them, we need to
+        # convert them to local versions for consistency.
+        handled_names = {'AD', 'GT', 'PGT', 'PL'}
 
+        if 'GT' in entry_to_keep:
+            handled_fields['LGT'] = e['GT']
+        if 'PGT' in entry_to_keep:
+            handled_fields['LPGT'] = e['PGT']
         if 'AD' in entry_to_keep:
             handled_fields['LAD'] = e['AD'][:1]
         if 'PL' in entry_to_keep:
@@ -225,7 +229,6 @@ def make_variant_stream(stream, info_to_keep):
         )
         _transform_variant_function_map[row_type, info_key] = transform_row
 
-    from hail.expr import construct_expr
     from hail.utils.java import Env
 
     uid = Env.get_uid()
@@ -245,10 +248,14 @@ def make_reference_matrix_table(mt: MatrixTable, entry_to_keep: Collection[str])
 
     def make_entry_struct(e, row):
         handled_fields = dict()
-        # we drop PL by default, but if `entry_to_keep` has it then PL needs to be
-        # turned into LPL
-        handled_names = {'AD', 'PL'}
+        # we drop PL/PGT by default, but if `entry_to_keep` has them, we need to
+        # convert them to local versions for consistency.
+        handled_names = {'AD', 'GT', 'PGT', 'PL'}
 
+        if 'GT' in entry_to_keep:
+            handled_fields['LGT'] = e['GT']
+        if 'PGT' in entry_to_keep:
+            handled_fields['LPGT'] = e['PGT']
         if 'AD' in entry_to_keep:
             handled_fields['LAD'] = e['AD'][:1]
         if 'PL' in entry_to_keep:
