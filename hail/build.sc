@@ -12,7 +12,7 @@ import mill.util.Jvm
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
-  val hailPatchVersion = "130"
+  val hailPatchVersion = "131"
 }
 
 /** Update the millw script. */
