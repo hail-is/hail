@@ -13,6 +13,7 @@ def pytest_addoption(parser):
     parser.addoption("--log", type=str, help='Log file path', default=None)
     parser.addoption("--output", type=str, help="Output file path.", default=None)
     parser.addoption("--data-dir", type=str, help="Data directory.", default=None)
+    parser.addoption('--iterations', type=int, help='override number of iterations for all benchmarks', default=None)
     parser.addoption('--cores', type=int, help='Number of cores to use.', default=1)
     parser.addoption(
         '--profile',
@@ -34,11 +35,11 @@ def run_config_from_pytest_config(pytest_config):
             **{
                 flag: pytest_config.getoption(flag) or default
                 for flag, default in [
+                    ('log', None),
                     ('output', None),
                     ('cores', 1),
-                    ('log', None),
-                    ('profile', None),
                     ('data_dir', os.getenv('HAIL_BENCHMARK_DIR')),
+                    ('iterations', None),
                     ('profile', None),
                     ('profiler_path', os.getenv('ASYNC_PROFILER_HOME')),
                     ('profiler_fmt', None),
@@ -53,5 +54,5 @@ def run_config_from_pytest_config(pytest_config):
 
 @pytest.hookimpl
 def pytest_configure(config):
-    init_logging()
     config.run_config = run_config_from_pytest_config(config)
+    init_logging(file=config.run_config.log)

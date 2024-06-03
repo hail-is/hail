@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import platform
 import sys
@@ -7,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal
 
 import pytest
-from _pytest.runner import pytest_runtest_protocol as runtest
+from _pytest.runner import pytest_runtest_protocol as runner_runtest_protocol
 
 import hail as hl
 from benchmark.hail.fixtures import (
@@ -112,19 +113,40 @@ context = pytest.StashKey[Literal['burn_in', 'benchmark']]()
 
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_protocol(item, nextitem):
+    run_config = item.session.config.run_config
     # Initialise hail before running every benchmark for two reasons:
     # - each benchmark runs in a clean hail session
     # - our means of getting max task memory is quite crude (regex on logs)
     #   and a fresh session provides a new log
-    with init_hail(item.session.config.run_config):
-        burn_in_iterations, iterations = select(
-            ['burn_in_iterations', 'iterations'], **(item.get_closest_marker('benchmark').kwargs)
-        )
+    with init_hail(run_config):
+        if run_config.iterations is not None:
+            burn_in_iterations = 0
+            iterations = run_config.iterations
+            logging.info(
+                msg=(
+                    f'Picked up iterations override. Config: '
+                    f'burn_in_iterations: {burn_in_iterations}, '
+                    f'iterations: {iterations}.'
+                )
+            )
+
+        else:
+            burn_in_iterations, iterations = select(
+                ['burn_in_iterations', 'iterations'], **(item.get_closest_marker('benchmark').kwargs)
+            )
 
         s = item.stash
         s[start] = datetime.now(timezone.utc).isoformat()
         s[runs] = []
         s[end] = None
+
+        logging.info(
+            msg=(
+                f'Executing "{item.nodeid}" with '
+                f'{burn_in_iterations} burn in iterations and '
+                f'{iterations} timed iterations.'
+            )
+        )
 
         s[context] = 'burn_in'
         for k in range(burn_in_iterations):
@@ -135,7 +157,7 @@ def pytest_runtest_protocol(item, nextitem):
             # Since we're invoking this benchmark repeatedly, we want to tear-down
             # function/method level fixtures only, leaving module and session
             # fixtures in place; `item.parent` is one such `Item` that represents this.
-            runtest(item, nextitem=item.parent)
+            runner_runtest_protocol(item, nextitem=item.parent)
 
         s[context] = 'benchmark'
         total_iterations = burn_in_iterations + iterations
@@ -143,7 +165,7 @@ def pytest_runtest_protocol(item, nextitem):
             s[iteration] = k
             # on the final iteration, perform the required teardown for the test
             is_final_iteration = k == total_iterations - 1
-            runtest(item, nextitem=nextitem if is_final_iteration else item.parent)
+            runner_runtest_protocol(item, nextitem=nextitem if is_final_iteration else item.parent)
 
         s[end] = datetime.now(timezone.utc).isoformat()
 
@@ -159,14 +181,19 @@ def pytest_pyfunc_call(pyfuncitem):
         **{arg: pyfuncitem.funcargs[arg] for arg in pyfuncitem._fixtureinfo.argnames},
     ) as (time, timed_out, traceback):
         s = pyfuncitem.stash
+
+        is_burn_in = s[context] == 'burn_in'
+
         s[runs].append({
             'iteration': s[iteration],
             'time': time,
-            'is_burn_in': s[context] == 'burn_in',
+            'is_burn_in': is_burn_in,
             'timed_out': timed_out,
             'failure': traceback,
             'task_memory': get_peak_task_memory(Env.hc()._log),
         })
+
+        logging.info(f'{"(burn in) " if is_burn_in else ""}iteration {s[iteration]}, time: {time}s')
 
     # prevent other plugins running that might invoke the benchmark again
     return True
