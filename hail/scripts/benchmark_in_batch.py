@@ -92,6 +92,7 @@ def make_benchmark_trial(
     path: Path,
     benchmark_name: str,
     trial: int,
+    iterations: Optional[int],
     deps: List[Job],  # dont reformat
 ) -> Job:
     j = b.new_job(name=f'{path}::{benchmark_name}-{trial}')
@@ -127,6 +128,7 @@ def make_benchmark_trial(
             '--override-ini=tmp_path_retention_policy=failed',
             f'--output={j.ofile}',
             '--data-dir=benchmark-resources',
+            f'--iterations={iterations}' if iterations is not None else '',
             f'-k {benchmark_name}',
         ])
     )
@@ -194,7 +196,7 @@ def run_submit(args: Namespace) -> None:
     all_benchmarks = [
         (path, name, trial)
         for path, name, num_jobs in list_benchmarks(args.include, args.exclude)
-        for trial in range(num_jobs)
+        for trial in range(args.jobs or num_jobs)
     ]
 
     assert len(all_benchmarks) > 0
@@ -235,7 +237,7 @@ def run_submit(args: Namespace) -> None:
         b,
         args.branch_factor,
         [
-            make_benchmark_trial(b, envvars, path, name, trial, deps=[test_permissions])
+            make_benchmark_trial(b, envvars, path, name, trial, args.iterations, deps=[test_permissions])
             for path, name, trial in all_benchmarks
         ],
     )
@@ -289,6 +291,12 @@ if __name__ == '__main__':
     )
     submit_p.add_argument('--label', type=nonempty, help='batch job label', default=None)
     submit_p.add_argument('--branch-factor', type=int, help='number of benchmarks to combine at a time', default=32)
+    submit_p.add_argument(
+        '--iterations', type=int, help='override number of iterations for each benchmark', default=None
+    )
+    submit_p.add_argument(
+        '--jobs', type=int, help='override number of batch jobs created for each benchmark', default=None
+    )
     submit_p.add_argument('--include', type=nonempty, help="see pytest -k", default=None)
     submit_p.add_argument('--exclude', type=nonempty, help='see pytest --ignore', default=None)
     submit_p.add_argument('--lower', action='store_true')
