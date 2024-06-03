@@ -4,7 +4,7 @@ import logging
 import pytest
 
 
-def benchmark(burn_in_iterations=1, iterations=1, batch_jobs=1):
+def benchmark(burn_in_iterations=1, iterations=5, batch_jobs=5):
     def wrap(benchmark_fn):
         @pytest.mark.benchmark(burn_in_iterations=burn_in_iterations, iterations=iterations, batch_jobs=batch_jobs)
         @functools.wraps(benchmark_fn)
