@@ -1306,3 +1306,12 @@ def test_ndarray_log_broadcasting():
     expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
     actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))
     assert np.array_equal(actual, expected)
+
+
+# issue #14559
+def test_ndarray_oom_from_stream_pipeline():
+    n = 442075
+    mt = hl.utils.range_matrix_table(n_rows=1, n_cols=n).select_cols(xs=[1.0])
+    xs = mt.aggregate_cols(hl.agg.collect(mt.xs), _localize=False)
+    xs = hl.nd.array(xs)
+    assert np.array_equal(hl.eval(xs), np.array([[1.0]] * n))
