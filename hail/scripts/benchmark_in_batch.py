@@ -180,7 +180,7 @@ def combine_results_as_tree(b: Batch, branch_factor: int, results: List[Resource
     while len(results) > 1:
         results = [
             (make_combine_job(b, f'phase{phase_i}_job{job_id}', files) if len(files) > 1 else files[0])
-            for files, job_id in zip(chunk(branch_factor, results), count(1))
+            for job_id, files in enumerate(chunk(branch_factor, results), start=1)
         ]
         phase_i += 1
 
