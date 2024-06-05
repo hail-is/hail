@@ -5183,7 +5183,7 @@ def _ndarray(collection, row_major=None, dtype=None):
                     lambda expected: hl.case()
                     .when(
                         actual == expected,
-                        xs if dim == ndim - 1 else xs.flatmap(recur(dim + 1)),
+                        xs if dim == builtins.len(shape) - 1 else xs.flatmap(recur(dim + 1)),
                     )
                     .or_error(
                         f'ndarray dimension {dim} did not match.\n'
@@ -5201,7 +5201,7 @@ def _ndarray(collection, row_major=None, dtype=None):
         data = data.map(lambda value: cast_expr(value, dtype))
         ndir = ir.MakeNDArray(data._ir, shape._ir, hl.bool(True)._ir)
         new_indices, new_aggregations = unify_all(data, shape)
-        ndim = builtins.len(shape.dtype.types)
+        ndim = builtins.len(shape)
         return construct_expr(ndir, tndarray(data.dtype.element_type, ndim), new_indices, new_aggregations)
 
     if isinstance(collection, NumericExpression):
