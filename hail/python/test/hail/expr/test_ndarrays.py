@@ -1,13 +1,12 @@
 import math
 import re
+from test.hail.helpers import assert_all_eval_to, assert_evals_to
 
 import numpy as np
 import pytest
 
 import hail as hl
 from hail.utils.java import FatalError, HailUserError
-
-from ..helpers import assert_all_eval_to, assert_evals_to
 
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
@@ -264,11 +263,11 @@ def test_ndarray_eval():
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list1)))
-    assert "inner dimensions do not match" in str(exc.value)
+    assert "ndarray dimension 1 did not match" in str(exc.value)
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list2)))
-    assert "inner dimensions do not match" in str(exc.value)
+    assert "ndarray dimension 2 did not match" in str(exc.value)
 
     with pytest.raises(ValueError) as exc:
         hl.nd.array(mishapen_data_list3)

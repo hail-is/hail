@@ -5178,13 +5178,21 @@ def _ndarray(collection, row_major=None, dtype=None):
 
     def flatten_expr_assert_shape(shape):
         def recur(dim):
-            return (
-                lambda xs: hl.case()
-                .when(
-                    hl.len(xs) == shape[dim],
-                    xs if dim == ndim - 1 else xs.flatmap(recur(dim + 1)),
-                )
-                .or_error(f"dimension {dim} did not match")
+            return lambda xs: hl.bind(
+                lambda actual: hl.bind(
+                    lambda expected: hl.case()
+                    .when(
+                        actual == expected,
+                        xs if dim == ndim - 1 else xs.flatmap(recur(dim + 1)),
+                    )
+                    .or_error(
+                        f'ndarray dimension {dim} did not match.\n'
+                        + ('  Expected len(dimension) == ' + hl.str(expected) + '\n')
+                        + ('  Actual: ' + hl.str(actual) + '.')
+                    ),
+                    shape[dim],
+                ),
+                hl.len(xs),
             )
 
         return recur(0)
