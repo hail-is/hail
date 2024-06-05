@@ -5176,10 +5176,28 @@ def _ndarray(collection, row_major=None, dtype=None):
     def deep_flatten(xs: Iterable) -> Iterable:
         return [y for x in xs for y in (deep_flatten(x) if isinstance(x, (list, builtins.tuple)) else [x])]
 
+    def flatten_expr_assert_shape(shape):
+        def recur(dim):
+            return (
+                lambda xs: hl.case()
+                .when(
+                    hl.len(xs) == shape[dim],
+                    xs if dim == ndim - 1 else xs.flatmap(recur(dim + 1)),
+                )
+                .or_error(f"dimension {dim} did not match")
+            )
+
+        return recur(0)
+
+    def from_data_and_shape(data: ArrayExpression, shape: TupleExpression):
+        data = data.map(lambda value: cast_expr(value, dtype))
+        ndir = ir.MakeNDArray(data._ir, shape._ir, hl.bool(True)._ir)
+        new_indices, new_aggregations = unify_all(data, shape)
+        ndim = builtins.len(shape.dtype.types)
+        return construct_expr(ndir, tndarray(data.dtype.element_type, ndim), new_indices, new_aggregations)
+
     if isinstance(collection, NumericExpression):
-        data_expr = array([collection])
-        shape_expr = hl.tuple([])
-        ndim = 0
+        return from_data_and_shape(array([collection]), hl.tuple([]))
     elif isinstance(collection, ArrayExpression):
         recursive_type = collection.dtype
         ndim = 0
@@ -5188,22 +5206,12 @@ def _ndarray(collection, row_major=None, dtype=None):
             recursive_type = recursive_type._element_type
             ndim += 1
 
-        def flatten_assert_shape(shape):
-            def go(dim):
-                return lambda xs: (
-                    hl.case()
-                    .when(
-                        hl.len(xs) == shape[dim],
-                        xs if dim == ndim - 1 else xs.flatmap(go(dim + 1)),
-                    )
-                    .or_error(f"dimension {dim} did not match")
-                )
-
-            return go(0)
-
-        shape_expr, data_expr = hl.bind(
+        return hl.bind(
             lambda arr: hl.bind(
-                lambda shape: (shape, flatten_assert_shape(shape)(arr)),
+                lambda shape: hl.bind(
+                    lambda data: from_data_and_shape(data, shape),
+                    flatten_expr_assert_shape(shape)(arr),
+                ),
                 hl.tuple(
                     hl.int64(hl.len(dim))
                     for dim in itertools.accumulate(
@@ -5231,13 +5239,7 @@ def _ndarray(collection, row_major=None, dtype=None):
         shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ttuple(*[tint64 for _ in shape]))
         data_expr = hl.array(data) if data else hl.empty_array("float64")
         ndim = builtins.len(shape)
-
-    data_expr = data_expr.map(lambda value: cast_expr(value, dtype))
-    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
-
-    new_indices, new_aggregations = unify_all(data_expr, shape_expr)
-
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim), new_indices, new_aggregations)
+        return from_data_and_shape(data_expr, shape_expr)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
