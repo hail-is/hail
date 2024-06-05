@@ -90,7 +90,7 @@ def run_with_timeout(run_config, fn, *args, **kwargs):
             yield timer, False, None
         except Exception as e:
             timed_out = isinstance(e, TimeoutError)
-            yield (run_config.timout if timed_out else None, timed_out, traceback.format_exc())
+            yield (run_config.timeout if timed_out else None, timed_out, traceback.format_exc())
             raise e
 
 

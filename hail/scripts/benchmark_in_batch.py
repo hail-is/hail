@@ -6,7 +6,6 @@ import random
 import time
 from argparse import ArgumentParser, Namespace
 from getpass import getuser
-from itertools import count
 from os import path as P
 from pathlib import Path
 from tempfile import NamedTemporaryFile
