@@ -5174,7 +5174,7 @@ def _ndarray(collection, row_major=None, dtype=None):
             return []
 
     def deep_flatten(xs: Iterable) -> Iterable:
-        return [y for x in xs for y in (deep_flatten(x) if isinstance(x, Iterable) else [x])]
+        return [y for x in xs for y in (deep_flatten(x) if isinstance(x, (list, builtins.tuple)) else [x])]
 
     if isinstance(collection, NumericExpression):
         data_expr = array([collection])
@@ -5221,7 +5221,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     elif isinstance(collection, np.ndarray):
         return hl.literal(collection)
     else:
-        if isinstance(collection, Iterable):
+        if isinstance(collection, (list, builtins.tuple)):
             shape = list_shape(collection)
             data = deep_flatten(collection)
         else:
