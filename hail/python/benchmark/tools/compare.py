@@ -1,10 +1,11 @@
 import json
+import math
 import os
 import sys
-import math
+from argparse import ArgumentParser
 
-from scipy.stats.mstats import gmean, hmean
 import numpy as np
+from scipy.stats.mstats import gmean, hmean
 
 
 def load_file(path):
@@ -57,7 +58,7 @@ def compare(args):
     diff = all_names - overlap
 
     if diff:
-        sys.stderr.write(f"Found non-overlapping benchmarks:" + ''.join(f'\n    {t}' for t in diff) + '\n')
+        sys.stderr.write("Found non-overlapping benchmarks:" + ''.join(f'\n    {t}' for t in diff) + '\n')
 
     if args.metric == 'best':
         metric_f = min
@@ -99,12 +100,12 @@ def compare(args):
         comparison.append((name, run1_time_metric, run2_time_metric, run1_memory_metric, run2_memory_metric))
 
     if failed_1:
-        sys.stderr.write(f"Failed benchmarks in run 1:" + ''.join(f'\n    {t}' for t in failed_1) + '\n')
+        sys.stderr.write("Failed benchmarks in run 1:" + ''.join(f'\n    {t}' for t in failed_1) + '\n')
     if failed_2:
-        sys.stderr.write(f"Failed benchmarks in run 2:" + ''.join(f'\n    {t}' for t in failed_2) + '\n')
+        sys.stderr.write("Failed benchmarks in run 2:" + ''.join(f'\n    {t}' for t in failed_2) + '\n')
     comparison = sorted(comparison, key=lambda x: x[2] / x[1], reverse=True)
 
-    longest_name = max(max(len(t[0]) for t in comparison), len('Benchmark Name'))
+    longest_name = max(len('Benchmark Name'), *[len(t[0]) for t in comparison])
 
     comps = []
 
@@ -136,10 +137,10 @@ def compare(args):
     print(f'Median:  {fmt_diff(np.median(comps))}')
 
 
-def register_main(subparser) -> 'None':
-    parser = subparser.add_parser('compare', help='Compare Hail benchmarks.', description='Run Hail benchmarks.')
+if __name__ == '__main__':
+    parser = ArgumentParser('compare', description='Run Hail benchmarks.')
     parser.add_argument('run1', type=str, help='First benchmarking run.')
     parser.add_argument('run2', type=str, help='Second benchmarking run.')
     parser.add_argument('--min-time', type=float, default=1.0, help='Minimum runtime in either run for inclusion.')
     parser.add_argument('--metric', type=str, default='median', choices=['best', 'median'], help='Comparison metric.')
-    parser.set_defaults(main=compare)
+    compare(parser.parse_args())
