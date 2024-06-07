@@ -177,7 +177,7 @@ class HailContext(object):
     skip_logging_configuration=bool,
     local_tmpdir=nullable(str),
     _optimizer_iterations=nullable(int),
-    backend=nullable(BackendType),
+    backend=nullable(enumeration(*BackendType.__args__)),
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
     worker_cores=nullable(oneof(str, int)),

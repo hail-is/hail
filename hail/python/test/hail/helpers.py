@@ -17,9 +17,17 @@ HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')
 def hl_init_for_test(*args, **kwargs):
     backend_name = choose_backend()
     if backend_name == 'spark':
-        hl.init(master=f'local[{HAIL_QUERY_N_CORES}]', min_block_size=0, quiet=True, global_seed=0, *args, **kwargs)
+        hl.init(
+            backend=backend_name,
+            master=f'local[{HAIL_QUERY_N_CORES}]',
+            min_block_size=0,
+            quiet=True,
+            global_seed=0,
+            *args,
+            **kwargs,
+        )
     else:
-        hl.init(global_seed=0, *args, **kwargs)
+        hl.init(global_seed=0, backend=backend_name, *args, **kwargs)
 
 
 def hl_stop_for_test():
