@@ -3604,8 +3604,10 @@ steps:
     image:
       valueFrom: hail_dev_image.image
     inputs:
-      - from: /repo/benchmark
-        to: /io/repo/benchmark
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /repo/hail/scripts/benchmark_in_batch.py
+        to: /io/repo/hail/scripts/benchmark_in_batch.py
       - from: /hail_version
         to: /io/hail_version
       - from: /release-hail-flag
