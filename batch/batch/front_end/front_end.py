@@ -1504,6 +1504,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 f'memory={resources.get("req_memory")}, '
                 f'storage={resources["req_storage"]}, '
                 f'preemptible={preemptible}, '
+                f'pool_label={pool_label}, '
                 f'machine_type={machine_type}'
             )
 
