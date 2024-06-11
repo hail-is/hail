@@ -63,7 +63,11 @@ def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collectio
             if 'PL' in e:
                 handled_fields['LPL'] = hl.if_else(
                     has_non_ref,
-                    hl.if_else(alleles_len > 2, e.PL[:-alleles_len], hl.missing(e.PL.dtype)),
+                    hl.if_else(
+                        alleles_len > 2,
+                        hl.if_else(e.GT.is_haploid(), e.PL[:-1], e.PL[:-alleles_len]),
+                        hl.missing(e.PL.dtype),
+                    ),
                     hl.if_else(alleles_len > 1, e.PL, hl.missing(e.PL.dtype)),
                 )
                 handled_fields['RGQ'] = hl.if_else(
@@ -194,7 +198,11 @@ def make_variant_stream(stream, info_to_keep):
             if 'PL' in e:
                 handled_fields['LPL'] = hl.if_else(
                     has_non_ref,
-                    hl.if_else(alleles_len > 2, e.PL[:-alleles_len], hl.missing(e.PL.dtype)),
+                    hl.if_else(
+                        alleles_len > 2,
+                        hl.if_else(e.GT.is_haploid(), e.PL[:-1], e.PL[:-alleles_len]),
+                        hl.missing(e.PL.dtype),
+                    ),
                     hl.if_else(alleles_len > 1, e.PL, hl.missing(e.PL.dtype)),
                 )
                 handled_fields['RGQ'] = hl.if_else(
