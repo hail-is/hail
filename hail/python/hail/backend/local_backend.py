@@ -12,7 +12,7 @@ from hail.ir.renderer import CSERenderer
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import find_spark_home
+from hailtop.utils import async_to_blocking, find_spark_home
 
 from ..expr import Expression
 from ..expr.types import HailType
@@ -101,7 +101,7 @@ class LocalBackend(Py4JBackend):
         self._initialize_flags(flags)
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._fs.afs)
+        async_to_blocking(validate_file(uri, self._fs.afs))
 
     def register_ir_function(
         self,

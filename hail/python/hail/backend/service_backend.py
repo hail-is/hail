@@ -303,7 +303,7 @@ class ServiceBackend(Backend):
         return self._batch_client.create_batch(attributes=self.batch_attributes)
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._async_fs, validate_scheme=True)
+        async_to_blocking(validate_file(uri, self._async_fs, validate_scheme=True))
 
     def debug_info(self) -> Dict[str, Any]:
         return {
