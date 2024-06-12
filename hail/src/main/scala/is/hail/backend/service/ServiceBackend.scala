@@ -555,7 +555,7 @@ case class ServiceBackendExecutePayload(
 case class SerializedIRFunction(
   name: String,
   type_parameters: Array[String],
-  value_parameter_names: Array[Name],
+  value_parameter_names: Array[String],
   value_parameter_types: Array[String],
   return_type: String,
   rendered_body: String,
@@ -642,7 +642,7 @@ class ServiceBackendAPI(
           ctx,
           func.name,
           func.type_parameters,
-          func.value_parameter_names,
+          func.value_parameter_names.map(Name),
           func.value_parameter_types,
           func.return_type,
           func.rendered_body,
