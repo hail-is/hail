@@ -45,6 +45,7 @@ from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools, dictfix, httpx, uvloopx, version
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
@@ -1161,7 +1162,10 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 revision = spec['process']['jar_spec']['value']
                 assert_is_sha_1_hex_string(revision)
                 spec['process']['jar_spec']['type'] = 'jar_url'
-                spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+                value = await app[AppKeys.QOB_JAR_RESOLUTION_CACHE].lookup(revision)
+                if value is None:
+                    raise web.HTTPBadRequest(reason=f'Could not find a JAR matching revision {revision}')
+                spec['process']['jar_spec']['value'] = value
             else:
                 assert spec['process']['jar_spec']['type'] == 'jar_url'
                 jar_url = spec['process']['jar_spec']['value']
@@ -3431,6 +3435,10 @@ class BatchFrontEndAccessLogger(AccessLogger):
         super().log(request, response, time)
 
 
+class AppKeys(CommonAiohttpAppKeys):
+    QOB_JAR_RESOLUTION_CACHE = web.AppKey('qob_jar_resolution_cache', TimeLimitedMaxSizeCache[Tuple[str, str], str])
+
+
 async def on_startup(app):
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
@@ -3489,6 +3497,18 @@ SELECT instance_id, n_tokens, frozen FROM globals;
 
     app['task_manager'].ensure_future(
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
+    )
+
+    async def resolve_qob_jar_url(git_revision: str) -> Optional[str]:
+        production_url = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + git_revision + '.jar'
+        dev_url = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/dev/' + git_revision + '.jar'
+        for url in (production_url, dev_url):
+            if await fs.exists(url):
+                return url
+        return None
+
+    app[AppKeys.QOB_JAR_RESOLUTION_CACHE] = TimeLimitedMaxSizeCache(
+        resolve_qob_jar_url, int(1e10), 100, AppKeys.QOB_JAR_RESOLUTION_CACHE._name
     )
 
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))

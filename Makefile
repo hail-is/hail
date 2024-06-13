@@ -94,7 +94,6 @@ install-dev-requirements:
 	python3 -m pip install \
 		-r hail/python/pinned-requirements.txt \
 		-r hail/python/dev/pinned-requirements.txt \
-		-r benchmark/python/pinned-requirements.txt \
 		-r gear/pinned-requirements.txt \
 		-r web_common/pinned-requirements.txt \
 		-r batch/pinned-requirements.txt \
@@ -108,9 +107,6 @@ hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt
 
 hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
 	./generate-pip-lockfile.sh hail/python/dev
-
-benchmark/python/pinned-requirements.txt: benchmark/python/requirements.txt hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt
-	./generate-pip-lockfile.sh benchmark/python
 
 gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
 	./generate-pip-lockfile.sh gear
@@ -128,7 +124,6 @@ ci/pinned-requirements.txt: web_common/pinned-requirements.txt ci/requirements.t
 generate-pip-lockfiles: hail/python/hailtop/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/pinned-requirements.txt
 generate-pip-lockfiles: hail/python/dev/pinned-requirements.txt
-generate-pip-lockfiles: benchmark/python/pinned-requirements.txt
 generate-pip-lockfiles: gear/pinned-requirements.txt
 generate-pip-lockfiles: web_common/pinned-requirements.txt
 generate-pip-lockfiles: batch/pinned-requirements.txt
@@ -155,9 +150,14 @@ hail-run-image: base-image hail/Dockerfile.hail-run hail/python/pinned-requireme
 	echo $(IMAGE_NAME) > $@
 
 hailgenetics-hail-image: hail-ubuntu-image docker/hailgenetics/hail/Dockerfile $(shell git ls-files hail/src/main hail/python)
-	$(MAKE) -C hail wheel
+	$(MAKE) HAIL_RELEASE_MODE=1 -C hail wheel
 	./docker-build.sh . docker/hailgenetics/hail/Dockerfile $(IMAGE_NAME) \
 		--build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
+	echo $(IMAGE_NAME) > $@
+
+hail-dev-image: hailgenetics-hail-image hail/python/dev/pinned-requirements.txt
+	./docker-build.sh . docker/Dockerfile.hail-dev $(IMAGE_NAME) \
+		--build-arg HAIL_IMAGE=$(shell cat $<)
 	echo $(IMAGE_NAME) > $@
 
 hail-0.1-docs-5a6778710097.tar.gz:
@@ -258,3 +258,7 @@ run-dev-proxy:
 .PHONY: devserver
 devserver:
 	$(MAKE) -j 2 tailwind-compile-watch run-dev-proxy
+
+.PHONY: benchmark
+benchmark: hail-dev-image
+	$(MAKE) -C hail HAIL_DEV_IMAGE="$(shell cat $<)" benchmark

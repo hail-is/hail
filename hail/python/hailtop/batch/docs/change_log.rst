@@ -15,6 +15,13 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.131**
+
+- (`#14544 <https://github.com/hail-is/hail/pull/14544>`__) `batch.read_input`
+  and `batch.read_input_group` now accept `os.PathLike` objects as well as strings.
+- (`#14328 <https://github.com/hail-is/hail/pull/14328>`__) Job resource usage
+  data can now be retrieved from the Batch API.
+
 **Version 0.2.130**
 
 - (`#14425 <https://github.com/hail-is/hail/pull/14425>`__) A job's 'always run'

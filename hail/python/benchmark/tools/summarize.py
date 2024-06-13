@@ -1,5 +1,6 @@
 import json
 import logging
+from argparse import ArgumentParser
 
 from . import init_logging
 
@@ -8,7 +9,7 @@ def summarize(files):
     init_logging()
     n_files = len(files)
     if n_files < 1:
-        raise ValueError(f"'summarize' requires at least 1 file to summarize")
+        raise ValueError("'summarize' requires at least 1 file to summarize")
     logging.info(f'{len(files)} files to summarize')
 
     for file in files:
@@ -26,11 +27,11 @@ def summarize(files):
                 logging.info(f"benchmark timed out: {bm['name']}")
 
 
-def register_main(subparser) -> 'None':
-    parser = subparser.add_parser(
+if __name__ == '__main__':
+    parser = ArgumentParser(
         'summarize',
-        help='Summarize a benchmark json results file.',
         description='Summarize a benchmark json results file',
     )
     parser.add_argument("files", type=str, nargs='*', help="JSON files to summarize.")
-    parser.set_defaults(main=lambda args: summarize(args.files))
+    argv = parser.parse_args()
+    summarize(argv.files)

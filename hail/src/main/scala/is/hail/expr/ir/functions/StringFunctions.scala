@@ -43,6 +43,9 @@ object StringFunctions extends RegistryFunctions {
 
   def endswith(s: String, t: String): Boolean = s.endsWith(t)
 
+  def indexOf(s: String, sub: String, fromIndex: Int): Int =
+    s.indexOf(sub, fromIndex)
+
   def firstMatchIn(s: String, regex: String): Array[String] =
     regex.r.findFirstMatchIn(s).map(_.subgroups.toArray).orNull
 
@@ -484,6 +487,14 @@ object StringFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType) => SBoolean
       },
     )(thisClass, "regexMatch")
+    registerWrappedScalaFunction3(
+      "indexOf",
+      TString,
+      TString,
+      TInt32,
+      TInt32,
+      (_, _, _, _) => SInt32,
+    )(thisClass, "indexOf")
     registerWrappedScalaFunction2(
       "regexFullMatch",
       TString,

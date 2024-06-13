@@ -1,7 +1,0 @@
-python/dist/
-python/benchmark_hail.egg-info/
-python/version
-*.whl
-requirements.txt
-image
-pushed_image

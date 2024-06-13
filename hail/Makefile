@@ -208,7 +208,6 @@ pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
 	cd python && \
           HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
           HAIL_QUERY_BACKEND=batch \
-          HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
           HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
           HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
           HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
@@ -367,7 +366,6 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
 	hailctl config set query/backend batch
-	hailctl config set query/jar_url $$(cat upload-qob-jar)
 	hailctl dev config set default_namespace $(NAMESPACE)
 
 .PHONY: install
@@ -537,3 +535,12 @@ update-hail-repl: NAMESPACE ?= default
 update-hail-repl: wheel
 	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
 	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+
+HAIL_BENCHMARK_RESULTS_PREFIX ?= "gs://hail-benchmarks-2/$(USER)/$(HAIL_VERSION)"
+HAIL_DEV_IMAGE ?= ""
+.PHONY: benchmark
+benchmark:
+	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py submit \
+		$(HAIL_DEV_IMAGE) \
+		$(HAIL_BENCHMARK_RESULTS_PREFIX) \
+		$(HAIL_VERSION)

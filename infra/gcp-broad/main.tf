@@ -335,7 +335,7 @@ resource "google_sql_database_instance" "db" {
     backup_configuration {
       binary_log_enabled             = false
       enabled                        = true
-      location                       = "us"
+      location                       = "us-central1"
       point_in_time_recovery_enabled = false
       start_time                     = "13:00"
       transaction_log_retention_days = 7
