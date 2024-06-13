@@ -34,10 +34,11 @@ def sass_compile(module_name):
 
 
 def setup_aiohttp_jinja2(app: web.Application, module: str, *extra_loaders: jinja2.BaseLoader):
-    aiohttp_jinja2.setup(
+    jinja_env = aiohttp_jinja2.setup(
         app,
         loader=jinja2.ChoiceLoader([jinja2.PackageLoader('web_common'), jinja2.PackageLoader(module), *extra_loaders]),
     )
+    jinja_env.add_extension('jinja2.ext.do')
 
 
 _compiled = False

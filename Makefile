@@ -247,7 +247,7 @@ $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
 
-.PHONY: sass-compile-watch
+.PHONY: tailwind-compile-watch
 tailwind-compile-watch:
 	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 

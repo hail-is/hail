@@ -126,12 +126,7 @@
       {% endif %}
 
       {% if plot_job_durations is not none %}
-      <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
       <div id="plotly-job-durations"></div>
-      <script>
-        var graph = {{plot_job_durations | safe }};
-        Plotly.plot('plotly-job-durations', graph, {});
-      </script>
       {% endif %}
     </div>
   </div>
@@ -174,11 +169,13 @@
       </div>
       {% endif %}
       {% endfor %}
+      {% if plot_resource_usage is not none %}
       <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
         :class='{"border-b": tab == "resource-usage", "opacity-50": tab != "resource-usage"}'
         x-on:click='tab = "resource-usage"'>
         Resource Usage
       </div>
+      {% endif %}
       <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
         :class='{"border-b": tab == "status", "opacity-50": tab != "status"}' x-on:click='tab = "status"'>
         Raw Status
@@ -227,12 +224,7 @@
     {% if plot_resource_usage is not none %}
     <div class='relative overflow-hidden transition-all' x-show='tab == "resource-usage"' x-cloak>
       <div class='w-full overflow-auto pt-4 lg:pl-4'>
-        <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
         <div id="plotly-job-resource-usage"></div>
-        <script>
-          var graph = {{plot_resource_usage | safe }};
-          Plotly.plot('plotly-job-resource-usage', graph, {});
-        </script>
       </div>
     </div>
     {% endif %}
@@ -244,4 +236,18 @@
   </div>
   {% endif %}
 </div>
+{% if plot_job_durations is not none %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+  var graph = {{plot_job_durations | safe }};
+  Plotly.plot('plotly-job-durations', graph, {});
+</script>
+{% endif %}
+{% if plot_resource_usage is not none %}
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+  var graph = {{plot_resource_usage | safe }};
+  Plotly.plot('plotly-job-resource-usage', graph, {});
+</script>
+{% endif %}
 {% endblock %}

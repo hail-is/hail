@@ -5,7 +5,11 @@ module.exports = {
     "../batch/**/*.{html,js}",
   ],
   theme: {
-    extend: {},
+    extend: {
+      animation: {
+        'spin': 'spin 1.5s linear infinite',
+      }
+    },
   },
   plugins: [],
 }

@@ -11,10 +11,11 @@
   {{ table_search("batch-search", base_path ~ "/batches") }}
   <table class='table-fixed w-full' id='batches'>
     <thead>
-      <th
-        class='h-16 bg-slate-200 font-light text-md pl-6 text-left rounded-tl rounded-tr md:rounded-tr-none w-3/4 lg:w-5/12'>
-        Batch</th>
-      <th class='h-16 bg-slate-200 font-light text-md px-10 text-center hidden lg:table-cell w-1/3'>Progress</th>
+      <th class='h-16 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none'>
+        ID</th>
+      <th class='h-16 bg-slate-200 font-light text-md rounded-tr md:rounded-tr-none text-center w-4/5 lg:w-2/5'>Batch
+      </th>
+      <th class='h-16 bg-slate-200 font-light text-md px-10 text-center hidden lg:table-cell w-1/5'>Job Statuses</th>
       <th class='h-16 bg-slate-200 font-light text-md text-center hidden lg:table-cell'>Duration</th>
       <th class='h-16 bg-slate-200 font-light text-md text-center hidden md:table-cell rounded-tr'>Cost</th>
     </thead>
@@ -22,33 +23,43 @@
       {% for batch in batches %}
       <tr class='border border-collapse hover:bg-slate-100'>
         <td class='table-cell'>
-          <a class='block' href="{{ base_path }}/batches/{{ batch['id'] }}">
-            <div class='flex space-x-4 items-center font-light'>
-              {{ link(base_path ~ "/batches/" ~ batch['id'], batch['id']) }}
-              <div class='flex-col space-y-2 py-2 block overflow-x-auto'>
-                <div class='flex flex-col space-y-1 md:flex-row md:flex-wrap md:items-center md:space-y-0'>
-                  {% if 'attributes' in batch and 'name' in batch['attributes'] %}
-                  <div class='text-wrap pr-4 font-normal text-lg'>
-                    {{ link(base_path ~ "/batches/" ~ batch['id'], batch['attributes']['name']) }}
-                  </div>
-                  {% else %}
-                  <div class='text-wrap pr-4 text-zinc-400 italic'>
-                    {{ link(base_path ~ "/batches/" ~ batch['id'], 'no name') }}
-                  </div>
-                  {% endif %}
-                  {{ batch_state_indicator(batch) }}
-                </div>
-                <div class='font-light text-zinc-500'>{{ batch['billing_project'] }}</div>
+          <div class='flex justify-center font-light'>
+            {{ link(base_path ~ "/batches/" ~ batch['id'], batch['id']) }}
+          </div>
+        </td>
+        <td class='table-cell'>
+          <div class='flex-col space-y-2 py-2 block overflow-x-auto'>
+            <div class='flex flex-col space-y-1 md:flex-row md:flex-wrap md:items-center md:space-y-0'>
+              {% if 'attributes' in batch and 'name' in batch['attributes'] %}
+              <div class='text-wrap pr-4 font-normal text-lg'>
+                {{ link(base_path ~ "/batches/" ~ batch['id'], batch['attributes']['name']) }}
               </div>
+              {% else %}
+              <div class='text-wrap pr-4 text-zinc-400 italic'>
+                {{ link(base_path ~ "/batches/" ~ batch['id'], 'no name') }}
+              </div>
+              {% endif %}
+              {{ batch_state_indicator(batch) }}
             </div>
-          </a>
+            <div class='font-light text-zinc-500'>{{ batch['billing_project'] }}</div>
+          </div>
         </td>
         <td class='hidden lg:table-cell overflow-hidden px-5'>
-          <div class='grid grid-cols-2 gap-y-2 gap-x-6 font-light text-balance justify-around'>
-            <div class='text-right font-thin mr-10'>{{ batch['n_jobs'] - batch['n_completed'] }} pending</div>
-            <div class='text-right font-thin mr-10'>{{ batch['n_succeeded'] }} succeeded</div>
-            <div class='text-right font-thin mr-10'>{{ batch['n_cancelled'] }} cancelled</div>
-            <div class='text-right font-thin mr-10'>{{ batch['n_failed'] }} failed</div>
+          <div class='flex items-center font-light'>
+            {% set statuses = [] %}
+            {% if batch['n_jobs'] - batch['n_completed'] != 0 %}
+            {% do statuses.append((batch['n_jobs'] - batch['n_completed'])|string ~ ' pending') %}
+            {% endif %}
+            {% if batch['n_succeeded'] != 0 %}
+            {% do statuses.append(batch['n_succeeded'] ~ ' succeeded') %}
+            {% endif %}
+            {% if batch['n_cancelled'] != 0 %}
+            {% do statuses.append(batch['n_succeeded'] ~ ' cancelled') %}
+            {% endif %}
+            {% if batch['n_failed'] != 0 %}
+            {% do statuses.append(batch['n_failed'] ~ ' failed') %}
+            {% endif %}
+            {{ statuses|join(', ') }}
           </div>
         </td>
         <td class='hidden lg:table-cell font-light text-center'>

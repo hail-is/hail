@@ -53,9 +53,11 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
       })}}
       {% endcall %}
 
+      {% if 'attributes' in batch and batch['attributes'] %}
       {% call collapsible_li(false, 'Attributes', '') %}
-      {{ kv_table(batch.get('attributes', {})) }}
+      {{ kv_table(batch['attributes']) }}
       {% endcall %}
+      {% endif %}
 
       {% call collapsible_li(false, 'Duration', batch.get('duration') or '') %}
       {{ kv_table({
