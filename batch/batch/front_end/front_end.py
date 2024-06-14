@@ -2171,20 +2171,35 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
+    return await _ui_job_group(request, userdata, batch_id, ROOT_JOB_GROUP_ID)
+
+
+@routes.get('/batches/{batch_id}/job-groups/{job_group_id}')
+@billing_project_users_only()
+@catch_ui_error_in_dev
+async def ui_job_group(request, userdata, batch_id):
+    job_group_id = int(request.match_info['job_group_id'])
+    return await _ui_job_group(request, userdata, batch_id, job_group_id)
+
+
+async def _ui_job_group(request, userdata, batch_id, job_group_id):
     app = request.app
     batch = await _get_batch(app, batch_id)
 
     q = request.query.get('q', '')
     last_job_id = cast_query_param_to_int(request.query.get('last_job_id'))
+    last_job_group_id = cast_query_param_to_int(request.query.get('last_job_group_id'))
 
     try:
         jobs, last_job_id = await _query_job_group_jobs(
-            request, batch_id, ROOT_JOB_GROUP_ID, CURRENT_QUERY_VERSION, q, last_job_id, recursive=True
+            request, batch_id, job_group_id, CURRENT_QUERY_VERSION, q, last_job_id, recursive=False
         )
+        job_groups, last_job_group_id = await _query_job_groups(request, batch_id, job_group_id, last_job_group_id)
     except QueryError as e:
         session = await aiohttp_session.get_session(request)
         set_message(session, e.message, 'error')
         jobs = []
+        job_groups = []
         last_job_id = None
 
     for j in jobs:
@@ -2195,8 +2210,12 @@ async def ui_batch(request, userdata, batch_id):
             if j['always_run'] and j['state'] not in {'Success', 'Failed', 'Error'}
             else j['state']
         )
-    batch['jobs'] = jobs
+    for jg in job_groups:
+        jg['duration'] = humanize_timedelta_msecs(jg['duration'])
+        jg['cost'] = cost_str(jg['cost'])
 
+    batch['jobs'] = jobs
+    batch['job_groups'] = job_groups
     batch['cost'] = cost_str(batch['cost'])
 
     if batch['cost_breakdown'] is not None:
@@ -2208,6 +2227,7 @@ async def ui_batch(request, userdata, batch_id):
         'batch': batch,
         'q': q,
         'last_job_id': last_job_id,
+        'last_job_group_id': last_job_group_id,
     }
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
