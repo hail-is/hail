@@ -4,7 +4,6 @@ import logging
 import os
 import urllib.parse
 from contextlib import AsyncExitStack
-from textwrap import dedent
 from types import TracebackType
 from typing import Any, AsyncIterator, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
 
@@ -674,21 +673,10 @@ class GoogleStorageAsyncFS(AsyncFS):
                             is_hot_storage = await check_object(await entry.url())
             else:
                 raise e
-        if not is_hot_storage:
-            raise ValueError(
-                dedent(f"""\
-                    GCS Bucket '{location}' is configured to use cold storage by default. Accessing the blob
-                    '{uri}' would incur egress charges. Either
 
-                    * avoid the increased cost by changing the default storage policy for the bucket
-                      (https://cloud.google.com/storage/docs/changing-default-storage-class) and the individual
-                      blobs in it (https://cloud.google.com/storage/docs/changing-storage-classes) to 'Standard', or
+        if is_hot_storage:
+            self.allowed_storage_locations.append(location)
 
-                    * accept the increased cost by adding '{location}' to the 'gcs_bucket_allow_list' configuration
-                      variable (https://hail.is/docs/0.2/configuration_reference.html).
-                    """)
-            )
-        self.allowed_storage_locations.append(location)
         return is_hot_storage
 
     @staticmethod
