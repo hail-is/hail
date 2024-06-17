@@ -108,9 +108,11 @@
         </tbody>
       </table>
       {% endcall %}
+      {% if 'attributes' in job and job['attributes'] %}
       {% call collapsible_li(false, 'Attributes', '') %}
-      {{ kv_table(job.get('attributes', {})) }}
+      {{ kv_table(job['attributes']) }}
       {% endcall %}
+      {% endif %}
       {% call collapsible_li(false, 'Resources', '') %}
       {{ kv_table(job_specification['resources'] if job_specification else {}) }}
       {% endcall %}
