@@ -832,3 +832,17 @@ def test_ref_block_does_not_densify_to_next_contig():
     mt = hl.vds.to_dense_mt(vds)
     mt = mt.filter_rows(mt.locus.contig == 'chr2')
     assert mt.aggregate_entries(hl.agg.count()) == 0
+
+
+def test_haploid_lpl_import():
+    mt = hl.utils.range_matrix_table(1, 1)
+    mt = mt.annotate_rows(alleles=['A', 'T', '<NON_REF>'], info=hl.struct(END=hl.missing(hl.tint32)))
+    mt = mt.annotate_entries(GT=hl.call(1), PL=[10, 0, 1000])
+    mt = mt.transmute_rows(locus=hl.locus('chrX', mt.row_idx + 1000, reference_genome='GRCh38'))
+    mt = mt.transmute_cols(s=hl.str(mt.col_idx))
+    mt = mt.key_rows_by('locus', 'alleles').key_cols_by('s')
+    vds = hl.vds.combiner.transform_gvcf(mt, reference_entry_fields_to_keep=[])
+    vd = vds.variant_data
+    lpl = vd.aggregate_entries(hl.agg.collect(vd.LPL))
+    lpl = lpl[0]
+    assert lpl == [10, 0]
