@@ -12,7 +12,7 @@ import mill.util.Jvm
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
-  val hailPatchVersion = "130"
+  val hailPatchVersion = "131"
 }
 
 /** Update the millw script. */
@@ -152,7 +152,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   override def bspCompileClasspath: T[Agg[UnresolvedPath]] =
     super.bspCompileClasspath() ++ resources().map(p => UnresolvedPath.ResolvedPath(p.path))
 
-  trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule {
+  trait HailTests extends SbtModuleTests with TestNg with ScalafmtModule with ScalafixModule {
     override def forkArgs: T[Seq[String]] = Seq("-Xss4m", "-Xmx4096M")
 
     override def ivyDeps: T[Agg[Dep]] =
@@ -161,6 +161,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
         ivy"org.scalatest::scalatest-shouldmatchers:3.2.18",
         ivy"org.scalatestplus::testng-7-9:3.2.18.0",
         ivy"org.testng:testng:7.9.0",
+        ivy"org.mockito::mockito-scala:1.17.31",
       )
 
     // needed to force IntelliJ to include resources in the classpath when running tests

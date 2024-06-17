@@ -2732,7 +2732,7 @@ def read_matrix_table(
             _drop_rows=_drop_rows,
             _drop_cols=_drop_cols,
             _intervals=intervals,
-            _assert_type=_assert_type,
+            _assert_type=mt._type,
             _load_refs=_load_refs,
         )
     return mt
@@ -3295,7 +3295,7 @@ def read_table(
         return read_table(
             path,
             _intervals=intervals,
-            _assert_type=_assert_type,
+            _assert_type=ht._type,
             _load_refs=_load_refs,
             _create_row_uids=_create_row_uids,
         )

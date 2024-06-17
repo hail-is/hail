@@ -16,7 +16,7 @@ class FakeTableReader extends TableReader {
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq = ???
 
-  override def renderShort(): String = ???
+  override def renderShort(): String = "FakeTableReader"
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = ???
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = ???
 }

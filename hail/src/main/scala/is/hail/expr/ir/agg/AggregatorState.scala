@@ -201,13 +201,13 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val codecSpec = TypedCodecSpec(storageType, codec)
+    val codecSpec = TypedCodecSpec(kb.ctx, storageType, codec)
     val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
     (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapSCode(cb, off), ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val codecSpec = TypedCodecSpec(storageType, codec)
+    val codecSpec = TypedCodecSpec(kb.ctx, storageType, codec)
 
     val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>

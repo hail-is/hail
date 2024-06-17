@@ -11,8 +11,10 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
+deploy_config = get_deploy_config()
+
+
 async def test_deploy():
-    deploy_config = get_deploy_config()
     ci_deploy_status_url = deploy_config.url('ci', '/api/v1alpha/deploy_status')
     async with hail_credentials() as creds:
         async with client_session() as session:
@@ -37,3 +39,12 @@ async def test_deploy():
 
             deploy_state, failure_information = await wait_forever()
             assert deploy_state == 'success', str(failure_information)
+
+
+async def test_envoy_config_debug_endpoint():
+    for proxy in ('gateway', 'internal-gateway'):
+        url = deploy_config.url('ci', f'/envoy-config/{proxy}')
+        async with hail_credentials() as creds:
+            async with client_session() as session:
+                headers = await creds.auth_headers()
+                await retry_transient_errors(session.get_read_json, url, headers=headers)

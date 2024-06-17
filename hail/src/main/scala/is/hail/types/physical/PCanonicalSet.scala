@@ -16,7 +16,7 @@ object PCanonicalSet {
 }
 
 final case class PCanonicalSet(elementType: PType, required: Boolean = false)
-    extends PSet with PArrayBackedContainer {
+    extends PSet with PCanonicalArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
   def setRequired(required: Boolean) =

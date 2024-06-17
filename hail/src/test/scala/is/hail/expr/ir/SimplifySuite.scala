@@ -7,15 +7,10 @@ import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
 
 import org.apache.spark.sql.Row
-import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
-import org.testng.annotations.{BeforeMethod, DataProvider, Test}
+import org.testng.annotations.{DataProvider, Test}
 
 class SimplifySuite extends HailSuite {
   implicit val execStrats = ExecStrategy.interpretOnly
-
-  @BeforeMethod
-  def resetUidCounter(): Unit =
-    is.hail.expr.ir.uidCounter = 0
 
   @Test def testTableMultiWayZipJoinGlobalsRewrite(): Unit = {
     hc
@@ -31,7 +26,7 @@ class SimplifySuite extends HailSuite {
     hc
     val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
-      If(True(), GetField(Ref("row", range.typ.rowType), "idx").ceq(0), False())
+      If(True(), GetField(Ref(TableIR.rowName, range.typ.rowType), "idx").ceq(0), False())
     val checksRepartitioningIR =
       TableFilter(
         TableOrderBy(range, FastSeq(SortField("idx", Ascending))),
@@ -44,36 +39,44 @@ class SimplifySuite extends HailSuite {
   lazy val base = Literal(TStruct("1" -> TInt32, "2" -> TInt32), Row(1, 2))
 
   @Test def testInsertFieldsRewriteRules(): Unit = {
-    val ir1 = InsertFields(InsertFields(base, Seq("1" -> I32(2)), None), Seq("1" -> I32(3)), None)
-    assert(Simplify(ctx, ir1) == InsertFields(base, Seq("1" -> I32(3)), Some(FastSeq("1", "2"))))
+    val ir1 =
+      InsertFields(InsertFields(base, FastSeq("1" -> I32(2)), None), FastSeq("1" -> I32(3)), None)
+    assert(Simplify(ctx, ir1) == InsertFields(
+      base,
+      FastSeq("1" -> I32(3)),
+      Some(FastSeq("1", "2")),
+    ))
 
     val ir2 = InsertFields(
-      InsertFields(base, Seq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
-      Seq("3" -> I32(3)),
+      InsertFields(base, FastSeq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
+      FastSeq("3" -> I32(3)),
       None,
     )
     assert(Simplify(ctx, ir2) == InsertFields(
       base,
-      Seq("3" -> I32(3)),
+      FastSeq("3" -> I32(3)),
       Some(FastSeq("3", "1", "2")),
     ))
 
     val ir3 = InsertFields(
-      InsertFields(base, Seq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
-      Seq("4" -> I32(3)),
+      InsertFields(base, FastSeq("3" -> I32(2)), Some(FastSeq("3", "1", "2"))),
+      FastSeq("4" -> I32(3)),
       Some(FastSeq("3", "1", "2", "4")),
     )
     assert(Simplify(ctx, ir3) == InsertFields(
       base,
-      Seq("3" -> I32(2), "4" -> I32(3)),
+      FastSeq("3" -> I32(2), "4" -> I32(3)),
       Some(FastSeq("3", "1", "2", "4")),
     ))
 
     val ir4 =
-      InsertFields(InsertFields(base, Seq("3" -> I32(0), "4" -> I32(1))), Seq("3" -> I32(5)))
+      InsertFields(
+        InsertFields(base, FastSeq("3" -> I32(0), "4" -> I32(1))),
+        FastSeq("3" -> I32(5)),
+      )
     assert(Simplify(ctx, ir4) == InsertFields(
       base,
-      Seq("4" -> I32(1), "3" -> I32(5)),
+      FastSeq("4" -> I32(1), "3" -> I32(5)),
       Some(FastSeq("1", "2", "3", "4")),
     ))
   }
@@ -128,7 +131,10 @@ class SimplifySuite extends HailSuite {
     var ir: TableIR = TableRange(1, 1)
     ir = TableMapRows(
       ir,
-      InsertFields(Ref("row", ir.typ.rowType), Seq("foo" -> Literal(TSet(TInt32), Set(1)))),
+      InsertFields(
+        Ref(TableIR.rowName, ir.typ.rowType),
+        FastSeq("foo" -> Literal(TSet(TInt32), Set(1))),
+      ),
     )
     ir = TableExplode(ir, FastSeq("foo"))
     assertEvalsTo(TableCount(ir), 1L)
@@ -136,135 +142,93 @@ class SimplifySuite extends HailSuite {
 
   @DataProvider(name = "NestedInserts")
   def nestedInserts: Array[Array[Any]] = {
-    val r = Ref("row", TStruct("x" -> TInt32))
-    val r2 = Ref("row2", TStruct("x" -> TInt32, "y" -> TFloat64))
-    val r3 = Ref("row3", TStruct("x" -> TInt32, "y" -> TFloat64, "w" -> TInt32))
+    val r = Ref(freshName(), TStruct("x" -> TInt32))
 
-    Array(
+    Array[Array[Any]](
       Array(
-        Let(
-          FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> F64(0)))),
-          InsertFields(r2, FastSeq("z" -> GetField(r2, "x").toD)),
-        ),
-        Let(
-          FastSeq(iruid(0L) -> F64(0), r2.name -> r),
+        bindIR(InsertFields(r, FastSeq("y" -> F64(0)))) { r2 =>
+          InsertFields(r2, FastSeq("z" -> GetField(r2, "x").toD))
+        },
+        bindIRs(F64(0), r) { case Seq(x0, r2) =>
           InsertFields(
-            Ref(r2.name, r.typ),
-            FastSeq(
-              "y" -> Ref(iruid(0L), TFloat64),
-              "z" -> GetField(Ref(r2.name, r.typ), "x").toD,
-            ),
+            r2,
+            FastSeq("y" -> x0, "z" -> GetField(r2, "x").toD),
             Some(FastSeq("x", "y", "z")),
-          ),
-        ),
+          )
+        },
       ),
       Array(
-        Let(
-          FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> F64(0)))),
-          InsertFields(r2, FastSeq("z" -> (GetField(r2, "x").toD + GetField(r2, "y")))),
-        ),
-        Let(
-          FastSeq(iruid(0) -> F64(0), r2.name -> r),
+        bindIR(InsertFields(r, FastSeq("y" -> F64(0)))) { r2 =>
+          InsertFields(r2, FastSeq("z" -> (GetField(r2, "x").toD + GetField(r2, "y"))))
+        },
+        bindIRs(F64(0), r) { case Seq(x0, r2) =>
           InsertFields(
-            Ref(r2.name, r.typ),
-            FastSeq(
-              "y" -> Ref(iruid(0), TFloat64),
-              "z" -> (GetField(Ref(r2.name, r.typ), "x").toD + Ref(iruid(0), TFloat64)),
-            ),
+            r2,
+            FastSeq("y" -> x0, "z" -> (GetField(r2, "x").toD + x0)),
             Some(FastSeq("x", "y", "z")),
-          ),
-        ),
+          )
+        },
       ),
       Array(
-        Let(
-          FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> F64(0)))),
-          InsertFields(Ref("something_else", TStruct.empty), FastSeq("z" -> GetField(r2, "y").toI)),
-        ),
-        Let(
-          FastSeq(iruid(0) -> F64(0), r2.name -> r),
-          InsertFields(
-            Ref("something_else", TStruct.empty),
-            FastSeq("z" -> Ref(iruid(0), TFloat64).toI),
-          ),
-        ),
+        bindIR(InsertFields(r, FastSeq("y" -> F64(0)))) { r2 =>
+          InsertFields(Ref(freshName(), TStruct.empty), FastSeq("z" -> GetField(r2, "y").toI))
+        },
+        bindIRs(F64(0), r) { case Seq(x0, _) =>
+          InsertFields(Ref(freshName(), TStruct.empty), FastSeq("z" -> x0.toI))
+        },
       ),
       Array.fill(2) { // unrewriteable
-        Let(
-          FastSeq(r2.name -> InsertFields(r, FastSeq("y" -> Ref("other", TFloat64)))),
-          InsertFields(r2, FastSeq(("z", invoke("str", TString, r2)))),
-        )
+        bindIR(InsertFields(r, FastSeq("y" -> Ref(freshName(), TFloat64)))) { r2 =>
+          InsertFields(r2, FastSeq(("z", invoke("str", TString, r2))))
+        }
       },
       Array(
-        Let(
-          FastSeq(
-            "a" -> I32(32),
-            r2.name -> InsertFields(r, FastSeq("y" -> F64(0))),
-            r3.name -> InsertFields(r2, FastSeq("w" -> Ref("a", TInt32))),
-          ),
-          InsertFields(r3, FastSeq("z" -> (GetField(r3, "x").toD + GetField(r3, "y")))),
-        ),
-        Let(
-          FastSeq(
-            "a" -> I32(32),
-            iruid(0) -> F64(0),
-            r2.name -> r,
-            iruid(1) -> Ref(iruid(0), TFloat64),
-            iruid(2) -> Ref("a", TInt32),
-            r3.name -> Ref(r2.name, r.typ),
-          ),
+        IRBuilder.scoped { b =>
+          val a = b.strictMemoize(I32(32))
+          val r2 = b.strictMemoize(InsertFields(r, FastSeq("y" -> F64(0))))
+          val r3 = b.strictMemoize(InsertFields(r2, FastSeq("w" -> a)))
+          InsertFields(r3, FastSeq("z" -> (GetField(r3, "x").toD + GetField(r3, "y"))))
+        },
+        IRBuilder.scoped { b =>
+          val a = b.strictMemoize(I32(32))
+          val x0 = b.strictMemoize(F64(0))
+          val r2 = b.strictMemoize(r)
+          val x1 = b.strictMemoize(x0)
+          val x2 = b.strictMemoize(a)
+          val r3 = b.strictMemoize(r2)
           InsertFields(
-            Ref(r3.name, r.typ),
+            r3,
             FastSeq(
-              "y" -> Ref(iruid(1), TFloat64),
-              "w" -> Ref(iruid(2), TInt32),
-              "z" -> (GetField(Ref(r3.name, r.typ), "x").toD + Ref(iruid(1), TFloat64)),
+              "y" -> x1,
+              "w" -> x2,
+              "z" -> (GetField(r3, "x").toD + x1),
             ),
             Some(FastSeq("x", "y", "w", "z")),
-          ),
-        ),
+          )
+        },
       ),
       Array(
-        Let(
-          FastSeq(
-            "a" -> Let(
-              FastSeq("b" -> (I32(1) + Ref("OTHER_1", TInt32))),
-              InsertFields(
-                Ref("TOP", TStruct("foo" -> TInt32)),
-                FastSeq(
-                  "field0" -> Ref("b", TInt32),
-                  "field1" -> (I32(1) + Ref("b", TInt32)),
-                ),
-              ),
+        bindIR(
+          bindIR(
+            I32(1) + Ref(freshName(), TInt32)
+          ) { b =>
+            InsertFields(
+              Ref(freshName(), TStruct("foo" -> TInt32)),
+              FastSeq("field0" -> b, "field1" -> (I32(1) + b)),
             )
-          ),
+          }
+        )(a => InsertFields(a, FastSeq("field2" -> (I32(1) + GetField(a, "field1"))))),
+        IRBuilder.scoped { x =>
+          val b = x.strictMemoize(I32(1) + Ref(freshName(), TInt32))
+          val x0 = x.strictMemoize(b)
+          val x1 = x.strictMemoize(I32(1) + b)
+          val a = Ref(freshName(), TStruct("foo" -> TInt32))
           InsertFields(
-            Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)),
-            FastSeq(
-              "field2" ->
-                (I32(1) + GetField(
-                  Ref("a", TStruct("foo" -> TInt32, "field0" -> TInt32, "field1" -> TInt32)),
-                  "field1",
-                ))
-            ),
-          ),
-        ),
-        Let(
-          FastSeq(
-            "b" -> (I32(1) + Ref("OTHER_1", TInt32)),
-            iruid(0) -> Ref("b", TInt32),
-            iruid(1) -> (I32(1) + Ref("b", TInt32)),
-            "a" -> Ref("TOP", TStruct("foo" -> TInt32)),
-          ),
-          InsertFields(
-            Ref("a", TStruct("foo" -> TInt32)),
-            FastSeq(
-              "field0" -> Ref(iruid(0), TInt32),
-              "field1" -> Ref(iruid(1), TInt32),
-              "field2" -> (I32(1) + Ref(iruid(1), TInt32)),
-            ),
+            a,
+            FastSeq("field0" -> x0, "field1" -> x1, "field2" -> (I32(1) + x1)),
             Some(FastSeq("foo", "field0", "field1", "field2")),
-          ),
-        ),
+          )
+        },
       ),
     )
   }
@@ -272,36 +236,35 @@ class SimplifySuite extends HailSuite {
   @Test(dataProvider = "NestedInserts")
   def testNestedInsertsSimplify(input: IR, expected: IR): Unit = {
     val actual = Simplify(ctx, input)
-    actual should be(expected)
+    actual.isAlphaEquiv(ctx, expected)
   }
 
   @Test def testArrayAggNoAggRewrites(): Unit = {
-    val doesRewrite: Array[StreamAgg] = Array(
-      StreamAgg(In(0, TArray(TInt32)), "foo", Ref("x", TInt32)),
-      StreamAgg(
-        In(0, TArray(TInt32)),
-        "foo",
-        AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), true),
-      ),
-    )
+    val doesRewrite: Array[StreamAgg] = {
+      val x = Ref(freshName(), TInt32)
+      Array(
+        streamAggIR(ToStream(In(0, TArray(TInt32))))(_ => x),
+        streamAggIR(ToStream(In(0, TArray(TInt32)))) { _ =>
+          aggBindIR(In(1, TInt32) * In(1, TInt32), true)(_ => x)
+        },
+      )
+    }
 
     doesRewrite.foreach(a => assert(Simplify(ctx, a) == a.query))
 
     val doesNotRewrite: Array[StreamAgg] = Array(
-      StreamAgg(
-        In(0, TArray(TInt32)),
-        "foo",
+      streamAggIR(
+        ToStream(In(0, TArray(TInt32)))
+      ) { foo =>
         ApplyAggOp(
           FastSeq(),
-          FastSeq(Ref("foo", TInt32)),
+          FastSeq(foo),
           AggSignature(Sum(), FastSeq(), FastSeq(TInt32)),
-        ),
-      ),
-      StreamAgg(
-        In(0, TArray(TInt32)),
-        "foo",
-        AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), false),
-      ),
+        )
+      },
+      streamAggIR(ToStream(In(0, TArray(TInt32)))) { _ =>
+        aggBindIR(In(1, TInt32) * In(1, TInt32))(_ => Ref(freshName(), TInt32))
+      },
     )
 
     doesNotRewrite.foreach(a => assert(Simplify(ctx, a) == a))
@@ -309,31 +272,19 @@ class SimplifySuite extends HailSuite {
 
   @Test def testArrayAggScanNoAggRewrites(): Unit = {
     val doesRewrite: Array[StreamAggScan] = Array(
-      StreamAggScan(In(0, TArray(TInt32)), "foo", Ref("x", TInt32)),
-      StreamAggScan(
-        In(0, TArray(TInt32)),
-        "foo",
-        AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), false),
-      ),
+      streamAggScanIR(ToStream(In(0, TArray(TInt32))))(_ => Ref(freshName(), TInt32)),
+      streamAggScanIR(ToStream(In(0, TArray(TInt32)))) { _ =>
+        aggBindIR(In(1, TInt32) * In(1, TInt32))(_ => Ref(freshName(), TInt32))
+      },
     )
 
     doesRewrite.foreach(a => assert(Simplify(ctx, a) == a.query))
 
     val doesNotRewrite: Array[StreamAggScan] = Array(
-      StreamAggScan(
-        In(0, TArray(TInt32)),
-        "foo",
-        ApplyScanOp(
-          FastSeq(),
-          FastSeq(Ref("foo", TInt32)),
-          AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
-        ),
-      ),
-      StreamAggScan(
-        In(0, TArray(TInt32)),
-        "foo",
-        AggLet("bar", In(1, TInt32) * In(1, TInt32), Ref("x", TInt32), true),
-      ),
+      streamAggScanIR(ToStream(In(0, TArray(TInt32))))(foo => ApplyScanOp(Sum())(foo)),
+      streamAggScanIR(ToStream(In(0, TArray(TInt32)))) { _ =>
+        aggBindIR(In(1, TInt32) * In(1, TInt32), true)(_ => Ref(freshName(), TInt32))
+      },
     )
 
     doesNotRewrite.foreach(a => assert(Simplify(ctx, a) == a))
@@ -354,7 +305,9 @@ class SimplifySuite extends HailSuite {
     val colType = reader.fullMatrixType.colType
     mir = MatrixMapCols(
       mir,
-      AggLet("foo", I32(1), InsertFields(Ref("sa", colType), FastSeq(("bar", I32(2)))), false),
+      aggBindIR(I32(1)) { _ =>
+        InsertFields(Ref(MatrixIR.colName, colType), FastSeq(("bar", I32(2))))
+      },
       None,
     )
     val tir = MatrixColsTable(mir)
@@ -373,7 +326,7 @@ class SimplifySuite extends HailSuite {
       )
     ) {
       val tp = TableParallelize(rowsAndGlobals, None)
-      val tf = TableFilter(tp, GetField(Ref("row", tp.typ.rowType), "x") < 100)
+      val tf = TableFilter(tp, GetField(Ref(TableIR.rowName, tp.typ.rowType), "x") < 100)
 
       val rw = Simplify(ctx, tf)
       TypeCheck(ctx, rw)
@@ -395,7 +348,7 @@ class SimplifySuite extends HailSuite {
 
   @Test def testNestedFilterIntervals(): Unit = {
     var tir: TableIR = TableRange(10, 5)
-    def r = Ref("row", tir.typ.rowType)
+    def r = Ref(TableIR.rowName, tir.typ.rowType)
     tir = TableMapRows(tir, InsertFields(r, FastSeq("idx2" -> GetField(r, "idx"))))
     tir = TableKeyBy(tir, FastSeq("idx", "idx2"))
     tir = TableFilterIntervals(tir, FastSeq(Interval(Row(0), Row(1), true, false)), false)
@@ -483,8 +436,8 @@ class SimplifySuite extends HailSuite {
     t = TableMapRows(
       t,
       InsertFields(
-        Ref("row", t.typ.rowType),
-        FastSeq(("x", I32(1) - GetField(Ref("row", t.typ.rowType), "idx"))),
+        Ref(TableIR.rowName, t.typ.rowType),
+        FastSeq(("x", I32(1) - GetField(Ref(TableIR.rowName, t.typ.rowType), "idx"))),
       ),
     )
     t = TableKeyBy(t, FastSeq("x"))
@@ -533,7 +486,7 @@ class SimplifySuite extends HailSuite {
     assertEvalsTo(streamSlice4.asInstanceOf[IR], FastSeq(0, 1, 2, 3, 4, 5, 6, 7, 8, 9))
   }
 
-  def ref(typ: Type) = Ref("", typ)
+  def ref(typ: Type) = Ref(Name(""), typ)
 
   @DataProvider(name = "unaryBooleanArithmetic")
   def unaryBooleanArithmetic: Array[Array[Any]] =
@@ -697,9 +650,9 @@ class SimplifySuite extends HailSuite {
 
     Array(
       Array(BlockMatrixBroadcast(matrix, 0 to 1, matrix.shape, matrix.blockSize), matrix),
-      Array(BlockMatrixMap(matrix, "x", Ref("x", TFloat64), true), matrix),
+      Array(bmMap(matrix, true)(x => x), matrix),
       Array(
-        BlockMatrixMap(matrix, "x", ref(TFloat64), true),
+        bmMap(matrix, true)(_ => ref(TFloat64)),
         BlockMatrixBroadcast(
           ValueToBlockMatrix(ref(TFloat64), FastSeq(1, 1), matrix.blockSize),
           FastSeq(),
@@ -708,7 +661,7 @@ class SimplifySuite extends HailSuite {
         ),
       ),
       Array(
-        BlockMatrixMap(matrix, "x", F64(2356), true),
+        bmMap(matrix, true)(_ => F64(2356)),
         BlockMatrixBroadcast(
           ValueToBlockMatrix(F64(2356), FastSeq(1, 1), matrix.blockSize),
           FastSeq(),
@@ -749,9 +702,9 @@ class SimplifySuite extends HailSuite {
 
   @DataProvider(name = "IfRules")
   def ifRules: Array[Array[Any]] = {
-    val x = Ref(genUID(), TInt32)
-    val y = Ref(genUID(), TInt32)
-    val c = Ref(genUID(), TBoolean)
+    val x = Ref(freshName(), TInt32)
+    val y = Ref(freshName(), TInt32)
+    val c = Ref(freshName(), TBoolean)
 
     Array(
       Array(True(), x, Die("Failure", x.typ), x),

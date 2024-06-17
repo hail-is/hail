@@ -12,7 +12,7 @@ trait PArrayIterator {
   def iterate(): Unit
 }
 
-abstract class PArray extends PContainer {
+abstract class PArray extends PArrayBackedContainer {
   lazy val virtualType: TArray = TArray(elementType.virtualType)
   final protected[physical] val elementRequired = elementType.required
 

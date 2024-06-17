@@ -1,6 +1,6 @@
 package is.hail.backend.local
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
@@ -24,10 +24,10 @@ import scala.reflect.ClassTag
 
 import java.io.PrintWriter
 
+import com.google.common.util.concurrent.MoreExecutors
 import org.apache.hadoop
 import org.json4s._
 import org.json4s.jackson.Serialization
-import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
@@ -69,7 +69,7 @@ object LocalBackend {
 
 class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache {
 
-  private[this] val flags = HailFeatureFlags.fromEnv()
+  private[this] val flags = HailFeatureFlags.fromMap(sys.env)
   private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   def getFlag(name: String): String = flags.get(name)
@@ -81,7 +81,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     flags.available
 
   // flags can be set after construction from python
-  def fs: FS = FS.buildRoutes(None, Some(flags))
+  def fs: FS = FS.buildRoutes(None, Some(flags), sys.env)
 
   def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T = {
     val fs = this.fs
@@ -130,37 +130,24 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     current
   }
 
-  def parallelizeAndComputeWithIndex(
+  override def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
-    val stageId = nextStageId()
-    collection.zipWithIndex.map { case (c, i) =>
-      using(new LocalTaskContext(i, stageId))(htc => f(c, htc, theHailClassLoader, fs))
-    }
-  }
-
-  override def parallelizeAndComputeWithIndexReturnAllErrors(
-    backendContext: BackendContext,
-    fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
+    dependency: Option[TableStageDependency],
+    partitions: Option[IndexedSeq[Int]],
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+
     val stageId = nextStageId()
-    runAllKeepFirstError(MoreExecutors.sameThreadExecutor) {
-      collection.map { case (c, i) =>
+    runAllKeepFirstError(new CancellingExecutorService(MoreExecutors.newDirectExecutorService())) {
+      partitions.getOrElse(contexts.indices).map { i =>
         (
           () =>
             using(new LocalTaskContext(i, stageId)) {
-              f(c, _, theHailClassLoader, fs)
+              f(contexts(i), _, theHailClassLoader, fs)
             },
           i,
         )
@@ -347,7 +334,9 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
         IRParser.parse_value_ir(
           s,
           IRParserEnvironment(ctx, persistedIR.toMap),
-          BindingEnv.eval(refMap.asScala.toMap.mapValues(IRParser.parseType).toSeq: _*),
+          BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
+            Name(n) -> IRParser.parseType(t)
+          }.toSeq: _*),
         )
       }
     }

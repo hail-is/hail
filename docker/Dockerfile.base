@@ -19,3 +19,4 @@ RUN hail-apt-get-install \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
 
 RUN hail-apt-get-install maven
+RUN hail-pip-install build

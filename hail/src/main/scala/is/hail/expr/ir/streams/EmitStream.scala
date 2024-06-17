@@ -2836,8 +2836,8 @@ object EmitStream {
 
             val producer: StreamProducer = behavior match {
               case behavior @ (ArrayZipBehavior.TakeMinLength | ArrayZipBehavior.AssumeSameLength) =>
-                val vars = names.zip(producers).map { case (name, p) =>
-                  mb.newEmitField(name, p.element.emitType)
+                val vars = names.zip(producers).map { case (_, p) =>
+                  mb.newEmitField(p.element.emitType)
                 }
 
                 val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
@@ -2901,8 +2901,8 @@ object EmitStream {
                 }
 
               case ArrayZipBehavior.AssertSameLength =>
-                val vars = names.zip(producers).map { case (name, p) =>
-                  mb.newEmitField(name, p.element.emitType)
+                val vars = names.zip(producers).map { case (_, p) =>
+                  mb.newEmitField(p.element.emitType)
                 }
 
                 val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
@@ -2993,8 +2993,8 @@ object EmitStream {
                 }
 
               case ArrayZipBehavior.ExtendNA =>
-                val vars = names.zip(producers).map { case (name, p) =>
-                  mb.newEmitField(name, p.element.emitType.copy(required = false))
+                val vars = names.zip(producers).map { case (_, p) =>
+                  mb.newEmitField(p.element.emitType.copy(required = false))
                 }
 
                 val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")

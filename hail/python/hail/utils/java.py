@@ -1,11 +1,13 @@
 import re
 import sys
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from hailtop.config import ConfigVariable, configuration_of
 
+BackendType = Literal['batch', 'local', 'spark']
 
-def choose_backend(backend: Optional[str] = None) -> str:
+
+def choose_backend(backend: Optional[BackendType] = None) -> BackendType:
     return configuration_of(ConfigVariable.QUERY_BACKEND, backend, 'spark')
 
 

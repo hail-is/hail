@@ -14,7 +14,7 @@ from hail.backend import Backend
 from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck, typecheck_method
 from hail.utils import get_env_or_default
-from hail.utils.java import Env, choose_backend, warning
+from hail.utils.java import BackendType, Env, choose_backend, warning
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from hailtop.fs.fs import FS
 from hailtop.hail_event_loop import hail_event_loop
@@ -177,7 +177,7 @@ class HailContext(object):
     skip_logging_configuration=bool,
     local_tmpdir=nullable(str),
     _optimizer_iterations=nullable(int),
-    backend=nullable(str),
+    backend=nullable(enumeration(*BackendType.__args__)),
     driver_cores=nullable(oneof(str, int)),
     driver_memory=nullable(str),
     worker_cores=nullable(oneof(str, int)),
@@ -206,7 +206,7 @@ def init(
     local_tmpdir=None,
     _optimizer_iterations=None,
     *,
-    backend=None,
+    backend: Optional[BackendType] = None,
     driver_cores=None,
     driver_memory=None,
     worker_cores=None,
@@ -513,7 +513,6 @@ def init_spark(
 @typecheck(
     billing_project=nullable(str),
     remote_tmpdir=nullable(str),
-    jar_url=nullable(str),
     log=nullable(str),
     quiet=bool,
     append=bool,
@@ -536,7 +535,6 @@ async def init_batch(
     *,
     billing_project: Optional[str] = None,
     remote_tmpdir: Optional[str] = None,
-    jar_url: Optional[str] = None,
     log: Optional[str] = None,
     quiet: bool = False,
     append: bool = False,
@@ -562,7 +560,6 @@ async def init_batch(
         billing_project=billing_project,
         remote_tmpdir=remote_tmpdir,
         disable_progress_bar=disable_progress_bar,
-        jar_url=jar_url,
         driver_cores=driver_cores,
         driver_memory=driver_memory,
         worker_cores=worker_cores,

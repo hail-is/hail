@@ -59,9 +59,9 @@ class EmitContext(
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
-  def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
+  def bind(name: Name, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
-  def bind(newBindings: (String, EmitValue)*): EmitEnv =
+  def bind(newBindings: (Name, EmitValue)*): EmitEnv =
     copy(bindings = bindings.bindIterable(newBindings))
 
   def asParams(freeVariables: Env[Unit])
@@ -77,7 +77,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
         val emb = cb.emb
         EmitEnv(
           Env.fromSeq(bindingNames.zipWithIndex.map { case (name, bindingIdx) =>
-            (name, cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingIdx), name))
+            (name, cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingIdx), name.str))
           }),
           inputValues.indices.map(inputIdx =>
             cb.memoizeField(
@@ -646,7 +646,7 @@ object LoopRef {
   def apply(
     cb: EmitCodeBuilder,
     L: CodeLabel,
-    args: IndexedSeq[(String, EmitType)],
+    args: IndexedSeq[(Name, EmitType)],
     pool: Value[RegionPool],
     resultType: EmitType,
   ): LoopRef = {
@@ -2815,8 +2815,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               ctx.req.lookupState(x).head.asInstanceOf[TypeWithRequiredness],
             ).canonicalEmitType
 
-            val xAcc = mb.newEmitField(accumName, stateEmitType)
-            val xElt = mb.newEmitField(valueName, producer.element.emitType)
+            val xAcc = mb.newEmitField(stateEmitType)
+            val xElt = mb.newEmitField(producer.element.emitType)
 
             var tmpRegion: Settable[Region] = null
 
@@ -2900,9 +2900,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                   .canonicalEmitType
               }
 
-            val xElt = mb.newEmitField(valueName, producer.element.emitType)
+            val xElt = mb.newEmitField(producer.element.emitType)
             val names = acc.map(_._1)
-            val accVars = (names, accTypes).zipped.map(mb.newEmitField)
+            val accVars = accTypes.map(mb.newEmitField)
 
             val resEnv = env.bind(names.zip(accVars): _*)
             val seqEnv = resEnv.bind(valueName, xElt)
@@ -3178,8 +3178,10 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val contextPTuple: PTuple = PCanonicalTuple(required = true, ctxType.storageType)
           val globalPTuple: PTuple =
             PCanonicalTuple(required = true, emitGlobals.emitType.storageType)
-          val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
-          val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
+          val contextSpec: TypedCodecSpec =
+            TypedCodecSpec(ctx.executeContext, contextPTuple, bufferSpec)
+          val globalSpec: TypedCodecSpec =
+            TypedCodecSpec(ctx.executeContext, globalPTuple, bufferSpec)
 
           // emit body in new FB
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](
@@ -3240,7 +3242,11 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)),
             )
 
-            bodySpec = TypedCodecSpec(bodyResult.st.storageType().setRequired(true), bufferSpec)
+            bodySpec = TypedCodecSpec(
+              ctx.executeContext,
+              bodyResult.st.storageType().setRequired(true),
+              bufferSpec,
+            )
 
             val bOS = cb.newLocal[ByteArrayOutputStream](
               "cda_baos",
@@ -3581,7 +3587,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     ir: IR,
     env: EmitEnv,
     emitter: Emit[_],
-    leftRightComparatorNames: Array[String],
+    leftRightComparatorNames: Array[Name],
   ): (EmitCodeBuilder, Value[Region], Value[_], Value[_]) => Value[Boolean] = {
     val fb = cb.emb.ecb
 
@@ -3637,7 +3643,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     def emitVoid(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): Unit =
       this.emitVoid(cb, ir, r, env, container, loopEnv)
 
-    val uses: mutable.Set[String] =
+    val uses: mutable.Set[Name] =
       ctx.usesAndDefs.uses.get(let) match {
         case Some(refs) => refs.map(_.t.name)
         case None => mutable.Set.empty

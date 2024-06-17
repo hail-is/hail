@@ -259,7 +259,11 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
 }
 
 object FS {
-  def buildRoutes(credentialsPath: Option[String], flags: Option[HailFeatureFlags]): FS =
+  def buildRoutes(
+    credentialsPath: Option[String],
+    flags: Option[HailFeatureFlags],
+    env: Map[String, String],
+  ): FS =
     retryTransientErrors {
 
       def readString(path: String): String =
@@ -270,14 +274,14 @@ object FS {
         flags.flatMap(RequesterPaysConfig.fromFlags),
       )
 
-      def az = sys.env.get("HAIL_TERRA") match {
+      def az = env.get("HAIL_TERRA") match {
         case Some(_) => new TerraAzureStorageFS()
         case None => new AzureStorageFS(
             credentialsPath.orElse(sys.env.get(AzureApplicationCredentials)).map(readString)
           )
       }
 
-      val cloudSpecificFSs = sys.env.get("HAIL_CLOUD") match {
+      val cloudSpecificFSs = env.get("HAIL_CLOUD") match {
         case Some("gcp") => FastSeq(gcs)
         case Some("azure") => FastSeq(az)
         case Some(cloud) =>

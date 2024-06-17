@@ -50,6 +50,11 @@ async def user_email(request: web.Request):
     return web.Response(text=request.app[AppKeys.USER_CREDENTIALS].email)
 
 
+async def user_scopes(request: web.Request):
+    text = '\n'.join(request.app[AppKeys.USER_CREDENTIALS]._scopes)
+    return web.Response(text=f'{text}\n')
+
+
 async def user_token(request: web.Request):
     access_token = await request.app[AppKeys.USER_CREDENTIALS]._get_access_token()
     return web.json_response({
@@ -96,9 +101,12 @@ def create_app(
         web.get('/', root),
         web.get('/computeMetadata/v1/project/project-id', project_id),
         web.get('/computeMetadata/v1/project/numeric-project-id', numeric_project_id),
+        web.get('/computeMetadata/v1/instance/service-accounts', service_accounts),
         web.get('/computeMetadata/v1/instance/service-accounts/', service_accounts),
+        web.get('/computeMetadata/v1/instance/service-accounts/{gsa}', user_service_account),
         web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/', user_service_account),
         web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/email', user_email),
+        web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/scopes', user_scopes),
         web.get('/computeMetadata/v1/instance/service-accounts/{gsa}/token', user_token),
     ])
 

@@ -6,19 +6,16 @@ import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) = {
-    val i = Ref(genUID(), TInt32)
-
     If(
       IsNA(set),
       NA(TBoolean),
-      Let(
-        FastSeq(i.name -> LowerBoundOnOrderedCollection(set, elem, onKey = false)),
+      bindIR(LowerBoundOnOrderedCollection(set, elem, onKey = false)) { i =>
         If(
           i.ceq(ArrayLen(CastToArray(set))),
           False(),
           ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(CastToArray(set), i), elem),
-        ),
-      ),
+        )
+      },
     )
   }
 
@@ -33,93 +30,64 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR2("remove", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v, _) =>
       val t = v.typ
-      val x = genUID()
-      ToSet(
-        StreamFilter(
-          ToStream(s),
-          x,
-          ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v),
-        )
-      )
+      ToSet(filterIR(ToStream(s))(ApplyComparisonOp(NEQWithNA(t), _, v)))
     }
 
     registerIR2("add", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (_, s, v, _) =>
       val t = v.typ
-      val x = genUID()
       ToSet(
-        StreamFlatMap(
-          MakeStream(FastSeq(CastToArray(s), MakeArray(FastSeq(v), TArray(t))), TStream(TArray(t))),
-          x,
-          ToStream(Ref(x, TArray(t))),
-        )
+        flatMapIR(MakeStream(
+          FastSeq(CastToArray(s), MakeArray(FastSeq(v), TArray(t))),
+          TStream(TArray(t)),
+        ))(ToStream(_))
       )
     }
 
     registerIR2("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2, _) =>
       val t = s1.typ.asInstanceOf[TSet].elementType
-      val x = genUID()
       ToSet(
-        StreamFlatMap(
-          MakeStream(FastSeq(CastToArray(s1), CastToArray(s2)), TStream(TArray(t))),
-          x,
-          ToStream(Ref(x, TArray(t))),
-        )
+        flatMapIR(
+          MakeStream(FastSeq(CastToArray(s1), CastToArray(s2)), TStream(TArray(t)))
+        )(ToStream(_))
       )
     }
 
     registerIR2("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2, _) =>
-      val t = s1.typ.asInstanceOf[TSet].elementType
-      val x = genUID()
-      ToSet(
-        StreamFilter(ToStream(s1), x, contains(s2, Ref(x, t)))
-      )
+      ToSet(filterIR(ToStream(s1))(contains(s2, _)))
     }
 
     registerIR2("difference", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (_, s1, s2, _) =>
-      val t = s1.typ.asInstanceOf[TSet].elementType
-      val x = genUID()
       ToSet(
-        StreamFilter(ToStream(s1), x, ApplyUnaryPrimOp(Bang, contains(s2, Ref(x, t))))
+        filterIR(ToStream(s1))(x => ApplyUnaryPrimOp(Bang, contains(s2, x)))
       )
     }
 
     registerIR2("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean) { (_, s, w, errorID) =>
-      val t = s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val x = genUID()
-      StreamFold(
-        ToStream(s),
-        True(),
-        a,
-        x,
+      foldIR(ToStream(s), True()) { (a, x) =>
         // FIXME short circuit
         ApplySpecial(
           "land",
           FastSeq(),
-          FastSeq(Ref(a, TBoolean), contains(w, Ref(x, t))),
+          FastSeq(a, contains(w, x)),
           TBoolean,
           errorID,
-        ),
-      )
+        )
+      }
     }
 
     registerIR1("median", TSet(tnum("T")), tv("T")) { (_, s, _) =>
       val t = s.typ.asInstanceOf[TSet].elementType
-      val a = Ref(genUID(), TArray(t))
-      val size = Ref(genUID(), TInt32)
-      val lastIdx = size - 1
-      val midIdx = lastIdx.floorDiv(2)
-      def ref(i: IR) = ArrayRef(a, i)
-      val len: IR = ArrayLen(a)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(
-        FastSeq(a.name -> CastToArray(s)),
+      bindIR(CastToArray(s)) { a =>
+        def ref(i: IR) = ArrayRef(a, i)
+        def len: IR = ArrayLen(a)
         If(
           IsNA(a),
           NA(t),
-          Let(
-            FastSeq(size.name -> If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len))),
+          bindIR(If(len.ceq(0), len, If(IsNA(ref(len - 1)), len - 1, len))) { size =>
+            val lastIdx = size - 1
+            val midIdx = lastIdx.floorDiv(2)
             If(
               size.ceq(0),
               NA(t),
@@ -128,10 +96,10 @@ object SetFunctions extends RegistryFunctions {
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)),
               ),
-            ),
-          ),
-        ),
-      )
+            )
+          },
+        )
+      }
     }
   }
 }

@@ -52,7 +52,7 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
     val (Some(PTypeReferenceSingleCodeType(newRowType: PStruct)), rowF) =
       Compile[AsmFunction2RegionLongLong](
         ctx,
-        FastSeq(("row", rowEmitType)),
+        FastSeq((TableIR.rowName, rowEmitType)),
         FastSeq(classInfo[Region], LongInfo),
         LongInfo,
         PruneDeadFields.upcast(ctx, In(0, rowEmitType), requestedType.rowType),
@@ -131,7 +131,7 @@ object TableStageToRVD {
         ts.letBindings,
         MakeStruct(FastSeq(
           "globals" -> ts.globals,
-          "broadcastVals" -> MakeStruct(ts.broadcastVals),
+          "broadcastVals" -> MakeStruct(ts.broadcastVals.map { case (n, ir) => n.str -> ir }),
           "contexts" -> ToArray(ts.contexts),
         )),
       )
@@ -150,7 +150,7 @@ object TableStageToRVD {
 
     val bcValsPType = gbPType.fieldType("broadcastVals")
 
-    val bcValsSpec = TypedCodecSpec(bcValsPType, BufferSpec.wireSpec)
+    val bcValsSpec = TypedCodecSpec(ctx, bcValsPType, BufferSpec.wireSpec)
     val encodedBcVals =
       sparkContext.broadcast(bcValsSpec.encodeValue(ctx, bcValsPType, gbPType.loadField(gbAddr, 1)))
     val (decodedBcValsPType: PStruct, makeBcDec) =
@@ -158,7 +158,7 @@ object TableStageToRVD {
 
     val contextsPType = gbPType.fieldType("contexts").asInstanceOf[PArray]
     val contextPType = contextsPType.elementType
-    val contextSpec = TypedCodecSpec(contextPType, BufferSpec.wireSpec)
+    val contextSpec = TypedCodecSpec(ctx, contextPType, BufferSpec.wireSpec)
     val contextsAddr = gbPType.loadField(gbAddr, 2)
     val nContexts = contextsPType.loadLength(contextsAddr)
 
@@ -170,7 +170,7 @@ object TableStageToRVD {
       assert(contextsPType.isElementDefined(contextsAddr, i))
       val baos = new ByteArrayOutputStream()
       val enc = makeContextEnc(baos, ctx.theHailClassLoader)
-      enc.writeRegionValue(contextsPType.loadElement(contextsAddr, i))
+      enc.writeRegionValue(ctx.r, contextsPType.loadElement(contextsAddr, i))
       enc.flush()
       baos.toByteArray
     }
@@ -183,7 +183,7 @@ object TableStageToRVD {
         ts.broadcastVals.map(_._1).map(bcVal =>
           bcVal -> GetField(
             In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))),
-            bcVal,
+            bcVal.str,
           )
         ),
         ts.partition(In(

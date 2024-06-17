@@ -18,7 +18,7 @@ object PCanonicalDict {
 }
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false)
-    extends PDict with PArrayBackedContainer {
+    extends PDict with PCanonicalArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)
 
   val arrayRep: PCanonicalArray = PCanonicalArray(elementType, required)

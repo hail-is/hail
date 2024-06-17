@@ -185,29 +185,6 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - merge_code
-  - kind: runImage
-    name: check_pip_requirements
-    image:
-      valueFrom: hail_ubuntu_image.image
-    script: |
-      set -ex
-      pip install pip-tools==7.4.0
-      cd /io/repo
-      chmod 755 ./check_pip_requirements.sh
-      ./check_pip_requirements.sh \
-          hail/python/hailtop \
-          hail/python \
-          hail/python/dev \
-          gear \
-          web_common \
-          batch \
-          ci
-    inputs:
-      - from: /repo
-        to: /io/repo
-    dependsOn:
-      - hail_ubuntu_image
-      - merge_code
   - kind: buildImage2
     name: create_certs_image
     dockerFile: /io/tls/Dockerfile
@@ -1369,29 +1346,6 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image
   - kind: buildImage2
-    name: hail_benchmark_image
-    dockerFile: /io/repo/benchmark/Dockerfile
-    contextPath: /io/repo
-    publishAs: hail-benchmark
-    buildArgs:
-      - name: HAIL_UBUNTU
-        value:
-          valueFrom: hail_ubuntu_image.image
-      - name: HAIL_WHEEL_DIR
-        value: /wheel
-    inputs:
-      - from: /repo/benchmark
-        to: /io/repo/benchmark
-      - from: /repo/hail/python/pinned-requirements.txt
-        to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel
-        to: /io/repo/wheel
-      - from: /hail_pip_version
-        to: /io/repo/benchmark/python/version
-    dependsOn:
-      - build_hail_jar_and_wheel
-      - hail_ubuntu_image
-  - kind: buildImage2
     name: hailgenetics_hail_image_python_3_10
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
@@ -1495,7 +1449,6 @@ steps:
         COPY web_common/pinned-requirements.txt web_common-requirements.txt
         COPY batch/pinned-requirements.txt batch-requirements.txt
         COPY ci/pinned-requirements.txt ci-requirements.txt
-        COPY benchmark/python/pinned-requirements.txt benchmark-requirements.txt
         RUN python3 -m pip install \
             -r hail-requirements.txt \
             -r dev-requirements.txt \
@@ -1503,7 +1456,6 @@ steps:
             -r web_common-requirements.txt \
             -r batch-requirements.txt \
             -r ci-requirements.txt \
-            -r benchmark-requirements.txt \
             && \
             python3 -m pyright --version # Force the installation of node and npm pyright in the image
     publishAs: linting
@@ -1520,11 +1472,24 @@ steps:
         to: /io/repo/batch/pinned-requirements.txt
       - from: /repo/ci/pinned-requirements.txt
         to: /io/repo/ci/pinned-requirements.txt
-      - from: /repo/benchmark/python/pinned-requirements.txt
-        to: /io/repo/benchmark/python/pinned-requirements.txt
     dependsOn:
       - merge_code
       - hail_ubuntu_image
+  - kind: runImage
+    name: check_pip_requirements
+    image:
+      valueFrom: hail_linting_image.image
+    script: |
+      set -ex
+      cd /io/repo
+      chmod 755 ./check_pip_requirements.sh
+      make check-pip-requirements
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - hail_linting_image
+      - merge_code
   - kind: runImage
     name: check_services
     image:
@@ -2476,13 +2441,15 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --ignore=test/hail/matrixtable/test_file_formats.py \
-              -m qobtest \
+              -m backend \
               --timeout=600 \
               test
     timeout: 5400
     inputs:
       - from: /wheel
         to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2548,13 +2515,15 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/ \
               --ignore=test/hail/matrixtable/test_file_formats.py \
-              -m qobtest \
+              -m backend \
               --timeout=600 \
               test
     timeout: 5400
     inputs:
       - from: /wheel
         to: /io/wheel
+      - from: /repo/hail/python/pytest.ini
+        to: /io/repo/hail/python/pytest.ini
       - from: /repo/hail/python/test
         to: /io/repo/hail/python/test
     secrets:
@@ -2900,6 +2869,7 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
+      pip install /io/ci
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -2916,8 +2886,8 @@ steps:
         mountPath: /test-dev-gsa-key
     timeout: 5400
     inputs:
-      - from: /repo/ci/test
-        to: /io/ci/test
+      - from: /repo/ci
+        to: /io/ci
     scopes:
       - test
       - dev
@@ -2967,6 +2937,8 @@ steps:
               --timeout=360 \
               /io/test/hailtop/batch/
     inputs:
+      - from: /repo/hail/python/pytest.ini
+        to: /io/pytest.ini
       - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
@@ -3621,7 +3593,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_dev_image
-      - hail_benchmark_image
       - test_hail_java
       - test_hail_python_local_backend
       - test_hail_python_service_backend_gcp
@@ -3633,8 +3604,10 @@ steps:
     image:
       valueFrom: hail_dev_image.image
     inputs:
-      - from: /repo/benchmark
-        to: /io/repo/benchmark
+      - from: /repo/hail/python
+        to: /io/repo/hail/python
+      - from: /repo/hail/scripts/benchmark_in_batch.py
+        to: /io/repo/hail/scripts/benchmark_in_batch.py
       - from: /hail_version
         to: /io/hail_version
       - from: /release-hail-flag
@@ -3649,28 +3622,20 @@ steps:
           exit 0
       fi
 
-      pushd /io/repo/benchmark
-
-      IMAGE={{ hail_benchmark_image.image }}
+      pushd /io/repo/hail
 
       BUCKET=hail-benchmarks-2
       HAIL_VERSION=$(cat /io/hail_version)
       RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}/${HAIL_VERSION}"
 
-      REPLICATES=5
-      ITERATIONS=5
-
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
       export HAIL_BATCH_BILLING_PROJECT=benchmark
       export HAIL_BATCH_REMOTE_TMPDIR={{ ci_storage_uri }}/{{ token }}
 
-      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py \
-          $IMAGE \
+      PYTHONPATH="$PWD/python" python3 ./scripts/benchmark_in_batch.py submit \
+          {{ hail_dev_image.image }} \
           $RESULTS_PREFIX \
-          $HAIL_VERSION \
-          $REPLICATES \
-          $ITERATIONS \
-          start
+          $HAIL_VERSION
 
   - kind: runImage
     name: cancel_all_running_test_batches

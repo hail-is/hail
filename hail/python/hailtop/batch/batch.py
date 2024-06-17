@@ -426,6 +426,14 @@ class Batch:
         return jrf
 
     def _new_input_resource_file(self, input_path, root=None):
+        if isinstance(input_path, str):
+            pass
+        elif isinstance(input_path, os.PathLike):
+            # Avoid os.fspath(), which causes some pathlikes to return a path to a downloaded copy instead.
+            input_path = str(input_path)
+        else:
+            raise BatchException(f"path value is neither string nor path-like. Found '{type(input_path)}' instead.")
+
         self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
@@ -466,15 +474,14 @@ class Batch:
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
-    def read_input(self, path: str) -> _resource.InputResourceFile:
+    def read_input(self, path: Union[str, os.PathLike]) -> _resource.InputResourceFile:
         """
         Create a new input resource file object representing a single file.
 
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -496,15 +503,14 @@ class Batch:
         irf = self._new_input_resource_file(path)
         return irf
 
-    def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
+    def read_input_group(self, **kwargs: Union[str, os.PathLike]) -> _resource.ResourceGroup:
         """Create a new resource group representing a mapping of identifier to
         input resource files.
 
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -599,8 +605,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, output files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Notes
         -----
