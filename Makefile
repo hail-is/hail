@@ -179,7 +179,8 @@ docs.tar.gz: hail/build/www
 
 website-image: docs.tar.gz
 
-$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
+.SECONDEXPANSION:
+$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $$(shell git ls-files $$* ':!:**/deployment.yaml')
 	./docker-build.sh . $*/Dockerfile $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
@@ -246,9 +247,9 @@ $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
 
-.PHONY: sass-compile-watch
-sass-compile-watch:
-	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+.PHONY: tailwind-compile-watch
+tailwind-compile-watch:
+	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
@@ -256,7 +257,7 @@ run-dev-proxy:
 
 .PHONY: devserver
 devserver:
-	$(MAKE) -j 2 sass-compile-watch run-dev-proxy
+	$(MAKE) -j 2 tailwind-compile-watch run-dev-proxy
 
 .PHONY: benchmark
 benchmark: hail-dev-image
