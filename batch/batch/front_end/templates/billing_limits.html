@@ -11,9 +11,9 @@
   <tbody>
     {% for row in open_billing_projects %}
     <tr class='border border-collapse hover:bg-slate-100'>
-      <td class='p-2'>{{ row['billing_project'] }}</td>
-      <td class='p-2'>{{ row['accrued_cost'] }}</td>
-      <td class='p-2'>{{ row['limit'] }}</td>
+      <td class='py-2 pl-2'>{{ row['billing_project'] }}</td>
+      <td class='py-2'>{{ row['accrued_cost'] }}</td>
+      <td class='py-2 pr-2'>{{ row['limit'] }}</td>
     </tr>
     {% endfor %}
     <tr class='border border-collapse bg-slate-200'>
@@ -21,9 +21,9 @@
     </tr>
     {% for row in closed_billing_projects %}
     <tr class='border border-collapse bg-slate-50 font-light hover:bg-slate-100'>
-      <td class='p-2'>{{ row['billing_project'] }}</td>
-      <td class='p-2'>{{ row['accrued_cost'] }}</td>
-      <td class='p-2'>{{ row['limit'] }}</td>
+      <td class='py-2 pl-2'>{{ row['billing_project'] }}</td>
+      <td class='py-2'>{{ row['accrued_cost'] }}</td>
+      <td class='py-2 pr-2'>{{ row['limit'] }}</td>
     </tr>
     {% endfor %}
   </tbody>
