@@ -2291,6 +2291,9 @@ steps:
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
         online: true
+      - name: add-lambda-inst-col
+        script: /io/sql/add_lambda_inst_col.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

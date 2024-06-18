@@ -1,0 +1,2 @@
+INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`, `cloud`, `max_new_instances_per_autoscaler_loop`, `autoscaler_loop_period_secs`, `worker_max_idle_time_secs`)
+VALUES ('job-private-lambda', 0, 20, 16, 16, 'lambda', 10, 15, 120)
