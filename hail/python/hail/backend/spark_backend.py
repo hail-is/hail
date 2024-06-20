@@ -14,6 +14,7 @@ from hail.table import Table
 from hail.utils import copy_log
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
+from hailtop.utils import async_to_blocking
 
 from .backend import local_jar_information
 from .py4j_backend import Py4JBackend
@@ -173,7 +174,7 @@ class SparkBackend(Py4JBackend):
         self._copy_log_on_error = copy_log_on_error
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._router_async_fs)
+        async_to_blocking(validate_file(uri, self._router_async_fs))
 
     def stop(self):
         super().stop()
