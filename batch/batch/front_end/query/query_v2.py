@@ -311,6 +311,7 @@ FROM (SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
 LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 ) AS cost_t ON TRUE
 WHERE {" AND ".join(where_conditions)}
+ORDER BY jobs.job_id
 LIMIT 50;
 """
 
