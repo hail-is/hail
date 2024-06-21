@@ -277,6 +277,7 @@ WITH base_t AS
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
   WHERE {' AND '.join(where_conditions)}
+  ORDER BY jobs.job_id
   LIMIT 50
 )
 SELECT base_t.*, cost_t.cost, cost_t.cost_breakdown
