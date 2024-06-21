@@ -32,11 +32,11 @@ import java.io._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
-import com.fasterxml.jackson.core.StreamReadConstraints
 
 class ServiceBackendContext(
   val billingProject: String,
