@@ -1805,12 +1805,11 @@ object MatrixVCFReader {
         val localFilterAndReplace = params.filterAndReplace
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
-        backend.parallelizeAndComputeWithIndex(
+        val (failureOpt, _) = backend.parallelizeAndComputeWithIndex(
           ctx.backendContext,
           fs,
           files.tail.map(_.getBytes),
           "load_vcf_parse_header",
-          None,
         ) { (bytes, htc, _, fs) =>
           val fsConfig = fsConfigBC.value
           fs.setConfiguration(fsConfig)
@@ -1857,6 +1856,8 @@ object MatrixVCFReader {
 
           bytes
         }
+
+        failureOpt.foreach(throw _)
       }
     }
 
@@ -2210,11 +2211,13 @@ case class GVCFPartitionReader(
     requestedType: TStruct,
   ): IEmitCode = {
     context.toI(cb).map(cb) { case ctxValue: SBaseStructValue =>
-      val fileNum = cb.memoizeField(ctxValue.loadField(cb, "fileNum").get(cb).asInt32.value)
-      val filePath = cb.memoizeField(ctxValue.loadField(cb, "path").get(cb).asString.loadString(cb))
-      val contig = cb.memoizeField(ctxValue.loadField(cb, "contig").get(cb).asString.loadString(cb))
-      val start = cb.memoizeField(ctxValue.loadField(cb, "start").get(cb).asInt32.value)
-      val end = cb.memoizeField(ctxValue.loadField(cb, "end").get(cb).asInt32.value)
+      val fileNum = cb.memoizeField(ctxValue.loadField(cb, "fileNum").getOrAssert(cb).asInt32.value)
+      val filePath =
+        cb.memoizeField(ctxValue.loadField(cb, "path").getOrAssert(cb).asString.loadString(cb))
+      val contig =
+        cb.memoizeField(ctxValue.loadField(cb, "contig").getOrAssert(cb).asString.loadString(cb))
+      val start = cb.memoizeField(ctxValue.loadField(cb, "start").getOrAssert(cb).asInt32.value)
+      val end = cb.memoizeField(ctxValue.loadField(cb, "end").getOrAssert(cb).asInt32.value)
 
       val requestedPType = fullRowPType.subsetTo(requestedType).asInstanceOf[PStruct]
       val eltRegion = mb.genFieldThisRef[Region]("gvcf_elt_region")

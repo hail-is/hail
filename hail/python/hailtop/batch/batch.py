@@ -1,20 +1,25 @@
 import os
-import warnings
 import re
-from typing import Callable, Optional, Dict, Union, List, Any, Set
+import warnings
 from io import BytesIO
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Set, Union
+
 import dill
 
-from hailtop.utils import secret_alnum_string, url_scheme, async_to_blocking
-from hailtop.aiotools import AsyncFS
-from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
-from hailtop.aiotools.router_fs import RouterAsyncFS
-import hailtop.batch_client.client as _bc
 import hailtop.batch_client.aioclient as _aiobc
+import hailtop.batch_client.client as _bc
+from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
+from hailtop.aiotools import AsyncFS
+from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import ConfigVariable, configuration_of
+from hailtop.utils import async_to_blocking, secret_alnum_string, url_scheme
 
-from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
+from . import job
+from . import resource as _resource
 from .exceptions import BatchException
+
+if TYPE_CHECKING:
+    from hailtop.batch.backend import LocalBackend, ServiceBackend
 
 
 class Batch:
@@ -150,15 +155,17 @@ class Batch:
 
     @staticmethod
     async def _async_from_batch_id(batch_id: int, *args, **kwargs) -> 'Batch':
+        from hailtop.batch.backend import ServiceBackend  # pylint: disable=import-outside-toplevel
+
         b = Batch(*args, **kwargs)
-        assert isinstance(b._backend, _backend.ServiceBackend)
+        assert isinstance(b._backend, ServiceBackend)
         b._async_batch = await (await b._backend._batch_client()).get_batch(batch_id)
         return b
 
     def __init__(
         self,
         name: Optional[str] = None,
-        backend: Optional[Union[_backend.LocalBackend, _backend.ServiceBackend]] = None,
+        backend: Optional[Union['LocalBackend', 'ServiceBackend']] = None,
         attributes: Optional[Dict[str, str]] = None,
         requester_pays_project: Optional[str] = None,
         default_image: Optional[str] = None,
@@ -173,6 +180,8 @@ class Batch:
         project: Optional[str] = None,
         cancel_after_n_failures: Optional[int] = None,
     ):
+        from hailtop.batch.backend import LocalBackend, ServiceBackend  # pylint: disable=import-outside-toplevel
+
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -185,10 +194,10 @@ class Batch:
         else:
             backend_config = configuration_of(ConfigVariable.BATCH_BACKEND, None, 'local')
             if backend_config == 'service':
-                self._backend = _backend.ServiceBackend()
+                self._backend = ServiceBackend()
             else:
                 assert backend_config == 'local'
-                self._backend = _backend.LocalBackend()
+                self._backend = LocalBackend()
 
         self.name = name
 
@@ -205,7 +214,7 @@ class Batch:
         self._default_cpu = default_cpu
         self._default_storage = default_storage
         self._default_regions = default_regions
-        if self._default_regions is None and isinstance(self._backend, _backend.ServiceBackend):
+        if self._default_regions is None and isinstance(self._backend, ServiceBackend):
             self._default_regions = self._backend.regions
         self._default_timeout = default_timeout
         self._default_shell = default_shell
@@ -253,9 +262,7 @@ class Batch:
             await self._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
             await self._fs.write(code_path, pipe.getvalue())
 
-        code_input_file = self.read_input(code_path)
-
-        return code_input_file
+        return await self._async_read_input(code_path)
 
     async def _serialize_python_functions_to_input_files(self, path: str, dry_run: bool = False) -> None:
         for function_id, function in self._python_function_defs.items():
@@ -416,8 +423,16 @@ class Batch:
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
-    def _new_input_resource_file(self, input_path, root=None):
-        self._backend.validate_file(input_path, self.requester_pays_project)
+    async def _new_input_resource_file(self, input_path, root=None):
+        if isinstance(input_path, str):
+            pass
+        elif isinstance(input_path, os.PathLike):
+            # Avoid os.fspath(), which causes some pathlikes to return a path to a downloaded copy instead.
+            input_path = str(input_path)
+        else:
+            raise BatchException(f"path value is neither string nor path-like. Found '{type(input_path)}' instead.")
+
+        await self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
         if AzureAsyncFS.valid_url(input_path):
@@ -457,15 +472,14 @@ class Batch:
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
-    def read_input(self, path: str) -> _resource.InputResourceFile:
+    def read_input(self, path: Union[str, os.PathLike]) -> _resource.InputResourceFile:
         """
         Create a new input resource file object representing a single file.
 
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -484,18 +498,19 @@ class Batch:
             File path to read.
         """
 
-        irf = self._new_input_resource_file(path)
-        return irf
+        return async_to_blocking(self._async_read_input(path))
 
-    def read_input_group(self, **kwargs: str) -> _resource.ResourceGroup:
+    async def _async_read_input(self, path: Union[str, os.PathLike]) -> _resource.InputResourceFile:
+        return await self._new_input_resource_file(path)
+
+    def read_input_group(self, **kwargs: Union[str, os.PathLike]) -> _resource.ResourceGroup:
         """Create a new resource group representing a mapping of identifier to
         input resource files.
 
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -547,7 +562,9 @@ class Batch:
         """
 
         root = secret_alnum_string(5)
-        new_resources = {name: self._new_input_resource_file(file, root) for name, file in kwargs.items()}
+        new_resources = {
+            name: async_to_blocking(self._new_input_resource_file(file, root)) for name, file in kwargs.items()
+        }
         rg = _resource.ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
@@ -590,8 +607,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, output files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Notes
         -----
@@ -610,6 +626,7 @@ class Batch:
             where `identifier` is the identifier of the file in the
             :class:`.ResourceGroup` map.
         """
+        from hailtop.batch.backend import LocalBackend  # pylint: disable=import-outside-toplevel
 
         if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
@@ -636,12 +653,12 @@ class Batch:
                 f"using the PythonJob 'call' method"
             )
 
-        if isinstance(self._backend, _backend.LocalBackend):
+        if isinstance(self._backend, LocalBackend):
             dest_scheme = url_scheme(dest)
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
-        self._backend.validate_file(dest, self.requester_pays_project)
+        async_to_blocking(self._backend.validate_file(dest, self.requester_pays_project))
 
         resource._add_output_path(dest)
 

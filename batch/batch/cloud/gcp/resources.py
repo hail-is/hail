@@ -170,7 +170,7 @@ class GCPComputeResource(ComputeResourceMixin, GCPResource):
 
 
 class GCPAcceleratorResource(VMResourceMixin, GCPResource):
-    FORMAT_VERSION = 1
+    FORMAT_VERSION = 2
     TYPE = 'gcp_accelerator'
 
     @staticmethod
@@ -181,25 +181,36 @@ class GCPAcceleratorResource(VMResourceMixin, GCPResource):
     @staticmethod
     def from_dict(data: Dict[str, Any]) -> 'GCPAcceleratorResource':
         assert data['type'] == GCPAcceleratorResource.TYPE
-        return GCPAcceleratorResource(data['name'])
+        if data['format_version'] == 1:
+            # version 1 assumed only one accelerator
+            return GCPAcceleratorResource(data['name'], 1)
+        assert data['format_version'] == 2
+        return GCPAcceleratorResource(data['name'], data['number'])
 
     @staticmethod
     def create(
-        product_versions: ProductVersions,
-        accelerator_family: str,
-        preemptible: bool,
-        region: str,
+        product_versions: ProductVersions, accelerator_family: str, preemptible: bool, region: str, num_gpus: int
     ) -> 'GCPAcceleratorResource':
         product = GCPAcceleratorResource.product_name(accelerator_family, preemptible, region)
         name = product_versions.resource_name(product)
         assert name, product
-        return GCPAcceleratorResource(name)
+        return GCPAcceleratorResource(name, num_gpus)
 
-    def __init__(self, name: str):
+    def __init__(self, name: str, number: int):
         self.name = name
+        self.number = number
 
     def to_dict(self) -> dict:
-        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION}
+        return {'type': self.TYPE, 'name': self.name, 'format_version': self.FORMAT_VERSION, 'number': self.number}
+
+    def to_quantified_resource(
+        self, cpu_in_mcpu: int, memory_in_bytes: int, worker_fraction_in_1024ths: int, external_storage_in_gib: int
+    ) -> Optional[QuantifiedResource]:  # pylint: disable=unused-argument
+        resource_dict = super().to_quantified_resource(
+            cpu_in_mcpu, memory_in_bytes, worker_fraction_in_1024ths, external_storage_in_gib
+        )
+        assert resource_dict
+        return {'name': resource_dict['name'], 'quantity': self.number * resource_dict['quantity']}
 
 
 class GCPMemoryResource(MemoryResourceMixin, GCPResource):

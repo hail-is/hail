@@ -1,55 +1,56 @@
-from typing import Callable, Optional, TypeVar, cast
-from typing_extensions import ParamSpec
 import base64
 import copy
 import json
 from collections import defaultdict
+from typing import Callable, Optional, TypeVar, cast
 
-from hailtop.hail_decorator import decorator
+from typing_extensions import ParamSpec
 
 import hail
 from hail.expr.types import (
     HailType,
     hail_type,
-    tint32,
-    tint64,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
     tfloat32,
     tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tstream,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
     tndarray,
+    trngstate,
     tset,
-    tdict,
+    tstr,
+    tstream,
     tstruct,
     ttuple,
-    tinterval,
     tvoid,
-    trngstate,
-    tlocus,
-    tcall,
 )
-from hail.ir.blockmatrix_writer import BlockMatrixWriter, BlockMatrixMultiWriter
+from hail.ir.blockmatrix_writer import BlockMatrixMultiWriter, BlockMatrixWriter
 from hail.typecheck import (
-    typecheck,
-    typecheck_method,
-    sequenceof,
-    numeric,
-    sized_tupleof,
-    nullable,
-    tupleof,
     anytype,
     func_spec,
+    nullable,
+    numeric,
+    sequenceof,
+    sized_tupleof,
+    tupleof,
+    typecheck,
+    typecheck_method,
 )
 from hail.utils.java import Env, HailUserError
 from hail.utils.jsonx import dump_json
-from hail.utils.misc import escape_str, parsable_strings, escape_id
-from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, _env_bind
-from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
-from .renderer import Renderer, Renderable, ParensRenderer
+from hail.utils.misc import escape_id, escape_str, parsable_strings
+from hailtop.hail_decorator import decorator
+
+from .base_ir import IR, BaseIR, BlockMatrixIR, MatrixIR, TableIR, _env_bind
+from .matrix_writer import MatrixNativeMultiWriter, MatrixWriter
+from .renderer import ParensRenderer, Renderable, Renderer
 from .table_writer import TableWriter
-from .utils import default_row_uid, default_col_uid, unpack_row_uid, unpack_col_uid
+from .utils import default_col_uid, default_row_uid, unpack_col_uid, unpack_row_uid
 
 
 class I32(IR):
@@ -282,7 +283,7 @@ class If(IR):
         return self.cnsq.typ
 
     def renderable_new_block(self, i):
-        return i == 1 or i == 2
+        return i in {1, 2}
 
 
 class Coalesce(IR):
@@ -327,7 +328,7 @@ class Let(IR):
         return Let(self.name, value, body)
 
     def head_str(self):
-        return escape_id(self.name)
+        return f'eval {escape_id(self.name)}'
 
     @property
     def bound_variables(self):
@@ -2148,7 +2149,7 @@ class StreamJoinRightDistinct(IR):
                 left, right, self.l_key, self.r_key, self.l_name, self.r_name, self.join, self.join_type
             )
 
-        if self.join_type == 'left' or self.join_type == 'inner':
+        if self.join_type in {'left', 'inner'}:
             left = pack_to_structs(self.left.handle_randomness(True))
             right = self.right.handle_randomness(False)
             r_name = self.r_name
@@ -2678,7 +2679,7 @@ class AggFold(IR):
 
     def renderable_bindings(self, i: int, default_value=None):
         dict_so_far = {}
-        if i == 1 or i == 2:
+        if i in {1, 2}:
             if default_value is None:
                 dict_so_far[self.accum_name] = self.zero.typ
             else:
@@ -2700,10 +2701,10 @@ class AggFold(IR):
         return {self.accum_name, self.other_accum_name} | super().bound_variables
 
     def renderable_uses_agg_context(self, i: int) -> bool:
-        return (i == 1 or i == 2) and not self.is_scan
+        return (i in {1, 2}) and not self.is_scan
 
     def renderable_uses_scan_context(self, i: int) -> bool:
-        return (i == 1 or i == 2) and self.is_scan
+        return (i in {1, 2}) and self.is_scan
 
 
 class Begin(IR):

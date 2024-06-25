@@ -1,11 +1,18 @@
+import os
 import unittest
+
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.utils.misc import new_temp_file
-from ..helpers import *
 from hail.methods.qc import VEPConfigGRCh37Version85, VEPConfigGRCh38Version95
 
+from ..helpers import (
+    get_dataset,
+    resource,
+    set_gcs_requester_pays_configuration,
+    test_timeout,
+)
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 
@@ -33,7 +40,7 @@ class Tests(unittest.TestCase):
             data_bucket_is_requester_pays=True,
         )
 
-    @qobtest
+    @pytest.mark.backend('batch')
     def test_sample_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
@@ -75,7 +82,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r[0].sqc.r_het_hom_var, 0.3333333333)
         self.assertAlmostEqual(r[0].sqc.r_insertion_deletion, None)
 
-    @qobtest
+    @pytest.mark.backend('batch')
     def test_variant_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
@@ -321,15 +328,14 @@ class Tests(unittest.TestCase):
 
     def test_charr(self):
         mt = hl.import_vcf(resource('sample.vcf'))
-        es = mt.select_rows().entries()
         charr = hl.compute_charr(mt, ref_AF=0.9)
         d = charr.aggregate(hl.dict(hl.agg.collect((charr.s, charr.charr))))
 
         assert pytest.approx(d['C1046::HG02024'], abs=0.0001) == 0.00126
         assert pytest.approx(d['C1046::HG02025'], abs=0.0001) == 0.00124
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_true(self):
@@ -351,8 +357,8 @@ class Tests(unittest.TestCase):
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_true(self):
@@ -361,10 +367,12 @@ class Tests(unittest.TestCase):
         )
         hail_vep_result = hl.vep(gnomad_vep_result, self.vep_config_grch38_95, csq=True)
 
-        expected = gnomad_vep_result.select_rows(vep=gnomad_vep_result.info.vep.map(lambda x: x.split('\|')[:8])).rows()
+        expected = gnomad_vep_result.select_rows(
+            vep=gnomad_vep_result.info.vep.map(lambda x: x.split(r'\|')[:8])
+        ).rows()
 
         actual = (
-            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split('\|')[:8]))
+            hail_vep_result.select_rows(vep=hail_vep_result.vep.map(lambda x: x.split(r'\|')[:8]))
             .rows()
             .drop('vep_csq_header')
         )
@@ -374,8 +382,8 @@ class Tests(unittest.TestCase):
         vep_csq_header = hl.eval(hail_vep_result.vep_csq_header)
         assert 'Consequence annotations from Ensembl VEP' in vep_csq_header, vep_csq_header
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_consequence_false(self):
@@ -388,8 +396,8 @@ class Tests(unittest.TestCase):
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_consequence_false(self):
@@ -402,8 +410,8 @@ class Tests(unittest.TestCase):
         result = ht.head(1).collect()[0]
         assert result.variant_class == 'SNV', result
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch37_against_dataproc(self):
@@ -456,8 +464,8 @@ class Tests(unittest.TestCase):
 
         assert hail_vep_result._same(dataproc_result)
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_against_dataproc(self):
@@ -510,8 +518,8 @@ class Tests(unittest.TestCase):
 
         assert hail_vep_result._same(dataproc_result)
 
-    @qobtest
-    @skip_unless_service_backend(clouds=['gcp'])
+    @pytest.mark.backend('batch')
+    @pytest.mark.cloud('gcp')
     @set_gcs_requester_pays_configuration(GCS_REQUESTER_PAYS_PROJECT)
     @test_timeout(batch=5 * 60)
     def test_vep_grch38_with_large_positions(self):

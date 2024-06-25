@@ -18,5 +18,7 @@ ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
 
-RUN curl >${SPARK_HOME}/jars/gcs-connector-hadoop2-2.2.7.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar
+RUN curl --fail --silent --show-error --location \
+         https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.0.0/gcs-connector-3.0.0-shaded.jar \
+         >${SPARK_HOME}/jars/gcs-connector-3.0.0-shaded.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml

@@ -582,7 +582,7 @@ object StagedBGENReader {
           val r = index.queryIndex(cb, mb.partitionRegion, cb.memoize(indices(i))).loadField(
             cb,
             "key",
-          ).get(cb)
+          ).getOrAssert(cb)
           cb += boxed.update(
             i,
             StringFunctions.svalueToJavaValue(cb, mb.partitionRegion, r, safe = true),
@@ -702,6 +702,7 @@ object BGENFunctions extends RegistryFunctions {
         val currSize = cb.newLocal[Int]("currSize", 0)
 
         val spec = TypedCodecSpec(
+          ctx,
           PType.canonical(TStruct(
             "locus" -> locType,
             "alleles" -> TArray(TString),
@@ -905,9 +906,9 @@ object BGENFunctions extends RegistryFunctions {
 
         val nAdded = cb.newLocal[Long]("nAdded", 0)
         mergedStream.memoryManagedConsume(er.region, cb) { cb =>
-          val row = mergedStream.element.toI(cb).get(cb).asBaseStruct
+          val row = mergedStream.element.toI(cb).getOrAssert(cb).asBaseStruct
           val key = row.subset("locus", "alleles")
-          val offset = row.loadField(cb, "offset").get(cb).asInt64.value
+          val offset = row.loadField(cb, "offset").getOrAssert(cb).asInt64.value
           cb.assign(nAdded, nAdded + 1)
           iw.add(
             cb,

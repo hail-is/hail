@@ -1,14 +1,30 @@
+import gzip
+import json
 import math
 import operator
+import os
 import random
+import unittest
+
 import pytest
 
 import hail as hl
-import hail.ir as ir
 import hail.expr.aggregators as agg
+from hail import ir
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from ..helpers import *
+
+from ..helpers import (
+    convert_struct_to_dict,
+    create_all_values_matrix_table,
+    fails_local_backend,
+    fails_service_backend,
+    get_dataset,
+    qobtest,
+    resource,
+    schema_eq,
+    test_timeout,
+)
 
 
 class Tests(unittest.TestCase):
@@ -2346,3 +2362,24 @@ def test_sample_entries():
     ht = mt.entries()
     ht = ht.sample(0.5)
     ht._force_count()
+
+
+def test_struct_of_arrays_encoding():
+    mt = hl.utils.range_matrix_table(10, 10)
+    mt = mt.annotate_entries(
+        p=hl.or_missing(hl.rand_bool(0.6), hl.rand_bool(0.5)),
+        d=mt.row_idx * mt.col_idx / math.pi,
+        x=mt.row_idx + mt.col_idx,
+        y=mt.row_idx * mt.col_idx,
+        z=hl.or_missing(hl.rand_bool(0.8), mt.row_idx - mt.col_idx),
+    )
+    std_mt = mt.checkpoint(new_temp_file(extension='mt'))
+    with hl._with_flags(use_unstable_encodings='1'):
+        out_path = new_temp_file(extension='mt')
+        mt = std_mt.checkpoint(out_path)
+        md_path = os.path.join(out_path, 'entries/rows/metadata.json.gz')
+        with gzip.open(md_path) as md_file:
+            md = json.load(md_file)
+        etype = md['_codecSpec']['_eType']
+        assert 'EStructOfArrays' in etype
+        assert mt._same(std_mt)

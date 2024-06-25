@@ -1,18 +1,28 @@
+import os
 import unittest
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 import pyspark.sql
 import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail import ExpressionException, ir
 from hail.utils import new_temp_file
 from hail.utils.java import Env
-import hail.ir as ir
 
-from hail import ExpressionException
-from ..helpers import *
+from ..helpers import (
+    assert_time,
+    convert_struct_to_dict,
+    create_all_values_datasets,
+    create_all_values_table,
+    lower_only,
+    qobtest,
+    resource,
+    skip_unless_spark_backend,
+    test_timeout,
+)
 
 
 class Tests(unittest.TestCase):
@@ -1859,7 +1869,6 @@ def create_width_scale_files():
     def write_file(n, n_rows=5):
         assert n % 4 == 0
         n2 = n // 4
-        d = {}
         header = []
         for i in range(n2):
             header.append(f'i{i}')
@@ -1881,6 +1890,7 @@ def create_width_scale_files():
                     out.write('\t')
                     out.write(str(i % 2 == 0))
 
+    widths = [1 << k for k in range(8, 14)]
     for w in widths:
         write_file(w)
 
@@ -2506,7 +2516,6 @@ def test_table_randomness_matrix_cols_table():
 
 
 def test_table_randomness_parallelize_with_body_randomness():
-    rt = hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x, r=hl.rand_int64())))
     assert_contains_node(t, ir.TableParallelize)
     t._force_count()  # test with no consumer randomness
@@ -2514,7 +2523,6 @@ def test_table_randomness_parallelize_with_body_randomness():
 
 
 def test_table_randomness_parallelize_without_body_randomness():
-    rt = hl.utils.range_table(20, 3)
     t = hl.Table.parallelize(hl.array([1, 2, 3]).map(lambda x: hl.struct(x=x)))
     assert_contains_node(t, ir.TableParallelize)
     assert_unique_uids(t)
@@ -2724,3 +2732,10 @@ def test_range_table_biggest_int():
     n = biggest_int32 - 1  # NB: range table is [0, ..., n - 1]
     expected_sum = n * (n + 1) // 2
     assert expected_sum == ht.aggregate(hl.agg.sum(hl.int64(ht.idx)))
+
+
+def test_group_by_aggregate_doesnt_clobber_global_field():
+    # https://github.com/hail-is/hail/issues/14506
+    ht = hl.utils.range_table(10).annotate_globals(x=1)
+    with pytest.raises(ExpressionException):
+        ht = ht.group_by(a=ht.idx < 5).aggregate(x=2)

@@ -4,8 +4,8 @@ import scala.reflect.ClassTag
 
 object FastSeq {
   def empty[T: ClassTag]: IndexedSeq[T] =
-    FastSeq()
+    IndexedSeq.empty
 
   def apply[T: ClassTag](args: T*): IndexedSeq[T] =
-    args.toFastSeq
+    if (args.isEmpty) empty else args.toFastSeq
 }

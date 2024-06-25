@@ -1,9 +1,9 @@
 #!/opt/conda/default/bin/python3
+import errno
 import json
 import os
 import subprocess as sp
 import sys
-import errno
 from subprocess import check_output
 
 assert sys.version_info > (3, 0), sys.version_info
@@ -43,7 +43,7 @@ if role == 'Master':
         'ipywidgets==8.0.6',
         'jupyter-console==6.6.3',
         'nbconvert==7.3.1',
-        'notebook==6.5.4',
+        'notebook==6.5.6',
         'qtconsole==5.4.2',
     ]
 

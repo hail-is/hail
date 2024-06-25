@@ -174,6 +174,11 @@ object IRParser {
   def identifiers(it: TokenIterator): Array[String] =
     base_seq_parser(identifier)(it)
 
+  def name(it: TokenIterator): Name = Name(identifier(it))
+
+  def names(it: TokenIterator): Array[Name] =
+    base_seq_parser(name)(it)
+
   def boolean_literal(it: TokenIterator): Boolean =
     consumeToken(it) match {
       case IdentifierToken("True") => true
@@ -701,8 +706,8 @@ object IRParser {
       case "ApproxCDFStateSig" => ApproxCDFStateSig()
       case "FoldStateSig" =>
         val vtwr = vtwr_expr(it)
-        val accumName = identifier(it)
-        val otherAccumName = identifier(it)
+        val accumName = name(it)
+        val otherAccumName = name(it)
         val combIR = ir_value_expr(env)(it).run()
         FoldStateSig(vtwr.canonicalEmitType, accumName, otherAccumName, combIR)
     }
@@ -851,8 +856,9 @@ object IRParser {
           default <- ir_value_expr(env)(it)
           cases <- ir_value_children(env)(it)
         } yield Switch(x, default, cases)
-      case "Let" =>
-        val names = repUntilNonStackSafe(it, identifier, PunctuationToken("("))
+      case "Let" | "Block" =>
+        val names =
+          repUntilNonStackSafe(it, it => (identifier(it), name(it)), PunctuationToken("("))
         val values = new Array[IR](names.length)
         for {
           _ <- names.indices.foldLeft(done(())) { case (update, i) =>
@@ -862,39 +868,49 @@ object IRParser {
             } yield values.update(i, value)
           }
           body <- ir_value_expr(env)(it)
-        } yield Let(names.zip(values).toFastSeq, body)
+        } yield {
+          val bindings = (names, values).zipped.map { case ((bindType, name), value) =>
+            val scope = bindType match {
+              case "eval" => Scope.EVAL
+              case "agg" => Scope.AGG
+              case "scan" => Scope.SCAN
+            }
+            Binding(name, value, scope)
+          }
+          Block(bindings, body)
+        }
       case "AggLet" =>
-        val name = identifier(it)
+        val n = name(it)
         val isScan = boolean_literal(it)
         for {
           value <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield AggLet(name, value, body, isScan)
+        } yield AggLet(n, value, body, isScan)
       case "TailLoop" =>
-        val name = identifier(it)
-        val paramNames = identifiers(it)
+        val n = name(it)
+        val paramNames = names(it)
         val resultType = type_expr(it)
         for {
           paramIRs <- fillArray(paramNames.length)(ir_value_expr(env)(it))
           params = paramNames.zip(paramIRs)
           body <- ir_value_expr(env)(it)
-        } yield TailLoop(name, params, resultType, body)
+        } yield TailLoop(n, params, resultType, body)
       case "Recur" =>
-        val name = identifier(it)
-        ir_value_children(env)(it).map(args => Recur(name, args, null))
+        val n = name(it)
+        ir_value_children(env)(it).map(args => Recur(n, args, null))
       case "Ref" =>
-        val id = identifier(it)
+        val id = name(it)
         done(Ref(id, null))
       case "RelationalRef" =>
-        val id = identifier(it)
+        val id = name(it)
         val t = type_expr(it)
         done(RelationalRef(id, t))
       case "RelationalLet" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           value <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield RelationalLet(name, value, body)
+        } yield RelationalLet(n, value, body)
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         for {
@@ -961,15 +977,15 @@ object IRParser {
         } yield StreamGrouped(s, groupSize)
       case "ArrayZeros" => ir_value_expr(env)(it).map(ArrayZeros)
       case "ArraySort" =>
-        val l = identifier(it)
-        val r = identifier(it)
+        val l = name(it)
+        val r = name(it)
         for {
           a <- ir_value_expr(env)(it)
           lessThan <- ir_value_expr(env)(it)
         } yield ArraySort(a, l, r, lessThan)
       case "ArrayMaximalIndependentSet" =>
         val hasTieBreaker = boolean_literal(it)
-        val bindings = if (hasTieBreaker) Some(identifier(it) -> identifier(it)) else None
+        val bindings = if (hasTieBreaker) Some(name(it) -> name(it)) else None
         for {
           edges <- ir_value_expr(env)(it)
           tieBreaker <- if (hasTieBreaker) {
@@ -997,15 +1013,15 @@ object IRParser {
         val axis = int32_literal(it)
         ir_value_expr(env)(it).map(nds => NDArrayConcat(nds, axis))
       case "NDArrayMap" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           nd <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield NDArrayMap(nd, name, body)
+        } yield NDArrayMap(nd, n, body)
       case "NDArrayMap2" =>
         val errorID = int32_literal(it)
-        val lName = identifier(it)
-        val rName = identifier(it)
+        val lName = name(it)
+        val rName = name(it)
         for {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
@@ -1075,11 +1091,11 @@ object IRParser {
         } yield LowerBoundOnOrderedCollection(col, elem, onKey)
       case "GroupByKey" => ir_value_expr(env)(it).map(GroupByKey)
       case "StreamMap" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamMap(a, name, body)
+        } yield StreamMap(a, n, body)
       case "StreamTake" =>
         for {
           a <- ir_value_expr(env)(it)
@@ -1098,16 +1114,16 @@ object IRParser {
           case "ExtendNA" => ArrayZipBehavior.ExtendNA
           case "AssumeSameLength" => ArrayZipBehavior.AssumeSameLength
         }
-        val names = identifiers(it)
+        val ns = names(it)
         for {
-          as <- names.mapRecur(_ => ir_value_expr(env)(it))
+          as <- ns.mapRecur(_ => ir_value_expr(env)(it))
           body <- ir_value_expr(env)(it)
-        } yield StreamZip(as, names, body, behavior, errorID)
+        } yield StreamZip(as, ns, body, behavior, errorID)
       case "StreamZipJoinProducers" =>
         val key = identifiers(it)
-        val ctxName = identifier(it)
-        val curKey = identifier(it)
-        val curVals = identifier(it)
+        val ctxName = name(it)
+        val curKey = name(it)
+        val curVals = name(it)
         for {
           ctxs <- ir_value_expr(env)(it)
           makeProducer <- ir_value_expr(env)(it)
@@ -1117,8 +1133,8 @@ object IRParser {
       case "StreamZipJoin" =>
         val nStreams = int32_literal(it)
         val key = identifiers(it)
-        val curKey = identifier(it)
-        val curVals = identifier(it)
+        val curKey = name(it)
+        val curVals = name(it)
         for {
           streams <- (0 until nStreams).mapRecur(_ => ir_value_expr(env)(it))
           body <-
@@ -1130,40 +1146,40 @@ object IRParser {
           streams <- ir_value_exprs(env)(it)
         } yield StreamMultiMerge(streams, key)
       case "StreamFilter" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamFilter(a, name, body)
+        } yield StreamFilter(a, n, body)
       case "StreamTakeWhile" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamTakeWhile(a, name, body)
+        } yield StreamTakeWhile(a, n, body)
       case "StreamDropWhile" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamDropWhile(a, name, body)
+        } yield StreamDropWhile(a, n, body)
       case "StreamFlatMap" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamFlatMap(a, name, body)
+        } yield StreamFlatMap(a, n, body)
       case "StreamFold" =>
-        val accumName = identifier(it)
-        val valueName = identifier(it)
+        val accumName = name(it)
+        val valueName = name(it)
         for {
           a <- ir_value_expr(env)(it)
           zero <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
         } yield StreamFold(a, zero, accumName, valueName, body)
       case "StreamFold2" =>
-        val accumNames = identifiers(it)
-        val valueName = identifier(it)
+        val accumNames = names(it)
+        val valueName = name(it)
         for {
           a <- ir_value_expr(env)(it)
           accIRs <- fillArray(accumNames.length)(ir_value_expr(env)(it))
@@ -1172,8 +1188,8 @@ object IRParser {
           res <- ir_value_expr(env)(it)
         } yield StreamFold2(a, accs, valueName, seqs, res)
       case "StreamScan" =>
-        val accumName = identifier(it)
-        val valueName = identifier(it)
+        val accumName = name(it)
+        val valueName = name(it)
         for {
           a <- ir_value_expr(env)(it)
           zero <- ir_value_expr(env)(it)
@@ -1194,8 +1210,8 @@ object IRParser {
       case "StreamJoinRightDistinct" =>
         val lKey = identifiers(it)
         val rKey = identifiers(it)
-        val l = identifier(it)
-        val r = identifier(it)
+        val l = name(it)
+        val r = name(it)
         val joinType = identifier(it)
         for {
           left <- ir_value_expr(env)(it)
@@ -1205,8 +1221,8 @@ object IRParser {
       case "StreamLeftIntervalJoin" =>
         val lKeyFieldName = identifier(it)
         val rIntervalName = identifier(it)
-        val lname = identifier(it)
-        val rname = identifier(it)
+        val lname = name(it)
+        val rname = name(it)
         for {
           left <- ir_value_expr(env)(it)
           right <- ir_value_expr(env)(it)
@@ -1215,23 +1231,23 @@ object IRParser {
           body)
 
       case "StreamFor" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           body <- ir_value_expr(env)(it)
-        } yield StreamFor(a, name, body)
+        } yield StreamFor(a, n, body)
       case "StreamAgg" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           query <- ir_value_expr(env)(it)
-        } yield StreamAgg(a, name, query)
+        } yield StreamAgg(a, n, query)
       case "StreamAggScan" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           a <- ir_value_expr(env)(it)
           query <- ir_value_expr(env)(it)
-        } yield StreamAggScan(a, name, query)
+        } yield StreamAggScan(a, n, query)
       case "RunAgg" =>
         val signatures = agg_state_signatures(env)(it)
         for {
@@ -1239,14 +1255,14 @@ object IRParser {
           result <- ir_value_expr(env)(it)
         } yield RunAgg(body, result, signatures)
       case "RunAggScan" =>
-        val name = identifier(it)
+        val n = name(it)
         val signatures = agg_state_signatures(env)(it)
         for {
           array <- ir_value_expr(env)(it)
           init <- ir_value_expr(env)(it)
           seq <- ir_value_expr(env)(it)
           result <- ir_value_expr(env)(it)
-        } yield RunAggScan(array, name, init, seq, result, signatures)
+        } yield RunAggScan(array, n, init, seq, result, signatures)
       case "AggFilter" =>
         val isScan = boolean_literal(it)
         for {
@@ -1254,12 +1270,12 @@ object IRParser {
           aggIR <- ir_value_expr(env)(it)
         } yield AggFilter(cond, aggIR, isScan)
       case "AggExplode" =>
-        val name = identifier(it)
+        val n = name(it)
         val isScan = boolean_literal(it)
         for {
           a <- ir_value_expr(env)(it)
           aggBody <- ir_value_expr(env)(it)
-        } yield AggExplode(a, name, aggBody, isScan)
+        } yield AggExplode(a, n, aggBody, isScan)
       case "AggGroupBy" =>
         val isScan = boolean_literal(it)
         for {
@@ -1267,8 +1283,8 @@ object IRParser {
           aggIR <- ir_value_expr(env)(it)
         } yield AggGroupBy(key, aggIR, isScan)
       case "AggArrayPerElement" =>
-        val elementName = identifier(it)
-        val indexName = identifier(it)
+        val elementName = name(it)
+        val indexName = name(it)
         val isScan = boolean_literal(it)
         val hasKnownLength = boolean_literal(it)
         for {
@@ -1291,8 +1307,8 @@ object IRParser {
           aggSig = AggSignature(aggOp, null, null)
         } yield ApplyScanOp(initOpArgs, seqOpArgs, aggSig)
       case "AggFold" =>
-        val accumName = identifier(it)
-        val otherAccumName = identifier(it)
+        val accumName = name(it)
+        val otherAccumName = name(it)
         val isScan = boolean_literal(it)
         for {
           zero <- ir_value_expr(env)(it)
@@ -1457,8 +1473,8 @@ object IRParser {
         }
       case "CollectDistributedArray" =>
         val staticID = identifier(it)
-        val cname = identifier(it)
-        val gname = identifier(it)
+        val cname = name(it)
+        val gname = name(it)
         for {
           ctxs <- ir_value_expr(env)(it)
           globals <- ir_value_expr(env)(it)
@@ -1681,8 +1697,8 @@ object IRParser {
         }
 
       case "TableGen" =>
-        val cname = identifier(it)
-        val gname = identifier(it)
+        val cname = name(it)
+        val gname = name(it)
         val partitioner =
           between(punctuation(_, "("), punctuation(_, ")"), partitioner_literal(env))(it)
         val errorId = int32_literal(it)
@@ -1708,8 +1724,8 @@ object IRParser {
           )
         }
       case "TableMapPartitions" =>
-        val globalsName = identifier(it)
-        val partitionStreamName = identifier(it)
+        val globalsName = name(it)
+        val partitionStreamName = name(it)
         val requestedKey = int32_literal(it)
         val allowedOverlap = int32_literal(it)
         for {
@@ -1718,11 +1734,11 @@ object IRParser {
         } yield TableMapPartitions(child, globalsName, partitionStreamName, body, requestedKey,
           allowedOverlap)
       case "RelationalLetTable" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           value <- ir_value_expr(env)(it)
           body <- table_ir(env)(it)
-        } yield RelationalLetTable(name, value, body)
+        } yield RelationalLetTable(n, value, body)
       case "JavaTable" =>
         val id = int32_literal(it)
         done(env.irMap(id).asInstanceOf[TableIR])
@@ -1915,11 +1931,11 @@ object IRParser {
           )
         }
       case "RelationalLetMatrixTable" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           value <- ir_value_expr(env)(it)
           body <- matrix_ir(env)(it)
-        } yield RelationalLetMatrixTable(name, value, body)
+        } yield RelationalLetMatrixTable(n, value, body)
     }
   }
 
@@ -1994,15 +2010,15 @@ object IRParser {
         val reader = BlockMatrixReader.fromJValue(env.ctx, JsonMethods.parse(readerStr))
         done(BlockMatrixRead(reader))
       case "BlockMatrixMap" =>
-        val name = identifier(it)
+        val n = name(it)
         val needs_dense = boolean_literal(it)
         for {
           child <- blockmatrix_ir(env)(it)
           f <- ir_value_expr(env)(it)
-        } yield BlockMatrixMap(child, name, f, needs_dense)
+        } yield BlockMatrixMap(child, n, f, needs_dense)
       case "BlockMatrixMap2" =>
-        val lName = identifier(it)
-        val rName = identifier(it)
+        val lName = name(it)
+        val rName = name(it)
         val sparsityStrategy = SparsityStrategy.fromString(identifier(it))
         for {
           left <- blockmatrix_ir(env)(it)
@@ -2050,11 +2066,11 @@ object IRParser {
         val blockSize = int32_literal(it)
         done(BlockMatrixRandom(staticUID, gaussian, shape, blockSize))
       case "RelationalLetBlockMatrix" =>
-        val name = identifier(it)
+        val n = name(it)
         for {
           value <- ir_value_expr(env)(it)
           body <- blockmatrix_ir(env)(it)
-        } yield RelationalLetBlockMatrix(name, value, body)
+        } yield RelationalLetBlockMatrix(n, value, body)
     }
   }
 

@@ -1,4 +1,5 @@
-from typing import TypedDict, Literal, Optional, List, Any, Dict
+from typing import Any, Dict, List, Literal, Optional, TypedDict
+
 from typing_extensions import NotRequired
 
 
@@ -23,6 +24,8 @@ class GetJobResponseV1Alpha(TypedDict):
     status: Optional[Dict[str, Any]]
     spec: Optional[Dict[str, Any]]
     attributes: NotRequired[Dict[str, str]]
+    always_run: bool
+    display_state: Optional[str]
 
 
 class JobListEntryV1Alpha(TypedDict):
@@ -38,6 +41,8 @@ class JobListEntryV1Alpha(TypedDict):
     cost: Optional[float]
     msec_mcpu: int
     cost_breakdown: List[CostBreakdownEntry]
+    always_run: bool
+    display_state: Optional[str]
 
 
 class GetJobsResponseV1Alpha(TypedDict):

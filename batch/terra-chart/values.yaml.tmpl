@@ -1,0 +1,22 @@
+persistence:
+  storageAccount: RUNTIME_PARAMETER
+  blobContainer: RUNTIME_PARAMETER
+  workspaceManager:
+    url: RUNTIME_PARAMETER
+    workspaceId: RUNTIME_PARAMETER
+    containerResourceId: RUNTIME_PARAMETER
+    storageContainerUrl: RUNTIME_PARAMETER
+
+workloadIdentity:
+  serviceAccountName: RUNTIME_PARAMETER
+
+relay:
+  domain: RUNTIME_PARAMETER
+  subpath: RUNTIME_PARAMETER
+
+batch:
+  image: {{ batch_image.image }}
+  workerImage: {{ batch_worker_image.image }}
+
+hailSHA: {{ code.sha }}
+envoyImage: envoyproxy/envoy:v1.22.3

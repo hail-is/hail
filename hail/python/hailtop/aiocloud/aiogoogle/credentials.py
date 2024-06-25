@@ -1,14 +1,16 @@
-from typing import Dict, Optional, Union, List, Literal, ClassVar, overload, Tuple
-import os
 import json
-import time
 import logging
+import os
 import socket
+import time
+from typing import ClassVar, Dict, List, Literal, Optional, Tuple, Union, overload
 from urllib.parse import urlencode
+
 import jwt
 
-from hailtop.utils import first_extant_file, retry_transient_errors
 from hailtop import httpx
+from hailtop.utils import first_extant_file, retry_transient_errors
+
 from ..common.credentials import AnonymousCloudCredentials, CloudCredentials
 
 log = logging.getLogger(__name__)

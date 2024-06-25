@@ -1,10 +1,11 @@
-from typing import Dict, Any, Optional
 import abc
+from typing import Any, ClassVar, Dict, Optional
+
 import numpy as np
 import plotly.graph_objects as go
 
 from .aes import aes
-from .stats import StatCount, StatIdentity, StatBin, StatNone, StatFunction, StatCDF
+from .stats import StatBin, StatCDF, StatCount, StatFunction, StatIdentity, StatNone
 from .utils import bar_position_plotly_to_gg, linetype_plotly_to_gg
 
 
@@ -49,7 +50,7 @@ class Geom(FigureAttribute):
 
 
 class GeomLineBasic(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "color": ("line_color", "black"),
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
@@ -80,7 +81,7 @@ class GeomLineBasic(Geom):
 
 
 class GeomPoint(Geom):
-    aes_to_plotly = {
+    aes_to_plotly: ClassVar = {
         "color": "marker_color",
         "size": "marker_size",
         "tooltip": "hovertext",
@@ -88,12 +89,12 @@ class GeomPoint(Geom):
         "shape": "marker_symbol",
     }
 
-    aes_defaults = {
+    aes_defaults: ClassVar = {
         "color": "black",
         "shape": "circle",
     }
 
-    aes_legend_groups = {
+    aes_legend_groups: ClassVar = {
         "color",
         "shape",
     }
@@ -173,7 +174,7 @@ class GeomPoint(Geom):
         non_empty_legend_groups = [
             legend_group
             for legend_group in legends.values()
-            if len(legend_group) > 1 or (len(legend_group) == 1 and list(legend_group.keys())[0] is not None)
+            if len(legend_group) > 1 or (len(legend_group) == 1 and next(iter(legend_group.keys())) is not None)
         ]
         dummy_legend = is_faceted or len(non_empty_legend_groups) >= 2
 
@@ -191,7 +192,7 @@ class GeomPoint(Geom):
             for trace in traces:
                 trace_categories = trace[-1]
                 if main_categories is not None:
-                    trace[-1] = [category for category in trace_categories if category in main_categories][0]
+                    trace[-1] = next(category for category in trace_categories if category in main_categories)
                 elif len(trace_categories) == 1:
                     trace[-1] = [trace_categories][0]
                 else:
@@ -244,7 +245,7 @@ def geom_line(mapping=aes(), *, color=None, size=None, alpha=None):
 
 
 class GeomText(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "color": ("textfont_color", "black"),
         "size": ("marker_size", None),
         "tooltip": ("hovertext", None),
@@ -290,7 +291,7 @@ def geom_text(mapping=aes(), *, color=None, size=None, alpha=None):
 
 
 class GeomBar(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
@@ -358,7 +359,7 @@ def geom_col(mapping=aes(), *, fill=None, color=None, alpha=None, position="stac
 
 
 class GeomHistogram(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
@@ -598,7 +599,7 @@ def _max_entropy_cdf(min_x, max_x, x, y, e):
 
 
 class GeomDensity(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("marker_color", "black"),
         "color": ("marker_line_color", None),
         "tooltip": ("hovertext", None),
@@ -876,7 +877,7 @@ def geom_func(mapping=aes(), fun=None, color=None):
 
 
 class GeomArea(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("fillcolor", "black"),
         "color": ("line_color", "rgba(0, 0, 0, 0)"),
         "tooltip": ("hovertext", None),
@@ -929,7 +930,7 @@ def geom_area(mapping=aes(), fill=None, color=None):
 
 
 class GeomRibbon(Geom):
-    aes_to_arg = {
+    aes_to_arg: ClassVar = {
         "fill": ("fillcolor", "black"),
         "color": ("line_color", "rgba(0, 0, 0, 0)"),
         "tooltip": ("hovertext", None),

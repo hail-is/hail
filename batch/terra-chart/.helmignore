@@ -1,0 +1,6 @@
+.helmignore
+.gitignore
+Makefile
+*-image
+Dockerfile.*
+*.tmpl

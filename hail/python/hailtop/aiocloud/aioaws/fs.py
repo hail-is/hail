@@ -1,9 +1,16 @@
+import asyncio
+import datetime
+import logging
+import os.path
+import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from types import TracebackType
 from typing import (
     Any,
+    AsyncContextManager,
     AsyncIterator,
     BinaryIO,
-    cast,
-    AsyncContextManager,
     Dict,
     List,
     Optional,
@@ -11,40 +18,33 @@ from typing import (
     Tuple,
     Type,
     Union,
+    cast,
 )
-from types import TracebackType
-import aiohttp
-import sys
-from concurrent.futures import ThreadPoolExecutor
-import os.path
-import threading
-import asyncio
-import logging
-import datetime
 
+import aiohttp
+import boto3
 import botocore.config
 import botocore.exceptions
-import boto3
-from hailtop.utils import blocking_to_async
+
 from hailtop.aiotools.fs import (
-    FileStatus,
-    FileListEntry,
-    ReadableStream,
-    WritableStream,
     AsyncFS,
     AsyncFSURL,
-    MultiPartCreate,
     FileAndDirectoryError,
+    FileListEntry,
+    FileStatus,
     IsABucketError,
+    MultiPartCreate,
+    ReadableStream,
+    WritableStream,
 )
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.fs.stream import (
     AsyncQueueWritableStream,
-    async_writable_blocking_readable_stream_pair,
     async_writable_blocking_collect_pair,
+    async_writable_blocking_readable_stream_pair,
     blocking_readable_stream_to_async,
 )
-
+from hailtop.utils import blocking_to_async
 
 log = logging.getLogger(__name__)
 

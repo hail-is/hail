@@ -1,39 +1,37 @@
-from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
+import asyncio
+import logging
+import os
+import re
+import secrets
+from datetime import datetime, timedelta
+from functools import wraps
 from types import TracebackType
+from typing import Any, AsyncContextManager, AsyncIterator, Dict, List, Optional, Set, Tuple, Type, Union
 
 import aiohttp
-import re
-import os
-import asyncio
-from functools import wraps
-import secrets
-import logging
-from datetime import datetime, timedelta
-
+import azure.core.exceptions
 from azure.mgmt.storage.aio import StorageManagementClient
 from azure.storage.blob import BlobProperties, ResourceTypes, generate_account_sas
-from azure.storage.blob.aio import BlobClient, ContainerClient, BlobServiceClient, StorageStreamDownloader
+from azure.storage.blob.aio import BlobClient, BlobServiceClient, ContainerClient, StorageStreamDownloader
 from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
-import azure.core.exceptions
 
-from hailtop.utils import retry_transient_errors, flatten
 from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (
     AsyncFS,
-    AsyncFSURL,
     AsyncFSFactory,
-    ReadableStream,
-    WritableStream,
-    MultiPartCreate,
+    AsyncFSURL,
+    FileAndDirectoryError,
     FileListEntry,
     FileStatus,
-    FileAndDirectoryError,
-    UnexpectedEOFError,
     IsABucketError,
+    MultiPartCreate,
+    ReadableStream,
+    UnexpectedEOFError,
+    WritableStream,
 )
+from hailtop.utils import flatten, retry_transient_errors
 
 from .credentials import AzureCredentials
-
 
 logger = logging.getLogger("azure.core.pipeline.policies.http_logging_policy")
 logger.setLevel(logging.WARNING)
@@ -174,8 +172,8 @@ class AzureReadableStream(ReadableStream):
         self._downloader: Optional[StorageStreamDownloader] = None
         self._chunk_it: Optional[AsyncIterator[bytes]] = None
 
-    def _get_client(self) -> BlobClient:
-        return self._fs.get_blob_client(self._url)
+    async def _get_client(self) -> BlobClient:
+        return await self._fs.get_blob_client(self._url)
 
     async def read(self, n: int = -1) -> bytes:
         if self._eof:
@@ -183,7 +181,8 @@ class AzureReadableStream(ReadableStream):
 
         if n == -1:
             try:
-                downloader = await self._get_client().download_blob(offset=self._offset, length=self._length)  # type: ignore
+                client = await self._get_client()
+                downloader = await client.download_blob(offset=self._offset, length=self._length)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url.base) from e
             data = await downloader.readall()
@@ -192,7 +191,8 @@ class AzureReadableStream(ReadableStream):
 
         if self._downloader is None:
             try:
-                self._downloader = await self._get_client().download_blob(offset=self._offset)  # type: ignore
+                client = await self._get_client()
+                self._downloader = await client.download_blob(offset=self._offset)  # type: ignore
             except azure.core.exceptions.ResourceNotFoundError as e:
                 raise FileNotFoundError(self._url.base) from e
             except azure.core.exceptions.HttpResponseError as e:
@@ -492,7 +492,7 @@ class AzureAsyncFS(AsyncFS):
         return AzureAsyncFSURL(account, container, name, token)
 
     @staticmethod
-    def get_name_parts(name: str) -> Tuple[str, str]:
+    def get_name_parts(name: str) -> Tuple[str, Optional[str]]:
         # Look for a terminating SAS token.
         query_index = name.rfind('?')
         if query_index != -1:
@@ -501,27 +501,27 @@ class AzureAsyncFS(AsyncFS):
             # We will accept it as a token string if it begins with at least 1 key-value pair of the form 'k=v'.
             if len(first_kv_pair) == 2 and all(s != '' for s in first_kv_pair):
                 return (name[:query_index], query_string)
-        return (name, '')
+        return (name, None)
 
-    def get_blob_service_client(self, account: str, container: str, token: Optional[str]) -> BlobServiceClient:
-        credential = token if token else self._credential
-        k = account, container, token
+    async def get_blob_service_client(self, url: AzureAsyncFSURL) -> BlobServiceClient:
+        credential = url.query if url.query else self._credential
+        k = url.account, url.container, url.query
         if k not in self._blob_service_clients:
             #  https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/storage/azure-storage-blob#other-client--per-operation-configuration
             self._blob_service_clients[k] = BlobServiceClient(
-                f'https://{account}.blob.core.windows.net',
+                f'https://{url.account}.blob.core.windows.net',
                 credential=credential,  # type: ignore
                 connection_timeout=self.connection_timeout,
                 read_timeout=self.read_timeout,
             )
         return self._blob_service_clients[k]
 
-    def get_blob_client(self, url: AzureAsyncFSURL) -> BlobClient:
-        blob_service_client = self.get_blob_service_client(url.account, url.container, url.query)
+    async def get_blob_client(self, url: AzureAsyncFSURL) -> BlobClient:
+        blob_service_client = await self.get_blob_service_client(url)
         return blob_service_client.get_blob_client(url.container, url.path)
 
-    def get_container_client(self, url: AzureAsyncFSURL) -> ContainerClient:
-        return self.get_blob_service_client(url.account, url.container, url.query).get_container_client(url.container)
+    async def get_container_client(self, url: AzureAsyncFSURL) -> ContainerClient:
+        return (await self.get_blob_service_client(url)).get_container_client(url.container)
 
     @handle_public_access_error
     async def open(self, url: str) -> ReadableStream:
@@ -540,10 +540,10 @@ class AzureAsyncFS(AsyncFS):
 
     async def create(self, url: str, *, retry_writes: bool = True) -> AsyncContextManager[WritableStream]:  # pylint: disable=unused-argument
         parsed_url = self.parse_url(url, error_if_bucket=True)
-        return AzureCreateManager(self.get_blob_client(parsed_url))
+        return AzureCreateManager(await self.get_blob_client(parsed_url))
 
     async def multi_part_create(self, sema: asyncio.Semaphore, url: str, num_parts: int) -> MultiPartCreate:
-        client = self.get_blob_client(self.parse_url(url))
+        client = await self.get_blob_client(self.parse_url(url))
         return AzureMultiPartCreate(sema, client, num_parts)
 
     @handle_public_access_error
@@ -554,7 +554,7 @@ class AzureAsyncFS(AsyncFS):
         if not fs_url.path:
             return False
 
-        return await self.get_blob_client(fs_url).exists()
+        return await (await self.get_blob_client(fs_url)).exists()
 
     @handle_public_access_error
     async def isdir(self, url: str) -> bool:
@@ -577,7 +577,7 @@ class AzureAsyncFS(AsyncFS):
     async def statfile(self, url: str) -> FileStatus:
         parsed_url = self.parse_url(url, error_if_bucket=True)
         try:
-            blob_props = await self.get_blob_client(parsed_url).get_blob_properties()
+            blob_props = await (await self.get_blob_client(parsed_url)).get_blob_properties()
             return AzureFileStatus(blob_props, parsed_url)
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
@@ -611,7 +611,7 @@ class AzureAsyncFS(AsyncFS):
         if name and not name.endswith('/'):
             name = f'{name}/'
 
-        client = self.get_container_client(fs_url)
+        client = await self.get_container_client(fs_url)
         if recursive:
             it = AzureAsyncFS._listfiles_recursive(client, fs_url, name)
         else:
@@ -655,7 +655,7 @@ class AzureAsyncFS(AsyncFS):
     async def remove(self, url: str) -> None:
         try:
             parsed_url = self.parse_url(url, error_if_bucket=True)
-            await self.get_blob_client(parsed_url).delete_blob()
+            await (await self.get_blob_client(parsed_url)).delete_blob()
         except azure.core.exceptions.ResourceNotFoundError as e:
             raise FileNotFoundError(url) from e
 

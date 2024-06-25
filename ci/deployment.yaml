@@ -70,11 +70,6 @@ spec:
                secretKeyRef:
                  name: ci-config
                  key: storage_uri
-           - name: HAIL_PRODUCTION_DOMAIN
-             valueFrom:
-               secretKeyRef:
-                 name: global-config
-                 key: domain
            - name: CLOUD
              valueFrom:
                secretKeyRef:

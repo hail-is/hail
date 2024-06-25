@@ -1,10 +1,10 @@
-from typing import Union
 import abc
+import builtins
 import json
 import math
-from collections.abc import Mapping, Sequence
 import pprint
-import builtins
+from collections.abc import Mapping, Sequence
+from typing import ClassVar, Union
 
 import numpy as np
 import pandas as pd
@@ -13,16 +13,15 @@ import hail as hl
 from hailtop.frozendict import frozendict
 from hailtop.hail_frozenlist import frozenlist
 
+from .. import genetics
+from ..genetics.reference_genome import reference_genome_type
+from ..typecheck import nullable, oneof, transformed, typecheck, typecheck_method
+from ..utils.byte_reader import ByteReader, ByteWriter
+from ..utils.java import escape_parsable
+from ..utils.misc import lookup_bit
+from ..utils.struct import Struct
 from .nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_node_visitor
-from .. import genetics
-from ..typecheck import typecheck, typecheck_method, oneof, transformed, nullable
-from ..utils.struct import Struct
-from ..utils.byte_reader import ByteReader, ByteWriter
-from ..utils.misc import lookup_bit
-from ..utils.java import escape_parsable
-from ..genetics.reference_genome import reference_genome_type
-
 
 __all__ = [
     'dtype',
@@ -185,14 +184,14 @@ class HailType(object):
 
     @abc.abstractmethod
     def _eq(self, other):
-        return
+        raise NotImplementedError
 
     def __eq__(self, other):
         return isinstance(other, HailType) and self._eq(other)
 
     @abc.abstractmethod
     def __str__(self):
-        return
+        raise NotImplementedError
 
     def __hash__(self):
         # FIXME this is a bit weird
@@ -220,7 +219,7 @@ class HailType(object):
 
     @abc.abstractmethod
     def _parsable_string(self) -> str:
-        pass
+        raise NotImplementedError
 
     def typecheck(self, value):
         """Check that `value` matches a type.
@@ -243,7 +242,7 @@ class HailType(object):
 
     @abc.abstractmethod
     def _typecheck_one_level(self, annotation):
-        pass
+        raise NotImplementedError
 
     def _to_json(self, x):
         converted = self._convert_to_json_na(x)
@@ -1017,7 +1016,7 @@ class tstream(HailType):
 
 
 def is_setlike(maybe_setlike):
-    return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
+    return isinstance(maybe_setlike, (set, frozenset))
 
 
 class tset(HailType):
@@ -1858,6 +1857,7 @@ class _tcall(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> genetics.Call:
         int_rep = byte_reader.read_int32()
+        int_rep = int_rep if int_rep >= 0 else int_rep + 2**32
 
         ploidy = (int_rep >> 1) & 0x3
         phased = (int_rep & 1) == 1
@@ -1872,10 +1872,10 @@ class _tcall(HailType):
             return (p >> 16) & 0xFFFF
 
         def gt_allele_pair(i):
+            assert i >= 0, "allele pair value should never be negative"
             if i < len(small_allele_pair):
                 return small_allele_pair[i]
-            else:
-                return allele_pair_sqrt(i)
+            return allele_pair_sqrt(i)
 
         def call_allele_pair(i):
             if phased:
@@ -1922,6 +1922,7 @@ class _tcall(HailType):
             int_rep |= value.alleles[0] << 3
         elif value.ploidy == 2:
             int_rep |= allele_pair_rep(value) << 3
+        int_rep = int_rep if 0 <= int_rep < 2**31 - 1 else int_rep - 2**32
 
         byte_writer.write_int32(int_rep)
 
@@ -2147,7 +2148,7 @@ class tinterval(HailType):
 
 
 class Box(object):
-    named_boxes = {}
+    named_boxes: ClassVar = {}
 
     @staticmethod
     def from_name(name):
@@ -2282,18 +2283,12 @@ def is_primitive(t) -> bool:
 
 @typecheck(t=HailType)
 def is_container(t) -> bool:
-    return isinstance(t, tarray) or isinstance(t, tset) or isinstance(t, tdict)
+    return isinstance(t, (tarray, tset, tdict))
 
 
 @typecheck(t=HailType)
 def is_compound(t) -> bool:
-    return (
-        is_container(t)
-        or isinstance(t, tstruct)
-        or isinstance(t, tunion)
-        or isinstance(t, ttuple)
-        or isinstance(t, tndarray)
-    )
+    return is_container(t) or isinstance(t, (tstruct, tunion, ttuple, tndarray))
 
 
 def types_match(left, right) -> bool:
@@ -2353,7 +2348,7 @@ def dtypes_from_pandas(pd_dtype):
 
 
 class tvariable(HailType):
-    _cond_map = {
+    _cond_map: ClassVar = {
         'numeric': is_numeric,
         'int32': lambda x: x == tint32,
         'int64': lambda x: x == tint64,

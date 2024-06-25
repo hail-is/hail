@@ -1,7 +1,9 @@
 import abc
 import json
+
 from hail.expr.types import hail_type
-from ..typecheck import typecheck_method, nullable, dictof, sequenceof
+
+from ..typecheck import dictof, nullable, sequenceof, typecheck_method
 from ..utils.misc import escape_str
 from .export_type import ExportType
 

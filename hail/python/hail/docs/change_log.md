@@ -52,6 +52,96 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.131
+
+Released 2024-05-30
+
+### New Features
+
+- (hail#14560) The gvcf import stage of the VDS combiner now preserves the GT
+  of reference blocks. Some datasets have haploid calls on sex chromosomes,
+  and the fact that the reference was haploid should be preserved.
+
+### Bug Fixes
+
+- (hail#14563) The version of `notebook` installed in Hail Dataproc clusters has
+  been upgraded from 6.5.4 to 6.5.6 in order to fix a bug where Jupyter
+  Notebooks wouldn't start on clusters. The workaround involving creating
+  a cluster with `--packages='ipython<8.22'` is no longer necessary.
+
+### Deprecations
+
+- (hail#14158) Hail now supports and primarily tests against Dataproc 2.2.5,
+  Spark 3.5.0, and Java 11. We strongly recommend updating to Spark 3.5.0 and
+  Java 11. You should also update your GCS connector *after installing Hail*:
+  `curl https://broad.io/install-gcs-connector | python3`. Do not try to update
+  before installing Hail 0.2.131.
+
+## Version 0.2.130
+
+Released 2024-10-02
+
+0.2.129 contained test configuration artifacts that prevented users from
+starting dataproc clusters with `hailctl`. Please upgrade to 0.2.130 if you use
+dataproc.
+
+### New Features
+
+- (hail##14447) Added `copy_spark_log_on_error` initialization flag that when set,
+  copies the hail driver log to the remote `tmpdir` if query execution raises an
+  exception.
+
+### Bug Fixes
+
+- (hail#14452) Fixes a bug that prevents users from starting dataproc clusters with
+  hailctl
+
+## Version 0.2.129
+
+Released 2024-04-02
+
+### Documentation
+
+- (hail#14321) Removed `GOOGLE_APPLICATION_CREDENTIALS` from batch docs.
+  Metadata server introduction means users no longer need to explicitly activate
+  service accounts with the `gcloud` command line tool.
+- (hail#14339) Added citations since 2021
+
+### New Features
+
+- (hail#14406) Performance improvements for reading structured data from (Matrix)Tables
+- (hail#14255) Added Cochran-Hantel-Haenszel test for association (`cochran_mantel_haenszel_test`).
+  Our thanks to @Will-Tyler for generously contributing this feature.
+- (hail#14393) `hail` depends on `protobuf` no longer; users may choose their own version of `protobuf`.
+- (hail#14360) Exposed previously internal `_num_allele_type` as `numeric_allele_type`
+  and deprecated it. Add new `AlleleType` enumeration for users to be able to easily
+  use the values returned by `numeric_allele_type`.
+- (hail#14297) `vds.sample_gc` now uses independent aggregators.
+  Users may now import these functions and use them directly.
+- (hail#14405) `VariantDataset.validate` now checks that all ref blocks are no
+  longer than the ref_block_max_length field, if it exists.
+
+### Bug Fixes
+
+- (hail#14420) Fixes a serious, but likely rare, bug in the
+  Table/MatrixTable reader, which has been present since Sep 2020. It
+  manifests as many (around half or more) of the rows being dropped. This
+  could only happen when 1) reading a (matrix)table whose partitioning
+  metadata allows rows with the same key to be split across neighboring
+  partitions, and 2) reading it with a different partitioning than it was
+  written. 1) would likely only happen by reading data keyed by locus and
+  alleles, and rekeying it to only locus before writing. 2) would likely
+  only happen by using the `_intervals` or `_n_partitions` arguments to
+  `read_(matrix)_table`, or possibly `repartition`. Please reach out to us
+  if you're concerned you may have been affected by this.
+- (hail#14330) Fixes erroneous error in `export_vcf` with unphased haploid Calls.
+- (hail#14303) Fix missingness error when sampling entries from a MatrixTable.
+- (hail#14288) Contigs may now be compared for inquality while filtering rows.
+
+### Deprecations
+
+- (hail#14386) `MatrixTable.make_table` is deprecated. Use `.localize_entries` instead.
+
 
 ## Version 0.2.128
 

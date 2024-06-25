@@ -36,15 +36,13 @@ Datacenter (VDC).
 
 ## Hail Query
 
-The `hail` module is implemented in $HAIL/hail/python/hail, this is
-the Hail Query Python interface.  The Hail Query interface is lazy:
-executing a pipeline builds an intermediate representation
-representing the query.  The IR is implemented in the `hail.ir`
-submodule.  When a query is ready to be executed, it is sent to a
-backend, implemented in `hail.backend`.  There are three backends:
-SparkBackend, LocalBackend and ServiceBackend.  At the time of
-writing, only SparkBackend is complete, the other two are works in
-progress.
+The `hail` module is implemented in $HAIL/hail/python/hail, this is the Hail Query Python interface.
+The Hail Query interface is lazy: executing a pipeline builds an intermediate representation
+representing the query.  The IR is implemented in the `hail.ir` submodule.  When a query is ready to
+be executed, it is sent to a backend, implemented in `hail.backend`.  There are three backends:
+SparkBackend, LocalBackend and ServiceBackend.  At the time of writing, the SparkBackend is complete
+and the ServiceBackend is mostly complete (it is missing a PCA implementation with clear error
+bounds and some block matrix operations do not scale). The LocalBackend has languished.
 
 The Spark backend works as follows.  The IR is serialized and sent to
 a JVM child process via [py4j](https://www.py4j.org/).  The entrypoint
@@ -100,12 +98,12 @@ Services (see below for descriptions):
 * $HAIL/ci
 * $HAIL/gateway
 * $HAIL/internal-gateway
-* $HAIL/site
+* $HAIL/website
 
 Libraries for services:
 
 * $HAIL/gear: gear services library
-* $HAIL/hail/python/hailtop/aiogoogle: asyncio Google client libraries
+* $HAIL/hail/python/hailtop/aiocloud: asyncio client libraries for AWS, GCP, and Azure
 * $HAIL/hail/python/hailtop/auth: user authorization library
 * $HAIL/hail/python/hailtop/config: user and deployment configuration library
 * $HAIL/hail/python/hailtop/tls.py: TLS utilities for services
@@ -198,7 +196,7 @@ Some services rely on 3rd party services.  Those include:
 
 * batch depends on K8s and GCP
 
-* site depends (client-side) on Algolia for search
+* website depends (client-side) on Algolia for search
 
 Services store state in a managed MySQL Google CloudSQL instance.
 
@@ -245,7 +243,7 @@ There is a collection of libraries to facilitate service development:
   connections from the Google Virtual Private Cloud (VPC) network and
   connections to the services in K8s.
 
-* site: site implements the main Hail website https://hail.is/
+* website: site implements the main Hail website https://hail.is/
   including the landing page and Hail Query and Hail Batch
   documentation.
 

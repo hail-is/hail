@@ -68,9 +68,9 @@ object ArrayFunctions extends RegistryFunctions {
   def mean(args: Seq[IR]): IR = {
     val Seq(a) = args
     val t = tcoerce[TArray](a.typ).elementType
-    val elt = genUID()
-    val n = genUID()
-    val sum = genUID()
+    val elt = freshName()
+    val n = freshName()
+    val sum = freshName()
     StreamFold2(
       ToStream(a),
       FastSeq((n, I32(0)), (sum, zero(t))),
@@ -83,7 +83,7 @@ object ArrayFunctions extends RegistryFunctions {
   def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32), ArrayLen(a), I32(0))
 
   def extend(a1: IR, a2: IR): IR = {
-    val uid = genUID()
+    val uid = freshName()
     val typ = a1.typ
     If(
       IsNA(a1),
@@ -100,15 +100,8 @@ object ArrayFunctions extends RegistryFunctions {
     )
   }
 
-  def exists(a: IR, cond: IR => IR): IR = {
-    val t = tcoerce[TArray](a.typ).elementType
-    StreamFold(
-      ToStream(a),
-      False(),
-      "acc",
-      "elt",
-      invoke("lor", TBoolean, Ref("acc", TBoolean), cond(Ref("elt", t))),
-    )
+  def exists(a: IR, cond: IR => IR): IR = foldIR(ToStream(a), False()) { (acc, elt) =>
+    invoke("lor", TBoolean, acc, cond(elt))
   }
 
   def contains(a: IR, value: IR): IR =
@@ -124,24 +117,14 @@ object ArrayFunctions extends RegistryFunctions {
 
   def sum(a: IR): IR = {
     val t = tcoerce[TArray](a.typ).elementType
-    val sum = genUID()
-    val v = genUID()
     val zero = Cast(I64(0), t)
-    StreamFold(ToStream(a), zero, sum, v, ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t)))
+    foldIR(ToStream(a), zero)((sum, v) => ApplyBinaryPrimOp(Add(), sum, v))
   }
 
   def product(a: IR): IR = {
     val t = tcoerce[TArray](a.typ).elementType
-    val product = genUID()
-    val v = genUID()
     val one = Cast(I64(1), t)
-    StreamFold(
-      ToStream(a),
-      one,
-      product,
-      v,
-      ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)),
-    )
+    foldIR(ToStream(a), one)((product, v) => ApplyBinaryPrimOp(Multiply(), product, v))
   }
 
   def registerAll(): Unit = {
@@ -159,27 +142,21 @@ object ArrayFunctions extends RegistryFunctions {
 
     for ((stringOp, argType, retType, irOp) <- arrayOps) {
       registerIR2(stringOp, TArray(argType), argType, TArray(retType)) { (_, a, c, errorID) =>
-        val i = genUID()
-        ToArray(StreamMap(ToStream(a), i, irOp(Ref(i, c.typ), c, errorID)))
+        mapArray(a)(i => irOp(i, c, errorID))
       }
 
       registerIR2(stringOp, argType, TArray(argType), TArray(retType)) { (_, c, a, errorID) =>
-        val i = genUID()
-        ToArray(StreamMap(ToStream(a), i, irOp(c, Ref(i, c.typ), errorID)))
+        mapArray(a)(i => irOp(c, i, errorID))
       }
 
       registerIR2(stringOp, TArray(argType), TArray(argType), TArray(retType)) {
         (_, array1, array2, errorID) =>
-          val a1id = genUID()
-          val e1 = Ref(a1id, tcoerce[TArray](array1.typ).elementType)
-          val a2id = genUID()
-          val e2 = Ref(a2id, tcoerce[TArray](array2.typ).elementType)
-          ToArray(StreamZip(
+          ToArray(zipIR(
             FastSeq(ToStream(array1), ToStream(array2)),
-            FastSeq(a1id, a2id),
-            irOp(e1, e2, errorID),
             ArrayZipBehavior.AssertSameLength,
-          ))
+          ) { case Seq(a1id, a2id) =>
+            irOp(a1id, a2id, errorID)
+          })
       }
     }
 
@@ -189,9 +166,9 @@ object ArrayFunctions extends RegistryFunctions {
 
     def makeMinMaxOp(op: String): Seq[IR] => IR = { case Seq(a) =>
       val t = tcoerce[TArray](a.typ).elementType
-      val value = genUID()
-      val first = genUID()
-      val acc = genUID()
+      val value = freshName()
+      val first = freshName()
+      val acc = freshName()
       StreamFold2(
         ToStream(a),
         FastSeq((acc, NA(t)), (first, True())),
@@ -221,21 +198,17 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR1("median", TArray(tnum("T")), tv("T")) { (_, array, errorID) =>
       val t = array.typ.asInstanceOf[TArray].elementType
-      val v = Ref(genUID(), t)
-      val a = Ref(genUID(), TArray(t))
-      val size = Ref(genUID(), TInt32)
-      val lastIdx = size - 1
-      val midIdx = lastIdx.floorDiv(2)
-      def ref(i: IR) = ArrayRef(a, i, errorID)
+
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(
-        FastSeq(a.name -> ArraySort(StreamFilter(ToStream(array), v.name, !IsNA(v)))),
+      bindIR(ArraySort(filterIR(ToStream(array))(!IsNA(_)))) { a =>
+        def ref(i: IR) = ArrayRef(a, i, errorID)
         If(
           IsNA(a),
           NA(t),
-          Let(
-            FastSeq(size.name -> ArrayLen(a)),
+          bindIR(ArrayLen(a)) { size =>
+            val lastIdx = size - 1
+            val midIdx = lastIdx.floorDiv(2)
             If(
               size.ceq(0),
               NA(t),
@@ -244,49 +217,37 @@ object ArrayFunctions extends RegistryFunctions {
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)),
               ),
-            ),
-          ),
-        ),
-      )
+            )
+          },
+        )
+      }
     }
 
     def argF(a: IR, op: (Type) => ComparisonOp[Boolean], errorID: Int): IR = {
       val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32)
-      val accum = genUID()
-      val value = genUID()
-      val m = genUID()
-      val idx = genUID()
 
       def updateAccum(min: IR, midx: IR): IR =
         MakeStruct(FastSeq("m" -> min, "midx" -> midx))
 
       GetField(
-        StreamFold(
-          StreamRange(I32(0), ArrayLen(a), I32(1)),
-          NA(tAccum),
-          accum,
-          idx,
-          Let(
-            FastSeq(
-              value -> ArrayRef(a, Ref(idx, TInt32), errorID),
-              m -> GetField(Ref(accum, tAccum), "m"),
-            ),
+        foldIR(StreamRange(I32(0), ArrayLen(a), I32(1)), NA(tAccum)) { (accum, idx) =>
+          bindIRs(ArrayRef(a, idx, errorID), GetField(accum, "m")) { case Seq(value, m) =>
             If(
-              IsNA(Ref(value, t)),
-              Ref(accum, tAccum),
+              IsNA(value),
+              accum,
               If(
-                IsNA(Ref(m, t)),
-                updateAccum(Ref(value, t), Ref(idx, TInt32)),
+                IsNA(m),
+                updateAccum(value, idx),
                 If(
-                  ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
-                  updateAccum(Ref(value, t), Ref(idx, TInt32)),
-                  Ref(accum, tAccum),
+                  ApplyComparisonOp(op(t), value, m),
+                  updateAccum(value, idx),
+                  accum,
                 ),
               ),
-            ),
-          ),
-        ),
+            )
+          }
+        },
         "midx",
       )
     }
@@ -298,58 +259,43 @@ object ArrayFunctions extends RegistryFunctions {
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean], errorID: Int): IR = {
       val t = tcoerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32, "count" -> TInt32)
-      val accum = genUID()
-      val value = genUID()
-      val m = genUID()
-      val idx = genUID()
-      val result = genUID()
 
       def updateAccum(m: IR, midx: IR, count: IR): IR =
         MakeStruct(FastSeq("m" -> m, "midx" -> midx, "count" -> count))
 
-      val fold =
-        StreamFold(
-          StreamRange(I32(0), ArrayLen(a), I32(1)),
-          NA(tAccum),
-          accum,
-          idx,
-          Let(
-            FastSeq(
-              value -> ArrayRef(a, Ref(idx, TInt32), errorID),
-              m -> GetField(Ref(accum, tAccum), "m"),
-            ),
+      val fold = foldIR(StreamRange(I32(0), ArrayLen(a), I32(1)), NA(tAccum)) { (accum, idx) =>
+        bindIRs(ArrayRef(a, idx, errorID), GetField(accum, "m")) { case Seq(value, m) =>
+          If(
+            IsNA(value),
+            accum,
             If(
-              IsNA(Ref(value, t)),
-              Ref(accum, tAccum),
+              IsNA(m),
+              updateAccum(value, idx, I32(1)),
               If(
-                IsNA(Ref(m, t)),
-                updateAccum(Ref(value, t), Ref(idx, TInt32), I32(1)),
+                ApplyComparisonOp(op(t), value, m),
+                updateAccum(value, idx, I32(1)),
                 If(
-                  ApplyComparisonOp(op(t), Ref(value, t), Ref(m, t)),
-                  updateAccum(Ref(value, t), Ref(idx, TInt32), I32(1)),
-                  If(
-                    ApplyComparisonOp(EQ(t), Ref(value, t), Ref(m, t)),
-                    updateAccum(
-                      Ref(value, t),
-                      Ref(idx, TInt32),
-                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1)),
-                    ),
-                    Ref(accum, tAccum),
+                  ApplyComparisonOp(EQ(t), value, m),
+                  updateAccum(
+                    value,
+                    idx,
+                    ApplyBinaryPrimOp(Add(), GetField(accum, "count"), I32(1)),
                   ),
+                  accum,
                 ),
               ),
             ),
-          ),
-        )
+          )
+        }
+      }
 
-      Let(
-        FastSeq(result -> fold),
+      bindIR(fold) { result =>
         If(
-          ApplyComparisonOp(EQ(TInt32), GetField(Ref(result, tAccum), "count"), I32(1)),
-          GetField(Ref(result, tAccum), "midx"),
+          ApplyComparisonOp(EQ(TInt32), GetField(result, "count"), I32(1)),
+          GetField(result, "midx"),
           NA(TInt32),
-        ),
-      )
+        )
+      }
     }
 
     registerIR1("uniqueMinIndex", TArray(tv("T")), TInt32)((_, a, errorID) =>
@@ -369,8 +315,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIR1("flatten", TArray(TArray(tv("T"))), TArray(tv("T"))) { (_, a, _) =>
-      val elt = Ref(genUID(), tcoerce[TArray](a.typ).elementType)
-      ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
+      ToArray(flatMapIR(ToStream(a))(ToStream(_)))
     }
 
     registerSCode4(
@@ -542,7 +487,7 @@ object ArrayFunctions extends RegistryFunctions {
             val laGIndexer = cb.newLocal[Int]("g_indexer", 0)
             cb.while_(
               i < laLen, {
-                val lai = localAlleles.loadElement(cb, i).get(
+                val lai = localAlleles.loadElement(cb, i).getOrFatal(
                   cb,
                   "local_to_global: local alleles elements cannot be missing",
                   err,
@@ -561,7 +506,7 @@ object ArrayFunctions extends RegistryFunctions {
                 val j = cb.newLocal[Int]("la_j", 0)
                 cb.while_(
                   j <= i, {
-                    val laj = localAlleles.loadElement(cb, j).get(
+                    val laj = localAlleles.loadElement(cb, j).getOrFatal(
                       cb,
                       "local_to_global: local alleles elements cannot be missing",
                       err,
@@ -677,7 +622,7 @@ object ArrayFunctions extends RegistryFunctions {
             val i = cb.newLocal[Int]("la_i", 0)
             cb.while_(
               i < localLen, {
-                val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).get(
+                val lai = localAlleles.loadElement(cb, i + idxAdjustmentForOmitFirst).getOrFatal(
                   cb,
                   "local_to_global: local alleles elements cannot be missing",
                   err,

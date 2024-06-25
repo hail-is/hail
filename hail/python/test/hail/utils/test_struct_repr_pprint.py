@@ -1,5 +1,6 @@
-import hail as hl
 from pprint import pformat
+
+import hail as hl
 
 
 def test_repr_empty_struct():
@@ -69,18 +70,6 @@ Struct(a0=0,
        a3=3,
        a4=4,
        a5=Struct(b0='', b1='na', b2='nana', b3='nanana'))
-""".strip()
-    assert pformat(x) == expected
-
-
-def test_pformat_big_struct_in_small_struct():
-    x = hl.Struct(a5=hl.Struct(b0='', b1='na', b2='nana', b3='nanana', b5='ndasdfhjwafdhjskfdshjkfhdjksfhdsjk'))
-    expected = """
-Struct(a5=Struct(b0='',
-                 b1='na',
-                 b2='nana',
-                 b3='nanana',
-                 b5='ndasdfhjwafdhjskfdshjkfhdjksfhdsjk'))
 """.strip()
     assert pformat(x) == expected
 

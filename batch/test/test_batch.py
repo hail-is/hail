@@ -1,3 +1,4 @@
+import asyncio
 import collections
 import os
 import secrets
@@ -27,6 +28,9 @@ from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, create_batch, le
 deploy_config = get_deploy_config()
 
 
+skip_if_terra = pytest.mark.skipif(os.environ.get('HAIL_TERRA', False), reason="doesn't work yet on terra")
+
+
 @pytest.fixture
 def client():
     client = BatchClient('test')
@@ -46,6 +50,19 @@ def test_job(client: BatchClient):
     assert j._get_exit_code(status, 'main') == 0, str((status, b.debug_info()))
     job_log = j.log()
     assert job_log['main'] == 'test\n', str((job_log, b.debug_info()))
+
+
+def test_job_resource_usage(client: BatchClient):
+    b = create_batch(client)
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    b.submit()
+
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
+    resource_usage = j.resource_usage()
+    if resource_usage is None:
+        assert resource_usage['main'] is not None, str((resource_usage, b.debug_info()))
 
 
 def test_job_running_logs(client: BatchClient):
@@ -148,6 +165,13 @@ def test_invalid_resource_requests(client: BatchClient):
         b.submit()
 
 
+def test_invalid_job_group_attributes(client: BatchClient):
+    b = create_batch(client)
+    b.create_job_group(attributes={'foo': 1})
+    with pytest.raises(httpx.ClientResponseError, match=".*foo.* is not <class 'str'>"):
+        b.submit()
+
+
 def test_out_of_memory(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -157,6 +181,7 @@ def test_out_of_memory(client: BatchClient):
     assert j._get_out_of_memory(status, 'main'), str((status, b.debug_info()))
 
 
+@skip_if_terra
 def test_out_of_storage(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -168,6 +193,7 @@ def test_out_of_storage(client: BatchClient):
     assert "fallocate failed: No space left on device" in job_log['main']
 
 
+@skip_if_terra
 def test_quota_applies_to_volume(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25'}
@@ -195,6 +221,7 @@ def test_relative_volume_path_is_actually_absolute(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+@skip_if_terra
 def test_quota_shared_by_io_and_rootfs(client: BatchClient):
     b = create_batch(client)
     resources = {'cpu': '0.25', 'storage': '10Gi'}
@@ -233,6 +260,7 @@ def test_nonzero_storage(client: BatchClient):
     assert status['state'] == 'Success', str((status, b.debug_info()))
 
 
+# Transitively is not valid for terra
 @skip_in_azure
 def test_attached_disk(client: BatchClient):
     b = create_batch(client)
@@ -939,6 +967,7 @@ def test_authorized_users_only():
         (session.post, '/api/v1alpha/billing_limits/foo/edit', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0', 401),
         (session.get, '/api/v1alpha/batches/0/jobs/0/log', 401),
+        (session.get, '/api/v1alpha/batches/0/jobs/0/resource_usage', 401),
         (session.get, '/api/v1alpha/batches', 401),
         (session.post, '/api/v1alpha/batches/create', 401),
         (session.post, '/api/v1alpha/batches/0/jobs/create', 401),
@@ -1481,19 +1510,25 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
     assert 'standard' in status['status']['worker'], str((status, b.debug_info()))
 
 
+# Transitively is not valid for terra
 @skip_in_azure
-@pytest.mark.timeout(10 * 60)
-def test_gpu_accesibility_g2(client: BatchClient):
-    b = create_batch(client)
+async def test_gpu_accesibility_g2(client: BatchClient):
+    b = create_batch(client)._async_batch
     resources = {'machine_type': "g2-standard-4", 'storage': '100Gi'}
     j = b.create_job(
         os.environ['HAIL_GPU_IMAGE'],
         ['python3', '-c', 'import torch; assert torch.cuda.is_available()'],
         resources=resources,
     )
-    b.submit()
-    status = j.wait()
-    assert status['state'] == 'Success', str((status, b.debug_info()))
+    await b.submit()
+    try:
+        status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
+        assert status['state'] == 'Success', str((status, b.debug_info()))
+    except asyncio.TimeoutError:
+        # G2 instances are not always available within a time window
+        # acceptable for CI. This test is permitted to time out
+        # but not otherwise fail
+        pass
 
 
 def test_job_private_instance_preemptible(client: BatchClient):

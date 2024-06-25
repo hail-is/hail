@@ -1,75 +1,31 @@
 {% extends "layout.html" %}
 {% block title %}Billing Limits{% endblock %}
 {% block content %}
-<h1>Billing Project Limits</h1>
-{% if open_billing_projects %}
-<div class='flex-col' style="overflow: auto;">
-  <h2>Open Projects</h2>
-  <table class="data-table" id="open-billing-limits">
-    <thead>
-    <tr>
-      <th>Billing Project</th>
-      <th>Accrued Cost</th>
-      <th>Limit</th>
-    </tr>
-    </thead>
-    <tbody>
+<h1 class="text-2xl font-light mb-4 ">Billing Projects Limits</h1>
+<table class='table-fixed overflow-hidden rounded'>
+  <thead>
+    <th class='h-16 bg-slate-200 font-normal pl-2 text-left rounded-tl'>Billing Project</th>
+    <th class='h-16 bg-slate-200 font-normal text-left'>Accrued Cost</th>
+    <th class='h-16 bg-slate-200 font-normal text-left'>Limit</th>
+  </thead>
+  <tbody>
     {% for row in open_billing_projects %}
-    <tr>
-      <td>{{ row['billing_project'] }}</td>
-      <td>{{ row['accrued_cost'] }}</td>
-      {% if is_developer %}
-      <td>
-        <form action="{{ base_path }}/billing_limits/{{ row['billing_project'] }}/edit" method="POST">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          <input type="text" required name="limit" value="{{ row['limit'] }}">
-          <button>
-            Edit
-          </button>
-        </form>
-      </td>
-      {% else %}
-      <td>{{ row['limit'] }}</td>
-      {% endif %}
+    <tr class='border border-collapse hover:bg-slate-100'>
+      <td class='p-2'>{{ row['billing_project'] }}</td>
+      <td class='p-2'>{{ row['accrued_cost'] }}</td>
+      <td class='p-2'>{{ row['limit'] }}</td>
     </tr>
     {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
-{% if closed_billing_projects %}
-<div class='flex-col' style="overflow: auto;">
-  <h2>Closed Projects</h2>
-  <table class="data-table" id="closed-billing-limits">
-    <thead>
-    <tr>
-      <th>Billing Project</th>
-      <th>Accrued Cost</th>
-      <th>Limit</th>
+    <tr class='border border-collapse bg-slate-200'>
+      <td colSpan=3 class='p-2 text-lg text-light'>Closed projects</td>
     </tr>
-    </thead>
-    <tbody>
     {% for row in closed_billing_projects %}
-    <tr>
-      <td>{{ row['billing_project'] }}</td>
-      <td>{{ row['accrued_cost'] }}</td>
-      {% if is_developer %}
-      <td>
-        <form action="{{ base_path }}/billing_limits/{{ row['billing_project'] }}/edit" method="POST">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          <input type="text" required name="limit" value="{{ row['limit'] }}">
-          <button>
-            Edit
-          </button>
-        </form>
-      </td>
-      {% else %}
-      <td>{{ row['limit'] }}</td>
-      {% endif %}
+    <tr class='border border-collapse bg-slate-50 font-light hover:bg-slate-100'>
+      <td class='p-2'>{{ row['billing_project'] }}</td>
+      <td class='p-2'>{{ row['accrued_cost'] }}</td>
+      <td class='p-2'>{{ row['limit'] }}</td>
     </tr>
     {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% endif %}
+  </tbody>
+</table>
 {% endblock %}

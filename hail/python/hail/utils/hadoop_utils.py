@@ -5,9 +5,8 @@ import sys
 from typing import Any, Dict, List
 
 from hail.fs.hadoop_fs import HadoopFS
-from hail.utils import local_path_uri
+from hail.typecheck import enumeration, typecheck
 from hail.utils.java import Env, info
-from hail.typecheck import typecheck, enumeration
 
 
 @typecheck(path=str, mode=enumeration('r', 'w', 'x', 'rb', 'wb', 'xb'), buffer_size=int)
@@ -284,12 +283,14 @@ def copy_log(path: str) -> None:
     ----------
     path: :class:`str`
     """
+    from hail.utils import local_path_uri
+
     log = os.path.realpath(Env.hc()._log)
     try:
         if hadoop_is_dir(path):
             _, tail = os.path.split(log)
             path = os.path.join(path, tail)
-        info(f"copying log to {repr(path)}...")
+        info(f"copying log to {path!r}...")
         hadoop_copy(local_path_uri(log), path)
     except Exception as e:
         sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')

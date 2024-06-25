@@ -117,13 +117,12 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
       x,
       {
         case x @ StreamAgg(a, name, query) =>
-          val res = genUID()
-          val aggs = Extract(query, res, r)
+          val aggs = Extract(query, r)
 
           val newNode = aggs.rewriteFromInitBindingRoot { root =>
             Let(
               FastSeq(
-                res -> RunAgg(
+                aggs.resultRef.name -> RunAgg(
                   Begin(FastSeq(
                     aggs.init,
                     StreamFor(a, name, aggs.seqPerElt),
@@ -140,15 +139,14 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
             throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
           Some(newNode.noSharing(ctx))
         case x @ StreamAggScan(a, name, query) =>
-          val res = genUID()
-          val aggs = Extract(query, res, r, isScan = true)
+          val aggs = Extract(query, r, isScan = true)
           val newNode = aggs.rewriteFromInitBindingRoot { root =>
             RunAggScan(
               a,
               name,
               aggs.init,
               aggs.seqPerElt,
-              Let(FastSeq(res -> aggs.results), root),
+              Let(FastSeq(aggs.resultRef.name -> aggs.results), root),
               aggs.states,
             )
           }

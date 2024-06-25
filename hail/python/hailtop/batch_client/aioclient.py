@@ -1,26 +1,26 @@
-from enum import Enum
-from typing import Optional, Dict, Any, List, Tuple, Union, AsyncIterator, TypedDict, cast
+import asyncio
+import functools
+import json
+import logging
 import math
 import random
-import logging
-import json
-import functools
-import asyncio
+import secrets
+from enum import Enum
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
+
 import aiohttp
 import orjson
-import secrets
 
-from hailtop import is_notebook
-from hailtop.config import get_deploy_config, DeployConfig
+from hailtop import httpx, is_notebook
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
+from hailtop.config import DeployConfig, get_deploy_config
 from hailtop.utils import async_to_blocking, bounded_gather, sleep_before_try
 from hailtop.utils.rich_progress_bar import BatchProgressBar, BatchProgressBarTask
-from hailtop import httpx
 
-from .globals import ROOT_JOB_GROUP_ID, tasks, complete_states
-from .types import GetJobGroupResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha, GetJobResponseV1Alpha
+from .globals import ROOT_JOB_GROUP_ID, complete_states, tasks
+from .types import GetJobGroupResponseV1Alpha, GetJobResponseV1Alpha, GetJobsResponseV1Alpha, JobListEntryV1Alpha
 
 log = logging.getLogger('batch_client.aioclient')
 
@@ -298,6 +298,25 @@ class Job:
     async def attempts(self):
         self._raise_if_not_submitted()
         resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/attempts')
+        return await resp.json()
+
+    async def resource_usage(self):
+        """
+        Get resource usage for a job, one key for each section of the task.
+        This doesn't return a dictionary of dataframes, but could be converted with:
+
+            dataframes = {
+                key: pd.DataFrame(data=values['data'], columns=values['columns'])
+                for key, values in job.resource_usage.items()
+            }
+
+        Returns:
+            dict[str, dict]: values are convertible to dataframe
+        """
+        self._raise_if_not_submitted()
+        resp = await self._client._get(f'/api/v1alpha/batches/{self.batch_id}/jobs/{self.job_id}/resource_usage')
+        # note, not a dataframe, but easy to get with:
+
         return await resp.json()
 
 
@@ -749,8 +768,9 @@ class Batch:
     def create_jvm_job(self, jar_spec: Dict[str, str], argv: List[str], *, profile: bool = False, **kwargs):
         if 'always_copy_output' in kwargs:
             raise ValueError("the 'always_copy_output' option is not allowed for JVM jobs")
+        job_group = kwargs.pop('job_group', self._root_job_group)
         return self._create_job(
-            self._root_job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
+            job_group, {'type': 'jvm', 'jar_spec': jar_spec, 'command': argv, 'profile': profile}, **kwargs
         )
 
     def create_job_group(

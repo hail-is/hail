@@ -43,7 +43,7 @@ sealed trait IR extends BaseIR {
   protected lazy val childrenSeq: IndexedSeq[BaseIR] =
     Children(this)
 
-  override protected def copy(newChildren: IndexedSeq[BaseIR]): IR =
+  override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
   override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]
@@ -116,7 +116,7 @@ object EncodedLiteral {
       case _: PBoolean => if (Region.loadBoolean(addr)) True() else False()
       case ts: PString => Str(ts.loadString(addr))
       case _ =>
-        val etype = EType.defaultFromPType(pt)
+        val etype = EType.defaultFromPType(ctx, pt)
         val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.wireSpec)
         val bytes = codec.encodeArrays(ctx, pt, addr)
         EncodedLiteral(codec, bytes)
@@ -189,33 +189,61 @@ final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
     2 + cases.length
 }
 
-final case class AggLet(name: String, value: IR, body: IR, isScan: Boolean) extends IR
+object AggLet {
+  def apply(name: Name, value: IR, body: IR, isScan: Boolean): IR = {
+    val scope = if (isScan) Scope.SCAN else Scope.AGG
+    Block(FastSeq(Binding(name, value, scope)), body)
+  }
+}
 
-final case class Let(bindings: IndexedSeq[(String, IR)], body: IR) extends IR {
+object Let {
+  def apply(bindings: IndexedSeq[(Name, IR)], body: IR): Block =
+    Block(
+      bindings.map { case (name, value) => Binding(name, value) },
+      body,
+    )
+
+  def void(bindings: IndexedSeq[(Name, IR)]): IR = {
+    if (bindings.isEmpty) {
+      Void()
+    } else {
+      assert(bindings.last._2.typ == TVoid)
+      Let(bindings.init, bindings.last._2)
+    }
+  }
+
+}
+
+case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
+
+final case class Block(bindings: IndexedSeq[Binding], body: IR) extends IR {
   override lazy val size: Int =
     bindings.length + 1
 }
 
-object Let {
-  case class Extract(p: ((String, IR)) => Boolean) {
-    def unapply(bindings: IndexedSeq[(String, IR)])
-      : Option[(IndexedSeq[(String, IR)], IndexedSeq[(String, IR)])] = {
-      val idx = bindings.indexWhere(p)
-      if (idx == -1) None else Some(bindings.splitAt(idx))
+object Block {
+  object Insert {
+    def unapply(bindings: IndexedSeq[Binding])
+      : Option[(IndexedSeq[Binding], Binding, IndexedSeq[Binding])] = {
+      val idx = bindings.indexWhere(_.value.isInstanceOf[InsertFields])
+      if (idx == -1) None else Some((bindings.take(idx), bindings(idx), bindings.drop(idx + 1)))
     }
   }
 
-  object Nested extends Extract(_._2.isInstanceOf[Let])
-  object Insert extends Extract(_._2.isInstanceOf[InsertFields])
-
+  object Nested {
+    def unapply(bindings: IndexedSeq[Binding]): Option[(Int, IndexedSeq[Binding])] = {
+      val idx = bindings.indexWhere(_.value.isInstanceOf[Block])
+      if (idx == -1) None else Some((idx, bindings))
+    }
+  }
 }
 
 sealed abstract class BaseRef extends IR with TrivialIR {
-  def name: String
+  def name: Name
   def _typ: Type
 }
 
-final case class Ref(name: String, var _typ: Type) extends BaseRef {
+final case class Ref(name: Name, var _typ: Type) extends BaseRef {
   override def typ: Type = {
     assert(_typ != null)
     _typ
@@ -225,18 +253,18 @@ final case class Ref(name: String, var _typ: Type) extends BaseRef {
 // Recur can't exist outside of loop
 // Loops can be nested, but we can't call outer loops in terms of inner loops so there can only be one loop "active" in a given context
 final case class TailLoop(
-  name: String,
-  params: IndexedSeq[(String, IR)],
+  name: Name,
+  params: IndexedSeq[(Name, IR)],
   resultType: Type,
   body: IR,
 ) extends IR {
-  lazy val paramIdx: Map[String, Int] = params.map(_._1).zipWithIndex.toMap
+  lazy val paramIdx: Map[Name, Int] = params.map(_._1).zipWithIndex.toMap
 }
 
-final case class Recur(name: String, args: IndexedSeq[IR], var _typ: Type) extends BaseRef
+final case class Recur(name: Name, args: IndexedSeq[IR], var _typ: Type) extends BaseRef
 
-final case class RelationalLet(name: String, value: IR, body: IR) extends IR
-final case class RelationalRef(name: String, _typ: Type) extends BaseRef
+final case class RelationalLet(name: Name, value: IR, body: IR) extends IR
+final case class RelationalRef(name: Name, _typ: Type) extends BaseRef
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
@@ -316,7 +344,7 @@ final case class ArraySlice(
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
 
-final case class ArrayMaximalIndependentSet(edges: IR, tieBreaker: Option[(String, String, IR)])
+final case class ArrayMaximalIndependentSet(edges: IR, tieBreaker: Option[(Name, Name, IR)])
     extends IR
 
 /** [[StreamIota]] is an infinite stream producer, whose element is an integer starting at `start`,
@@ -339,8 +367,8 @@ final case class StreamRange(
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
-    val l = genUID()
-    val r = genUID()
+    val l = freshName()
+    val r = freshName()
     val atyp = tcoerce[TStream](a.typ)
     val compare = if (onKey) {
       val elementType = atyp.elementType.asInstanceOf[TBaseStruct]
@@ -372,7 +400,7 @@ object ArraySort {
   }
 }
 
-final case class ArraySort(a: IR, left: String, right: String, lessThan: IR) extends IR
+final case class ArraySort(a: IR, left: Name, right: Name, lessThan: IR) extends IR
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
@@ -384,7 +412,7 @@ final case class StreamBufferedAggregate(
   initAggs: IR,
   newKey: IR,
   seqOps: IR,
-  name: String,
+  name: Name,
   aggSignatures: IndexedSeq[PhysicalAggSig],
   bufferSize: Int,
 ) extends IR
@@ -403,13 +431,13 @@ final case class StreamLen(a: IR) extends IR
 final case class StreamGrouped(a: IR, groupSize: IR) extends IR
 final case class StreamGroupByKey(a: IR, key: IndexedSeq[String], missingEqual: Boolean) extends IR
 
-final case class StreamMap(a: IR, name: String, body: IR) extends TypedIR[TStream] {
+final case class StreamMap(a: IR, name: Name, body: IR) extends TypedIR[TStream] {
   def elementTyp: Type = typ.elementType
 }
 
-final case class StreamTakeWhile(a: IR, elementName: String, body: IR) extends IR
+final case class StreamTakeWhile(a: IR, elementName: Name, body: IR) extends IR
 
-final case class StreamDropWhile(a: IR, elementName: String, body: IR) extends IR
+final case class StreamDropWhile(a: IR, elementName: Name, body: IR) extends IR
 
 final case class StreamTake(a: IR, num: IR) extends IR
 final case class StreamDrop(a: IR, num: IR) extends IR
@@ -459,7 +487,7 @@ object ArrayZipBehavior extends Enumeration {
 
 final case class StreamZip(
   as: IndexedSeq[IR],
-  names: IndexedSeq[String],
+  names: IndexedSeq[Name],
   body: IR,
   behavior: ArrayZipBehavior,
   errorID: Int = ErrorIDs.NO_ERROR,
@@ -470,11 +498,11 @@ final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String])
 
 final case class StreamZipJoinProducers(
   contexts: IR,
-  ctxName: String,
+  ctxName: Name,
   makeProducer: IR,
   key: IndexedSeq[String],
-  curKey: String,
-  curVals: String,
+  curKey: Name,
+  curVals: Name,
   joinF: IR,
 ) extends TypedIR[TStream]
 
@@ -484,16 +512,15 @@ final case class StreamZipJoinProducers(
 final case class StreamZipJoin(
   as: IndexedSeq[IR],
   key: IndexedSeq[String],
-  curKey: String,
-  curVals: String,
+  curKey: Name,
+  curVals: Name,
   joinF: IR,
 ) extends TypedIR[TStream]
 
-final case class StreamFilter(a: IR, name: String, cond: IR) extends TypedIR[TStream]
-final case class StreamFlatMap(a: IR, name: String, body: IR) extends TypedIR[TStream]
+final case class StreamFilter(a: IR, name: Name, cond: IR) extends TypedIR[TStream]
+final case class StreamFlatMap(a: IR, name: Name, body: IR) extends TypedIR[TStream]
 
-final case class StreamFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR)
-    extends IR
+final case class StreamFold(a: IR, zero: IR, accumName: Name, valueName: Name, body: IR) extends IR
 
 object StreamFold2 {
   def apply(a: StreamFold): StreamFold2 =
@@ -508,22 +535,21 @@ object StreamFold2 {
 
 final case class StreamFold2(
   a: IR,
-  accum: IndexedSeq[(String, IR)],
-  valueName: String,
+  accum: IndexedSeq[(Name, IR)],
+  valueName: Name,
   seq: IndexedSeq[IR],
   result: IR,
 ) extends IR {
   assert(accum.length == seq.length)
-  val nameIdx: Map[String, Int] = accum.map(_._1).zipWithIndex.toMap
+  val nameIdx: Map[Name, Int] = accum.map(_._1).zipWithIndex.toMap
 }
 
-final case class StreamScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR)
-    extends IR
+final case class StreamScan(a: IR, zero: IR, accumName: Name, valueName: Name, body: IR) extends IR
 
-final case class StreamFor(a: IR, valueName: String, body: IR) extends IR
+final case class StreamFor(a: IR, valueName: Name, body: IR) extends IR
 
-final case class StreamAgg(a: IR, name: String, query: IR) extends IR
-final case class StreamAggScan(a: IR, name: String, query: IR) extends IR
+final case class StreamAgg(a: IR, name: Name, query: IR) extends IR
+final case class StreamAggScan(a: IR, name: Name, query: IR) extends IR
 
 object StreamJoin {
   def apply(
@@ -531,8 +557,8 @@ object StreamJoin {
     right: IR,
     lKey: IndexedSeq[String],
     rKey: IndexedSeq[String],
-    l: String,
-    r: String,
+    l: Name,
+    r: Name,
     joinF: IR,
     joinType: String,
     requiresMemoryManagement: Boolean,
@@ -558,8 +584,8 @@ object StreamJoin {
         }
       }
 
-      val rElt = Ref(genUID(), tcoerce[TStream](rightGrouped.typ).elementType)
-      val lElt = Ref(genUID(), lEltType)
+      val rElt = Ref(freshName(), tcoerce[TStream](rightGrouped.typ).elementType)
+      val lElt = Ref(freshName(), lEltType)
       val makeTupleFromJoin = MakeStruct(FastSeq("left" -> lElt, "rightGroup" -> rElt))
       val joined = StreamJoinRightDistinct(
         left,
@@ -595,9 +621,7 @@ object StreamJoin {
         }
       }
     } else {
-      val rElt = Ref(r, rEltType)
-      val lElt = Ref(l, lEltType)
-      StreamJoinRightDistinct(left, right, lKey, rKey, lElt.name, rElt.name, joinF, joinType)
+      StreamJoinRightDistinct(left, right, lKey, rKey, l, r, joinF, joinType)
     }
   }
 }
@@ -612,8 +636,8 @@ final case class StreamLeftIntervalJoin(
   rIntervalFieldName: String,
 
   // how to combine records
-  lname: String,
-  rname: String,
+  lname: Name,
+  rname: Name,
   body: IR,
 ) extends IR {
   override protected lazy val childrenSeq: IndexedSeq[BaseIR] =
@@ -625,8 +649,8 @@ final case class StreamJoinRightDistinct(
   right: IR,
   lKey: IndexedSeq[String],
   rKey: IndexedSeq[String],
-  l: String,
-  r: String,
+  l: Name,
+  r: Name,
   joinF: IR,
   joinType: String,
 ) extends IR {
@@ -678,9 +702,9 @@ final case class NDArrayRef(nd: IR, idxs: IndexedSeq[IR], errorId: Int) extends 
 final case class NDArraySlice(nd: IR, slices: IR) extends NDArrayIR
 final case class NDArrayFilter(nd: IR, keep: IndexedSeq[IR]) extends NDArrayIR
 
-final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends NDArrayIR
+final case class NDArrayMap(nd: IR, valueName: Name, body: IR) extends NDArrayIR
 
-final case class NDArrayMap2(l: IR, r: IR, lName: String, rName: String, body: IR, errorID: Int)
+final case class NDArrayMap2(l: IR, r: IR, lName: Name, rName: Name, body: IR, errorID: Int)
     extends NDArrayIR
 
 final case class NDArrayReindex(nd: IR, indexExpr: IndexedSeq[Int]) extends NDArrayIR
@@ -755,14 +779,14 @@ final case class NDArrayInv(nd: IR, errorID: Int) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
-final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR
+final case class AggExplode(array: IR, name: Name, aggBody: IR, isScan: Boolean) extends IR
 
 final case class AggGroupBy(key: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggArrayPerElement(
   a: IR,
-  elementName: String,
-  indexName: String,
+  elementName: Name,
+  indexName: Name,
   aggBody: IR,
   knownLength: Option[IR],
   isScan: Boolean,
@@ -805,9 +829,9 @@ object AggFold {
   }
 
   def all(element: IR): IR =
-    aggFoldIR(True(), element) { case (accum, element) =>
+    aggFoldIR(True()) { accum =>
       ApplySpecial("land", Seq.empty[Type], Seq(accum, element), TBoolean, ErrorIDs.NO_ERROR)
-    } { case (accum1, accum2) =>
+    } { (accum1, accum2) =>
       ApplySpecial("land", Seq.empty[Type], Seq(accum1, accum2), TBoolean, ErrorIDs.NO_ERROR)
     }
 
@@ -815,8 +839,8 @@ object AggFold {
     val keyFields = keyType.fields.map(_.name)
 
     val minAndMaxZero = NA(keyType)
-    val aggFoldMinAccumName1 = genUID()
-    val aggFoldMinAccumName2 = genUID()
+    val aggFoldMinAccumName1 = freshName()
+    val aggFoldMinAccumName2 = freshName()
     val aggFoldMinAccumRef1 = Ref(aggFoldMinAccumName1, keyType)
     val aggFoldMinAccumRef2 = Ref(aggFoldMinAccumName2, keyType)
     val minSeq = bindIR(SelectFields(element, keyFields)) { keyOfCurElementRef =>
@@ -849,8 +873,8 @@ final case class AggFold(
   zero: IR,
   seqOp: IR,
   combOp: IR,
-  accumName: String,
-  otherAccumName: String,
+  accumName: Name,
+  otherAccumName: Name,
   isScan: Boolean,
 ) extends IR
 
@@ -911,7 +935,7 @@ final case class RunAgg(body: IR, result: IR, signature: IndexedSeq[AggStateSig]
 
 final case class RunAggScan(
   array: IR,
-  name: String,
+  name: Name,
   init: IR,
   seqs: IR,
   result: IR,
@@ -923,7 +947,7 @@ object Begin {
     if (xs.isEmpty)
       Void()
     else
-      Let(xs.init.map(x => ("__void", x)), xs.last)
+      Let(xs.init.map(x => (freshName(), x)), xs.last)
 }
 
 final case class Begin(xs: IndexedSeq[IR]) extends IR
@@ -931,12 +955,13 @@ final case class MakeStruct(fields: IndexedSeq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: IndexedSeq[String]) extends IR
 
 object InsertFields {
-  def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
+  def apply(old: IR, fields: IndexedSeq[(String, IR)]): InsertFields =
+    InsertFields(old, fields, None)
 }
 
 final case class InsertFields(
   old: IR,
-  fields: Seq[(String, IR)],
+  fields: IndexedSeq[(String, IR)],
   fieldOrder: Option[IndexedSeq[String]],
 ) extends TypedIR[TStruct]
 
@@ -1005,9 +1030,9 @@ final case class ApplyIR(
   var conversion: (Seq[Type], Seq[IR], Int) => IR = _
   var inline: Boolean = _
 
-  private lazy val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+  private lazy val refs = args.map(a => Ref(freshName(), a.typ)).toArray
   lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
-  lazy val refIdx: Map[String, Int] = refs.map(_.name).zipWithIndex.toMap
+  lazy val refIdx: Map[Name, Int] = refs.map(_.name).zipWithIndex.toMap
 
   lazy val explicitNode: IR = {
     val ir = Let(refs.map(_.name).zip(args), body)
@@ -1094,8 +1119,8 @@ final case class BlockMatrixMultiWrite(
 final case class CollectDistributedArray(
   contexts: IR,
   globals: IR,
-  cname: String,
-  gname: String,
+  cname: Name,
+  gname: Name,
   body: IR,
   dynamicID: IR,
   staticID: String,

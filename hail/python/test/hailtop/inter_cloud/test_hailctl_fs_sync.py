@@ -1,16 +1,6 @@
-from typing import Tuple, Dict, AsyncIterator, List
 import pytest
-import os.path
-import tempfile
-import secrets
-import asyncio
-import pytest
-from hailtop.utils import url_scheme, check_exec_output
-from hailtop.aiotools import Transfer, FileAndDirectoryError, Copier, AsyncFS, FileListEntry
+from hailtop.utils import check_exec_output
 
-
-from .generate_copy_test_specs import run_test_spec, create_test_file, create_test_dir
-from .test_copy import cloud_scheme
 from .utils import fresh_dir
 
 

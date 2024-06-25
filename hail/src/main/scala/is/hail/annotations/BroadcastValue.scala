@@ -43,7 +43,7 @@ trait BroadcastRegionValue {
 
   val t: PType
 
-  lazy val encoding = TypedCodecSpec(t, BufferSpec.wireSpec)
+  lazy val encoding = TypedCodecSpec(ctx, t, BufferSpec.wireSpec)
 
   lazy val (decodedPType, makeDec) = {
     val (pt, md) = encoding.buildDecoder(ctx, t.virtualType)
@@ -57,7 +57,7 @@ trait BroadcastRegionValue {
     val baos = new ArrayOfByteArrayOutputStream()
 
     val enc = makeEnc(baos, theHailClassLoader)
-    enc.writeRegionValue(value.offset)
+    enc.writeRegionValue(ctx.r, value.offset)
     enc.flush()
     enc.close()
 

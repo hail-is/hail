@@ -6,24 +6,26 @@ import sys
 import uuid
 from itertools import chain
 from math import floor, log
-from typing import Collection, Dict, List, NamedTuple, Optional, Union
+from typing import ClassVar, Collection, Dict, List, NamedTuple, Optional, Union
 
 import hail as hl
 from hail.expr import HailType, tmatrix
+from hail.genetics.reference_genome import ReferenceGenome
 from hail.utils import FatalError, Interval
 from hail.utils.java import info, warning
+
+from ..variant_dataset import VariantDataset
 from .combine import (
-    combine_variant_datasets,
-    transform_gvcf,
-    defined_entry_fields,
-    make_variant_stream,
-    make_reference_stream,
-    combine_r,
     calculate_even_genome_partitioning,
     calculate_new_intervals,
     combine,
+    combine_r,
+    combine_variant_datasets,
+    defined_entry_fields,
+    make_reference_stream,
+    make_variant_stream,
+    transform_gvcf,
 )
-from ..variant_dataset import VariantDataset
 
 
 class VDSMetadata(NamedTuple):
@@ -191,7 +193,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     default_exome_interval_size = 60_000_000
     "A reasonable partition size in basepairs given the density of exomes."
 
-    __serialized_slots__ = [
+    __serialized_slots__: ClassVar = [
         '_save_path',
         '_output_path',
         '_temp_path',
@@ -212,7 +214,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         '_call_fields',
     ]
 
-    __slots__ = tuple(__serialized_slots__ + ['_uuid', '_job_id', '__intervals_cache'])
+    __slots__ = tuple([*__serialized_slots__, "_uuid", "_job_id", "__intervals_cache"])
 
     def __init__(
         self,
@@ -220,7 +222,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         save_path: str,
         output_path: str,
         temp_path: str,
-        reference_genome: hl.ReferenceGenome,
+        reference_genome: ReferenceGenome,
         dataset_type: CombinerOutType,
         gvcf_type: Optional[tmatrix] = None,
         branch_factor: int = _default_branch_factor,
@@ -372,6 +374,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             return combiner
 
     def _raise_if_output_exists(self):
+        if self.finished:
+            return
         fs = hl.current_backend().fs
         ref_success_path = os.path.join(VariantDataset._reference_path(self._output_path), '_SUCCESS')
         var_success_path = os.path.join(VariantDataset._variants_path(self._output_path), '_SUCCESS')
@@ -660,7 +664,7 @@ def new_combiner(
     target_records: int = VariantDatasetCombiner._default_target_records,
     gvcf_batch_size: Optional[int] = None,
     batch_size: Optional[int] = None,
-    reference_genome: Union[str, hl.ReferenceGenome] = 'default',
+    reference_genome: Union[str, ReferenceGenome] = 'default',
     contig_recoding: Optional[Dict[str, str]] = None,
     force: bool = False,
 ) -> VariantDatasetCombiner:
@@ -702,18 +706,17 @@ def new_combiner(
             gvcf_batch_size = VariantDatasetCombiner._default_gvcf_batch_size
         else:
             pass
+    elif gvcf_batch_size is None:
+        warning(
+            'The batch_size parameter is deprecated. '
+            'The batch_size parameter will be removed in a future version of Hail. '
+            'Please use gvcf_batch_size instead.'
+        )
+        gvcf_batch_size = batch_size
     else:
-        if gvcf_batch_size is None:
-            warning(
-                'The batch_size parameter is deprecated. '
-                'The batch_size parameter will be removed in a future version of Hail. '
-                'Please use gvcf_batch_size instead.'
-            )
-            gvcf_batch_size = batch_size
-        else:
-            raise ValueError(
-                'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
-            )
+        raise ValueError(
+            'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
+        )
     del batch_size
 
     def maybe_load_from_saved_path(save_path: str) -> Optional[VariantDatasetCombiner]:
@@ -791,7 +794,9 @@ def new_combiner(
     if vds_paths:
         # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
         vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
-        vds_ref_entry = set(vds.reference_data.entry) - {'END'}
+        vds_ref_entry = set(
+            name[1:] if name in ('LGT', 'LPGT') else name for name in vds.reference_data.entry if name != 'END'
+        )
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
                 "Mismatch between 'gvcf_reference_entry_fields' to keep and VDS reference data "
@@ -803,9 +808,11 @@ def new_combiner(
 
         # sync up call_fields and call fields present in the VDS
         all_entry_types = chain(vds.reference_data._type.entry_type.items(), vds.variant_data._type.entry_type.items())
-        vds_call_fields = {name for name, typ in all_entry_types if typ == hl.tcall} - {'LGT', 'GT'}
-        if 'LPGT' in vds_call_fields:
-            vds_call_fields = (vds_call_fields - {'LPGT'}) | {'PGT'}
+        vds_call_fields = {
+            name[1:] if name == 'LPGT' else name
+            for name, typ in all_entry_types
+            if typ == hl.tcall and name not in ('LGT', 'GT')
+        }
         if set(call_fields) != vds_call_fields:
             warning(
                 "Mismatch between 'call_fields' and VDS call fields. "
@@ -827,7 +834,7 @@ def new_combiner(
         gvcf_type = mt._type
         if gvcf_reference_entry_fields_to_keep is None:
             rmt = mt.filter_rows(hl.is_defined(mt.info.END))
-            gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'GT', 'PGT', 'PL'}
+            gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'PGT', 'PL'}
         if vds is None:
             vds = transform_gvcf(
                 mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep

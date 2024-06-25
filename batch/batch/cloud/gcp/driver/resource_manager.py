@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import List, Tuple
+from typing import List
 
 import aiohttp
 
@@ -23,8 +23,7 @@ from ..instance_config import GCPSlimInstanceConfig
 from ..resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
-    gcp_machine_type_to_worker_type_and_cores,
-    gcp_worker_memory_per_core_mib,
+    gcp_machine_type_to_cores_and_memory_bytes,
 )
 from .billing_manager import GCPBillingManager
 from .create_instance import create_vm_config
@@ -75,9 +74,6 @@ class GCPResourceManager(CloudResourceManager):
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:  # pylint: disable=unused-argument
         return family_worker_type_cores_to_gcp_machine_type(GCP_MACHINE_FAMILY, worker_type, cores)
 
-    def worker_type_and_cores(self, machine_type: str) -> Tuple[str, int]:
-        return gcp_machine_type_to_worker_type_and_cores(machine_type)
-
     def instance_config(
         self,
         machine_type: str,
@@ -119,7 +115,6 @@ class GCPResourceManager(CloudResourceManager):
 
         resource_rates = self.billing_manager.resource_rates
 
-        worker_type, cores = self.worker_type_and_cores(machine_type)
         vm_config = create_vm_config(
             file_store,
             resource_rates,
@@ -137,8 +132,7 @@ class GCPResourceManager(CloudResourceManager):
             instance_config,
         )
 
-        memory_mib = gcp_worker_memory_per_core_mib(worker_type) * cores
-        memory_in_bytes = memory_mib << 20
+        cores, memory_in_bytes = gcp_machine_type_to_cores_and_memory_bytes(machine_type)
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, extra_storage_in_gib=0

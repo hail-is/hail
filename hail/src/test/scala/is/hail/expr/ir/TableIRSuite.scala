@@ -7,11 +7,12 @@ import is.hail.annotations.SafeNDArray
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
-import is.hail.methods.ForceCountTable
+import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.Locus
 
 import org.apache.spark.sql.Row
 import org.scalatest.{Failed, Succeeded}
@@ -72,7 +73,7 @@ class TableIRSuite extends HailSuite {
   @Test def testRangeCollect(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
-    val row = Ref("row", t.typ.rowType)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
     val node = collect(TableMapRows(t, InsertFields(row, FastSeq("x" -> GetField(row, "idx")))))
     assertEvalsTo(collect(t), Row(Array.tabulate(10)(Row(_)).toFastSeq, Row()))
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastSeq, Row()))
@@ -86,7 +87,7 @@ class TableIRSuite extends HailSuite {
     val tc = GetField(collect(TableRange(2, 2)), "rows")
     val m = TableMapRows(
       TableRange(2, 2),
-      InsertFields(Ref("row", r.typ.rowType), FastSeq("collected" -> tc)),
+      InsertFields(Ref(TableIR.rowName, r.typ.rowType), FastSeq("collected" -> tc)),
     )
     assertEvalsTo(
       collect(m),
@@ -103,7 +104,7 @@ class TableIRSuite extends HailSuite {
   @Test def testRangeSum(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = TableRange(10, 2)
-    val row = Ref("row", t.typ.rowType)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
     val sum = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
     val node = collect(TableMapRows(
       t,
@@ -121,7 +122,8 @@ class TableIRSuite extends HailSuite {
   @Test def testGetGlobals(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
-    val newGlobals = InsertFields(Ref("global", t.typ.globalType), FastSeq("x" -> collect(t)))
+    val newGlobals =
+      InsertFields(Ref(TableIR.globalName, t.typ.globalType), FastSeq("x" -> collect(t)))
     val node = TableGetGlobals(TableMapGlobals(t, newGlobals))
     assertEvalsTo(node, Row(Row(Array.tabulate(10)(i => Row(i)).toFastSeq, Row())))
   }
@@ -129,12 +131,13 @@ class TableIRSuite extends HailSuite {
   @Test def testCollectGlobals(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
-    val newGlobals = InsertFields(Ref("global", t.typ.globalType), FastSeq("x" -> collect(t)))
+    val newGlobals =
+      InsertFields(Ref(TableIR.globalName, t.typ.globalType), FastSeq("x" -> collect(t)))
     val node = TableMapRows(
       TableMapGlobals(t, newGlobals),
       InsertFields(
-        Ref("row", t.typ.rowType),
-        FastSeq("x" -> GetField(Ref("global", newGlobals.typ), "x")),
+        Ref(TableIR.rowName, t.typ.rowType),
+        FastSeq("x" -> GetField(Ref(TableIR.globalName, newGlobals.typ), "x")),
       ),
     )
 
@@ -147,7 +150,7 @@ class TableIRSuite extends HailSuite {
   @Test def testRangeExplode(): Unit = {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized)
     val t = TableRange(10, 2)
-    val row = Ref("row", t.typ.rowType)
+    val row = Ref(TableIR.rowName, t.typ.rowType)
 
     val t2 = TableMapRows(
       t,
@@ -181,8 +184,8 @@ class TableIRSuite extends HailSuite {
       ),
       ApplyComparisonOp(
         EQ(TInt32),
-        GetField(Ref("row", t.typ.rowType), "idx"),
-        GetField(Ref("global", TStruct("x" -> TInt32)), "x"),
+        GetField(Ref(TableIR.rowName, t.typ.rowType), "idx"),
+        GetField(Ref(TableIR.globalName, TStruct("x" -> TInt32)), "x"),
       ),
     )
 
@@ -265,7 +268,7 @@ class TableIRSuite extends HailSuite {
     val node = TableMapRows(
       t,
       InsertFields(
-        Ref("row", t.typ.rowType),
+        Ref(TableIR.rowName, t.typ.rowType),
         FastSeq(
           "a" -> Str("foo"),
           "b" -> Literal(TTuple(TInt32, TString), Row(1, "hello")),
@@ -280,13 +283,16 @@ class TableIRSuite extends HailSuite {
   @Test def testScanCountBehavesLikeIndex(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
-    val oldRow = Ref("row", t.typ.rowType)
+    val oldRow = Ref(TableIR.rowName, t.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
+    val newRow = InsertFields(oldRow, FastSeq("idx2" -> IRScanCount))
     val newTable = TableMapRows(t, newRow)
     val expected = Array.tabulate(20)(i => Row(i, i.toLong)).toFastSeq
     assertEvalsTo(
-      ArraySort(ToStream(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ)))), True()),
+      ArraySort(
+        ToStream(TableAggregate(newTable, IRAggCollect(Ref(TableIR.rowName, newRow.typ)))),
+        True(),
+      ),
       expected,
     )
   }
@@ -294,14 +300,17 @@ class TableIRSuite extends HailSuite {
   @Test def testScanCollectBehavesLikeRange(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
     val t = rangeKT
-    val oldRow = Ref("row", t.typ.rowType)
+    val oldRow = Ref(TableIR.rowName, t.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
+    val newRow = InsertFields(oldRow, FastSeq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
     val newTable = TableMapRows(t, newRow)
 
     val expected = Array.tabulate(20)(i => Row(i, Array.range(0, i).toFastSeq)).toFastSeq
     assertEvalsTo(
-      ArraySort(ToStream(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ)))), True()),
+      ArraySort(
+        ToStream(TableAggregate(newTable, IRAggCollect(Ref(TableIR.rowName, newRow.typ)))),
+        True(),
+      ),
       expected,
     )
   }
@@ -669,9 +678,31 @@ class TableIRSuite extends HailSuite {
     val t2 = MatrixRowsTable(mt2)
     val mt = importVCF(ctx, "src/test/resources/sample.vcf")
     var t: TableIR = MatrixRowsTable(mt)
-    t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), FastSeq("locus", "alleles")))
+    t = TableMapRows(
+      t,
+      SelectFields(Ref(TableIR.rowName, t.typ.rowType), FastSeq("locus", "alleles")),
+    )
     val join: TableIR = TableJoin(t, t2, "inner", 2)
     assertEvalsTo(TableCount(join), 346L)
+  }
+
+  @Test def testNativeReaderWithOverlappingPartitions(): Unit = {
+    val path = "src/test/resources/sample.vcf-20-partitions-with-overlap.mt/rows"
+    // i1 overlaps the first two partitions
+    val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
+
+    def test(filterIntervals: Boolean, expectedNParts: Int): Unit = {
+      val opts = NativeReaderOptions(FastSeq(i1), TLocus("GRCh37"), filterIntervals)
+      val tr = TableNativeReader(fs, TableNativeReaderParameters(path, Some(opts)))
+      val tir = TableRead(tr.fullTypeWithoutUIDs, false, tr)
+      val nParts = TableToValueApply(tir, NPartitionsTable())
+      val count = TableToValueApply(tir, ForceCountTable())
+      assertEvalsTo(nParts, expectedNParts)
+      assertEvalsTo(count, 20L)
+    }
+
+    test(false, 1)
+    test(true, 2)
   }
 
   @Test def testTableKeyBy(): Unit = {
@@ -824,7 +855,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testShuffleAndJoinDoesntMemoryLeak(): Unit = {
     implicit val execStrats = Set(ExecStrategy.LoweredJVMCompile, ExecStrategy.Interpret)
-    val row = Ref("row", TStruct("idx" -> TInt32))
+    val row = Ref(TableIR.rowName, TStruct("idx" -> TInt32))
     val t1 = TableRename(TableRange(1, 1), Map("idx" -> "idx_"), Map.empty)
     val t2 =
       TableKeyBy(
@@ -863,12 +894,12 @@ class TableIRSuite extends HailSuite {
     val newRow = MakeStruct(FastSeq(
       (
         "foo",
-        GetField(Ref("row", renameIR.typ.rowType), "c") + GetField(
-          Ref("global", TStruct(("x", TString), ("z", TInt32))),
+        GetField(Ref(TableIR.rowName, renameIR.typ.rowType), "c") + GetField(
+          Ref(TableIR.globalName, TStruct(("x", TString), ("z", TInt32))),
           "z",
         ),
       ),
-      ("bar", GetField(Ref("row", renameIR.typ.rowType), "b")),
+      ("bar", GetField(Ref(TableIR.rowName, renameIR.typ.rowType), "b")),
     ))
     val mapped = TableMapRows(renameIR, newRow)
 
@@ -885,8 +916,8 @@ class TableIRSuite extends HailSuite {
       "rows" -> TArray(TStruct("a" -> TInt32, "b" -> TString)),
       "global" -> TStruct("x" -> TString),
     )
-    val innerRowRef = Ref("row", t.field("rows").typ.asInstanceOf[TArray].elementType)
-    val innerGlobalRef = Ref("global", t.field("global").typ)
+    val innerRowRef = Ref(TableIR.rowName, t.field("rows").typ.asInstanceOf[TArray].elementType)
+    val innerGlobalRef = Ref(TableIR.globalName, t.field("global").typ)
     val length = 10
     val value = Row(FastSeq(0 until length: _*).map(i => Row(i, "row" + i)), Row("global"))
     val modifedValue =
@@ -927,7 +958,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testWriteKeyDistinctness(): Unit = {
     val rt = TableRange(40, 4)
-    val idxRef = GetField(Ref("row", rt.typ.rowType), "idx")
+    val idxRef = GetField(Ref(TableIR.rowName, rt.typ.rowType), "idx")
     val at = TableMapRows(
       rt,
       MakeStruct(FastSeq(
@@ -988,24 +1019,19 @@ class TableIRSuite extends HailSuite {
 
   @Test def testScanInAggInMapRows(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
-    val sumSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
     var tr: TableIR = TableRange(10, 3)
     tr = TableKeyBy(tr, FastSeq(), false)
     tr = TableMapRows(
       tr,
       InsertFields(
-        Ref("row", tr.typ.rowType),
+        Ref(TableIR.rowName, tr.typ.rowType),
         FastSeq((
           "result",
-          StreamAgg(
-            StreamAggScan(
-              StreamRange(0, GetField(Ref("row", tr.typ.rowType), "idx"), 1),
-              "streamx",
-              ApplyScanOp(FastSeq(), FastSeq(Ref("streamx", TInt32).toL), sumSig),
-            ),
-            "aggx",
-            ApplyAggOp(FastSeq(), FastSeq(Ref("aggx", TInt64)), sumSig),
-          ),
+          streamAggIR(
+            streamAggScanIR(
+              StreamRange(0, GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx"), 1)
+            )(elt => ApplyScanOp(Sum())(elt.toL))
+          )(ApplyAggOp(Sum())(_)),
         )),
       ),
     )
@@ -1023,27 +1049,20 @@ class TableIRSuite extends HailSuite {
 
   @Test def testScanInAggInScanInMapRows(): Unit = {
     implicit val execStrats = ExecStrategy.interpretOnly
-    val sumSig = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
     var tr: TableIR = TableRange(10, 3)
     tr = TableKeyBy(tr, FastSeq(), false)
     tr = TableMapRows(
       tr,
       InsertFields(
-        Ref("row", tr.typ.rowType),
+        Ref(TableIR.rowName, tr.typ.rowType),
         FastSeq((
           "result",
-          ApplyScanOp(
-            FastSeq(),
-            FastSeq(StreamAgg(
-              StreamAggScan(
-                StreamRange(0, GetField(Ref("row", tr.typ.rowType), "idx"), 1),
-                "streamx",
-                ApplyScanOp(FastSeq(), FastSeq(Ref("streamx", TInt32).toL), sumSig),
-              ),
-              "aggx",
-              ApplyAggOp(FastSeq(), FastSeq(Ref("aggx", TInt64)), sumSig),
-            )),
-            sumSig,
+          ApplyScanOp(Sum())(
+            streamAggIR(
+              streamAggScanIR(
+                StreamRange(0, GetField(Ref(TableIR.rowName, tr.typ.rowType), "idx"), 1)
+              )(elt => ApplyScanOp(Sum())(elt.toL))
+            )(ApplyAggOp(Sum())(_))
           ),
         )),
       ),
@@ -1072,7 +1091,7 @@ class TableIRSuite extends HailSuite {
           "sum",
           ApplyAggOp(
             FastSeq(),
-            FastSeq(GetField(Ref("row", tir.typ.rowType), "z").toL),
+            FastSeq(GetField(Ref(TableIR.rowName, tir.typ.rowType), "z").toL),
             AggSignature(Sum(), FastSeq(), FastSeq(TInt64)),
           ),
         ),
@@ -1115,7 +1134,7 @@ class TableIRSuite extends HailSuite {
     IndexedSeq((1, 1), (3, 2), (10, 5), (5, 10)).foreach { case (nParts1, nParts2) =>
       val rangeTable1 = TableRange(10, nParts1)
       var rangeTable2: TableIR = TableRange(5, nParts2)
-      val row = Ref("row", rangeTable2.typ.rowType)
+      val row = Ref(TableIR.rowName, rangeTable2.typ.rowType)
       rangeTable2 =
         TableMapRows(rangeTable2, InsertFields(row, FastSeq("x" -> GetField(row, "idx"))))
       val joinedRanges = TableLeftJoinRightDistinct(rangeTable1, rangeTable2, "foo")
@@ -1136,7 +1155,7 @@ class TableIRSuite extends HailSuite {
     var ir: IR = rangeIR(5)
     ir = StreamGrouped(ir, 2)
     ir = ToArray(mapIR(ir)(ToArray))
-    ir = InsertFields(Ref("row", tir.typ.rowType), Seq("foo" -> ir))
+    ir = InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("foo" -> ir))
     tir = TableMapRows(tir, ir)
     assertEvalsTo(
       collect(tir),
@@ -1269,7 +1288,7 @@ class TableIRSuite extends HailSuite {
   @Test def testTableKeyByAndAggregate(): Unit = {
     val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
-    val rowRef = Ref("row", unkeyed.typ.rowType)
+    val rowRef = Ref(TableIR.rowName, unkeyed.typ.rowType)
     val aggSignature = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
     val aggExpression = MakeStruct(FastSeq("y_sum" -> ApplyAggOp(
       FastSeq(),
@@ -1353,12 +1372,15 @@ class TableIRSuite extends HailSuite {
     implicit val execStrats = ExecStrategy.allRelational
     var tir: TableIR = TableRange(10, 3)
     tir =
-      TableMapRows(tir, InsertFields(Ref("row", tir.typ.rowType), FastSeq("aStr" -> Str("foo"))))
+      TableMapRows(
+        tir,
+        InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("aStr" -> Str("foo"))),
+      )
     val x = TableAggregate(
       tir,
       MakeTuple.ordered(FastSeq(
-        ApplyAggOp(Collect())(Ref("row", tir.typ.rowType)),
-        ApplyAggOp(Take(), I32(5))(GetField(Ref("row", tir.typ.rowType), "idx")),
+        ApplyAggOp(Collect())(Ref(TableIR.rowName, tir.typ.rowType)),
+        ApplyAggOp(Take(), I32(5))(GetField(Ref(TableIR.rowName, tir.typ.rowType), "idx")),
       )),
     )
 
@@ -1385,15 +1407,15 @@ class TableIRSuite extends HailSuite {
     tir = TableMapRows(
       tir,
       InsertFields(
-        Ref("row", tir.typ.rowType),
+        Ref(TableIR.rowName, tir.typ.rowType),
         FastSeq("nDArrayA" -> nDArray1, "nDArrayB" -> nDArray2),
       ),
     )
     val x = TableAggregate(
       tir,
       ApplyAggOp(NDArrayMultiplyAdd())(
-        GetField(Ref("row", tir.typ.rowType), "nDArrayA"),
-        GetField(Ref("row", tir.typ.rowType), "nDArrayB"),
+        GetField(Ref(TableIR.rowName, tir.typ.rowType), "nDArrayA"),
+        GetField(Ref(TableIR.rowName, tir.typ.rowType), "nDArrayB"),
       ),
     )
     assertEvalsTo(x, SafeNDArray(Vector(2, 2), IndexedSeq(24.0, 24.0, 24.0, 24.0)))
@@ -1405,14 +1427,14 @@ class TableIRSuite extends HailSuite {
     tir = TableMapRows(
       tir,
       InsertFields(
-        Ref("row", tir.typ.rowType),
+        Ref(TableIR.rowName, tir.typ.rowType),
         FastSeq("scans" -> MakeTuple.ordered(FastSeq(
           ApplyScanOp(Count())(),
-          ApplyScanOp(Collect())(GetField(Ref("row", tir.typ.rowType), "idx")),
+          ApplyScanOp(Collect())(GetField(Ref(TableIR.rowName, tir.typ.rowType), "idx")),
         ))),
       ),
     )
-    val x = TableAggregate(tir, ApplyAggOp(Collect())(Ref("row", tir.typ.rowType)))
+    val x = TableAggregate(tir, ApplyAggOp(Collect())(Ref(TableIR.rowName, tir.typ.rowType)))
 
     assertEvalsTo(
       x,
@@ -1466,7 +1488,7 @@ class TableIRSuite extends HailSuite {
     val irToLower = TableAggregate(
       TableRead(tableType, false, reader),
       MakeTuple.ordered(FastSeq(
-        ApplyAggOp(Collect())(GetField(Ref("row", tableType.rowType), "rsid"))
+        ApplyAggOp(Collect())(GetField(Ref(TableIR.rowName, tableType.rowType), "rsid"))
       )),
     )
     val optimized = Optimize(irToLower, "foo", ctx)
@@ -1483,77 +1505,45 @@ class TableIRSuite extends HailSuite {
           MakeStruct(FastSeq("greeting" -> Str("Hello"))),
         ),
         IndexedSeq(),
-        false,
       )
 
     val rowType = TStruct("idx" -> TInt32)
-    val part = Ref("part", TStream(rowType))
-    val row = Ref("row", rowType)
-    val acc = Ref("acc", rowType)
 
     assertEvalsTo(
       collect(
-        TableMapPartitions(
-          table,
-          "g",
-          "part",
-          StreamMap(
-            part,
-            "row2",
-            InsertFields(Ref("row2", rowType), FastSeq("str" -> Str("foo"))),
-          ),
-        )
+        mapPartitions(table) { (_, part) =>
+          mapIR(part)(InsertFields(_, FastSeq("str" -> Str("foo"))))
+        }
       ),
       Row(IndexedSeq.tabulate(20)(i => Row(i, "foo")), Row("Hello")),
     )
 
     assertEvalsTo(
       collect(
-        TableMapPartitions(
-          table,
-          "g",
-          "part",
-          StreamFilter(
-            part,
-            "row2",
-            GetField(Ref("row2", rowType), "idx") > 0,
-          ),
-        )
+        mapPartitions(table)((_, part) => filterIR(part)(GetField(_, "idx") > 0))
       ),
       Row(IndexedSeq.tabulate(20)(i => Row(i)).filter(_.getAs[Int](0) > 0), Row("Hello")),
     )
 
     assertEvalsTo(
       collect(
-        TableMapPartitions(
-          table,
-          "g",
-          "part",
-          StreamFlatMap(
-            part,
-            "row2",
-            mapIR(StreamRange(0, 3, 1)) { i =>
-              MakeStruct(FastSeq("str" -> Str("Hello"), "i" -> i))
-            },
-          ),
-        )
+        mapPartitions(table) { (_, part) =>
+          flatMapIR(part) { _ =>
+            mapIR(rangeIR(3))(i => MakeStruct(FastSeq("str" -> Str("Hello"), "i" -> i)))
+          }
+        }
       ),
       Row((0 until 20).flatMap(i => (0 until 3).map(j => Row("Hello", j))), Row("Hello")),
     )
 
     assertEvalsTo(
       collect(
-        TableMapPartitions(
-          table,
-          "g",
-          "part",
+        mapPartitions(table) { (_, part) =>
           // replace every row in partition with the first row
-          StreamFilter(
-            StreamScan(part, NA(rowType), "acc", "row", If(IsNA(acc), row, acc)),
-            "row",
-            !IsNA(row),
-          ),
-        )
+          filterIR(
+            streamScanIR(part, NA(rowType))((acc, row) => If(IsNA(acc), row, acc))
+          )(x => !IsNA(x))
+        }
       ),
       Row(
         IndexedSeq.tabulate(20) { i =>
@@ -1567,12 +1557,7 @@ class TableIRSuite extends HailSuite {
 
     val e = intercept[HailException](TypeCheck(
       ctx,
-      collect(TableMapPartitions(
-        table,
-        "g",
-        "part",
-        StreamFlatMap(StreamRange(0, 2, 1), "_", part),
-      )),
+      collect(mapPartitions(table)((_, part) => flatMapIR(StreamRange(0, 2, 1))(_ => part))),
     ))
     assert(
       "must iterate over the partition exactly once".r.findFirstIn(e.getCause.getMessage).isDefined

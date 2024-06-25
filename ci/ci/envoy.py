@@ -1,18 +1,19 @@
-import os
 import sys
 from typing import Dict, List
 
 import yaml
 
-DOMAIN = os.environ['HAIL_PRODUCTION_DOMAIN']
-
 
 def create_rds_response(
-    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+    default_services: List[str],
+    internal_services_per_namespace: Dict[str, List[str]],
+    proxy: str,
+    *,
+    domain: str,
 ) -> dict:
     if proxy == 'gateway':
-        default_host = gateway_default_host
-        internal_host = gateway_internal_host
+        default_host = lambda service: gateway_default_host(service, domain)
+        internal_host = lambda services_per_namespace: gateway_internal_host(services_per_namespace, domain)
     else:
         assert proxy == 'internal-gateway'
         default_host = internal_gateway_default_host
@@ -56,10 +57,10 @@ def create_cds_response(
     }
 
 
-def gateway_default_host(service: str) -> dict:
-    domains = [f'{service}.{DOMAIN}']
+def gateway_default_host(service: str, domain: str) -> dict:
+    domains = [f'{service}.{domain}']
     if service == 'www':
-        domains.append(DOMAIN)
+        domains.append(domain)
 
     if service == 'ukbb-rg':
         return {
@@ -101,11 +102,11 @@ def gateway_default_host(service: str) -> dict:
     }
 
 
-def gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
+def gateway_internal_host(services_per_namespace: Dict[str, List[str]], domain: str) -> dict:
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
-        'domains': [f'internal.{DOMAIN}'],
+        'domains': [f'internal.{domain}'],
         'routes': [
             {
                 'match': {'path_separated_prefix': f'/{namespace}/{service}'},
@@ -173,7 +174,7 @@ def auth_check_exemption() -> dict:
 
 
 def rate_limit_config(service: str) -> dict:
-    max_rps = 10 if service == 'batch-driver' else 200
+    max_rps = 60 if service == 'batch-driver' else 200
 
     return {
         '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
@@ -287,10 +288,11 @@ def upstream_transport_socket(proxy: str, verify_ca: bool) -> dict:
 
 if __name__ == '__main__':
     proxy = sys.argv[1]
-    with open(sys.argv[2], 'r', encoding='utf-8') as services_file:
+    domain = sys.argv[2]
+    with open(sys.argv[3], 'r', encoding='utf-8') as services_file:
         services = [service.rstrip() for service in services_file.readlines()]
 
-    with open(sys.argv[3], 'w', encoding='utf-8') as cds_file:
+    with open(sys.argv[4], 'w', encoding='utf-8') as cds_file:
         cds_file.write(yaml.dump(create_cds_response(services, {}, proxy)))
-    with open(sys.argv[4], 'w', encoding='utf-8') as rds_file:
-        rds_file.write(yaml.dump(create_rds_response(services, {}, proxy)))
+    with open(sys.argv[5], 'w', encoding='utf-8') as rds_file:
+        rds_file.write(yaml.dump(create_rds_response(services, {}, proxy, domain=domain)))

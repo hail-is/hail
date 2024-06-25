@@ -41,6 +41,7 @@ import orjson
 from aiodocker.exceptions import DockerError  # type: ignore
 from aiohttp import web
 
+from batch.cloud.terra.azure.worker.worker_api import TerraAzureWorkerAPI
 from gear import json_request, json_response
 from hailtop import aiotools, httpx
 from hailtop.aiotools import AsyncFS
@@ -73,9 +74,8 @@ from ..cloud.gcp.resource_utils import is_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
+    machine_type_to_cores_and_memory_bytes,
     storage_gib_to_bytes,
-    worker_memory_per_core_bytes,
-    worker_memory_per_core_mib,
 )
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
@@ -1122,8 +1122,7 @@ class Container:
         ]
 
         nvidia_runtime_hook = []
-        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
-        if is_gpu(machine_family):
+        if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
@@ -1341,8 +1340,7 @@ class Container:
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
             + self.env  # User-defined env variables should take precedence
         )
-        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
-        if is_gpu(machine_family):
+        if is_gpu(INSTANCE_CONFIG["machine_type"]):
             env += ["NVIDIA_VISIBLE_DEVICES=all"]
         if self.port is not None:
             assert self.host_port is not None
@@ -1599,6 +1597,10 @@ class Job(abc.ABC):
         return self.job_spec['job_id']
 
     @property
+    def job_group_id(self):
+        return self.job_spec['job_group_id']
+
+    @property
     def attempt_id(self):
         return self.job_spec['attempt_id']
 
@@ -1723,6 +1725,7 @@ class DockerJob(Job):
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
             {'name': 'HAIL_JOB_ID', 'value': str(self.job_id)},
+            {'name': 'HAIL_JOB_GROUP_ID', 'value': str(self.job_group_id)},
             {'name': 'HAIL_ATTEMPT_ID', 'value': str(self.attempt_id)},
         ]
         self.env += hail_extra_env
@@ -2126,7 +2129,7 @@ class JVMJob(Job):
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
-            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id, 'job_group_id': self.job_group_id}))
         # Necessary for backward compatibility for Hail Query jars that expect
         # the deploy config at this path and not at `/deploy-config/deploy-config.json`
         os.makedirs(f'{self.scratch}/secrets/deploy-config', exist_ok=True)
@@ -2259,8 +2262,11 @@ class JVMJob(Job):
 
                 self.state = 'running'
 
-                with self.step('downloading_jar'):
-                    local_jar_location = await self.download_jar()
+                if os.environ.get('HAIL_TERRA'):
+                    local_jar_location = '/hail-jars/hail-all-spark.jar'
+                else:
+                    with self.step('downloading_jar'):
+                        local_jar_location = await self.download_jar()
 
                 with self.step('running'):
                     await self.jvm.execute(
@@ -2474,11 +2480,14 @@ class JVMContainer:
         assert os.path.isdir(root_dir)
 
         assert instance_config
-        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
 
+        total_machine_cores, total_machine_memory_bytes = machine_type_to_cores_and_memory_bytes(
+            CLOUD, INSTANCE_CONFIG["machine_type"]
+        )
+        total_memory_bytes = int((n_cores / total_machine_cores) * total_machine_memory_bytes)
         # We allocate 60% of memory per core to off heap memory
-        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
-        memory_mib = n_cores * memory_per_core_mib
+
+        memory_mib = total_memory_bytes // (1024**2)
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 
@@ -2932,7 +2941,7 @@ class JVMPool:
 
 
 class Worker:
-    def __init__(self, client_session: httpx.ClientSession):
+    def __init__(self):
         self.active = False
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
@@ -2942,9 +2951,9 @@ class Worker:
         self.jobs: Dict[Tuple[int, int], Job] = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
-        os.mkdir('/hail-jars/')
+        os.makedirs('/hail-jars/', exist_ok=True)
         self.jar_download_locks: Dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-        self.client_session = client_session
+        self.client_session = httpx.client_session()
 
         self.image_data: Dict[str, ImageData] = defaultdict(ImageData)
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
@@ -3003,9 +3012,11 @@ class Worker:
     async def return_broken_jvm(self, jvm: JVM):
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
-    @property
-    def headers(self) -> Dict[str, str]:
-        return {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
+    async def headers(self):
+        headers = {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
+        if isinstance(CLOUD_WORKER_API, TerraAzureWorkerAPI):
+            headers.update(await CLOUD_WORKER_API.extra_hail_headers())
+        return headers
 
     async def shutdown(self):
         log.info('Worker.shutdown')
@@ -3232,7 +3243,7 @@ class Worker:
         # gone (e.g. testing a PR), this would go into an
         # infinite loop and the instance won't be deleted.
         await self.client_session.post(
-            deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=await self.headers()
         )
 
     async def kill(self, request):  # pylint: disable=unused-argument
@@ -3273,7 +3284,7 @@ class Worker:
                 await self.client_session.post(
                     deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                     json=body,
-                    headers=self.headers,
+                    headers=await self.headers(),
                 )
                 return
             except asyncio.CancelledError:
@@ -3340,7 +3351,7 @@ class Worker:
             # If the job is already complete, just send MJC. No need for MJS
             if not job.done():
                 url = deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started')
-                await self.client_session.post(url, json=body, headers=self.headers)
+                await self.client_session.post(url, json=body, headers=await self.headers())
 
         await retry_transient_errors_with_delayed_warnings(300 * 1000, post_started_if_job_still_running)
 
@@ -3367,12 +3378,11 @@ class Worker:
             self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
             json={'ip_address': os.environ['IP_ADDRESS']},
-            headers=self.headers,
+            headers=await self.headers(),
         )
         self.instance_token = resp_json['token']
         self.active = True
         self.last_updated = time_msecs()
-
         log.info('activated')
 
     async def cleanup_old_images(self):
@@ -3414,7 +3424,7 @@ class Worker:
                 await self.client_session.post(
                     deploy_config.url('batch-driver', '/api/v1alpha/billing_update'),
                     json=billing_update_data,
-                    headers=self.headers,
+                    headers=await self.headers(),
                 )
                 log.info(f'sent billing update for {time_msecs_str(update_timestamp)}')
 
@@ -3427,7 +3437,16 @@ async def async_main():
     image_lock = aiorwlock.RWLock()
     docker = aiodocker.Docker()
 
-    CLOUD_WORKER_API = await GCPWorkerAPI.from_env() if CLOUD == 'gcp' else AzureWorkerAPI.from_env()
+    if CLOUD == 'gcp':
+        CLOUD_WORKER_API = await GCPWorkerAPI.from_env()
+    else:
+        assert CLOUD == 'azure'
+        if os.environ.get('HAIL_TERRA'):
+            CLOUD_WORKER_API = TerraAzureWorkerAPI.from_env()
+        else:
+            CLOUD_WORKER_API = AzureWorkerAPI.from_env()
+
+    assert CLOUD_WORKER_API
     instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
     assert instance_config.cores == CORES
     assert instance_config.cloud == CLOUD
@@ -3438,7 +3457,7 @@ async def async_main():
     network_allocator = NetworkAllocator(network_allocator_task_manager)
     await network_allocator.reserve()
 
-    worker = Worker(httpx.client_session())
+    worker = Worker()
     try:
         async with AsyncExitStack() as cleanup:
             cleanup.push_async_callback(docker.close)

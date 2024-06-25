@@ -1,7 +1,7 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{Requiredness, _}
+import is.hail.expr.ir.{Ref, Requiredness, _}
 import is.hail.expr.ir.agg.{Extract, PhysicalAggSig, TakeStateSig}
 import is.hail.types._
 import is.hail.types.virtual._
@@ -35,18 +35,15 @@ object LowerAndExecuteShuffles {
 
         case t @ TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
-          val resultUID = genUID()
 
           val req = Requiredness(t, ctx)
 
-          val aggs = Extract(expr, resultUID, req)
+          val aggs = Extract(expr, req)
           val postAggIR = aggs.postAggIR
           val init = aggs.init
           val seq = aggs.seqPerElt
           val aggSigs = aggs.aggs
 
-          val streamName = genUID()
-          val streamTyp = TStream(child.typ.rowType)
           var ts = child
 
           val origGlobalTyp = ts.typ.globalType
@@ -54,7 +51,7 @@ object LowerAndExecuteShuffles {
           ts = TableMapGlobals(
             ts,
             MakeStruct(FastSeq(
-              ("oldGlobals", Ref("global", origGlobalTyp)),
+              ("oldGlobals", Ref(TableIR.globalName, origGlobalTyp)),
               (
                 "__initState",
                 RunAgg(
@@ -68,17 +65,12 @@ object LowerAndExecuteShuffles {
             )),
           )
 
-          val insGlobName = genUID()
-          def insGlob = Ref(insGlobName, ts.typ.globalType)
           val partiallyAggregated =
-            TableMapPartitions(
-              ts,
-              insGlob.name,
-              streamName,
+            mapPartitions(ts) { (insGlob, partStream) =>
               Let(
-                FastSeq("global" -> GetField(insGlob, "oldGlobals")),
+                FastSeq(TableIR.globalName -> GetField(insGlob, "oldGlobals")),
                 StreamBufferedAggregate(
-                  Ref(streamName, streamTyp),
+                  partStream,
                   bindIR(GetField(insGlob, "__initState")) { states =>
                     Begin(aggSigs.indices.map { aIdx =>
                       InitFromSerializedValue(
@@ -90,14 +82,12 @@ object LowerAndExecuteShuffles {
                   },
                   newKey,
                   seq,
-                  "row",
+                  TableIR.rowName,
                   aggSigs,
                   bufferSize,
                 ),
-              ),
-              0,
-              0,
-            ).noSharing(ctx)
+              )
+            }.noSharing(ctx)
 
           val analyses = LoweringAnalyses(partiallyAggregated, ctx)
           val preShuffleStage = ctx.backend.tableToTableStage(ctx, partiallyAggregated, analyses)
@@ -116,22 +106,22 @@ object LowerAndExecuteShuffles {
           val takeAggSig = PhysicalAggSig(Take(), takeVirtualSig)
           val aggStateSigsPlusTake = aggs.states ++ Array(takeVirtualSig)
 
-          val postAggUID = genUID()
-          val resultFromTakeUID = genUID()
           val result = ResultOp(aggs.aggs.length, takeAggSig)
 
           val shuffleRead =
             TableRead(partiallyAggregatedReader.fullType, false, partiallyAggregatedReader)
 
-          val partStream = Ref(genUID(), TStream(shuffleRead.typ.rowType))
-          val tmp = TableMapPartitions(
+          val postAggUID = Ref(freshName(), postAggIR.typ)
+          val resultFromTakeUID = Ref(freshName(), result.typ)
+          val tmp = mapPartitions(
             shuffleRead,
-            insGlob.name,
-            partStream.name,
+            newKeyType.size,
+            newKeyType.size - 1,
+          ) { (insGlob, shuffledPartStream) =>
             Let(
-              FastSeq("global" -> GetField(insGlob, "oldGlobals")),
+              FastSeq(TableIR.globalName -> GetField(insGlob, "oldGlobals")),
               mapIR(StreamGroupByKey(
-                partStream,
+                shuffledPartStream,
                 newKeyType.fieldNames.toIndexedSeq,
                 missingEqual = true,
               )) { groupRef =>
@@ -170,31 +160,29 @@ object LowerAndExecuteShuffles {
                   )),
                   Let(
                     FastSeq(
-                      resultUID -> ResultOp.makeTuple(aggs.aggs),
-                      postAggUID -> postAggIR,
-                      resultFromTakeUID -> result,
+                      aggs.resultRef.name -> ResultOp.makeTuple(aggs.aggs),
+                      postAggUID.name -> postAggIR,
+                      resultFromTakeUID.name -> result,
                     ), {
                       val keyIRs: IndexedSeq[(String, IR)] =
                         newKeyType.fieldNames.map(keyName =>
-                          keyName -> GetField(
-                            ArrayRef(Ref(resultFromTakeUID, result.typ), 0),
-                            keyName,
-                          )
+                          keyName -> GetField(ArrayRef(resultFromTakeUID, 0), keyName)
                         )
 
                       MakeStruct(keyIRs ++ expr.typ.asInstanceOf[TStruct].fieldNames.map { f =>
-                        (f, GetField(Ref(postAggUID, postAggIR.typ), f))
+                        (f, GetField(postAggUID, f))
                       })
                     },
                   ),
                   aggStateSigsPlusTake,
                 )
               },
-            ),
-            newKeyType.size,
-            newKeyType.size - 1,
-          )
-          Some(TableMapGlobals(tmp, GetField(Ref("global", insGlob.typ), "oldGlobals")))
+            )
+          }
+          Some(TableMapGlobals(
+            tmp,
+            GetField(Ref(TableIR.globalName, tmp.typ.globalType), "oldGlobals"),
+          ))
         case _ => None
       },
     )

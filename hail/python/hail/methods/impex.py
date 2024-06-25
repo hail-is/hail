@@ -9,43 +9,45 @@ from avro.io import DatumReader
 import hail as hl
 from hail import ir
 from hail.expr import (
-    StructExpression,
     LocusExpression,
-    expr_array,
-    expr_float64,
-    expr_str,
-    expr_numeric,
-    expr_call,
-    expr_bool,
-    expr_int32,
-    to_expr,
+    StructExpression,
     analyze,
+    expr_array,
+    expr_bool,
+    expr_call,
+    expr_float64,
+    expr_int32,
+    expr_numeric,
+    expr_str,
+    to_expr,
 )
-from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, tcall, tbool, tint64, tfloat32
+from hail.expr.matrix_type import tmatrix
+from hail.expr.table_type import ttable
+from hail.expr.types import hail_type, tarray, tbool, tcall, tfloat32, tfloat64, tint32, tint64, tstr, tstruct
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir.utils import parse_type
 from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
+from hail.methods.misc import require_biallelic, require_col_key_str, require_row_key_variant
 from hail.table import Table
 from hail.typecheck import (
-    typecheck,
-    nullable,
-    oneof,
-    dictof,
     anytype,
-    sequenceof,
-    enumeration,
-    sized_tupleof,
-    numeric,
-    table_key_type,
     char,
+    dictof,
+    enumeration,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
+    sized_tupleof,
+    table_key_type,
+    typecheck,
 )
 from hail.utils import new_temp_file
 from hail.utils.deduplicate import deduplicate
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
-from hail.utils.java import info
-from hail.utils.misc import wrap_to_list, plural
-from .import_lines_helpers import split_lines, should_remove_line
+from hail.utils.java import Env, FatalError, info, jindexed_seq_args, warning
+from hail.utils.misc import plural, wrap_to_list
+
+from .import_lines_helpers import should_remove_line, split_lines
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end, reference_genome, skip_invalid_intervals):
@@ -1031,7 +1033,7 @@ def grep(regex, path, max_count=100, *, show: bool = True, force: bool = False, 
     convenience to those in the statistical genetics community who often
     search enormous text files like VCFs. Hail uses `Java regular expression
     patterns
-    <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+    <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`__.
     The `RegExr sandbox <http://regexr.com/>`__ may be helpful.
 
     Parameters
@@ -1270,15 +1272,15 @@ def import_bgen(
 
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
-        if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
+        if isinstance(variants, (StructExpression, LocusExpression)):
             if isinstance(variants, LocusExpression):
                 variants = hl.struct(locus=variants)
 
             if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
                 raise TypeError(
                     "'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                    + f"\tFound: {repr(variants.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n"
+                    + f"\tFound: {variants.dtype!r}\n"
+                    + f"\tExpected: {expected_vtype!r}\n"
                 )
 
             uid = Env.get_uid()
@@ -1292,8 +1294,8 @@ def import_bgen(
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
                 raise TypeError(
                     "'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n"
-                    + f"\tFound: {repr(variants.key.dtype)}\n"
-                    + f"\tExpected: {repr(expected_vtype)}\n"
+                    + f"\tFound: {variants.key.dtype!r}\n"
+                    + f"\tExpected: {expected_vtype!r}\n"
                 )
             variants = variants.select()
         else:
@@ -1315,7 +1317,7 @@ def import_bgen(
                             variants = hl.Table.parallelize(variants, schema=expected_vtype, key=['locus', 'alleles'])
             except Exception:
                 raise TypeError(
-                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}"
+                    f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {expected_vtype!r}"
                 )
 
         vir = variants._tir
@@ -1448,7 +1450,6 @@ def import_gen(
     gen_table = import_lines(path, min_partitions)
     sample_table = import_lines(sample_file)
     rg = reference_genome.name if reference_genome else None
-    contig_recoding = contig_recoding
     if contig_recoding is None:
         contig_recoding = hl.empty_dict(hl.tstr, hl.tstr)
     else:
@@ -1471,15 +1472,14 @@ def import_gen(
     varid = gen_table.data[last_rowf_idx - 4]
     if rg is None:
         locus = hl.struct(contig=contig_holder, position=position)
+    elif skip_invalid_loci:
+        locus = hl.if_else(
+            hl.is_valid_locus(contig_holder, position, rg),
+            hl.locus(contig_holder, position, rg),
+            hl.missing(hl.tlocus(rg)),
+        )
     else:
-        if skip_invalid_loci:
-            locus = hl.if_else(
-                hl.is_valid_locus(contig_holder, position, rg),
-                hl.locus(contig_holder, position, rg),
-                hl.missing(hl.tlocus(rg)),
-            )
-        else:
-            locus = hl.locus(contig_holder, position, rg)
+        locus = hl.locus(contig_holder, position, rg)
 
     gen_table = gen_table.annotate(locus=locus, alleles=alleles, rsid=rsid, varid=varid)
     gen_table = gen_table.annotate(
@@ -1747,7 +1747,7 @@ def import_table(
     find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+        `String.replaceAll <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#replaceAll(java.lang.String,java.lang.String)>`__.
     force : :obj:`bool`
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be
@@ -1811,7 +1811,7 @@ def import_table(
         if renamings:
             hl.utils.warning(
                 f'import_table: renamed the following {plural("field", len(renamings))} to avoid name conflicts:'
-                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renamings)
+                + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renamings)
             )
 
     ht = ht.annotate(
@@ -2207,9 +2207,7 @@ def import_matrix_table(
 
                 row_fields_string = '\n'.join(
                     list(
-                        it.starmap(
-                            lambda row_field, row_type: f"      '{row_field}': {str(row_type)}", row_fields.items()
-                        )
+                        it.starmap(lambda row_field, row_type: f"      '{row_field}': {row_type!s}", row_fields.items())
                     )
                 )
                 header_fields_string = "\n      ".join(map(lambda field: f"'{field}'", header_dict['row_fields']))
@@ -2274,7 +2272,7 @@ def import_matrix_table(
             hl.missing(hail_type),
             hl.case()
             .when(~hl.is_missing(parsed_type), parsed_type)
-            .or_error(error_msg(row, idx, f"error parsing value into {str(hail_type)}" + error_clarify_msg)),
+            .or_error(error_msg(row, idx, f"error parsing value into {hail_type!s}" + error_clarify_msg)),
         )
 
     num_of_row_fields = len(row_fields.keys())
@@ -2304,7 +2302,7 @@ def import_matrix_table(
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError(
                 f'import_matrix_table expects field types to be one of:'
-                f"'int32', 'int64', 'float32', 'float64', 'str': field {repr(k)} had type '{v}'"
+                f"'int32', 'int64', 'float32', 'float64', 'str': field {k!r} had type '{v}'"
             )
 
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
@@ -2683,7 +2681,7 @@ def import_plink(
     _create_row_uids=bool,
     _create_col_uids=bool,
     _n_partitions=nullable(int),
-    _assert_type=nullable(hl.tmatrix),
+    _assert_type=nullable(tmatrix),
     _load_refs=bool,
 )
 def read_matrix_table(
@@ -2734,7 +2732,7 @@ def read_matrix_table(
             _drop_rows=_drop_rows,
             _drop_cols=_drop_cols,
             _intervals=intervals,
-            _assert_type=_assert_type,
+            _assert_type=mt._type,
             _load_refs=_load_refs,
         )
     return mt
@@ -3032,7 +3030,7 @@ def import_vcf(
     find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+        `String.replaceAll <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#replaceAll(java.lang.String,java.lang.String)>`__.
     n_partitions : :obj:`int`, optional
         Number of partitions.  If both `n_partitions` and `block_size`
         are specified, `n_partitions` will be used.
@@ -3258,7 +3256,7 @@ def get_vcf_header_info(path, filter=None, find=None, replace=None):
     _intervals=nullable(sequenceof(anytype)),
     _filter_intervals=bool,
     _n_partitions=nullable(int),
-    _assert_type=nullable(hl.ttable),
+    _assert_type=nullable(ttable),
     _load_refs=bool,
     _create_row_uids=bool,
 )
@@ -3297,7 +3295,7 @@ def read_table(
         return read_table(
             path,
             _intervals=intervals,
-            _assert_type=_assert_type,
+            _assert_type=ht._type,
             _load_refs=_load_refs,
             _create_row_uids=_create_row_uids,
         )
@@ -3519,7 +3517,7 @@ def import_csv(
     find_replace : (:class:`str`, :obj:`str`)
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
-        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+        `String.replaceAll <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/lang/String.html#replaceAll(java.lang.String,java.lang.String)>`__.
     force : :obj:`bool`
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be

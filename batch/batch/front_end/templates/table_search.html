@@ -1,75 +1,24 @@
+{% from "components/utils.html" import submit_button %}
 {% macro table_search(component_name, endpoint) %}
-  <style>
-    #{{ component_name }} {
-      margin: 10px;
-      margin-left: 0px;
-    }
-    #{{ component_name }}-inner {
-      height: 15rem;
-      width: 65vw;
-      display: flex;
-      align-items: center;
-    }
-    #{{ component_name }}-input-box {
-      background-color: #efefef;
-      padding: 0.75rem;
-      border-radius: 3px;
-      font-size: 1rem;
-      resize: none;
-      width: 450px;
-      white-space: pre;
-      height: 10rem;
-    }
-    #{{ component_name}}-buttons {
-      margin-left: 1rem;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-    }
-    #{{ component_name }}-submit {
-      margin-bottom: 0.9rem;
-    }
-    #{{ component_name }}-submit:hover {
-      background-color: #283870;
-      color: #fff;
-    }
-    #{{ component_name }}-info {
-      margin-top: 0.4rem;
-      color: #8398e0;
-      font-size: 2rem;
-    }
-    #{{ component_name }}-info:hover {
-      cursor: pointer;
-      color: #283870;
-    }
-  </style>
-  <div class="flex-col">
-    <div id="{{ component_name }}" class="flex-col-align-left">
-      <form id="{{ component_name }}-form" method="GET" action="{{ endpoint }}">
-        <div id="{{ component_name }}-inner">
-          <div>
-            <textarea id="{{ component_name }}-input-box" spellcheck="false" autocorrect="off" autofocus name="q">{% if q %}{{ q }}{% endif %}</textarea>
-          </div>
-          <div id="{{ component_name }}-buttons">
-            <a href="https://hail.is/docs/batch/advanced_search_help.html" target="_blank">
-	      <span class="material-symbols-outlined">help</span>
-            </a>
-            <button id="{{ component_name }}-submit" type="submit">
-              Search
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+<form id='{{ component_name }}-form' class='min-h-48 flex space-x-4' method="GET" action="{{ endpoint }}">
+  <div class='basis-2/3'>
+    <textarea id='{{ component_name }}-input-box' class='h-full w-full p-4 bg-zinc-200 rounded resize whitespace-pre'
+      spellcheck="false" autocorrect="off" autofocus name="q">{% if q %}{{ q }}{% endif %}</textarea>
   </div>
-  <script>
-    document.getElementById("{{ component_name }}-input-box")
-      .addEventListener("keydown", function(e) {
-        if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-          e.preventDefault();
-          document.getElementById("{{ component_name }}-form").submit();
-        }
+  <div class='flex flex-col justify-between'>
+    <a href="https://hail.is/docs/batch/advanced_search_help.html" target="_blank">
+      <span class="material-symbols-outlined">help</span>
+    </a>
+    {{ submit_button('Search') }}
+  </div>
+</form>
+<script>
+  document.getElementById("{{ component_name }}-input-box")
+    .addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        document.getElementById("{{ component_name }}-form").submit();
+      }
     });
-  </script>
+</script>
 {% endmacro %}

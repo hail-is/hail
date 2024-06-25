@@ -1,8 +1,9 @@
-from typing import TypeVar, Callable
-import re
-import inspect
 import abc
 import collections
+import inspect
+import re
+from typing import Callable, TypeVar
+
 from hailtop.hail_decorator import decorator
 
 
@@ -457,8 +458,8 @@ anyfunc = AnyFuncChecker()
 def transformed(*tcs):
     fs = []
     for tc, f in tcs:
-        tc = only(tc)
-        fs.append((tc, f))
+        _tc = only(tc)
+        fs.append((_tc, f))
     return CoercionChecker(*fs)
 
 

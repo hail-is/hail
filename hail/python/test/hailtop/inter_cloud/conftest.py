@@ -1,11 +1,13 @@
-from typing import Tuple, AsyncIterator, Dict
-import secrets
-import os
-import pytest
 import asyncio
 import functools
+import os
+import secrets
+from typing import AsyncIterator, Dict, Tuple
+
+import pytest
+
+from hailtop.aiotools.router_fs import AsyncFS, RouterAsyncFS
 from hailtop.utils import bounded_gather2
-from hailtop.aiotools.router_fs import RouterAsyncFS, AsyncFS
 
 
 @pytest.fixture(scope='module')

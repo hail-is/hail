@@ -22,6 +22,10 @@ object TableType {
 
   def valueType(ts: TStruct, key: IndexedSeq[String]): TStruct =
     ts.filterSet(key.toSet, include = false)._1
+
+  def globalBindings: IndexedSeq[Int] = FastSeq(0)
+
+  def rowBindings: IndexedSeq[Int] = FastSeq(0, 1)
 }
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct)
@@ -34,17 +38,17 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
       throw new RuntimeException(s"key field $k not in row type: $rowType")
   }
 
-  @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
+  @transient lazy val globalEnv: Env[Type] =
+    Env.empty[Type].bind(globalBindings: _*)
 
-  @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("row" -> rowType)
+  def globalBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(TableIR.globalName -> globalType)
 
-  @transient lazy val refMap: Map[String, Type] = Map(
-    "global" -> globalType,
-    "row" -> rowType,
-  )
+  @transient lazy val rowEnv: Env[Type] =
+    Env.empty[Type].bind(rowBindings: _*)
+
+  def rowBindings: IndexedSeq[(Name, Type)] =
+    FastSeq(TableIR.globalName -> globalType, TableIR.rowName -> rowType)
 
   def isCanonical: Boolean = rowType.isCanonical && globalType.isCanonical
 

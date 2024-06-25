@@ -1,10 +1,10 @@
-from typing import Dict, Any
+import pprint
 from collections import OrderedDict
 from collections.abc import Mapping
-import pprint
+from typing import Any, Dict
 
+from hail.typecheck import anytype, typecheck, typecheck_method
 from hail.utils.misc import get_nice_attr_error, get_nice_field_error
-from hail.typecheck import typecheck, typecheck_method, anytype
 
 
 class Struct(Mapping):
@@ -89,8 +89,8 @@ class Struct(Mapping):
 
     def __str__(self):
         if all(k.isidentifier() for k in self._fields):
-            return 'Struct(' + ', '.join(f'{k}={repr(v)}' for k, v in self._fields.items()) + ')'
-        return 'Struct(**{' + ', '.join(f'{repr(k)}: {repr(v)}' for k, v in self._fields.items()) + '})'
+            return 'Struct(' + ', '.join(f'{k}={v!r}' for k, v in self._fields.items()) + ')'
+        return 'Struct(**{' + ', '.join(f'{k!r}: {v!r}' for k, v in self._fields.items()) + '})'
 
     def __eq__(self, other):
         return self._fields == other._fields if isinstance(other, Struct) else NotImplemented

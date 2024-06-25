@@ -1,8 +1,7 @@
-from collections import namedtuple
 import re
+from collections import namedtuple
 
 from hailtop.config import ConfigVariable
-
 
 _config_variables = None
 
@@ -18,8 +17,8 @@ def _is_float_str(x: str) -> bool:
 
 
 def config_variables():
-    from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
     from hailtop.aiotools.router_fs import RouterAsyncFS  # pylint: disable=import-outside-toplevel
+    from hailtop.batch_client.parse import CPU_REGEXPAT, MEMORY_REGEXPAT  # pylint: disable=import-outside-toplevel
 
     global _config_variables
 
@@ -87,13 +86,6 @@ def config_variables():
                 validation=(
                     lambda x: x in ('local', 'spark', 'batch'),
                     'should be one of "local", "spark", or "batch"',
-                ),
-            ),
-            ConfigVariable.QUERY_JAR_URL: ConfigVariableInfo(
-                help_msg='Cloud storage URI to a Query JAR',
-                validation=(
-                    RouterAsyncFS.valid_url,
-                    'should be valid cloud storage URI such as gs://my-bucket/jars/sha.jar',
                 ),
             ),
             ConfigVariable.QUERY_BATCH_DRIVER_CORES: ConfigVariableInfo(

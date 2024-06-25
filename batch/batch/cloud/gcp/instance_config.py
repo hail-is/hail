@@ -2,7 +2,11 @@ from typing import List, Union
 
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
-from .resource_utils import gcp_machine_type_to_parts, machine_family_to_gpu
+from .resource_utils import (
+    gcp_machine_type_to_parts,
+    machine_type_to_gpu,
+    machine_type_to_gpu_num,
+)
 from .resources import (
     GCPAcceleratorResource,
     GCPComputeResource,
@@ -62,9 +66,13 @@ class GCPSlimInstanceConfig(InstanceConfig):
             GCPSupportLogsSpecsAndFirewallFees.create(product_versions),
         ]
 
-        accelerator_family = machine_family_to_gpu(machine_type_parts.machine_family)
+        accelerator_family = machine_type_to_gpu(machine_type)
+
         if accelerator_family:
-            resources.append(GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region))
+            num_gpus = machine_type_to_gpu_num(machine_type)
+            resources.append(
+                GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region, num_gpus)
+            )
 
         return GCPSlimInstanceConfig(
             machine_type=machine_type,
@@ -96,6 +104,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
         machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
         assert machine_type_parts is not None, machine_type
+        self.machine_type_parts = machine_type_parts
         self._instance_family = machine_type_parts.machine_family
         self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
@@ -103,6 +112,9 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     def worker_type(self) -> str:
         return self._worker_type
+
+    def instance_memory(self) -> int:
+        return self.machine_type_parts.memory
 
     def region_for(self, location: str) -> str:
         # location = zone

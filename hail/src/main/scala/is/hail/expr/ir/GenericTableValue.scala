@@ -67,7 +67,7 @@ class PartitionIteratorLongReader(
     context.toI(cb).map(cb) { case _ctxStruct: SBaseStructValue =>
       val ctxStruct = cb.memoizeField(_ctxStruct, "ctxStruct")
       val partIdx =
-        cb.memoizeField(_ctxStruct.loadField(cb, "partitionIndex").get(cb).asInt.value.toL)
+        cb.memoizeField(_ctxStruct.loadField(cb, "partitionIndex").getOrAssert(cb).asInt.value.toL)
       val rowIdx = mb.genFieldThisRef[Long]("pnr_rowidx")
       val region = mb.genFieldThisRef[Region]("pilr_region")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")

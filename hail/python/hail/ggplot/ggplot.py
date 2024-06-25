@@ -1,31 +1,31 @@
-from plotly.subplots import make_subplots
-
-from pprint import pprint
 import itertools
+from pprint import pprint
+
+from plotly.subplots import make_subplots
 
 import hail as hl
 
+from .aes import Aesthetic, aes
 from .coord_cartesian import CoordCartesian
-from .geoms import Geom, FigureAttribute
+from .facets import Faceter
+from .geoms import FigureAttribute, Geom
 from .labels import Labels
 from .scale import (
     Scale,
     ScaleContinuous,
     ScaleDiscrete,
+    scale_color_continuous,
+    scale_color_discrete,
+    scale_fill_continuous,
+    scale_fill_discrete,
+    scale_shape_auto,
     scale_x_continuous,
+    scale_x_discrete,
     scale_x_genomic,
     scale_y_continuous,
-    scale_x_discrete,
     scale_y_discrete,
-    scale_color_discrete,
-    scale_color_continuous,
-    scale_fill_discrete,
-    scale_fill_continuous,
-    scale_shape_auto,
 )
-from .aes import Aesthetic, aes
-from .facets import Faceter
-from .utils import is_continuous_type, is_genomic_type, check_scale_continuity
+from .utils import check_scale_continuity, is_continuous_type, is_genomic_type
 
 
 class GGPlot:
@@ -53,7 +53,7 @@ class GGPlot:
         self.add_default_scales(aes)
 
     def __add__(self, other):
-        assert isinstance(other, FigureAttribute) or isinstance(other, Aesthetic)
+        assert isinstance(other, (FigureAttribute, Aesthetic))
 
         copied = self.copy()
         if isinstance(other, Geom):
@@ -109,11 +109,10 @@ class GGPlot:
                         "The 'shape' aesthetic does not support continuous "
                         "types. Specify values of a discrete type instead."
                     )
+                elif is_continuous:
+                    self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
                 else:
-                    if is_continuous:
-                        self.scales[aesthetic_str] = ScaleContinuous(aesthetic_str)
-                    else:
-                        self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
+                    self.scales[aesthetic_str] = ScaleDiscrete(aesthetic_str)
 
     def copy(self):
         return GGPlot(self.ht, self.aes, self.geoms[:], self.labels, self.coord_cartesian, self.scales, self.facet)

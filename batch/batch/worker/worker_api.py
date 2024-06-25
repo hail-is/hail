@@ -1,5 +1,5 @@
 import abc
-from typing import Dict, List, TypedDict
+from typing import Dict, List, TypedDict, Union
 
 from aiohttp import web
 
@@ -10,9 +10,16 @@ from ..instance_config import InstanceConfig
 from .disk import CloudDisk
 
 
-class ContainerRegistryCredentials(TypedDict):
+class ContainerRegistryUsernamePassword(TypedDict):
     username: str
     password: str
+
+
+class ContainerRegistryAnonymousCredentials(TypedDict):
+    pass
+
+
+ContainerRegistryCredentials = Union[ContainerRegistryUsernamePassword, ContainerRegistryAnonymousCredentials]
 
 
 class CloudWorkerAPI(abc.ABC):
@@ -30,6 +37,9 @@ class CloudWorkerAPI(abc.ABC):
     @abc.abstractmethod
     async def worker_container_registry_credentials(self, session: httpx.ClientSession) -> ContainerRegistryCredentials:
         raise NotImplementedError
+
+    async def extra_hail_headers(self) -> Dict[str, str]:
+        return {}
 
     @abc.abstractmethod
     async def user_container_registry_credentials(self, credentials: Dict[str, str]) -> ContainerRegistryCredentials:

@@ -29,12 +29,12 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 from typing_extensions import ParamSpec
 
 from gear import (
-    AuthServiceAuthenticator,
     CommonAiohttpAppKeys,
     Database,
     Transaction,
     UserData,
     check_csrf_token,
+    get_authenticator,
     json_request,
     json_response,
     monitor_endpoints_middleware,
@@ -45,6 +45,7 @@ from gear.auth import get_session_id, impersonate_user
 from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
+from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
 from hailtop import aiotools, dictfix, httpx, uvloopx, version
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
@@ -57,7 +58,6 @@ from hailtop.batch_client.types import (
 )
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import (
     cost_str,
     dump_all_stacktraces,
@@ -74,8 +74,9 @@ from web_common import render_template, set_message, setup_aiohttp_jinja2, setup
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
 from ..batch_format_version import BatchFormatVersion
+from ..cloud.azure.resource_utils import azure_cores_mcpu_to_memory_bytes
+from ..cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, gcp_cores_mcpu_to_memory_bytes
 from ..cloud.resource_utils import (
-    cores_mcpu_to_memory_bytes,
     is_valid_cores_mcpu,
     memory_to_worker_type,
     valid_machine_types,
@@ -132,7 +133,7 @@ routes = web.RouteTableDef()
 
 deploy_config = get_deploy_config()
 
-auth = AuthServiceAuthenticator()
+auth = get_authenticator()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
@@ -488,9 +489,14 @@ async def _get_job_log(app, batch_id, job_id) -> Dict[str, Optional[bytes]]:
     return dict(zip(containers, logs))
 
 
-async def _get_job_resource_usage(app, batch_id, job_id) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
+async def _get_job_resource_usage(app, batch_id: int, job_id: int) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     record = await _get_job_record(app, batch_id, job_id)
+    return await _get_job_resource_usage_from_record(app, record, batch_id=batch_id, job_id=job_id)
 
+
+async def _get_job_resource_usage_from_record(
+    app, record, batch_id: int, job_id: int
+) -> Optional[Dict[str, Optional[pd.DataFrame]]]:
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     file_store: FileStore = app['file_store']
     batch_format_version = BatchFormatVersion(record['format_version'])
@@ -809,6 +815,11 @@ async def create_job_groups(request: web.Request, userdata: UserData) -> web.Res
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_group_specs = await json_request(request)
+    try:
+        validate_job_groups(job_group_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     await _create_job_groups(db, batch_id, update_id, user, job_group_specs)
     return web.Response()
 
@@ -833,6 +844,11 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_specs = await json_request(request)
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
@@ -849,6 +865,11 @@ async def create_jobs_for_update(request: web.Request, userdata: UserData) -> we
     batch_id = int(request.match_info['batch_id'])
     update_id = int(request.match_info['update_id'])
     job_specs = await json_request(request)
+    try:
+        validate_and_clean_jobs(job_specs)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     return await _create_jobs(userdata, job_specs, batch_id, update_id, app)
 
 
@@ -957,8 +978,6 @@ VALUES (%s, %s, %s, %s);
 async def _create_job_groups(db: Database, batch_id: int, update_id: int, user: str, job_group_specs: List[dict]):
     assert len(job_group_specs) > 0
 
-    validate_job_groups(job_group_specs)
-
     @transaction(db)
     async def insert(tx):
         record = await tx.execute_and_fetchone(
@@ -1066,11 +1085,6 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     update_start_job_id = int(record['start_job_id'])
     update_start_job_group_id = int(record['start_job_group_id'])
 
-    try:
-        validate_and_clean_jobs(job_specs)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
-
     spec_writer = SpecWriter(file_store, batch_id)
 
     jobs_args = []
@@ -1148,7 +1162,10 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 revision = spec['process']['jar_spec']['value']
                 assert_is_sha_1_hex_string(revision)
                 spec['process']['jar_spec']['type'] = 'jar_url'
-                spec['process']['jar_spec']['value'] = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + revision + '.jar'
+                value = await app[AppKeys.QOB_JAR_RESOLUTION_CACHE].lookup(revision)
+                if value is None:
+                    raise web.HTTPBadRequest(reason=f'Could not find a JAR matching revision {revision}')
+                spec['process']['jar_spec']['value'] = value
             else:
                 assert spec['process']['jar_spec']['type'] == 'jar_url'
                 jar_url = spec['process']['jar_spec']['value']
@@ -1178,7 +1195,11 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             memory_to_worker_types = memory_to_worker_type(cloud)
             if req_memory in memory_to_worker_types:
                 worker_type = memory_to_worker_types[req_memory]
-                req_memory_bytes = cores_mcpu_to_memory_bytes(cloud, req_cores_mcpu, worker_type)
+                if CLOUD == 'gcp':
+                    req_memory_bytes = gcp_cores_mcpu_to_memory_bytes(req_cores_mcpu, GCP_MACHINE_FAMILY, worker_type)
+                else:
+                    assert CLOUD == 'azure'
+                    req_memory_bytes = azure_cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
             else:
                 req_memory_bytes = parse_memory_in_bytes(req_memory)
         else:
@@ -1254,24 +1275,24 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         spec['secrets'] = secrets
 
-        secrets.append({
-            'namespace': DEFAULT_NAMESPACE,
-            'name': userdata['hail_credentials_secret_name'],
-            'mount_path': '/gsa-key',
-            'mount_in_copy': True,
-        })
-
         env = spec.get('env')
         if not env:
             env = []
             spec['env'] = env
         assert isinstance(spec['env'], list)
 
-        if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-            spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+        if not os.environ.get('HAIL_TERRA'):
+            secrets.append({
+                'namespace': DEFAULT_NAMESPACE,
+                'name': userdata['hail_credentials_secret_name'],
+                'mount_path': '/gsa-key',
+                'mount_in_copy': True,
+            })
+            if cloud == 'gcp' and all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
-        if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-            spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+            if cloud == 'azure' and all(envvar['name'] != 'AZURE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                spec['env'].append({'name': 'AZURE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
         cloudfuse = spec.get('gcsfuse') or spec.get('cloudfuse')
         if cloudfuse:
@@ -1284,6 +1305,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                     )
 
         if spec.get('mount_tokens', False):
+            # Clients stopped using `mount_tokens` prior to the introduction of terra deployments
+            assert not os.environ.get('HAIL_TERRA', False)
             secrets.append({
                 'namespace': DEFAULT_NAMESPACE,
                 'name': userdata['tokens_secret_name'],
@@ -1519,6 +1542,13 @@ async def create_batch_fast(request, userdata):
     jobs = batch_and_bunch['bunch']
     job_groups = batch_and_bunch.get('job_groups', [])
 
+    try:
+        validate_batch(batch_spec)
+        validate_and_clean_jobs(jobs)
+        validate_job_groups(job_groups)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     batch_id = await _create_batch(batch_spec, userdata, db)
 
     update_id, start_job_group_id, start_job_id = await _create_batch_update(
@@ -1555,6 +1585,11 @@ async def create_batch(request, userdata):
     db: Database = app['db']
 
     batch_spec = await json_request(request)
+    try:
+        validate_batch(batch_spec)
+    except ValidationError as e:
+        raise web.HTTPBadRequest(reason=e.reason)
+
     id = await _create_batch(batch_spec, userdata, db)
     n_jobs = batch_spec['n_jobs']
     n_job_groups = batch_spec.get('n_job_groups', 0)
@@ -1577,11 +1612,6 @@ async def create_batch(request, userdata):
 
 
 async def _create_batch(batch_spec: dict, userdata, db: Database) -> int:
-    try:
-        validate_batch(batch_spec)
-    except ValidationError as e:
-        raise web.HTTPBadRequest(reason=e.reason)
-
     user = userdata['username']
 
     # restrict to what's necessary; in particular, drop the session
@@ -1704,6 +1734,8 @@ async def update_batch_fast(request, userdata):
 
     try:
         validate_batch_update(update_spec)
+        validate_and_clean_jobs(jobs)
+        validate_job_groups(job_groups)
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
@@ -2152,6 +2184,11 @@ async def ui_batch(request, userdata, batch_id):
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
         j['cost'] = cost_str(j['cost'])
+        j['display_state'] = (
+            f"{j['state']} (always run)"
+            if j['always_run'] and j['state'] not in {'Success', 'Failed', 'Error'}
+            else j['state']
+        )
     batch['jobs'] = jobs
 
     batch['cost'] = cost_str(batch['cost'])
@@ -2345,6 +2382,55 @@ async def get_job(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
     return json_response(status)
+
+
+@routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage')
+@billing_project_users_only()
+async def get_job_resource_usage(request: web.Request, _, batch_id: int) -> web.Response:
+    """
+    Get the resource_usage data for a job. The data is returned as a JSON object
+    transformed from a pandas DataFrame using the 'split' orientation.
+
+    Returns
+    -------
+    Example response:
+    {
+        // eg: input, main, output
+        "[job_stage]": {
+            "columns":[
+                "time_msecs",
+                "memory_in_bytes",
+                "cpu_usage",
+                "non_io_storage_in_bytes",
+                "io_storage_in_bytes",
+                "network_bandwidth_upload_in_bytes_per_second",
+                "network_bandwidth_download_in_bytes_per_second"
+            ],
+            "index":[0, 1, ...],
+            "data": [[<records>]],
+        }, ...
+    }
+    """
+
+    # pull this out separately as billing_project_users_only() does a permission
+    # check for us, but has a fixed signature
+    job_id = int(request.match_info['job_id'])
+
+    job_record = await _get_job_record(request.app, batch_id, job_id)
+
+    resources: Optional[Dict[str, Optional[pd.DataFrame]]] = await _get_job_resource_usage_from_record(
+        app=request.app, record=job_record, batch_id=batch_id, job_id=job_id
+    )
+
+    if not resources:
+        # empty response if not available yet
+        return json_response({})
+
+    return json_response({
+        stage: stage_resource.to_dict(orient='split')
+        for stage, stage_resource in resources.items()
+        if stage_resource is not None
+    })
 
 
 def plot_job_durations(container_statuses: dict, batch_id: int, job_id: int):
@@ -3349,6 +3435,10 @@ class BatchFrontEndAccessLogger(AccessLogger):
         super().log(request, response, time)
 
 
+class AppKeys(CommonAiohttpAppKeys):
+    QOB_JAR_RESOLUTION_CACHE = web.AppKey('qob_jar_resolution_cache', TimeLimitedMaxSizeCache[Tuple[str, str], str])
+
+
 async def on_startup(app):
     exit_stack = AsyncExitStack()
     app['exit_stack'] = exit_stack
@@ -3409,6 +3499,18 @@ SELECT instance_id, n_tokens, frozen FROM globals;
         retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
     )
 
+    async def resolve_qob_jar_url(git_revision: str) -> Optional[str]:
+        production_url = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/' + git_revision + '.jar'
+        dev_url = ACCEPTABLE_QUERY_JAR_URL_PREFIX + '/dev/' + git_revision + '.jar'
+        for url in (production_url, dev_url):
+            if await fs.exists(url):
+                return url
+        return None
+
+    app[AppKeys.QOB_JAR_RESOLUTION_CACHE] = TimeLimitedMaxSizeCache(
+        resolve_qob_jar_url, int(1e10), 100, AppKeys.QOB_JAR_RESOLUTION_CACHE._name
+    )
+
     app['task_manager'].ensure_future(periodically_call(5, _refresh, app))
 
 
@@ -3440,5 +3542,5 @@ def run():
         host='0.0.0.0',
         port=int(os.environ['PORT']),
         access_log_class=BatchFrontEndAccessLogger,
-        ssl_context=internal_server_ssl_context(),
+        ssl_context=deploy_config.server_ssl_context(),
     )

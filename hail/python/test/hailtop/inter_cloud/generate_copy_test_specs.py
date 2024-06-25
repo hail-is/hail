@@ -1,8 +1,9 @@
+import asyncio
+import pprint
 import secrets
 from concurrent.futures import ThreadPoolExecutor
-import pprint
-import asyncio
-from hailtop.aiotools import LocalAsyncFS, Transfer, Copier
+
+from hailtop.aiotools import Copier, Transfer
 from hailtop.aiotools.router_fs import RouterAsyncFS
 
 
@@ -152,7 +153,7 @@ async def copy_test_specs():
 async def main():
     test_specs = await copy_test_specs()
     with open('test/hailtop/aiotools/copy_test_specs.py', 'w') as f:
-        f.write(f'COPY_TEST_SPECS = ')
+        f.write('COPY_TEST_SPECS = ')
         pprint.pprint(test_specs, stream=f)
 
 

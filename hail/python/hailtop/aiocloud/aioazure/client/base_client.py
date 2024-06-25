@@ -1,12 +1,13 @@
-from typing import Optional, AsyncGenerator, Any, List, Mapping, Union
+from typing import Any, AsyncGenerator, List, Mapping, Optional, Union
 
 import aiohttp
+
 from hailtop.utils import RateLimit, sleep_before_try, url_and_params
 
-from ..credentials import AzureCredentials
 from ...common import CloudBaseClient
-from ...common.session import BaseSession, Session
 from ...common.credentials import AnonymousCloudCredentials
+from ...common.session import BaseSession, Session
+from ..credentials import AzureCredentials
 
 
 class AzureBaseClient(CloudBaseClient):

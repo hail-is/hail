@@ -139,8 +139,8 @@ object Interpret {
           case null =>
             null
         }
-      case Let(bindings, body) =>
-        val newEnv = bindings.foldLeft(env) { case (env, (name, value)) =>
+      case Block(bindings, body) =>
+        val newEnv = bindings.foldLeft(env) { case (env, Binding(name, value, Scope.EVAL)) =>
           env.bind(name -> interpret(value, env, args))
         }
         interpret(body, newEnv, args)
@@ -860,8 +860,9 @@ object Interpret {
         ctx.r.pool.scopedRegion { region =>
           val (rt, f) = functionMemo.getOrElseUpdate(
             ir, {
+              val in = Ref(freshName(), argTuple.virtualType)
               val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (_, i) =>
-                GetTupleElement(Ref("in", argTuple.virtualType), i)
+                GetTupleElement(in, i)
               }.toFastSeq
               val newChildren = ir match {
                 case _: ApplySeeded => wrappedArgs :+ NA(TRNGState)
@@ -872,7 +873,7 @@ object Interpret {
               val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](
                 ctx,
                 FastSeq((
-                  "in",
+                  in.name,
                   SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)),
                 )),
                 FastSeq(classInfo[Region], LongInfo),
@@ -940,16 +941,14 @@ object Interpret {
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val res = genUID()
-
-        val extracted = agg.Extract(query, res, Requiredness(x, ctx))
+        val extracted = agg.Extract(query, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) =
             Compile[AsmFunction2RegionLongLong](
               ctx,
               FastSeq((
-                "global",
+                TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               )),
               FastSeq(classInfo[Region], LongInfo),
@@ -968,7 +967,7 @@ object Interpret {
             ctx,
             extracted.states,
             FastSeq((
-              "global",
+              TableIR.rowName,
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
             )),
             FastSeq(classInfo[Region], LongInfo),
@@ -981,11 +980,11 @@ object Interpret {
             extracted.states,
             FastSeq(
               (
-                "global",
+                TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               ),
               (
-                "row",
+                TableIR.rowName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)),
               ),
             ),
@@ -1074,13 +1073,13 @@ object Interpret {
               ctx,
               extracted.states,
               FastSeq((
-                "global",
+                TableIR.globalName,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
               Let(
-                FastSeq(res -> extracted.results),
+                FastSeq(extracted.resultRef.name -> extracted.results),
                 MakeTuple.ordered(FastSeq(extracted.postAggIR)),
               ),
             )

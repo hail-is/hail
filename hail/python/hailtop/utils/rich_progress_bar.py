@@ -1,15 +1,16 @@
-from typing import Optional, Callable, Tuple, List
+from typing import Callable, List, Optional, Tuple
+
 from rich import filesize
 from rich.progress import (
-    MofNCompleteColumn,
     BarColumn,
-    TextColumn,
-    TimeRemainingColumn,
-    TimeElapsedColumn,
+    MofNCompleteColumn,
     Progress,
     ProgressColumn,
-    TaskProgressColumn,
     Task,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
 )
 from rich.text import Text
 

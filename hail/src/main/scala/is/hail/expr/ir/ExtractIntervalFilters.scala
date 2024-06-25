@@ -31,7 +31,12 @@ object ExtractIntervalFilters {
         (
           ir match {
             case TableFilter(child, pred) =>
-              extractPartitionFilters(ctx, pred, Ref("row", child.typ.rowType), child.typ.key)
+              extractPartitionFilters(
+                ctx,
+                pred,
+                Ref(TableIR.rowName, child.typ.rowType),
+                child.typ.key,
+              )
                 .map { case (newCond, intervals) =>
                   log.info(
                     s"generated TableFilterIntervals node with ${intervals.length} intervals:\n  " +
@@ -43,7 +48,7 @@ object ExtractIntervalFilters {
             case MatrixFilterRows(child, pred) => extractPartitionFilters(
                 ctx,
                 pred,
-                Ref("va", child.typ.rowType),
+                Ref(MatrixIR.rowName, child.typ.rowType),
                 child.typ.rowKey,
               ).map { case (newCond, intervals) =>
                 log.info(
@@ -688,10 +693,10 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
   }
 
   case class AbstractEnv(keySet: KeySet, env: Env[AbstractValue]) {
-    def apply(name: String): AbstractValue =
+    def apply(name: Name): AbstractValue =
       env.lookupOption(name).getOrElse(AbstractLattice.top)
 
-    def bind(bindings: (String, AbstractValue)*): AbstractEnv =
+    def bind(bindings: (Name, AbstractValue)*): AbstractEnv =
       copy(env = env.bind(bindings.filter(_._2 != AbstractLattice.top): _*))
 
     def restrict(k: KeySet): AbstractEnv =
@@ -760,7 +765,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
 
   def analyze(
     x: IR,
-    rowName: String,
+    rowName: Name,
     rw: Option[Rewrites] = None,
     constraint: KeySet = KeySetLattice.top,
   ): KeySet = {
@@ -905,13 +910,16 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
     var res: AbstractLattice.Value = if (env.keySet == KeySetLattice.bottom)
       AbstractLattice.bottom
     else x match {
-      case Let(bindings, body) =>
-        recur(
-          body,
-          bindings.foldLeft(env) { case (env, (name, value)) =>
-            env.bind(name -> recur(value, env))
-          },
-        )
+      case Block(bindings, body) =>
+        val newEnv = bindings.foldLeft[Option[AbstractEnv]](Some(env)) {
+          case (Some(env), Binding(name, value, Scope.EVAL)) =>
+            Some(env.bind(name -> recur(value, env)))
+          case _ => None
+        }
+        newEnv match {
+          case Some(env) => recur(body, env)
+          case None => null
+        }
       case Ref(name, _) => env(name)
       case GetField(o, name) => recur(o).asInstanceOf[StructValue](name)
       case MakeStruct(fields) => StructValue(fields.view.map { case (name, field) =>

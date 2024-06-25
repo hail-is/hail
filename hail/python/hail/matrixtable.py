@@ -1,43 +1,46 @@
 import itertools
-from typing import Iterable, Optional, Dict, Tuple, Any, List
+import warnings
 from collections import Counter
+from typing import Any, Dict, Iterable, List, Optional, Tuple
+
+from deprecated import deprecated
+
 import hail as hl
+from hail import ir
 from hail.expr.expressions import (
     Expression,
+    ExpressionException,
+    Indices,
     StructExpression,
-    expr_struct,
+    TupleExpression,
+    analyze,
+    construct_expr,
+    construct_reference,
     expr_any,
     expr_bool,
-    analyze,
-    Indices,
-    construct_reference,
-    construct_expr,
+    expr_struct,
     extract_refs_by_indices,
-    ExpressionException,
-    TupleExpression,
     unify_all,
 )
-from hail.expr.types import types_match, tarray, tset
 from hail.expr.matrix_type import tmatrix
-import hail.ir as ir
-from hail.table import Table, ExprContainer, TableIndexKeyError
+from hail.expr.types import tarray, tset, types_match
+from hail.table import ExprContainer, Table, TableIndexKeyError
 from hail.typecheck import (
+    anyfunc,
+    anytype,
+    dictof,
+    enumeration,
+    lazy,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
     typecheck,
     typecheck_method,
-    dictof,
-    anytype,
-    anyfunc,
-    nullable,
-    sequenceof,
-    oneof,
-    numeric,
-    lazy,
-    enumeration,
 )
-from hail.utils import storage_level, default_handler, deduplicate
-from hail.utils.java import warning, Env, info
-from hail.utils.misc import wrap_to_tuple, get_key_by_exprs, get_select_exprs, check_annotate_exprs, process_joins
-import warnings
+from hail.utils import deduplicate, default_handler, storage_level
+from hail.utils.java import Env, info, warning
+from hail.utils.misc import check_annotate_exprs, get_key_by_exprs, get_select_exprs, process_joins, wrap_to_tuple
 
 
 class GroupedMatrixTable(ExprContainer):
@@ -3372,7 +3375,7 @@ class MatrixTable(ExprContainer):
             itertools.chain(row_exprs.keys(), col_exprs.keys(), entry_exprs.keys(), global_exprs.keys())
         ):
             if field_name in self._fields:
-                raise RuntimeError(f'field {repr(field_name)} already in matrix table, cannot use _annotate_all')
+                raise RuntimeError(f'field {field_name!r} already in matrix table, cannot use _annotate_all')
 
         base, cleanup = self._process_joins(*all_exprs)
         mir = base._mir
@@ -4067,7 +4070,7 @@ class MatrixTable(ExprContainer):
                 other = other.rename(renames)
                 info(
                     'Table.union_cols: renamed the following fields on the right to avoid name conflicts:'
-                    + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items())
+                    + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renames.items())
                 )
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
@@ -4411,13 +4414,40 @@ class MatrixTable(ExprContainer):
 
         return self.choose_cols(unique_cols)
 
+    @deprecated(version="0.2.129")
     @typecheck_method(separator=str)
     def make_table(self, separator='.') -> Table:
         """Make a table from a matrix table with one field per sample.
 
+        .. deprecated:: 0.2.129
+            use :meth:`.localize_entries` instead because it supports more
+            columns
+
+        Parameters
+        ----------
+        separator : :class:`str`
+            Separator between sample IDs and entry field names.
+
+        Returns
+        -------
+        :class:`.Table`
+
+        See Also
+        --------
+        :meth:`.localize_entries`
+
+        Notes
+        -----
+        The table has one row for each row of the input matrix.  The
+        per sample and entry fields are formed by concatenating the
+        sample ID with the entry field name using `separator`.  If the
+        entry field name is empty, the separator is omitted.
+
+        The table inherits the globals from the matrix table.
+
+
         Examples
         --------
-
         Consider a matrix table with the following schema:
 
         .. code-block:: text
@@ -4462,26 +4492,6 @@ class MatrixTable(ExprContainer):
           Key:
               'locus': locus<GRCh37>
               'alleles': array<str>
-
-        Notes
-        -----
-
-        The table has one row for each row of the input matrix.  The
-        per sample and entry fields are formed by concatenating the
-        sample ID with the entry field name using `separator`.  If the
-        entry field name is empty, the separator is omitted.
-
-        The table inherits the globals from the matrix table.
-
-        Parameters
-        ----------
-        separator : :class:`str`
-            Separator between sample IDs and entry field names.
-
-        Returns
-        -------
-        :class:`.Table`
-
         """
         if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
             raise ValueError("column key must be a single field of type str")

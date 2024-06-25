@@ -418,7 +418,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   private[this] def encodeLiterals(): Array[AnyRef] = {
     val (literals, preEncodedLiterals) = emodb.literalsResult()
     val litType = PCanonicalTuple(true, literals.map(_._1.canonicalPType.setRequired(true)): _*)
-    val spec = TypedCodecSpec(litType, BufferSpec.wireSpec)
+    val spec = TypedCodecSpec(ctx, litType, BufferSpec.wireSpec)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
     val mb2 = newEmitMethod(
@@ -476,7 +476,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       rvb.startTuple()
       literals.foreach { case (typ, a, _, _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
-      enc.writeRegionValue(rvb.end())
+      enc.writeRegionValue(region, rvb.end())
     }
     enc.flush()
     enc.close()

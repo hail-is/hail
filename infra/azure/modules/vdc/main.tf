@@ -51,6 +51,7 @@ resource "azurerm_kubernetes_cluster" "vdc" {
   dns_prefix          = "example"
 
   automatic_channel_upgrade = "stable"
+  role_based_access_control_enabled = false
 
   default_node_pool {
     name           = "nonpreempt"
@@ -71,16 +72,13 @@ resource "azurerm_kubernetes_cluster" "vdc" {
     type = "SystemAssigned"
   }
 
-  addon_profile {
-    oms_agent {
-      enabled = true
-      log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
-    }
+  oms_agent {
+    log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
   }
 
   # https://github.com/hashicorp/terraform-provider-azurerm/issues/7396
   lifecycle {
-    ignore_changes = [addon_profile.0, default_node_pool.0.node_count]
+    ignore_changes = [default_node_pool.0.node_count]
   }
 }
 
@@ -158,4 +156,5 @@ resource "azurerm_public_ip" "gateway_ip" {
   location            = var.resource_group.location
   sku                 = "Standard"
   allocation_method   = "Static"
+  zones               = ["1", "2", "3"]
 }

@@ -37,6 +37,15 @@ T = TypeVar("T")
 P = ParamSpec('P')
 
 
+def exception_log_level_if_retryable(exc: BaseException) -> Optional[int]:
+    """If a database exception is retryable, return its `logging` log level."""
+    if isinstance(exc, pymysql.err.InternalError) and exc.args[0] in internal_error_retry_codes:
+        return logging.WARNING
+    if isinstance(exc, pymysql.err.OperationalError) and exc.args[0] in operational_error_retry_codes:
+        return operational_error_log_level.get(exc.args[0], logging.WARNING)
+    return None
+
+
 def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Awaitable[T]]:
     @functools.wraps(f)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
@@ -44,20 +53,11 @@ def retry_transient_mysql_errors(f: Callable[P, Awaitable[T]]) -> Callable[P, Aw
         while True:
             try:
                 return await f(*args, **kwargs)
-            except pymysql.err.InternalError as e:
-                if e.args[0] in internal_error_retry_codes:
-                    log.warning(
-                        f'encountered pymysql error, retrying {e}',
-                        exc_info=True,
-                        extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
-                    )
-                else:
-                    raise
-            except pymysql.err.OperationalError as e:
-                if e.args[0] in operational_error_retry_codes:
+            except Exception as exc:
+                if loglevel := exception_log_level_if_retryable(exc):
                     log.log(
-                        operational_error_log_level.get(e.args[0], logging.WARNING),
-                        f'encountered pymysql error, retrying {e}',
+                        loglevel,
+                        f'encountered pymysql error, retrying {exc}',
                         exc_info=True,
                         extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
                     )

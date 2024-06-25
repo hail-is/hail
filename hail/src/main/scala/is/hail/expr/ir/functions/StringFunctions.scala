@@ -43,6 +43,9 @@ object StringFunctions extends RegistryFunctions {
 
   def endswith(s: String, t: String): Boolean = s.endsWith(t)
 
+  def indexOf(s: String, sub: String, fromIndex: Int): Int =
+    s.indexOf(sub, fromIndex)
+
   def firstMatchIn(s: String, regex: String): Array[String] =
     regex.r.findFirstMatchIn(s).map(_.subgroups.toArray).orNull
 
@@ -309,26 +312,20 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end, _) =>
-      val len = Ref(genUID(), TInt32)
-      val s = Ref(genUID(), TInt32)
-      val e = Ref(genUID(), TInt32)
-      Let(
-        FastSeq(
-          len.name -> invoke("length", TInt32, str),
-          s.name -> softBounds(start, len),
-          e.name -> softBounds(end, len),
-        ),
-        invoke("substring", TString, str, s, If(e < s, s, e)),
-      )
+      bindIR(invoke("length", TInt32, str)) { len =>
+        bindIRs(
+          softBounds(start, len),
+          softBounds(end, len),
+        ) { case Seq(s, e) =>
+          invoke("substring", TString, str, s, If(e < s, s, e))
+        }
+      }
     }
 
     registerIR2("index", TString, TInt32, TString) { (_, s, i, errorID) =>
-      val len = Ref(genUID(), TInt32)
-      val idx = Ref(genUID(), TInt32)
-      Let(
-        FastSeq(
-          len.name -> invoke("length", TInt32, s),
-          idx.name -> If(
+      bindIR(invoke("length", TInt32, s)) { len =>
+        bindIR(
+          If(
             (i < -len) || (i >= len),
             Die(
               invoke(
@@ -346,10 +343,9 @@ object StringFunctions extends RegistryFunctions {
               errorID,
             ),
             If(i < 0, i + len, i),
-          ),
-        ),
-        invoke("substring", TString, s, idx, idx + 1),
-      )
+          )
+        )(idx => invoke("substring", TString, s, idx, idx + 1))
+      }
     }
 
     registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start, _) =>
@@ -491,6 +487,14 @@ object StringFunctions extends RegistryFunctions {
         case (_: Type, _: SType, _: SType) => SBoolean
       },
     )(thisClass, "regexMatch")
+    registerWrappedScalaFunction3(
+      "indexOf",
+      TString,
+      TString,
+      TInt32,
+      TInt32,
+      (_, _, _, _) => SInt32,
+    )(thisClass, "indexOf")
     registerWrappedScalaFunction2(
       "regexFullMatch",
       TString,

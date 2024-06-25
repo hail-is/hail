@@ -47,12 +47,6 @@ trait OutputBuffer extends Closeable {
 
   def writeBoolean(b: Boolean): Unit =
     writeByte(b.toByte)
-
-  def writeUTF(s: String): Unit = {
-    val bytes = s.getBytes(utfCharset)
-    writeInt(bytes.length)
-    write(bytes)
-  }
 }
 
 trait OutputBlockBuffer extends Spec with Closeable {

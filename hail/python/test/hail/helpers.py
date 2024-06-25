@@ -1,14 +1,14 @@
-from typing import Callable, TypeVar
-from typing_extensions import ParamSpec
 import os
-from timeit import default_timer as timer
 import unittest
+from timeit import default_timer as timer
+from typing import TypeVar
+
 import pytest
-from hailtop.hail_decorator import decorator
+from typing_extensions import ParamSpec
 
-from hail.utils.java import choose_backend
 import hail as hl
-
+from hail.utils.java import choose_backend
+from hailtop.hail_decorator import decorator
 
 GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')
@@ -17,9 +17,17 @@ HAIL_QUERY_N_CORES = os.environ.get('HAIL_QUERY_N_CORES', '2')
 def hl_init_for_test(*args, **kwargs):
     backend_name = choose_backend()
     if backend_name == 'spark':
-        hl.init(master=f'local[{HAIL_QUERY_N_CORES}]', min_block_size=0, quiet=True, global_seed=0, *args, **kwargs)
+        hl.init(
+            backend=backend_name,
+            master=f'local[{HAIL_QUERY_N_CORES}]',
+            min_block_size=0,
+            quiet=True,
+            global_seed=0,
+            *args,
+            **kwargs,
+        )
     else:
-        hl.init(global_seed=0, *args, **kwargs)
+        hl.init(global_seed=0, backend=backend_name, *args, **kwargs)
 
 
 def hl_stop_for_test():
@@ -136,42 +144,15 @@ T = TypeVar('T')
 
 
 def skip_unless_spark_backend(reason='requires Spark'):
-    from hail.backend.spark_backend import SparkBackend
-
-    @decorator
-    def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
-        if isinstance(hl.utils.java.Env.backend(), SparkBackend):
-            return func(*args, **kwargs)
-        else:
-            raise unittest.SkipTest(reason)
-
-    return wrapper
+    return pytest.mark.backend('spark')
 
 
 def skip_when_local_backend(reason='skipping for Local Backend'):
-    from hail.backend.local_backend import LocalBackend
-
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), LocalBackend):
-            raise unittest.SkipTest(reason)
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
+    return pytest.mark.backend('spark', 'batch')
 
 
 def skip_when_service_backend(reason='skipping for Service Backend'):
-    from hail.backend.service_backend import ServiceBackend
-
-    @decorator
-    def wrapper(func, *args, **kwargs):
-        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(reason)
-        else:
-            return func(*args, **kwargs)
-
-    return wrapper
+    return pytest.mark.backend('local', 'spark')
 
 
 def skip_when_service_backend_in_azure(reason='skipping for Service Backend in Azure'):
@@ -183,21 +164,6 @@ def skip_when_service_backend_in_azure(reason='skipping for Service Backend in A
             raise unittest.SkipTest(reason)
         else:
             return func(*args, **kwargs)
-
-    return wrapper
-
-
-def skip_unless_service_backend(reason='only relevant to service backend', clouds=None):
-    from hail.backend.service_backend import ServiceBackend
-
-    @decorator
-    def wrapper(func: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> T:
-        if not isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            raise unittest.SkipTest(reason)
-        else:
-            if clouds is None or os.environ['HAIL_CLOUD'] in clouds:
-                return func(*args, **kwargs)
-            raise unittest.SkipTest(f'{reason} for clouds {clouds}')
 
     return wrapper
 
@@ -217,7 +183,7 @@ fails_spark_backend = pytest.mark.xfail(
 )
 
 
-qobtest = pytest.mark.qobtest
+qobtest = pytest.mark.backend('batch')
 
 
 def test_timeout(overall=None, *, batch=None, local=None, spark=None):

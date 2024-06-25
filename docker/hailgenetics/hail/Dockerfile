@@ -7,14 +7,15 @@ FROM $BASE_IMAGE
 RUN hail-apt-get-install \
     git \
     liblapack3 \
-    openjdk-8-jre-headless
+    openjdk-11-jre-headless
 
 COPY hail/python/pinned-requirements.txt requirements.txt
 RUN hail-pip-install -r requirements.txt scikit-learn ipython
 
 RUN export SPARK_HOME=$(find_spark_home.py) && \
-    curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.2.7.jar \
-         >$SPARK_HOME/jars/gcs-connector-hadoop2-2.2.7.jar && \
+    curl --fail --silent --show-error --location \
+         https://repo1.maven.org/maven2/com/google/cloud/bigdataoss/gcs-connector/3.0.0/gcs-connector-3.0.0-shaded.jar \
+         >${SPARK_HOME}/jars/gcs-connector-3.0.0-shaded.jar && \
     mkdir -p $SPARK_HOME/conf && \
     touch $SPARK_HOME/conf/spark-defaults.conf && \
     sed -i $SPARK_HOME/conf/spark-defaults.conf \

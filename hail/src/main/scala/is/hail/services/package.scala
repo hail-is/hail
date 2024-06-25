@@ -64,7 +64,9 @@ package object services {
           if e.getMessage != null && e.getMessage == Constants.STREAM_CLOSED =>
         true
       case e: SocketException
-          if e.getMessage != null && e.getMessage.contains("Connection reset") =>
+          if e.getMessage != null && (e.getMessage.contains(
+            "Connection reset"
+          ) || e.getMessage.contains("Unexpected end of file")) =>
         true
       case e: HttpResponseException
           if e.getStatusCode() == 400 && e.getMessage != null && (
@@ -100,6 +102,8 @@ package object services {
     // ReactiveException it returns the exception unmodified.
     val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
     e match {
+      case _: java.nio.channels.ClosedByInterruptException =>
+        true
       case _: NoHttpResponseException =>
         true
       case e: HttpResponseException
@@ -156,7 +160,8 @@ package object services {
           if e.getMessage != null && e.getMessage.contains("SSL peer shut down incorrectly") =>
         true
       case e: IllegalStateException
-          if e.getMessage.contains("Timeout on blocking read") =>
+          if e.getMessage.contains("Timeout on blocking read") ||
+            e.getMessage.contains("Faulted stream due to underlying sink write failure") =>
         /* Caused by: java.lang.IllegalStateException: Timeout on blocking read for 30000000000
          * NANOSECONDS */
         /* reactor.core.publisher.BlockingSingleSubscriber.blockingGet(BlockingSingleSubscriber.java:123) */

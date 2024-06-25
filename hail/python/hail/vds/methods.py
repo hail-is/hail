@@ -1,9 +1,9 @@
 import hail as hl
 from hail import ir
-from hail.expr import expr_any, expr_array, expr_interval, expr_locus, expr_str, expr_bool
+from hail.expr import expr_any, expr_array, expr_bool, expr_interval, expr_locus, expr_str
 from hail.matrixtable import MatrixTable
 from hail.table import Table
-from hail.typecheck import sequenceof, typecheck, nullable, oneof, enumeration, func_spec, dictof
+from hail.typecheck import dictof, enumeration, func_spec, nullable, oneof, sequenceof, typecheck
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import new_temp_file, wrap_to_list
 from hail.vds.variant_dataset import VariantDataset
@@ -59,16 +59,21 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
         call_field = 'GT' if 'GT' in var else 'LGT'
         assert call_field in var, var.dtype
 
-        shared_fields = [call_field] + list(f for f in ref.dtype if f in var.dtype)
-        shared_field_set = set(shared_fields)
-        var_fields = [f for f in var.dtype if f not in shared_field_set]
+        if call_field not in ref:
+            ref_call_field = 'GT' if 'GT' in ref else 'LGT'
+            if ref_call_field not in ref:
+                ref = ref.annotate(**{call_field: hl.call(0, 0)})
+            else:
+                ref = ref.annotate(**{call_field: ref[ref_call_field]})
+
+        # call_field is now in both ref and var
+        ref_set, var_set = set(ref.dtype), set(var.dtype)
+        shared_fields, var_fields = var_set & ref_set, var_set - ref_set
 
         return hl.if_else(
             hl.is_defined(var),
             var.select(*shared_fields, *var_fields),
-            ref.annotate(**{call_field: hl.call(0, 0)}).select(
-                *shared_fields, **{f: hl.missing(var[f].dtype) for f in var_fields}
-            ),
+            ref.select(*shared_fields, **{f: hl.missing(var[f].dtype) for f in var_fields}),
         )
 
     dr = dr.annotate(
@@ -138,7 +143,7 @@ def to_merged_sparse_mt(vds: 'VariantDataset', *, ref_allele_function=None) -> '
             for k, t in merged_schema.items():
                 if k == 'LA':
                     ref_block_selector[k] = hl.literal([0])
-                elif k in ('LGT', 'GT'):
+                elif k in ('LGT', 'GT') and k not in r:
                     ref_block_selector[k] = hl.call(0, 0)
                 else:
                     ref_block_selector[k] = r[k] if k in r else hl.missing(t)
@@ -327,7 +332,7 @@ def impute_sex_chr_ploidy_from_interval_coverage(
 )
 def impute_sex_chromosome_ploidy(
     vds: VariantDataset, calling_intervals, normalization_contig: str, use_variant_dataset: bool = False
-) -> hl.Table:
+) -> Table:
     """Impute sex chromosome ploidy from depth of reference or variant data within calling intervals.
 
     Returns a :class:`.Table` with sample ID keys, with the following fields:
@@ -506,7 +511,9 @@ def _parameterized_filter_intervals(vds: 'VariantDataset', intervals, keep: bool
             schema=hl.tstruct(interval=intervals.dtype.element_type),
             key='interval',
         )
-        ref = segment_reference_blocks(reference_data, par_intervals).drop('interval_end', list(par_intervals.key)[0])
+        ref = segment_reference_blocks(reference_data, par_intervals).drop(
+            'interval_end', next(iter(par_intervals.key))
+        )
         return VariantDataset(ref, hl.filter_intervals(vds.variant_data, intervals, keep))
 
 
@@ -662,7 +669,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
     -------
     :class:`.MatrixTable`
     """
-    interval_field = list(intervals.key)[0]
+    interval_field = next(iter(intervals.key))
     if not intervals[interval_field].dtype == hl.tinterval(ref.locus.dtype):
         raise ValueError(
             f"expect intervals to be keyed by intervals of loci matching the VariantDataset:"
@@ -744,7 +751,7 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
 )
 def interval_coverage(
     vds: VariantDataset,
-    intervals: hl.Table,
+    intervals: Table,
     gq_thresholds=(
         0,
         10,
@@ -1019,28 +1026,28 @@ def merge_reference_blocks(ds, equivalence_function, merge_functions=None):
         if merge_functions:
             for k, f in merge_functions.items():
                 if isinstance(f, str):
-                    f = f.lower()
-                    if f == 'min':
+                    _f = f.lower()
+                    if _f == 'min':
 
-                        def f(b1, b2):
+                        def __f(b1, b2):
                             return hl.min(block1[k], block2[k])
 
-                    elif f == 'max':
+                    elif _f == 'max':
 
-                        def f(b1, b2):
+                        def __f(b1, b2):
                             return hl.max(block1[k], block2[k])
 
-                    elif f == 'sum':
+                    elif _f == 'sum':
 
-                        def f(b1, b2):
+                        def __f(b1, b2):
                             return block1[k] + block2[k]
 
                     else:
                         raise ValueError(
-                            f"merge_reference_blocks: unknown merge function {f!r},"
+                            f"merge_reference_blocks: unknown merge function {_f!r},"
                             f" support 'min', 'max', and 'sum' in addition to custom lambdas"
                         )
-                new_value = f(block1, block2)
+                new_value = __f(block1, block2)
                 if new_value.dtype != block1[k].dtype:
                     raise ValueError(
                         f'merge_reference_blocks: merge_function for {k!r}: new type {new_value.dtype!r} '

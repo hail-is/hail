@@ -1,8 +1,9 @@
 import unittest
 
-from hail.genetics import Trio, Pedigree
-from ..helpers import *
+from hail.genetics import Pedigree, Trio
 from hail.utils.java import FatalError
+
+from ..helpers import resource
 
 
 class Tests(unittest.TestCase):

@@ -8,9 +8,9 @@ import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
 
 trait PArrayBackedContainer extends PContainer {
-  val arrayRep: PArray
+  def arrayRep: PArray
 
-  override lazy val byteSize: Long = arrayRep.byteSize
+  override def byteSize: Long = arrayRep.byteSize
 
   override def loadLength(aoff: Long): Int =
     arrayRep.loadLength(aoff)
@@ -212,4 +212,8 @@ trait PArrayBackedContainer extends PContainer {
     region: Region,
   ): Unit =
     Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
+}
+
+trait PCanonicalArrayBackedContainer extends PArrayBackedContainer {
+  def arrayRep: PCanonicalArray
 }

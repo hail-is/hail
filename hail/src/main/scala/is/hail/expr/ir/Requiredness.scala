@@ -103,10 +103,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   }
 
   def addBindingRelations(node: BaseIR): Unit = {
-    val refMap: Map[String, IndexedSeq[RefEquality[BaseRef]]] =
+    val refMap: Map[Name, IndexedSeq[RefEquality[BaseRef]]] =
       usesAndDefs.uses(node).toFastSeq.groupBy(_.t.name)
     def addElementBinding(
-      name: String,
+      name: Name,
       d: IR,
       makeOptional: Boolean = false,
       makeRequired: Boolean = false,
@@ -129,7 +129,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       }
     }
 
-    def addBlockMatrixElementBinding(name: String, d: BlockMatrixIR, makeOptional: Boolean = false)
+    def addBlockMatrixElementBinding(name: Name, d: BlockMatrixIR, makeOptional: Boolean = false)
       : Unit = {
       if (refMap.contains(name)) {
         val uses = refMap(name)
@@ -144,7 +144,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       }
     }
 
-    def addBindings(name: String, ds: Array[IR]): Unit =
+    def addBindings(name: Name, ds: Array[IR]): Unit =
       if (refMap.contains(name)) {
         val uses = refMap(name)
         uses.foreach(u => defs.bind(u, ds.map(lookup).toArray[BaseTypeWithRequiredness]))
@@ -153,24 +153,22 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
       }
 
-    def addBinding(name: String, ds: IR): Unit =
+    def addBinding(name: Name, ds: IR): Unit =
       addBindings(name, Array(ds))
 
     def addTableBinding(table: TableIR): Unit = {
-      if (refMap.contains("row"))
-        refMap("row").foreach { u =>
-          defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType))
-        }
-      if (refMap.contains("global"))
-        refMap("global").foreach { u =>
-          defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType))
-        }
-      val refs = refMap.getOrElse("row", FastSeq()) ++ refMap.getOrElse("global", FastSeq())
+      refMap.get(TableIR.rowName).foreach(_.foreach { u =>
+        defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).rowType))
+      })
+      refMap.get(TableIR.globalName).foreach(_.foreach { u =>
+        defs.bind(u, Array[BaseTypeWithRequiredness](lookup(table).globalType))
+      })
+      val refs = refMap.getOrElse(TableIR.rowName, FastSeq()) ++
+        refMap.getOrElse(TableIR.globalName, FastSeq())
       dependents.getOrElseUpdate(table, mutable.Set[RefEquality[BaseIR]]()) ++= refs
     }
     node match {
-      case AggLet(name, value, _, _) => addBinding(name, value)
-      case Let(bindings, _) => bindings.foreach(Function.tupled(addBinding))
+      case Block(bindings, _) => bindings.foreach(b => addBinding(b.name, b.value))
       case RelationalLet(name, value, _) => addBinding(name, value)
       case RelationalLetTable(name, value, _) => addBinding(name, value)
       case TailLoop(loopName, params, _, body) =>
@@ -598,9 +596,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(x).required)
         requiredness.unionFrom(lookup(default))
         requiredness.unionFrom(cases.map(lookup))
-      case AggLet(_, _, body, _) =>
-        requiredness.unionFrom(lookup(body))
-      case Let(_, body) =>
+      case Block(_, body) =>
         requiredness.unionFrom(lookup(body))
       case RelationalLet(_, _, body) =>
         requiredness.unionFrom(lookup(body))
@@ -732,22 +728,20 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         val rit = tcoerce[RIterable](requiredness)
         rit.union(lookup(a).required)
         rit.elementType.unionFrom(lookup(body))
-      case ApplyAggOp(initOpArgs, seqOpArgs, aggSig) => // FIXME round-tripping through ptype
+      case ApplyAggOp(_, seqOpArgs, aggSig) => // FIXME round-tripping through ptype
         val emitResult = agg.PhysicalAggSig(
           aggSig.op,
           agg.AggStateSig(
             aggSig.op,
-            initOpArgs.map(i => i -> lookup(i)),
             seqOpArgs.map(s => s -> lookup(s)),
           ),
         ).emitResultType
         requiredness.fromEmitType(emitResult)
-      case ApplyScanOp(initOpArgs, seqOpArgs, aggSig) =>
+      case ApplyScanOp(_, seqOpArgs, aggSig) =>
         val emitResult = agg.PhysicalAggSig(
           aggSig.op,
           agg.AggStateSig(
             aggSig.op,
-            initOpArgs.map(i => i -> lookup(i)),
             seqOpArgs.map(s => s -> lookup(s)),
           ),
         ).emitResultType

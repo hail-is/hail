@@ -1,74 +1,77 @@
 import collections
 import itertools
-import pandas
-import numpy as np
-import pyspark
 import pprint
 import shutil
-from typing import Optional, Dict, Callable, Sequence, Union, List, overload
+from typing import Callable, ClassVar, Dict, List, Optional, Sequence, Union, overload
 
+import numpy as np
+import pandas
+import pyspark
+
+import hail as hl
+from hail import ir
 from hail.expr.expressions import (
-    Expression,
-    StructExpression,
+    ArrayExpression,
     BooleanExpression,
-    expr_struct,
-    expr_any,
-    expr_bool,
-    analyze,
-    Indices,
-    construct_reference,
-    to_expr,
-    construct_expr,
-    extract_refs_by_indices,
-    ExpressionException,
-    TupleExpression,
-    unify_all,
-    NumericExpression,
-    StringExpression,
     CallExpression,
     CollectionExpression,
     DictExpression,
+    Expression,
+    ExpressionException,
+    Indices,
     IntervalExpression,
     LocusExpression,
     NDArrayExpression,
-    expr_stream,
+    NumericExpression,
+    StringExpression,
+    StructExpression,
+    TupleExpression,
+    analyze,
+    construct_expr,
+    construct_reference,
+    expr_any,
     expr_array,
+    expr_bool,
+    expr_stream,
+    expr_struct,
+    extract_refs_by_indices,
+    to_expr,
+    unify_all,
 )
-from hail.expr.types import hail_type, tstruct, types_match, tarray, tset, dtypes_from_pandas
 from hail.expr.table_type import ttable
-import hail.ir as ir
+from hail.expr.types import dtypes_from_pandas, hail_type, tarray, tset, tstruct, types_match
 from hail.typecheck import (
+    anyfunc,
+    anytype,
+    dictof,
+    enumeration,
+    func_spec,
+    lazy,
+    nullable,
+    numeric,
+    oneof,
+    sequenceof,
+    table_key_type,
     typecheck,
     typecheck_method,
-    dictof,
-    anytype,
-    anyfunc,
-    nullable,
-    sequenceof,
-    oneof,
-    numeric,
-    lazy,
-    enumeration,
-    table_key_type,
-    func_spec,
 )
 from hail.utils import deduplicate
 from hail.utils.interval import Interval
-from hail.utils.placement_tree import PlacementTree
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import (
-    wrap_to_tuple,
-    storage_level,
-    plural,
-    get_nice_field_error,
-    get_nice_attr_error,
-    get_key_by_exprs,
-    check_keys,
-    get_select_exprs,
     check_annotate_exprs,
+    check_collisions,
+    check_keys,
+    get_key_by_exprs,
+    get_nice_attr_error,
+    get_nice_field_error,
+    get_select_exprs,
+    plural,
     process_joins,
+    storage_level,
+    wrap_to_tuple,
 )
-import hail as hl
+from hail.utils.placement_tree import PlacementTree
 
 table_type = lazy()
 
@@ -118,7 +121,7 @@ def desc(col):
 
 class ExprContainer:
     # this can only grow as big as the object dir, so no need to worry about memory leak
-    _warned_about = set()
+    _warned_about: ClassVar = set()
 
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
@@ -137,8 +140,8 @@ class ExprContainer:
             if key not in ExprContainer._warned_about:
                 ExprContainer._warned_about.add(key)
                 warning(
-                    f"Name collision: field {repr(key)} already in object dict. "
-                    f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]"
+                    f"Name collision: field {key!r} already in object dict. "
+                    f"\n  This field must be referenced with __getitem__ syntax: obj[{key!r}]"
                 )
         else:
             self.__dict__[key] = value
@@ -275,10 +278,10 @@ class GroupedTable(ExprContainer):
         :class:`.Table`
             Aggregated table.
         """
+        caller = 'GroupedTable.aggregate'
         for name, expr in named_exprs.items():
-            analyze(
-                f'GroupedTable.aggregate: ({repr(name)})', expr, self._parent._global_indices, {self._parent._row_axis}
-            )
+            analyze(f'{caller}: ({name!r})', expr, self._parent._global_indices, {self._parent._row_axis})
+        check_collisions(caller, list(named_exprs), self._parent._row_indices)
         if not named_exprs.keys().isdisjoint(set(self._key_expr)):
             intersection = set(named_exprs.keys()) & set(self._key_expr)
             raise ValueError(
@@ -715,9 +718,9 @@ class Table(ExprContainer):
         globals=nullable(expr_struct()),
     )
     def _generate(
-        contexts: 'hl.ArrayExpression',
+        contexts: 'ArrayExpression',
         partitions: 'Union[Sequence[Interval], int]',
-        rowfn: 'Callable[[hl.Expression, hl.StructExpression], hl.ArrayExpression]',
+        rowfn: 'Callable[[hl.Expression, hl.StructExpression], ArrayExpression]',
         globals: 'Optional[hl.StructExpression]' = None,
     ) -> 'Table':
         """
@@ -2242,8 +2245,8 @@ class Table(ExprContainer):
                     s += format_line(type_strs[start:end], block_column_width, block_right_align)
                     s += hline
                 for row in rows:
-                    row = row[start:end]
-                    s += format_line(row, block_column_width, block_right_align)
+                    _row = row[start:end]
+                    s += format_line(_row, block_column_width, block_right_align)
                 s += hline
 
             if has_more:
@@ -2777,7 +2780,7 @@ class Table(ExprContainer):
     def collect(self) -> List[hl.Struct]: ...
 
     @overload
-    def collect(self, _localize=False) -> hl.ArrayExpression: ...
+    def collect(self, _localize=False) -> ArrayExpression: ...
 
     @typecheck_method(_localize=bool, _timed=bool)
     def collect(self, _localize=True, *, _timed=False):
@@ -3399,7 +3402,7 @@ class Table(ExprContainer):
         right: 'Table',
         how='inner',
         _mangle: Callable[[str, int], str] = lambda s, i: f'{s}_{i}',
-        _join_key: int = None,
+        _join_key: Optional[int] = None,
     ) -> 'Table':
         """Join two tables together.
 
@@ -3482,7 +3485,7 @@ class Table(ExprContainer):
             right = right.rename(renames)
             info(
                 'Table.join: renamed the following fields on the right to avoid name conflicts:'
-                + ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items())
+                + ''.join(f'\n    {k!r} -> {v!r}' for k, v in renames.items())
             )
 
         return Table(ir.TableJoin(self._tir, right._tir, how, _join_key))
@@ -3616,7 +3619,7 @@ class Table(ExprContainer):
             t = t.order_by(*t.key)
 
         def _expand(e):
-            if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
+            if isinstance(e, (CollectionExpression, DictExpression)):
                 return hl.map(lambda x: _expand(x), hl.array(e))
             elif isinstance(e, StructExpression):
                 return hl.struct(**{k: _expand(v) for (k, v) in e.items()})
@@ -3754,17 +3757,18 @@ class Table(ExprContainer):
         """
         lifted_exprs = []
         for e in exprs:
+            _e = e
             sort_type = 'A'
             if isinstance(e, Ascending):
-                e = e.col
+                _e = e.col
             elif isinstance(e, Descending):
-                e = e.col
+                _e = e.col
                 sort_type = 'D'
 
-            if isinstance(e, str):
-                expr = self[e]
+            if isinstance(_e, str):
+                expr = self[_e]
             else:
-                expr = e
+                expr = _e
             lifted_exprs.append((expr, sort_type))
 
         sort_fields = []
@@ -3980,9 +3984,9 @@ class Table(ExprContainer):
         row_field_set = set(self.row)
         for k, v in c.items():
             if k not in row_field_set:
-                raise ValueError(f"'to_matrix_table': field {repr(k)} is not a row field")
+                raise ValueError(f"'to_matrix_table': field {k!r} is not a row field")
             if v > 1:
-                raise ValueError(f"'to_matrix_table': field {repr(k)} appeared in {v} field groups")
+                raise ValueError(f"'to_matrix_table': field {k!r} appeared in {v} field groups")
 
         if len(row_key) == 0:
             raise ValueError("'to_matrix_table': require at least one row key field")
@@ -4506,7 +4510,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        import hail.methods.misc as misc
+        from hail.methods import misc
 
         misc.require_key(self, 'collect_by_key')
 
@@ -4556,7 +4560,7 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        import hail.methods.misc as misc
+        from hail.methods import misc
 
         misc.require_key(self, 'distinct')
 

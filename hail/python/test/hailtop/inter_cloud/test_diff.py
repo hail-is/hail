@@ -1,10 +1,11 @@
-from typing import Tuple, Dict
 import asyncio
+from typing import Dict, Tuple
+
 import pytest
 
+from hailtop.aiotools.diff import DiffException, diff
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.frozendict import frozendict
-from hailtop.aiotools.diff import diff, DiffException
 
 from .utils import fresh_dir
 

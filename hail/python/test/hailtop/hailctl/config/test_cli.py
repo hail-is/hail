@@ -1,10 +1,10 @@
 import os
-import pytest
 
+import pytest
 from typer.testing import CliRunner
 
-from hailtop.config.variables import ConfigVariable
 from hailtop.config.user_config import get_user_config_path
+from hailtop.config.variables import ConfigVariable
 from hailtop.hailctl.config import cli, config_variables
 
 
@@ -31,7 +31,6 @@ def test_config_list_empty_config(runner: CliRunner):
         ('batch/regions', 'us-central1,us-east1'),
         ('batch/remote_tmpdir', 'gs://foo/bar'),
         ('query/backend', 'spark'),
-        ('query/jar_url', 'gs://foo/bar.jar'),
         ('query/batch_driver_cores', '1'),
         ('query/batch_worker_cores', '1'),
         ('query/batch_driver_memory', '1Gi'),
@@ -66,7 +65,7 @@ def test_config_get_unknown_names(runner: CliRunner, config_dir: str):
     config_path = get_user_config_path(_config_dir=config_dir)
     os.makedirs(os.path.dirname(config_path))
     with open(config_path, 'w', encoding='utf-8') as config:
-        config.write(f"""
+        config.write("""
 [global]
 email = johndoe@gmail.com
 
@@ -113,7 +112,6 @@ def test_config_unset_unknown_name(runner: CliRunner):
         ('batch/billing_project', 'gs://foo/bar'),
         ('batch/remote_tmpdir', 'asdf://foo/bar'),
         ('query/backend', 'random_backend'),
-        ('query/jar_url', 'bar://foo/bar.jar'),
         ('query/batch_driver_cores', 'a'),
         ('query/batch_worker_cores', 'b'),
         ('query/batch_driver_memory', '1bar'),

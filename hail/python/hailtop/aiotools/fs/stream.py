@@ -1,11 +1,13 @@
-from typing import BinaryIO, List, Optional, Tuple, Type
-from types import TracebackType
 import abc
 import io
 import os
 import sys
 from concurrent.futures import ThreadPoolExecutor
+from types import TracebackType
+from typing import BinaryIO, List, Optional, Tuple, Type
+
 import janus
+
 from hailtop.utils import blocking_to_async
 
 from .exceptions import UnexpectedEOFError

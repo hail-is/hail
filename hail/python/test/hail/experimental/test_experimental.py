@@ -1,9 +1,20 @@
-import numpy as np
-import hail as hl
 import unittest
+
+import numpy as np
 import pytest
-from ..helpers import *
+
+import hail as hl
 from hail.utils import new_temp_file
+
+from ..helpers import (
+    assert_evals_to,
+    doctest_resource,
+    fails_local_backend,
+    fails_service_backend,
+    qobtest,
+    resource,
+    test_timeout,
+)
 
 
 class Tests(unittest.TestCase):
@@ -339,7 +350,6 @@ class Tests(unittest.TestCase):
     @fails_local_backend()
     def test_block_matrices_tofiles(self):
         data = [np.random.rand(11 * 12), np.random.rand(5 * 17)]
-        arrs = [data[0].reshape((11, 12)), data[1].reshape((5, 17))]
         bms = [
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8),
@@ -432,7 +442,7 @@ class Tests(unittest.TestCase):
         with pytest.raises(
             TypeError, match="requested type ndarray<int32, 2> does not match inferred type ndarray<float64, 2>"
         ):
-            result = hl.experimental.loop(
+            hl.experimental.loop(
                 lambda f, my_nd: hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
                 hl.tndarray(hl.tint32, 2),
                 hl.nd.zeros((20, 10), hl.tfloat64),

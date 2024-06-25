@@ -1,10 +1,11 @@
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
-from hailtop.utils import async_to_blocking, ait_to_blocking
 from hailtop.batch_client.types import GetJobGroupResponseV1Alpha
+from hailtop.utils import ait_to_blocking, async_to_blocking
+
+from .. import httpx
 from ..config import DeployConfig
 from . import aioclient
-from .. import httpx
 
 
 class Job:
@@ -96,6 +97,21 @@ class Job:
     def attempts(self):
         return async_to_blocking(self._async_job.attempts())
 
+    def resource_usage(self):
+        """
+        Get resource usage for a job, one key for each section of the task.
+        This doesn't return a dictionary of dataframes, but could be converted with:
+
+            dataframes = {
+                key: pd.DataFrame(data=values['data'], columns=values['columns'])
+                for key, values in job.resource_usage.items()
+            }
+
+        Returns:
+            dict[str, dict]: values are convertible to dataframe
+        """
+        return async_to_blocking(self._async_job.resource_usage())
+
 
 class JobGroup:
     def __init__(self, async_job_group: aioclient.JobGroup):
@@ -122,8 +138,9 @@ class JobGroup:
     def jobs(self, q: Optional[str] = None, version: Optional[int] = None, recursive: bool = False):
         return ait_to_blocking(self._async_job_group.jobs(q, version, recursive))
 
-    def job_groups(self):
-        return ait_to_blocking(self._async_job_group.job_groups())
+    def job_groups(self) -> Iterator['JobGroup']:
+        for jg in ait_to_blocking(self._async_job_group.job_groups()):
+            yield JobGroup(jg)
 
     def status(self) -> GetJobGroupResponseV1Alpha:
         return async_to_blocking(self._async_job_group.status())

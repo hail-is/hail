@@ -110,7 +110,7 @@ services-jvm-test:
 ifdef HAIL_COMPILE_NATIVES
 fs-jvm-test: native-lib-prebuilt
 endif
-fs-jvm-test: upload-remote-qob-test-resources
+fs-jvm-test: upload-remote-test-resources
 	! [ -z $(HAIL_CLOUD) ]  # call like make fs-jvm-test HAIL_CLOUD=gcp or azure
 	! [ -z $(NAMESPACE) ]  # call like make fs-jvm-test NAMEPSPACE=default
 	HAIL_CLOUD=$(HAIL_CLOUD) \
@@ -210,7 +210,6 @@ pytest-qob: upload-qob-jar upload-remote-test-resources install-editable
 	cd python && \
           HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
           HAIL_QUERY_BACKEND=batch \
-          HAIL_QUERY_JAR_URL=$$(cat ../upload-qob-jar) \
           HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
           HAIL_TEST_RESOURCES_DIR='$(CLOUD_HAIL_TEST_RESOURCES_DIR)' \
           HAIL_DOCTEST_DATA_DIR='$(HAIL_DOCTEST_DATA_DIR)' \
@@ -282,8 +281,8 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 wheel: $(WHEEL)
 
 $(WHEEL): copy-py-files
-	# Clear the bdist build cache before building the wheel
-	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) setup.py -q sdist bdist_wheel
+	# Clear the build cache before building the wheel
+	cd build/deploy; rm -rf build; $(HAIL_PYTHON3) -m build -w
 
 # if the DEPLOY_REMOTE flag is not set, then deploy init scripts into a dev-username location
 ifndef DEPLOY_REMOTE
@@ -368,9 +367,7 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 .PHONY: install-for-qob
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
-	$(JAVAC) -version 2>&1 | grep -e '1\.8\.0'  # install-for-qob requires javac version 1.8, see https://discuss.hail.is/t/on-mac-os-x-how-do-i-install-and-use-java-8-if-i-already-have-a-different-version-of-java-installed/831/2
 	hailctl config set query/backend batch
-	hailctl config set query/jar_url $$(cat upload-qob-jar)
 	hailctl dev config set default_namespace $(NAMESPACE)
 
 .PHONY: install
@@ -426,27 +423,27 @@ test-dataproc-38: install-hailctl
 #
 # cluster to find the correct Scala and Spark versions because the version webpage does not include
 # sufficient detail)
-# set WHEEL_FOR_AZURE to the path to that wheel file
+# set AZURE_WHEEL to the path to that wheel file
 #
 # Create a hail docs www.tar.gz file (see build.yaml "make_docs" rule) and set WEBSITE_TAR to the path to www.tar.gz
 #
 .PHONY: release
 release: test-dataproc $(WHEEL)
 	HAIL_PIP_VERSION=$(HAIL_PIP_VERSION) \
-          HAIL_VERSION=$(HAIL_VERSION) \
-          GIT_VERSION=$(REVISION) \
-          REMOTE=$(DEPLOY_REMOTE) \
-          WHEEL=$(WHEEL) \
-          GITHUB_OAUTH_HEADER_FILE=$(GITHUB_OAUTH_HEADER_FILE) \
-          HAIL_GENETICS_HAIL_IMAGE=$(HAIL_GENETICS_HAIL_IMAGE) \
-          HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
-          HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
-          HAIL_GENETICS_HAILTOP_IMAGE=$(HAIL_GENETICS_HAILTOP_IMAGE) \
-          HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
-          HAIL_GENETICS_VEP_GRCH38_95_IMAGE=$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
-          WHEEL_FOR_AZURE=$(WHEEL_FOR_AZURE) \
-          WEBSITE_TAR=$(WEBSITE_TAR) \
-          bash scripts/release.sh
+        HAIL_VERSION=$(HAIL_VERSION) \
+        GIT_VERSION=$(REVISION) \
+        REMOTE=$(DEPLOY_REMOTE) \
+        WHEEL=$(WHEEL) \
+        GITHUB_OAUTH_HEADER_FILE=$(GITHUB_OAUTH_HEADER_FILE) \
+        HAIL_GENETICS_HAIL_IMAGE=$(HAIL_GENETICS_HAIL_IMAGE) \
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_10=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_10) \
+        HAIL_GENETICS_HAIL_IMAGE_PY_3_11=$(HAIL_GENETICS_HAIL_IMAGE_PY_3_11) \
+        HAIL_GENETICS_HAILTOP_IMAGE=$(HAIL_GENETICS_HAILTOP_IMAGE) \
+        HAIL_GENETICS_VEP_GRCH37_85_IMAGE=$(HAIL_GENETICS_VEP_GRCH37_85_IMAGE) \
+        HAIL_GENETICS_VEP_GRCH38_95_IMAGE=$(HAIL_GENETICS_VEP_GRCH38_95_IMAGE) \
+        AZURE_WHEEL=$(AZURE_WHEEL) \
+        WEBSITE_TAR=$(WEBSITE_TAR) \
+        bash scripts/release.sh
 
 python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
@@ -540,3 +537,12 @@ update-hail-repl: NAMESPACE ?= default
 update-hail-repl: wheel
 	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
 	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
+
+HAIL_BENCHMARK_RESULTS_PREFIX ?= "gs://hail-benchmarks-2/$(USER)/$(HAIL_VERSION)"
+HAIL_DEV_IMAGE ?= ""
+.PHONY: benchmark
+benchmark:
+	$(HAIL_PYTHON3) scripts/benchmark_in_batch.py submit \
+		$(HAIL_DEV_IMAGE) \
+		$(HAIL_BENCHMARK_RESULTS_PREFIX) \
+		$(HAIL_VERSION)

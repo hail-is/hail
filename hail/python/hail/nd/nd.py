@@ -1,27 +1,26 @@
 from functools import reduce
 
 import hail as hl
-from hail.expr.functions import _ndarray
-from hail.expr.functions import array as aarray
-from hail.expr.types import HailType, tfloat64, tfloat32, ttuple, tndarray
-from hail.typecheck import typecheck, nullable, oneof, tupleof, sequenceof
 from hail.expr.expressions import (
-    expr_int32,
-    expr_int64,
-    expr_tuple,
-    expr_any,
-    expr_array,
-    expr_ndarray,
-    expr_numeric,
     Int64Expression,
     cast_expr,
     construct_expr,
+    expr_any,
+    expr_array,
     expr_bool,
+    expr_int32,
+    expr_int64,
+    expr_ndarray,
+    expr_numeric,
+    expr_tuple,
     unify_all,
 )
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, NDArrayEigh, Apply
-
+from hail.expr.functions import _ndarray
+from hail.expr.functions import array as aarray
+from hail.expr.types import HailType, tfloat32, tfloat64, tndarray, ttuple
+from hail.ir import Apply, NDArrayConcat, NDArrayEigh, NDArrayInv, NDArrayQR, NDArraySVD
+from hail.typecheck import nullable, oneof, sequenceof, tupleof, typecheck
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -322,7 +321,7 @@ def solve_triangular(A, b, lower=False, no_crash=False):
 
 def solve_helper(nd_coef, nd_dep, nd_dep_ndim_orig):
     assert nd_coef.ndim == 2
-    assert nd_dep_ndim_orig == 1 or nd_dep_ndim_orig == 2
+    assert nd_dep_ndim_orig in {1, 2}
 
     if nd_dep_ndim_orig == 1:
         nd_dep = nd_dep.reshape((-1, 1))
@@ -548,7 +547,7 @@ def concatenate(nds, axis=0):
 
 
 @typecheck(N=expr_numeric, M=nullable(expr_numeric), dtype=HailType)
-def eye(N, M=None, dtype=hl.tfloat64):
+def eye(N, M=None, dtype=tfloat64):
     """
     Construct a 2-D :class:`.NDArrayExpression` with ones on the *main* diagonal
     and zeros elsewhere.
@@ -598,7 +597,7 @@ def eye(N, M=None, dtype=hl.tfloat64):
 
 
 @typecheck(N=expr_numeric, dtype=HailType)
-def identity(N, dtype=hl.tfloat64):
+def identity(N, dtype=tfloat64):
     """
     Constructs a 2-D :class:`.NDArrayExpression` representing the identity array.
     The identity array is a square array with ones on the main diagonal.

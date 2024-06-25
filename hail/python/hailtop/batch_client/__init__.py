@@ -1,4 +1,4 @@
-from . import client, aioclient, parse, types
+from . import aioclient, client, parse, types
 from .aioclient import BatchAlreadyCreatedError, BatchNotCreatedError, JobAlreadySubmittedError, JobNotSubmittedError
 
 __all__ = [

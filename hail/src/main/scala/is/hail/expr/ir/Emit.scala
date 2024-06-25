@@ -59,9 +59,9 @@ class EmitContext(
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
-  def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
+  def bind(name: Name, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
 
-  def bind(newBindings: (String, EmitValue)*): EmitEnv =
+  def bind(newBindings: (Name, EmitValue)*): EmitEnv =
     copy(bindings = bindings.bindIterable(newBindings))
 
   def asParams(freeVariables: Env[Unit])
@@ -77,7 +77,7 @@ case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue])
         val emb = cb.emb
         EmitEnv(
           Env.fromSeq(bindingNames.zipWithIndex.map { case (name, bindingIdx) =>
-            (name, cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingIdx), name))
+            (name, cb.memoizeField(emb.getEmitParam(cb, startIdx + bindingIdx), name.str))
           }),
           inputValues.indices.map(inputIdx =>
             cb.memoizeField(
@@ -451,12 +451,15 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def get(
+  def getOrFatal(
     cb: EmitCodeBuilder,
-    errorMsg: Code[String] = s"expected non-missing",
+    errorMsg: Code[String],
     errorID: Code[Int] = const(ErrorIDs.NO_ERROR),
   ): A =
     handle(cb, cb._fatalWithError(errorID, errorMsg))
+
+  def getOrAssert(cb: EmitCodeBuilder, debugMsg: Code[String] = const("expected non-missing")): A =
+    handle(cb, cb._assert(false, debugMsg))
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
@@ -623,7 +626,7 @@ class EmitSettable(
 
   def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
     if (required)
-      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${vs.st}"))
+      cb.assign(vs, iec.getOrFatal(cb, s"Required EmitSettable cannot be missing ${vs.st}"))
     else
       iec.consume(
         cb,
@@ -643,7 +646,7 @@ object LoopRef {
   def apply(
     cb: EmitCodeBuilder,
     L: CodeLabel,
-    args: IndexedSeq[(String, EmitType)],
+    args: IndexedSeq[(Name, EmitType)],
     pool: Value[RegionPool],
     resultType: EmitType,
   ): LoopRef = {
@@ -820,8 +823,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
 
         emitI(cond).consume(cb, {}, m => cb.if_(m.asBoolean.value, emitVoid(cnsq), emitVoid(altr)))
 
-      case let: Let =>
-        val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
+      case let: Block =>
+        val newEnv = emitBlock(let, cb, env, region, container, loopEnv)
         emitVoid(let.body, env = newEnv)
 
       case StreamFor(a, valueName, body) =>
@@ -1104,8 +1107,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
 
-      case let: Let =>
-        val newEnv = emitLetBindings(let, cb, env, region, container, loopEnv)
+      case let: Block =>
+        val newEnv = emitBlock(let, cb, env, region, container, loopEnv)
         emitI(let.body, env = newEnv)
 
       case Coalesce(values) =>
@@ -1674,14 +1677,16 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
             grpIdx < outerSize, {
               cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
               cb.assign(withinGrpIdx, 0)
-              val firstStruct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
+              val firstStruct =
+                sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
               val key = EmitCode.fromI(mb)(cb => firstStruct.loadField(cb, 0))
               val group = EmitCode.fromI(mb) { cb =>
                 val (addElt, finishInner) = innerType
                   .constructFromFunctions(cb, region, groupSize, deepCopy = false)
                 cb.while_(
                   withinGrpIdx < groupSize, {
-                    val struct = sortedElts.loadFromIndex(cb, region, eltIdx).get(cb).asBaseStruct
+                    val struct =
+                      sortedElts.loadFromIndex(cb, region, eltIdx).getOrAssert(cb).asBaseStruct
                     addElt(cb, struct.loadField(cb, 1))
                     cb.assign(eltIdx, eltIdx + 1)
                     cb.assign(withinGrpIdx, withinGrpIdx + 1)
@@ -1703,15 +1708,15 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
         IEmitCode.present(cb, SRNGStateStaticSizeValue(cb))
 
       case RNGSplit(state, dynBitstring) =>
-        val stateValue = emitI(state).get(cb)
-        val tupleOrLong = emitI(dynBitstring).get(cb)
+        val stateValue = emitI(state).getOrAssert(cb)
+        val tupleOrLong = emitI(dynBitstring).getOrAssert(cb)
         val longs = if (tupleOrLong.isInstanceOf[SInt64Value]) {
           Array(tupleOrLong.asInt64.value)
         } else {
           val tuple = tupleOrLong.asBaseStruct
           Array.tabulate(tuple.st.size) { i =>
             tuple.loadField(cb, i)
-              .get(cb, "RNGSplit tuple components are required")
+              .getOrFatal(cb, "RNGSplit tuple components are required")
               .asInt64
               .value
           }
@@ -1787,7 +1792,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                   val shapeValues = (0 until nDims).map { i =>
                     val shape = SingleCodeSCode.fromSCode(
                       cb,
-                      shapeTupleValue.loadField(cb, i).get(cb),
+                      shapeTupleValue.loadField(cb, i).getOrAssert(cb),
                       region,
                     )
                     cb.newLocal[Long](s"make_ndarray_shape_$i", coerce[Long](shape.code))
@@ -1837,7 +1842,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                       val shapeValues = (0 until nDims).map { i =>
                         cb.newLocal[Long](
                           s"make_ndarray_shape_$i",
-                          shapeTupleValue.loadField(cb, i).get(cb).asLong.value,
+                          shapeTupleValue.loadField(cb, i).getOrAssert(cb).asLong.value,
                         )
                       }
 
@@ -2777,7 +2782,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case x @ ApplySeeded(_, args, rngState, staticUID, rt) =>
         val codeArgs = args.map(a => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a)))
         val codeArgsMem = codeArgs.map(_.memoize(cb, "ApplySeeded_arg"))
-        val state = emitI(rngState).get(cb)
+        val state = emitI(rngState).getOrAssert(cb)
         val impl = x.implementation
         assert(impl.unify(Array.empty[Type], x.argTypes, rt))
         val newState = EmitCode.present(mb, state.asRNGState.splitStatic(cb, staticUID))
@@ -2810,8 +2815,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               ctx.req.lookupState(x).head.asInstanceOf[TypeWithRequiredness],
             ).canonicalEmitType
 
-            val xAcc = mb.newEmitField(accumName, stateEmitType)
-            val xElt = mb.newEmitField(valueName, producer.element.emitType)
+            val xAcc = mb.newEmitField(stateEmitType)
+            val xElt = mb.newEmitField(producer.element.emitType)
 
             var tmpRegion: Settable[Region] = null
 
@@ -2895,9 +2900,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
                   .canonicalEmitType
               }
 
-            val xElt = mb.newEmitField(valueName, producer.element.emitType)
+            val xElt = mb.newEmitField(producer.element.emitType)
             val names = acc.map(_._1)
-            val accVars = (names, accTypes).zipped.map(mb.newEmitField)
+            val accVars = accTypes.map(mb.newEmitField)
 
             val resEnv = env.bind(names.zip(accVars): _*)
             val seqEnv = resEnv.bind(valueName, xElt)
@@ -3048,7 +3053,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       case WriteValue(value, path, writer, stagingFile) =>
         emitI(path).flatMap(cb) { case pv: SStringValue =>
           emitI(value).map(cb) { v =>
-            val s = stagingFile.map(emitI(_).get(cb).asString)
+            val s = stagingFile.map(emitI(_).getOrAssert(cb).asString)
             val os = cb.memoize(mb.createUnbuffered(s.getOrElse(pv).loadString(cb)))
             writer.writeValue(cb, v, os)
             cb += os.invoke[Unit]("close")
@@ -3173,8 +3178,10 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           val contextPTuple: PTuple = PCanonicalTuple(required = true, ctxType.storageType)
           val globalPTuple: PTuple =
             PCanonicalTuple(required = true, emitGlobals.emitType.storageType)
-          val contextSpec: TypedCodecSpec = TypedCodecSpec(contextPTuple, bufferSpec)
-          val globalSpec: TypedCodecSpec = TypedCodecSpec(globalPTuple, bufferSpec)
+          val contextSpec: TypedCodecSpec =
+            TypedCodecSpec(ctx.executeContext, contextPTuple, bufferSpec)
+          val globalSpec: TypedCodecSpec =
+            TypedCodecSpec(ctx.executeContext, globalPTuple, bufferSpec)
 
           // emit body in new FB
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](
@@ -3235,7 +3242,11 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)),
             )
 
-            bodySpec = TypedCodecSpec(bodyResult.st.storageType().setRequired(true), bufferSpec)
+            bodySpec = TypedCodecSpec(
+              ctx.executeContext,
+              bodyResult.st.storageType().setRequired(true),
+              bufferSpec,
+            )
 
             val bOS = cb.newLocal[ByteArrayOutputStream](
               "cda_baos",
@@ -3576,7 +3587,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     ir: IR,
     env: EmitEnv,
     emitter: Emit[_],
-    leftRightComparatorNames: Array[String],
+    leftRightComparatorNames: Array[Name],
   ): (EmitCodeBuilder, Value[Region], Value[_], Value[_]) => Value[Boolean] = {
     val fb = cb.emb.ecb
 
@@ -3606,7 +3617,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
       }
 
       val iec = emitter.emitI(ir, cb, newEnv, None)
-      iec.get(cb, "Result of sorting function cannot be missing").asBoolean.value
+      iec.getOrFatal(cb, "Result of sorting function cannot be missing").asBoolean.value
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Value[_], r: Value[_]) =>
       cb.memoize(cb.invokeCode[Boolean](sort, cb.this_, region, l, r))
@@ -3616,8 +3627,8 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     * emit each chunk in a separate method.
     */
   // TODO: splitting logic should get lifted into ComputeMethodSplits
-  def emitLetBindings(
-    let: Let,
+  def emitBlock(
+    let: Block,
     cb: EmitCodeBuilder,
     env: EmitEnv,
     r: Value[Region],
@@ -3632,7 +3643,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     def emitVoid(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, r: Value[Region]): Unit =
       this.emitVoid(cb, ir, r, env, container, loopEnv)
 
-    val uses: mutable.Set[String] =
+    val uses: mutable.Set[Name] =
       ctx.usesAndDefs.uses.get(let) match {
         case Some(refs) => refs.map(_.t.name)
         case None => mutable.Set.empty
@@ -3641,9 +3652,9 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
     /* Emit a sequence of bindings into a code builder. Each is added to the environment of all
      * following bindings. Any bindings which is unused and has no side effects is skipped (this is
      * mostly an optimization, but it is important not to emit unused streams). */
-    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[(String, IR)], env: EmitEnv, r: Value[Region])
+    def emitChunk(cb: EmitCodeBuilder, bindings: Seq[Binding], env: EmitEnv, r: Value[Region])
       : EmitEnv =
-      bindings.foldLeft(env) { case (newEnv, (name, ir)) =>
+      bindings.foldLeft(env) { case (newEnv, Binding(name, ir, Scope.EVAL)) =>
         if (ir.typ == TVoid) {
           emitVoid(ir, cb, newEnv, r)
           newEnv
@@ -3693,7 +3704,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
           return env
       }
 
-      val (curName, curIR) = let.bindings(pos)
+      val Binding(curName, curIR, Scope.EVAL) = let.bindings(pos)
 
       // skip over unused streams
       if (curIR.typ.isInstanceOf[TStream] && !uses.contains(curName)) {

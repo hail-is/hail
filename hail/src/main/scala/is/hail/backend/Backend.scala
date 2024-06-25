@@ -80,19 +80,10 @@ abstract class Backend {
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]]
-
-  def parallelizeAndComputeWithIndexReturnAllErrors(
-    backendContext: BackendContext,
-    fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
+    partitions: Option[IndexedSeq[Int]] = None,
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])

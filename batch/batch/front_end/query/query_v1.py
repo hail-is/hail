@@ -88,7 +88,10 @@ def parse_list_batches_query_v1(user: str, q: str, last_batch_id: Optional[int])
 
     sql = f"""
 WITH base_t AS (
-  SELECT batches.*, job_groups.job_group_id,
+  SELECT
+    batches.*,
+    job_groups.batch_id as batch_id,
+    job_groups.job_group_id as job_group_id,
     cancelled_t.cancelled IS NOT NULL AS cancelled,
     job_groups_n_jobs_in_complete_states.n_completed,
     job_groups_n_jobs_in_complete_states.n_succeeded,
@@ -125,7 +128,7 @@ LEFT JOIN LATERAL (
   ) AS usage_t
   LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 ) AS cost_t ON TRUE
-ORDER BY id DESC;
+ORDER BY batch_id DESC
 """
 
     return (sql, where_args)
@@ -274,6 +277,7 @@ WITH base_t AS
     jobs.job_id = job_attributes.job_id AND
     job_attributes.`key` = 'name'
   WHERE {' AND '.join(where_conditions)}
+  ORDER BY jobs.job_id
   LIMIT 50
 )
 SELECT base_t.*, cost_t.cost, cost_t.cost_breakdown

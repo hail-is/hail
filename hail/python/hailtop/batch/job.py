@@ -5,25 +5,26 @@ import re
 import textwrap
 import warnings
 from shlex import quote as shq
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Union, cast, Literal
+from typing import Any, Callable, Dict, List, Literal, Optional, Set, Tuple, Union, cast
+
 from typing_extensions import Self
 
 import hailtop.batch_client.client as bc
+from hailtop.batch.resource import PythonResult, Resource, ResourceFile, ResourceGroup, ResourceType
 
 from . import backend, batch  # pylint: disable=cyclic-import
-from . import resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
-    rg: Optional[_resource.ResourceGroup]
-    if isinstance(resource, _resource.ResourceGroup):
+    rg: Optional[ResourceGroup]
+    if isinstance(resource, ResourceGroup):
         rg = resource
         if include_rg:
             resource_set.add(resource)
     else:
         resource_set.add(resource)
-        if isinstance(resource, _resource.ResourceFile) and resource._has_resource_group():
+        if isinstance(resource, ResourceFile) and resource._has_resource_group():
             rg = resource._get_resource_group()
         else:
             rg = None
@@ -90,16 +91,16 @@ class Job:
         self._user_code: List[str] = []
         self._regions: Optional[List[str]] = None
 
-        self._resources: Dict[str, _resource.Resource] = {}
-        self._resources_inverse: Dict[_resource.Resource, str] = {}
+        self._resources: Dict[str, Resource] = {}
+        self._resources_inverse: Dict[Resource, str] = {}
         self._uid = Job._new_uid()
         self._job_id: Optional[int] = None
 
-        self._inputs: Set[_resource.Resource] = set()
-        self._internal_outputs: Set[Union[_resource.ResourceFile, _resource.PythonResult]] = set()
-        self._external_outputs: Set[Union[_resource.ResourceFile, _resource.PythonResult]] = set()
-        self._mentioned: Set[_resource.Resource] = set()  # resources used in the command
-        self._valid: Set[_resource.Resource] = set()  # resources declared in the appropriate place
+        self._inputs: Set[Resource] = set()
+        self._internal_outputs: Set[Union[ResourceFile, PythonResult]] = set()
+        self._external_outputs: Set[Union[ResourceFile, PythonResult]] = set()
+        self._mentioned: Set[Resource] = set()  # resources used in the command
+        self._valid: Set[Resource] = set()  # resources declared in the appropriate place
         self._dependencies: Set[Job] = set()
         self._submitted: bool = False
         self._client_job: Optional[bc.Job] = None
@@ -115,7 +116,7 @@ class Job:
 
         self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
 
-    def _get_resource(self, item: str) -> '_resource.Resource':
+    def _get_resource(self, item: str) -> 'Resource':
         if item not in self._resources:
             r = self._batch._new_job_resource_file(self, value=item)
             self._resources[item] = r
@@ -123,16 +124,19 @@ class Job:
 
         return self._resources[item]
 
-    def __getitem__(self, item: str) -> '_resource.Resource':
+    def __iter__(self):
+        raise TypeError(f'{type(self).__name__!r} object is not iterable')
+
+    def __getitem__(self, item: str) -> 'Resource':
         return self._get_resource(item)
 
-    def __getattr__(self, item: str) -> '_resource.Resource':
+    def __getattr__(self, item: str) -> 'Resource':
         return self._get_resource(item)
 
-    def _add_internal_outputs(self, resource: '_resource.Resource') -> None:
+    def _add_internal_outputs(self, resource: 'Resource') -> None:
         _add_resource_to_set(self._internal_outputs, resource, include_rg=False)
 
-    def _add_inputs(self, resource: '_resource.Resource') -> None:
+    def _add_inputs(self, resource: 'Resource') -> None:
         _add_resource_to_set(self._inputs, resource, include_rg=False)
 
     def depends_on(self, *jobs: 'Job') -> Self:
@@ -636,9 +640,9 @@ class Job:
             return '${BATCH_TMPDIR}' + shq(r._get_path(''))
 
         regexes = [
-            _resource.ResourceFile._regex_pattern,
-            _resource.ResourceGroup._regex_pattern,
-            _resource.PythonResult._regex_pattern,
+            ResourceFile._regex_pattern,
+            ResourceGroup._regex_pattern,
+            PythonResult._regex_pattern,
             Job._regex_pattern,
             batch.Batch._regex_pattern,
         ]
@@ -893,9 +897,7 @@ source {code}
         return True
 
 
-UnpreparedArg = Union[
-    '_resource.ResourceType', List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any
-]
+UnpreparedArg = Union[ResourceType, List['UnpreparedArg'], Tuple['UnpreparedArg', ...], Dict[str, 'UnpreparedArg'], Any]
 
 PreparedArg = Union[
     Tuple[Literal['py_path'], str],
@@ -954,19 +956,17 @@ class PythonJob(Job):
         attributes: Optional[Dict[str, str]] = None,
     ):
         super().__init__(batch, token, name=name, attributes=attributes, shell=None)
-        self._resources: Dict[str, _resource.Resource] = {}
-        self._resources_inverse: Dict[_resource.Resource, str] = {}
-        self._function_calls: List[
-            Tuple[_resource.PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]
-        ] = []
+        self._resources: Dict[str, Resource] = {}
+        self._resources_inverse: Dict[Resource, str] = {}
+        self._function_calls: List[Tuple[PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]] = []
         self.n_results = 0
 
-    def _get_python_resource(self, item: str) -> '_resource.PythonResult':
+    def _get_python_resource(self, item: str) -> 'PythonResult':
         if item not in self._resources:
             r = self._batch._new_python_result(self, value=item)
             self._resources[item] = r
             self._resources_inverse[r] = item
-        return cast(_resource.PythonResult, self._resources[item])
+        return cast(PythonResult, self._resources[item])
 
     def image(self, image: str) -> 'PythonJob':
         """
@@ -1004,7 +1004,7 @@ class PythonJob(Job):
         self._image = image
         return self
 
-    def call(self, unapplied: Callable, *args: UnpreparedArg, **kwargs: UnpreparedArg) -> '_resource.PythonResult':
+    def call(self, unapplied: Callable, *args: UnpreparedArg, **kwargs: UnpreparedArg) -> 'PythonResult':
         """Execute a Python function.
 
         Examples
@@ -1145,7 +1145,7 @@ class PythonJob(Job):
         except TypeError as e:
             raise BatchException(f'Cannot call {unapplied.__name__} with the supplied arguments') from e
 
-        def handle_arg(r: _resource.Resource) -> None:
+        def handle_arg(r: Resource) -> None:
             source = r.source()
             if source != self:
                 self._add_inputs(r)
@@ -1161,7 +1161,7 @@ class PythonJob(Job):
             self._mentioned.add(r)
 
         def handle_args(r: Union[UnpreparedArg, List[UnpreparedArg], Dict[Any, UnpreparedArg]]) -> None:
-            if isinstance(r, _resource.Resource):
+            if isinstance(r, Resource):
                 handle_arg(r)
             elif isinstance(r, (list, tuple)):
                 for elt in r:
@@ -1185,11 +1185,11 @@ class PythonJob(Job):
 
     async def _compile(self, local_tmpdir, remote_tmpdir, *, dry_run=False):
         def preserialize(arg: UnpreparedArg) -> PreparedArg:
-            if isinstance(arg, _resource.PythonResult):
+            if isinstance(arg, PythonResult):
                 return ('py_path', arg._get_path(local_tmpdir))
-            if isinstance(arg, _resource.ResourceFile):
+            if isinstance(arg, ResourceFile):
                 return ('path', arg._get_path(local_tmpdir))
-            if isinstance(arg, _resource.ResourceGroup):
+            if isinstance(arg, ResourceGroup):
                 return (
                     'dict_path',
                     {name: resource._get_path(local_tmpdir) for name, resource in arg._resources.items()},

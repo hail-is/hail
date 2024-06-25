@@ -1,8 +1,8 @@
 import hail as hl
-from hail.expr.expressions import expr_any, analyze
-from hail.expr.types import hail_type
+from hail.expr.expressions import analyze, expr_any
 from hail.expr.table_type import ttable
-from hail.typecheck import typecheck, nullable
+from hail.expr.types import hail_type
+from hail.typecheck import nullable, typecheck
 
 
 @typecheck(expr=expr_any, path=str, overwrite=bool)

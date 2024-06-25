@@ -1,112 +1,113 @@
-import operator
 import builtins
 import functools
-from typing import Union, Optional, Any, Callable, Iterable, TypeVar
-import pandas as pd
+import itertools
+import operator
+from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
+import numpy as np
+import pandas as pd
 from deprecated import deprecated
 
 import hail
 import hail as hl
+from hail import ir
 from hail.expr.expressions import (
-    Expression,
     ArrayExpression,
-    StreamExpression,
-    SetExpression,
-    Int32Expression,
-    Int64Expression,
-    Float32Expression,
-    Float64Expression,
-    DictExpression,
-    StructExpression,
-    LocusExpression,
-    StringExpression,
-    IntervalExpression,
     ArrayNumericExpression,
     BooleanExpression,
     CallExpression,
-    TupleExpression,
+    DictExpression,
+    Expression,
     ExpressionException,
+    Float32Expression,
+    Float64Expression,
+    Int32Expression,
+    Int64Expression,
+    IntervalExpression,
+    LocusExpression,
     NumericExpression,
-    unify_all,
-    construct_expr,
-    to_expr,
-    unify_exprs,
-    impute_type,
-    construct_variable,
+    SetExpression,
+    StreamExpression,
+    StringExpression,
+    StructExpression,
+    TupleExpression,
     apply_expr,
+    cast_expr,
     coercer_from_dtype,
-    unify_types_limited,
-    expr_array,
+    construct_expr,
+    construct_variable,
     expr_any,
-    expr_struct,
-    expr_int32,
-    expr_int64,
+    expr_array,
+    expr_bool,
+    expr_call,
+    expr_dict,
     expr_float32,
     expr_float64,
-    expr_oneof,
-    expr_bool,
-    expr_tuple,
-    expr_dict,
-    expr_str,
-    expr_stream,
-    expr_set,
-    expr_call,
-    expr_locus,
+    expr_int32,
+    expr_int64,
     expr_interval,
+    expr_locus,
     expr_ndarray,
     expr_numeric,
-    cast_expr,
+    expr_oneof,
+    expr_set,
+    expr_str,
+    expr_stream,
+    expr_struct,
+    expr_tuple,
+    impute_type,
+    to_expr,
+    unify_all,
+    unify_exprs,
+    unify_types_limited,
 )
 from hail.expr.types import (
     HailType,
     hail_type,
-    tint32,
-    tint64,
-    tfloat32,
-    tfloat64,
-    tstr,
-    tbool,
-    tarray,
-    tstream,
-    tset,
-    tdict,
-    tstruct,
-    tlocus,
-    tinterval,
-    tcall,
-    ttuple,
-    tndarray,
-    trngstate,
-    is_primitive,
-    is_numeric,
-    is_int32,
-    is_int64,
     is_float32,
     is_float64,
+    is_int32,
+    is_int64,
+    is_numeric,
+    is_primitive,
+    tarray,
+    tbool,
+    tcall,
+    tdict,
+    tfloat32,
+    tfloat64,
+    tint32,
+    tint64,
+    tinterval,
+    tlocus,
+    tndarray,
+    trngstate,
+    tset,
+    tstr,
+    tstream,
+    tstruct,
+    ttuple,
 )
-from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
-import hail.ir as ir
+from hail.genetics.allele_type import AlleleType
+from hail.genetics.reference_genome import ReferenceGenome, reference_genome_type
 from hail.typecheck import (
-    typecheck,
-    nullable,
+    anyfunc,
     anytype,
-    enumeration,
-    tupleof,
-    func_spec,
-    oneof,
     arg_check,
     args_check,
-    anyfunc,
+    enumeration,
+    func_spec,
+    nullable,
+    oneof,
     sequenceof,
+    tupleof,
+    typecheck,
 )
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
-import numpy as np
-
-Coll_T = TypeVar('Collection_T', ArrayExpression, SetExpression)
-Num_T = TypeVar('Numeric_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
+Coll_T = TypeVar('Coll_T', ArrayExpression, SetExpression)
+Num_T = TypeVar('Num_T', Int32Expression, Int64Expression, Float32Expression, Float64Expression)
 
 
 def _func(name, ret_type, *args, type_args=()):
@@ -823,6 +824,84 @@ def contingency_table_test(c1, c2, c3, c4, min_cell_count) -> StructExpression:
     return _func("contingency_table_test", ret_type, c1, c2, c3, c4, min_cell_count)
 
 
+# We use 64-bit integers.
+# It is relatively easy to encounter an integer overflow bug with 32-bit integers.
+@typecheck(a=expr_array(expr_int64), b=expr_array(expr_int64), c=expr_array(expr_int64), d=expr_array(expr_int64))
+def cochran_mantel_haenszel_test(
+    a: Union[tarray, list], b: Union[tarray, list], c: Union[tarray, list], d: Union[tarray, list]
+) -> StructExpression:
+    """Perform the Cochran-Mantel-Haenszel test for association.
+
+    Examples
+    --------
+    >>> a = [56, 61, 73, 71]
+    >>> b = [69, 257, 65, 48]
+    >>> c = [40, 57, 71, 55]
+    >>> d = [77, 301, 79, 48]
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=5.0496881823306765, p_value=0.024630370456863417)
+
+    >>> mt = ds.filter_rows(mt.locus == hl.Locus(20, 10633237))
+    >>> mt.count_rows()
+    1
+    >>> a, b, c, d = mt.aggregate_entries(
+    ...     hl.tuple([
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & mt.pheno.is_case & ~mt.pheno.is_female)]),
+    ...         hl.array([hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & mt.pheno.is_female), hl.agg.count_where(~mt.GT.is_non_ref() & ~mt.pheno.is_case & ~mt.pheno.is_female)])
+    ...     ])
+    ... )
+    >>> hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+    Struct(test_statistic=0.2188830334629822, p_value=0.6398923118508772)
+
+    Notes
+    -----
+    See the `Wikipedia article <https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics>`_
+    for more details.
+
+    Parameters
+    ----------
+    a : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the upper-left cell in the contingency tables.
+    b : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the upper-right cell in the contingency tables.
+    c : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the lower-left cell in the contingency tables.
+    d : :class:`.ArrayExpression` of type :py:data:`.tint64`
+        Values for the lower-right cell in the contingency tables.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        A :class:`.tstruct` expression with two fields, `test_statistic`
+        (:py:data:`.tfloat64`) and `p_value` (:py:data:`.tfloat64`).
+    """
+    # The variable names below correspond to the notation used in the Wikipedia article.
+    # https://en.m.wikipedia.org/wiki/Cochran%E2%80%93Mantel%E2%80%93Haenszel_statistics
+    n1 = hl.zip(a, b).map(lambda ab: ab[0] + ab[1])
+    n2 = hl.zip(c, d).map(lambda cd: cd[0] + cd[1])
+    m1 = hl.zip(a, c).map(lambda ac: ac[0] + ac[1])
+    m2 = hl.zip(b, d).map(lambda bd: bd[0] + bd[1])
+    t = hl.zip(n1, n2).map(lambda nn: nn[0] + nn[1])
+
+    def numerator_term(a, n1, m1, t):
+        return a - n1 * m1 / t
+
+    # The numerator comes from the link below, not from the Wikipedia article.
+    # https://www.biostathandbook.com/cmh.html
+    numerator = (hl.abs(hl.sum(hl.zip(a, n1, m1, t).map(lambda tup: numerator_term(*tup)))) - 0.5) ** 2
+
+    def denominator_term(n1, n2, m1, m2, t):
+        return n1 * n2 * m1 * m2 / (t**3 - t**2)
+
+    denominator = hl.sum(hl.zip(n1, n2, m1, m2, t).map(lambda tup: denominator_term(*tup)))
+
+    test_statistic = numerator / denominator
+    p_value = pchisqtail(test_statistic, 1)
+    return struct(test_statistic=test_statistic, p_value=p_value)
+
+
 @typecheck(
     collection=expr_oneof(
         expr_dict(), expr_set(expr_tuple([expr_any, expr_any])), expr_array(expr_tuple([expr_any, expr_any]))
@@ -851,7 +930,7 @@ def dict(collection) -> DictExpression:
     -------
     :class:`.DictExpression`
     """
-    if isinstance(collection.dtype, tarray) or isinstance(collection.dtype, tset):
+    if isinstance(collection.dtype, (tarray, tset)):
         key_type, value_type = collection.dtype.element_type.types
         return _func('dict', tdict(key_type, value_type), collection)
     else:
@@ -3278,16 +3357,26 @@ def corr(x, y) -> Float64Expression:
     return _func("corr", tfloat64, x, y)
 
 
-_base_regex = "^([ACGTNM])+$"
-_symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
-_allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]
-_allele_enum = {i: v for i, v in builtins.enumerate(_allele_types)}
-_allele_ints = {v: k for k, v in _allele_enum.items()}
-
-
 @typecheck(ref=expr_str, alt=expr_str)
 @ir.udf(tstr, tstr)
-def _num_allele_type(ref, alt) -> Int32Expression:
+def numeric_allele_type(ref, alt) -> Int32Expression:
+    """Returns the type of the polymorphism as an integer. The value returned
+    is the integer value of :class:`.AlleleType` representing that kind of
+    polymorphism.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.numeric_allele_type('A', 'T')) == AlleleType.SNP
+    True
+
+    Notes
+    -----
+    The values of :class:`.AlleleType` are not stable and thus should not be
+    relied upon across hail versions.
+    """
+    _base_regex = "^([ACGTNM])+$"
+    _symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
     return hl.bind(
         lambda r, a: hl.if_else(
             r.matches(_base_regex),
@@ -3299,22 +3388,31 @@ def _num_allele_type(ref, alt) -> Int32Expression:
                     r.length() == a.length(),
                     hl.if_else(
                         r.length() == 1,
-                        hl.if_else(r != a, _allele_ints['SNP'], _allele_ints['Unknown']),
-                        hl.if_else(hamming(r, a) == 1, _allele_ints['SNP'], _allele_ints['MNP']),
+                        hl.if_else(r != a, AlleleType.SNP, AlleleType.UNKNOWN),
+                        hl.if_else(hamming(r, a) == 1, AlleleType.SNP, AlleleType.MNP),
                     ),
                 )
-                .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]), _allele_ints["Insertion"])
-                .when((r[0] == a[0]) & r.endswith(a[1:]), _allele_ints["Deletion"])
-                .default(_allele_ints['Complex']),
+                .when((r.length() < a.length()) & (r[0] == a[0]) & a.endswith(r[1:]), AlleleType.INSERTION)
+                .when((r[0] == a[0]) & r.endswith(a[1:]), AlleleType.DELETION)
+                .default(AlleleType.COMPLEX),
             )
-            .when(a == '*', _allele_ints['Star'])
-            .when(a.matches(_symbolic_regex), _allele_ints['Symbolic'])
-            .default(_allele_ints['Unknown']),
-            _allele_ints['Unknown'],
+            .when(a == '*', AlleleType.STAR)
+            .when(a.matches(_symbolic_regex), AlleleType.SYMBOLIC)
+            .default(AlleleType.UNKNOWN),
+            AlleleType.UNKNOWN,
         ),
         ref,
         alt,
     )
+
+
+@deprecated(version='0.2.129', reason="Replaced by the public numeric_allele_type")
+@typecheck(ref=expr_str, alt=expr_str)
+def _num_allele_type(ref, alt) -> Int32Expression:
+    """Provided for backwards compatibility, don't use it in new code, or
+    within the hail library itself
+    """
+    return numeric_allele_type(ref, alt)
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3338,7 +3436,7 @@ def is_snp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["SNP"]
+    return numeric_allele_type(ref, alt) == AlleleType.SNP
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3362,7 +3460,7 @@ def is_mnp(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["MNP"]
+    return numeric_allele_type(ref, alt) == AlleleType.MNP
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3458,7 +3556,7 @@ def is_insertion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Insertion"]
+    return numeric_allele_type(ref, alt) == AlleleType.INSERTION
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3482,7 +3580,7 @@ def is_deletion(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Deletion"]
+    return numeric_allele_type(ref, alt) == AlleleType.DELETION
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3506,9 +3604,7 @@ def is_indel(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return hl.bind(
-        lambda t: (t == _allele_ints["Insertion"]) | (t == _allele_ints["Deletion"]), _num_allele_type(ref, alt)
-    )
+    return hl.bind(lambda t: (t == AlleleType.INSERTION) | (t == AlleleType.DELETION), numeric_allele_type(ref, alt))
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3532,7 +3628,7 @@ def is_star(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Star"]
+    return numeric_allele_type(ref, alt) == AlleleType.STAR
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3556,7 +3652,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return _num_allele_type(ref, alt) == _allele_ints["Complex"]
+    return numeric_allele_type(ref, alt) == AlleleType.COMPLEX
 
 
 @typecheck(ref=expr_str, alt=expr_str)
@@ -3624,7 +3720,7 @@ def allele_type(ref, alt) -> StringExpression:
     -------
     :class:`.StringExpression`
     """
-    return hl.literal(_allele_types)[_num_allele_type(ref, alt)]
+    return hl.literal(AlleleType.strings())[numeric_allele_type(ref, alt)]
 
 
 @typecheck(s1=expr_str, s2=expr_str)
@@ -4406,7 +4502,7 @@ def len(x) -> Int32Expression:
     -------
     :class:`.Expression` of type :py:data:`.tint32`
     """
-    if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
+    if isinstance(x.dtype, (ttuple, tstruct)):
         return hl.int32(builtins.len(x))
     elif x.dtype == tstr:
         return apply_expr(lambda x: ir.Apply("length", tint32, x), tint32, x)
@@ -4707,7 +4803,7 @@ def abs(x):
     -------
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+    if isinstance(x.dtype, (tarray, tndarray)):
         return map(abs, x)
     else:
         return x._method('abs', x.dtype)
@@ -4744,7 +4840,7 @@ def sign(x):
     -------
     :class:`.NumericExpression`, :class:`.ArrayNumericExpression` or :class:`.NDArrayNumericExpression`.
     """
-    if isinstance(x.dtype, tarray) or isinstance(x.dtype, tndarray):
+    if isinstance(x.dtype, (tarray, tndarray)):
         return map(sign, x)
     else:
         return x._method('sign', x.dtype)
@@ -5062,7 +5158,7 @@ def _ndarray(collection, row_major=None, dtype=None):
     """
 
     def list_shape(x):
-        if isinstance(x, list) or isinstance(x, builtins.tuple):
+        if isinstance(x, (list, builtins.tuple)):
             dim_len = builtins.len(x)
             if dim_len != 0:
                 first, rest = x[0], x[1:]
@@ -5071,70 +5167,77 @@ def _ndarray(collection, row_major=None, dtype=None):
                     other_inner_shape = list_shape(e)
                     if inner_shape != other_inner_shape:
                         raise ValueError(f'inner dimensions do not match: {inner_shape}, {other_inner_shape}')
-                return [dim_len] + inner_shape
+                return [dim_len, *inner_shape]
             else:
                 return [dim_len]
         else:
             return []
 
-    def deep_flatten(es):
-        result = []
-        for e in es:
-            if isinstance(e, list) or isinstance(e, builtins.tuple):
-                result.extend(deep_flatten(e))
-            else:
-                result.append(e)
+    def deep_flatten(xs: Iterable) -> Iterable:
+        return [y for x in xs for y in (deep_flatten(x) if isinstance(x, (list, builtins.tuple)) else [x])]
 
-        return result
-
-    def check_arrays_uniform(nested_arr, shape_list, ndim):
-        current_level_correct = hl.len(nested_arr) == shape_list[-ndim]
-        if ndim == 1:
-            return current_level_correct
-        else:
-            return current_level_correct & (
-                hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr)
+    def flatten_expr_assert_shape(shape):
+        def recur(dim):
+            return lambda xs: hl.bind(
+                lambda actual: hl.bind(
+                    lambda expected: hl.case()
+                    .when(
+                        actual == expected,
+                        xs if dim == builtins.len(shape) - 1 else xs.flatmap(recur(dim + 1)),
+                    )
+                    .or_error(
+                        f'ndarray dimension {dim} did not match.\n'
+                        + ('  Expected len(dimension) == ' + hl.str(expected) + '\n')
+                        + ('  Actual: ' + hl.str(actual) + '.')
+                    ),
+                    shape[dim],
+                ),
+                hl.len(xs),
             )
 
-    if isinstance(collection, Expression):
-        if isinstance(collection, ArrayNumericExpression):
-            data_expr = collection
-            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
-            ndim = 1
-        elif isinstance(collection, NumericExpression):
-            data_expr = array([collection])
-            shape_expr = hl.tuple([])
-            ndim = 0
-        elif isinstance(collection, ArrayExpression):
-            recursive_type = collection.dtype
-            ndim = 0
-            while isinstance(recursive_type, tarray) or isinstance(recursive_type, tndarray):
-                recursive_type = recursive_type._element_type
-                ndim += 1
+        return recur(0)
 
-            data_expr = collection
-            for i in builtins.range(ndim - 1):
-                data_expr = hl.flatten(data_expr)
+    def from_data_and_shape(data: ArrayExpression, shape: TupleExpression):
+        data = data.map(lambda value: cast_expr(value, dtype))
+        ndir = ir.MakeNDArray(data._ir, shape._ir, hl.bool(True)._ir)
+        new_indices, new_aggregations = unify_all(data, shape)
+        ndim = builtins.len(shape)
+        return construct_expr(ndir, tndarray(data.dtype.element_type, ndim), new_indices, new_aggregations)
 
-            nested_collection = collection
-            shape_list = []
-            for i in builtins.range(ndim):
-                shape_list.append(hl.int64(hl.len(nested_collection)))
-                nested_collection = nested_collection[0]
+    if isinstance(collection, NumericExpression):
+        return from_data_and_shape(array([collection]), hl.tuple([]))
+    elif isinstance(collection, ArrayExpression):
+        recursive_type = collection.dtype
+        ndim = 0
 
-            shape_expr = (
-                hl.case()
-                .when(check_arrays_uniform(collection, shape_list, ndim), hl.tuple(shape_list))
-                .or_error("inner dimensions do not match")
-            )
+        while isinstance(recursive_type, (tarray, tndarray)):
+            recursive_type = recursive_type._element_type
+            ndim += 1
 
-        else:
-            raise ValueError(f"{collection} cannot be converted into an ndarray")
+        return hl.bind(
+            lambda arr: hl.bind(
+                lambda shape: hl.bind(
+                    lambda data: from_data_and_shape(data, shape),
+                    flatten_expr_assert_shape(shape)(arr),
+                ),
+                hl.tuple(
+                    hl.int64(hl.len(dim))
+                    for dim in itertools.accumulate(
+                        builtins.range(ndim - 1),
+                        lambda xs, _: xs[0],
+                        initial=arr,
+                    )
+                ),
+            ),
+            collection,
+        )
 
+    elif isinstance(collection, Expression):
+        raise ValueError(f"{collection} cannot be converted into an ndarray")
+    elif isinstance(collection, np.ndarray):
+        return hl.literal(collection)
     else:
-        if isinstance(collection, np.ndarray):
-            return hl.literal(collection)
-        elif isinstance(collection, list) or isinstance(collection, builtins.tuple):
+        if isinstance(collection, (list, builtins.tuple)):
             shape = list_shape(collection)
             data = deep_flatten(collection)
         else:
@@ -5144,13 +5247,7 @@ def _ndarray(collection, row_major=None, dtype=None):
         shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ttuple(*[tint64 for _ in shape]))
         data_expr = hl.array(data) if data else hl.empty_array("float64")
         ndim = builtins.len(shape)
-
-    data_expr = data_expr.map(lambda value: cast_expr(value, dtype))
-    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
-
-    new_indices, new_aggregations = unify_all(data_expr, shape_expr)
-
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim), new_indices, new_aggregations)
+        return from_data_and_shape(data_expr, shape_expr)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
@@ -6486,7 +6583,7 @@ def format(f, *args):
 
     Notes
     -----
-    See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#format-java.lang.String-java.lang.Object...->`__
+    See the `Java documentation <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html#syntax>`__
     for valid format specifiers and arguments.
 
     Missing values are printed as ``'null'`` except when using the
@@ -6495,7 +6592,7 @@ def format(f, *args):
     Parameters
     ----------
     f : :class:`.StringExpression`
-        Java `format string <https://docs.oracle.com/javase/8/docs/api/java/util/Formatter.html#syntax>`__.
+        Java `format string <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html#syntax>`__.
     args : variable-length arguments of :class:`.Expression`
         Arguments to format.
 
@@ -6863,7 +6960,7 @@ def _locus_windows_per_contig(coords, radius):
 
 
 @typecheck(a=expr_array(), seed=nullable(builtins.int))
-def shuffle(a, seed: builtins.int = None) -> ArrayExpression:
+def shuffle(a, seed: Optional[builtins.int] = None) -> ArrayExpression:
     """Randomly permute an array
 
     Example

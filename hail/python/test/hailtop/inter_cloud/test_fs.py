@@ -1,20 +1,22 @@
-from typing import Tuple, AsyncIterator
+import asyncio
 import datetime
-import random
 import functools
 import os
+import random
 import secrets
 from concurrent.futures import ThreadPoolExecutor
-import asyncio
-from hailtop.aiotools.fs.fs import AsyncFSURL
+from typing import AsyncIterator, Tuple
+
 import pytest
-from hailtop.utils import secret_alnum_string, retry_transient_errors, bounded_gather2
-from hailtop.fs.router_fs import RouterFS
-from hailtop.aiotools import LocalAsyncFS, UnexpectedEOFError, AsyncFS, IsABucketError
-from hailtop.aiotools.router_fs import RouterAsyncFS
+
 from hailtop.aiocloud.aioaws import S3AsyncFS
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
+from hailtop.aiotools import AsyncFS, IsABucketError, LocalAsyncFS, UnexpectedEOFError
+from hailtop.aiotools.fs.fs import AsyncFSURL
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.fs.router_fs import RouterFS
+from hailtop.utils import bounded_gather2, retry_transient_errors, secret_alnum_string
 
 
 @pytest.fixture(

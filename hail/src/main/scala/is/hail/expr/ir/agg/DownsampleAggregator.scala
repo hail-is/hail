@@ -90,8 +90,8 @@ class DownsampleState(
     "label" -> labelPType,
   )
 
-  private val binET = EType.defaultFromPType(binType)
-  private val pointET = EType.defaultFromPType(pointType)
+  private val binET = EType.defaultFromPType(kb.ctx, binType)
+  private val pointET = EType.defaultFromPType(kb.ctx, pointType)
 
   private val root: Settable[Long] = kb.genFieldThisRef[Long]("root")
   private val oldRoot: Settable[Long] = kb.genFieldThisRef[Long]("old_root")
@@ -464,8 +464,8 @@ class DownsampleState(
               cb,
               {},
               { case point: SBaseStructValue =>
-                val x = point.loadField(cb, "x").get(cb).asFloat64.value
-                val y = point.loadField(cb, "y").get(cb).asFloat64.value
+                val x = point.loadField(cb, "x").getOrAssert(cb).asFloat64.value
+                val y = point.loadField(cb, "y").getOrAssert(cb).asFloat64.value
                 val pointc = coerce[Long](SingleCodeSCode.fromSCode(cb, point, region).code)
                 insertIntoTree(
                   cb,

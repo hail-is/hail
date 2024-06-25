@@ -1,34 +1,35 @@
 import abc
 import logging
+import os
+from collections import Counter
+from shlex import quote as shq
+from typing import Dict, List, Optional, Tuple, Union
 
 import hail as hl
-from collections import Counter
-import os
-from shlex import quote as shq
-
-from typing import Dict, Tuple, List, Optional, Union
-
-from hailtop import pip_version
-from hailtop.utils import async_to_blocking
 import hailtop.batch_client as bc
-from hailtop.config import get_deploy_config
-from hailtop import yamlx
-
 from hail.backend.service_backend import ServiceBackend
-from hail.typecheck import typecheck, oneof, anytype, nullable, numeric
+from hail.expr import Float64Expression
 from hail.expr.expressions.expression_typecheck import expr_float64
+from hail.expr.functions import numeric_allele_type
+from hail.expr.types import tarray, tfloat, tint32, tstr, tstruct
+from hail.genetics.allele_type import AlleleType
+from hail.ir import TableToTableApply
+from hail.matrixtable import MatrixTable
+from hail.table import Table
+from hail.typecheck import anytype, nullable, numeric, oneof, typecheck
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_file
-from hail.matrixtable import MatrixTable
-from hail.table import Table
-from hail.ir import TableToTableApply
+from hailtop import pip_version, yamlx
+from hailtop.config import get_deploy_config
+from hailtop.utils import async_to_blocking
+
 from .misc import (
-    require_biallelic,
-    require_row_key_variant,
-    require_col_key_str,
-    require_table_key_variant,
     require_alleles_field,
+    require_biallelic,
+    require_col_key_str,
+    require_row_key_variant,
+    require_table_key_variant,
 )
 
 log = logging.getLogger('methods.qc')
@@ -40,6 +41,17 @@ HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get(
 HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get(
     'HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep-grch38-95:{pip_version()}'
 )
+
+
+def _qc_allele_type(ref, alt):
+    return hl.bind(
+        lambda at: hl.if_else(
+            at == AlleleType.SNP,
+            hl.if_else(hl.is_transition(ref, alt), AlleleType.TRANSITION, AlleleType.TRANSVERSION),
+            at,
+        ),
+        numeric_allele_type(ref, alt),
+    )
 
 
 @typecheck(mt=MatrixTable, name=str)
@@ -115,28 +127,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
 
     require_row_key_variant(mt, 'sample_qc')
 
-    from hail.expr.functions import _num_allele_type, _allele_types
-
-    allele_types = _allele_types[:]
-    allele_types.extend(['Transition', 'Transversion'])
-    allele_enum = {i: v for i, v in enumerate(allele_types)}
-    allele_ints = {v: k for k, v in allele_enum.items()}
-
-    def allele_type(ref, alt):
-        return hl.bind(
-            lambda at: hl.if_else(
-                at == allele_ints['SNP'],
-                hl.if_else(hl.is_transition(ref, alt), allele_ints['Transition'], allele_ints['Transversion']),
-                at,
-            ),
-            _num_allele_type(ref, alt),
-        )
-
     variant_ac = Env.get_uid()
     variant_atypes = Env.get_uid()
     mt = mt.annotate_rows(**{
         variant_ac: hl.agg.call_stats(mt.GT, mt.alleles).AC,
-        variant_atypes: mt.alleles[1:].map(lambda alt: allele_type(mt.alleles[0], alt)),
+        variant_atypes: mt.alleles[1:].map(lambda alt: _qc_allele_type(mt.alleles[0], alt)),
     })
 
     bound_exprs = {}
@@ -175,7 +170,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     )
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
-        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(allele_ints))),
+        lambda allele_type: hl.tuple(hl.agg.count_where(allele_type == i) for i in range(len(AlleleType))),
         (
             hl.range(0, mt['GT'].ploidy)
             .map(lambda i: mt['GT'][i])
@@ -198,14 +193,12 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
                 'n_hom_var': x.n_called - x.n_hom_ref - x.n_het,
                 'n_non_ref': x.n_called - x.n_hom_ref,
                 'n_singleton': x.n_singleton,
-                'n_snp': (
-                    x.allele_type_counts[allele_ints["Transition"]] + x.allele_type_counts[allele_ints["Transversion"]]
-                ),
-                'n_insertion': x.allele_type_counts[allele_ints["Insertion"]],
-                'n_deletion': x.allele_type_counts[allele_ints["Deletion"]],
-                'n_transition': x.allele_type_counts[allele_ints["Transition"]],
-                'n_transversion': x.allele_type_counts[allele_ints["Transversion"]],
-                'n_star': x.allele_type_counts[allele_ints["Star"]],
+                'n_snp': x.allele_type_counts[AlleleType.TRANSITION] + x.allele_type_counts[AlleleType.TRANSVERSION],
+                'n_insertion': x.allele_type_counts[AlleleType.INSERTION],
+                'n_deletion': x.allele_type_counts[AlleleType.DELETION],
+                'n_transition': x.allele_type_counts[AlleleType.TRANSITION],
+                'n_transversion': x.allele_type_counts[AlleleType.TRANSVERSION],
+                'n_star': x.allele_type_counts[AlleleType.STAR],
             }),
             lambda s: s.annotate(
                 r_ti_tv=divide_null(hl.float64(s.n_transition), s.n_transversion),
@@ -549,147 +542,147 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     return glob, per_sample.cols(), per_variant.rows()
 
 
-vep_json_typ = hl.tstruct(
-    assembly_name=hl.tstr,
-    allele_string=hl.tstr,
-    ancestral=hl.tstr,
-    colocated_variants=hl.tarray(
-        hl.tstruct(
-            aa_allele=hl.tstr,
-            aa_maf=hl.tfloat,
-            afr_allele=hl.tstr,
-            afr_maf=hl.tfloat,
-            allele_string=hl.tstr,
-            amr_allele=hl.tstr,
-            amr_maf=hl.tfloat,
-            clin_sig=hl.tarray(hl.tstr),
-            end=hl.tint32,
-            eas_allele=hl.tstr,
-            eas_maf=hl.tfloat,
-            ea_allele=hl.tstr,
-            ea_maf=hl.tfloat,
-            eur_allele=hl.tstr,
-            eur_maf=hl.tfloat,
-            exac_adj_allele=hl.tstr,
-            exac_adj_maf=hl.tfloat,
-            exac_allele=hl.tstr,
-            exac_afr_allele=hl.tstr,
-            exac_afr_maf=hl.tfloat,
-            exac_amr_allele=hl.tstr,
-            exac_amr_maf=hl.tfloat,
-            exac_eas_allele=hl.tstr,
-            exac_eas_maf=hl.tfloat,
-            exac_fin_allele=hl.tstr,
-            exac_fin_maf=hl.tfloat,
-            exac_maf=hl.tfloat,
-            exac_nfe_allele=hl.tstr,
-            exac_nfe_maf=hl.tfloat,
-            exac_oth_allele=hl.tstr,
-            exac_oth_maf=hl.tfloat,
-            exac_sas_allele=hl.tstr,
-            exac_sas_maf=hl.tfloat,
-            id=hl.tstr,
-            minor_allele=hl.tstr,
-            minor_allele_freq=hl.tfloat,
-            phenotype_or_disease=hl.tint32,
-            pubmed=hl.tarray(hl.tint32),
-            sas_allele=hl.tstr,
-            sas_maf=hl.tfloat,
-            somatic=hl.tint32,
-            start=hl.tint32,
-            strand=hl.tint32,
+vep_json_typ = tstruct(
+    assembly_name=tstr,
+    allele_string=tstr,
+    ancestral=tstr,
+    colocated_variants=tarray(
+        tstruct(
+            aa_allele=tstr,
+            aa_maf=tfloat,
+            afr_allele=tstr,
+            afr_maf=tfloat,
+            allele_string=tstr,
+            amr_allele=tstr,
+            amr_maf=tfloat,
+            clin_sig=tarray(tstr),
+            end=tint32,
+            eas_allele=tstr,
+            eas_maf=tfloat,
+            ea_allele=tstr,
+            ea_maf=tfloat,
+            eur_allele=tstr,
+            eur_maf=tfloat,
+            exac_adj_allele=tstr,
+            exac_adj_maf=tfloat,
+            exac_allele=tstr,
+            exac_afr_allele=tstr,
+            exac_afr_maf=tfloat,
+            exac_amr_allele=tstr,
+            exac_amr_maf=tfloat,
+            exac_eas_allele=tstr,
+            exac_eas_maf=tfloat,
+            exac_fin_allele=tstr,
+            exac_fin_maf=tfloat,
+            exac_maf=tfloat,
+            exac_nfe_allele=tstr,
+            exac_nfe_maf=tfloat,
+            exac_oth_allele=tstr,
+            exac_oth_maf=tfloat,
+            exac_sas_allele=tstr,
+            exac_sas_maf=tfloat,
+            id=tstr,
+            minor_allele=tstr,
+            minor_allele_freq=tfloat,
+            phenotype_or_disease=tint32,
+            pubmed=tarray(tint32),
+            sas_allele=tstr,
+            sas_maf=tfloat,
+            somatic=tint32,
+            start=tint32,
+            strand=tint32,
         )
     ),
-    context=hl.tstr,
-    end=hl.tint32,
-    id=hl.tstr,
-    input=hl.tstr,
-    intergenic_consequences=hl.tarray(
-        hl.tstruct(
-            allele_num=hl.tint32,
-            consequence_terms=hl.tarray(hl.tstr),
-            impact=hl.tstr,
-            minimised=hl.tint32,
-            variant_allele=hl.tstr,
+    context=tstr,
+    end=tint32,
+    id=tstr,
+    input=tstr,
+    intergenic_consequences=tarray(
+        tstruct(
+            allele_num=tint32,
+            consequence_terms=tarray(tstr),
+            impact=tstr,
+            minimised=tint32,
+            variant_allele=tstr,
         )
     ),
-    most_severe_consequence=hl.tstr,
-    motif_feature_consequences=hl.tarray(
-        hl.tstruct(
-            allele_num=hl.tint32,
-            consequence_terms=hl.tarray(hl.tstr),
-            high_inf_pos=hl.tstr,
-            impact=hl.tstr,
-            minimised=hl.tint32,
-            motif_feature_id=hl.tstr,
-            motif_name=hl.tstr,
-            motif_pos=hl.tint32,
-            motif_score_change=hl.tfloat,
-            strand=hl.tint32,
-            variant_allele=hl.tstr,
+    most_severe_consequence=tstr,
+    motif_feature_consequences=tarray(
+        tstruct(
+            allele_num=tint32,
+            consequence_terms=tarray(tstr),
+            high_inf_pos=tstr,
+            impact=tstr,
+            minimised=tint32,
+            motif_feature_id=tstr,
+            motif_name=tstr,
+            motif_pos=tint32,
+            motif_score_change=tfloat,
+            strand=tint32,
+            variant_allele=tstr,
         )
     ),
-    regulatory_feature_consequences=hl.tarray(
-        hl.tstruct(
-            allele_num=hl.tint32,
-            biotype=hl.tstr,
-            consequence_terms=hl.tarray(hl.tstr),
-            impact=hl.tstr,
-            minimised=hl.tint32,
-            regulatory_feature_id=hl.tstr,
-            variant_allele=hl.tstr,
+    regulatory_feature_consequences=tarray(
+        tstruct(
+            allele_num=tint32,
+            biotype=tstr,
+            consequence_terms=tarray(tstr),
+            impact=tstr,
+            minimised=tint32,
+            regulatory_feature_id=tstr,
+            variant_allele=tstr,
         )
     ),
-    seq_region_name=hl.tstr,
-    start=hl.tint32,
-    strand=hl.tint32,
-    transcript_consequences=hl.tarray(
-        hl.tstruct(
-            allele_num=hl.tint32,
-            amino_acids=hl.tstr,
-            biotype=hl.tstr,
-            canonical=hl.tint32,
-            ccds=hl.tstr,
-            cdna_start=hl.tint32,
-            cdna_end=hl.tint32,
-            cds_end=hl.tint32,
-            cds_start=hl.tint32,
-            codons=hl.tstr,
-            consequence_terms=hl.tarray(hl.tstr),
-            distance=hl.tint32,
-            domains=hl.tarray(hl.tstruct(db=hl.tstr, name=hl.tstr)),
-            exon=hl.tstr,
-            gene_id=hl.tstr,
-            gene_pheno=hl.tint32,
-            gene_symbol=hl.tstr,
-            gene_symbol_source=hl.tstr,
-            hgnc_id=hl.tstr,
-            hgvsc=hl.tstr,
-            hgvsp=hl.tstr,
-            hgvs_offset=hl.tint32,
-            impact=hl.tstr,
-            intron=hl.tstr,
-            lof=hl.tstr,
-            lof_flags=hl.tstr,
-            lof_filter=hl.tstr,
-            lof_info=hl.tstr,
-            minimised=hl.tint32,
-            polyphen_prediction=hl.tstr,
-            polyphen_score=hl.tfloat,
-            protein_end=hl.tint32,
-            protein_start=hl.tint32,
-            protein_id=hl.tstr,
-            sift_prediction=hl.tstr,
-            sift_score=hl.tfloat,
-            strand=hl.tint32,
-            swissprot=hl.tstr,
-            transcript_id=hl.tstr,
-            trembl=hl.tstr,
-            uniparc=hl.tstr,
-            variant_allele=hl.tstr,
+    seq_region_name=tstr,
+    start=tint32,
+    strand=tint32,
+    transcript_consequences=tarray(
+        tstruct(
+            allele_num=tint32,
+            amino_acids=tstr,
+            biotype=tstr,
+            canonical=tint32,
+            ccds=tstr,
+            cdna_start=tint32,
+            cdna_end=tint32,
+            cds_end=tint32,
+            cds_start=tint32,
+            codons=tstr,
+            consequence_terms=tarray(tstr),
+            distance=tint32,
+            domains=tarray(tstruct(db=tstr, name=tstr)),
+            exon=tstr,
+            gene_id=tstr,
+            gene_pheno=tint32,
+            gene_symbol=tstr,
+            gene_symbol_source=tstr,
+            hgnc_id=tstr,
+            hgvsc=tstr,
+            hgvsp=tstr,
+            hgvs_offset=tint32,
+            impact=tstr,
+            intron=tstr,
+            lof=tstr,
+            lof_flags=tstr,
+            lof_filter=tstr,
+            lof_info=tstr,
+            minimised=tint32,
+            polyphen_prediction=tstr,
+            polyphen_score=tfloat,
+            protein_end=tint32,
+            protein_start=tint32,
+            protein_id=tstr,
+            sift_prediction=tstr,
+            sift_score=tfloat,
+            strand=tint32,
+            swissprot=tstr,
+            transcript_id=tstr,
+            trembl=tstr,
+            uniparc=tstr,
+            variant_allele=tstr,
         )
     ),
-    variant_class=hl.tstr,
+    variant_class=tstr,
 )
 
 
@@ -871,10 +864,10 @@ class VEPConfigGRCh38Version95(VEPConfig):
         self.batch_run_csq_header_command = ['python3', '/hail-vep/vep.py', 'csq_header']
         self.json_typ = vep_json_typ._insert_field(
             'transcript_consequences',
-            hl.tarray(
+            tarray(
                 vep_json_typ['transcript_consequences'].element_type._insert_fields(
-                    appris=hl.tstr,
-                    tsl=hl.tint32,
+                    appris=tstr,
+                    tsl=tint32,
                 )
             ),
         )
@@ -951,7 +944,7 @@ def _service_vep(
     tolerate_parse_error: bool,
     temp_input_directory: str,
     temp_output_directory: str,
-) -> hl.Table:
+) -> Table:
     reference_genome = ht.locus.dtype.reference_genome.name
     cloud = async_to_blocking(backend._batch_client.cloud())
     regions = backend.regions
@@ -1073,7 +1066,7 @@ def _service_vep(
         raise
 
     if status['n_succeeded'] != status['n_jobs']:
-        failing_job = [job for job in b.jobs('!success')][0]
+        failing_job = next(iter(b.jobs('!success')))
         failing_job = b.get_job(failing_job['job_id'])
         message = {'batch_status': status, 'job_status': failing_job.status(), 'log': failing_job.log()}
         raise FatalError(yamlx.dump(message))
@@ -1817,7 +1810,7 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
 
 
 @typecheck(
-    ds=oneof(hl.MatrixTable, lambda: hl.vds.VariantDataset),
+    ds=oneof(MatrixTable, lambda: hl.vds.VariantDataset),
     min_af=numeric,
     max_af=numeric,
     min_dp=int,
@@ -1826,13 +1819,13 @@ def summarize_variants(mt: Union[MatrixTable, MatrixTable], show=True, *, handle
     ref_AF=nullable(expr_float64),
 )
 def compute_charr(
-    ds: Union[hl.MatrixTable, 'hl.vds.VariantDataset'],
+    ds: Union[MatrixTable, 'hl.vds.VariantDataset'],
     min_af: float = 0.05,
     max_af: float = 0.95,
     min_dp: int = 10,
     max_dp: int = 100,
     min_gq: int = 20,
-    ref_AF: Optional[hl.Float64Expression] = None,
+    ref_AF: Optional[Float64Expression] = None,
 ):
     """Compute CHARR, the DNA sample contamination estimator.
 

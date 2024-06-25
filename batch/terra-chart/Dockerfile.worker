@@ -1,0 +1,4 @@
+ARG BASE_IMAGE
+FROM $BASE_IMAGE
+
+COPY hail/out/assembly.dest/out.jar /hail-jars/hail-all-spark.jar

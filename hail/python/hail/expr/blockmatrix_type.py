@@ -1,7 +1,8 @@
 import pprint
-from hail.typecheck import typecheck_method, sequenceof
-from hail.utils.java import jiterable_to_list
+
 from hail.expr.types import dtype, hail_type
+from hail.typecheck import sequenceof, typecheck_method
+from hail.utils.java import jiterable_to_list
 
 
 class tblockmatrix(object):

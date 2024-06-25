@@ -1,5 +1,6 @@
-from hailtop import timex
 import datetime
+
+from hailtop import timex
 
 
 def test_google_cloud_storage_example():

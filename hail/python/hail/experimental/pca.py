@@ -1,12 +1,12 @@
 import hail as hl
-from hail.typecheck import typecheck
 from hail.expr.expressions import (
+    expr_array,
     expr_call,
     expr_numeric,
-    expr_array,
     raise_unless_entry_indexed,
     raise_unless_row_indexed,
 )
+from hail.typecheck import typecheck
 
 
 @typecheck(call_expr=expr_call, loadings_expr=expr_array(expr_numeric), af_expr=expr_numeric)

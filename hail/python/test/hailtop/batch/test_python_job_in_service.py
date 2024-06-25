@@ -1,36 +1,21 @@
-from typing import AsyncIterator, List, Tuple
 import asyncio
-import inspect
+import os
 import secrets
 
-import pytest
-import os
-from shlex import quote as shq
-import uuid
-import re
 import orjson
+import pytest
 
-import hailtop.fs as hfs
 import hailtop.batch_client.client as bc
-from hailtop import pip_version
-from hailtop.batch import Batch, ServiceBackend, ResourceGroup
-from hailtop.batch.exceptions import BatchException
-from hailtop.batch.globals import arg_max
-from hailtop.utils import grouped, async_to_blocking, secret_alnum_string
-from hailtop.config import get_remote_tmpdir, configuration_of
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.test_utils import skip_in_azure
-from hailtop.httpx import ClientResponseError
-
-from configparser import ConfigParser
-from hailtop.config import get_user_config, user_config
+from hailtop.batch import Batch, ResourceGroup, ServiceBackend
+from hailtop.batch.exceptions import BatchException
+from hailtop.config import configuration_of
 from hailtop.config.variables import ConfigVariable
 
-
 from .utils import (
-    batch,
-    PYTHON_DILL_IMAGE,
     HAIL_GENETICS_HAIL_IMAGE,
+    PYTHON_DILL_IMAGE,
+    batch,
 )
 
 

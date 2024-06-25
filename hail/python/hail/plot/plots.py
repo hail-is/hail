@@ -1,68 +1,69 @@
-import math
-
 import collections
-import numpy as np
-import pandas as pd
+import math
+import warnings
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple, Union
+
 import bokeh
 import bokeh.io
 import bokeh.models
-import warnings
+import bokeh.palettes
+import bokeh.plotting
+import numpy as np
+import pandas as pd
+from bokeh.layouts import gridplot
 from bokeh.models import (
-    HoverTool,
-    ColorBar,
-    LogTicker,
-    LogColorMapper,
-    LinearColorMapper,
-    CategoricalColorMapper,
-    ColumnDataSource,
     BasicTicker,
-    Plot,
+    CategoricalColorMapper,
     CDSView,
+    ColorBar,
+    ColorMapper,
+    Column,
+    ColumnDataSource,
+    CustomJS,
+    DataRange1d,
+    GridPlot,
     GroupFilter,
+    HoverTool,
     IntersectionFilter,
+    Label,
     Legend,
     LegendItem,
+    LinearColorMapper,
+    LogColorMapper,
+    LogTicker,
+    Plot,
     Renderer,
-    CustomJS,
     Select,
-    Column,
-    Span,
-    DataRange1d,
     Slope,
-    Label,
-    ColorMapper,
-    GridPlot,
+    Span,
 )
-import bokeh.plotting
-import bokeh.palettes
 from bokeh.plotting import figure
 from bokeh.transform import transform
-from bokeh.layouts import gridplot
 
+import hail
 from hail.expr import aggregators
 from hail.expr.expressions import (
     Expression,
-    NumericExpression,
-    StringExpression,
-    LocusExpression,
-    Int32Expression,
-    Int64Expression,
     Float32Expression,
     Float64Expression,
-    expr_numeric,
-    expr_float64,
+    Int32Expression,
+    Int64Expression,
+    LocusExpression,
+    NumericExpression,
+    StringExpression,
     expr_any,
+    expr_float64,
     expr_locus,
+    expr_numeric,
     expr_str,
     raise_unless_row_indexed,
 )
 from hail.expr.functions import _error_from_cdf_python
-from hail.typecheck import typecheck, oneof, nullable, sized_tupleof, numeric, sequenceof, dictof
-from hail import Table, MatrixTable
-from hail.utils.struct import Struct
+from hail.matrixtable import MatrixTable
+from hail.table import Table
+from hail.typecheck import dictof, nullable, numeric, oneof, sequenceof, sized_tupleof, typecheck
 from hail.utils.java import warning
-from typing import List, Tuple, Dict, Union, Callable, Optional, Sequence, Any, Set
-import hail
+from hail.utils.struct import Struct
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
@@ -968,10 +969,12 @@ def _get_scatter_plot_elements(
         all_renderers = []
         legend_items_by_key_by_factor = {col: collections.defaultdict(list) for col in factor_cols}
         for key in source_pd.groupby(factor_cols).groups.keys():
-            key = key if len(factor_cols) > 1 else [key]
+            _key = key if len(factor_cols) > 1 else [key]
             cds_view = CDSView(
                 filter=IntersectionFilter(
-                    operands=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))]
+                    operands=[
+                        GroupFilter(column_name=factor_cols[i], group=_key[i]) for i in range(0, len(factor_cols))
+                    ]
                 )
             )
             renderer = sp.circle(
@@ -979,7 +982,7 @@ def _get_scatter_plot_elements(
             )
             all_renderers.append(renderer)
             for i in range(0, len(factor_cols)):
-                legend_items_by_key_by_factor[factor_cols[i]][key[i]].append(renderer)
+                legend_items_by_key_by_factor[factor_cols[i]][_key[i]].append(renderer)
 
         legend_items = {
             factor: [LegendItem(label=key, renderers=renderers) for key, renderers in key_renderers.items()]
@@ -1377,15 +1380,15 @@ def joint_plot(
                 .apply(lambda df: np.histogram(df['x' if x_axis else 'y'], density=True))
             )
             for factor, (dens, edges) in density_data.iteritems():
-                edges = edges[:-1]
-                xy = (edges, dens) if x_axis else (dens, edges)
+                _edges = edges[:-1]
+                xy = (_edges, dens) if x_axis else (dens, _edges)
                 cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
                 density_renderers.append((
                     factor_col,
                     factor,
                     p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds),
                 ))
-                max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
+                max_densities[factor_col] = np.max([*list(dens), max_densities.get(factor_col, 0)])
 
         p.grid.visible = False
         p.outline_line_color = None
@@ -1865,7 +1868,7 @@ def visualize_missingness(
     p.axis.major_label_text_font_size = "5pt"
     p.axis.major_label_standoff = 0
     colors = ["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"]
-    from bokeh.models import LinearColorMapper, ColorBar, BasicTicker, PrintfTickFormatter
+    from bokeh.models import BasicTicker, ColorBar, LinearColorMapper, PrintfTickFormatter
 
     mapper = LinearColorMapper(palette=colors, low=df.defined.min(), high=df.defined.max())
 

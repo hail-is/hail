@@ -1,20 +1,25 @@
-from typing import Optional, Union, Tuple, List
-from contextlib import ExitStack
+import glob
+import logging
 import os
 import sys
+from contextlib import ExitStack
+from typing import List, Optional, Tuple, Union
 
-from py4j.java_gateway import JavaGateway, GatewayParameters, launch_gateway
+from py4j.java_gateway import GatewayParameters, JavaGateway, launch_gateway
 
-from hail.ir.renderer import CSERenderer
 from hail.ir import finalize_randomness
-from .py4j_backend import Py4JBackend, uninstall_exception_handler
-from .backend import local_jar_information
+from hail.ir.renderer import CSERenderer
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiotools.validators import validate_file
+from hailtop.fs.router_fs import RouterFS
+from hailtop.utils import async_to_blocking, find_spark_home
+
 from ..expr import Expression
 from ..expr.types import HailType
+from .backend import local_jar_information
+from .py4j_backend import Py4JBackend, uninstall_exception_handler
 
-from hailtop.utils import find_spark_home
-from hailtop.fs.router_fs import RouterFS
-from hailtop.aiotools.validators import validate_file
+log = logging.getLogger('hail.backend')
 
 
 class LocalBackend(Py4JBackend):
@@ -28,12 +33,9 @@ class LocalBackend(Py4JBackend):
         skip_logging_configuration,
         optimizer_iterations,
         jvm_heap_size,
-        *,
-        gcs_requester_pays_project: Optional[str] = None,
-        gcs_requester_pays_buckets: Optional[str] = None,
+        gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     ):
         self._exit_stack = ExitStack()
-        assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
         spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
@@ -51,12 +53,18 @@ class LocalBackend(Py4JBackend):
         if jvm_heap_size is not None:
             jvm_opts.append(f'-Xmx{jvm_heap_size}')
 
+        py4j_jars = glob.glob(f'{spark_home}/jars/py4j-*.jar')
+        if len(py4j_jars) == 0:
+            raise ValueError(f'No py4j JAR found in {spark_home}/jars')
+        if len(py4j_jars) > 1:
+            log.warning(f'found multiple p4yj jars arbitrarily choosing the first one: {py4j_jars}')
+
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
             java_path=None,
             javaopts=jvm_opts,
-            jarpath=f'{spark_home}/jars/py4j-0.10.9.5.jar',
+            jarpath=py4j_jars[0],
             classpath=extra_classpath,
             die_on_exit=True,
         )
@@ -67,8 +75,6 @@ class LocalBackend(Py4JBackend):
 
         jbackend = hail_package.backend.local.LocalBackend.apply(
             tmpdir,
-            gcs_requester_pays_project,
-            gcs_requester_pays_buckets,
             log,
             True,
             append,
@@ -77,14 +83,25 @@ class LocalBackend(Py4JBackend):
         jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
 
         super(LocalBackend, self).__init__(self._gateway.jvm, jbackend, jhc)
+        self._fs = self._exit_stack.enter_context(
+            RouterFS(gcs_kwargs={'gcs_requester_pays_configuration': gcs_requester_pays_configuration})
+        )
 
-        self._fs = self._exit_stack.enter_context(RouterFS())
         self._logger = None
 
-        self._initialize_flags({})
+        flags = {}
+        if gcs_requester_pays_configuration is not None:
+            if isinstance(gcs_requester_pays_configuration, str):
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration
+            else:
+                assert isinstance(gcs_requester_pays_configuration, tuple)
+                flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
+                flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
+
+        self._initialize_flags(flags)
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._fs.afs)
+        async_to_blocking(validate_file(uri, self._fs.afs))
 
     def register_ir_function(
         self,

@@ -1,6 +1,6 @@
 from collections.abc import Mapping
-from hail.expr import Expression
-from hail import literal
+
+from hail.expr import Expression, literal
 
 
 class Aesthetic(Mapping):
@@ -43,7 +43,8 @@ def aes(**kwargs):
     hail_field_properties = {}
 
     for k, v in kwargs.items():
+        _v = v
         if not isinstance(v, Expression):
-            v = literal(v)
-        hail_field_properties[k] = v
+            _v = literal(v)
+        hail_field_properties[k] = _v
     return Aesthetic(hail_field_properties)

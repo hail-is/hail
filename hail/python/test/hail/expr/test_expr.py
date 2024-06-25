@@ -1,15 +1,18 @@
 import math
-import pytest
 import random
-from scipy.stats import pearsonr
+import unittest
+
 import numpy as np
+import pytest
+from scipy.stats import pearsonr
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr.types import *
-from hail.expr.functions import _error_from_cdf, _cdf_combine, _result_from_raw_cdf
-import hail.ir as ir
-from ..helpers import *
+from hail import ir
+from hail.expr.functions import _cdf_combine, _error_from_cdf, _result_from_raw_cdf
+from hail.expr.types import tarray, tbool, tcall, tfloat, tfloat32, tfloat64, tint, tint32, tint64, tstr, tstruct
+
+from ..helpers import assert_evals_to, convert_struct_to_dict, qobtest, resource, test_timeout, with_flags
 
 
 def _test_many_equal(test_cases):
@@ -714,7 +717,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_array_empty(self):
         ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
-        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) is None
 
     def test_agg_array_non_trivial_post_op(self):
         ht = hl.utils.range_table(10)
@@ -1883,7 +1886,6 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
@@ -1951,7 +1953,7 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
@@ -2019,7 +2021,7 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
@@ -2087,7 +2089,7 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
@@ -2155,7 +2157,7 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
@@ -2223,7 +2225,7 @@ class Tests(unittest.TestCase):
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
@@ -2296,9 +2298,9 @@ class Tests(unittest.TestCase):
             (f0 == fnull, None, tbool),
             (f0 < fnull, None, tbool),
             (f0 != fnull, None, tbool),
-            (fnan == fnan, False, tbool),
-            (f0 == f0, True, tbool),
-            (finf == finf, True, tbool),
+            (fnan == fnan, False, tbool),  # noqa: PLR0124
+            (f0 == f0, True, tbool),  # noqa: PLR0124
+            (finf == finf, True, tbool),  # noqa: PLR0124
             (f0 < finf, True, tbool),
             (f0 > finf, False, tbool),
             (fnan <= finf, False, tbool),
@@ -2537,6 +2539,11 @@ class Tests(unittest.TestCase):
         ]
 
         assert hl.eval(hl.literal(calls).map(lambda x: x.unphase())) == expected
+
+    def test_large_allele_encoding(self):
+        call = hl.Call([32_766, 32_766])  # largest possible homozygote call
+        encoded = hl.tcall._to_encoding(call)
+        assert call == hl.tcall._from_encoding(encoded)
 
     def test_call_contains_allele(self):
         c1 = hl.call(1, phased=True)
@@ -3363,14 +3370,12 @@ class Tests(unittest.TestCase):
             (locus_auto, True, hv, het, het): None,
             (locus_auto, True, het, hr, het): None,
             (locus_auto, True, hv, hr, het): None,
-            (locus_auto, True, hv, hr, het): None,
             (locus_x_nonpar, True, hv, hr, het): None,
             (locus_x_nonpar, False, hv, hr, hr): None,
             (locus_x_nonpar, None, hv, hr, hr): None,
             (locus_x_nonpar, False, het, hr, hr): None,
             (locus_y_nonpar, True, het, hr, het): None,
             (locus_y_nonpar, True, het, hr, hr): None,
-            (locus_y_nonpar, True, het, hr, het): None,
             (locus_y_nonpar, True, het, het, het): None,
             (locus_y_nonpar, True, hr, hr, hr): None,
             (locus_y_nonpar, None, hr, hr, hr): None,
@@ -3386,7 +3391,7 @@ class Tests(unittest.TestCase):
         expr = hl.dict(hl.zip(arg_list, values))
         results = hl.eval(expr)
         for args, result in results.items():
-            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {str(args)}')
+            self.assertEqual(result, expected[args], msg=f'expected {expected[args]}, found {result} at {args!s}')
 
     def test_min_rep(self):
         def assert_min_reps_to(old, new, pos_change=0):
@@ -3599,6 +3604,48 @@ class Tests(unittest.TestCase):
         res = hl.eval(hl.contingency_table_test(51, 43, 22, 92, 23))
         self.assertAlmostEqual(res['p_value'] / 2.1565e-7, 1.0, places=4)
         self.assertAlmostEqual(res['odds_ratio'], 4.91805817)
+
+    def test_cochran_mantel_haenszel_test(self):
+        # https://cran.r-project.org/web/packages/samplesizeCMH/vignettes/samplesizeCMH-introduction.html
+        a = [118, 154, 422, 670]
+        b = [62, 25, 88, 192]
+        c = [4, 13, 106, 3]
+        d = [141, 93, 90, 20]
+
+        result = hl.eval(hl.cochran_mantel_haenszel_test(a, b, c, d))
+        self.assertEqual(360.3311519725744, result['test_statistic'])
+        self.assertEqual(2.384935629406975e-80, result['p_value'])
+
+        # https://www.biostathandbook.com/cmh.html
+        a = [708, 136, 106, 109, 801, 159, 151, 950]
+        b = [50, 24, 32, 22, 102, 27, 51, 173]
+        c = [169, 73, 17, 16, 180, 18, 28, 218]
+        d = [13, 14, 4, 26, 25, 13, 15, 33]
+
+        expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
+        result = hl.eval(expr)
+        self.assertEqual(6.07023412667767, result['test_statistic'])
+        self.assertEqual(0.013747873638119005, result['p_value'])
+
+        a = [56, 61, 73, 71]
+        b = [69, 257, 65, 48]
+        c = [40, 57, 71, 55]
+        d = [77, 301, 79, 48]
+
+        expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
+        result = hl.eval(expr)
+        self.assertEqual(5.0496881823306765, result['test_statistic'])
+        self.assertEqual(0.024630370456863417, result['p_value'])
+
+        a = hl.array([2, 4, 1, 1, 2])
+        b = hl.array([46, 67, 86, 37, 92])
+        c = hl.array([11, 12, 4, 6, 1])
+        d = hl.array([41, 60, 76, 32, 93])
+
+        expr = hl.cochran_mantel_haenszel_test(a, b, c, d)
+        result = hl.eval(expr)
+        self.assertEqual(12.74572269532737, result['test_statistic'])
+        self.assertEqual(0.0003568242404514306, result['p_value'])
 
     def test_hardy_weinberg_test(self):
         two_sided_res = hl.eval(hl.hardy_weinberg_test(1, 2, 1, one_sided=False))
@@ -3835,6 +3882,9 @@ class Tests(unittest.TestCase):
             hl.array_scan(lambda x, y: x + y, 0, [1.0, 2.0, 3.0]), [0.0, 1.0, 3.0, 6.0], tarray(tfloat64)
         )
 
+    def test_sum(self):
+        self.assertValueEqual(hl.sum([1, 2, 3, 4]), 10, tint32)
+
     def test_cumulative_sum(self):
         self.assertValueEqual(hl.cumulative_sum([1, 2, 3, 4]), [1, 3, 6, 10], tarray(tint32))
         self.assertValueEqual(hl.cumulative_sum([1.0, 2.0, 3.0, 4.0]), [1.0, 3.0, 6.0, 10.0], tarray(tfloat64))
@@ -3845,20 +3895,20 @@ class Tests(unittest.TestCase):
         nan = math.nan
         na = hl.missing('float64')
 
-        assert hl.eval(hl.is_finite(finite)) == True
-        assert hl.eval(hl.is_finite(infinite)) == False
-        assert hl.eval(hl.is_finite(nan)) == False
-        assert hl.eval(hl.is_finite(na)) == None
+        assert hl.eval(hl.is_finite(finite)) is True
+        assert hl.eval(hl.is_finite(infinite)) is False
+        assert hl.eval(hl.is_finite(nan)) is False
+        assert hl.eval(hl.is_finite(na)) is None
 
-        assert hl.eval(hl.is_infinite(finite)) == False
-        assert hl.eval(hl.is_infinite(infinite)) == True
-        assert hl.eval(hl.is_infinite(nan)) == False
-        assert hl.eval(hl.is_infinite(na)) == None
+        assert hl.eval(hl.is_infinite(finite)) is False
+        assert hl.eval(hl.is_infinite(infinite)) is True
+        assert hl.eval(hl.is_infinite(nan)) is False
+        assert hl.eval(hl.is_infinite(na)) is None
 
-        assert hl.eval(hl.is_nan(finite)) == False
-        assert hl.eval(hl.is_nan(infinite)) == False
-        assert hl.eval(hl.is_nan(nan)) == True
-        assert hl.eval(hl.is_nan(na)) == None
+        assert hl.eval(hl.is_nan(finite)) is False
+        assert hl.eval(hl.is_nan(infinite)) is False
+        assert hl.eval(hl.is_nan(nan)) is True
+        assert hl.eval(hl.is_nan(na)) is None
 
     def test_array_and_if_requiredness(self):
         mt = hl.import_vcf(resource('sample.vcf'), array_elements_required=True)
@@ -4002,8 +4052,8 @@ class Tests(unittest.TestCase):
         for htyp in collection_types:
             a = htyp([hl.struct(x='foo'), hl.struct(x='bar')])
 
-            assert hasattr(a, 'x') == True
-            assert hasattr(a, 'y') == False
+            assert hasattr(a, 'x') is True
+            assert hasattr(a, 'y') is False
 
             with pytest.raises(AttributeError, match="has no field"):
                 getattr(a, 'y')
@@ -4279,7 +4329,7 @@ def test_stream_randomness():
     a = hl.missing('array<int32>')
     a = a.map(lambda x: x + hl.rand_int32(10))
     assert_contains_node(a, ir.NA)
-    assert hl.eval(a) == None
+    assert hl.eval(a) is None
 
     # test If
     a1 = hl._stream_range(0, 5)
@@ -4474,7 +4524,7 @@ def test_reservoir_sampling():
     sample_variance = stats['stdev'] ** 2
     sample_mean = stats['mean']
 
-    for sample, sample_size in zip(samples, sample_sizes):
+    for iteration, (sample, sample_size) in enumerate(zip(samples, sample_sizes)):
         mean = np.mean(sample)
         expected_stdev = math.sqrt(sample_variance / sample_size)
         assert abs(mean - sample_mean) / expected_stdev < 4, (

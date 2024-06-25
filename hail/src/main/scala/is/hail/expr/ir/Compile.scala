@@ -20,7 +20,7 @@ import java.io.PrintWriter
 
 case class CodeCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
-  args: Seq[(String, EmitParamType)],
+  args: Seq[(Name, EmitParamType)],
   body: IR,
 )
 
@@ -35,7 +35,7 @@ case class CompiledFunction[T](
 object Compile {
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
-    params: IndexedSeq[(String, EmitParamType)],
+    params: IndexedSeq[(Name, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
@@ -44,7 +44,7 @@ object Compile {
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) = {
 
     val normalizedBody =
-      new NormalizeNames(_.toString)(ctx, body, Env(params.map { case (n, _) => n -> n }: _*))
+      NormalizeNames(ctx, body, allowFreeVariables = true)
     val k =
       CodeCacheKey(FastSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F](k) {
@@ -97,7 +97,7 @@ object CompileWithAggregators {
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
     aggSigs: Array[AggStateSig],
-    params: IndexedSeq[(String, EmitParamType)],
+    params: IndexedSeq[(Name, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
@@ -107,7 +107,7 @@ object CompileWithAggregators {
     (HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion),
   ) = {
     val normalizedBody =
-      new NormalizeNames(_.toString)(ctx, body, Env(params.map { case (n, _) => n -> n }: _*))
+      NormalizeNames(ctx, body, allowFreeVariables = true)
     val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
     (ctx.backend.lookupOrCompileCachedFunction[F with FunctionWithAggRegion](k) {
 
@@ -263,7 +263,7 @@ object CompileIterator {
 
       cb.if_(
         !didSetup, {
-          optStream.toI(cb).get(cb) // handle missing, but bound stream producer above
+          optStream.toI(cb).getOrAssert(cb) // handle missing, but bound stream producer above
 
           cb.assign(producer.elementRegion, eltRegionField)
           producer.initialize(cb, outerRegion)
@@ -289,7 +289,7 @@ object CompileIterator {
       }
 
       stepF.implementLabel(producer.LproduceElementDone) { cb =>
-        val pc = producer.element.toI(cb).get(cb)
+        val pc = producer.element.toI(cb).getOrAssert(cb)
         cb.assign(elementAddress, returnType.store(cb, producer.elementRegion, pc, false))
         cb.assign(ret, true)
         cb.goto(Lreturn)

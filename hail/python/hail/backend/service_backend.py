@@ -1,40 +1,38 @@
-from typing import Dict, Optional, Awaitable, Mapping, Any, List, Union, Tuple, TypeVar, Set
-import abc
 import asyncio
-from dataclasses import dataclass
+import logging
 import math
 import struct
-from hail.expr.expressions.base_expression import Expression
-import orjson
-import logging
-from contextlib import AsyncExitStack
 import warnings
+from contextlib import AsyncExitStack
+from dataclasses import dataclass
+from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, TypeVar, Union
 
-from hail.context import TemporaryDirectory, TemporaryFilename, tmp_dir, revision, version
-from hail.utils import FatalError
-from hail.expr.types import HailType
+import orjson
+
+import hailtop.aiotools.fs as afs
+from hail.context import TemporaryDirectory, TemporaryFilename, revision, tmp_dir, version
 from hail.experimental import read_expression, write_expression
+from hail.expr.expressions.base_expression import Expression
+from hail.expr.types import HailType
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
-
+from hail.utils import FatalError
 from hailtop import yamlx
-from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
-from hailtop.hail_event_loop import hail_event_loop
-from hailtop.utils import async_to_blocking, Timings, am_i_interactive, retry_transient_errors
-from hailtop.utils.rich_progress_bar import BatchProgressBar
-from hailtop.batch_client.aioclient import Batch, BatchClient
-from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
-import hailtop.aiotools.fs as afs
+from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.validators import validate_file
+from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
-from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
+from hailtop.hail_event_loop import hail_event_loop
+from hailtop.utils import Timings, am_i_interactive, async_to_blocking, retry_transient_errors
+from hailtop.utils.rich_progress_bar import BatchProgressBar
 
-from .backend import Backend, fatal_error_from_java_error_triplet, ActionTag, ActionPayload, ExecutePayload
 from ..builtin_references import BUILTIN_REFERENCES
 from ..utils import ANY_REGION
-from hailtop.aiotools.validators import validate_file
-
+from .backend import ActionPayload, ActionTag, Backend, ExecutePayload, fatal_error_from_java_error_triplet
 
 ReferenceGenomeConfig = Dict[str, Any]
 
@@ -66,34 +64,6 @@ async def read_bytes(strm: afs.ReadableStream) -> bytes:
 async def read_str(strm: afs.ReadableStream) -> str:
     b = await read_bytes(strm)
     return b.decode('utf-8')
-
-
-class JarSpec(abc.ABC):
-    @abc.abstractmethod
-    def to_dict(self) -> Dict[str, str]:
-        raise NotImplementedError
-
-
-class JarUrl(JarSpec):
-    def __init__(self, url):
-        self.url = url
-
-    def to_dict(self) -> Dict[str, str]:
-        return {'type': 'jar_url', 'value': self.url}
-
-    def __repr__(self):
-        return f'JarUrl({self.url})'
-
-
-class GitRevision(JarSpec):
-    def __init__(self, revision):
-        self.revision = revision
-
-    def to_dict(self) -> Dict[str, str]:
-        return {'type': 'git_revision', 'value': self.revision}
-
-    def __repr__(self):
-        return f'GitRevision({self.revision})'
 
 
 @dataclass
@@ -196,7 +166,6 @@ class ServiceBackend(Backend):
         disable_progress_bar: Optional[bool] = None,
         remote_tmpdir: Optional[str] = None,
         flags: Optional[Dict[str, str]] = None,
-        jar_url: Optional[str] = None,
         driver_cores: Optional[Union[int, str]] = None,
         driver_memory: Optional[str] = None,
         worker_cores: Optional[Union[int, str]] = None,
@@ -229,9 +198,6 @@ class ServiceBackend(Backend):
             async_exit_stack.push_async_callback(batch_client.close)
         batch_attributes: Dict[str, str] = dict()
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
-
-        jar_url = configuration_of(ConfigVariable.QUERY_JAR_URL, jar_url, None)
-        jar_spec = GitRevision(revision()) if jar_url is None else JarUrl(jar_url)
 
         name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
         batch_attributes: Dict[str, str] = {
@@ -285,7 +251,6 @@ class ServiceBackend(Backend):
             disable_progress_bar=disable_progress_bar,
             batch_attributes=batch_attributes,
             remote_tmpdir=remote_tmpdir,
-            jar_spec=jar_spec,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
             worker_cores=worker_cores,
@@ -306,7 +271,6 @@ class ServiceBackend(Backend):
         disable_progress_bar: bool,
         batch_attributes: Dict[str, str],
         remote_tmpdir: str,
-        jar_spec: JarSpec,
         driver_cores: Optional[Union[int, str]],
         driver_memory: Optional[str],
         worker_cores: Optional[Union[int, str]],
@@ -324,7 +288,6 @@ class ServiceBackend(Backend):
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
-        self.jar_spec = jar_spec
         self.functions: List[IRFunction] = []
         self._registered_ir_function_names: Set[str] = set()
         self.driver_cores = driver_cores
@@ -340,11 +303,11 @@ class ServiceBackend(Backend):
         return self._batch_client.create_batch(attributes=self.batch_attributes)
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._async_fs, validate_scheme=True)
+        async_to_blocking(validate_file(uri, self._async_fs, validate_scheme=True))
 
     def debug_info(self) -> Dict[str, Any]:
         return {
-            'jar_spec': str(self.jar_spec),
+            'jar_spec': self.jar_spec,
             'billing_project': self.billing_project,
             'batch_attributes': self.batch_attributes,
             'remote_tmpdir': self.remote_tmpdir,
@@ -359,6 +322,10 @@ class ServiceBackend(Backend):
     @property
     def fs(self) -> FS:
         return self._sync_fs
+
+    @property
+    def jar_spec(self) -> dict:
+        return {'type': 'git_revision', 'value': revision()}
 
     @property
     def logger(self):
@@ -411,13 +378,14 @@ class ServiceBackend(Backend):
                     resources['storage'] = service_backend_config.storage
 
                 j = self._batch.create_jvm_job(
-                    jar_spec=self.jar_spec.to_dict(),
+                    jar_spec=self.jar_spec,
                     argv=[
                         ServiceBackend.DRIVER,
                         name,
                         iodir + '/in',
                         iodir + '/out',
                     ],
+                    job_group=self._batch.create_job_group(attributes={'name': name}),
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,

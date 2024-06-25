@@ -1,48 +1,50 @@
-from typing import (
-    Any,
-    Callable,
-    TypeVar,
-    Awaitable,
-    Mapping,
-    Optional,
-    Type,
-    List,
-    Dict,
-    Iterable,
-    Tuple,
-    AsyncIterator,
-    Iterator,
-    Union,
-    AsyncGenerator,
-)
-from typing import Literal, Sequence
-from typing_extensions import ParamSpec
-from types import TracebackType
+import asyncio
 import concurrent.futures
 import contextlib
-import subprocess
-import traceback
-import sys
-import os
-import re
 import errno
-import random
+import itertools
 import logging
-import asyncio
-import aiohttp
-import urllib.parse
-import urllib3.exceptions
+import os
+import random
+import re
 import secrets
 import socket
-import requests
-import botocore.exceptions
-import itertools
+import subprocess
+import sys
 import time
+import traceback
+import urllib.parse
+from types import TracebackType
+from typing import (
+    Any,
+    AsyncGenerator,
+    AsyncIterator,
+    Awaitable,
+    Callable,
+    Dict,
+    Iterable,
+    Iterator,
+    List,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
+
+import aiohttp
+import botocore.exceptions
+import requests
+import urllib3.exceptions
 from requests.adapters import HTTPAdapter
+from typing_extensions import ParamSpec
 from urllib3.poolmanager import PoolManager
 
-from .time import time_msecs
 from ..hail_event_loop import hail_event_loop
+from .time import time_msecs
 
 try:
     import aiodocker  # pylint: disable=import-error
@@ -652,7 +654,7 @@ def is_transient_error(e: BaseException) -> bool:
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
-    if isinstance(e, aiohttp.ClientPayloadError) and e.args[0] == "Response payload is not completed":
+    if isinstance(e, aiohttp.ClientPayloadError) and "Response payload is not completed" in e.args[0]:
         return True
     if isinstance(e, aiohttp.ClientOSError) and 'sslv3 alert bad record mac' in e.strerror:
         # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)

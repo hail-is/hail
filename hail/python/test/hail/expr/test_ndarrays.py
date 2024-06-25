@@ -1,9 +1,11 @@
 import math
-import numpy as np
 import re
-from ..helpers import *
+from test.hail.helpers import assert_all_eval_to, assert_evals_to
+
+import numpy as np
 import pytest
 
+import hail as hl
 from hail.utils.java import FatalError, HailUserError
 
 
@@ -261,11 +263,11 @@ def test_ndarray_eval():
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list1)))
-    assert "inner dimensions do not match" in str(exc.value)
+    assert "ndarray dimension 1 did not match" in str(exc.value)
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array(hl.array(mishapen_data_list2)))
-    assert "inner dimensions do not match" in str(exc.value)
+    assert "ndarray dimension 2 did not match" in str(exc.value)
 
     with pytest.raises(ValueError) as exc:
         hl.nd.array(mishapen_data_list3)
@@ -889,7 +891,6 @@ def test_svd():
             assert h.shape == n.shape
 
         k = min(np_array.shape)
-        rank = np.linalg.matrix_rank(np_array)
 
         if compute_uv:
             hu, hs, hv = evaled
@@ -1304,3 +1305,12 @@ def test_ndarray_log_broadcasting():
     expected = np.array([math.log(x) for x in [5, 10, 15, 20]]).reshape(2, 2)
     actual = hl.eval(hl.log(hl.nd.array([[5, 10], [15, 20]])))
     assert np.array_equal(actual, expected)
+
+
+# issue #14559
+def test_ndarray_oom_from_stream_pipeline():
+    n = 442075
+    mt = hl.utils.range_matrix_table(n_rows=1, n_cols=n).select_cols(xs=[1.0])
+    xs = mt.aggregate_cols(hl.agg.collect(mt.xs), _localize=False)
+    xs = hl.nd.array(xs)
+    assert np.array_equal(hl.eval(xs), np.array([[1.0]] * n))

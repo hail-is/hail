@@ -4,6 +4,9 @@ resource "azurerm_storage_account" "ci" {
   location                 = var.resource_group.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  min_tls_version          = "TLS1_0"
+
+  allow_nested_items_to_be_public   = false
 
   blob_properties {
     last_access_time_enabled = true

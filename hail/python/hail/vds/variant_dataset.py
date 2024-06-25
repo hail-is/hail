@@ -1,12 +1,11 @@
+import json
 import os
 
 import hail as hl
+from hail.genetics import ReferenceGenome
 from hail.matrixtable import MatrixTable
 from hail.typecheck import typecheck_method
 from hail.utils.java import info, warning
-from hail.genetics import ReferenceGenome
-
-import json
 
 extra_ref_globals_file = 'extra_reference_globals.json'
 
@@ -295,20 +294,33 @@ class VariantDataset:
                 error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
 
             # check END field
-            (missing_end, end_before_position) = rd.aggregate_entries((
-                hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
-                hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
-            ))
+            end_exprs = dict(
+                missing_end=hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
+                end_before_position=hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
+            )
+            if VariantDataset.ref_block_max_length_field in rd.globals:
+                rbml = rd[VariantDataset.ref_block_max_length_field]
+                end_exprs['blocks_too_long'] = hl.agg.filter(
+                    rd.END - rd.locus.position + 1 > rbml, hl.agg.take((rd.row_key, rd.col_key), 5)
+                )
 
-            if missing_end:
+            res = rd.aggregate_entries(hl.struct(**end_exprs))
+
+            if res.missing_end:
                 error(
                     'found records in reference data with missing END field\n  '
-                    + '\n  '.join(str(x) for x in missing_end)
+                    + '\n  '.join(str(x) for x in res.missing_end)
                 )
-            if end_before_position:
+            if res.end_before_position:
                 error(
                     'found records in reference data with END before locus position\n  '
-                    + '\n  '.join(str(x) for x in end_before_position)
+                    + '\n  '.join(str(x) for x in res.end_before_position)
+                )
+            blocks_too_long = res.get('blocks_too_long', [])
+            if blocks_too_long:
+                error(
+                    'found records in reference data with blocks larger than `ref_block_max_length`\n  '
+                    + '\n  '.join(str(x) for x in blocks_too_long)
                 )
 
     def _same(self, other: 'VariantDataset'):

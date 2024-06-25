@@ -11,17 +11,17 @@ import scala.reflect.ClassTag
 
 object TypeCheck {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit =
-    try
-      check(ctx, ir, BindingEnv.empty).run()
-    catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir)}", e)
-    }
+    apply(ctx, ir, BindingEnv.empty)
 
-  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit =
+  def apply(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit =
     try
       check(ctx, ir, env).run()
     catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir)}", e)
+      case e: Throwable =>
+        fatal(
+          s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true, allowUnboundRefs = true)}",
+          e,
+        )
     }
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
@@ -39,7 +39,7 @@ object TypeCheck {
 
   private def checkVoidTypedChild(ctx: ExecuteContext, ir: BaseIR, i: Int, env: BindingEnv[Type])
     : Unit = ir match {
-    case l: Let if i == l.bindings.length || l.body.typ == TVoid =>
+    case l: Block if i == l.bindings.length || l.body.typ == TVoid =>
     case _: StreamFor if i == 1 =>
     case _: RunAggScan if (i == 1 || i == 2) =>
     case _: StreamBufferedAggregate if (i == 1 || i == 3) =>
@@ -93,9 +93,7 @@ object TypeCheck {
       case Switch(x, default, cases) =>
         assert(x.typ == TInt32)
         assert(cases.forall(_.typ == default.typ))
-      case x @ Let(_, body) =>
-        assert(x.typ == body.typ)
-      case x @ AggLet(_, _, body, _) =>
+      case x @ Block(_, body) =>
         assert(x.typ == body.typ)
       case x @ Ref(name, _) =>
         env.eval.lookupOption(name) match {
@@ -158,7 +156,7 @@ object TypeCheck {
         }
       case MakeStream(args, typ, _) =>
         assert(typ != null)
-        assert(typ.elementType.isRealizable)
+        assert(typ.elementType.isRealizable, typ.elementType)
 
         args.map(_.typ).zipWithIndex.foreach { case (x, i) =>
           assert(

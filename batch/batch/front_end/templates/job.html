@@ -1,265 +1,255 @@
+{% from "components/metadata_tables.html" import collapsible_li, resource_cost_table, kv_table %}
+{% from "components/utils.html" import success_check, fail_cross, progress_spinner, job_state_indicator %}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch_id }} Job {{ job_id }}{% endblock %}
+
+{% macro code_block(code) %}
+<div class='bg-slate-50 overflow-auto p-2 rounded'>
+  <pre class='text-sm'>{{ code }}</pre>
+</div>
+{% endmacro %}
+
+{% macro error_and_logs_panel(step) %}
+{% if container_statuses[step]['short_error'] is not none %}
+<div class='text-red-600 text-xl font-light'>
+  Errored with: {{ container_statuses[step]['short_error']|capitalize }}
+</div>
+{% endif %}
+{% if step in step_errors and step_errors[step] is not none %}
+<h4 class='text-xl font-light py-2'>Error</h4>
+{{ code_block(step_errors[step]) }}
+{% endif %}
+{% if step in job_log %}
+<a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/{{ step }}"
+  download="batch-{{ batch_id }}-{{ job_id }}-{{ step }}.log" class='flex space-x-2 py-2'>
+  <h4 class='text-xl font-light'>Logs</h4>
+  <span class="material-symbols-outlined material-download-icon hover:text-sky-600">
+    download
+  </span>
+</a>
+{{ code_block(job_log[step]) }}
+{% endif %}
+{% endmacro %}
+
+{% macro step_state_indicator(state) %}
+{% if state == 'running' %}
+{{ progress_spinner('text-sky-600') }}
+{% elif state == 'succeeded' %}
+{{ success_check() }}
+{% elif state == 'failed' %}
+{{ fail_cross() }}
+{% endif %}
+{% endmacro %}
+
+{% macro step_runtime(step_name) %}
+{% set step = container_statuses[step_name] %}
+{% if step and step['timing']['running'] and step['timing']['running']['duration'] %}
+<div class='text-xl font-light'>
+  Command runtime: {{ step['timing']['running']['duration'] / 1000.0 }}s
+</div>
+{% endif %}
+{% endmacro %}
+
 {% block content %}
-<h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
 
-<h2>Properties</h2>
-<ul>
-  <li><a href="{{ base_path }}/batches/{{ batch_id }}">Batch ID: {{ batch_id }}</a></li>
-  <li>Job ID: {{ job_id }}</li>
-  <li>User: {{ job['user'] }} </li>
-  <li>Billing Project: {{ job['billing_project'] }}</li>
-  <li>State: {{ job['state'] }}</li>
-  <li>Exit Code: {% if 'exit_code' in job and job['exit_code'] is not none %}{{ job['exit_code'] }}{% endif %}</li>
-  <li>Duration: {% if 'duration' in job and job['duration'] is not none %}{{ job['duration'] }}{% endif %}</li>
-  <li>Cost: {% if 'cost' in job and job['cost'] is not none %}{{ job['cost'] }}{% endif %}</li>
-</ul>
+<a class="pt-8" href="{{ base_path }}/batches/{{ batch_id }}">
+  <div class='flex items-center space-x-1 hover:text-sky-600'>
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"
+      class="w-6 h-6">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18" />
+    </svg>
+    <span class='text-xl text-center font-light'>
+      Batch {{ batch_id }}
+    </span>
+  </div>
+</a>
 
-<h2>Attributes</h2>
-{% if 'attributes' in job %}
-{% for name, value in job['attributes'].items() %}
-<p>{{ name }}: {{ value }}</p>
-{% endfor %}
-{% endif %}
+<div class='flex flex-wrap justify-between items-top pt-8'>
+  <div class='w-full md:basis-2/3 lg:basis-1/4 drop-shadow-sm'>
+    <ul class='border border-collapse divide-y bg-slate-50 rounded'>
+      <li class='p-4'>
+        <div class='flex w-full justify-between items-center'>
+          <div class='text-xl font-light'>Batch {{ batch_id }} Job {{ job_id }}</div>
+          {% if 'exit_code' in job and job['exit_code'] is not none and job['exit_code'] > 0 %}
+          <div class='flex space-x-2'>
+            <div class='text-red-600'>Exit {{ job['exit_code'] }}</div>
+            {{ fail_cross() }}
+          </div>
+          {% else %}
+          {{ job_state_indicator(job) }}
+          {% endif %}
+        </div>
+        <div class='text-xl font-light py-2 overflow-auto'>
+          {% if 'attributes' in job and 'name' in job['attributes'] %}
+          {{ job['attributes']['name'] }}
+          {% endif %}
+        </div>
+        <div class='flex justify-between'>
+          <div>
+            <div class='font-light text-zinc-500'>Submitted by {{ job['user'] }}</div>
+            <div class='font-light text-zinc-500'>Billed to {{ job['billing_project'] }}</div>
+          </div>
+          {% if 'always_run' in job and job['always_run'] %}
+          <div class='text-semibold flex items-center'>Always Run</div>
+          {% endif %}
+        </div>
+      </li>
+      {% call collapsible_li(false, 'Environment Variables', '') %}
+      <table class='w-full'>
+        <tbody class='divide-y'>
+          {% if job_specification %}
+          {% for envvar in job_specification['env'] %}
+          <tr>
+            <td class='p-2'>{{ envvar['name'] }}</td>
+            <td class='p-2 text-right'>{{ envvar['value'] }}</td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+      {% endcall %}
+      {% if 'attributes' in job and job['attributes'] %}
+      {% call collapsible_li(false, 'Attributes', '') %}
+      {{ kv_table(job['attributes']) }}
+      {% endcall %}
+      {% endif %}
+      {% call collapsible_li(false, 'Resources', '') %}
+      {{ kv_table(job_specification['resources'] if job_specification else {}) }}
+      {% endcall %}
+      {% call collapsible_li(false, 'Cost', job.get('cost')) %}
+      {{ resource_cost_table(job['cost_breakdown'] or {}) }}
+      {% endcall %}
+    </ul>
+  </div>
+  <div class='w-full lg:basis-2/3 overflow-auto'>
+    <div>
+      {% if has_jvm_profile %}
+      <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile">JVM Profile</a>
+      {% endif %}
 
-<h2>Cost Breakdown</h2>
-{% if job['cost_breakdown'] %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>Resource</th>
-      <th>Cost</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for resource_cost in job['cost_breakdown'] %}
-    <tr>
-      <td>{{ resource_cost['resource'] }}</td>
-      <td>{{ resource_cost['cost'] }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No accrued costs</p>
-{% endif %}
-
-<h2>Attempts</h2>
-{% if attempts %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>Attempt ID</th>
-      <th>Instance</th>
-      <th>Start</th>
-      <th>End</th>
-      <th>Duration</th>
-      <th>Reason</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for attempt in attempts %}
-    <tr>
-      <td class="numeric-cell">{{ attempt['attempt_id'] }}</td>
-      <td>{{ attempt['instance_name'] }}</td>
-      <td>
-        {% if 'start_time' in attempt and attempt['start_time'] is not none %}
-        {{ attempt['start_time'] }}
-        {% endif %}
-      </td>
-      <td>
-        {% if 'end_time' in attempt and attempt['end_time'] is not none %}
-        {{ attempt['end_time'] }}
-        {% endif %}
-      </td>
-      <td>
-        {% if 'duration' in attempt and attempt['duration'] is not none %}
-        {{ attempt['duration'] }}
-        {% endif %}
-      </td>
-      <td>
-        {% if 'reason' in attempt and attempt['reason'] is not none %}
-        {{ attempt['reason'] }}
-        {% endif %}
-      </td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No attempts</p>
-{% endif %}
-
-<h2>Step Status</h2>
-
+      {% if plot_job_durations is not none %}
+      <div id="plotly-job-durations"></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<div class='bg-slate-100 border rounded my-8 overflow-hidden w-full md:w-auto'>
+  <h2 class='text-2xl font-light m-4'>Attempts</h2>
+  <table class='overflow-hidden table-fixed w-full'>
+    <thead class='h-12 text-sky-900'>
+      <th class='text-center'>Attempt ID</th>
+      <th class='text-center'>Worker</th>
+      <th class='text-center hidden md:table-cell'>Started</th>
+      <th class='text-center hidden md:table-cell'>Ended</th>
+      <th class='text-center'>Duration</th>
+      <th class='text-center'>Status</th>
+    </thead>
+    <tbody>
+      {% for attempt in attempts or [] %}
+      <tr class='h-16 border-y bg-white'>
+        <td class='text-center'>{{ attempt['attempt_id'] }}</td>
+        <td class='text-center'>{{ attempt['instance_name'] }}</td>
+        <td class='text-center hidden md:table-cell'>{{ attempt.get('start_time') or '' }}</td>
+        <td class='text-center hidden md:table-cell'>{{ attempt.get('end_time') or '' }}</td>
+        <td class='text-center'>{{ attempt.get('duration') or '' }}</td>
+        <td class='text-center'>{{ attempt.get('reason') or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if job_log or step_errors %}
+  <div class='bg-white' x-data='{tab: "main"}'>
+    <div class='flex border-b text-lg overflow-auto'>
+      {% for step in ['input', 'main', 'output'] %}
+      {% if step in job_log or step in step_errors %}
+      <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+        :class='{"border-b": tab == "{{ step }}", "opacity-50": tab != "{{ step }}"}' x-on:click='tab = "{{ step }}"'>
+        <div class='flex items-center space-x-1 h-full'>
+          <div>{{ step|capitalize }}</div>
+          {{ step_state_indicator(container_statuses[step]['state']) }}
+        </div>
+      </div>
+      {% endif %}
+      {% endfor %}
+      {% if plot_resource_usage is not none %}
+      <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+        :class='{"border-b": tab == "resource-usage", "opacity-50": tab != "resource-usage"}'
+        x-on:click='tab = "resource-usage"'>
+        Resource Usage
+      </div>
+      {% endif %}
+      <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+        :class='{"border-b": tab == "status", "opacity-50": tab != "status"}' x-on:click='tab = "status"'>
+        Raw Status
+      </div>
+    </div>
+    <div class='relative overflow-hidden transition-all' x-show='tab == "input"' x-cloak>
+      <div class='py-4 pl-4'>
+        {{ step_runtime('input') }}
+        {{ error_and_logs_panel('input') }}
+      </div>
+    </div>
+    <div class='relative overflow-hidden transition-all' x-show='tab == "main"'>
+      <div class='flex flex-col lg:flex-row py-4 pl-4 gap-4'>
+        <div class='w-full overflow-auto lg:w-1/4'>
+          {{ step_runtime('main') }}
+          {% if job_specification %}
+          {% if job_specification['image'] != '[jvm]' %}
+          <div class='py-2'>
+            <h3 class='text-xl font-light py-2'>Image</h3>
+            <div>{{ job_specification['image'] }}</div>
+          </div>
+          {% endif %}
+          {% if 'user_code' in job_specification %}
+          <div class='py-2'>
+            <h3 class='text-xl font-light py-2'>User Code</h3>
+            {{ code_block(job_specification['user_code'])}}
+          </div>
+          {% endif %}
+          <div class='py-2'>
+            <h3 class='text-xl font-light py-2'>Command</h3>
+            {{ code_block(job_specification['command'] | join("' '"))}}
+          </div>
+          {% endif %}
+        </div>
+        <div class='w-full overflow-auto'>
+          {{ error_and_logs_panel('main') }}
+        </div>
+      </div>
+    </div>
+    <div class='relative overflow-hidden transition-all' x-show='tab == "output"' x-cloak>
+      <div class='py-4 pl-4'>
+        {{ step_runtime('output') }}
+        {{ error_and_logs_panel('output') }}
+      </div>
+    </div>
+    {% if plot_resource_usage is not none %}
+    <div class='relative overflow-hidden transition-all' x-show='tab == "resource-usage"' x-cloak>
+      <div class='w-full overflow-auto pt-4 lg:pl-4'>
+        <div id="plotly-job-resource-usage"></div>
+      </div>
+    </div>
+    {% endif %}
+    <div class='relative overflow-hidden transition-all' x-show='tab == "status"' x-cloak>
+      <div class='w-full overflow-auto pt-4 pl-4'>
+        {{ code_block(job_status_str) }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
 {% if plot_job_durations is not none %}
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-durations"></div>
 <script>
-  var graph = {{ plot_job_durations | safe }};
+  var graph = {{plot_job_durations | safe }};
   Plotly.plot('plotly-job-durations', graph, {});
 </script>
 {% endif %}
-
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>Job Step</th>
-      <th>Image Pulling Time (s)</th>
-      <th>Running Time (s)</th>
-      <th>Error Type</th>
-      <th>State</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for name, step in container_statuses.items() %}
-    {% if step %}
-    <tr>
-      <td>{{ name }}</td>
-      <td>
-        {% if step['timing']['pulling'] and step['timing']['pulling']['duration'] %}
-        {{ step['timing']['pulling']['duration'] / 1000.0 }}
-        {% endif %}
-      </td>
-      <td>
-        {% if step['timing']['running'] and step['timing']['running']['duration'] %}
-        {{ step['timing']['running']['duration'] / 1000.0 }}
-        {% endif %}
-      </td>
-      {% if step['short_error'] is not none %}
-      <td class="data-table-bad">{{ step['short_error'] }}</td>
-      {% else %}
-      <td></td>
-      {% endif %}
-      <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad" {% endif %}>
-        {{ step['state'] }}
-      </td>
-    </tr>
-    {% endif %}
-    {% endfor %}
-  </tbody>
-</table>
-
 {% if plot_resource_usage is not none %}
-<h2>Resource Usage</h2>
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<div id="plotly-job-resource-usage"></div>
 <script>
-  var graph = {{ plot_resource_usage | safe }};
+  var graph = {{plot_resource_usage | safe }};
   Plotly.plot('plotly-job-resource-usage', graph, {});
 </script>
 {% endif %}
-
-{% if has_jvm_profile %}
-<h2>JVM Profile Report</h2>
-<a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/jvm_profile">Report</a>
-{% endif %}
-
-{% if error is not none %}
-<h2>Error</h2>
-<pre>{{ error }}</pre>
-{% endif %}
-
-{% if job_log or step_errors %}
-<h2>Logs</h2>
-
-{% if 'input' in job_log or 'input' in step_errors %}
-<h3>Input</h3>
-{% if 'input' in job_log %}
-<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/input" download="batch-{{ batch_id }}-{{ job_id }}-input.log"><span class="material-symbols-outlined material-download-icon">download</span></a></h4>
-<pre>{{ job_log['input'] }}</pre>
-{% endif %}
-{% if 'input' in step_errors and step_errors['input'] is not none %}
-<h4>Error</h4>
-<pre>{{ step_errors['input'] }}</pre>
-{% endif %}
-{% endif %}
-
-{% if 'main' in job_log or 'main' in step_errors %}
-<h3>Main</h3>
-{% if 'main' in job_log %}
-<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/main" download="batch-{{ batch_id }}-{{ job_id }}-main.log"><span class="material-symbols-outlined material-download-icon">download</span></a></h4>
-<pre>{{ job_log['main'] }}</pre>
-{% endif %}
-{% if 'main' in step_errors and step_errors['main'] is not none %}
-<h4>Error</h4>
-<pre>{{ step_errors['main'] }}</pre>
-{% endif %}
-{% endif %}
-
-{% if 'output' in job_log or 'output' in step_errors %}
-<h3>Output</h3>
-{% if 'output' in job_log %}
-<h4>Log <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/output" download="batch-{{ batch_id }}-{{ job_id }}-output.log"><span class="material-symbols-outlined material-download-icon">download</span></a></h4>
-<pre>{{ job_log['output'] }}</pre>
-{% endif %}
-{% if 'output' in step_errors and step_errors['output'] is not none %}
-<h4>Error</h4>
-<pre>{{ step_errors['output'] }}</pre>
-{% endif %}
-{% endif %}
-
-{% endif %}
-
-<h2>Job Specification</h2>
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Value</th>
-    </tr>
-  </thead>
-  {% if job_specification %}
-  <tbody>
-    <tr>
-      <td>image</td>
-      <td>{{ job_specification['image'] }}</td>
-    </tr>
-    {% if 'user_code' in job_specification %}
-    <tr>
-      <td>user code</td>
-      <td>
-        <pre style="max-height: 10em; max-width: 80em;">{{ job_specification['user_code'] }}</pre>
-      </td>
-    </tr>
-    {% endif %}
-    <tr>
-      <td>command</td>
-      <td>
-        <pre
-          style="max-height: 10em; max-width: 80em;">{{ "'" + (job_specification['command'] | join("' '")) + "'" }}</pre>
-      </td>
-    </tr>
-    {% for resource, value in job_specification['resources'].items() %}
-    <tr>
-      <td>{{ resource }}</td>
-      <td>{{ value }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-  {% endif %}
-</table>
-
-<h2>Job Environment Variables</h2>
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Value</th>
-    </tr>
-  </thead>
-  {% if job_specification %}
-  <tbody>
-    {% for envvar in job_specification['env'] %}
-    <tr>
-      <td>{{ envvar['name'] }}</td>
-      <td>{{ envvar['value'] }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-  {% endif %}
-</table>
-
-<h2>Status</h2>
-<pre>{{ job_status_str }}</pre>
 {% endblock %}

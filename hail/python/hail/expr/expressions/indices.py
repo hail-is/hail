@@ -1,7 +1,7 @@
-from hail.typecheck import typecheck_method, anytype, setof
-import hail as hl
-
 from typing import List
+
+import hail as hl
+from hail.typecheck import anytype, setof, typecheck_method
 
 
 class Indices(object):
@@ -27,11 +27,10 @@ class Indices(object):
         for ind in indices:
             if src is None:
                 src = ind.source
-            else:
-                if ind.source is not None and ind.source is not src:
-                    from . import ExpressionException
+            elif ind.source is not None and ind.source is not src:
+                from . import ExpressionException
 
-                    raise ExpressionException()
+                raise ExpressionException()
 
             axes = axes.union(ind.axes)
 

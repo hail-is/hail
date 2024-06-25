@@ -1,4 +1,7 @@
+from typing import ClassVar
+
 import pytest
+
 import hail as hl
 
 
@@ -7,10 +10,10 @@ def unless(test: bool, kvs):
 
 
 class TestData:
-    globals = {'hello': 'world'}
-    rows = {'foo': ['a', 'b']}
-    cols = {'bar': ['c', 'd']}
-    entries = {'baz': [[1, 2], [3, 4]]}
+    globals: ClassVar = {'hello': 'world'}
+    rows: ClassVar = {'foo': ['a', 'b']}
+    cols: ClassVar = {'bar': ['c', 'd']}
+    entries: ClassVar = {'baz': [[1, 2], [3, 4]]}
 
     @staticmethod
     def assert_matches_globals(mt: 'hl.MatrixTable', no_props=False):

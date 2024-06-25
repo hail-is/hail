@@ -1,20 +1,23 @@
-import sys
 import os
+import sys
+from typing import Any, Optional
+
+import orjson
 import pyspark
 import pyspark.sql
 
-import orjson
-from typing import Optional
-
 from hail.expr.table_type import ttable
 from hail.fs.hadoop_fs import HadoopFS
+from hail.ir import BaseIR
 from hail.ir.renderer import CSERenderer
 from hail.table import Table
+from hail.utils import copy_log
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
+from hailtop.utils import async_to_blocking
 
-from .py4j_backend import Py4JBackend
 from .backend import local_jar_information
+from .py4j_backend import Py4JBackend
 
 
 def append_to_comma_separated_list(conf: pyspark.SparkConf, k: str, *new_values: str):
@@ -46,6 +49,7 @@ class SparkBackend(Py4JBackend):
         *,
         gcs_requester_pays_project: Optional[str] = None,
         gcs_requester_pays_buckets: Optional[str] = None,
+        copy_log_on_error: bool = False,
     ):
         assert gcs_requester_pays_project is not None or gcs_requester_pays_buckets is None
 
@@ -166,8 +170,11 @@ class SparkBackend(Py4JBackend):
             gcs_kwargs={"gcs_requester_pays_configuration": gcs_requester_pays_project}
         )
 
+        self._tmpdir = tmpdir
+        self._copy_log_on_error = copy_log_on_error
+
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._router_async_fs)
+        async_to_blocking(validate_file(uri, self._router_async_fs))
 
     def stop(self):
         super().stop()
@@ -206,6 +213,18 @@ class SparkBackend(Py4JBackend):
             return_type._parsable_string(),
             jbody,
         )
+
+    def execute(self, ir: BaseIR, timed: bool = False) -> Any:
+        try:
+            return super().execute(ir, timed)
+        except Exception as err:
+            if self._copy_log_on_error:
+                try:
+                    copy_log(self._tmpdir)
+                except Exception as fatal:
+                    raise err from fatal
+
+            raise err
 
     @property
     def requires_lowering(self):
