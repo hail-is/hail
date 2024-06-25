@@ -15,6 +15,11 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.132**
+
+- (`#14576 <https://github.com/hail-is/hail/pull/14576>`__) Fixed bug where
+  submitting many Python jobs would fail with `RecursionError`.
+
 **Version 0.2.131**
 
 - (`#14544 <https://github.com/hail-is/hail/pull/14544>`__) `batch.read_input`

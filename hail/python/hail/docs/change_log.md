@@ -52,6 +52,20 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.132
+
+Released 2024-06-26
+
+### New Features
+
+- (hail#14572) Added `StringExpression.find` for finding substrings in a Hail str.
+
+### Bug Fixes
+
+- (hail#14574) Fixed `TypeError` bug when initializing Hail Query with `backend='batch'`.
+- (hail#14571) Fixed a deficiency that caused certain pipelines that construct Hail `NDArray`s
+from streams to run out of memory.
+
 ## Version 0.2.131
 
 Released 2024-05-30
