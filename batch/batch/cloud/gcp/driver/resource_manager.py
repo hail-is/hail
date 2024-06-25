@@ -19,7 +19,7 @@ from ....driver.resource_manager import (
 )
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig, QuantifiedResource
-from ..instance_config import GCPSlimInstanceConfig
+from ..instance_config import GCPSlimInstanceConfig, LambdaSlimInstanceConfig
 from ..resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,
@@ -83,17 +83,28 @@ class GCPResourceManager(CloudResourceManager):
         boot_disk_size_gb: int,
         job_private: bool,
         location: str,
-    ) -> GCPSlimInstanceConfig:
-        return GCPSlimInstanceConfig.create(
-            self.billing_manager.product_versions,
-            machine_type,
-            preemptible,
-            local_ssd_data_disk,
-            data_disk_size_gb,
-            boot_disk_size_gb,
-            job_private,
-            location,
-        )
+    ):
+        logging.error(f'machine type is {machine_type}')
+        logging.error(f'boolean evaluated to: {machine_type.startswith("gpu_")}')
+        if machine_type.startswith('gpu_'):
+            return LambdaSlimInstanceConfig.create(
+                self.billing_manager.product_versions,
+                machine_type,
+                preemptible,
+                job_private,
+                location,
+            )
+        else:
+            return GCPSlimInstanceConfig.create(
+                self.billing_manager.product_versions,
+                machine_type,
+                preemptible,
+                local_ssd_data_disk,
+                data_disk_size_gb,
+                boot_disk_size_gb,
+                job_private,
+                location,
+            )
 
     async def create_vm(
         self,

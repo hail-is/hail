@@ -72,9 +72,12 @@ class InstanceCollectionManager:
     ) -> str:
         if self._default_region in regions and self.global_live_cores_mcpu // 1000 < 1_000:
             regions = [self._default_region]
-        return self.location_monitor.choose_location(
-            cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_type
-        )
+        elif machine_type.startswith('gpu_'):
+            return 'lambda'
+        else:
+            return self.location_monitor.choose_location(
+                cores, local_ssd_data_disk, data_disk_size_gb, preemptible, regions, machine_type
+            )
 
     @property
     def pools(self) -> Dict[str, 'InstanceCollection']:

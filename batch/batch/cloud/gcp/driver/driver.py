@@ -82,14 +82,23 @@ ON DUPLICATE KEY UPDATE region = region;
             for config in inst_coll_configs.name_pool_config.values()
         ]
 
-        jpim, *_ = await asyncio.gather(
+        jpim_gcp, jpim_lambda, *_ = await asyncio.gather(
             JobPrivateInstanceManager.create(
                 app,
                 db,
                 inst_coll_manager,
                 resource_manager,
                 machine_name_prefix,
-                inst_coll_configs.jpim_config,
+                inst_coll_configs.jpim_config['gcp'],
+                task_manager,
+            ),
+            JobPrivateInstanceManager.create(
+                app,
+                db,
+                inst_coll_manager,
+                resource_manager,
+                machine_name_prefix,
+                inst_coll_configs.jpim_config['lambda'],
                 task_manager,
             ),
             *create_pools_coros,
@@ -104,7 +113,8 @@ ON DUPLICATE KEY UPDATE region = region;
             namespace,
             zone_monitor,
             inst_coll_manager,
-            jpim,
+            jpim_gcp,
+            jpim_lambda,
             billing_manager,
             task_manager,
         )
@@ -126,7 +136,8 @@ ON DUPLICATE KEY UPDATE region = region;
         namespace: str,
         zone_monitor: ZoneMonitor,
         inst_coll_manager: InstanceCollectionManager,
-        job_private_inst_manager: JobPrivateInstanceManager,
+        job_private_inst_manager_gcp: JobPrivateInstanceManager,
+        job_private_inst_manager_lambda: JobPrivateInstanceManager,
         billing_manager: GCPBillingManager,
         task_manager: aiotools.BackgroundTaskManager,
     ):
@@ -137,7 +148,8 @@ ON DUPLICATE KEY UPDATE region = region;
         self.project = project
         self.namespace = namespace
         self.zone_monitor = zone_monitor
-        self.job_private_inst_manager = job_private_inst_manager
+        self.job_private_inst_manager = job_private_inst_manager_gcp
+        self.job_private_inst_manager_lambda = job_private_inst_manager_lambda
         self._billing_manager = billing_manager
         self._inst_coll_manager = inst_coll_manager
         self._task_manager = task_manager

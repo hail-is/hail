@@ -1142,6 +1142,9 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
         worker_type = None
         machine_type = resources.get('machine_type')
+        if machine_type and machine_type.startswith('gpu_'):
+            cloud = 'lambda'
+
         preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
         if machine_type and machine_type not in valid_machine_types(cloud):

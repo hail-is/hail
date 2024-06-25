@@ -476,7 +476,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 inst_coll_manager,
                 resource_manager,
                 machine_name_prefix,
-                inst_coll_configs.jpim_config,
+                inst_coll_configs.jpim_config['azure'],
                 task_manager,
             ),
             *create_pools_coros,

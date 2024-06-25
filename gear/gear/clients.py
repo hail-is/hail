@@ -22,6 +22,8 @@ def get_cloud_async_fs() -> AsyncFS:
         if aioterra_azure.TerraAzureAsyncFS.enabled():
             return aioterra_azure.TerraAzureAsyncFS()
         return aioazure.AzureAsyncFS()
+    elif cloud == 'lambda':
+        return aiogoogle.GoogleStorageAsyncFS()
 
     assert cloud == 'gcp', cloud
     return aiogoogle.GoogleStorageAsyncFS()
@@ -31,5 +33,8 @@ def get_cloud_async_fs_factory() -> AsyncFSFactory:
     cloud = get_global_config()['cloud']
     if cloud == 'azure':
         return aioazure.AzureAsyncFSFactory()
+    elif cloud == 'lambda':
+        return aiogoogle.GoogleStorageAsyncFSFactory()
+    
     assert cloud == 'gcp', cloud
     return aiogoogle.GoogleStorageAsyncFSFactory()

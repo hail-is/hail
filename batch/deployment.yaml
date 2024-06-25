@@ -201,10 +201,12 @@ spec:
                name: global-config
                key: kubernetes_server_url
          - name: CLOUD
+           value: gcp
+         - name: LAMBDA_API_KEY
            valueFrom:
              secretKeyRef:
-               name: global-config
-               key: cloud
+               name: lambda-api-key
+               key: api-key
          - name: INTERNAL_GATEWAY_IP
            valueFrom:
              secretKeyRef:
@@ -271,6 +273,9 @@ spec:
          - name: gsa-key
            mountPath: /gsa-key
            readOnly: true
+         - name: lambda-gsa-key
+           mountPath: /lambda-gsa-key
+           readOnly: true
          - name: ssl-config-batch-driver
            mountPath: /ssl-config
            readOnly: true
@@ -298,6 +303,9 @@ spec:
        - name: gsa-key
          secret:
            secretName: batch-gsa-key
+       - name: lambda-gsa-key
+         secret:
+           secretName: lambda-cloud-worker-gsa-key
        - name: ssl-config-batch-driver
          secret:
            optional: false

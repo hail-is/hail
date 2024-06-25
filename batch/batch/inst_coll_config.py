@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 from gear import Database
 
@@ -275,7 +275,7 @@ class InstanceCollectionConfigs:
     @staticmethod
     async def instance_collections_from_db(
         db: Database,
-    ) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
+    ) -> Tuple[Dict[str, PoolConfig], Dict[str, JobPrivateInstanceManagerConfig]]:
         records = db.execute_and_fetchall("""
 SELECT inst_colls.*, pools.*
 FROM inst_colls
@@ -283,15 +283,15 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
 """)
 
         name_pool_config: Dict[str, PoolConfig] = {}
-        jpim_config: Optional[JobPrivateInstanceManagerConfig] = None
+        jpim_config: Dict[str, JobPrivateInstanceManagerConfig] = {}
         async for record in records:
             if record['is_pool']:
                 config = PoolConfig.from_record(record)
                 name_pool_config[config.name] = config
             else:
                 config = JobPrivateInstanceManagerConfig.from_record(record)
-                jpim_config = config
-        assert jpim_config is not None
+                jpim_config[config.cloud] = config
+        assert len(jpim_config) > 0
         return name_pool_config, jpim_config
 
     @staticmethod
@@ -310,7 +310,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
     def __init__(
         self,
         name_pool_config: Dict[str, PoolConfig],
-        jpim_config: JobPrivateInstanceManagerConfig,
+        jpim_config: Dict[str, JobPrivateInstanceManagerConfig],
         resource_rates: Dict[str, float],
         product_versions_data: Dict[str, ProductVersionInfo],
     ):
@@ -372,9 +372,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         return None
 
     def select_job_private(self, cloud, machine_type, storage_bytes):
-        if self.jpim_config.cloud != cloud:
+        if not self.jpim_config.get(cloud):
             return None
-        return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
+        return self.jpim_config[cloud].convert_requests_to_resources(machine_type, storage_bytes)
 
     def select_inst_coll(
         self, cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes

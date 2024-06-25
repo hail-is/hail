@@ -156,3 +156,95 @@ class GCPSlimInstanceConfig(InstanceConfig):
             'job_private': self.job_private,
             'resources': [resource.to_dict() for resource in self.resources],
         }
+    
+class LambdaSlimInstanceConfig(InstanceConfig):
+    @staticmethod
+    def create(
+        product_versions: ProductVersions,
+        machine_type: str,
+        preemptible: bool,
+        job_private: bool,
+        location: str,
+    ) -> 'LambdaSlimInstanceConfig':  # pylint: disable=unused-argument
+        machine_type_parts = gcp_machine_type_to_parts(machine_type)
+        assert machine_type_parts is not None, machine_type
+        instance_family = machine_type_parts.machine_family
+        region='us-central1'
+
+        resources = [
+            
+        ]
+
+        accelerator_family = machine_type_to_gpu(machine_type)
+        assert accelerator_family
+
+        num_gpus = machine_type_to_gpu_num(machine_type)
+        resources.append(
+            GCPAcceleratorResource.create(product_versions, accelerator_family, preemptible, region, num_gpus)
+        )
+
+        return LambdaSlimInstanceConfig(
+            machine_type=machine_type,
+            preemptible=preemptible,
+            job_private=job_private,
+            resources=resources,
+        )
+
+    def __init__(
+        self,
+        machine_type: str,
+        preemptible: bool,
+        job_private: bool,
+        resources: List[GCPResource],
+    ):
+        self.cloud = 'lambda'
+        self._machine_type = machine_type
+        self.preemptible = preemptible
+        self.job_private = job_private
+
+        machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
+        assert machine_type_parts is not None, machine_type
+        self.machine_type_parts = machine_type_parts
+        self._instance_family = machine_type_parts.machine_family
+        self._worker_type = machine_type_parts.worker_type
+        self.cores = machine_type_parts.cores
+        self.resources = resources
+
+    def worker_type(self) -> str:
+        return self._worker_type
+
+    def instance_memory(self) -> int:
+        return self.machine_type_parts.memory
+
+    def region_for(self, location: str) -> str:
+        # location = zone
+        return region_from_location(location)
+
+    @staticmethod
+    def from_dict(data: dict) -> 'LambdaSlimInstanceConfig':
+        assert data['version'] == GCP_INSTANCE_CONFIG_VERSION
+
+        machine_type = data['machine_type']
+        preemptible = data['preemptible']
+        job_private = data['job_private']
+
+        assert 'resources' in data and data['resources'] is not None
+        resources = [gcp_resource_from_dict(data) for data in data['resources']]
+
+        return LambdaSlimInstanceConfig(
+            machine_type,
+            preemptible,
+            job_private,
+            resources,
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            'version': GCP_INSTANCE_CONFIG_VERSION,
+            'cloud': 'gcp',
+            'machine_type': self._machine_type,
+            'preemptible': self.preemptible,
+            'job_private': self.job_private,
+            'resources': [resource.to_dict() for resource in self.resources],
+        }
+

@@ -445,6 +445,7 @@ async def get_index(request, userdata):
     db: Database = app['db']
     inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
     jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
+    jpim_lamba:  JobPrivateInstanceManager = app['driver'].job_private_inst_manager_lambda
 
     ready_cores = await db.select_and_fetchone("""
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
@@ -455,6 +456,7 @@ FROM user_inst_coll_resources;
     page_context = {
         'pools': inst_coll_manager.pools.values(),
         'jpim': jpim,
+        'jpim_lambda': jpim_lamba,
         'instance_id': app['instance_id'],
         'global_total_n_instances': inst_coll_manager.global_total_n_instances,
         'global_total_cores_mcpu': inst_coll_manager.global_total_cores_mcpu,

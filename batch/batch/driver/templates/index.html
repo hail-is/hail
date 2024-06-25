@@ -115,6 +115,22 @@
       <td class="numeric-cell"></td>
       <td class="numeric-cell"></td>
     </tr>
+    <tr>
+      <td><a href="{{ base_path }}/inst_coll/jpim_lambda">{{ jpim_lambda.name }}</a></td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_instances_by_state['deleted'] }}</td>
+      <td></td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_cores_mcpu_by_state['pending'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_cores_mcpu_by_state['active'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_cores_mcpu_by_state['inactive'] / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim_lambda.all_versions_cores_mcpu_by_state['deleted'] / 1000 }}</td>
+      <td></td>
+      <td class="numeric-cell"></td>
+      <td class="numeric-cell"></td>
+      <td class="numeric-cell"></td>
+    </tr>
     </tbody>
     <tfoot>
     <tr>
