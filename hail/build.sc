@@ -219,6 +219,7 @@ object main extends RootModule with HailScalaModule { outer =>
     Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Breeze.core,
+    Deps.jackson,
   )
 
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
