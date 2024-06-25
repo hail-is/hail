@@ -559,7 +559,7 @@ class AzureAsyncFS(AsyncFS):
     @handle_public_access_error
     async def isdir(self, url: str) -> bool:
         fs_url = self.parse_url(url, error_if_bucket=True)
-        client = self.get_container_client(fs_url)
+        client = await self.get_container_client(fs_url)
         prefix = fs_url.path
         if prefix[-1] != '/':
             prefix = prefix + '/'
