@@ -441,17 +441,21 @@ class SparkBackend(
         }
       }
 
+    val chunkSize = 30000
     val partsToRun = partitions.getOrElse(contexts.indices)
     val buffer = new ArrayBuffer[(Array[Byte], Int)](partsToRun.length)
     var failure: Option[Throwable] = None
 
-    try sc.runJob(
-        rdd,
-        (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
-        partsToRun,
-        (idx, result: Array[Byte]) => buffer += result -> idx,
-      )
-    catch {
+    try {
+      for (subparts <- partsToRun.grouped(chunkSize)) {
+        sc.runJob(
+          rdd,
+          (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
+          subparts,
+          (idx, result: Array[Byte]) => buffer += result -> idx
+        )
+      }
+    } catch {
       case e: ExecutionException => failure = failure.orElse(Some(e.getCause))
       case NonFatal(t) => failure = failure.orElse(Some(t))
     }
