@@ -110,7 +110,7 @@ def make_benchmark_trial(
     j.command('mkdir -p benchmark-resources')
     j.command(
         ' '.join([
-            f'python3 -m pytest {path}',
+            f'python3 -m pytest \'{path}::{benchmark_name}\'',
             '-Werror:::hail -Werror:::hailtop -Werror::ResourceWarning',
             '--log-cli-level=ERROR',
             '-s',
@@ -128,7 +128,6 @@ def make_benchmark_trial(
             f'--output={j.ofile}',
             '--data-dir=benchmark-resources',
             f'--iterations={iterations}' if iterations is not None else '',
-            f'-k {benchmark_name}',
         ])
     )
 
