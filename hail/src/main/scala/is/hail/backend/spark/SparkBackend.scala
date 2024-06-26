@@ -456,7 +456,7 @@ class SparkBackend(
           rdd,
           (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
           subparts,
-          (idx, result: Array[Byte]) => buffer += result -> subparts(idx)
+          (idx, result: Array[Byte]) => buffer += result -> subparts(idx),
         )
       }
     } catch {

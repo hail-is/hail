@@ -41,7 +41,10 @@ object HailFeatureFlags {
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
     (RequesterPaysConfig.Flags.RequesterPaysBuckets, "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     (RequesterPaysConfig.Flags.RequesterPaysProject, "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
-    (SparkBackend.Flags.MaxStageParallelism, "HAIL_SPARK_MAX_STAGE_PARALLELISM" -> Integer.MAX_VALUE.toString)
+    (
+      SparkBackend.Flags.MaxStageParallelism,
+      "HAIL_SPARK_MAX_STAGE_PARALLELISM" -> Integer.MAX_VALUE.toString,
+    ),
   )
 
   def fromMap(m: Map[String, String]): HailFeatureFlags =
