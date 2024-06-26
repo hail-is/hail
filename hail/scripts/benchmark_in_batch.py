@@ -110,7 +110,7 @@ def make_benchmark_trial(
     j.command('mkdir -p benchmark-resources')
     j.command(
         ' '.join([
-            f'python3 -m pytest \'{path}::{benchmark_name}\'',
+            f"python3 -m pytest '{path}::{benchmark_name}'",
             '-Werror:::hail -Werror:::hailtop -Werror::ResourceWarning',
             '--log-cli-level=ERROR',
             '-s',
