@@ -6,8 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, LoweringAnalyses, MakeTuple, Name, SortField, TableIR, TableReader,
-  TypeCheck,
+  Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -638,11 +637,11 @@ class ServiceBackendAPI(
   ): Array[Byte] = {
     try {
       serializedFunctions.foreach { func =>
-        IRFunctionRegistry.pyRegisterIRForServiceBackend(
+        IRFunctionRegistry.registerIR(
           ctx,
           func.name,
           func.type_parameters,
-          func.value_parameter_names.map(Name),
+          func.value_parameter_names,
           func.value_parameter_types,
           func.return_type,
           func.rendered_body,
