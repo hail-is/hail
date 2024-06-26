@@ -1,6 +1,8 @@
 import logging
 import uuid
 from typing import List
+import os
+import requests
 
 import aiohttp
 
@@ -31,7 +33,7 @@ from .create_instance import create_vm_config
 log = logging.getLogger('resource_manager')
 
 
-class GCPResourceManager(CloudResourceManager):
+class LambdaResourceManager(CloudResourceManager):
     def __init__(
         self,
         project: str,
@@ -43,33 +45,10 @@ class GCPResourceManager(CloudResourceManager):
         self.billing_manager = billing_manager
 
     async def delete_vm(self, instance: Instance):
-        try:
-            await self.compute_client.delete(f'/zones/{instance.location}/instances/{instance.name}')
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                raise VMDoesNotExist() from e
-            raise
+        raise NotImplementedError
 
     async def get_vm_state(self, instance: Instance) -> VMState:
-        try:
-            spec = await self.compute_client.get(f'/zones/{instance.location}/instances/{instance.name}')
-            state = spec['status']  # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
-
-            if state in ('PROVISIONING', 'STAGING'):
-                return VMStateCreating(spec, instance.time_created)
-            if state == 'RUNNING':
-                last_start_timestamp_msecs = parse_timestamp_msecs(spec.get('lastStartTimestamp'))
-                assert last_start_timestamp_msecs is not None
-                return VMStateRunning(spec, last_start_timestamp_msecs)
-            if state in ('STOPPING', 'TERMINATED'):
-                return VMStateTerminated(spec)
-            log.exception(f'Unknown gce state {state} for {instance}')
-            return UnknownVMState(spec)
-
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                raise VMDoesNotExist() from e
-            raise
+        raise NotImplementedError
 
     def machine_type(self, cores: int, worker_type: str, local_ssd: bool) -> str:  # pylint: disable=unused-argument
         return family_worker_type_cores_to_gcp_machine_type(GCP_MACHINE_FAMILY, worker_type, cores)
@@ -84,13 +63,10 @@ class GCPResourceManager(CloudResourceManager):
         job_private: bool,
         location: str,
     ):
-        return GCPSlimInstanceConfig.create(
+        return LambdaSlimInstanceConfig.create(
             self.billing_manager.product_versions,
             machine_type,
             preemptible,
-            local_ssd_data_disk,
-            data_disk_size_gb,
-            boot_disk_size_gb,
             job_private,
             location,
         )
@@ -110,38 +86,59 @@ class GCPResourceManager(CloudResourceManager):
         machine_type: str,
         instance_config: InstanceConfig,
     ) -> List[QuantifiedResource]:
-        if local_ssd_data_disk:
-            assert data_disk_size_gb == 375
+        # if local_ssd_data_disk:
+        #     assert data_disk_size_gb == 375
 
-        resource_rates = self.billing_manager.resource_rates
+        # resource_rates = self.billing_manager.resource_rates
 
-        vm_config = create_vm_config(
-            file_store,
-            resource_rates,
-            location,
-            machine_name,
-            machine_type,
-            activation_token,
-            max_idle_time_msecs,
-            local_ssd_data_disk,
-            data_disk_size_gb,
-            boot_disk_size_gb,
-            preemptible,
-            job_private,
-            self.project,
-            instance_config,
-        )
+        # vm_config = create_vm_config(
+        #     file_store,
+        #     resource_rates,
+        #     location,
+        #     machine_name,
+        #     machine_type,
+        #     activation_token,
+        #     max_idle_time_msecs,
+        #     local_ssd_data_disk,
+        #     data_disk_size_gb,
+        #     boot_disk_size_gb,
+        #     preemptible,
+        #     job_private,
+        #     self.project,
+        #     instance_config,
+        # )
+        API_KEY = os.environ['LAMBDA_API_KEY']
+        BASE_URL = 'https://cloud.lambdalabs.com/api/v1/'
+
+        # Headers for authentication
+        HEADERS = {
+            'Authorization': f'Bearer {API_KEY}',
+            'Content-Type': 'application/json'
+        }
 
         cores, memory_in_bytes = gcp_machine_type_to_cores_and_memory_bytes(machine_type)
         cores_mcpu = cores * 1000
         total_resources_on_instance = instance_config.quantified_resources(
             cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, extra_storage_in_gib=0
         )
-
+        
         try:
-            params = {'requestId': str(uuid.uuid4())}
-            await self.compute_client.post(f'/zones/{location}/instances', params=params, json=vm_config)
-            log.info(f'created machine {machine_name}')
+            url = f'{BASE_URL}instance-operations/launch'
+            payload = {
+                "region_name": 'us-east-1',
+                "instance_type_name": machine_type,
+                "ssh_key_names": ['publickey'],
+                "quantity": 1,
+            }
+            log.error(f'requests payload: {payload}')
+            response = requests.post(url, headers=HEADERS, json=payload)
+            log.info(f'created machine {machine_name} with response {response.json()}')
         except Exception:
             log.exception(f'error while creating machine {machine_name}')
+        # try:
+        #     params = {'requestId': str(uuid.uuid4())}
+        #     await self.compute_client.post(f'/zones/{location}/instances', params=params, json=vm_config)
+        #     log.info(f'created machine {machine_name}')
+        # except Exception:
+        #     log.exception(f'error while creating machine {machine_name}')
         return total_resources_on_instance

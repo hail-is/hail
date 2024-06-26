@@ -7,7 +7,7 @@ from hailtop.aiocloud.aiogoogle import GoogleStorageAsyncFS
 
 from ..instance_config import InstanceConfig
 from .azure.instance_config import AzureSlimInstanceConfig
-from .gcp.instance_config import GCPSlimInstanceConfig
+from .gcp.instance_config import GCPSlimInstanceConfig, LambdaSlimInstanceConfig
 from .terra.azure.instance_config import TerraAzureSlimInstanceConfig
 
 
@@ -18,6 +18,8 @@ def instance_config_from_config_dict(config: Dict[str, Any]) -> InstanceConfig:
             return TerraAzureSlimInstanceConfig.from_dict(config)
         return AzureSlimInstanceConfig.from_dict(config)
     assert cloud == 'gcp'
+    if config['machine_type'].startswith('gpu_'):
+        return LambdaSlimInstanceConfig.from_dict(config)
     return GCPSlimInstanceConfig.from_dict(config)
 
 

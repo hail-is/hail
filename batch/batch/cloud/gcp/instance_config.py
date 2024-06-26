@@ -1,5 +1,5 @@
 from typing import List, Union
-
+import logging
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
 from .resource_utils import (
@@ -122,6 +122,7 @@ class GCPSlimInstanceConfig(InstanceConfig):
 
     @staticmethod
     def from_dict(data: dict) -> 'GCPSlimInstanceConfig':
+        logging.error(f'data dict gcp slim instance: {data}')
         assert data['version'] == GCP_INSTANCE_CONFIG_VERSION
 
         machine_type = data['machine_type']

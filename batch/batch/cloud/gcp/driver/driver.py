@@ -14,6 +14,7 @@ from .activity_logs import process_activity_log_events_since
 from .billing_manager import GCPBillingManager
 from .disks import delete_orphaned_disks
 from .resource_manager import GCPResourceManager
+from .resouce_manager_lambda import LambdaResourceManager
 from .zones import ZoneMonitor
 
 
@@ -65,6 +66,7 @@ ON DUPLICATE KEY UPDATE region = region;
         billing_manager = await GCPBillingManager.create(db, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
+        resource_manager_lambda = LambdaResourceManager(project, compute_client, billing_manager)
 
         task_manager = aiotools.BackgroundTaskManager()
 
@@ -96,7 +98,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 app,
                 db,
                 inst_coll_manager,
-                resource_manager,
+                resource_manager_lambda,
                 machine_name_prefix,
                 inst_coll_configs.jpim_config['lambda'],
                 task_manager,

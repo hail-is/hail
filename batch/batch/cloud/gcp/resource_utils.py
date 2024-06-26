@@ -319,6 +319,13 @@ MACHINE_TYPE_TO_PARTS = {
         machine_family='v100',
         worker_type='lambda',
     ),
+    'gpu_1x_a10': MachineTypeParts(
+        cores=92,
+        memory=gib_to_bytes(460),
+        gpu_config=GPUConfig(num_gpus=8, gpu_type='l4'),
+        machine_family='v100',
+        worker_type='lambda',
+    ),
 }
 
 gcp_valid_cores_for_pool_worker_type = {
