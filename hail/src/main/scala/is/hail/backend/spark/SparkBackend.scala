@@ -74,6 +74,10 @@ class SparkTaskContext private[spark] (ctx: TaskContext) extends HailTaskContext
 }
 
 object SparkBackend {
+  object Flags {
+    val MaxStageParallelism = "spark_max_stage_parallelism"
+  }
+
   private var theSparkBackend: SparkBackend = _
 
   def sparkContext(op: String): SparkContext = HailContext.sparkBackend(op).sc
@@ -441,7 +445,7 @@ class SparkBackend(
         }
       }
 
-    val chunkSize = 30000
+    val chunkSize = getFlag(SparkBackend.Flags.MaxStageParallelism).toInt
     val partsToRun = partitions.getOrElse(contexts.indices)
     val buffer = new ArrayBuffer[(Array[Byte], Int)](partsToRun.length)
     var failure: Option[Throwable] = None
