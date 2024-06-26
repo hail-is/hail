@@ -7,7 +7,6 @@ import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -341,29 +340,6 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
         )
       }
     }
-
-  def pyRegisterIR(
-    name: String,
-    typeParamStrs: java.util.ArrayList[String],
-    argNameStrs: java.util.ArrayList[String],
-    argTypeStrs: java.util.ArrayList[String],
-    returnType: String,
-    bodyStr: String,
-  ): Unit = {
-    ExecutionTimer.logTime("LocalBackend.pyRegisterIR") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IRFunctionRegistry.registerIR(
-          ctx,
-          name,
-          typeParamStrs.asScala.toArray,
-          argNameStrs.asScala.toArray,
-          argTypeStrs.asScala.toArray,
-          returnType,
-          bodyStr,
-        )
-      }
-    }
-  }
 
   def parse_table_ir(s: String): TableIR =
     ExecutionTimer.logTime("LocalBackend.parse_table_ir") { timer =>

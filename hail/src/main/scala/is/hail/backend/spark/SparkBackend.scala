@@ -8,7 +8,6 @@ import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.analyses.SemanticHash
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -777,29 +776,6 @@ class SparkBackend(
         lmm.fit(ctx, pa_t, Option(a_t))
       }
     }
-
-  def pyRegisterIR(
-    name: String,
-    typeParamStrs: java.util.ArrayList[String],
-    argNameStrs: java.util.ArrayList[String],
-    argTypeStrs: java.util.ArrayList[String],
-    returnType: String,
-    bodyStr: String,
-  ): Unit = {
-    ExecutionTimer.logTime("SparkBackend.pyRegisterIR") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IRFunctionRegistry.registerIR(
-          ctx,
-          name,
-          typeParamStrs.asScala.toArray,
-          argNameStrs.asScala.toArray,
-          argTypeStrs.asScala.toArray,
-          returnType,
-          bodyStr,
-        )
-      }
-    }
-  }
 
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
     ExecutionTimer.logTime("SparkBackend.parse_value_ir") { timer =>
