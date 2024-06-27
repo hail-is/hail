@@ -293,7 +293,6 @@ class Tests(unittest.TestCase):
         )
         assert mt._same(expected_split_mt)
 
-    @qobtest
     def test_define_function(self):
         f1 = hl.experimental.define_function(lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f1(1, 3)), 24)
