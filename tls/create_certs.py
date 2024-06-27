@@ -198,7 +198,8 @@ async def create_principal(
         sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 
     if store_in_cloud_secret_manager:
-        if os.getenv('CLOUD') == 'gcp':
+        cloud = os.getenv('CLOUD')
+        if cloud == 'gcp':
             client = GoogleSecretManagerClient(os.environ['HAIL_PROJECT'])
             expiration_seconds = None if namespace == 'default' else 60 * 60 * 24 * 7
             secret_id = f'ssl-config-{principal}-{namespace}'
@@ -206,6 +207,8 @@ async def create_principal(
             secret_data = {f: base64.b64encode(Path(f).read_bytes()).decode() for f in secret_files}
             await client.create_secret_version(secret_id, orjson.dumps(secret_data))
             print(f'Created {secret_id} in GCP secret manager')
+        else:
+            assert cloud == 'azure'
 
 
 async def main():
