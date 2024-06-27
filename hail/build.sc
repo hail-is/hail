@@ -112,7 +112,7 @@ object Deps {
   val junixsocket = ivy"com.kohlschutter.junixsocket:junixsocket-core:2.6.1"
   val log4j = ivy"org.apache.logging.log4j:log4j-1.2-api:2.17.2"
   val hadoopClient = ivy"org.apache.hadoop:hadoop-client:3.3.4"
-  val jackson = ivy"com.fasterxml.jackson.core:jackson-core:2.14.2"
+  val jackson = ivy"com.fasterxml.jackson.core:jackson-core:2.15.2"
 
   object Plugins {
     val betterModadicFor = ivy"com.olegpy::better-monadic-for:0.3.1"
@@ -219,6 +219,7 @@ object main extends RootModule with HailScalaModule { outer =>
     Deps.Spark.core().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Spark.mllib().excludeOrg("org.scalanlp"),  // Hail has an explicit dependency on Breeze 1.1
     Deps.Breeze.core,
+    Deps.jackson,
   )
 
   override def assemblyRules: Seq[Rule] = super.assemblyRules ++ Seq(
