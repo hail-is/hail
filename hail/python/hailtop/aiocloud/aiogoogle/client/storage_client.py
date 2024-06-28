@@ -639,7 +639,7 @@ class GoogleStorageAsyncFS(AsyncFS):
     def storage_location(self, uri: str) -> str:
         return self.get_bucket_and_name(uri)[0]
 
-    async def is_hot_storage(self, location: str) -> bool:
+    async def is_hot_storage(self, uri: str) -> bool:
         """
         See `the GCS API docs https://cloud.google.com/storage/docs/storage-classes`_ for a list of possible storage
         classes.
@@ -647,14 +647,37 @@ class GoogleStorageAsyncFS(AsyncFS):
         Raises
         ------
         :class:`aiohttp.ClientResponseError`
-            If the specified bucket does not exist, or if the account being used to access GCS does not have permission
-            to read the bucket's default storage policy.
+            If the specified object does not exist, or if the account being used to access GCS does not have permission
+            to read the bucket's default storage policy and it is not a public access bucket.
         """
-        return (await self._storage_client.bucket_info(location))["storageClass"].lower() in (
-            "standard",
-            "regional",
-            "multi_regional",
-        )
+        is_hot_storage = False
+        hot_storage_classes = {"standard", "regional", "multi_regional"}
+        location = self.storage_location(uri)
+        if location in self.allowed_storage_locations:
+            return True
+
+        async def check_object(_uri):
+            return (await (await self.statfile(_uri))["storageClass"]).lower() in hot_storage_classes
+
+        try:
+            is_hot_storage = (await self._storage_client.bucket_info(location))[
+                "storageClass"
+            ].lower() in hot_storage_classes
+        except aiohttp.ClientResponseError as e:
+            if "does not have storage.buckets.get access" in str(e):
+                try:
+                    is_hot_storage = await check_object(uri)
+                except FileNotFoundError:
+                    async for entry in await self.listfiles(uri, recursive=True):
+                        if await entry.is_file():
+                            is_hot_storage = await check_object(await entry.url())
+            else:
+                raise e
+
+        if is_hot_storage:
+            self.allowed_storage_locations.append(location)
+
+        return is_hot_storage
 
     @staticmethod
     def valid_url(url: str) -> bool:
