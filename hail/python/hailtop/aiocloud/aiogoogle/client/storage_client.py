@@ -80,12 +80,13 @@ async def _cleanup_future(fut: asyncio.Future):
 
 
 class InsertObjectStream(WritableStream):
-    def __init__(self, it: FeedableAsyncIterable[bytes], request_task: asyncio.Task[aiohttp.ClientResponse]):
+    def __init__(self, it: FeedableAsyncIterable[bytes], request_task: asyncio.Task[aiohttp.ClientResponse], url: str):
         super().__init__()
         self._it = it
         self._request_task = request_task
         self._value = None
         self._exit_stack = AsyncExitStack()
+        self.url = url
 
         async def cleanup_request_task():
             if not self._request_task.cancelled():
@@ -364,7 +365,7 @@ class GoogleStorageClient(GoogleBaseClient):
                     f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o', retry=False, **kwargs
                 )
             )
-            return InsertObjectStream(it, request_task)
+            return InsertObjectStream(it, request_task, 'gs://' + bucket + '/' + name)
 
         # Write using resumable uploads.  See:
         # https://cloud.google.com/storage/docs/performing-resumable-uploads
@@ -446,8 +447,11 @@ class GetObjectFileStatus(FileStatus):
         self._items = items
         self._url = url
 
+    def __repr__(self):
+        return f'GetObjectFileStatus({self._items}, {self._url})'
+
     def basename(self) -> str:
-        return os.path.basename(self._url.rstrip('/'))
+        return os.path.basename(self._url)
 
     def url(self) -> str:
         return self._url
@@ -472,8 +476,15 @@ class GoogleStorageFileListEntry(FileListEntry):
         self._items = items
         self._status: Optional[GetObjectFileStatus] = None
 
+    def __repr__(self):
+        return f'GoogleStorageFileListEntry({self._bucket}, {self._name}, {self._items})'
+
     def basename(self) -> str:
-        return os.path.basename(self._name.rstrip('/'))
+        object_name = self._name
+        if self._is_dir():
+            assert object_name[-1] == '/'
+            object_name = object_name[:-1]
+        return os.path.basename(object_name)
 
     async def url(self) -> str:
         return f'gs://{self._bucket}/{self._name}'
@@ -481,8 +492,11 @@ class GoogleStorageFileListEntry(FileListEntry):
     async def is_file(self) -> bool:
         return self._items is not None
 
-    async def is_dir(self) -> bool:
+    def _is_dir(self) -> bool:
         return self._items is None
+
+    async def is_dir(self) -> bool:
+        return self._is_dir()
 
     async def status(self) -> FileStatus:
         if self._status is None:
@@ -818,7 +832,9 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isdir(self, url: str) -> bool:
         fsurl = self.parse_url(url, error_if_bucket=True)
-        assert not fsurl._path or fsurl.path.endswith('/'), fsurl._path
+        prefix = fsurl._path
+        if len(prefix) > 0 and prefix[-1] != '/':
+            prefix += '/'
         params = {'prefix': fsurl._path, 'delimiter': '/', 'includeTrailingDelimiter': 'true', 'maxResults': 1}
         async for page in await self._storage_client.list_objects(fsurl._bucket, params=params):
             prefixes = page.get('prefixes')
