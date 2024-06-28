@@ -112,7 +112,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         combiner = hl.vds.new_combiner(
             output_path='gs://bucket/dataset.vds',
             temp_path='gs://1-day-temp-bucket/',
-            save_path='gs://1-day-temp-bucket/',
+            save_path='gs://1-day-temp-bucket/combiner-plan.json',
             gvcf_paths=gvcfs,
             vds_paths=vdses,
             use_genome_default_intervals=True,
@@ -134,8 +134,8 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     Parameters
     ----------
     save_path : :class:`str`
-        The location to store this VariantDatasetCombiner plan. A failed execution can be restarted
-        using this plan.
+        The file path to store this VariantDatasetCombiner plan. A failed or interrupted
+        execution can be restarted using this plan.
     output_path : :class:`str`
         The location to store the new VariantDataset.
     temp_path : :class:`str`
