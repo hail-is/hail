@@ -74,6 +74,10 @@ class SparkTaskContext private[spark] (ctx: TaskContext) extends HailTaskContext
 }
 
 object SparkBackend {
+  object Flags {
+    val MaxStageParallelism = "spark_max_stage_parallelism"
+  }
+
   private var theSparkBackend: SparkBackend = _
 
   def sparkContext(op: String): SparkContext = HailContext.sparkBackend(op).sc
@@ -441,17 +445,21 @@ class SparkBackend(
         }
       }
 
+    val chunkSize = getFlag(SparkBackend.Flags.MaxStageParallelism).toInt
     val partsToRun = partitions.getOrElse(contexts.indices)
     val buffer = new ArrayBuffer[(Array[Byte], Int)](partsToRun.length)
     var failure: Option[Throwable] = None
 
-    try sc.runJob(
-        rdd,
-        (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
-        partsToRun,
-        (idx, result: Array[Byte]) => buffer += result -> idx,
-      )
-    catch {
+    try {
+      for (subparts <- partsToRun.grouped(chunkSize)) {
+        sc.runJob(
+          rdd,
+          (_: TaskContext, it: Iterator[Array[Byte]]) => it.next(),
+          subparts,
+          (idx, result: Array[Byte]) => buffer += result -> subparts(idx),
+        )
+      }
+    } catch {
       case e: ExecutionException => failure = failure.orElse(Some(e.getCause))
       case NonFatal(t) => failure = failure.orElse(Some(t))
     }
