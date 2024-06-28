@@ -20,6 +20,9 @@
 {{ code_block(step_errors[step]) }}
 {% endif %}
 {% if step in job_log %}
+{% if step in truncated_logs %}
+<b>Log too long to display. Showing truncated version</b>
+{% endif %}
 <a href="{{ base_path }}/batches/{{ batch_id }}/jobs/{{ job_id }}/log/{{ step }}"
   download="batch-{{ batch_id }}-{{ job_id }}-{{ step }}.log" class='flex space-x-2 py-2'>
   <h4 class='text-xl font-light'>Logs</h4>
