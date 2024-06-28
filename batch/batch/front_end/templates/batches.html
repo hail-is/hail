@@ -57,7 +57,7 @@
             {% do statuses.append(batch['n_succeeded'] ~ ' succeeded') %}
             {% endif %}
             {% if batch['n_cancelled'] != 0 %}
-            {% do statuses.append(batch['n_succeeded'] ~ ' cancelled') %}
+            {% do statuses.append(batch['n_cancelled'] ~ ' cancelled') %}
             {% endif %}
             {% if batch['n_failed'] != 0 %}
             {% do statuses.append(batch['n_failed'] ~ ' failed') %}
