@@ -334,6 +334,7 @@ def block_matrix_bindings():
     nc = np.array([[1.0], [2.0]])
     nr = np.array([[1.0, 2.0, 3.0]])
     nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+    ns = sparsify_numpy(np.array([[1.0, 2.0, 3.0, 4.0], [5.0, 6.0, 7.0, 8.0], [9.0, 10.0, 11.0, 12.0]]), 2, [1, 2])
     nrow = np.array([[7.0, 8.0, 9.0]])
     nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
 
@@ -342,18 +343,20 @@ def block_matrix_bindings():
         'nc': nc,
         'nr': nr,
         'nm': nm,
+        'ns': ns,
         'nrow': nrow,
         'nsquare': nsquare,
         'e': 2.0,
         # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
         # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
         # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
-        'x': BlockMatrix._create(1, 1, [2.0], block_size=8),
-        'c': BlockMatrix.from_ndarray(hl.literal(nc), block_size=8),
-        'r': BlockMatrix.from_ndarray(hl.literal(nr), block_size=8),
-        'm': BlockMatrix.from_ndarray(hl.literal(nm), block_size=8),
-        'row': BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=8),
-        'square': BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=8),
+        'x': BlockMatrix._create(1, 1, [2.0], block_size=2),
+        'c': BlockMatrix.from_ndarray(hl.literal(nc), block_size=2),
+        'r': BlockMatrix.from_ndarray(hl.literal(nr), block_size=2),
+        'm': BlockMatrix.from_ndarray(hl.literal(nm), block_size=2),
+        's': BlockMatrix.from_ndarray(hl.literal(ns), block_size=2)._sparsify_blocks([1, 2]),
+        'row': BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2),
+        'square': BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=2),
     }
 
 
@@ -569,6 +572,29 @@ def test_block_matrix_raises(block_matrix_bindings, expr, expectation):
     ],
 )
 def test_matrix_sums(block_matrix_bindings, x, y):
+    lhs = eval(x, block_matrix_bindings)
+    rhs = eval(y, {'np': np}, block_matrix_bindings)
+    _assert_eq(lhs, rhs)
+
+
+@fails_service_backend()
+@fails_local_backend()
+@pytest.mark.parametrize(
+    'x, y',
+    [
+        ('s.sum(axis=0).T', 'np.array([[9.0], [10.0], [10.0], [12.0]])'),
+        ('s.sum(axis=1).T', 'np.array([[7.0, 15.0, 19.0]])'),
+        (
+            's.sum(axis=0).T + row',
+            'np.array([[16.0, 17.0, 18.0],[17.0, 18.0, 19.0],[17.0, 18.0, 19.0],[19.0, 20.0, 21.0]])',
+        ),
+        (
+            's.sum(axis=0) + row.T',
+            'np.array([[16.0, 17.0, 17.0, 19.0],[17.0, 18.0, 18.0, 20.0],[18.0, 19.0, 19.0, 21.0]])',
+        ),
+    ],
+)
+def test_sparse_matrix_sums(block_matrix_bindings, x, y):
     lhs = eval(x, block_matrix_bindings)
     rhs = eval(y, {'np': np}, block_matrix_bindings)
     _assert_eq(lhs, rhs)
