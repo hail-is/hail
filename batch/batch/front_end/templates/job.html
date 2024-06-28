@@ -133,8 +133,8 @@
     </div>
   </div>
 </div>
-<div class='bg-slate-100 border rounded my-8 overflow-hidden w-full md:w-auto'>
-  <h2 class='text-2xl font-light m-4'>Attempts</h2>
+<div class='bg-slate-100 border rounded overflow-hidden w-full md:w-auto'>
+  <h2 class='text-2xl font-light mx-4 my-3'>Attempts</h2>
   <table class='overflow-hidden table-fixed w-full'>
     <thead class='h-12 text-sky-900'>
       <th class='text-center'>Attempt ID</th>
@@ -146,7 +146,7 @@
     </thead>
     <tbody>
       {% for attempt in attempts or [] %}
-      <tr class='h-16 border-y bg-white'>
+      <tr class='h-12 border-y bg-white'>
         <td class='text-center'>{{ attempt['attempt_id'] }}</td>
         <td class='text-center'>{{ attempt['instance_name'] }}</td>
         <td class='text-center hidden md:table-cell'>{{ attempt.get('start_time') or '' }}</td>
@@ -157,6 +157,13 @@
       {% endfor %}
     </tbody>
   </table>
+  {% if plot_resource_usage is not none %}
+  <div class='relative overflow-hidden transition-all bg-white'>
+    <div class='w-full overflow-auto flex justify-center'>
+      <div id="plotly-job-resource-usage"></div>
+    </div>
+  </div>
+  {% endif %}
   {% if job_log or step_errors %}
   <div class='bg-white' x-data='{tab: "main"}'>
     <div class='flex border-b text-lg overflow-auto'>
@@ -171,13 +178,6 @@
       </div>
       {% endif %}
       {% endfor %}
-      {% if plot_resource_usage is not none %}
-      <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
-        :class='{"border-b": tab == "resource-usage", "opacity-50": tab != "resource-usage"}'
-        x-on:click='tab = "resource-usage"'>
-        Resource Usage
-      </div>
-      {% endif %}
       <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
         :class='{"border-b": tab == "status", "opacity-50": tab != "status"}' x-on:click='tab = "status"'>
         Raw Status
@@ -190,8 +190,8 @@
       </div>
     </div>
     <div class='relative overflow-hidden transition-all' x-show='tab == "main"'>
-      <div class='flex flex-col lg:flex-row py-4 pl-4 gap-4'>
-        <div class='w-full overflow-auto lg:w-1/4'>
+      <div class='py-4 pl-4'>
+        <div class='overflow-auto'>
           {{ step_runtime('main') }}
           {% if job_specification %}
           {% if job_specification['image'] != '[jvm]' %}
@@ -223,13 +223,6 @@
         {{ error_and_logs_panel('output') }}
       </div>
     </div>
-    {% if plot_resource_usage is not none %}
-    <div class='relative overflow-hidden transition-all' x-show='tab == "resource-usage"' x-cloak>
-      <div class='w-full overflow-auto pt-4 lg:pl-4'>
-        <div id="plotly-job-resource-usage"></div>
-      </div>
-    </div>
-    {% endif %}
     <div class='relative overflow-hidden transition-all' x-show='tab == "status"' x-cloak>
       <div class='w-full overflow-auto pt-4 pl-4'>
         {{ code_block(job_status_str) }}
