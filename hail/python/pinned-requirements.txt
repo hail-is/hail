@@ -61,7 +61,7 @@ frozenlist==1.4.1
     #   aiosignal
 google-auth==2.29.0
     # via google-auth-oauthlib
-google-auth-oauthlib==0.8.0
+google-auth-oauthlib==1.2.0
 humanize==1.1.0
 idna==3.7
     # via
