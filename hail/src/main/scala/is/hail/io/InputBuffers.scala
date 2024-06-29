@@ -56,6 +56,18 @@ trait InputBuffer extends Closeable {
   def readDoubles(to: Array[Double]): Unit = readDoubles(to, 0, to.length)
 
   def readBoolean(): Boolean = readByte() != 0
+
+  final def readLEB128(): Long = {
+    var b: Byte = readByte()
+    var x: Long = b & 0x7fL
+    var shift: Int = 7
+    while ((b & 0x80) != 0) {
+      b = readByte()
+      x |= ((b & 0x7fL) << shift)
+      shift += 7
+    }
+    x
+  }
 }
 
 trait InputBlockBuffer extends Spec with Closeable {
@@ -210,29 +222,9 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   override def read(buf: Array[Byte], toOff: Int, n: Int) = in.read(buf, toOff, n)
 
-  def readInt(): Int = {
-    var b: Byte = readByte()
-    var x: Int = b & 0x7f
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7f) << shift)
-      shift += 7
-    }
-    x
-  }
+  def readInt(): Int = readLEB128().toInt
 
-  def readLong(): Long = {
-    var b: Byte = readByte()
-    var x: Long = b & 0x7fL
-    var shift: Int = 7
-    while ((b & 0x80) != 0) {
-      b = readByte()
-      x |= ((b & 0x7fL) << shift)
-      shift += 7
-    }
-    x
-  }
+  def readLong(): Long = readLEB128()
 
   def readFloat(): Float = in.readFloat()
 
@@ -244,17 +236,11 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
 
   def skipByte(): Unit = in.skipByte()
 
-  def skipInt(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
-  }
+  def skipInt(): Unit =
+    readLEB128()
 
-  def skipLong(): Unit = {
-    var b: Byte = readByte()
-    while ((b & 0x80) != 0)
-      b = readByte()
-  }
+  def skipLong(): Unit =
+    readLEB128()
 
   def skipFloat(): Unit = in.skipFloat()
 
