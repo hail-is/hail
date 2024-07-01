@@ -1,8 +1,17 @@
-{% from "utils.html" import submit_button, danger_button %}
+{% from "utils.html" import submit_button, danger_button, success_check, fail_cross %}
 {% extends "layout.html" %}
 {% block title %}Users{% endblock %}
+
+{% macro check_or_cross(b) %}
+{% if b %}
+{{ success_check() }}
+{% else %}
+{{ fail_cross() }}
+{% endif %}
+{% endmacro %}
+
 {% block content %}
-<div class='w-full md:w-2/5 flex flex-col md:flex-row justify-between'>
+<div class='w-full md:w-2/5 flex flex-col md:flex-row md:space-x-16 justify-between'>
   <div>
     <h1 class='text-2xl font-light mb-4'>Create User</h1>
     <form action="{{ base_path }}/users" method="POST">
@@ -47,28 +56,28 @@
 
 <br />
 <h1 class='text-2xl font-light mb-4'>Users</h1>
-<table class="table-auto">
+<table class="table-auto w-full">
   <thead>
     <tr>
       <th class='h-12 bg-slate-200 font-light rounded-tl pl-2'>ID</th>
-      <th class='h-12 bg-slate-200 font-light '>Username</th>
-      <th class='h-12 bg-slate-200 font-light '>Login ID</th>
-      <th class='h-12 bg-slate-200 font-light '>Hail Identity</th>
-      <th class='h-12 bg-slate-200 font-light '>State</th>
-      <th class='h-12 bg-slate-200 font-light '>Developer</th>
+      <th class='h-12 bg-slate-200 font-light text-left'>Username</th>
+      <th class='h-12 bg-slate-200 font-light text-left'>Login ID</th>
+      <th class='h-12 bg-slate-200 font-light text-left'>Hail Identity</th>
+      <th class='h-12 bg-slate-200 font-light text-left'>State</th>
+      <th class='h-12 bg-slate-200 font-light'>Developer</th>
       <th class='h-12 bg-slate-200 font-light rounded-tr pr-2'>Robot</th>
     </tr>
   </thead>
   <tbody class='border border-collapse border-slate-50'>
     {% for user in users %}
-    <tr class='bg-slate-50 font-light'>
+    <tr class='border border-collapse hover:bg-slate-100 font-light'>
       <td class='text-center'>{{ user['id'] }}</td>
       <td>{{ user['username'] }}</td>
       <td>{{ user['login_id'] }}</td>
       <td>{{ user['hail_identity'] }}</td>
       <td>{{ user['state'] }}</td>
-      <td class='text-center'>{{ user['is_developer'] }}</td>
-      <td class='text-center'>{{ user['is_service_account'] }}</td>
+      <td class='text-center'>{{ check_or_cross(user['is_developer']) }}</td>
+      <td class='text-center'>{{ check_or_cross(user['is_service_account']) }}</td>
     </tr>
     {% endfor %}
   </tbody>
