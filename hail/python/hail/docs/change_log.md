@@ -54,7 +54,7 @@ critically depend on experimental functionality.**
 
 ## Version 0.2.132
 
-Released 2024-06-26
+Released 2024-07-02
 
 ### New Features
 
@@ -65,6 +65,8 @@ Released 2024-06-26
 - (hail#14574) Fixed `TypeError` bug when initializing Hail Query with `backend='batch'`.
 - (hail#14571) Fixed a deficiency that caused certain pipelines that construct Hail `NDArray`s
 from streams to run out of memory.
+- (hail#14579) Fix serialization bug that broke some Query-on-Batch pipelines with many complex expressions.
+- (hail#14567) Fix Jackson configuration that broke some Query-on-Batch pipelines with many complex expressions.
 
 ## Version 0.2.131
 
