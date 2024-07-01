@@ -2,6 +2,7 @@
 module.exports = {
   content: [
     "./web_common/**/*.{html,js}",
+    "../auth/**/*.{html,js}",
     "../batch/**/*.{html,js}",
   ],
   theme: {
