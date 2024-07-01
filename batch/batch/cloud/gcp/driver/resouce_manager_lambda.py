@@ -29,6 +29,7 @@ from ..resource_utils import (
 )
 from .billing_manager import GCPBillingManager
 from .create_instance import create_vm_config
+from gear import Database
 
 log = logging.getLogger('resource_manager')
 
@@ -36,14 +37,10 @@ log = logging.getLogger('resource_manager')
 class LambdaResourceManager(CloudResourceManager):
     def __init__(
         self,
-        project: str,
-        compute_client: aiogoogle.GoogleComputeClient,  # BORROWED
-        billing_manager: GCPBillingManager,  # BORROWED
+        db: Database
     ):
-        self.compute_client = compute_client
-        self.project = project
-        self.billing_manager = billing_manager
-
+        self.db = db
+    
     async def delete_vm(self, instance: Instance):
         raise NotImplementedError
 
@@ -57,9 +54,6 @@ class LambdaResourceManager(CloudResourceManager):
         self,
         machine_type: str,
         preemptible: bool,
-        local_ssd_data_disk: bool,
-        data_disk_size_gb: int,
-        boot_disk_size_gb: int,
         job_private: bool,
         location: str,
     ):
@@ -69,48 +63,30 @@ class LambdaResourceManager(CloudResourceManager):
             preemptible,
             job_private,
             location,
+            ''
+        )
+
+    async def update_lambda_vm_instance_id(self, instance_config, instance_id):
+        await self.db.execute_update(
+            f"""
+UPDATE instances
+SET instance_id = {instance_id} WHERE name = %s;
+""",
+            (instance_config['name'],),
         )
 
     async def create_vm(
         self,
-        file_store: FileStore,
         machine_name: str,
-        activation_token: str,
-        max_idle_time_msecs: int,
-        local_ssd_data_disk: bool,
-        data_disk_size_gb: int,
-        boot_disk_size_gb: int,
         preemptible: bool,
         job_private: bool,
         location: str,
         machine_type: str,
         instance_config: InstanceConfig,
     ) -> List[QuantifiedResource]:
-        # if local_ssd_data_disk:
-        #     assert data_disk_size_gb == 375
-
-        # resource_rates = self.billing_manager.resource_rates
-
-        # vm_config = create_vm_config(
-        #     file_store,
-        #     resource_rates,
-        #     location,
-        #     machine_name,
-        #     machine_type,
-        #     activation_token,
-        #     max_idle_time_msecs,
-        #     local_ssd_data_disk,
-        #     data_disk_size_gb,
-        #     boot_disk_size_gb,
-        #     preemptible,
-        #     job_private,
-        #     self.project,
-        #     instance_config,
-        # )
         API_KEY = os.environ['LAMBDA_API_KEY']
         BASE_URL = 'https://cloud.lambdalabs.com/api/v1/'
 
-        # Headers for authentication
         HEADERS = {
             'Authorization': f'Bearer {API_KEY}',
             'Content-Type': 'application/json'
@@ -132,13 +108,10 @@ class LambdaResourceManager(CloudResourceManager):
             }
             log.error(f'requests payload: {payload}')
             response = requests.post(url, headers=HEADERS, json=payload)
+            instance_id = response.json()['data']['instance_ids'][0]
             log.info(f'created machine {machine_name} with response {response.json()}')
+            self.update_lambda_vm_instance_id(instance_config, instance_id)
         except Exception:
             log.exception(f'error while creating machine {machine_name}')
-        # try:
-        #     params = {'requestId': str(uuid.uuid4())}
-        #     await self.compute_client.post(f'/zones/{location}/instances', params=params, json=vm_config)
-        #     log.info(f'created machine {machine_name}')
-        # except Exception:
-        #     log.exception(f'error while creating machine {machine_name}')
+
         return total_resources_on_instance

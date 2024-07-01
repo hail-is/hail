@@ -19,7 +19,7 @@ from ....driver.resource_manager import (
 )
 from ....file_store import FileStore
 from ....instance_config import InstanceConfig, QuantifiedResource
-from ..instance_config import GCPSlimInstanceConfig, LambdaSlimInstanceConfig
+from ..instance_config import GCPSlimInstanceConfig
 from ..resource_utils import (
     GCP_MACHINE_FAMILY,
     family_worker_type_cores_to_gcp_machine_type,

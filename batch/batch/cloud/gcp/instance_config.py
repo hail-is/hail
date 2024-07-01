@@ -166,6 +166,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
         preemptible: bool,
         job_private: bool,
         location: str,
+        instance_id: str,
     ) -> 'LambdaSlimInstanceConfig':  # pylint: disable=unused-argument
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
@@ -189,6 +190,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
             preemptible=preemptible,
             job_private=job_private,
             resources=resources,
+            instance_id=instance_id
         )
 
     def __init__(
@@ -197,6 +199,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
         preemptible: bool,
         job_private: bool,
         resources: List[GCPResource],
+        instance_id: str
     ):
         self.cloud = 'lambda'
         self._machine_type = machine_type
@@ -210,6 +213,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
         self._worker_type = machine_type_parts.worker_type
         self.cores = machine_type_parts.cores
         self.resources = resources
+        self.instance_id = instance_id
 
     def worker_type(self) -> str:
         return self._worker_type
@@ -237,6 +241,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
             preemptible,
             job_private,
             resources,
+            data['instance_id']
         )
 
     def to_dict(self) -> dict:
@@ -247,5 +252,6 @@ class LambdaSlimInstanceConfig(InstanceConfig):
             'preemptible': self.preemptible,
             'job_private': self.job_private,
             'resources': [resource.to_dict() for resource in self.resources],
+            'instance_id': self.instance_id
         }
 
