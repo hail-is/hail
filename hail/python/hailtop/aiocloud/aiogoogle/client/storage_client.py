@@ -428,6 +428,21 @@ class GoogleStorageClient(GoogleBaseClient):
         self._update_params_with_user_project(kwargs, bucket)
         await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
 
+    async def rewrite(self, src_bucket: str, src_name: str, dest_bucket: str, dest_name: str, **kwargs):
+        if not (src_bucket and src_name and dest_bucket and dest_name):
+            raise ValueError('source and destination buckets and names must all be defined')
+        if 'body' in kwargs:
+            raise ValueError('`body` must not be in rewrite request arguments')
+        if 'json' not in kwargs:
+            kwargs['json'] = ''
+        self._update_params_with_user_project(kwargs, src_bucket)
+        self._update_params_with_user_project(kwargs, dest_bucket)
+        path = (
+            f'/b/{src_bucket}/o/{urllib.parse.quote(src_name, safe="")}/rewriteTo'
+            f'/b/{dest_bucket}/o/{urllib.parse.quote(dest_name, safe="")}'
+        )
+        return await self.post(path, **kwargs)
+
     def _update_params_with_user_project(self, request_kwargs, bucket):
         if 'params' not in request_kwargs:
             request_kwargs['params'] = {}
