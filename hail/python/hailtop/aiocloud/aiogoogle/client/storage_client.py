@@ -5,7 +5,7 @@ import os
 import urllib.parse
 from contextlib import AsyncExitStack
 from types import TracebackType
-from typing import Any, AsyncIterator, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
+from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
 
 import aiohttp
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
@@ -851,6 +851,45 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status == 404:
                 raise FileNotFoundError(url) from e
             raise
+
+    async def copy_within_gcs(
+        self, src: str, dest: str, callback: Optional[Callable[[Dict[str, Any], bool], None]] = None
+    ) -> None:
+        """Copy a google cloud object ``src`` to another google cloud object ``dest``.
+
+        Parameters
+        ----------
+        src : :class:`str`
+            GCS object to copy, must be a valid ``gs://`` URL
+        dest : :class:`str`
+            Valid ``gs://`` URL for the destination of the copy
+        callback : function ( (response, first) -> None )
+            Optional callback to call after every request (for updating things like a progress bar).
+            The ``response`` argument is a `rewrite <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite#response>`_
+            response dictionary, and ``first`` will be ``True`` if this is the first time this
+            callback has been called for this copy.
+
+        Returns
+        -------
+        :obj:`NoneType`
+        """
+        src_url = self.parse_url(src, error_if_bucket=True)
+        dest_url = self.parse_url(dest, error_if_bucket=True)
+        kwargs = {'params': {}}
+        response = await retry_transient_errors(
+            self._storage_client.rewrite, src_url._bucket, src_url._path, dest_url._bucket, dest_url._path, **kwargs
+        )
+        first = True
+        while not response['done']:
+            if callback is not None:
+                callback(response, first)
+            first = False
+            kwargs['params']['rewriteToken'] = response['rewriteToken']
+            response = await retry_transient_errors(
+                self._storage_client.rewrite, src_url._bucket, src_url._path, dest_url._bucket, dest_url._path, **kwargs
+            )
+        if callback is not None:
+            callback(response, first)
 
     async def close(self) -> None:
         if hasattr(self, '_storage_client'):
