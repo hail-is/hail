@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import functools
 import os
+import random
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 
@@ -164,3 +165,14 @@ async def test_weird_urls(gs_filesystem):
 
     await fs.write(base + '???', b'contents of ???')
     assert await fs.read(base + '???') == b'contents of ???'
+
+
+async def test_rewrite(gs_filesystem):
+    _, fs, base = gs_filesystem
+
+    data = random.randbytes(1024 * 1024 * 20)
+    await fs.write(base + 'source', data)
+    assert await fs.read(base + 'source') == data
+
+    await fs.copy_within_gcs(base + 'source', base + 'dest')
+    assert await fs.read(base + 'dest') == data
