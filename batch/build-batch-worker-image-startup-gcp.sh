@@ -58,9 +58,10 @@ apt-get install -y g++-12
 update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 50
 update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 50
 
-wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/530.30.02/NVIDIA-Linux-x86_64-530.30.02.run
-chmod +x NVIDIA-Linux-x86_64-530.30.02.run
-./NVIDIA-Linux-x86_64-530.30.02.run --silent
+NVIDIA_VERSION=555.58.02
+wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/$NVIDIA_VERSION/NVIDIA-Linux-x86_64-$NVIDIA_VERSION.run
+chmod +x NVIDIA-Linux-x86_64-$NVIDIA_VERSION.run
+./NVIDIA-Linux-x86_64-$NVIDIA_VERSION.run --ui=none --no-questions > /var/log/nvidia-run.log
 
 apt-get --yes install nvidia-container-toolkit
 nvidia-ctk runtime configure --runtime=docker
