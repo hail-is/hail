@@ -11,8 +11,11 @@ import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
 // This is a pointer array, whose byteSize is the size of its pointer
-final case class PCanonicalArray(elementType: PType, required: Boolean = false) extends PArray {
+final case class PCanonicalArray(elementType: PType, required: Boolean = false)
+    extends PArray with PCanonicalArrayBackedContainer {
   assert(elementType.isRealizable)
+
+  def arrayRep = this
 
   def _asIdent = s"array_of_${elementType.asIdent}"
 
@@ -55,26 +58,26 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def setRequired(required: Boolean): PCanonicalArray =
     if (required == this.required) this else PCanonicalArray(elementType, required)
 
-  def loadLength(aoff: Long): Int =
+  override def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)
 
-  def loadLength(aoff: Code[Long]): Code[Int] =
+  override def loadLength(aoff: Code[Long]): Code[Int] =
     Region.loadInt(aoff)
 
   def storeLength(aoff: Long, length: Int): Unit =
     Region.storeInt(aoff, length)
 
-  def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit =
+  override def storeLength(cb: EmitCodeBuilder, aoff: Code[Long], length: Code[Int]): Unit =
     cb += Region.storeInt(aoff, length)
 
   def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
 
   def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)
 
-  def contentsByteSize(length: Int): Long =
+  override def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
 
-  def contentsByteSize(length: Code[Int]): Code[Long] =
+  override def contentsByteSize(length: Code[Int]): Code[Long] =
     Code.memoize(length, "contentsByteSize_arr_len") { length =>
       elementsOffset(length) + length.toL * elementByteSize
     }
@@ -96,13 +99,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private lazy val elementsOffsetTable: Array[Long] =
     Array.tabulate[Long](lengthOffsetTable)(i => _elementsOffset(i))
 
-  def elementsOffset(length: Int): Long =
+  override def elementsOffset(length: Int): Long =
     if (length < lengthOffsetTable)
       elementsOffsetTable(length)
     else
       _elementsOffset(length)
 
-  def elementsOffset(length: Code[Int]): Code[Long] =
+  override def elementsOffset(length: Code[Int]): Code[Long] =
     _elementsOffset(length)
 
   def missingBytesOffset: Long = lengthHeaderBytes
@@ -110,22 +113,22 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def pastLastMissingByteOff(aoff: Code[Long], len: Code[Int]): Code[Long] =
     aoff + lengthHeaderBytes + nMissingBytes(len).toL
 
-  def isElementDefined(aoff: Long, i: Int): Boolean =
+  override def isElementDefined(aoff: Long, i: Int): Boolean =
     elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
 
-  def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  override def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     if (elementRequired)
       true
     else
       !Region.loadBit(aoff + lengthHeaderBytes, i.toL)
 
-  def isElementMissing(aoff: Long, i: Int): Boolean =
+  override def isElementMissing(aoff: Long, i: Int): Boolean =
     !isElementDefined(aoff, i)
 
-  def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  override def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
     !isElementDefined(aoff, i)
 
-  def setElementMissing(aoff: Long, i: Int): Unit =
+  override def setElementMissing(aoff: Long, i: Int): Unit =
     if (!elementRequired)
       Region.setBit(aoff + lengthHeaderBytes, i)
 
@@ -134,38 +137,38 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     cb += Region.setBit(aoff + lengthHeaderBytes, i.toL)
   }
 
-  def setElementPresent(aoff: Long, i: Int): Unit =
+  override def setElementPresent(aoff: Long, i: Int): Unit =
     if (!elementRequired)
       Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
 
-  def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
+  override def setElementPresent(cb: EmitCodeBuilder, aoff: Code[Long], i: Code[Int]): Unit =
     if (!elementRequired)
       cb += Region.clearBit(aoff + lengthHeaderBytes, i.toL)
 
-  def firstElementOffset(aoff: Long, length: Int): Long =
+  override def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
 
   def firstElementOffset(aoff: Long): Long =
     aoff + elementsOffset(loadLength(aoff))
 
-  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+  override def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
     aoff + elementsOffset(length)
 
-  def firstElementOffset(aoff: Code[Long]): Code[Long] =
+  override def firstElementOffset(aoff: Code[Long]): Code[Long] =
     Code.memoize(aoff, "pcarr_first_elem_off_aoff") { aoff =>
       firstElementOffset(aoff, loadLength(aoff))
     }
 
-  def elementOffset(aoff: Long, length: Int, i: Int): Long =
+  override def elementOffset(aoff: Long, length: Int, i: Int): Long =
     firstElementOffset(aoff, length) + i * elementByteSize
 
-  def elementOffset(aoff: Long, i: Int): Long =
+  override def elementOffset(aoff: Long, i: Int): Long =
     firstElementOffset(aoff, loadLength(aoff)) + i * elementByteSize
 
-  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+  override def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
     firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
 
-  def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
+  override def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
     Code.memoize(aoff, "pcarr_elem_off_aoff") { aoff =>
       firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
     }
@@ -185,25 +188,25 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   override def pastLastElementOffset(aoff: Code[Long], length: Value[Int]): Code[Long] =
     firstElementOffset(aoff, length) + length.toL * elementByteSize
 
-  def nextElementAddress(currentOffset: Long) =
+  override def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
 
-  def nextElementAddress(currentOffset: Code[Long]) =
+  override def nextElementAddress(currentOffset: Code[Long]) =
     currentOffset + elementByteSize
 
-  def loadElement(aoff: Long, length: Int, i: Int): Long = {
+  override def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
     elementType.unstagedLoadFromNested(off)
   }
 
-  def loadElement(aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
+  override def loadElement(aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
 
-  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  override def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.loadFromNested(off)
   }
 
-  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
+  override def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
     Code.memoize(aoff, "pcarr_load_elem_aoff")(aoff => loadElement(aoff, loadLength(aoff), i))
 
   class Iterator(
@@ -227,24 +230,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def elementIterator(aoff: Long, length: Int): Iterator = new Iterator(aoff, length)
 
-  def allocate(region: Region, length: Int): Long =
+  override def allocate(region: Region, length: Int): Long =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+  override def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(aoff: Long, length: Int, value: Byte): Unit =
     Region.setMemory(aoff + lengthHeaderBytes, nMissingBytes(length), value)
 
-  def setAllMissingBits(aoff: Long, length: Int): Unit =
+  override def setAllMissingBits(aoff: Long, length: Int): Unit =
     if (!elementRequired)
       writeMissingness(aoff, length, -1)
 
-  def clearMissingBits(aoff: Long, length: Int): Unit =
+  override def clearMissingBits(aoff: Long, length: Int): Unit =
     if (!elementRequired)
       writeMissingness(aoff, length, 0)
 
-  def initialize(aoff: Long, length: Int, setMissing: Boolean = false): Unit = {
+  override def initialize(aoff: Long, length: Int, setMissing: Boolean = false): Unit = {
     Region.storeInt(aoff, length)
     if (setMissing)
       setAllMissingBits(aoff, length)
@@ -272,16 +275,16 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def zeroes(region: Region, length: Int): Long = {
-    require(elementType.isNumeric)
+  override def zeroes(region: Region, length: Int): Long = {
+    require(elementType.isPrimitive)
     val aoff = allocate(region, length)
     initialize(aoff, length)
     Region.setMemory(aoff + elementsOffset(length), length * elementByteSize, 0.toByte)
     aoff
   }
 
-  def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] = {
-    require(elementType.isNumeric)
+  override def zeroes(cb: EmitCodeBuilder, region: Value[Region], length: Code[Int]): Code[Long] = {
+    require(elementType.isPrimitive)
     val lengthMem = cb.memoize(length)
     val aoff = cb.memoize[Long](allocate(region, lengthMem))
     stagedInitialize(cb, aoff, lengthMem)
@@ -327,7 +330,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def hasMissingValues(srcAddress: Code[Long]): Code[Boolean] = {
+  override def hasMissingValues(srcAddress: Code[Long]): Code[Boolean] = {
     if (elementRequired)
       return const(false)
 
@@ -389,7 +392,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def _copyFromAddress(
+  override def _copyFromAddress(
     sm: HailStateManager,
     region: Region,
     srcPType: PType,
@@ -434,9 +437,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def sType: SIndexablePointer = SIndexablePointer(setRequired(false))
+  override def sType: SIndexablePointer = SIndexablePointer(setRequired(false))
 
-  def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
+  override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerValue = {
     val a = cb.memoize(addr)
     val length = cb.memoize(loadLength(a))
     val offset = cb.memoize(firstElementOffset(a, length))
@@ -504,7 +507,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SValue, deepCopy: Boolean)
     : Value[Long] = {
     assert(value.st.virtualType.isInstanceOf[TArray])
     value.st match {
@@ -519,7 +522,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def storeAtAddress(
+  override def storeAtAddress(
     cb: EmitCodeBuilder,
     addr: Code[Long],
     region: Value[Region],
@@ -528,7 +531,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   ): Unit =
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
 
-  def unstagedStoreAtAddress(
+  override def unstagedStoreAtAddress(
     sm: HailStateManager,
     addr: Long,
     region: Region,
@@ -687,7 +690,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     (push, finish)
   }
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+  override def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
   override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 

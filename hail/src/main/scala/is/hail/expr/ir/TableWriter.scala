@@ -128,7 +128,7 @@ object TableNativeWriter {
                 RVDSpecMaker(
                   rowSpec,
                   partitioner,
-                  IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](pKey)),
+                  IndexSpec.emptyAnnotation(ctx, "../index", tcoerce[PStruct](pKey)),
                 ),
               ),
             ),
@@ -158,9 +158,9 @@ case class TableNativeWriter(
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val rowSpec =
-      TypedCodecSpec(EType.fromTypeAndAnalysis(ts.rowType, r.rowType), ts.rowType, bufferSpec)
+      TypedCodecSpec(EType.fromTypeAndAnalysis(ctx, ts.rowType, r.rowType), ts.rowType, bufferSpec)
     val globalSpec = TypedCodecSpec(
-      EType.fromTypeAndAnalysis(ts.globalType, r.globalType),
+      EType.fromTypeAndAnalysis(ctx, ts.globalType, r.globalType),
       ts.globalType,
       bufferSpec,
     )
@@ -936,7 +936,7 @@ case class TableNativeFanoutWriter(
     val partitioner = ts.partitioner
     val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
     val globalSpec = TypedCodecSpec(
-      EType.fromTypeAndAnalysis(ts.globalType, r.globalType),
+      EType.fromTypeAndAnalysis(ctx, ts.globalType, r.globalType),
       ts.globalType,
       bufferSpec,
     )
@@ -952,7 +952,7 @@ case class TableNativeFanoutWriter(
         val targetRowType = rowType.typeAfterSelectNames(fieldAndKey)
         val targetRowRType = rowRType.select(fieldAndKey)
         val rowSpec = TypedCodecSpec(
-          EType.fromTypeAndAnalysis(targetRowType, targetRowRType),
+          EType.fromTypeAndAnalysis(ctx, targetRowType, targetRowRType),
           targetRowType,
           bufferSpec,
         )
@@ -1025,7 +1025,7 @@ case class TableNativeFanoutWriter(
                 RVDSpecMaker(
                   target.rowSpec,
                   partitioner,
-                  IndexSpec.emptyAnnotation("../index", tcoerce[PStruct](target.keyPType)),
+                  IndexSpec.emptyAnnotation(ctx, "../index", tcoerce[PStruct](target.keyPType)),
                 ),
               ),
             ),

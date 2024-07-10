@@ -12,7 +12,6 @@ class ConfigVariable(str, Enum):
     BATCH_BILLING_PROJECT = 'batch/billing_project'
     BATCH_BACKEND = 'batch/backend'
     QUERY_BACKEND = 'query/backend'
-    QUERY_JAR_URL = 'query/jar_url'
     QUERY_BATCH_DRIVER_CORES = 'query/batch_driver_cores'
     QUERY_BATCH_WORKER_CORES = 'query/batch_worker_cores'
     QUERY_BATCH_DRIVER_MEMORY = 'query/batch_driver_memory'

@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class UnionFindSuite extends TestNGSuite {

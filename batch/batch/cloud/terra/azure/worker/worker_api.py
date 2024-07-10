@@ -53,7 +53,8 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
             f'WORKSPACE_MANAGER_URL={self.workspace_manager_url}',
         ]
 
-    def create_disk(self, *_) -> CloudDisk:
+    def create_disk(self, instance_name: str, disk_name: str, size_in_gb: int, mount_path: str) -> CloudDisk:
+        del instance_name, disk_name, size_in_gb, mount_path
         raise NotImplementedError
 
     def get_cloud_async_fs(self) -> AsyncFS:
@@ -75,7 +76,14 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
         token = await self._managed_identity_credentials.access_token()
         return {'Authorization': f'Bearer {token}'}
 
-    async def _mount_cloudfuse(self, *_):
+    async def _mount_cloudfuse(
+        self,
+        credentials: Dict[str, str],
+        mount_base_path_data: str,
+        mount_base_path_tmp: str,
+        config: dict,
+    ):
+        del credentials, mount_base_path_data, mount_base_path_tmp, config
         raise NotImplementedError
 
     async def unmount_cloudfuse(self, mount_base_path_data: str):

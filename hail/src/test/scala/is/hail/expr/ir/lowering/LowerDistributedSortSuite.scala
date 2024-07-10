@@ -109,7 +109,7 @@ class LowerDistributedSortSuite extends HailSuite {
 
   @Test def testDistributedSort(): Unit = {
     val tableRange = TableRange(100, 10)
-    val rangeRow = Ref("row", tableRange.typ.rowType)
+    val rangeRow = Ref(TableIR.rowName, tableRange.typ.rowType)
     val tableWithExtraField = TableMapRows(
       tableRange,
       MakeStruct(IndexedSeq(

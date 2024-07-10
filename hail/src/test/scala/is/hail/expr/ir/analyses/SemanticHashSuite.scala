@@ -38,54 +38,57 @@ class SemanticHashSuite extends HailSuite {
       Array(NA(TInt32), NA(TFloat64), false, "Refl"),
     )
 
-  def mkRelationalLet(bindings: IndexedSeq[(String, IR)], body: IR): IR =
+  def mkRelationalLet(bindings: IndexedSeq[(Name, IR)], body: IR): IR =
     bindings.foldRight(body) { case ((name, value), body) =>
       RelationalLet(name, value, body)
     }
 
-  def isLetSemanticallyEquivalent: Array[Array[Any]] =
+  def isLetSemanticallyEquivalent: Array[Array[Any]] = {
+    val x = freshName()
+    val y = freshName()
     Array((Let(_, _), Ref), (mkRelationalLet _, RelationalRef)).flatMap { case (let, ref) =>
       Array(
         Array(
-          let(FastSeq("x" -> Void()), ref("x", TVoid)),
-          let(FastSeq("y" -> Void()), ref("y", TVoid)),
+          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+          let(FastSeq(y -> I32(0)), ref(y, TInt32)),
           true,
           "names used in let-bindings do not change semantics",
         ),
         Array(
-          let(FastSeq("x" -> Void(), "y" -> Void()), ref("x", TVoid)),
-          let(FastSeq("y" -> Void(), "x" -> Void()), ref("y", TVoid)),
+          let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
+          let(FastSeq(y -> I32(0), x -> I32(0)), ref(y, TInt32)),
           true,
           "names of let-bindings do not change semantics",
         ),
         Array(
-          let(FastSeq("a" -> I32(0)), ref("a", TInt32)),
-          let(FastSeq("a" -> Void()), ref("a", TVoid)),
+          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+          let(FastSeq(x -> I64(0)), ref(x, TInt64)),
           false,
           "different IRs",
         ),
         Array(
-          let(FastSeq("x" -> Void(), "y" -> Void()), ref("x", TVoid)),
-          let(FastSeq("y" -> Void(), "x" -> Void()), ref("x", TVoid)),
+          let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
+          let(FastSeq(y -> I32(0), x -> I32(0)), ref(x, TInt32)),
           false,
           "Different binding being referenced",
         ),
         /* `SemanticHash` does not perform or recognise opportunities for simplification.
          * The following examples demonstrate some of its limitations as a consequence. */
         Array(
-          let(FastSeq("A" -> Void()), ref("A", TVoid)),
-          let(FastSeq("A" -> let(FastSeq(genUID() -> I32(0)), Void())), ref("A", TVoid)),
+          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+          let(FastSeq(x -> let(FastSeq(freshName() -> I32(0)), I32(0))), ref(x, TInt32)),
           false,
           "SemanticHash does not simplify",
         ),
         Array(
-          let(FastSeq("A" -> Void()), ref("A", TVoid)),
-          let(FastSeq("A" -> Void(), "B" -> I32(0)), ref("A", TVoid)),
+          let(FastSeq(x -> I32(0)), ref(x, TInt32)),
+          let(FastSeq(x -> I32(0), y -> I32(0)), ref(x, TInt32)),
           false,
           "SemanticHash does not simplify",
         ),
       )
     }
+  }
 
   def isBaseStructSemanticallyEquivalent: Array[Array[Any]] =
     Array.concat(
@@ -97,8 +100,8 @@ class SemanticHashSuite extends HailSuite {
           "empty structs",
         ),
         Array(
-          MakeStruct(Array(genUID() -> Void())),
-          MakeStruct(Array(genUID() -> Void())),
+          MakeStruct(Array(genUID() -> I32(0))),
+          MakeStruct(Array(genUID() -> I32(0))),
           true,
           "field names do not affect MakeStruct semantics",
         ),
@@ -109,14 +112,14 @@ class SemanticHashSuite extends HailSuite {
           "empty tuples",
         ),
         Array(
-          MakeTuple(Array(0 -> Void())),
-          MakeTuple(Array(0 -> Void())),
+          MakeTuple(Array(0 -> I32(0))),
+          MakeTuple(Array(0 -> I32(0))),
           true,
           "identical tuples",
         ),
         Array(
-          MakeTuple(Array(0 -> Void())),
-          MakeTuple(Array(1 -> Void())),
+          MakeTuple(Array(0 -> I32(0))),
+          MakeTuple(Array(1 -> I32(0))),
           false,
           "tuple indices affect MakeTuple semantics",
         ),
@@ -127,19 +130,19 @@ class SemanticHashSuite extends HailSuite {
 
         Array(
           f(
-            mkType = i => TStruct(i.toString -> TVoid),
+            mkType = i => TStruct(i.toString -> TInt32),
             get = (ir, i) => GetField(ir, i.toString),
             isSame = true,
             "field names do not affect GetField semantics",
           ),
           f(
-            mkType = _ => TTuple(TVoid),
+            mkType = _ => TTuple(TInt32),
             get = (ir, _) => GetTupleElement(ir, 0),
             isSame = true,
             "GetTupleElement of same index",
           ),
           f(
-            mkType = i => TTuple(Array(TupleField(i, TVoid))),
+            mkType = i => TTuple(Array(TupleField(i, TInt32))),
             get = (ir, i) => GetTupleElement(ir, i),
             isSame = false,
             "GetTupleElement on different index",
@@ -234,7 +237,7 @@ class SemanticHashSuite extends HailSuite {
         },
       Array(
         TableGetGlobals,
-        TableAggregate(_, Void()),
+        TableAggregate(_, I32(0)),
         TableAggregateByKey(_, MakeStruct(FastSeq())),
         TableKeyByAndAggregate(
           _,
@@ -243,10 +246,10 @@ class SemanticHashSuite extends HailSuite {
           None,
           256,
         ),
-        TableCollect,
+        (ir: TableIR) => TableCollect(TableKeyBy(ir, FastSeq())),
         TableCount,
         TableDistinct,
-        TableFilter(_, Void()),
+        TableFilter(_, True()),
         TableMapGlobals(_, MakeStruct(IndexedSeq.empty)),
         TableMapRows(_, MakeStruct(FastSeq("a" -> I32(0)))),
         TableRename(_, Map.empty, Map.empty),
@@ -288,7 +291,11 @@ class SemanticHashSuite extends HailSuite {
         isValueIRSemanticallyEquivalent,
         isTableIRSemanticallyEquivalent,
         isBlockMatrixIRSemanticallyEquivalent,
-      )
+      ).map { x =>
+        TypeCheck(ctx, x(0).asInstanceOf[BaseIR])
+        TypeCheck(ctx, x(1).asInstanceOf[BaseIR])
+        x
+      }
     catch {
       case NonFatal(t) =>
         t.printStackTrace()

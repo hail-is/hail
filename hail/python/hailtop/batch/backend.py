@@ -62,11 +62,13 @@ class Backend(abc.ABC, Generic[RunningBatchType]):
     def requester_pays_fs(self, requester_pays_config: Optional[GCSRequesterPaysConfiguration]) -> RouterAsyncFS:
         return self._requester_pays_fses[requester_pays_config]
 
-    def validate_file(self, uri: str, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None) -> None:
-        self._validate_file(uri, self.requester_pays_fs(requester_pays_config))
+    async def validate_file(
+        self, uri: str, requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None
+    ) -> None:
+        await self._validate_file(uri, self.requester_pays_fs(requester_pays_config))
 
     @abc.abstractmethod
-    def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
+    async def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
         raise NotImplementedError
 
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> Optional[RunningBatchType]:
@@ -175,8 +177,8 @@ class LocalBackend(Backend[None]):
     def _fs(self) -> RouterAsyncFS:
         return self.__fs
 
-    def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
-        validate_file(uri, fs)
+    async def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
+        await validate_file(uri, fs)
 
     async def _async_run(
         self, batch: 'batch.Batch', dry_run: bool, verbose: bool, delete_scratch_on_exit: bool, **backend_kwargs
@@ -609,7 +611,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
         self.__fs = self._requester_pays_fses[None]
 
-        self.validate_file(self.remote_tmpdir)
+        async_to_blocking(self.validate_file(self.remote_tmpdir))
 
         if regions is None:
             regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, None, None)
@@ -630,8 +632,8 @@ class ServiceBackend(Backend[bc.Batch]):
     def _fs(self) -> RouterAsyncFS:
         return self.__fs
 
-    def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
-        validate_file(uri, fs, validate_scheme=True)
+    async def _validate_file(self, uri: str, fs: RouterAsyncFS) -> None:
+        await validate_file(uri, fs, validate_scheme=True)
 
     def _close(self):
         async_to_blocking(self._async_close())

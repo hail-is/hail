@@ -6,23 +6,20 @@ from ..globals import RESERVED_STORAGE_GB_PER_CORE
 from .azure.resource_utils import (
     azure_is_valid_storage_request,
     azure_local_ssd_size,
-    azure_machine_type_to_worker_type_and_cores,
+    azure_machine_type_to_cores_and_memory_bytes,
     azure_memory_to_worker_type,
     azure_requested_to_actual_storage_bytes,
     azure_valid_cores_from_worker_type,
     azure_valid_machine_types,
-    azure_worker_memory_per_core_mib,
 )
 from .gcp.resource_utils import (
-    gcp_cost_from_msec_mcpu,
     gcp_is_valid_storage_request,
     gcp_local_ssd_size,
-    gcp_machine_type_to_worker_type_and_cores,
+    gcp_machine_type_to_cores_and_memory_bytes,
     gcp_memory_to_worker_type,
     gcp_requested_to_actual_storage_bytes,
-    gcp_valid_cores_from_worker_type,
+    gcp_valid_cores_for_pool_worker_type,
     gcp_valid_machine_types,
-    gcp_worker_memory_per_core_mib,
 )
 
 log = logging.getLogger('resource_utils')
@@ -36,7 +33,7 @@ def possible_cores_from_worker_type(cloud: str, worker_type: str) -> List[int]:
     if cloud == 'azure':
         return azure_valid_cores_from_worker_type[worker_type]
     assert cloud == 'gcp'
-    return gcp_valid_cores_from_worker_type[worker_type]
+    return gcp_valid_cores_for_pool_worker_type[worker_type]
 
 
 def valid_machine_types(cloud: str) -> List[str]:
@@ -53,43 +50,11 @@ def memory_to_worker_type(cloud: str) -> Dict[str, str]:
     return gcp_memory_to_worker_type
 
 
-def machine_type_to_worker_type_cores(cloud: str, machine_type: str) -> Tuple[str, int]:
+def machine_type_to_cores_and_memory_bytes(cloud: str, machine_type: str) -> Tuple[int, int]:
     if cloud == 'azure':
-        return azure_machine_type_to_worker_type_and_cores(machine_type)
+        return azure_machine_type_to_cores_and_memory_bytes(machine_type)
     assert cloud == 'gcp'
-    return gcp_machine_type_to_worker_type_and_cores(machine_type)
-
-
-def cost_from_msec_mcpu(msec_mcpu: int) -> Optional[float]:
-    if msec_mcpu is None:
-        return None
-    # msec_mcpu is deprecated and only applicable to GCP
-    return gcp_cost_from_msec_mcpu(msec_mcpu)
-
-
-def worker_memory_per_core_mib(cloud: str, worker_type: str) -> int:
-    if cloud == 'azure':
-        return azure_worker_memory_per_core_mib(worker_type)
-    assert cloud == 'gcp'
-    return gcp_worker_memory_per_core_mib(worker_type)
-
-
-def worker_memory_per_core_bytes(cloud: str, worker_type: str) -> int:
-    m = worker_memory_per_core_mib(cloud, worker_type)
-    return int(m * 1024**2)
-
-
-def memory_bytes_to_cores_mcpu(cloud: str, memory_in_bytes: int, worker_type: str) -> int:
-    return math.ceil((memory_in_bytes / worker_memory_per_core_bytes(cloud, worker_type)) * 1000)
-
-
-def cores_mcpu_to_memory_bytes(cloud: str, cores_in_mcpu: int, worker_type: str) -> int:
-    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(cloud, worker_type))
-
-
-def adjust_cores_for_memory_request(cloud: str, cores_in_mcpu: int, memory_in_bytes: int, worker_type: str) -> int:
-    min_cores_mcpu = memory_bytes_to_cores_mcpu(cloud, memory_in_bytes, worker_type)
-    return max(cores_in_mcpu, min_cores_mcpu)
+    return gcp_machine_type_to_cores_and_memory_bytes(machine_type)
 
 
 def unreserved_worker_data_disk_size_gib(data_disk_size_gib: int, cores: int) -> int:

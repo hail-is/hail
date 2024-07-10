@@ -52,6 +52,47 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.132
+
+Released 2024-07-08
+
+### New Features
+
+- (hail#14572) Added `StringExpression.find` for finding substrings in a Hail str.
+
+### Bug Fixes
+
+- (hail#14574) Fixed `TypeError` bug when initializing Hail Query with `backend='batch'`.
+- (hail#14571) Fixed a deficiency that caused certain pipelines that construct Hail `NDArray`s
+from streams to run out of memory.
+- (hail#14579) Fix serialization bug that broke some Query-on-Batch pipelines with many complex expressions.
+- (hail#14567) Fix Jackson configuration that broke some Query-on-Batch pipelines with many complex expressions.
+
+## Version 0.2.131
+
+Released 2024-05-30
+
+### New Features
+
+- (hail#14560) The gvcf import stage of the VDS combiner now preserves the GT
+  of reference blocks. Some datasets have haploid calls on sex chromosomes,
+  and the fact that the reference was haploid should be preserved.
+
+### Bug Fixes
+
+- (hail#14563) The version of `notebook` installed in Hail Dataproc clusters has
+  been upgraded from 6.5.4 to 6.5.6 in order to fix a bug where Jupyter
+  Notebooks wouldn't start on clusters. The workaround involving creating
+  a cluster with `--packages='ipython<8.22'` is no longer necessary.
+
+### Deprecations
+
+- (hail#14158) Hail now supports and primarily tests against Dataproc 2.2.5,
+  Spark 3.5.0, and Java 11. We strongly recommend updating to Spark 3.5.0 and
+  Java 11. You should also update your GCS connector *after installing Hail*:
+  `curl https://broad.io/install-gcs-connector | python3`. Do not try to update
+  before installing Hail 0.2.131.
+
 ## Version 0.2.130
 
 Released 2024-10-02

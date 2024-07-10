@@ -102,7 +102,7 @@ class RequirednessSuite extends HailSuite {
   def pinterval(point: PType, r: Boolean): PInterval = PCanonicalInterval(point, r)
 
   @DataProvider(name = "valueIR")
-  def valueIR(): Array[Array[Any]] = {
+  def valueIR(): Array[Array[Any]] = withExecuteContext() { ctx =>
     val nodes = new BoxedArrayBuilder[Array[Any]](50)
 
     val allRequired = Array(
@@ -170,7 +170,7 @@ class RequirednessSuite extends HailSuite {
       "c" -> PCanonicalArray(pstruct(required, required, optional, required), required),
     )
 
-    val spec = TypedCodecSpec(pDisc, BufferSpec.default)
+    val spec = TypedCodecSpec(ctx, pDisc, BufferSpec.default)
     val vr = ETypeValueWriter(spec)
     val pr = PartitionNativeReader(spec, "rowUID")
     val contextType = pr.contextType
@@ -210,100 +210,57 @@ class RequirednessSuite extends HailSuite {
       bindIR(nestedarray(required, optional, optional))(v => ArrayRef(v, I32(0))),
       PCanonicalArray(PInt32(optional), optional),
     )
-    nodes += {
-      val arr = array(required, required)
-      val elemType = TIterable.elementType(arr.typ)
-      Array(
-        Let(
-          FastSeq(
-            iruid(0) -> int(optional),
-            iruid(1) -> arr,
-            iruid(2) -> ToStream(Ref(iruid(1), arr.typ)),
-            iruid(4) -> StreamMap(
-              Ref(iruid(2), TStream(elemType)),
-              iruid(3),
-              ApplyBinaryPrimOp(Multiply(), Ref(iruid(3), elemType), Ref(iruid(0), elemType)),
-            ),
-            iruid(5) -> ToArray(Ref(iruid(4), TStream(elemType))),
-            iruid(6) -> int(required),
-          ),
-          ArrayRef(Ref(iruid(5), arr.typ), Ref(iruid(6), TInt32)),
-        ),
-        pint(optional),
-      )
-    }
+    nodes += Array(
+      IRBuilder.scoped { b =>
+        val x0 = b.strictMemoize(int(optional))
+        val x1 = b.strictMemoize(array(required, required))
+        val x2 = b.strictMemoize(ToStream(x1))
+        val x3 = b.strictMemoize(mapIR(x2)(x => x * x0))
+        val x4 = b.strictMemoize(ToArray(x3))
+        val x5 = int(required)
+        ArrayRef(x4, x5)
+      },
+      pint(optional),
+    )
     // filter
     nodes += Array(
-      StreamFilter(stream(optional, optional), "x", Ref("x", TInt32).ceq(0)),
+      filterIR(stream(optional, optional))(_.ceq(0)),
       EmitType(SStream(EmitType(SInt32, optional)), optional),
     )
     // StreamFold
     nodes += Array(
-      StreamFold(
-        nestedstream(optional, optional, optional),
-        I32(0),
-        "a",
-        "b",
-        ArrayRef(Ref("b", tarray), Ref("a", TInt32)),
-      ),
+      foldIR(nestedstream(optional, optional, optional), I32(0))((a, b) => ArrayRef(b, a)),
       PInt32(optional),
     )
     // StreamFold2
     nodes += Array(
-      StreamFold2(
-        nestedstream(optional, optional, optional),
-        FastSeq("b" -> I32(0)),
-        "a",
-        FastSeq(ArrayRef(Ref("a", tarray), Ref("b", TInt32))),
-        Ref("b", TInt32),
-      ),
+      fold2IR(nestedstream(optional, optional, optional), I32(0)) {
+        case (a, Seq(b)) =>
+          ArrayRef(a, b)
+      } { case Seq(b) => b },
       PInt32(optional),
     )
     // StreamScan
     nodes += Array(
-      StreamScan(
-        nestedstream(optional, optional, optional),
-        I32(0),
-        "a",
-        "b",
-        ArrayRef(Ref("b", tarray), Ref("a", TInt32)),
-      ),
+      streamScanIR(nestedstream(optional, optional, optional), I32(0))((a, b) => ArrayRef(b, a)),
       EmitType(SStream(EmitType(SInt32, optional)), optional),
     )
     // TailLoop
-    val param1 = Ref(genUID(), tarray)
-    val param2 = Ref(genUID(), TInt32)
-    val loop = TailLoop(
-      "loop",
-      FastSeq(
-        param1.name -> array(required, required),
-        param2.name -> int(required),
-      ),
+    val loop = tailLoop(
       tnestedarray,
+      array(required, required),
+      int(required),
+    ) { case (recur, Seq(param1, param2)) =>
       If(
         False(), // required
         MakeArray(FastSeq(param1), tnestedarray), // required
         If(
           param2 <= I32(1), // possibly missing
-          Recur(
-            "loop",
-            FastSeq(
-              array(required, optional),
-              int(required),
-            ),
-            tnestedarray,
-          ),
-          Recur(
-            "loop",
-            FastSeq(
-              array(optional, required),
-              int(optional),
-            ),
-            tnestedarray,
-          ),
+          recur(FastSeq(array(required, optional), int(required))),
+          recur(FastSeq(array(optional, required), int(optional))),
         ),
-      ),
-    )
+      )
+    }
     nodes += Array(loop, PCanonicalArray(PCanonicalArray(PInt32(optional), optional), optional))
     // Switch
     for (
@@ -316,38 +273,24 @@ class RequirednessSuite extends HailSuite {
     )
       nodes += Array(Switch(int(x), int(d), cs.map(int)), PInt32(r))
     // ArrayZip
-    val s1 = Ref(genUID(), TInt32)
-    val s2 = Ref(genUID(), TInt32)
-    val notExtendNA = StreamZip(
+    val notExtendNA = zipIR(
       FastSeq(stream(required, optional), stream(required, required)),
-      FastSeq(s1.name, s2.name),
-      s1 + s2,
       ArrayZipBehavior.TakeMinLength,
-    )
-    val extendNA = StreamZip(
+    ) { case Seq(s1, s2) => s1 + s2 }
+    val extendNA = zipIR(
       FastSeq(stream(required, required), stream(required, required)),
-      FastSeq(s1.name, s2.name),
-      s1 + s2,
       ArrayZipBehavior.ExtendNA,
-    )
+    ) { case Seq(s1, s2) => s1 + s2 }
     nodes += Array(notExtendNA, pstream(required, optional))
     nodes += Array(extendNA, pstream(required, optional))
     // ArraySort
     nodes += Array(
-      ArraySort(stream(optional, required), s1.name, s2.name, True()),
+      sortIR(stream(optional, required))((_, _) => True()),
       parray(optional, required),
     )
     // CollectDistributedArray
     nodes += Array(
-      CollectDistributedArray(
-        stream(optional, required),
-        int(optional),
-        s1.name,
-        s2.name,
-        s1 + s2,
-        NA(TString),
-        "test",
-      ),
+      cdaIR(stream(optional, required), int(optional), "test", NA(TString))(_ + _),
       parray(optional, optional),
     )
 
@@ -440,8 +383,8 @@ class RequirednessSuite extends HailSuite {
       "z" -> pstruct(required, required, required, optional),
     )
 
-    def row = Ref("row", table.typ.rowType)
-    def global = Ref("global", table.typ.globalType)
+    def row = Ref(TableIR.rowName, table.typ.rowType)
+    def global = Ref(TableIR.globalName, table.typ.globalType)
 
     // type-preserving
     nodes += Array(table, rowType, globalType)
@@ -725,8 +668,7 @@ class RequirednessSuite extends HailSuite {
   }
 
   @Test def sharedNodesWorkCorrectly(): Unit = {
-    val n1 = Ref("foo", TInt32)
-    val n2 = Let(FastSeq("foo" -> I32(1)), MakeStruct(FastSeq("a" -> n1, "b" -> n1)))
+    val n2 = bindIR(I32(1))(x => MakeStruct(FastSeq("a" -> x, "b" -> x)))
     val node = InsertFields(n2, FastSeq("c" -> GetField(n2, "a"), "d" -> GetField(n2, "b")))
     val res = Requiredness.apply(node, ctx)
     val actual = tcoerce[TypeWithRequiredness](res.r.lookup(node)).canonicalPType(node.typ)

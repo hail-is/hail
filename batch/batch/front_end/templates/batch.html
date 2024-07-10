@@ -1,125 +1,135 @@
 {% from "table_search.html" import table_search with context %}
+{% from "components/metadata_tables.html" import kv_table, resource_cost_table, collapsible_li %}
+{% from "components/utils.html" import
+batch_state_indicator, job_state_indicator, danger_button, submit_button, link
+%}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block head %}
-  <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+<script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
-
-<h1>Batch {{ batch['id'] }}</h1>
-
-<h2>Properties</h2>
-<ul>
-  <li>User: {{ batch['user'] }}</li>
-  <li>Billing Project: {{ batch['billing_project'] }}</li>
-  <li>Time Created: {% if 'time_created' in batch and batch['time_created'] is not none %}{{ batch['time_created'] }}{% endif %}</li>
-  <li>Time Completed: {% if 'time_completed' in batch and batch['time_completed'] is not none %}{{ batch['time_completed'] }}{% endif %}</li>
-  <li>Total Jobs: {{ batch['n_jobs'] }}</li>
-  <ul>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dpending">Pending</a>
-      + <a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Drunning">Running</a> Jobs: {{ batch['n_jobs'] - batch['n_completed'] }}</li>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dsuccess">Succeeded</a> Jobs: {{ batch['n_succeeded'] }}</li>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dfailed">Failed</a> Jobs: {{ batch['n_failed'] }}</li>
-    <li><a href="{{ base_path }}/batches/{{ batch['id'] }}?q=state%3Dcancelled">Cancelled</a> Jobs: {{ batch['n_cancelled'] }}</li>
-  </ul>
-  <li>Duration: {% if 'duration' in batch and batch['duration'] is not none %}{{ batch['duration'] }}{% endif %}</li>
-  <li>Cost: {% if 'cost' in batch and batch['cost'] is not none %}{{ batch['cost'] }}{% endif %}</li>
-</ul>
-
-{% if not batch['complete'] and batch['state'] != 'Cancelled' %}
-<form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
-  <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-  {% if q is not none %}
-  <input type="hidden" name="q" value="{{ q }}"/>
-  {% endif %}
-  <button>Cancel</button>
-</form>
-{% endif %}
-
-<h2>Attributes</h2>
-{% if 'attributes' in batch %}
-{% for name, value in batch['attributes'].items() %}
-<p>{{ name }}: {{ value }}</p>
-{% endfor %}
-{% endif %}
-
-<h2>Cost Breakdown</h2>
-{% if batch['cost_breakdown'] %}
-<table class="data-table">
-  <thead>
-    <tr>
-      <th>Resource</th>
-      <th>Cost</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for resource_cost in batch['cost_breakdown'] %}
-    <tr>
-      <td>{{ resource_cost['resource'] }}</td>
-      <td>{{ resource_cost['cost'] }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p>No accrued costs</p>
-{% endif %}
-
-<h2>Jobs</h2>
-<div class="flex-col">
-  {{ table_search("job-search", base_path ~ "/batches/" ~ batch["id"]) }}
-  <div class='flex-col' style="overflow: auto;">
-    <table class="data-table" id="batch" style="width: 100%">
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Name</th>
-          <th>State</th>
-          <th>Exit Code</th>
-          <th>Duration</th>
-          <th>Cost</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in batch['jobs'] %}
-        <tr>
-          <td class="numeric-cell">
-            <a class="fill-td" href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-          </td>
-          <td>
-            {% if 'name' in job and job['name'] is not none %}
-            {{ job['name'] }}
+<div class='flex flex-wrap justify-around pt-8 gap-y-4'>
+  <div class='drop-shadow-sm w-full md:basis-2/3 lg:basis-1/3'>
+    <ul class='border border-collapse divide-y bg-slate-50 rounded'>
+      <li class='p-4'>
+        <div class='flex w-full justify-between items-center'>
+          <div class='text-xl font-light'>Batch {{ batch['id'] }}</div>
+          {{ batch_state_indicator(batch) }}
+        </div>
+        <div class='text-xl font-light py-2 overflow-auto'>
+          {% if 'attributes' in batch and 'name' in batch['attributes'] %}
+          {{ batch['attributes']['name'] }}
+          {% endif %}
+        </div>
+        <div class='flex justify-between items-center'>
+          <div>
+            <div class='font-light text-zinc-500'>Submitted by {{ batch['user'] }}</div>
+            <div class='font-light text-zinc-500'>Billed to {{ batch['billing_project'] }}</div>
+          </div>
+          {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
+          <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+            {% if q is not none %}
+            <input type="hidden" name="q" value="{{ q }}" />
             {% endif %}
-          </td>
-          <td>{{ job['display_state'] }}</td>
-          <td>
-            {% if 'exit_code' in job and job['exit_code'] is not none %}
-            {{ job['exit_code'] }}
-            {% endif %}
-          </td>
-          <td>
-            {% if 'duration' in job and job['duration'] is not none %}
-            {{ job['duration'] }}
-            {% endif %}
-          </td>
-          <td>
-            {% if 'cost' in job and job['cost'] is not none %}
-            {{ job['cost'] }}
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+            {{ danger_button('Cancel') }}
+          </form>
+          {% elif batch['complete'] %}
+          <form action="{{ base_path }}/batches/{{ batch['id'] }}/delete" method="post">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+            {{ danger_button('Delete') }}
+          </form>
+          {% endif %}
+        </div>
+      </li>
+
+      {% call collapsible_li(true, 'Jobs', batch['n_jobs']) %}
+      {{ kv_table({
+      'Pending': batch['n_jobs'] - batch['n_completed'],
+      'Succeeded': batch['n_succeeded'],
+      'Failed': batch['n_failed'],
+      'Cancelled': batch['n_cancelled']
+      })}}
+      {% endcall %}
+
+      {% if 'attributes' in batch and batch['attributes'] %}
+      {% call collapsible_li(false, 'Attributes', '') %}
+      {{ kv_table(batch['attributes']) }}
+      {% endcall %}
+      {% endif %}
+
+      {% call collapsible_li(false, 'Duration', batch.get('duration') or '') %}
+      {{ kv_table({
+      'Created': batch.get('time_created') or '',
+      'Completed': batch.get('time_completed') or '',
+      })}}
+      {% endcall %}
+
+      {% call collapsible_li(false, 'Cost', batch.get('cost')) %}
+      {{ resource_cost_table(batch['cost_breakdown'] or {}) }}
+      {% endcall %}
+    </ul>
   </div>
-  {% if last_job_id is not none %}
-  <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
-    {% if q is not none %}
-    <input type="hidden" name="q" value="{{ q }}" />
+  <div class="flex flex-col w-full lg:basis-3/5">
+    {{ table_search("job-search", base_path ~ "/batches/" ~ batch["id"]) }}
+    <div class='flex flex-col mt-4'>
+      <table class="table-auto w-full" id="batch">
+        <thead>
+          <th class='h-12 bg-slate-200 font-light text-md text-left px-4 rounded-tl'>ID</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left rounded-tr md:rounded-tr-none'>
+            Name</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Exit Code</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Duration</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr'>Cost</th>
+        </thead>
+        <tbody class='border border-collapse border-slate-50'>
+          {% for job in batch['jobs'] %}
+          <tr class='border border-collapse hover:bg-slate-100'>
+            <td class='font-light pl-4 w-20'>
+              {{ link(base_path ~ '/batches/' ~ job['batch_id'] ~ '/jobs/' ~ job['job_id'], job['job_id']) }}
+            </td>
+            <td class='py-1 block overflow-x-auto'>
+              <div class='flex flex-col space-x-0 md:space-x-2 md:flex-row md:flex-wrap'>
+                {% if 'name' in job and job['name'] is not none %}
+                <div class='text-wrap'>
+                  {{ link(base_path ~ '/batches/' ~ job['batch_id'] ~ '/jobs/' ~ job['job_id'], job['name']) }}
+                </div>
+                {% else %}
+                <div class='text-wrap text-zinc-400 italic'>
+                  {{ link(base_path ~ '/batches/' ~ job['batch_id'] ~ '/jobs/' ~ job['job_id'], 'no name') }}
+                </div>
+                {% endif %}
+                <div class='flex items-center'>
+                  {{ job_state_indicator(job) }}
+                </div>
+              </div>
+            </td>
+            <td class='hidden lg:table-cell font-light'>
+              {{ job.get('exit_code', '') }}
+            </td>
+            <td class='hidden lg:table-cell font-light'>
+              {{ job.get('duration') or '' }}
+            </td>
+            <td class='hidden md:table-cell font-light'>
+              {{ job.get('cost') or '' }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if last_job_id is not none %}
+    <div class='pt-2 flex w-full justify-end'>
+      <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
+        {% if q is not none %}
+        <input type="hidden" name="q" value="{{ q }}" />
+        {% endif %}
+        <input type="hidden" name="last_job_id" value="{{ last_job_id }}" />
+        {{ submit_button('Next page') }}
+      </form>
+    </div>
     {% endif %}
-    <input type="hidden" name="last_job_id" value="{{ last_job_id }}" />
-    <button>Next page</button>
-  </form>
-  {% endif %}
+  </div>
 </div>
 {% endblock %}

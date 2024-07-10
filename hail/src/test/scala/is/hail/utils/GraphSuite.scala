@@ -2,7 +2,7 @@ package is.hail.utils
 
 import scala.collection.mutable
 
-import org.scalatest.Matchers._
+import org.scalatest.matchers.should.Matchers._
 import org.testng.annotations.Test
 
 class GraphSuite {

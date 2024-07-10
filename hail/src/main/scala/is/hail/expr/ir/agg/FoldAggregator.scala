@@ -5,7 +5,7 @@ import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
   Emit, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitContext, EmitEnv, EmitMethodBuilder, Env,
-  IEmitCode, IR,
+  IEmitCode, IR, Name,
 }
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual.Type
@@ -14,8 +14,8 @@ import is.hail.types.virtual.Type
 
 class FoldAggregator(
   val resultEmitType: EmitType,
-  accumName: String,
-  otherAccumName: String,
+  accumName: Name,
+  otherAccumName: Name,
   combOpIR: IR,
 ) extends StagedAggregator {
   override type State = TypedRegionBackedAggState

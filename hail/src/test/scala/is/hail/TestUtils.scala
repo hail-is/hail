@@ -153,17 +153,17 @@ object TestUtils {
 
     val argsType = TTuple(inputTypesB.result(): _*)
     val resultType = TTuple(x.typ)
-    val argsVar = genUID()
+    val argsVar = Ref(freshName(), argsType)
 
     val (_, substEnv) =
       env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (_, _))) =>
-        (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
+        (i + 1, env.bind(name, GetTupleElement(argsVar, i)))
       }
 
     def rewrite(x: IR): IR = {
       x match {
         case In(i, _) =>
-          GetTupleElement(Ref(argsVar, argsType), i)
+          GetTupleElement(argsVar, i)
         case _ =>
           MapIR(rewrite)(x)
       }
@@ -172,30 +172,30 @@ object TestUtils {
     val argsPType = PType.canonical(argsType).setRequired(true)
     agg match {
       case Some((aggElements, aggType)) =>
-        val aggElementVar = genUID()
-        val aggArrayVar = genUID()
         val aggPType = PType.canonical(aggType)
         val aggArrayPType = PCanonicalArray(aggPType, required = true)
+        val aggArrayVar = Ref(freshName(), aggArrayPType.virtualType)
 
-        val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
-          env.bind(f.name, GetField(Ref(aggElementVar, aggType), f.name))
-        }
-        val aggIR = StreamAgg(
-          ToStream(Ref(aggArrayVar, aggArrayPType.virtualType)),
-          aggElementVar,
+        val aggIR = streamAggIR(ToStream(aggArrayVar)) { aggElementVar =>
+          val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
+            env.bind(Name(f.name), GetField(aggElementVar, f.name))
+          }
           MakeTuple.ordered(FastSeq(rewrite(Subst(
             x,
             BindingEnv(eval = substEnv, agg = Some(substAggEnv)),
-          )))),
-        )
+          ))))
+        }
 
         val (Some(PTypeReferenceSingleCodeType(resultType2)), f) =
           Compile[AsmFunction3RegionLongLongLong](
             ctx,
             FastSeq(
-              (argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
               (
-                aggArrayVar,
+                argsVar.name,
+                SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)),
+              ),
+              (
+                aggArrayVar.name,
                 SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)),
               ),
             ),
@@ -235,7 +235,7 @@ object TestUtils {
           Compile[AsmFunction2RegionLongLong](
             ctx,
             FastSeq((
-              argsVar,
+              argsVar.name,
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)),
             )),
             FastSeq(classInfo[Region], LongInfo),

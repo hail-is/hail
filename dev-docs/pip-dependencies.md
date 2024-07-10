@@ -10,12 +10,11 @@ This allows deterministic builds in our Dockerfiles. When adding a dependency
 to a `requirements.txt` file, run
 
 ```bash
-make generate-pip-lockfile
+make generate-pip-lockfiles
 ```
 
-to regenerate the `pinnned-requirements.txt` file to one compatible with the
-new requirements. Note that the full dependency tree for a pip package can
-differ on different operating systems. At the time of writing, the dependencies
-for the hail pip package should be identical on MacOS and Linux, but the services
-dependencies differ so are generated in a linux docker container as that's the
-platform on which the services modules will run.
+to regenerate the `pinnned-requirements.txt` files in the repository.
+Note that the full dependency tree for a pip package can
+differ on different operating systems. All services and docker images in CI
+use the fully pinned requirements on a Linux platform, so the pinned requirements
+files are only generated for Linux.

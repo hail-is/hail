@@ -23,8 +23,8 @@ class MatrixIRSuite extends HailSuite {
     val withEntries = MatrixMapEntries(
       range,
       makestruct(
-        "i" -> GetField(Ref("va", range.typ.rowType), "row_idx"),
-        "j" -> GetField(Ref("sa", range.typ.colType), "col_idx"),
+        "i" -> GetField(Ref(MatrixIR.rowName, range.typ.rowType), "row_idx"),
+        "j" -> GetField(Ref(MatrixIR.colName, range.typ.colType), "col_idx"),
       ),
     )
     val original = MatrixMapGlobals(withEntries, makestruct("foo" -> I32(0)))
@@ -100,9 +100,9 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testScanCountBehavesLikeIndexOnRows(): Unit = {
     val mt = rangeMatrix()
-    val oldRow = Ref("va", mt.typ.rowType)
+    val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
+    val newRow = InsertFields(oldRow, FastSeq("idx" -> IRScanCount))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -111,9 +111,10 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testScanCollectBehavesLikeRangeOnRows(): Unit = {
     val mt = rangeMatrix()
-    val oldRow = Ref("va", mt.typ.rowType)
+    val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
-    val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
+    val newRow =
+      InsertFields(oldRow, FastSeq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -124,11 +125,11 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows(): Unit = {
     val mt = rangeMatrix()
-    val oldRow = Ref("va", mt.typ.rowType)
+    val oldRow = Ref(MatrixIR.rowName, mt.typ.rowType)
 
     val newRow = InsertFields(
       oldRow,
-      Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)),
+      FastSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)),
     )
 
     val newMatrix = MatrixMapRows(mt, newRow)
@@ -140,9 +141,9 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testScanCountBehavesLikeIndexOnCols(): Unit = {
     val mt = rangeMatrix()
-    val oldCol = Ref("sa", mt.typ.colType)
+    val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("idx" -> IRScanCount))
+    val newCol = InsertFields(oldCol, FastSeq("idx" -> IRScanCount))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -151,9 +152,10 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testScanCollectBehavesLikeRangeOnCols(): Unit = {
     val mt = rangeMatrix()
-    val oldCol = Ref("sa", mt.typ.colType)
+    val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
+    val newCol =
+      InsertFields(oldCol, FastSeq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -164,11 +166,11 @@ class MatrixIRSuite extends HailSuite {
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols(): Unit = {
     val mt = rangeMatrix()
-    val oldCol = Ref("sa", mt.typ.colType)
+    val oldCol = Ref(MatrixIR.colName, mt.typ.colType)
 
     val newCol = InsertFields(
       oldCol,
-      Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)),
+      FastSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)),
     )
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
@@ -181,7 +183,7 @@ class MatrixIRSuite extends HailSuite {
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
     val baseRange = rangeMatrix(i, 5, Some(math.max(1, math.min(4, i))))
-    val row = Ref("va", baseRange.typ.rowType)
+    val row = Ref(MatrixIR.rowName, baseRange.typ.rowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
         MatrixKeyRowsBy(baseRange, FastSeq()),
@@ -235,7 +237,8 @@ class MatrixIRSuite extends HailSuite {
     val range = rangeMatrix(5, 2, None)
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rowType), FastSeq(field)))
+    val annotated =
+      MatrixMapRows(range, InsertFields(Ref(MatrixIR.rowName, range.typ.rowType), FastSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
     val exploded =
@@ -334,12 +337,12 @@ class MatrixIRSuite extends HailSuite {
     def rand(rng: IR): IR =
       ApplySeeded("rand_bool", FastSeq(0.5), rng, 0, TBoolean)
 
-    val colUID = GetField(Ref("sa", range.typ.colType), MatrixReader.colUIDFieldName)
+    val colUID = GetField(Ref(MatrixIR.colName, range.typ.colType), MatrixReader.colUIDFieldName)
     val colRNG = RNGSplit(RNGStateLiteral(), colUID)
     val cols = Interpret(MatrixFilterCols(range, rand(colRNG)), ctx, optimize = true).toMatrixValue(
       range.typ.colKey
     ).nCols
-    val rowUID = GetField(Ref("va", range.typ.rowType), MatrixReader.rowUIDFieldName)
+    val rowUID = GetField(Ref(MatrixIR.rowName, range.typ.rowType), MatrixReader.rowUIDFieldName)
     val rowRNG = RNGSplit(RNGStateLiteral(), rowUID)
     val rows = Interpret(MatrixFilterRows(range, rand(rowRNG)), ctx, optimize = true).rvd.count()
     val entryRNG = RNGSplit(RNGStateLiteral(), MakeTuple.ordered(FastSeq(rowUID, colUID)))

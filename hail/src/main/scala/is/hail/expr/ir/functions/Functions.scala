@@ -15,7 +15,6 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, ReferenceGenome}
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect._
 
@@ -64,40 +63,17 @@ object IRFunctionRegistry {
     m.update((typeParameters, valueParameterTypes, returnType, alwaysInline), f)
   }
 
-  def pyRegisterIR(
-    name: String,
-    typeParamStrs: java.util.ArrayList[String],
-    argNames: java.util.ArrayList[String],
-    argTypeStrs: java.util.ArrayList[String],
-    returnType: String,
-    body: IR,
-  ): Unit = {
-    requireJavaIdentifier(name)
-
-    val typeParameters = typeParamStrs.asScala.map(IRParser.parseType).toFastSeq
-    val valueParameterTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastSeq
-    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
-    addIR(
-      name,
-      typeParameters,
-      valueParameterTypes,
-      IRParser.parseType(returnType),
-      false,
-      (_, args, _) => Subst(body, BindingEnv(Env[IR](argNames.asScala.zip(args): _*))),
-    )
-  }
-
-  def pyRegisterIRForServiceBackend(
+  def registerIR(
     ctx: ExecuteContext,
     name: String,
     typeParamStrs: Array[String],
-    argNames: Array[String],
+    argNameStrs: Array[String],
     argTypeStrs: Array[String],
     returnType: String,
     bodyStr: String,
   ): Unit = {
     requireJavaIdentifier(name)
-
+    val argNames = argNameStrs.map(Name)
     val typeParameters = typeParamStrs.map(IRParser.parseType).toFastSeq
     val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastSeq
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
@@ -114,7 +90,7 @@ object IRFunctionRegistry {
       valueParameterTypes,
       IRParser.parseType(returnType),
       false,
-      (_, args, _) => Subst(body, BindingEnv(Env[IR](argNames.zip(args): _*))),
+      (_, args, _) => Subst(body, BindingEnv.eval(argNames.zip(args): _*)),
     )
   }
 

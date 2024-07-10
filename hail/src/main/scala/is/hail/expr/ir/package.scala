@@ -2,9 +2,12 @@ package is.hail.expr
 
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.rvd.RVDPartitioner
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
+import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils._
 
 import scala.language.implicitConversions
@@ -22,6 +25,8 @@ package object ir {
     uidCounter += 1
     uid
   }
+
+  def freshName(): Name = Name(genUID())
 
   def iruid(i: Long): String =
     s"__iruid_$i"
@@ -81,22 +86,27 @@ package object ir {
   }
 
   def bindIRs(values: IR*)(body: Seq[Ref] => IR): IR = {
-    val bindings = values.toFastSeq.map(genUID() -> _)
+    val bindings = values.toFastSeq.map(freshName() -> _)
     Let(bindings, body(bindings.map(b => Ref(b._1, b._2.typ))))
   }
 
   def bindIR(v: IR)(body: Ref => IR): IR =
     bindIRs(v) { case Seq(ref) => body(ref) }
 
+  def relationalBindIR(v: IR)(body: RelationalRef => IR): IR = {
+    val ref = RelationalRef(freshName(), v.typ)
+    RelationalLet(ref.name, v, body(ref))
+  }
+
   def iota(start: IR, step: IR): IR = StreamIota(start, step)
 
   def dropWhile(v: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](v.typ).elementType)
+    val ref = Ref(freshName(), tcoerce[TStream](v.typ).elementType)
     StreamDropWhile(v, ref.name, f(ref))
   }
 
   def takeWhile(v: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](v.typ).elementType)
+    val ref = Ref(freshName(), tcoerce[TStream](v.typ).elementType)
     StreamTakeWhile(v, ref.name, f(ref))
   }
 
@@ -106,23 +116,28 @@ package object ir {
   def minIR(a: IR, b: IR): IR =
     If(a < b, a, b)
 
-  def streamAggIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
+  def streamAggIR(stream: IR)(f: Ref => IR): StreamAgg = {
+    val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamAgg(stream, ref.name, f(ref))
   }
 
+  def streamAggScanIR(stream: IR)(f: Ref => IR): StreamAggScan = {
+    val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
+    StreamAggScan(stream, ref.name, f(ref))
+  }
+
   def forIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
+    val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFor(stream, ref.name, f(ref))
   }
 
   def filterIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
+    val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFilter(stream, ref.name, f(ref))
   }
 
   def mapIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
+    val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamMap(stream, ref.name, f(ref))
   }
 
@@ -130,7 +145,7 @@ package object ir {
     ToArray(mapIR(ToStream(array))(f))
 
   def flatMapIR(stream: IR)(f: Ref => IR): IR = {
-    val ref = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
+    val ref = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
     StreamFlatMap(stream, ref.name, f(ref))
   }
 
@@ -139,16 +154,41 @@ package object ir {
       if (elt.typ.isInstanceOf[TStream]) elt else ToStream(elt)
     }
 
-  def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
-    val elt = Ref(genUID(), tcoerce[TStream](stream.typ).elementType)
-    val accum = Ref(genUID(), zero.typ)
+  def foldIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): StreamFold = {
+    val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
+    val accum = Ref(freshName(), zero.typ)
     StreamFold(stream, zero, accum.name, elt.name, f(accum, elt))
+  }
+
+  def fold2IR(
+    stream: IR,
+    inits: IR*
+  )(
+    seqs: ((Ref, IndexedSeq[Ref]) => IR)*
+  )(
+    result: IndexedSeq[Ref] => IR
+  ): IR = {
+    val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
+    val accums = inits.map(i => Ref(freshName(), i.typ)).toFastSeq
+    StreamFold2(
+      stream,
+      (accums, inits).zipped.map((acc, i) => (acc.name, i)),
+      elt.name,
+      seqs.map(f => f(elt, accums)).toFastSeq,
+      result(accums),
+    )
+  }
+
+  def streamScanIR(stream: IR, zero: IR)(f: (Ref, Ref) => IR): IR = {
+    val elt = Ref(freshName(), tcoerce[TStream](stream.typ).elementType)
+    val accum = Ref(freshName(), zero.typ)
+    StreamScan(stream, zero, accum.name, elt.name, f(accum, elt))
   }
 
   def sortIR(stream: IR)(f: (Ref, Ref) => IR): IR = {
     val t = tcoerce[TStream](stream.typ).elementType
-    val l = Ref(genUID(), t)
-    val r = Ref(genUID(), t)
+    val l = Ref(freshName(), t)
+    val r = Ref(freshName(), t)
     ArraySort(stream, l.name, r.name, f(l, r))
   }
 
@@ -161,12 +201,13 @@ package object ir {
     lkey: IndexedSeq[String],
     rkey: IndexedSeq[String],
     joinType: String,
-    requiresMemoryManagement: Boolean,
+    requiresMemoryManagement: Boolean = false,
+    rightKeyIsDistinct: Boolean = true,
   )(
     f: (Ref, Ref) => IR
   ): IR = {
-    val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
-    val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
+    val lRef = Ref(freshName(), left.typ.asInstanceOf[TStream].elementType)
+    val rRef = Ref(freshName(), right.typ.asInstanceOf[TStream].elementType)
     StreamJoin(
       left,
       right,
@@ -177,7 +218,15 @@ package object ir {
       f(lRef, rRef),
       joinType,
       requiresMemoryManagement,
+      rightKeyIsDistinct,
     )
+  }
+
+  def zipJoin2IR(streams: IndexedSeq[IR], key: IndexedSeq[String])(f: (Ref, Ref) => IR): IR = {
+    val eltType = tcoerce[TStruct](elementType(streams.head.typ))
+    val curKey = Ref(freshName(), eltType.typeAfterSelectNames(key))
+    val curVals = Ref(freshName(), TArray(eltType))
+    StreamZipJoin(streams, key, curKey.name, curVals.name, f(curKey, curVals))
   }
 
   def joinRightDistinctIR(
@@ -189,8 +238,8 @@ package object ir {
   )(
     f: (Ref, Ref) => IR
   ): IR = {
-    val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
-    val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
+    val lRef = Ref(freshName(), left.typ.asInstanceOf[TStream].elementType)
+    val rRef = Ref(freshName(), right.typ.asInstanceOf[TStream].elementType)
     StreamJoinRightDistinct(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
   }
 
@@ -210,14 +259,14 @@ package object ir {
   def selectIR(old: IR, fields: String*): SelectFields = SelectFields(old, fields.toArray[String])
 
   def zip2(s1: IR, s2: IR, behavior: ArrayZipBehavior.ArrayZipBehavior)(f: (Ref, Ref) => IR): IR = {
-    val r1 = Ref(genUID(), tcoerce[TStream](s1.typ).elementType)
-    val r2 = Ref(genUID(), tcoerce[TStream](s2.typ).elementType)
+    val r1 = Ref(freshName(), tcoerce[TStream](s1.typ).elementType)
+    val r2 = Ref(freshName(), tcoerce[TStream](s2.typ).elementType)
     StreamZip(FastSeq(s1, s2), FastSeq(r1.name, r2.name), f(r1, r2), behavior)
   }
 
   def zipWithIndex(s: IR): IR = {
-    val r1 = Ref(genUID(), tcoerce[TStream](s.typ).elementType)
-    val r2 = Ref(genUID(), TInt32)
+    val r1 = Ref(freshName(), tcoerce[TStream](s.typ).elementType)
+    val r2 = Ref(freshName(), TInt32)
     StreamZip(
       FastSeq(s, StreamIota(I32(0), I32(1))),
       FastSeq(r1.name, r2.name),
@@ -233,8 +282,24 @@ package object ir {
   )(
     f: IndexedSeq[Ref] => IR
   ): IR = {
-    val refs = ss.map(s => Ref(genUID(), tcoerce[TStream](s.typ).elementType))
+    val refs = ss.map(s => Ref(freshName(), tcoerce[TStream](s.typ).elementType))
     StreamZip(ss, refs.map(_.name), f(refs), behavior, errorId)
+  }
+
+  def ndMap(nd: IR)(f: Ref => IR): IR = {
+    val ref = Ref(freshName(), tcoerce[TNDArray](nd.typ).elementType)
+    NDArrayMap(nd, ref.name, f(ref))
+  }
+
+  def ndMap2(nd1: IR, nd2: IR)(f: (Ref, Ref) => IR): IR = {
+    val ref1 = Ref(freshName(), tcoerce[TNDArray](nd1.typ).elementType)
+    val ref2 = Ref(freshName(), tcoerce[TNDArray](nd2.typ).elementType)
+    NDArrayMap2(nd1, nd2, ref1.name, ref2.name, f(ref1, ref2), ErrorIDs.NO_ERROR)
+  }
+
+  def bmMap(bm: BlockMatrixIR, needsDense: Boolean)(f: Ref => IR): BlockMatrixMap = {
+    val ref = Ref(freshName(), bm.typ.elementType)
+    BlockMatrixMap(bm, ref.name, f(ref), needsDense)
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields.toArray[(String, IR)])
@@ -243,20 +308,32 @@ package object ir {
     MakeTuple(fields.toArray.zipWithIndex.map { case (field, idx) => (idx, field) })
 
   def aggBindIR(v: IR, isScan: Boolean = false)(body: Ref => IR): IR = {
-    val ref = Ref(genUID(), v.typ)
+    val ref = Ref(freshName(), v.typ)
     AggLet(ref.name, v, body(ref), isScan = isScan)
   }
 
   def aggExplodeIR(v: IR, isScan: Boolean = false)(body: Ref => IR): AggExplode = {
-    val r = Ref(genUID(), v.typ.asInstanceOf[TIterable].elementType)
+    val r = Ref(freshName(), v.typ.asInstanceOf[TIterable].elementType)
     AggExplode(v, r.name, body(r), isScan)
   }
 
-  def aggFoldIR(zero: IR, element: IR)(seqOp: (Ref, IR) => IR)(combOp: (Ref, Ref) => IR)
+  def aggArrayPerElement(
+    v: IR,
+    knownLength: Option[IR] = None,
+    isScan: Boolean = false,
+  )(
+    body: (Ref, Ref) => IR
+  ): AggArrayPerElement = {
+    val elt = Ref(freshName(), v.typ.asInstanceOf[TIterable].elementType)
+    val idx = Ref(freshName(), TInt32)
+    AggArrayPerElement(v, elt.name, idx.name, body(elt, idx), knownLength, isScan)
+  }
+
+  def aggFoldIR(zero: IR, isScan: Boolean = false)(seqOp: Ref => IR)(combOp: (Ref, Ref) => IR)
     : AggFold = {
-    val accum1 = Ref(genUID(), zero.typ)
-    val accum2 = Ref(genUID(), zero.typ)
-    AggFold(zero, seqOp(accum1, element), combOp(accum1, accum2), accum1.name, accum2.name, false)
+    val accum1 = Ref(freshName(), zero.typ)
+    val accum2 = Ref(freshName(), zero.typ)
+    AggFold(zero, seqOp(accum1), combOp(accum1, accum2), accum1.name, accum2.name, isScan)
   }
 
   def cdaIR(
@@ -264,11 +341,12 @@ package object ir {
     globals: IR,
     staticID: String,
     dynamicID: IR = NA(TString),
+    tsd: Option[TableStageDependency] = None,
   )(
     body: (Ref, Ref) => IR
   ): CollectDistributedArray = {
-    val contextRef = Ref(genUID(), contexts.typ.asInstanceOf[TStream].elementType)
-    val globalRef = Ref(genUID(), globals.typ)
+    val contextRef = Ref(freshName(), contexts.typ.asInstanceOf[TStream].elementType)
+    val globalRef = Ref(freshName(), globals.typ)
 
     CollectDistributedArray(
       contexts,
@@ -278,8 +356,50 @@ package object ir {
       body(contextRef, globalRef),
       dynamicID,
       staticID,
-      None,
+      tsd,
     )
+  }
+
+  def tailLoop(resultType: Type, inits: IR*)(f: (IndexedSeq[IR] => IR, IndexedSeq[Ref]) => IR)
+    : IR = {
+    val loopName = freshName()
+    val vars = inits.toFastSeq.map(x => Ref(freshName(), x.typ))
+    def recur(vs: IndexedSeq[IR]): IR = Recur(loopName, vs, resultType)
+    TailLoop(loopName, vars.map(_.name).zip(inits), resultType, f(recur, vars))
+  }
+
+  def mapPartitions(child: TableIR)(f: (Ref, Ref) => IR): TableMapPartitions = {
+    val globals = Ref(freshName(), child.typ.globalType)
+    val part = Ref(freshName(), TStream(child.typ.rowType))
+    TableMapPartitions(child, globals.name, part.name, f(globals, part))
+  }
+
+  def mapPartitions(child: TableIR, requestedKey: Int, allowedOverlap: Int)(f: (Ref, Ref) => IR)
+    : TableMapPartitions = {
+    val globals = Ref(freshName(), child.typ.globalType)
+    val part = Ref(freshName(), TStream(child.typ.rowType))
+    TableMapPartitions(
+      child,
+      globals.name,
+      part.name,
+      f(globals, part),
+      requestedKey,
+      allowedOverlap,
+    )
+  }
+
+  def tableGen(
+    contexts: IR,
+    globals: IR,
+    partitioner: RVDPartitioner,
+    errorID: Int = ErrorIDs.NO_ERROR,
+  )(
+    f: (Ref, Ref) => IR
+  ): TableGen = {
+    TypeCheck.coerce[TStream]("contexts", contexts.typ)
+    val c = Ref(freshName(), elementType(contexts.typ))
+    val g = Ref(freshName(), globals.typ)
+    TableGen(contexts, globals, c.name, g.name, f(c, g), partitioner, errorID)
   }
 
   def strConcat(irs: AnyRef*): IR = {

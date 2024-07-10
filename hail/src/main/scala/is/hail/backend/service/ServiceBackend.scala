@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
@@ -25,13 +25,13 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
-import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 import java.io._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
@@ -58,13 +58,15 @@ object ServiceBackend {
     theHailClassLoader: HailClassLoader,
     batchClient: BatchClient,
     batchId: Option[Long],
-    scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+    jobGroupId: Option[Long],
+    scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
     rpcConfig: ServiceBackendRPCPayload,
+    env: Map[String, String],
   ): ServiceBackend = {
 
     val flags = HailFeatureFlags.fromMap(rpcConfig.flags)
     val shouldProfile = flags.get("profile") != null
-    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", Some(flags))
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), Some(flags), env)
 
     val backendContext = new ServiceBackendContext(
       rpcConfig.billing_project,
@@ -81,9 +83,10 @@ object ServiceBackend {
     val backend = new ServiceBackend(
       jarLocation,
       name,
-      new HailClassLoader(getClass().getClassLoader()),
+      theHailClassLoader,
       batchClient,
       batchId,
+      jobGroupId,
       flags,
       rpcConfig.tmp_dir,
       fs,
@@ -112,6 +115,7 @@ class ServiceBackend(
   val theHailClassLoader: HailClassLoader,
   val batchClient: BatchClient,
   val curBatchId: Option[Long],
+  val curJobGroupId: Option[Long],
   val flags: HailFeatureFlags,
   val tmpdir: String,
   val fs: FS,
@@ -152,13 +156,13 @@ class ServiceBackend(
   private[this] def submitAndWaitForBatch(
     _backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    collection: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
   ): (String, String, Int) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
-    val token = tokenUrlSafe(32)
+    val token = tokenUrlSafe
     val root = s"${backendContext.remoteTmpDir}parallelizeAndComputeWithIndex/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
@@ -190,6 +194,15 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
+    val parentJobGroup = curJobGroupId.getOrElse(0L)
+    val jobGroupIdInUpdate = 1 // QoB creates an update for every new stage
+    val workerJobGroup = JObject(
+      "job_group_id" -> JInt(jobGroupIdInUpdate),
+      "absolute_parent_id" -> JInt(parentJobGroup),
+      "attributes" -> JObject("name" -> JString(stageIdentifier)),
+    )
+    log.info(s"worker job group spec: $workerJobGroup")
+
     val jobs = collection.zipWithIndex.map { case (_, i) =>
       var resources = JObject("preemptible" -> JBool(true))
       if (backendContext.workerCores != "None") {
@@ -206,6 +219,7 @@ class ServiceBackend(
         "always_run" -> JBool(false),
         "job_id" -> JInt(i + 1),
         "in_update_parent_ids" -> JArray(List()),
+        "in_update_job_group_id" -> JInt(jobGroupIdInUpdate),
         "process" -> JObject(
           "jar_spec" -> JObject(
             "type" -> JString("jar_url"),
@@ -237,9 +251,9 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val (batchId, updateId) = curBatchId match {
+    val (batchId, (updateId, jobGroupId)) = curBatchId match {
       case Some(id) =>
-        (id, batchClient.update(id, token, jobs))
+        (id, batchClient.update(id, token, workerJobGroup, jobs))
       case None =>
         val batchId = batchClient.create(
           JObject(
@@ -250,10 +264,10 @@ class ServiceBackend(
           ),
           jobs,
         )
-        (batchId, 1L)
+        (batchId, (1L, 1L))
     }
 
-    val batch = batchClient.waitForBatch(batchId, true)
+    val batch = batchClient.waitForJobGroup(batchId, jobGroupId)
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
@@ -282,52 +296,32 @@ class ServiceBackend(
   override def parallelizeAndComputeWithIndex(
     _backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]] = {
-    val (token, root, n) =
-      submitAndWaitForBatch(_backendContext, fs, collection, stageIdentifier, f)
-
-    log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
-    val startTime = System.nanoTime()
-    val results =
-      try
-        executor.invokeAll[Array[Byte]](
-          IndexedSeq.range(0, n).map { i =>
-            (() => readResult(root, i)): Callable[Array[Byte]]
-          }.asJavaCollection
-        ).asScala.map(_.get).toArray
-      catch {
-        case exc: ExecutionException if exc.getCause() != null => throw exc.getCause()
-      }
-    val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
-    val rate = results.length / resultsReadingSeconds
-    val byterate = results.map(_.length).sum / resultsReadingSeconds / 1024 / 1024
-    log.info(s"all results read. $resultsReadingSeconds s. $rate result/s. $byterate MiB/s.")
-    results
-  }
-
-  override def parallelizeAndComputeWithIndexReturnAllErrors(
-    _backendContext: BackendContext,
-    fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
+    dependency: Option[TableStageDependency],
+    partitions: Option[IndexedSeq[Int]],
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
+
+    val (partIdxs, parts) =
+      partitions
+        .map(ps => (ps, ps.map(contexts)))
+        .getOrElse((contexts.indices, contexts))
+
     val (token, root, _) =
-      submitAndWaitForBatch(_backendContext, fs, collection.map(_._1).toArray, stageIdentifier, f)
+      submitAndWaitForBatch(_backendContext, fs, parts, stageIdentifier, f)
+
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    val r @ (_, results) = runAllKeepFirstError(executor) {
-      collection.zipWithIndex.map { case ((_, i), jobIndex) =>
-        (() => readResult(root, jobIndex), i)
+    val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+      (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
+        (() => readResult(root, jobIndex), partIdx)
       }
     }
+
+    error.foreach(throw _)
+
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
     val byterate = results.map(_._1.length).sum / resultsReadingSeconds / 1024 / 1024
@@ -454,21 +448,26 @@ object ServiceBackendAPI {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val fs = FS.cloudSpecificFS(s"$scratchDir/secrets/gsa-key/key.json", None)
+    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
     val deployConfig = DeployConfig.fromConfigFile(
       s"$scratchDir/secrets/deploy-config/deploy-config.json"
     )
     DeployConfig.set(deployConfig)
-    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir(_))
+    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
     val batchClient = new BatchClient(s"$scratchDir/secrets/gsa-key/key.json")
     log.info("BatchClient allocated.")
 
-    val batchId =
-      BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json").map(_.batchId)
+    val batchConfig = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json")
+    val batchId = batchConfig.map(_.batchId)
+    val jobGroupId = batchConfig.map(_.jobGroupId)
     log.info("BatchConfig parsed.")
 
     implicit val formats: Formats = DefaultFormats
+
+    StreamReadConstraints.overrideDefaultStreamReadConstraints(
+      StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+    );
     val input = using(fs.openNoCompression(inputURL))(JsonMethods.parse(_))
     val rpcConfig = (input \ "config").extract[ServiceBackendRPCPayload]
 
@@ -479,8 +478,10 @@ object ServiceBackendAPI {
       new HailClassLoader(getClass().getClassLoader()),
       batchClient,
       batchId,
+      jobGroupId,
       scratchDir,
       rpcConfig,
+      sys.env,
     )
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {
@@ -641,7 +642,7 @@ class ServiceBackendAPI(
   ): Array[Byte] = {
     try {
       serializedFunctions.foreach { func =>
-        IRFunctionRegistry.pyRegisterIRForServiceBackend(
+        IRFunctionRegistry.registerIR(
           ctx,
           func.name,
           func.type_parameters,

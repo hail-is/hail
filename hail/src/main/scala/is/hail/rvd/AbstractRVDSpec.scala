@@ -76,7 +76,7 @@ object AbstractRVDSpec {
       "part-0"
     else
       partFile(0, 0, TaskContext.get)
-    val codecSpec = TypedCodecSpec(rowType, bufferSpec)
+    val codecSpec = TypedCodecSpec(execCtx, rowType, bufferSpec)
 
     val (part0Count, bytesWritten) =
       using(fs.create(partsPath + "/" + filePath)) { os =>
@@ -321,15 +321,16 @@ case class IndexSpec2(
 object IndexSpec {
 
   def fromKeyAndValuePTypes(
+    ctx: ExecuteContext,
     relPath: String,
     keyPType: PType,
     annotationPType: PType,
     offsetFieldName: Option[String],
   ): AbstractIndexSpec = {
     val leafType = LeafNodeBuilder.typ(keyPType, annotationPType)
-    val leafNodeSpec = TypedCodecSpec(leafType, BufferSpec.default)
+    val leafNodeSpec = TypedCodecSpec(ctx, leafType, BufferSpec.default)
     val internalType = InternalNodeBuilder.typ(keyPType, annotationPType)
-    val internalNodeSpec = TypedCodecSpec(internalType, BufferSpec.default)
+    val internalNodeSpec = TypedCodecSpec(ctx, internalType, BufferSpec.default)
     IndexSpec2(
       relPath,
       leafNodeSpec,
@@ -340,13 +341,18 @@ object IndexSpec {
     )
   }
 
-  def emptyAnnotation(relPath: String, keyType: PStruct): AbstractIndexSpec =
-    fromKeyAndValuePTypes(relPath, keyType, PCanonicalStruct(required = true), None)
+  def emptyAnnotation(ctx: ExecuteContext, relPath: String, keyType: PStruct): AbstractIndexSpec =
+    fromKeyAndValuePTypes(ctx, relPath, keyType, PCanonicalStruct(required = true), None)
 
-  def defaultAnnotation(relPath: String, keyType: PStruct, withOffsetField: Boolean = false)
-    : AbstractIndexSpec = {
+  def defaultAnnotation(
+    ctx: ExecuteContext,
+    relPath: String,
+    keyType: PStruct,
+    withOffsetField: Boolean = false,
+  ): AbstractIndexSpec = {
     val name = "entries_offset"
     fromKeyAndValuePTypes(
+      ctx,
       relPath,
       keyType,
       PCanonicalStruct(required = true, name -> PInt64Optional),

@@ -43,7 +43,7 @@ if role == 'Master':
         'ipywidgets==8.0.6',
         'jupyter-console==6.6.3',
         'nbconvert==7.3.1',
-        'notebook==6.5.4',
+        'notebook==6.5.6',
         'qtconsole==5.4.2',
     ]
 

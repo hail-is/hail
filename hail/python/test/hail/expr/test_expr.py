@@ -2540,6 +2540,11 @@ class Tests(unittest.TestCase):
 
         assert hl.eval(hl.literal(calls).map(lambda x: x.unphase())) == expected
 
+    def test_large_allele_encoding(self):
+        call = hl.Call([32_766, 32_766])  # largest possible homozygote call
+        encoded = hl.tcall._to_encoding(call)
+        assert call == hl.tcall._from_encoding(encoded)
+
     def test_call_contains_allele(self):
         c1 = hl.call(1, phased=True)
         c2 = hl.call(1, phased=False)

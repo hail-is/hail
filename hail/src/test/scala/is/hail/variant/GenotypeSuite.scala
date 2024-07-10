@@ -6,7 +6,7 @@ import is.hail.check.Prop._
 import is.hail.testUtils.Variant
 import is.hail.utils._
 
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class GenotypeSuite extends TestNGSuite {

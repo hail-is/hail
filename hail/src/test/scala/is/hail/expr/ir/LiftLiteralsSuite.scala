@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.types.virtual.TInt64
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
@@ -16,18 +15,17 @@ class LiftLiteralsSuite extends HailSuite {
     val ir = TableGetGlobals(
       TableMapGlobals(
         tab,
-        Let(
-          FastSeq("global" -> I64(1)),
+        bindIR(I64(1)) { global =>
           MakeStruct(
             FastSeq(
               "x" -> ApplyBinaryPrimOp(
                 Add(),
                 TableCount(tab),
-                Ref("global", TInt64),
+                global,
               )
             )
-          ),
-        ),
+          )
+        },
       )
     )
 

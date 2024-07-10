@@ -273,6 +273,17 @@ class Py4JBackend(Backend):
             {k: t._parsable_string() for k, t in ref_map.items()},
         )
 
+    def _register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, code):
+        self._registered_ir_function_names.add(name)
+        self._jbackend.pyRegisterIR(
+            name,
+            [ta._parsable_string() for ta in type_parameters],
+            argument_names,
+            [pt._parsable_string() for pt in argument_types],
+            return_type._parsable_string(),
+            code,
+        )
+
     def _parse_table_ir(self, code):
         return self._jbackend.parse_table_ir(code)
 
