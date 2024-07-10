@@ -276,6 +276,9 @@ spec:
          - name: lambda-gsa-key
            mountPath: /lambda-gsa-key
            readOnly: true
+         - name: lambda-ssh-key
+           mountPath: /lambda-ssh-key
+           readOnly: true
          - name: ssl-config-batch-driver
            mountPath: /ssl-config
            readOnly: true
@@ -306,6 +309,10 @@ spec:
        - name: lambda-gsa-key
          secret:
            secretName: lambda-cloud-worker-gsa-key
+       - name: lambda-ssh-key
+         secret:
+           secretName: lambda-ssh-key
+           defaultMode: 0400
        - name: ssl-config-batch-driver
          secret:
            optional: false

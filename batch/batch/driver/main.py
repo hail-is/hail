@@ -935,6 +935,34 @@ async def get_job_private_inst_manager(request, userdata):
 
     return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
 
+@routes.get('/inst_coll/jpim_lambda')
+@auth.authenticated_developers_only()
+async def get_job_private_inst_manager(request, userdata):
+    app = request.app
+    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager_lambda
+
+    user_resources = await jpim.compute_fair_share()
+    user_resources = sorted(
+        user_resources.values(),
+        key=lambda record: record['n_ready_jobs'] + record['n_creating_jobs'] + record['n_running_jobs'],
+        reverse=True,
+    )
+
+    n_ready_jobs = sum(record['n_ready_jobs'] for record in user_resources)
+    n_creating_jobs = sum(record['n_creating_jobs'] for record in user_resources)
+    n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
+
+    page_context = {
+        'jpim': jpim,
+        'instances': jpim.name_instance.values(),
+        'user_resources': user_resources,
+        'n_ready_jobs': n_ready_jobs,
+        'n_creating_jobs': n_creating_jobs,
+        'n_running_jobs': n_running_jobs,
+    }
+
+    return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
+
 
 @routes.post('/freeze')
 @auth.authenticated_developers_only()

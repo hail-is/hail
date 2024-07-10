@@ -1,6 +1,8 @@
 ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
 FROM $BASE_IMAGE
 
+RUN hail-apt-get-install openssh-client
+
 COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
 COPY gear/pinned-requirements.txt gear-requirements.txt
 COPY web_common/pinned-requirements.txt web_common-requirements.txt

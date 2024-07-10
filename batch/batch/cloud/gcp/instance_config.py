@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List, Union, Optional
 import logging
 from ...driver.billing_manager import ProductVersions
 from ...instance_config import InstanceConfig
@@ -166,7 +166,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
         preemptible: bool,
         job_private: bool,
         location: str,
-        instance_id: str,
+        instance_id: Optional[str],
     ) -> 'LambdaSlimInstanceConfig':  # pylint: disable=unused-argument
         machine_type_parts = gcp_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
@@ -241,7 +241,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
             preemptible,
             job_private,
             resources,
-            data['instance_id']
+            data.get('instance_id')
         )
 
     def to_dict(self) -> dict:

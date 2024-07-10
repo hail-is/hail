@@ -16,6 +16,7 @@ from .disks import delete_orphaned_disks
 from .resource_manager import GCPResourceManager
 from .resouce_manager_lambda import LambdaResourceManager
 from .zones import ZoneMonitor
+from hailtop import httpx
 
 
 class GCPDriver(CloudDriver):
@@ -66,7 +67,7 @@ ON DUPLICATE KEY UPDATE region = region;
         billing_manager = await GCPBillingManager.create(db, regions)
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
-        resource_manager_lambda = LambdaResourceManager(db)
+        resource_manager_lambda = LambdaResourceManager(db, billing_manager, httpx.client_session())
 
         task_manager = aiotools.BackgroundTaskManager()
 
