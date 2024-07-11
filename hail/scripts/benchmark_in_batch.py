@@ -9,7 +9,7 @@ from getpass import getuser
 from os import path as P
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import benchmark
 import pytest
@@ -30,7 +30,7 @@ class CollectBenchmarks:
         assert not ((include is not None) and (exclude is not None))
         self.includes = maybe(set, include)
         self.excludes = maybe(set, exclude)
-        self.items: List[str] = []
+        self.items: List[pytest.Item] = []
 
     @pytest.hookimpl(trylast=True)
     def pytest_collection_modifyitems(self, items):
@@ -48,18 +48,20 @@ class CollectBenchmarks:
                 print(f'Skipping {item.nodeid} because it was not explicitly included.')
                 continue
 
-            self.items.append(item.nodeid)
+            self.items.append(item)
+
+        items[:] = self.items
 
 
 # https://github.com/pytest-dev/pytest/discussions/2039
-def list_benchmarks(include: List[str] | None, exclude: List[str] | None) -> List[str]:
+def list_benchmarks(include: List[str] | None, exclude: List[str] | None) -> List[pytest.Item]:
     collect = CollectBenchmarks(include, exclude)
     directory = Path(benchmark.__file__).parent
     pytest.main(['--co', '-qq', str(directory)], plugins=[collect])
     items = collect.items
 
     if include is not None:
-        diff = list(set(include) - set(items))
+        diff = list(set(include) - set(i.nodeid for i in items))
         if len(diff) != 0:
             diff.sort()
             eprint('The following includes matched no pytest items:', '', *diff, sep='\n')
@@ -101,11 +103,12 @@ def make_test_storage_permissions_job(b: Batch, object_prefix: str, labelled_sha
 
 def make_benchmark_instance(
     b: Batch,
-    env: Dict[str, Optional[str]],
+    env: Dict[str, str | None],
     benchmark_id: str,
     instance_id: int,
-    iterations: Optional[int],
-    max_duration: Optional[int],
+    burn_in_iterations: int | None,
+    iterations: int | None,
+    max_duration: int | None,
     deps: List[Job],  # dont reformat
 ) -> Resource:
     j = b.new_job(name=f'{benchmark_id} ({instance_id})')
@@ -139,6 +142,7 @@ def make_benchmark_instance(
             '--override-ini=xfail_strict=False',
             f'--output={j.ofile}',
             '--data-dir=benchmark-resources',
+            f'--burn-in-iterations={burn_in_iterations}' if burn_in_iterations is not None else '',
             f'--iterations={iterations}' if iterations is not None else '',
             f'--max-duration={max_duration}' if max_duration is not None else '',
         ])
@@ -186,20 +190,6 @@ def run_combine(args: Namespace) -> None:
     combine(args.output, args.files)
 
 
-def upload_this(b: Batch) -> Resource:
-    this = Path(__file__)
-    j = b.new_job(f'upload {this.name}')
-    j.always_run = True
-    eof = 'E' + 'O' + 'F'
-    j.command(f"""
-cat << '{eof}' > "{j.ofile}"
-{this.read_text(encoding="utf-8")}
-{eof}
-""")
-
-    return j.ofile
-
-
 def make_combine_job(b: Batch, this: Resource, context: str, files: List[Resource]) -> Resource:
     j = b.new_job(f'combine_output_{context}')
     j.command(f'PYTHONPATH=. python3 {this} combine -o {j.ofile} {" ".join(files)}')
@@ -210,7 +200,7 @@ def make_combine_job(b: Batch, this: Resource, context: str, files: List[Resourc
 def combine_results_as_tree(b: Batch, branch_factor: int, results: List[Resource]) -> Resource:
     phase_i = 1
 
-    this = upload_this(b)
+    this = b.read_input(__file__)
     while len(results) > 1:
         results = [
             (make_combine_job(b, this, f'phase{phase_i}_job{job_id}', files) if len(files) > 1 else files[0])
@@ -227,13 +217,13 @@ def run_submit(args: Namespace) -> None:
     object_prefix = getattr(args, 'object-prefix')
     output_file = P.join(object_prefix, f'{timestamp}-{labelled_sha}.jsonl')
 
-    all_benchmarks: List[Tuple[str, int]] = [
-        (nodeid, instance_id)
-        for nodeid in list_benchmarks(args.include, args.exclude)
-        for instance_id in range(args.instances)
+    benchmarks: List[Tuple[str, int, int, int]] = [
+        (item.nodeid, instance_id, args.burn_in_iterations, args.iterations)
+        for item in list_benchmarks(args.include, args.exclude)
+        for instance_id in range(args.instances or 1)
     ]
 
-    assert len(all_benchmarks) > 0
+    assert len(benchmarks) > 0
 
     image = build_and_push_benchmark_image(args.image, args.artifact_uri, labelled_sha)
 
@@ -253,7 +243,7 @@ def run_submit(args: Namespace) -> None:
 
     test_permissions = make_test_storage_permissions_job(b, object_prefix, labelled_sha)
 
-    print(f'generating {len(all_benchmarks)} individual benchmark tasks')
+    print(f'generating {len(benchmarks)} individual benchmark tasks')
 
     envvars = {
         'MKL_NUM_THREADS': '1',
@@ -266,7 +256,7 @@ def run_submit(args: Namespace) -> None:
         'TMPDIR': '/io/tmp',
     }
 
-    random.shuffle(all_benchmarks)
+    random.shuffle(benchmarks)
     result = combine_results_as_tree(
         b,
         args.branch_factor,
@@ -276,11 +266,12 @@ def run_submit(args: Namespace) -> None:
                 envvars,
                 nodeid,
                 instance_id,
-                args.iterations,
+                burn_in_iterations,
+                iterations,
                 args.max_duration,
                 deps=[test_permissions],
             )
-            for nodeid, instance_id in all_benchmarks
+            for nodeid, instance_id, burn_in_iterations, iterations in benchmarks
         ],
     )
 
@@ -297,9 +288,21 @@ def run_submit(args: Namespace) -> None:
 def nonempty(s: str):
     if not s:
         raise ValueError('must be non-empty')
-    else:
-        return s
+    return s
 
+
+def gt(x: int):
+    def read(s: str) -> int:
+        n = int(s)
+        if not n > x:
+            raise ValueError(f'integer greater than {x} required, got {s}.')
+        return n
+
+    return read
+
+
+nonnegative = gt(-1)
+nat = gt(0)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -347,14 +350,20 @@ if __name__ == '__main__':
     submit_p.add_argument('--label', type=nonempty, help='batch job label', default=None)
     submit_p.add_argument('--branch-factor', type=int, help='number of benchmarks to combine at a time', default=32)
     submit_p.add_argument(
+        '--burn-in-iterations',
+        type=nonnegative,
+        help='override number of burn-in iterations for each benchmark',
+        default=None,
+    )
+    submit_p.add_argument(
         '--iterations',
-        type=int,
+        type=nat,
         help='override number of iterations for each benchmark',
         default=None,
     )
     submit_p.add_argument(
         '--instances',
-        type=int,
+        type=nat,
         help='override number of instances (batch jobs) created for each benchmark',
         default=None,
     )
@@ -378,7 +387,7 @@ if __name__ == '__main__':
     submit_p.add_argument('--wait', action='store_true', help='wait for batch to complete')
     submit_p.add_argument(
         '--max-duration',
-        type=int,
+        type=nat,
         help='Maximum duration in seconds for a benchmark trial, after which the trial will be interrupted.',
         default=None,
     )
