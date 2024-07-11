@@ -29,15 +29,16 @@ def test_table_range_force_count():
     hl.utils.range_table(100_000_000)._force_count()
 
 
-def test_table_range_join_1b_1k():
-    ht1 = hl.utils.range_table(1_000_000_000)
-    ht2 = hl.utils.range_table(1_000)
-    ht1.join(ht2, 'inner').count()
-
-
-def test_table_range_join_1b_1b():
-    ht1 = hl.utils.range_table(1_000_000_000)
-    ht2 = hl.utils.range_table(1_000_000_000)
+@pytest.mark.parametrize(
+    'm, n',
+    [
+        (1_000_000_000, 1_000),
+        (1_000_000_000, 1_000_000_000),
+    ],
+)
+def test_table_range_join(m, n):
+    ht1 = hl.utils.range_table(m)
+    ht2 = hl.utils.range_table(n)
     ht1.join(ht2, 'inner').count()
 
 
