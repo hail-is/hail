@@ -3048,6 +3048,7 @@ class Worker:
 
         batch_id = body['batch_id']
         job_id = body['job_id']
+        id = (batch_id, job_id)
 
         format_version = BatchFormatVersion(body['format_version'])
 
@@ -3055,6 +3056,33 @@ class Worker:
         start_job_id = body['start_job_id']
         addtl_spec = body['job_spec']
 
+        user = body['user']
+        gsa_key = body['gsa_key']
+
+        # already running
+        if id in self.jobs:
+            return web.HTTPForbidden()
+
+        # check worker hasn't started shutting down
+        if not self.active:
+            return web.HTTPServiceUnavailable()
+
+        request['batch_telemetry'] = {
+            'operation': 'create_job',
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+            'job_queue_time': str(body['queue_time']),
+        }
+
+        self.task_manager.ensure_future(
+            self.create_job_2(
+                batch_id, job_id, format_version, token, start_job_id, addtl_spec, user, credentials=gsa_key
+            )
+        )
+
+        return web.Response()
+
+    async def create_job_2(self, batch_id, job_id, format_version, token, start_job_id, addtl_spec, user, credentials):
         assert self.file_store
         job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
         job_spec = json.loads(job_spec)
@@ -3072,42 +3100,24 @@ class Worker:
             env.extend(addtl_env)
 
         assert job_spec['job_id'] == job_id
-        id = (batch_id, job_id)
-
-        request['batch_telemetry'] = {
-            'operation': 'create_job',
-            'batch_id': str(batch_id),
-            'job_id': str(job_id),
-            'job_queue_time': str(body['queue_time']),
-        }
-
-        # already running
-        if id in self.jobs:
-            return web.HTTPForbidden()
-
-        # check worker hasn't started shutting down
-        if not self.active:
-            return web.HTTPServiceUnavailable()
 
         job = Job.create(
-            batch_id,
-            body['user'],
-            body['gsa_key'],
-            job_spec,
-            format_version,
-            self.task_manager,
-            self.pool,
-            self.client_session,
-            self,
+            batch_id=batch_id,
+            user=user,
+            credentials=credentials,
+            job_spec=job_spec,
+            format_version=format_version,
+            task_manager=self.task_manager,
+            pool=self.pool,
+            client_session=self.client_session,
+            worker=self,
         )
 
         log.info(f'created {job} attempt {job.attempt_id}')
 
         self.jobs[job.id] = job
 
-        self.task_manager.ensure_future(self.run_job(job))
-
-        return web.Response()
+        await self.run_job(job)
 
     async def create_job(self, request):
         if not self.active:
