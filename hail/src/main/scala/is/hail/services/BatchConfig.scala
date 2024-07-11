@@ -17,8 +17,8 @@ object BatchConfig {
 
   def fromConfig(config: JValue): BatchConfig = {
     implicit val formats: Formats = DefaultFormats
-    new BatchConfig((config \ "batch_id").extract[Int])
+    new BatchConfig((config \ "batch_id").extract[Int], (config \ "job_group_id").extract[Int])
   }
 }
 
-class BatchConfig(val batchId: Long)
+class BatchConfig(val batchId: Long, val jobGroupId: Long)

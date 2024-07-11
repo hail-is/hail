@@ -5,7 +5,7 @@ include ../config.mk
 INTERNAL_IP := $(shell kubectl get secret global-config --template={{.data.internal_ip}} | base64 --decode)
 
 envoy-xds-config:
-	HAIL_DOMAIN=$(DOMAIN) python3 ../ci/ci/envoy.py internal-gateway ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/internal-gateway/cds.yaml.out ${HAIL}/internal-gateway/rds.yaml.out
+	python3 ../ci/ci/envoy.py internal-gateway $(DOMAIN) ${HAIL}/letsencrypt/subdomains.txt ${HAIL}/internal-gateway/cds.yaml.out ${HAIL}/internal-gateway/rds.yaml.out
 	kubectl -n default create configmap internal-gateway-xds-config \
 		--from-file=cds.yaml=cds.yaml.out \
 		--from-file=rds.yaml=rds.yaml.out \

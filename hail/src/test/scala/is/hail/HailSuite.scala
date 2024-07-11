@@ -15,7 +15,7 @@ import java.io.{File, PrintWriter}
 import breeze.linalg.DenseMatrix
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
 
@@ -239,14 +239,13 @@ class HailSuite extends TestNGSuite {
   ): Unit = {
     val arrayIR = if (expected == null) nd
     else {
-      val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(genUID(), TInt32))
-      Let(
-        FastSeq("nd" -> nd),
-        dims.zip(refs).foldRight[IR](NDArrayRef(Ref("nd", nd.typ), refs.map(Cast(_, TInt64)), -1)) {
+      val refs = Array.fill(nd.typ.asInstanceOf[TNDArray].nDims)(Ref(freshName(), TInt32))
+      bindIR(nd) { nd =>
+        dims.zip(refs).foldRight[IR](NDArrayRef(nd, refs.map(Cast(_, TInt64)), -1)) {
           case ((n, ref), accum) =>
             ToArray(StreamMap(rangeIR(n.toInt), ref.name, accum))
-        },
-      )
+        }
+      }
     }
     assertEvalsTo(arrayIR, env, args, agg, expected)
   }

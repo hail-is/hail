@@ -8,7 +8,7 @@ import scala.collection.Set
 
 object ForwardLets {
   def apply[T <: BaseIR](ctx: ExecuteContext)(ir0: T): T = {
-    val ir1 = new NormalizeNames(_ => genUID(), allowFreeVariables = true)(ctx, ir0)
+    val ir1 = NormalizeNames(ctx, ir0, allowFreeVariables = true)
     val UsesAndDefs(uses, defs, _) = ComputeUsesAndDefs(ir1, errorIfFreeVariables = false)
     val nestingDepth = NestingDepth(ir1)
 
@@ -61,7 +61,7 @@ object ForwardLets {
             .getOrElse(x)
         case _ =>
           ir.mapChildrenWithIndex((ir1, i) =>
-            rewrite(ir1, Bindings.segregated(ir, i, env).childEnvWithoutBindings)
+            rewrite(ir1, env.extend(Bindings.get(ir, i).dropBindings))
           )
       }
     }

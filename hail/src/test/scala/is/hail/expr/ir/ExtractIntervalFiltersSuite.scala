@@ -11,13 +11,13 @@ import org.testng.annotations.Test
 
 class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
-  val ref1 = Ref("foo", TStruct("w" -> TInt32, "x" -> TInt32, "y" -> TBoolean))
+  val ref1 = Ref(freshName(), TStruct("w" -> TInt32, "x" -> TInt32, "y" -> TBoolean))
   val unknownBool = GetField(ref1, "y")
   val k1 = GetField(ref1, "x")
   val k1Full = SelectFields(ref1, FastSeq("x"))
   val ref1Key = FastSeq("x")
 
-  val structRef = Ref("foo", TStruct("x" -> TInt32, "y" -> TInt32, "z" -> TInt32))
+  val structRef = Ref(freshName(), TStruct("x" -> TInt32, "y" -> TInt32, "z" -> TInt32))
   val structRefKey = FastSeq("y", "z")
 
   val structT1 = TStruct("y" -> TInt32, "z" -> TInt32)
@@ -81,7 +81,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     val filterIsTrue = Coalesce(FastSeq(filter, False()))
     val residualIsTrue = Coalesce(FastSeq(residualFilter, False()))
     val keyInIntervals = invoke("partitionerContains", TBoolean, irIntervals, key)
-    val accRef = Ref(genUID(), TBoolean)
+    val accRef = Ref(freshName(), TBoolean)
 
     val testIR = StreamFold(
       ToStream(Literal(TArray(rowRef.typ), probes)),
@@ -472,7 +472,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   @Test def testLocusContigComparison(): Unit = {
     hc // force initialization
-    val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
+    val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
     val ir1 = eq(Str("chr2"), invoke("contig", TString, k))
@@ -505,7 +505,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   @Test def testLocusPositionComparison(): Unit = {
     hc // force initialization
-    val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
+    val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val pos = invoke("position", TInt32, k)
 
@@ -648,7 +648,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   @Test def testLocusContigContains(): Unit = {
     hc // force initialization
-    val ref = Ref("foo", TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
+    val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
 
@@ -802,18 +802,10 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    def containsKey(intervals: IndexedSeq[Interval]) = StreamFold(
+    def containsKey(intervals: IndexedSeq[Interval]) = foldIR(
       ToStream(Literal(TArray(TInterval(TInt32)), intervals)),
       False(),
-      "acc",
-      "elt",
-      invoke(
-        "lor",
-        TBoolean,
-        Ref("acc", TBoolean),
-        invoke("contains", TBoolean, Ref("elt", TInterval(TInt32)), k1),
-      ),
-    )
+    )((acc, elt) => invoke("lor", TBoolean, acc, invoke("contains", TBoolean, elt, k1)))
 
     check(
       containsKey(inIntervals),
@@ -1116,7 +1108,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     hc // force initialization
     val tab1 = TableRange(10, 5)
 
-    def k = GetField(Ref("row", tab1.typ.rowType), "idx")
+    def k = GetField(Ref(TableIR.rowName, tab1.typ.rowType), "idx")
 
     val tf = TableFilter(
       tab1,

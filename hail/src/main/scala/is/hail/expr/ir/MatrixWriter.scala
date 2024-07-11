@@ -137,16 +137,16 @@ object MatrixNativeWriter {
       } else tablestage
 
     val rowSpec =
-      TypedCodecSpec(EType.fromTypeAndAnalysis(tm.rowType, rm.rowType), tm.rowType, bufferSpec)
+      TypedCodecSpec(EType.fromTypeAndAnalysis(ctx, tm.rowType, rm.rowType), tm.rowType, bufferSpec)
     val entrySpec = TypedCodecSpec(
-      EType.fromTypeAndAnalysis(tm.entriesRVType, rm.entriesRVType),
+      EType.fromTypeAndAnalysis(ctx, tm.entriesRVType, rm.entriesRVType),
       tm.entriesRVType,
       bufferSpec,
     )
     val colSpec =
-      TypedCodecSpec(EType.fromTypeAndAnalysis(tm.colType, rm.colType), tm.colType, bufferSpec)
+      TypedCodecSpec(EType.fromTypeAndAnalysis(ctx, tm.colType, rm.colType), tm.colType, bufferSpec)
     val globalSpec = TypedCodecSpec(
-      EType.fromTypeAndAnalysis(tm.globalType, rm.globalType),
+      EType.fromTypeAndAnalysis(ctx, tm.globalType, rm.globalType),
       tm.globalType,
       bufferSpec,
     )
@@ -261,9 +261,14 @@ object MatrixNativeWriter {
         val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows",
           "entries/rows", "references", log = true)
 
-        val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", tcoerce[PStruct](pKey))
+        val rowsIndexSpec = IndexSpec.defaultAnnotation(ctx, "../../index", tcoerce[PStruct](pKey))
         val entriesIndexSpec =
-          IndexSpec.defaultAnnotation("../../index", tcoerce[PStruct](pKey), withOffsetField = true)
+          IndexSpec.defaultAnnotation(
+            ctx,
+            "../../index",
+            tcoerce[PStruct](pKey),
+            withOffsetField = true,
+          )
 
         bindIR(writeCols) { colInfo =>
           bindIR(parts) { partInfo =>
@@ -1642,9 +1647,9 @@ case class MatrixBGENWriter(
       val numVariants = if (writeHeader) ToStream(ts.countPerPartition())
       else ToStream(MakeArray(Array.tabulate(ts.numPartitions)(_ => NA(TInt64)): _*))
 
-      val ctxElt = Ref(genUID(), tcoerce[TStream](oldCtx.typ).elementType)
-      val pf = Ref(genUID(), tcoerce[TStream](partFiles.typ).elementType)
-      val nv = Ref(genUID(), tcoerce[TStream](numVariants.typ).elementType)
+      val ctxElt = Ref(freshName(), tcoerce[TStream](oldCtx.typ).elementType)
+      val pf = Ref(freshName(), tcoerce[TStream](partFiles.typ).elementType)
+      val nv = Ref(freshName(), tcoerce[TStream](numVariants.typ).elementType)
 
       StreamZip(
         FastSeq(oldCtx, partFiles, numVariants),
@@ -2481,7 +2486,7 @@ case class MatrixBlockMatrixWriter(
 
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(
-      EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)),
+      EType.fromTypeAndAnalysis(ctx, elementType, rm.entryType.field(entryField)),
       encodeRowMajor = true,
       required = true,
     )
@@ -2579,7 +2584,9 @@ case class MatrixNativeMultiWriter(
         )
       )
 
-    val allBroadcasts = MakeStruct(components.flatMap(_.stage.broadcastVals))
+    val allBroadcasts = MakeStruct(components.flatMap(_.stage.broadcastVals).map { case (n, ir) =>
+      n.str -> ir
+    })
 
     Begin(FastSeq(
       Begin(components.map(_.setup)),
@@ -2593,7 +2600,7 @@ case class MatrixNativeMultiWriter(
                 default = Die("MatrixId exceeds matrix count", components.head.writePartitionType),
                 cases = components.zipWithIndex.map { case (component, i) =>
                   val binds = component.stage.broadcastVals.map { case (name, _) =>
-                    name -> GetField(globals, name)
+                    name -> GetField(globals, name.str)
                   }
 
                   Let(

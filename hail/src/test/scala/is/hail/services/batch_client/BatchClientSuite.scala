@@ -4,13 +4,13 @@ import is.hail.utils._
 
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
-import org.scalatest.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class BatchClientSuite extends TestNGSuite {
   @Test def testBasic(): Unit = {
     val client = new BatchClient("/test-gsa-key/key.json")
-    val token = tokenUrlSafe(32)
+    val token = tokenUrlSafe
     val batch = client.run(
       JObject(
         "billing_project" -> JString("test"),

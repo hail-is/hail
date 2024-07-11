@@ -1857,6 +1857,7 @@ class _tcall(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> genetics.Call:
         int_rep = byte_reader.read_int32()
+        int_rep = int_rep if int_rep >= 0 else int_rep + 2**32
 
         ploidy = (int_rep >> 1) & 0x3
         phased = (int_rep & 1) == 1
@@ -1871,10 +1872,10 @@ class _tcall(HailType):
             return (p >> 16) & 0xFFFF
 
         def gt_allele_pair(i):
+            assert i >= 0, "allele pair value should never be negative"
             if i < len(small_allele_pair):
                 return small_allele_pair[i]
-            else:
-                return allele_pair_sqrt(i)
+            return allele_pair_sqrt(i)
 
         def call_allele_pair(i):
             if phased:
@@ -1921,6 +1922,7 @@ class _tcall(HailType):
             int_rep |= value.alleles[0] << 3
         elif value.ploidy == 2:
             int_rep |= allele_pair_rep(value) << 3
+        int_rep = int_rep if 0 <= int_rep < 2**31 - 1 else int_rep - 2**32
 
         byte_writer.write_int32(int_rep)
 

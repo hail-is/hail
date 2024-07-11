@@ -1,5 +1,5 @@
 import logging
-import re
+import math
 from typing import Dict, Optional, Tuple
 
 import sortedcontainers
@@ -7,11 +7,6 @@ import sortedcontainers
 from ...globals import RESERVED_STORAGE_GB_PER_CORE
 
 log = logging.getLogger('resource_utils')
-
-# https://docs.microsoft.com/en-us/azure/virtual-machines/vm-naming-conventions
-MACHINE_TYPE_REGEX = re.compile(
-    r'(?P<typ>[^_]+)_(?P<family>[A-Z])(?P<sub_family>[^\d])?(?P<cpu>\d+)(-(?P<constrained_cpu>\d+))?(?P<additive_features>[^_]+)?(_((?P<accelerator_type>[^_]+)_)?(?P<version>.*)?)?'
-)
 
 AZURE_MAX_PERSISTENT_SSD_SIZE_GIB = 32 * 1024
 
@@ -29,19 +24,339 @@ azure_valid_cores_from_worker_type = {
     'F': [2, 4, 8, 16, 32, 48, 64, 72],
 }
 
-
-azure_valid_machine_types = []
-for cores in azure_valid_cores_from_worker_type['D']:
-    azure_valid_machine_types.append(f'Standard_D{cores}ds_v4')
-    azure_valid_machine_types.append(f'Standard_D{cores}s_v4')
-for cores in azure_valid_cores_from_worker_type['E']:
-    azure_valid_machine_types.append(f'Standard_E{cores}ds_v4')
-    azure_valid_machine_types.append(f'Standard_E{cores}s_v4')
-for cores in azure_valid_cores_from_worker_type['F']:
-    azure_valid_machine_types.append(f'Standard_F{cores}s_v2')
-
-
 azure_memory_to_worker_type = {'lowmem': 'F', 'standard': 'D', 'highmem': 'E'}
+
+
+def gib_to_bytes(gib):
+    return int(gib * 1024**3)
+
+
+class MachineTypeParts:
+    def __init__(
+        self,
+        typ: str,
+        family: str,
+        cores: int,
+        additive_features: Optional[str],
+        version: Optional[str],
+        memory: int,
+    ):
+        self.typ = typ
+        self.family = family
+        self.cores = cores
+        self.additive_features = additive_features
+        self.version = version
+        self.memory = memory
+
+
+MACHINE_TYPE_TO_PARTS = {
+    'Standard_D2ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=2,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(8),
+    ),
+    'Standard_D4ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=4,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(16),
+    ),
+    'Standard_D8ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=8,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(32),
+    ),
+    'Standard_D16ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=16,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(64),
+    ),
+    'Standard_D32ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=32,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(128),
+    ),
+    'Standard_D48ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=48,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(192),
+    ),
+    'Standard_D64ds_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=64,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(256),
+    ),
+    'Standard_D2s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=2,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(8),
+    ),
+    'Standard_D4s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=4,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(16),
+    ),
+    'Standard_D8s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=8,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(32),
+    ),
+    'Standard_D16s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=16,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(64),
+    ),
+    'Standard_D32s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=32,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(128),
+    ),
+    'Standard_D48s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=48,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(192),
+    ),
+    'Standard_D64s_v4': MachineTypeParts(
+        typ='standard',
+        family='D',
+        cores=64,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(256),
+    ),
+    'Standard_E2ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=2,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(16),
+    ),
+    'Standard_E4ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=4,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(32),
+    ),
+    'Standard_E8ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=8,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(64),
+    ),
+    'Standard_E16ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=16,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(128),
+    ),
+    'Standard_E20ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=20,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(160),
+    ),
+    'Standard_E32ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=32,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(256),
+    ),
+    'Standard_E48ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=48,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(384),
+    ),
+    'Standard_E64ds_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=64,
+        additive_features='ds',
+        version='v4',
+        memory=gib_to_bytes(512),
+    ),
+    'Standard_E2s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=2,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(16),
+    ),
+    'Standard_E4s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=4,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(32),
+    ),
+    'Standard_E8s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=8,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(64),
+    ),
+    'Standard_E16s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=16,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(128),
+    ),
+    'Standard_E20s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=20,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(160),
+    ),
+    'Standard_E32s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=32,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(256),
+    ),
+    'Standard_E48s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=48,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(384),
+    ),
+    'Standard_E64s_v4': MachineTypeParts(
+        typ='highmem',
+        family='E',
+        cores=64,
+        additive_features='s',
+        version='v4',
+        memory=gib_to_bytes(512),
+    ),
+    'Standard_F2s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=2,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(4),
+    ),
+    'Standard_F4s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=4,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(8),
+    ),
+    'Standard_F8s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=8,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(16),
+    ),
+    'Standard_F16s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=16,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(32),
+    ),
+    'Standard_F32s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=32,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(64),
+    ),
+    'Standard_F48s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=48,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(96),
+    ),
+    'Standard_F64s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=64,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(128),
+    ),
+    'Standard_F72s_v2': MachineTypeParts(
+        typ='lowmem',
+        family='F',
+        cores=72,
+        additive_features='s',
+        version='v2',
+        memory=gib_to_bytes(144),
+    ),
+}
+
+azure_valid_machine_types = list(MACHINE_TYPE_TO_PARTS.keys())
 
 
 class AzureDisk:
@@ -103,56 +418,17 @@ def azure_disk_from_storage_in_gib(disk_type: str, storage_in_gib: int) -> Optio
     return disks[index]  # type: ignore
 
 
-class MachineTypeParts:
-    @staticmethod
-    def from_dict(data: dict) -> 'MachineTypeParts':
-        constrained_cpu = data['constrained_cpu']
-        if constrained_cpu is not None:
-            constrained_cpu = int(constrained_cpu)
-        return MachineTypeParts(
-            data['typ'],
-            data['family'],
-            data['sub_family'],
-            int(data['cpu']),
-            constrained_cpu,
-            data['additive_features'],
-            data['accelerator_type'],
-            data['version'],
-        )
-
-    def __init__(
-        self,
-        typ: str,
-        family: str,
-        sub_family: Optional[str],
-        cores: int,
-        constrained_cpu: Optional[int],
-        additive_features: Optional[str],
-        accelerator_type: Optional[str],
-        version: Optional[str],
-    ):
-        self.typ = typ
-        self.family = family
-        self.sub_family = sub_family
-        self.cores = cores
-        self.constrained_cpu = constrained_cpu
-        self.additive_features = additive_features
-        self.accelerator_type = accelerator_type
-        self.version = version
-
-
 def azure_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
-    match = MACHINE_TYPE_REGEX.fullmatch(machine_type)
-    if match is None:
-        return match
-    return MachineTypeParts.from_dict(match.groupdict())
+    return MACHINE_TYPE_TO_PARTS.get(machine_type)
 
 
-def azure_machine_type_to_worker_type_and_cores(machine_type: str) -> Tuple[str, int]:
+def azure_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int, int]:
     maybe_machine_type_parts = azure_machine_type_to_parts(machine_type)
     if maybe_machine_type_parts is None:
         raise ValueError(f'bad machine_type: {machine_type}')
-    return (maybe_machine_type_parts.family, maybe_machine_type_parts.cores)
+    cores = maybe_machine_type_parts.cores
+    memory_bytes = maybe_machine_type_parts.memory
+    return cores, memory_bytes
 
 
 def azure_worker_properties_to_machine_type(worker_type: str, cores: int, local_ssd_data_disk: bool) -> str:
@@ -204,3 +480,16 @@ def azure_requested_to_actual_storage_bytes(storage_bytes, allow_zero_storage):
 
 def azure_is_valid_storage_request(storage_in_gib: int) -> bool:
     return 10 <= storage_in_gib <= AZURE_MAX_PERSISTENT_SSD_SIZE_GIB
+
+
+def azure_cores_mcpu_to_memory_bytes(mcpu: int, worker_type: str) -> int:
+    memory_mib = azure_worker_memory_per_core_mib(worker_type)
+    memory_bytes = int(memory_mib * 1024**2)
+    return int((mcpu / 1000) * memory_bytes)
+
+
+def azure_adjust_cores_for_memory_request(cores_in_mcpu: int, memory_in_bytes: int, worker_type: str) -> int:
+    memory_per_core_mib = azure_worker_memory_per_core_mib(worker_type)
+    memory_per_core_bytes = int(memory_per_core_mib * 1024**2)
+    min_cores_mcpu = math.ceil((memory_in_bytes / memory_per_core_bytes) * 1000)
+    return max(cores_in_mcpu, min_cores_mcpu)

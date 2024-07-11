@@ -80,9 +80,9 @@ class RVD(
 
   def stabilize(ctx: ExecuteContext, enc: AbstractTypedCodecSpec): RDD[Array[Byte]] = {
     val makeEnc = enc.buildEncoder(ctx, rowPType)
-    crdd.mapPartitions(it =>
-      RegionValue.toBytes(theHailClassLoaderForSparkWorkers, makeEnc, it)
-    ).run
+    crdd.cmapPartitions { (ctx, it) =>
+      RegionValue.toBytes(theHailClassLoaderForSparkWorkers, makeEnc, ctx.r, it)
+    }.run
   }
 
   def encodedRDD(ctx: ExecuteContext, enc: AbstractTypedCodecSpec): RDD[Array[Byte]] =
@@ -102,7 +102,7 @@ class RVD(
       TaskContext.get.addTaskCompletionListener[Unit](_ => encoder.close())
       it.map { ptr =>
         val keys: Any = SafeRow.selectFields(localRowPType, ctx.r, ptr)(kFieldIdx)
-        val bytes = encoder.regionValueToBytes(ptr)
+        val bytes = encoder.regionValueToBytes(ctx.r, ptr)
         (keys, bytes)
       }
     }.run
@@ -262,7 +262,7 @@ class RVD(
       val kOrdering = PartitionBoundOrdering(ctx.stateManager, newType.kType.virtualType)
 
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
-      val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
+      val enc = TypedCodecSpec(ctx, rowPType, BufferSpec.wireSpec)
 
       val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, SelectFieldsRow)](
         { case (_, _) =>
@@ -334,7 +334,7 @@ class RVD(
       return this
 
     if (shuffle) {
-      val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
+      val enc = TypedCodecSpec(ctx, rowPType, BufferSpec.wireSpec)
       val shuffledBytes = stabilize(ctx, enc).coalesce(maxPartitions, shuffle = true)
       val (newRowPType, shuffled) = destabilize(ctx, shuffledBytes, enc)
       if (typ.key.isEmpty)
@@ -786,7 +786,7 @@ class RVD(
   // Collecting
 
   def collect(execCtx: ExecuteContext): Array[Row] = {
-    val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
+    val enc = TypedCodecSpec(execCtx, rowPType, BufferSpec.wireSpec)
     val encodedData = collectAsBytes(execCtx, enc)
     val (pType: PStruct, dec) = enc.buildDecoder(execCtx, rowType)
     execCtx.r.pool.scopedRegion { region =>
@@ -807,7 +807,7 @@ class RVD(
   def cache(ctx: ExecuteContext): RVD = persist(ctx, StorageLevel.MEMORY_ONLY)
 
   def persist(ctx: ExecuteContext, level: StorageLevel): RVD = {
-    val enc = TypedCodecSpec(rowPType, BufferSpec.memorySpec)
+    val enc = TypedCodecSpec(ctx, rowPType, BufferSpec.memorySpec)
     val persistedRDD = stabilize(ctx, enc).persist(level)
     val (newRowPType, iterationRDD) = destabilize(ctx, persistedRDD, enc)
 
@@ -846,7 +846,7 @@ class RVD(
       codecSpec,
       fileData.map(_.path),
       partitioner,
-      IndexSpec.emptyAnnotation(idxRelPath, typ.kType),
+      IndexSpec.emptyAnnotation(ctx, idxRelPath, typ.kType),
     )
     spec.write(ctx.fs, path)
     fileData
@@ -988,7 +988,7 @@ class RVD(
 
     val partBc = partitioner.broadcast(sparkContext)
     val rightTyp = that.typ
-    val codecSpec = TypedCodecSpec(that.rowPType, BufferSpec.wireSpec)
+    val codecSpec = TypedCodecSpec(ctx, that.rowPType, BufferSpec.wireSpec)
     val makeEnc = codecSpec.buildEncoder(ctx, that.rowPType)
     val sm = ctx.stateManager
     val partitionKeyedIntervals = that.crdd.cmapPartitions { (ctx, it) =>
@@ -1002,7 +1002,7 @@ class RVD(
             start = Row(interval.start),
             end = Row(interval.end),
           )
-          val bytes = encoder.regionValueToBytes(ptr)
+          val bytes = encoder.regionValueToBytes(ctx.r, ptr)
           partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
         } else
           Iterator()
@@ -1393,11 +1393,11 @@ object RVD {
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val rowsCodecSpec = TypedCodecSpec(rowsRVType, bufferSpec)
-    val entriesCodecSpec = TypedCodecSpec(entriesRVType, bufferSpec)
-    val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", localTyp.kType)
+    val rowsCodecSpec = TypedCodecSpec(execCtx, rowsRVType, bufferSpec)
+    val entriesCodecSpec = TypedCodecSpec(execCtx, entriesRVType, bufferSpec)
+    val rowsIndexSpec = IndexSpec.defaultAnnotation(execCtx, "../../index", localTyp.kType)
     val entriesIndexSpec =
-      IndexSpec.defaultAnnotation("../../index", localTyp.kType, withOffsetField = true)
+      IndexSpec.defaultAnnotation(execCtx, "../../index", localTyp.kType, withOffsetField = true)
     val makeRowsEnc = rowsCodecSpec.buildEncoder(execCtx, fullRowType)
     val makeEntriesEnc = entriesCodecSpec.buildEncoder(execCtx, fullRowType)
     val _makeIndexWriter =

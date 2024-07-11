@@ -6,15 +6,15 @@ object IRBuilder {
   def scoped(f: IRBuilder => IR): IR = {
     val builder = new IRBuilder()
     val result = f(builder)
-    Let(builder.bindings.result(), result)
+    Let(builder.getBindings, result)
   }
 }
 
-class IRBuilder() {
-  private val bindings: BoxedArrayBuilder[(String, IR)] =
-    new BoxedArrayBuilder[(String, IR)]()
+class IRBuilder {
+  private val bindings: BoxedArrayBuilder[(Name, IR)] =
+    new BoxedArrayBuilder[(Name, IR)]()
 
-  def getBindings: IndexedSeq[(String, IR)] = bindings.result()
+  def getBindings: IndexedSeq[(Name, IR)] = bindings.result()
 
   def memoize(ir: IR): TrivialIR = ir match {
     case ir: TrivialIR => ir
@@ -22,9 +22,7 @@ class IRBuilder() {
   }
 
   def strictMemoize(ir: IR): Ref = {
-    if (!ir.typ.isRealizable)
-      throw new RuntimeException(s"IR ${ir.getClass.getName} of type ${ir.typ} is not realizable")
-    val name = genUID()
+    val name = freshName()
     bindings += name -> ir
     Ref(name, ir.typ)
   }

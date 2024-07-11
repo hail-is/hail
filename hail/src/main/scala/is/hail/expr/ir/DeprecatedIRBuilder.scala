@@ -23,7 +23,7 @@ object DeprecatedIRBuilder {
   implicit def booleanToProxy(b: Boolean): IRProxy = if (b) True() else False()
 
   implicit def ref(s: Symbol): IRProxy = (env: E) =>
-    Ref(s.name, env.lookup(s.name))
+    Ref(Name(s.name), env.lookup(Name(s.name)))
 
   implicit def symbolToSymbolProxy(s: Symbol): SymbolProxy = new SymbolProxy(s)
 
@@ -220,10 +220,10 @@ object DeprecatedIRBuilder {
 
     def castRename(t: Type): IRProxy = (env: E) => CastRename(ir(env), t)
 
-    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = insertFieldsList(fields)
+    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = insertFieldsList(fields.toFastSeq)
 
     def insertFieldsList(
-      fields: Seq[(Symbol, IRProxy)],
+      fields: IndexedSeq[(Symbol, IRProxy)],
       ordering: Option[IndexedSeq[String]] = None,
     ): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) }, ordering)
@@ -242,7 +242,7 @@ object DeprecatedIRBuilder {
     def insertStruct(other: IRProxy, ordering: Option[IndexedSeq[String]] = None): IRProxy =
       (env: E) => {
         val right = other(env)
-        val sym = genUID()
+        val sym = freshName()
         Let(
           FastSeq(sym -> right),
           InsertFields(
@@ -260,7 +260,7 @@ object DeprecatedIRBuilder {
     def isNA: IRProxy = (env: E) => IsNA(ir(env))
 
     def orElse(alt: IRProxy): IRProxy = { env: E =>
-      val uid = genUID()
+      val uid = freshName()
       val eir = ir(env)
       Let(FastSeq(uid -> eir), If(IsNA(Ref(uid, eir.typ)), alt(env), Ref(uid, eir.typ)))
     }
@@ -270,23 +270,27 @@ object DeprecatedIRBuilder {
       val eltType = array.typ.asInstanceOf[TArray].elementType
       ToArray(StreamFilter(
         ToStream(array),
-        pred.s.name,
-        pred.body(env.bind(pred.s.name -> eltType)),
+        Name(pred.s.name),
+        pred.body(env.bind(Name(pred.s.name) -> eltType)),
       ))
     }
 
     def map(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ToArray(StreamMap(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType))))
+      ToArray(StreamMap(
+        ToStream(array),
+        Name(f.s.name),
+        f.body(env.bind(Name(f.s.name) -> eltType)),
+      ))
     }
 
     def aggExplode(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       AggExplode(
         ToStream(array),
-        f.s.name,
-        f.body(env.bind(f.s.name, array.typ.asInstanceOf[TArray].elementType)),
+        Name(f.s.name),
+        f.body(env.bind(Name(f.s.name), array.typ.asInstanceOf[TArray].elementType)),
         isScan = false,
       )
     }
@@ -296,21 +300,25 @@ object DeprecatedIRBuilder {
       val eltType = array.typ.asInstanceOf[TArray].elementType
       ToArray(StreamFlatMap(
         ToStream(array),
-        f.s.name,
-        ToStream(f.body(env.bind(f.s.name -> eltType))),
+        Name(f.s.name),
+        ToStream(f.body(env.bind(Name(f.s.name) -> eltType))),
       ))
     }
 
     def streamAgg(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      StreamAgg(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      StreamAgg(ToStream(array), Name(f.s.name), f.body(env.bind(Name(f.s.name) -> eltType)))
     }
 
     def streamAggScan(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ToArray(StreamAggScan(ToStream(array), f.s.name, f.body(env.bind(f.s.name -> eltType))))
+      ToArray(StreamAggScan(
+        ToStream(array),
+        Name(f.s.name),
+        f.body(env.bind(Name(f.s.name) -> eltType)),
+      ))
     }
 
     def arraySlice(start: IRProxy, stop: Option[IRProxy], step: IRProxy): IRProxy = {
@@ -335,9 +343,9 @@ object DeprecatedIRBuilder {
       val eltType = array.typ.asInstanceOf[TArray].elementType
       AggArrayPerElement(
         array,
-        elementsSym.name,
-        indexSym.name,
-        aggBody.apply(env.bind(elementsSym.name -> eltType, indexSym.name -> TInt32)),
+        Name(elementsSym.name),
+        Name(indexSym.name),
+        aggBody.apply(env.bind(Name(elementsSym.name) -> eltType, Name(indexSym.name) -> TInt32)),
         knownLength.map(_(env)),
         isScan = false,
       )
@@ -384,8 +392,8 @@ object DeprecatedIRBuilder {
       var newEnv = env
       val resolvedBindings = bindings.map { case BindingProxy(sym, value, scope) =>
         val resolvedValue = value(newEnv)
-        newEnv = newEnv.bind(sym.name -> resolvedValue.typ)
-        Binding(sym.name, resolvedValue, scope)
+        newEnv = newEnv.bind(Name(sym.name) -> resolvedValue.typ)
+        Binding(Name(sym.name), resolvedValue, scope)
       }
       Block(resolvedBindings, body(newEnv))
     }
@@ -394,13 +402,13 @@ object DeprecatedIRBuilder {
   object let extends Dynamic {
     def applyDynamicNamed(method: String)(args: (String, IRProxy)*): LetProxy = {
       assert(method == "apply")
-      letDyn(args: _*)
+      letDyn(args.map { case (n, ir) => Name(n) -> ir }: _*)
     }
   }
 
   object letDyn {
-    def apply(args: (String, IRProxy)*): LetProxy =
-      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b, Scope.EVAL) }.toFastSeq)
+    def apply(args: (Name, IRProxy)*): LetProxy =
+      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s.str), b, Scope.EVAL) }.toFastSeq)
   }
 
   class LetProxy(val bindings: IndexedSeq[BindingProxy]) extends AnyVal {

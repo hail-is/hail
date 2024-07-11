@@ -38,13 +38,9 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     cb += out.writeInt(prefixLen)
 
     value.st match {
-      case s @ SIndexablePointer(_: PCanonicalArray | _: PCanonicalSet | _: PCanonicalDict)
-          if s.pType.elementType.required == elementType.required =>
-        val pArray = s.pType match {
-          case t: PCanonicalArray => t
-          case t: PCanonicalSet => t.arrayRep
-          case t: PCanonicalDict => t.arrayRep
-        }
+      case SIndexablePointer(pType: PCanonicalArrayBackedContainer)
+          if pType.elementType.required == elementType.required =>
+        val pArray = pType.arrayRep
 
         val array = value.asInstanceOf[SIndexablePointerValue].a
         if (!elementType.required) {
@@ -115,11 +111,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   ): SValue = {
     val st = decodedSType(t).asInstanceOf[SIndexablePointer]
 
-    val arrayType: PCanonicalArray = st.pType match {
-      case t: PCanonicalArray => t
-      case t: PCanonicalSet => t.arrayRep
-      case t: PCanonicalDict => t.arrayRep
-    }
+    val arrayType = st.pType.asInstanceOf[PCanonicalArrayBackedContainer].arrayRep
 
     assert(
       arrayType.elementType.required == elementType.required,

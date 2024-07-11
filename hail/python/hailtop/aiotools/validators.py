@@ -4,10 +4,9 @@ from urllib.parse import urlparse
 
 from hailtop.aiocloud.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
-from hailtop.hail_event_loop import hail_event_loop
 
 
-def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False) -> None:
+async def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False) -> None:
     """
     Validates a URI's scheme if a file scheme cache was provided, and its cloud location's default storage policy if
     the URI points to a cloud with an ``AsyncFS`` implementation that supports checking that policy.
@@ -17,14 +16,6 @@ def validate_file(uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: 
     :class:`ValueError`
         If one of the validation steps fails.
     """
-    return hail_event_loop().run_until_complete(
-        _async_validate_file(uri, router_async_fs, validate_scheme=validate_scheme)
-    )
-
-
-async def _async_validate_file(
-    uri: str, router_async_fs: RouterAsyncFS, *, validate_scheme: Optional[bool] = False
-) -> None:
     if validate_scheme:
         scheme = urlparse(uri).scheme
         if not scheme or scheme == "file":

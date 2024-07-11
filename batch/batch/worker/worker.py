@@ -74,9 +74,8 @@ from ..cloud.gcp.resource_utils import is_gpu
 from ..cloud.gcp.worker.worker_api import GCPWorkerAPI
 from ..cloud.resource_utils import (
     is_valid_storage_request,
+    machine_type_to_cores_and_memory_bytes,
     storage_gib_to_bytes,
-    worker_memory_per_core_bytes,
-    worker_memory_per_core_mib,
 )
 from ..file_store import FileStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, RESERVED_STORAGE_GB_PER_CORE, STATUS_FORMAT_VERSION
@@ -1123,8 +1122,7 @@ class Container:
         ]
 
         nvidia_runtime_hook = []
-        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
-        if is_gpu(machine_family):
+        if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
@@ -1342,8 +1340,7 @@ class Container:
             + CLOUD_WORKER_API.cloud_specific_env_vars_for_user_jobs
             + self.env  # User-defined env variables should take precedence
         )
-        machine_family = INSTANCE_CONFIG["machine_type"].split("-")[0]
-        if is_gpu(machine_family):
+        if is_gpu(INSTANCE_CONFIG["machine_type"]):
             env += ["NVIDIA_VISIBLE_DEVICES=all"]
         if self.port is not None:
             assert self.host_port is not None
@@ -1600,6 +1597,10 @@ class Job(abc.ABC):
         return self.job_spec['job_id']
 
     @property
+    def job_group_id(self):
+        return self.job_spec['job_group_id']
+
+    @property
     def attempt_id(self):
         return self.job_spec['attempt_id']
 
@@ -1724,6 +1725,7 @@ class DockerJob(Job):
             {'name': 'HAIL_REGION', 'value': REGION},
             {'name': 'HAIL_BATCH_ID', 'value': str(batch_id)},
             {'name': 'HAIL_JOB_ID', 'value': str(self.job_id)},
+            {'name': 'HAIL_JOB_GROUP_ID', 'value': str(self.job_group_id)},
             {'name': 'HAIL_ATTEMPT_ID', 'value': str(self.attempt_id)},
         ]
         self.env += hail_extra_env
@@ -2127,7 +2129,7 @@ class JVMJob(Job):
     def write_batch_config(self):
         os.makedirs(f'{self.scratch}/batch-config')
         with open(f'{self.scratch}/batch-config/batch-config.json', 'wb') as config:
-            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id}))
+            config.write(orjson.dumps({'version': 1, 'batch_id': self.batch_id, 'job_group_id': self.job_group_id}))
         # Necessary for backward compatibility for Hail Query jars that expect
         # the deploy config at this path and not at `/deploy-config/deploy-config.json`
         os.makedirs(f'{self.scratch}/secrets/deploy-config', exist_ok=True)
@@ -2478,11 +2480,14 @@ class JVMContainer:
         assert os.path.isdir(root_dir)
 
         assert instance_config
-        total_memory_bytes = n_cores * worker_memory_per_core_bytes(CLOUD, instance_config.worker_type())
 
+        total_machine_cores, total_machine_memory_bytes = machine_type_to_cores_and_memory_bytes(
+            CLOUD, INSTANCE_CONFIG["machine_type"]
+        )
+        total_memory_bytes = int((n_cores / total_machine_cores) * total_machine_memory_bytes)
         # We allocate 60% of memory per core to off heap memory
-        memory_per_core_mib = worker_memory_per_core_mib(CLOUD, instance_config.worker_type())
-        memory_mib = n_cores * memory_per_core_mib
+
+        memory_mib = total_memory_bytes // (1024**2)
         heap_memory_mib = int(0.4 * memory_mib)
         off_heap_memory_per_core_mib = memory_mib - heap_memory_mib
 

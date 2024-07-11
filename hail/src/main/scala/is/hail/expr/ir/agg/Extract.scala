@@ -130,8 +130,8 @@ case class NDArrayMultiplyAddStateSig(nda: VirtualTypeWithReq)
 
 case class FoldStateSig(
   resultEmitType: EmitType,
-  accumName: String,
-  otherAccumName: String,
+  accumName: Name,
+  otherAccumName: Name,
   combOpIR: IR,
 ) extends AggStateSig(Array[VirtualTypeWithReq](resultEmitType.typeWithRequiredness), None)
 
@@ -400,13 +400,13 @@ object Extract {
   // are returned in the first array, the rest are in the second.
   /* TODO: this is only being used to do ad hoc code motion. Remove when we have a real code motion
    * pass. */
-  private def partitionDependentLets(lets: Array[(String, IR)], name: String)
-    : (Array[(String, IR)], Array[(String, IR)]) = {
-    val depBindings = mutable.HashSet.empty[String]
+  private def partitionDependentLets(lets: Array[(Name, IR)], name: Name)
+    : (Array[(Name, IR)], Array[(Name, IR)]) = {
+    val depBindings = mutable.HashSet.empty[Name]
     depBindings += name
 
-    val dep = new BoxedArrayBuilder[(String, IR)]
-    val indep = new BoxedArrayBuilder[(String, IR)]
+    val dep = new BoxedArrayBuilder[(Name, IR)]
+    val indep = new BoxedArrayBuilder[(Name, IR)]
 
     lets.foreach { case x @ (name, value) =>
       if (value.typ == TVoid || value.isInstanceOf[ResultOp] || value.isInstanceOf[AggStateValue]) {
@@ -464,8 +464,8 @@ object Extract {
 
   def apply(ir: IR, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
     val ab = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
-    val seq = new BoxedArrayBuilder[(String, IR)]()
-    val ref = Ref(genUID(), null)
+    val seq = new BoxedArrayBuilder[(Name, IR)]()
+    val ref = Ref(freshName(), null)
     val memo = mutable.Map.empty[IR, Int]
 
     val bindingNodesReferenced = Memo.empty[Unit]
@@ -509,7 +509,7 @@ object Extract {
     // set of contained aggs, and the init op for each
     ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)],
     // set of updates for contained aggs
-    seqBuilder: BoxedArrayBuilder[(String, IR)],
+    seqBuilder: BoxedArrayBuilder[(Name, IR)],
     /* Map each contained ApplyAggOp, ApplyScanOp, or AggFold, to the index of the corresponding agg
      * state, used to perform CSE on agg ops */
     memo: mutable.Map[IR, Int],
@@ -555,7 +555,7 @@ object Extract {
             bindInitArgRefs(x.initOpArgs)
             val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
-            seqBuilder += "__void" -> SeqOp(i, x.seqOpArgs, state)
+            seqBuilder += freshName() -> SeqOp(i, x.seqOpArgs, state)
             i
           },
         )
@@ -568,7 +568,7 @@ object Extract {
             bindInitArgRefs(x.initOpArgs)
             val state = PhysicalAggSig(op, AggStateSig(op, x.seqOpArgs, r))
             ab += InitOp(i, x.initOpArgs, state) -> state
-            seqBuilder += "__void" -> SeqOp(i, x.seqOpArgs, state)
+            seqBuilder += freshName() -> SeqOp(i, x.seqOpArgs, state)
             i
           },
         )
@@ -587,33 +587,33 @@ object Extract {
             ab += InitOp(i, initOpArgs, signature) -> signature
             // So seqOp has to be able to reference accumName.
             seqBuilder += accumName -> ResultOp(i, signature)
-            seqBuilder += "__void" -> SeqOp(i, seqOpArgs, signature)
+            seqBuilder += freshName() -> SeqOp(i, seqOpArgs, signature)
             i
           },
         )
         GetTupleElement(result, idx)
       case AggFilter(cond, aggIR, _) =>
-        val newSeq = new BoxedArrayBuilder[(String, IR)]()
+        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
         val transformed = this.extract(aggIR, env, bindingNodesReferenced, rewriteMap, ab, newSeq,
           newMemo, result, r, isScan)
 
-        seqBuilder += "__void" -> If(cond, Let.void(newSeq.result()), Void())
+        seqBuilder += freshName() -> If(cond, Let.void(newSeq.result()), Void())
         transformed
 
       case AggExplode(array, name, aggBody, _) =>
-        val newSeq = new BoxedArrayBuilder[(String, IR)]()
+        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
         val transformed = this.extract(aggBody, env, bindingNodesReferenced, rewriteMap, ab, newSeq,
           newMemo, result, r, isScan)
 
         val (dependent, independent) = partitionDependentLets(newSeq.result(), name)
         seqBuilder ++= independent
-        seqBuilder += "__void" -> StreamFor(array, name, Let.void(dependent))
+        seqBuilder += freshName() -> StreamFor(array, name, Let.void(dependent))
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
         val newAggs = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
-        val newSeq = new BoxedArrayBuilder[(String, IR)]()
-        val newRef = Ref(genUID(), null)
+        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
+        val newRef = Ref(freshName(), null)
         val transformed = this.extract(
           aggIR,
           env,
@@ -636,7 +636,7 @@ object Extract {
         val groupState = AggStateSig.grouped(key, pAggSigs.map(_.state), r)
         val groupSig = GroupedAggSig(groupState.kt, pAggSigs.toFastSeq)
         ab += InitOp(i, FastSeq(Begin(initOps)), groupSig) -> groupSig
-        seqBuilder += "__void" -> SeqOp(
+        seqBuilder += freshName() -> SeqOp(
           i,
           FastSeq(key, Let.void(newSeq.result())),
           groupSig,
@@ -650,8 +650,8 @@ object Extract {
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
         val newAggs = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
-        val newSeq = new BoxedArrayBuilder[(String, IR)]()
-        val newRef = Ref(genUID(), null)
+        val newSeq = new BoxedArrayBuilder[(Name, IR)]()
+        val newRef = Ref(freshName(), null)
         val transformed = this.extract(aggBody, env, bindingNodesReferenced, rewriteMap, newAggs,
           newSeq, newMemo, newRef, r, isScan)
 
@@ -666,7 +666,7 @@ object Extract {
         val checkSig = ArrayLenAggSig(knownLength.isDefined, pAggSigs)
         val eltSig = AggElementsAggSig(pAggSigs)
 
-        val aRef = Ref(genUID(), a.typ)
+        val aRef = Ref(freshName(), a.typ)
 
         ab += InitOp(
           i,
@@ -676,9 +676,9 @@ object Extract {
 
         seqBuilder ++= independent
         seqBuilder += aRef.name -> a
-        seqBuilder += "__void" -> SeqOp(i, FastSeq(ArrayLen(aRef)), checkSig)
+        seqBuilder += freshName() -> SeqOp(i, FastSeq(ArrayLen(aRef)), checkSig)
         seqBuilder +=
-          "__void" -> StreamFor(
+          freshName() -> StreamFor(
             StreamRange(I32(0), ArrayLen(aRef), I32(1)),
             indexName,
             SeqOp(
@@ -691,7 +691,7 @@ object Extract {
             ),
           )
 
-        val rUID = Ref(genUID(), rt)
+        val rUID = Ref(freshName(), rt)
         Let(
           FastSeq(rUID.name -> GetTupleElement(result, i)),
           ToArray(StreamMap(
@@ -712,8 +712,7 @@ object Extract {
         x
       case x =>
         x.mapChildrenWithIndex { case (child: IR, i) =>
-          val newEnv =
-            Bindings.segregated(x, i, env).mapNewBindings((_, _) => RefEquality(x)).unified
+          val newEnv = env.extend(Bindings.get(x, i).map((_, _) => RefEquality(x)))
 
           this.extract(child, newEnv, bindingNodesReferenced, rewriteMap, ab, seqBuilder, memo,
             result, r, isScan)

@@ -248,12 +248,12 @@ class AzureFlow(Flow):
             if AzureFlow._aad_keys is None:
                 resp = await session.get_read_json('https://login.microsoftonline.com/common/discovery/keys')
                 AzureFlow._aad_keys = resp['keys']
+            assert AzureFlow._aad_keys
 
             # This code is taken nearly verbatim from
             # https://github.com/AzureAD/microsoft-authentication-library-for-python/issues/147
             # At time of writing, the community response in that issue is the recommended way to validate
             # AAD access tokens in python as it is not a part of the MSAL library.
-
             jwk = next(key for key in AzureFlow._aad_keys if key['kid'] == kid)
             der_cert = base64.b64decode(jwk['x5c'][0])
             cert = x509.load_der_x509_certificate(der_cert)

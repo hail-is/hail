@@ -262,9 +262,7 @@ class Batch:
             await self._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
             await self._fs.write(code_path, pipe.getvalue())
 
-        code_input_file = self.read_input(code_path)
-
-        return code_input_file
+        return await self._async_read_input(code_path)
 
     async def _serialize_python_functions_to_input_files(self, path: str, dry_run: bool = False) -> None:
         for function_id, function in self._python_function_defs.items():
@@ -425,7 +423,7 @@ class Batch:
         self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
         return jrf
 
-    def _new_input_resource_file(self, input_path, root=None):
+    async def _new_input_resource_file(self, input_path, root=None):
         if isinstance(input_path, str):
             pass
         elif isinstance(input_path, os.PathLike):
@@ -434,7 +432,7 @@ class Batch:
         else:
             raise BatchException(f"path value is neither string nor path-like. Found '{type(input_path)}' instead.")
 
-        self._backend.validate_file(input_path, self.requester_pays_project)
+        await self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
         if AzureAsyncFS.valid_url(input_path):
@@ -481,8 +479,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -501,8 +498,10 @@ class Batch:
             File path to read.
         """
 
-        irf = self._new_input_resource_file(path)
-        return irf
+        return async_to_blocking(self._async_read_input(path))
+
+    async def _async_read_input(self, path: Union[str, os.PathLike]) -> _resource.InputResourceFile:
+        return await self._new_input_resource_file(path)
 
     def read_input_group(self, **kwargs: Union[str, os.PathLike]) -> _resource.ResourceGroup:
         """Create a new resource group representing a mapping of identifier to
@@ -511,8 +510,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, input files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Examples
         --------
@@ -564,7 +562,9 @@ class Batch:
         """
 
         root = secret_alnum_string(5)
-        new_resources = {name: self._new_input_resource_file(file, root) for name, file in kwargs.items()}
+        new_resources = {
+            name: async_to_blocking(self._new_input_resource_file(file, root)) for name, file in kwargs.items()
+        }
         rg = _resource.ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
@@ -607,8 +607,7 @@ class Batch:
         .. warning::
 
             To avoid expensive egress charges, output files should be located in buckets
-            that are multi-regional in the United States because Batch runs jobs in any
-            US region.
+            that are in the same region in which your Batch jobs run.
 
         Notes
         -----
@@ -659,7 +658,7 @@ class Batch:
             if dest_scheme == '':
                 dest = os.path.abspath(os.path.expanduser(dest))
 
-        self._backend.validate_file(dest, self.requester_pays_project)
+        async_to_blocking(self._backend.validate_file(dest, self.requester_pays_project))
 
         resource._add_output_path(dest)
 

@@ -6,11 +6,11 @@ from enum import Enum
 from typing import AbstractSet, Any, ClassVar, Dict, List, Mapping, Optional, Tuple, TypeVar, Union
 
 import orjson
-import pkg_resources
 
 from hailtop.config.user_config import unchecked_configuration_of
 from hailtop.fs.fs import FS
 
+from .. import __resource, __resource_str
 from ..builtin_references import BUILTIN_REFERENCE_RESOURCE_PATHS
 from ..expr import Expression
 from ..expr.blockmatrix_type import tblockmatrix
@@ -50,33 +50,22 @@ class LocalJarInformation:
         self.extra_classpath = extra_classpath
 
 
-def resource_exists(f: str) -> bool:
-    return pkg_resources.resource_exists(__name__, f)
-
-
-def resource_filename(f: str) -> str:
-    return pkg_resources.resource_filename(__name__, f)
-
-
 def local_jar_information() -> LocalJarInformation:
-    if resource_exists('hail.jar'):
+    if (hail_jar := __resource('backend/hail.jar')).is_file():
         warnings.warn('!!! THIS IS A DEVELOPMENT VERSION OF HAIL !!!')
-        with open(pkg_resources.resource_filename(__name__, 'extra_classpath')) as fobj:
-            return LocalJarInformation(
-                True,
-                resource_filename('hail.jar'),
-                [fobj.read()],
-            )
-    elif resource_exists('hail-all-spark.jar'):
+        return LocalJarInformation(
+            True,
+            str(hail_jar),
+            [__resource_str('backend/extra_classpath')],
+        )
+    elif (hail_all_spark_jar := __resource('backend/hail-all-spark.jar')).is_file():
         return LocalJarInformation(
             False,
-            resource_filename("hail-all-spark.jar"),
+            str(hail_all_spark_jar),
             [],
         )
     else:
-        raise ValueError(
-            f'Hail requires either {resource_filename("hail.jar")} or {resource_filename("hail-all-spark.jar")}.'
-        )
+        raise ValueError(f'Hail requires either {hail_jar} or {hail_all_spark_jar}.')
 
 
 class ActionTag(Enum):
@@ -140,30 +129,32 @@ class FromFASTAFilePayload(ActionPayload):
 class Backend(abc.ABC):
     # Must match knownFlags in HailFeatureFlags.scala
     _flags_env_vars_and_defaults: ClassVar[Dict[str, Tuple[str, Optional[str]]]] = {
-        "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
-        "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
-        "lower": ("HAIL_DEV_LOWER", None),
-        "lower_only": ("HAIL_DEV_LOWER_ONLY", None),
-        "lower_bm": ("HAIL_DEV_LOWER_BM", None),
-        "print_ir_on_worker": ("HAIL_DEV_PRINT_IR_ON_WORKER", None),
-        "print_inputs_on_worker": ("HAIL_DEV_PRINT_INPUTS_ON_WORKER", None),
-        "max_leader_scans": ("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
-        "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
-        "jvm_bytecode_dump": ("HAIL_DEV_JVM_BYTECODE_DUMP", None),
-        "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
-        "method_split_ir_limit": ("HAIL_DEV_METHOD_SPLIT_LIMIT", "16"),
-        "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
-        "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
-        "shuffle_cutoff_to_local_sort": ("HAIL_SHUFFLE_CUTOFF", "512000000"),  # This is in bytes
-        "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
-        "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),
-        "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
-        "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
-        "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
-        "rng_nonce": ("HAIL_RNG_NONCE", "0x0"),
-        "profile": ("HAIL_PROFILE", None),
-        "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
         "cachedir": ("HAIL_CACHE_DIR", None),
+        "distributed_scan_comb_op": ("HAIL_DEV_DISTRIBUTED_SCAN_COMB_OP", None),
+        "gcs_requester_pays_buckets": ("HAIL_GCS_REQUESTER_PAYS_BUCKETS", None),
+        "gcs_requester_pays_project": ("HAIL_GCS_REQUESTER_PAYS_PROJECT", None),
+        "grouped_aggregate_buffer_size": ("HAIL_GROUPED_AGGREGATE_BUFFER_SIZE", "50"),
+        "index_branching_factor": ("HAIL_INDEX_BRANCHING_FACTOR", None),
+        "jvm_bytecode_dump": ("HAIL_DEV_JVM_BYTECODE_DUMP", None),
+        "lower": ("HAIL_DEV_LOWER", None),
+        "lower_bm": ("HAIL_DEV_LOWER_BM", None),
+        "lower_only": ("HAIL_DEV_LOWER_ONLY", None),
+        "max_leader_scans": ("HAIL_DEV_MAX_LEADER_SCANS", "1000"),
+        "method_split_ir_limit": ("HAIL_DEV_METHOD_SPLIT_LIMIT", "16"),
+        "no_ir_logging": ("HAIL_DEV_NO_IR_LOG", None),
+        "no_whole_stage_codegen": ("HAIL_DEV_NO_WHOLE_STAGE_CODEGEN", None),
+        "print_inputs_on_worker": ("HAIL_DEV_PRINT_INPUTS_ON_WORKER", None),
+        "print_ir_on_worker": ("HAIL_DEV_PRINT_IR_ON_WORKER", None),
+        "profile": ("HAIL_PROFILE", None),
+        "rng_nonce": ("HAIL_RNG_NONCE", "0x0"),
+        "shuffle_cutoff_to_local_sort": ("HAIL_SHUFFLE_CUTOFF", "512000000"),  # This is in bytes
+        "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
+        "spark_max_stage_parallelism": ("HAIL_SPARK_MAX_STAGE_PARALLELISM", str(2**31 - 1)),
+        "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
+        "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
+        "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),
+        "use_unstable_encodings": ("HAIL_DEV_USE_UNSTABLE_ENCODINGS", None),
+        "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
     }
 
     def _valid_flags(self) -> AbstractSet[str]:

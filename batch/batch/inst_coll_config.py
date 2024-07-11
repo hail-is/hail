@@ -5,15 +5,22 @@ from typing import Dict, Optional, Tuple
 from gear import Database
 
 from .cloud.azure.instance_config import AzureSlimInstanceConfig
-from .cloud.azure.resource_utils import azure_worker_properties_to_machine_type
+from .cloud.azure.resource_utils import (
+    azure_adjust_cores_for_memory_request,
+    azure_cores_mcpu_to_memory_bytes,
+    azure_worker_properties_to_machine_type,
+)
 from .cloud.gcp.instance_config import GCPSlimInstanceConfig
-from .cloud.gcp.resource_utils import GCP_MACHINE_FAMILY, family_worker_type_cores_to_gcp_machine_type
+from .cloud.gcp.resource_utils import (
+    GCP_MACHINE_FAMILY,
+    family_worker_type_cores_to_gcp_machine_type,
+    gcp_adjust_cores_for_memory_request,
+    gcp_cores_mcpu_to_memory_bytes,
+)
 from .cloud.resource_utils import (
-    adjust_cores_for_memory_request,
     adjust_cores_for_packability,
-    cores_mcpu_to_memory_bytes,
     local_ssd_size,
-    machine_type_to_worker_type_cores,
+    machine_type_to_cores_and_memory_bytes,
     requested_storage_bytes_to_actual_storage_gib,
     valid_machine_types,
 )
@@ -192,20 +199,26 @@ WHERE pools.name = %s;
         if storage_gib is None:
             return None
 
-        cores_mcpu = adjust_cores_for_memory_request(self.cloud, cores_mcpu, memory_bytes, self.worker_type)
-        cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-
-        memory_bytes = cores_mcpu_to_memory_bytes(self.cloud, cores_mcpu, self.worker_type)
+        if self.cloud == 'gcp':
+            cores_mcpu = gcp_adjust_cores_for_memory_request(
+                cores_mcpu, memory_bytes, GCP_MACHINE_FAMILY, self.worker_type
+            )
+            cores_mcpu = adjust_cores_for_packability(cores_mcpu)
+            memory_bytes = gcp_cores_mcpu_to_memory_bytes(cores_mcpu, GCP_MACHINE_FAMILY, self.worker_type)
+        else:
+            assert self.cloud == 'azure'
+            cores_mcpu = azure_adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
+            cores_mcpu = adjust_cores_for_packability(cores_mcpu)
+            memory_bytes = azure_cores_mcpu_to_memory_bytes(cores_mcpu, self.worker_type)
 
         if cores_mcpu <= self.worker_cores * 1000:
             return (cores_mcpu, memory_bytes, storage_gib)
 
         return None
 
-    def cost_per_hour(self, resource_rates, product_versions, location, cores_mcpu, memory_bytes, storage_gib):
+    def price_per_hour(self, resource_rates, product_versions, location, cores_mcpu, memory_bytes, storage_gib):
         instance_config = self.instance_config(product_versions, location)
-        cost_per_hour = instance_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
-        return cost_per_hour
+        return instance_config.price_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
 
 
 class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
@@ -248,9 +261,8 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         if storage_gib is None:
             return None
 
-        worker_type, cores = machine_type_to_worker_type_cores(self.cloud, machine_type)
+        cores, memory_bytes = machine_type_to_cores_and_memory_bytes(self.cloud, machine_type)
         cores_mcpu = cores * 1000
-        memory_bytes = cores_mcpu_to_memory_bytes(self.cloud, cores_mcpu, worker_type)
 
         return (self.name, cores_mcpu, memory_bytes, storage_gib)
 
@@ -322,11 +334,11 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         self.resource_rates = resource_rates
         self.product_versions.update(product_versions_data)
 
-    def select_pool_from_cost(self, cloud, pool_label, cores_mcpu, memory_bytes, storage_bytes, preemptible):
+    def select_cheapest_price_pool(self, cloud, pool_label, cores_mcpu, memory_bytes, storage_bytes, preemptible):
         assert self.resource_rates is not None
 
         optimal_result = None
-        optimal_cost = None
+        optimal_price = None
         for pool in self.name_pool_config.values():
             if pool.cloud != cloud or pool.preemptible != preemptible or pool.label != pool_label:
                 continue
@@ -335,9 +347,9 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
             if result:
                 maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib = result
 
-                max_regional_maybe_cost = None
+                max_regional_maybe_price = None
                 for location in possible_cloud_locations(pool.cloud):
-                    maybe_cost = pool.cost_per_hour(
+                    maybe_price = pool.price_per_hour(
                         self.resource_rates,
                         self.product_versions,
                         location,
@@ -345,13 +357,13 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                         maybe_memory_bytes,
                         maybe_storage_gib,
                     )
-                    if max_regional_maybe_cost is None or maybe_cost > max_regional_maybe_cost:
-                        max_regional_maybe_cost = maybe_cost
+                    if max_regional_maybe_price is None or maybe_price > max_regional_maybe_price:
+                        max_regional_maybe_price = maybe_price
 
-                if optimal_cost is None or (
-                    max_regional_maybe_cost is not None and max_regional_maybe_cost < optimal_cost
+                if optimal_price is None or (
+                    max_regional_maybe_price is not None and max_regional_maybe_price < optimal_price
                 ):
-                    optimal_cost = max_regional_maybe_cost
+                    optimal_price = max_regional_maybe_price
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
@@ -398,7 +410,7 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                 preemptible=preemptible,
             )
         elif worker_type is None and machine_type is None:
-            result = self.select_pool_from_cost(
+            result = self.select_cheapest_price_pool(
                 cloud=cloud,
                 pool_label=pool_label,
                 cores_mcpu=req_cores_mcpu,

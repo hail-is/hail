@@ -6,6 +6,7 @@ import is.hail.expr.ir.{
   BaseIR, CodeCacheKey, CompiledFunction, IRParser, IRParserEnvironment, LoweringAnalyses,
   SortField, TableIR, TableReader,
 }
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -19,6 +20,7 @@ import is.hail.types.virtual.TFloat64
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -80,19 +82,10 @@ abstract class Backend {
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    collection: Array[Array[Byte]],
+    contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
     dependency: Option[TableStageDependency] = None,
-  )(
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
-  ): Array[Array[Byte]]
-
-  def parallelizeAndComputeWithIndexReturnAllErrors(
-    backendContext: BackendContext,
-    fs: FS,
-    collection: IndexedSeq[(Array[Byte], Int)],
-    stageIdentifier: String,
-    dependency: Option[TableStageDependency] = None,
+    partitions: Option[IndexedSeq[Int]] = None,
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
@@ -240,6 +233,27 @@ abstract class Backend {
         StandardCharsets.UTF_8
       )
     }
+
+  def pyRegisterIR(
+    name: String,
+    typeParamStrs: java.util.ArrayList[String],
+    argNameStrs: java.util.ArrayList[String],
+    argTypeStrs: java.util.ArrayList[String],
+    returnType: String,
+    bodyStr: String,
+  ): Unit = {
+    withExecuteContext("pyRegisterIR") { ctx =>
+      IRFunctionRegistry.registerIR(
+        ctx,
+        name,
+        typeParamStrs.asScala.toArray,
+        argNameStrs.asScala.toArray,
+        argTypeStrs.asScala.toArray,
+        returnType,
+        bodyStr,
+      )
+    }
+  }
 
   def execute(
     ir: String,

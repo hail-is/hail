@@ -654,7 +654,7 @@ def is_transient_error(e: BaseException) -> bool:
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
-    if isinstance(e, aiohttp.ClientPayloadError) and e.args[0] == "Response payload is not completed":
+    if isinstance(e, aiohttp.ClientPayloadError) and "Response payload is not completed" in e.args[0]:
         return True
     if isinstance(e, aiohttp.ClientOSError) and 'sslv3 alert bad record mac' in e.strerror:
         # aiohttp.client_exceptions.ClientOSError: [Errno 1] [SSL: SSLV3_ALERT_BAD_RECORD_MAC] sslv3 alert bad record mac (_ssl.c:2548)
@@ -696,6 +696,18 @@ def is_transient_error(e: BaseException) -> bool:
         return True
     if e.__cause__ is not None:
         return is_transient_error(e.__cause__)
+    return False
+
+
+def is_rate_limit_error(e: BaseException) -> bool:
+    import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
+
+    if isinstance(e, aiohttp.ClientResponseError) and e.status == 429:
+        return True
+    if isinstance(e, hailtop.httpx.ClientResponseError) and (
+        e.status == 429 or e.status == 403 and 'rateLimitExceeded' in e.body
+    ):
+        return True
     return False
 
 
@@ -791,6 +803,7 @@ async def retry_transient_errors_with_debug_string(
 ) -> T:
     start_time = time_msecs()
     tries = 0
+
     while True:
         try:
             return await f(*args, **kwargs)
@@ -805,6 +818,8 @@ async def retry_transient_errors_with_debug_string(
                     f'{5 - tries} more times. Do not be alarmed. (next delay: '
                     f'{delay}s). The most recent error was {type(e)} {e}. {debug_string}'
                 )
+            elif is_rate_limit_error(e):
+                pass
             elif not is_transient_error(e):
                 raise
             else:

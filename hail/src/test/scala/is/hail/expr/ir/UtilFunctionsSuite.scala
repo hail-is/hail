@@ -12,13 +12,7 @@ class UtilFunctionsSuite extends HailSuite {
   val na = NA(TBoolean)
   val die = Die("it ded", TBoolean)
 
-  val folded = StreamFold(
-    MakeStream(IndexedSeq(true), TStream(TBoolean)),
-    die,
-    "a",
-    "e",
-    Ref("a", TBoolean) || Ref("e", TBoolean),
-  )
+  val folded = foldIR(MakeStream(IndexedSeq(true), TStream(TBoolean)), die)(_ || _)
 
   @Test def shortCircuitOr(): Unit = {
     assertEvalsTo(True() || True(), true)

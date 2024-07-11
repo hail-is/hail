@@ -73,6 +73,7 @@ class PagedQueriesIterator:
             config = {'kind': 'bigquery#queryRequest', 'useLegacySql': False, 'query': self._query}
 
             self._page = await self._client.post('/queries', json=config, **self._request_kwargs)
+            assert self._page
             self._row_index = 0
             self._total_rows = self._page['totalRows']
             self._parser = ResultsParser(self._page['schema'])

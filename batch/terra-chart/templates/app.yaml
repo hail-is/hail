@@ -8,15 +8,15 @@ spec:
   selector:
     matchLabels:
       app: batch
-      aadpodidbinding: {{ .Values.identity.name }}
   serviceName: batch
   replicas: 1
   template:
     metadata:
       labels:
         app: batch
-        aadpodidbinding: {{ .Values.identity.name }}
+        azure.workload.identity/use: "true"
     spec:
+      serviceAccountName: {{ .Values.workloadIdentity.serviceAccountName }}
       containers:
         - name: batch
           image: {{ .Values.batch.image }}
@@ -24,8 +24,8 @@ spec:
            - bash
            - -c
            - |
-             python3 ci/create_local_database.py batch $HAIL_SQL_DATABASE
-             python3 -m batch.front_end
+             python3 ci/create_local_database.py batch batch
+             HAIL_SQL_DATABASE=batch python3 -m batch.front_end
           env:
            - name: WORKSPACE_MANAGER_URL
              value: {{ .Values.persistence.workspaceManager.url }}
@@ -65,10 +65,13 @@ spec:
                configMapKeyRef:
                  name: global-config
                  key: cloud
+           - name: HAIL_CLOUD
+             valueFrom:
+               configMapKeyRef:
+                 name: global-config
+                 key: cloud
            - name: HAIL_TERRA
              value: "true"
-           - name: HAIL_SQL_DATABASE
-             value: batch
            - name: INTERNAL_GATEWAY_IP
              valueFrom:
                configMapKeyRef:
@@ -134,6 +137,8 @@ spec:
              value: /deploy-config/deploy-config.json
            - name: HAIL_BATCH_WORKER_IMAGE
              value: {{ .Values.batch.workerImage }}
+           - name: HAIL_SQL_DATABASE
+             value: batch
            - name: PORT
              value: "5000"
            - name: HAIL_DEFAULT_NAMESPACE

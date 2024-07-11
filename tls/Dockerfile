@@ -5,7 +5,7 @@ FROM $BASE_IMAGE
 # jdk not strictly necessary, but we want keytool
 RUN curl -LO https://dl.k8s.io/release/v1.21.14/bin/linux/amd64/kubectl && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
-    hail-apt-get-install openssl openjdk-8-jdk-headless && \
+    hail-apt-get-install openssl openjdk-11-jdk-headless && \
     sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf && \
     hail-pip-install pyyaml
 

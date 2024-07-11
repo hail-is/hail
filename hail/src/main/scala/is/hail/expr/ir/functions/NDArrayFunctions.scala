@@ -21,13 +21,13 @@ object NDArrayFunctions extends RegistryFunctions {
       val nDimVar = NatVariable()
       registerIR2(stringOp, TNDArray(argType, nDimVar), argType, TNDArray(retType, nDimVar)) {
         (_, a, c, errorID) =>
-          val i = genUID()
+          val i = freshName()
           NDArrayMap(a, i, irOp(Ref(i, c.typ), c, errorID))
       }
 
       registerIR2(stringOp, argType, TNDArray(argType, nDimVar), TNDArray(retType, nDimVar)) {
         (_, c, a, errorID) =>
-          val i = genUID()
+          val i = freshName()
           NDArrayMap(a, i, irOp(c, Ref(i, c.typ), errorID))
       }
 
@@ -37,8 +37,8 @@ object NDArrayFunctions extends RegistryFunctions {
         TNDArray(argType, nDimVar),
         TNDArray(retType, nDimVar),
       ) { (_, l, r, errorID) =>
-        val lid = genUID()
-        val rid = genUID()
+        val lid = freshName()
+        val rid = freshName()
         val lElemRef = Ref(lid, tcoerce[TNDArray](l.typ).elementType)
         val rElemRef = Ref(rid, tcoerce[TNDArray](r.typ).elementType)
 

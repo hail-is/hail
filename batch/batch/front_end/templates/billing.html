@@ -1,106 +1,93 @@
+{% from "components/utils.html" import submit_button %}
 {% extends "layout.html" %}
 {% block title %}Billing{% endblock %}
 {% block content %}
-<h1>Billing</h1>
-<div class="flex-col">
-    <div class="flex-col-align-left">
-        <form method="GET" action="{{ base_path }}/billing">
-            <label for="start">Start:</label>
-            <input style="vertical-align:text-bottom;" name="start" size=30 type="text" required
-                   {% if start is not none %}
-                   value = "{{ start }}"
-                   {% else %}
-                   placeholder="MM/DD/YYYY"
-                   {% endif %}
-            ><br>
-            <label for="end">End (inclusive):</label>
-            <input style="vertical-align:text-bottom;" name="end" size=30 type="text"
-                   {% if end is not none %}
-                   value = "{{ end }}"
-                   {% else %}
-                   placeholder="MM/DD/YYYY (optional)"
-                   {% endif %}
-            ><br>
-            <button type="submit">Submit</button>
-        </form>
-        <br>
-        <input id="expand-search-syntax-checkbox" class="expand-checkbox" type="checkbox">
-        <label for="expand-search-syntax-checkbox" class="expand-label">Search Help</label>
-        <div class="expand-content" style="max-width:75%;">
-            <p>Start must be a date in the format MM/DD/YYYY. End is an optional date in the format
-                MM/DD/YYYY. Leave End empty to include currently running batches. If End is not empty,
-                then no currently running batches are included. All dates search for batches that have
-                completed within that time interval (inclusive).</p>
+<div class='flex flex-wrap justify-around md:mt-16'>
+  <div class='lg:basis-1/3'>
+    <form method="GET" action="{{ base_path }}/billing">
+      <div class='flex flex-wrap justify-between space-y-2 items-end'>
+        <div class='flex flex-col'>
+          <label class='mb-1' for="start">Start</label>
+          <input class='border rounded p-2' name="start" type="text" required value="{{ start or '' }}"
+            placeholder='MM/DD/YYYY'>
         </div>
+        <div class='flex flex-col'>
+          <label class='mb-1' for="end">End (inclusive)</label>
+          <input class='border rounded p-2' name="end" type="text" value="{{ end or '' }}"
+            placeholder='MM/DD/YYYY (optional)'>
+        </div>
+        <div class='h-1/2'>
+          {{ submit_button('Submit') }}
+        </div>
+      </div>
+    </form>
+    <p class='text-zinc-500 text-balance py-8'>
+      Start must be a date in the format MM/DD/YYYY. End is an optional date in the format
+      MM/DD/YYYY. Leave End empty to include currently running batches. If End is not empty,
+      then no currently running batches are included. All dates search for batches that have
+      completed within that time interval (inclusive).</p>
+  </div>
+  <div class='bg-slate-100 border rounded overflow-hidden lg:basis-1/2'>
+    <div class='text-xl m-4'>
+      Total spend: <span class='font-light text-lg'>{{ total_cost }}</span>
     </div>
-
-    <h2>Total Spend</h2>
-    <ul>
-        <li>{{ total_cost }}</li>
-    </ul>
-
-    {% if is_developer %}
-    <h2>Spend by Billing Project</h2>
-    <div class='flex-col' style="overflow: auto;">
-        <table class="data-table" id="billing_by_project">
-            <thead>
-            <tr>
-                <th>Billing Project</th>
-                <th>Spend</th>
-            </tr>
-            </thead>
-            <tbody>
+    <div class='bg-white' x-data='{ tab: "{{ "by-bp" if is_developer else "by-bp-user"}}" }'>
+      <div class='flex border-b text-lg'>
+        {% if is_developer %}
+        <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+          :class='{"border-b": tab == "by-bp", "opacity-50": tab != "by-bp"}' x-on:click='tab = "by-bp"'>
+          By Billing Project
+        </div>
+        <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+          :class='{"border-b": tab == "by-user", "opacity-50": tab != "by-user"}' x-on:click='tab = "by-user"'>
+          By User
+        </div>
+        {% endif %}
+        <div class='px-4 pt-4 pb-2 hover:opacity-100 hover:cursor-pointer hover:border-b border-black'
+          :class='{"border-b": tab == "by-bp-user", "opacity-50": tab != "by-bp-user"}' x-on:click='tab = "by-bp-user"'>
+          By Billing Project and User
+        </div>
+      </div>
+      {% if is_developer %}
+      <div class='relative overflow-hidden transition-all' x-show='tab == "by-bp"'>
+        <table class='w-full overflow-auto'>
+          <tbody>
             {% for row in billing_by_project %}
-            <tr>
-                <td>{{ row['billing_project'] }}</td>
-                <td>{{ row['cost'] }}</td>
+            <tr class='border-y'>
+              <td class='p-2'>{{ row['billing_project'] }}</td>
+              <td class='p-2'>{{ row['cost'] }}</td>
             </tr>
             {% endfor %}
-            </tbody>
+          </tbody>
         </table>
-    </div>
-
-    <h2>Spend by User</h2>
-    <div class='flex-col' style="overflow: auto;">
-        <table class="data-table" id="billing_by_user">
-            <thead>
-            <tr>
-                <th>User</th>
-                <th>Spend</th>
-            </tr>
-            </thead>
-            <tbody>
+      </div>
+      <div class='relative overflow-hidden transition-all' x-show='tab == "by-user"'>
+        <table class='w-full overflow-auto'>
+          <tbody>
             {% for row in billing_by_user %}
-            <tr>
-                <td>{{ row['user'] }}</td>
-                <td>{{ row['cost'] }}</td>
+            <tr class='border-y'>
+              <td class='p-2'>{{ row['user'] }}</td>
+              <td class='p-2'>{{ row['cost'] }}</td>
             </tr>
             {% endfor %}
-            </tbody>
+          </tbody>
         </table>
-    </div>
-    {% endif %}
-
-    <h2>Spend by Billing Project and User</h2>
-    <div class='flex-col' style="overflow: auto;">
-        <table class="data-table" id="billing_by_project_user">
-            <thead>
-            <tr>
-                <th>Billing Project</th>
-                <th>User</th>
-                <th>Spend</th>
-            </tr>
-            </thead>
-            <tbody>
+      </div>
+      {% endif %}
+      <div class='relative overflow-hidden transition-all' x-show='tab == "by-bp-user"'>
+        <table class='w-full overflow-auto'>
+          <tbody>
             {% for row in billing_by_project_user %}
-            <tr>
-                <td>{{ row['billing_project'] }}</td>
-                <td>{{ row['user'] }}</td>
-                <td>{{ row['cost'] }}</td>
+            <tr class='border-y'>
+              <td class='p-2'>{{ row['billing_project'] }}</td>
+              <td class='p-2'>{{ row['user'] }}</td>
+              <td class='p-2'>{{ row['cost'] }}</td>
             </tr>
             {% endfor %}
-            </tbody>
+          </tbody>
         </table>
+      </div>
     </div>
+  </div>
 </div>
 {% endblock %}

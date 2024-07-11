@@ -1,5 +1,6 @@
 import builtins
 import functools
+import itertools
 import operator
 from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
@@ -5172,64 +5173,71 @@ def _ndarray(collection, row_major=None, dtype=None):
         else:
             return []
 
-    def deep_flatten(es):
-        result = []
-        for e in es:
-            if isinstance(e, (list, builtins.tuple)):
-                result.extend(deep_flatten(e))
-            else:
-                result.append(e)
+    def deep_flatten(xs: Iterable) -> Iterable:
+        return [y for x in xs for y in (deep_flatten(x) if isinstance(x, (list, builtins.tuple)) else [x])]
 
-        return result
-
-    def check_arrays_uniform(nested_arr, shape_list, ndim):
-        current_level_correct = hl.len(nested_arr) == shape_list[-ndim]
-        if ndim == 1:
-            return current_level_correct
-        else:
-            return current_level_correct & (
-                hl.all(lambda inner: check_arrays_uniform(inner, shape_list, ndim - 1), nested_arr)
+    def flatten_expr_assert_shape(shape):
+        def recur(dim):
+            return lambda xs: hl.bind(
+                lambda actual: hl.bind(
+                    lambda expected: hl.case()
+                    .when(
+                        actual == expected,
+                        xs if dim == builtins.len(shape) - 1 else xs.flatmap(recur(dim + 1)),
+                    )
+                    .or_error(
+                        f'ndarray dimension {dim} did not match.\n'
+                        + ('  Expected len(dimension) == ' + hl.str(expected) + '\n')
+                        + ('  Actual: ' + hl.str(actual) + '.')
+                    ),
+                    shape[dim],
+                ),
+                hl.len(xs),
             )
 
-    if isinstance(collection, Expression):
-        if isinstance(collection, ArrayNumericExpression):
-            data_expr = collection
-            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
-            ndim = 1
-        elif isinstance(collection, NumericExpression):
-            data_expr = array([collection])
-            shape_expr = hl.tuple([])
-            ndim = 0
-        elif isinstance(collection, ArrayExpression):
-            recursive_type = collection.dtype
-            ndim = 0
-            while isinstance(recursive_type, (tarray, tndarray)):
-                recursive_type = recursive_type._element_type
-                ndim += 1
+        return recur(0)
 
-            data_expr = collection
-            for i in builtins.range(ndim - 1):
-                data_expr = hl.flatten(data_expr)
+    def from_data_and_shape(data: ArrayExpression, shape: TupleExpression):
+        data = data.map(lambda value: cast_expr(value, dtype))
+        ndir = ir.MakeNDArray(data._ir, shape._ir, hl.bool(True)._ir)
+        new_indices, new_aggregations = unify_all(data, shape)
+        ndim = builtins.len(shape)
+        return construct_expr(ndir, tndarray(data.dtype.element_type, ndim), new_indices, new_aggregations)
 
-            nested_collection = collection
-            shape_list = []
-            for i in builtins.range(ndim):
-                shape_list.append(hl.int64(hl.len(nested_collection)))
-                nested_collection = nested_collection[0]
+    if isinstance(collection, NumericExpression):
+        return from_data_and_shape(array([collection]), hl.tuple([]))
+    elif isinstance(collection, ArrayExpression):
+        recursive_type = collection.dtype
+        ndim = 0
 
-            shape_expr = (
-                hl.case()
-                .when(check_arrays_uniform(collection, shape_list, ndim), hl.tuple(shape_list))
-                .or_error("inner dimensions do not match")
-            )
+        while isinstance(recursive_type, (tarray, tndarray)):
+            recursive_type = recursive_type._element_type
+            ndim += 1
 
-        else:
-            raise ValueError(f"{collection} cannot be converted into an ndarray")
+        return hl.bind(
+            lambda arr: hl.bind(
+                lambda shape: hl.bind(
+                    lambda data: from_data_and_shape(data, shape),
+                    flatten_expr_assert_shape(shape)(arr),
+                ),
+                hl.tuple(
+                    hl.int64(hl.len(dim))
+                    for dim in itertools.accumulate(
+                        builtins.range(ndim - 1),
+                        lambda xs, _: xs[0],
+                        initial=arr,
+                    )
+                ),
+            ),
+            collection,
+        )
 
+    elif isinstance(collection, Expression):
+        raise ValueError(f"{collection} cannot be converted into an ndarray")
+    elif isinstance(collection, np.ndarray):
+        return hl.literal(collection)
     else:
-        if isinstance(collection, np.ndarray):
-            return hl.literal(collection)
-        elif isinstance(collection, (list, builtins.tuple)):
+        if isinstance(collection, (list, builtins.tuple)):
             shape = list_shape(collection)
             data = deep_flatten(collection)
         else:
@@ -5239,13 +5247,7 @@ def _ndarray(collection, row_major=None, dtype=None):
         shape_expr = to_expr(tuple([hl.int64(i) for i in shape]), ttuple(*[tint64 for _ in shape]))
         data_expr = hl.array(data) if data else hl.empty_array("float64")
         ndim = builtins.len(shape)
-
-    data_expr = data_expr.map(lambda value: cast_expr(value, dtype))
-    ndir = ir.MakeNDArray(data_expr._ir, shape_expr._ir, hl.bool(True)._ir)
-
-    new_indices, new_aggregations = unify_all(data_expr, shape_expr)
-
-    return construct_expr(ndir, tndarray(data_expr.dtype.element_type, ndim), new_indices, new_aggregations)
+        return from_data_and_shape(data_expr, shape_expr)
 
 
 @typecheck(key_type=hail_type, value_type=hail_type)
@@ -6581,7 +6583,7 @@ def format(f, *args):
 
     Notes
     -----
-    See the `Java documentation <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#format-java.lang.String-java.lang.Object...->`__
+    See the `Java documentation <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html#syntax>`__
     for valid format specifiers and arguments.
 
     Missing values are printed as ``'null'`` except when using the
@@ -6590,7 +6592,7 @@ def format(f, *args):
     Parameters
     ----------
     f : :class:`.StringExpression`
-        Java `format string <https://docs.oracle.com/javase/8/docs/api/java/util/Formatter.html#syntax>`__.
+        Java `format string <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/Formatter.html#syntax>`__.
     args : variable-length arguments of :class:`.Expression`
         Arguments to format.
 

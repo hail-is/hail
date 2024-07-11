@@ -144,7 +144,6 @@ LEFT JOIN LATERAL (
   FROM billing_project_users
   WHERE billing_project_users.billing_project = billing_projects.name
   GROUP BY billing_project_users.billing_project
-  LOCK IN SHARE MODE
 ) AS t ON TRUE
 LEFT JOIN LATERAL (
   SELECT SUM(`usage` * rate) as cost
@@ -153,7 +152,6 @@ LEFT JOIN LATERAL (
     FROM aggregated_billing_project_user_resources_v3
     WHERE billing_projects.name = aggregated_billing_project_user_resources_v3.billing_project
     GROUP BY resource_id
-    LOCK IN SHARE MODE
   ) AS usage_t
   LEFT JOIN resources ON resources.resource_id = usage_t.resource_id
 ) AS cost_t ON TRUE
@@ -197,10 +195,8 @@ LEFT JOIN LATERAL (
   FROM billing_project_users
   WHERE billing_project_users.billing_project = billing_projects.name
   GROUP BY billing_project_users.billing_project
-  LOCK IN SHARE MODE
 ) AS t ON TRUE
-{where_condition}
-LOCK IN SHARE MODE;
+{where_condition};
 """
 
     billing_projects = []

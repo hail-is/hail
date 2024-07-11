@@ -1,4 +1,4 @@
-from typing import Dict, Mapping, Sequence, Union
+from typing import Dict, Mapping, Optional, Sequence, Union
 
 import numpy as np
 from deprecated import deprecated
@@ -2944,7 +2944,7 @@ class StringExpression(Expression):
         -----
 
         The regex expressions used should follow `Java regex syntax
-        <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_. In
+        <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`_. In
         the Java regular expression syntax, a dollar sign, ``$1``, refers to the
         first group, not the canonical ``\\1``.
 
@@ -2974,7 +2974,7 @@ class StringExpression(Expression):
         Notes
         -----
         The delimiter is a regex using the
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`_
+        `Java regex syntax <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`_
         delimiter. To split on special characters, escape them with double
         backslash (``\\\\``).
 
@@ -3222,7 +3222,7 @@ class StringExpression(Expression):
         The `regex` argument is a
         `regular expression <https://en.wikipedia.org/wiki/Regular_expression>`__,
         and uses
-        `Java regex syntax <https://docs.oracle.com/javase/8/docs/api/java/util/regex/Pattern.html>`__.
+        `Java regex syntax <https://docs.oracle.com/en/java/javase/11/docs/api/java.base/java/util/regex/Pattern.html>`__.
 
         Parameters
         ----------
@@ -3286,6 +3286,43 @@ class StringExpression(Expression):
             raise TypeError(f"Expected str collection, {collection.dtype.element_type} found")
 
         return hl.delimit(collection, self)
+
+    @typecheck_method(sub=expr_str, start=nullable(expr_int32), end=nullable(expr_int32))
+    def find(
+        self,
+        sub: 'StringExpression',
+        start: Optional[Int32Expression] = None,
+        end: Optional[Int32Expression] = None,
+    ) -> Int32Expression:
+        """Return the lowest index in the string where substring `sub` is found
+        within the slice `s[start:end]`. Optional arguments `start` and `end` are
+        interpreted as in slice notation. Evaluates to `-1` if `sub` is not found.
+
+        Examples
+        --------
+        >>> a = hl.str('hello, world')
+        >>> hl.eval(a.find('world'))
+        7
+
+        >>> hl.eval(a.find('hail'))
+        -1
+
+        Parameters
+        ----------
+            sub : :class:`.StringExpression`
+                substring to find
+            start : :class:`.Int32Expression`
+                optional slice start index
+            end : :class:`.Int32Expression`
+                optional slice end index
+
+        Returns
+        -------
+            :class:`.Int32Expression`
+                lowest index in the string where substring `sub` is found or `-1`.
+        """
+        s = self[:end] if end is not None else self
+        return s._method('indexOf', tint32, sub, start if start is not None else hl.int32(0))
 
     def _extra_summary_fields(self, agg_result):
         return {

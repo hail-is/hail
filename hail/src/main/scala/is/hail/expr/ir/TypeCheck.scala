@@ -11,18 +11,17 @@ import scala.reflect.ClassTag
 
 object TypeCheck {
   def apply(ctx: ExecuteContext, ir: BaseIR): Unit =
-    try
-      check(ctx, ir, BindingEnv.empty).run()
-    catch {
-      case e: Throwable =>
-        fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true)}", e)
-    }
+    apply(ctx, ir, BindingEnv.empty)
 
-  def apply(ctx: ExecuteContext, ir: IR, env: BindingEnv[Type]): Unit =
+  def apply(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit =
     try
       check(ctx, ir, env).run()
     catch {
-      case e: Throwable => fatal(s"Error while typechecking IR:\n${Pretty(ctx, ir)}", e)
+      case e: Throwable =>
+        fatal(
+          s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true, allowUnboundRefs = true)}",
+          e,
+        )
     }
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {
@@ -157,7 +156,7 @@ object TypeCheck {
         }
       case MakeStream(args, typ, _) =>
         assert(typ != null)
-        assert(typ.elementType.isRealizable)
+        assert(typ.elementType.isRealizable, typ.elementType)
 
         args.map(_.typ).zipWithIndex.foreach { case (x, i) =>
           assert(

@@ -34,10 +34,10 @@ object LowerOrInterpretNonCompilable {
       result
     }
 
-    def rewriteChildren(x: BaseIR, m: mutable.Map[String, IR]): BaseIR =
+    def rewriteChildren(x: BaseIR, m: mutable.Map[Name, IR]): BaseIR =
       x.mapChildren(rewrite(_, m))
 
-    def rewrite(x: BaseIR, m: mutable.Map[String, IR]): BaseIR = {
+    def rewrite(x: BaseIR, m: mutable.Map[Name, IR]): BaseIR = {
 
       x match {
         case RelationalLet(name, value, body) =>
@@ -53,7 +53,7 @@ object LowerOrInterpretNonCompilable {
             case Some(res) =>
               assert(res.typ == t)
               res
-            case None => throw new RuntimeException(name)
+            case None => throw new RuntimeException(name.str)
           }
         case x: IR if InterpretableButNotCompilable(x) =>
           evaluate(rewriteChildren(x, m).asInstanceOf[IR])

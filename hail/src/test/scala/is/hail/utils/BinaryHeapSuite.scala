@@ -6,7 +6,7 @@ import is.hail.check.Prop._
 
 import scala.collection.mutable
 
-import org.scalatest.Matchers._
+import org.scalatest.matchers.should.Matchers._
 import org.testng.annotations.Test
 
 class BinaryHeapSuite {

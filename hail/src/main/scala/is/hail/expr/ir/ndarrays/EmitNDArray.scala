@@ -187,9 +187,9 @@ object EmitNDArray {
                   NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues, errorID)
 
                 val lElemRef =
-                  cb.emb.newEmitField(lName, leftProducer.elementType.sType, required = true)
+                  cb.emb.newEmitField(leftProducer.elementType.sType, required = true)
                 val rElemRef =
-                  cb.emb.newEmitField(rName, rightProducer.elementType.sType, required = true)
+                  cb.emb.newEmitField(rightProducer.elementType.sType, required = true)
                 val bodyEnv = env.bind(lName, lElemRef)
                   .bind(rName, rElemRef)
                 val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
