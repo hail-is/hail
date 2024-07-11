@@ -29,17 +29,16 @@ def benchmark_table_range_force_count():
     hl.utils.range_table(100_000_000)._force_count()
 
 
-def benchmark_table_range_join_1b_1k():
-    ht1 = hl.utils.range_table(1_000_000_000)
-    ht2 = hl.utils.range_table(1_000)
+@pytest.mark.parametrize(
+    'm, n', [
+        (1_000_000_000, 1_000),
+        (1_000_000_000, 1_000_000_000),
+    ],
+)
+def benchmark_table_range_join(m, n):
+    ht1 = hl.utils.range_table(m)
+    ht2 = hl.utils.range_table(n)
     ht1.join(ht2, 'inner').count()
-
-
-def benchmark_table_range_join_1b_1b():
-    ht1 = hl.utils.range_table(1_000_000_000)
-    ht2 = hl.utils.range_table(1_000_000_000)
-    ht1.join(ht2, 'inner').count()
-
 
 def benchmark_table_python_construction():
     n = 100
@@ -167,7 +166,7 @@ def benchmark_table_aggregate_approx_cdf(random_doubles_mt):
     mt = hl.read_matrix_table(str(random_doubles_mt))
     mt.aggregate_entries((
         hl.agg.approx_cdf(mt.x),
-        hl.agg.approx_cdf(mt.x**2, k=500),
+        hl.agg.approx_cdf(mt.x ** 2, k=500),
         hl.agg.approx_cdf(1 / mt.x, k=1000),
     ))
 

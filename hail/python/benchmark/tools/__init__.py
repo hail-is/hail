@@ -1,6 +1,8 @@
 import logging
 from typing import Any, Callable, Generator, List, Optional, Sequence, TypeVar
 
+from hail.expr import ArrayStructExpression, enumerate as hl_enumerate
+
 A = TypeVar('A')
 
 
@@ -22,6 +24,10 @@ def prune(kvs: dict) -> dict:
 
 def select(keys: List[str], **kwargs) -> List[Optional[Any]]:
     return [kwargs.get(k) for k in keys]
+
+
+def annotate_index(arr: ArrayStructExpression) -> ArrayStructExpression:
+    return hl_enumerate(arr).map(lambda t: t[1].annotate(idx=t[0]))
 
 
 def init_logging(file=None):
