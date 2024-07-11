@@ -26,7 +26,6 @@ import is.hail.variant.ReferenceGenome
 import scala.collection.mutable
 import scala.language.existentials
 import java.io._
-import scala.annotation.nowarn
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -769,7 +768,6 @@ class Emit[C](
 
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    @nowarn("cat=unused-locals&msg=local default argument")
     def emit(
       ir: IR,
       mb: EmitMethodBuilder[C] = mb,
