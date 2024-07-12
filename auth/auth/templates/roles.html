@@ -1,30 +1,38 @@
+{% from "utils.html" import submit_button %}
 {% extends "layout.html" %}
 {% block title %}Roles{% endblock %}
 {% block content %}
-  <h1>Create Role</h1>
-  <form action="{{ base_path }}/roles" method="POST">
-    <div>Name: <input required name="name" /></div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-    <button>
-      Create
-    </button>
-  </form>
+<h1 class='text-2xl font-light mb-4'>Create Role</h1>
+<form action="{{ base_path }}/roles" method="POST">
+  <div class='w-64 flex-col space-y-2'>
+    <div class='flex justify-between'>
+      <span>Name</span>
+      <input class='border rounded-sm p-1 text-sm' required name="name" />
+    </div>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    <div class='flex justify-end'>
+      {{ submit_button('Create') }}
+    </div>
+  </div>
+</form>
 
-  <h1>Roles</h1>
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Name</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for role in roles %}
-      <tr>
-        <td class="numeric-cell">{{ role['id'] }}</td>
-        <td>{{ role['name'] }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<br />
+
+<h1 class='text-2xl font-light mb-4'>Roles</h1>
+<table class='table-auto w-64'>
+  <thead>
+    <tr>
+      <th class='h-12 bg-slate-200 text-center font-light rounded-tl pl-2'>ID</th>
+      <th class='h-12 bg-slate-200 text-center font-light rounded-tr pr-2'>Name</th>
+    </tr>
+  </thead>
+  <tbody class='border border-collapse border-slate-50'>
+    {% for role in roles %}
+    <tr>
+      <td class='text-center'>{{ role['id'] }}</td>
+      <td class='text-center'>{{ role['name'] }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}
