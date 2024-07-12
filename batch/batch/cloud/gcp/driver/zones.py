@@ -166,7 +166,7 @@ async def fetch_machine_valid_zones(
     zones = [url_basename(z) for r in region_info.values() for z in r['zones']]
     machine_family_valid_zones = collections.defaultdict(set)
     for zone in zones:
-        async for machine_type in await compute_client.list(f'/zones/{zone}/machineTypes'):
+        async for machine_type in compute_client.list(f'/zones/{zone}/machineTypes'):
             machine_family = machine_type['name'].split('-')[0]
             machine_family_valid_zones[machine_family].add(machine_type['zone'])
     return machine_family_valid_zones
