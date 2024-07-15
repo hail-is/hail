@@ -45,6 +45,10 @@ steps:
       - name: testns-test-dev-gsa-key
       - name: testns-auth-gsa-key
       - name: testns-batch-gsa-key
+      - name: pypi-credentials
+      - name: ci-deploy-0-1--hail-is-hail
+      - name: docker-hub-hailgenetics
+      - name: hail-ci-0-1-github-oauth-token
       - name: testns-ci-gsa-key
       - name: testns-grafana-gsa-key
       - name: test-aws-key
