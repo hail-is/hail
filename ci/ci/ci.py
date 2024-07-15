@@ -41,7 +41,7 @@ from web_common import render_template, set_message, setup_aiohttp_jinja2, setup
 
 from .constants import AUTHORIZED_USERS, TEAMS
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
-from .envoy import create_cds_response, create_rds_response
+from .envoy import Service, create_cds_response, create_rds_response
 from .github import PR, WIP, FQBranch, MergeFailureBatch, Repo, UnwatchedBranch, WatchedBranch, select_random_teammate
 from .utils import gcp_logging_queries
 
@@ -613,14 +613,14 @@ async def get_active_namespaces(request: web.Request, userdata: UserData) -> web
     namespaces = [
         r
         async for r in db.execute_and_fetchall("""
-SELECT active_namespaces.*, JSON_ARRAYAGG(service) as services
+SELECT active_namespaces.*, JSON_OBJECTAGG(service, rate_limit_rps) as services
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
 GROUP BY active_namespaces.namespace""")
     ]
     for ns in namespaces:
-        ns['services'] = [s for s in json.loads(ns['services']) if s is not None]
+        ns['services'] = json.loads(ns['services']) or {}
     context = {
         'namespaces': namespaces,
     }
@@ -652,6 +652,25 @@ WHERE namespace = %s AND service = %s
             (namespace, service),
         )
 
+    raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
+
+
+@routes.post('/namespaces/{namespace}/services/{service}/edit')
+@auth.authenticated_developers_only()
+async def update_namespaced_service(request: web.Request, _) -> NoReturn:
+    db = request.app[AppKeys.DB]
+    service = request.match_info['service']
+    namespace = request.match_info['namespace']
+    post = await request.post()
+    rate_limit = post['rate_limit'] or None
+
+    await db.execute_insertone(
+        """UPDATE deployed_services SET rate_limit_rps = %s WHERE namespace = %s AND service = %s""",
+        (rate_limit, namespace, service),
+    )
+
+    session = await aiohttp_session.get_session(request)
+    set_message(session, f'Set {service} in {namespace} rate limit to {rate_limit}.', 'info')
     raise web.HTTPFound(deploy_config.external_url('ci', '/namespaces'))
 
 
@@ -706,7 +725,6 @@ async def cleanup_expired_namespaces(db: Database):
 
 async def update_envoy_configs(db: Database, k8s_client):
     assert DEFAULT_NAMESPACE == 'default'
-
     api_response = await k8s_client.list_namespace()
     live_namespaces = list(ns.metadata.name for ns in api_response.items)
 
@@ -732,10 +750,10 @@ async def generate_envoy_configs(db: Database, proxy: str, namespaces: Optional[
     else:
         namespace_filter = "WHERE active_namespaces.namespace IN (" + ",".join('%s' for _ in namespaces) + ")"
 
-    services_per_namespace: Dict[str, List[str]] = defaultdict(list)
+    services_per_namespace: Dict[str, List[Service]] = defaultdict(list)
     async for r in db.execute_and_fetchall(
         f"""
-SELECT active_namespaces.namespace, service
+SELECT active_namespaces.namespace, service, rate_limit_rps
 FROM active_namespaces
 LEFT JOIN deployed_services
 ON active_namespaces.namespace = deployed_services.namespace
@@ -743,11 +761,13 @@ ON active_namespaces.namespace = deployed_services.namespace
 """,
         namespaces,
     ):
-        services_per_namespace[r['namespace']].append(r['service'])
+        services_per_namespace[r['namespace']].append(Service(r['service'], r['rate_limit_rps']))
 
     assert DEFAULT_NAMESPACE in services_per_namespace
     default_services = services_per_namespace.pop(DEFAULT_NAMESPACE)
-    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(default_services)), default_services
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(
+        set(s.name for s in default_services)
+    ), default_services
 
     cds_config = create_cds_response(default_services, services_per_namespace, proxy)
     rds_config = create_rds_response(default_services, services_per_namespace, proxy, domain=DOMAIN)

@@ -69,5 +69,5 @@ resources:
             stat_prefix: http_local_rate_limiter
             token_bucket:
               fill_interval: 1s
-              max_tokens: 200
-              tokens_per_fill: 200
+              max_tokens: 33
+              tokens_per_fill: 33
