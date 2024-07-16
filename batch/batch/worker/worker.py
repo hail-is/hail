@@ -1740,22 +1740,13 @@ class FakeJob(Job):
         )
 
     def cloudfuse_base_path(self):
-        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        path = f'/cloudfuse/{self.token}'
-        assert os.path.commonpath([path, self.scratch]) == '/'
-        return path
+        raise NotImplementedError
 
     def cloudfuse_data_path(self, bucket: str) -> str:
-        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        path = f'{self.cloudfuse_base_path()}/{bucket}/data'
-        assert os.path.commonpath([path, self.scratch]) == '/'
-        return path
+        raise NotImplementedError
 
     def cloudfuse_tmp_path(self, bucket: str) -> str:
-        # Make sure this path isn't in self.scratch to avoid accidental bucket deletions!
-        path = f'{self.cloudfuse_base_path()}/{bucket}/tmp'
-        assert os.path.commonpath([path, self.scratch]) == '/'
-        return path
+        raise NotImplementedError
 
 
 class DockerJob(Job):
