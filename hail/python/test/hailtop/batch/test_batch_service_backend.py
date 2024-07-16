@@ -726,12 +726,12 @@ def test_validate_cloud_storage_policy(service_backend: ServiceBackend, monkeypa
     # bucket exists and account has permissions, but is set to use cold storage by default
     cold_bucket = "hail-test-cold-storage"
     cold_error = "configured to use cold storage by default"
-    fake_uri1, fake_uri2, public_access_uri3, no_perms_uri, cold_uri = [
-        f"gs://{bucket}/test"
-        for bucket in [fake_bucket1, fake_bucket2, public_access_bucket, no_perms_bucket, cold_bucket]
+    fake_uri1, fake_uri2, no_perms_uri, cold_uri = [
+        f"gs://{bucket}/test" for bucket in [fake_bucket1, fake_bucket2, no_perms_bucket, cold_bucket]
     ]
     public_access_uri1 = f"gs://{public_access_bucket}/references"
     public_access_uri2 = f"{public_access_uri1}/human_g1k_v37.fasta.gz"
+    public_access_uri3 = f"gs://{public_access_bucket}/36bbda16-2d47-4be8-ad9e-1c6ef5b7c216"
 
     def _test_raises(exception_type, exception_msg, func):
         with pytest.raises(exception_type) as e:
