@@ -218,6 +218,18 @@ You can now install Hail:
   connect to this instance with ssh.  You may want to add a suiteable
   ssh forwarding rule to the default network.
 
+```
+gcloud compute instances create bootstrap-vm \
+    --project=hail-vdc-dgoldste \
+    --zone=us-central1-a \
+    --machine-type=n1-standard-8 \
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --provisioning-model=STANDARD \
+    --service-account=terraform@hail-vdc-dgoldste.iam.gserviceaccount.com \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20240701,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+```
+
 - Clone the Hail Github repository:
 
   ```
