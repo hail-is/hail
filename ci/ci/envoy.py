@@ -70,7 +70,7 @@ def create_cds_response(
 
 def gateway_default_host(service: Service, domain: str) -> dict:
     domains = [f'{service.name}.{domain}']
-    if service == 'www':
+    if service.name == 'www':
         domains.append(domain)
 
     if service == 'ukbb-rg':
