@@ -1555,12 +1555,18 @@ async def create_batch_fast(request, userdata):
         batch_id, batch_spec['token'], batch_spec['n_jobs'], batch_spec.get('n_job_groups', 0), user, db
     )
 
+    response_json = {
+        'id': batch_id,
+        'start_job_group_id': start_job_group_id,
+        'start_job_id': start_job_id,
+    }
+
     if len(job_groups) > 0:
         try:
             await _create_job_groups(db, batch_id, update_id, user, job_groups)
         except web.HTTPBadRequest as e:
             if f'update {update_id} is already committed' == e.reason:
-                return json_response({'id': batch_id})
+                return json_response(response_json)
             raise
 
     if len(jobs) > 0:
@@ -1568,13 +1574,13 @@ async def create_batch_fast(request, userdata):
             await _create_jobs(userdata, jobs, batch_id, update_id, app)
         except web.HTTPBadRequest as e:
             if f'update {update_id} is already committed' == e.reason:
-                return json_response({'id': batch_id})
+                return json_response(response_json)
             raise
 
     await _commit_update(app, batch_id, update_id, user, db)
 
     request['batch_telemetry']['batch_id'] = str(batch_id)
-    return json_response({'id': batch_id, 'start_job_group_id': start_job_group_id, 'start_job_id': start_job_id})
+    return json_response(response_json)
 
 
 @routes.post('/api/v1alpha/batches/create')

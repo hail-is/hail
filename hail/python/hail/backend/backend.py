@@ -149,6 +149,7 @@ class Backend(abc.ABC):
         "rng_nonce": ("HAIL_RNG_NONCE", "0x0"),
         "shuffle_cutoff_to_local_sort": ("HAIL_SHUFFLE_CUTOFF", "512000000"),  # This is in bytes
         "shuffle_max_branch_factor": ("HAIL_SHUFFLE_MAX_BRANCH", "64"),
+        "spark_max_stage_parallelism": ("HAIL_SPARK_MAX_STAGE_PARALLELISM", str(2**31 - 1)),
         "use_fast_restarts": ("HAIL_USE_FAST_RESTARTS", None),
         "use_new_shuffle": ("HAIL_USE_NEW_SHUFFLE", None),
         "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),

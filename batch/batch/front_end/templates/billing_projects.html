@@ -1,90 +1,98 @@
+{% from "utils.html" import danger_button, submit_button %}
 {% extends "layout.html" %}
 {% block title %}Billing Projects{% endblock %}
 {% block content %}
-<h1>Billing Projects</h1>
-<div class="searchbar-table">
-  <table class="grouped-data-table" id="billing-projects">
-    <thead>
-      <tr>
-        <th colspan="2">Billing Project</th>
-        <th colspan="2">User</th>
-      </tr>
-    </thead>
-    {% for billing_project in billing_projects %}
-    <tbody>
-      <tr>
-        <td rowspan="{{ billing_project.size + 2 }}">
-          {{ billing_project['billing_project'] }}
-        </td>
-        <td rowspan="{{ billing_project.size + 2 }}">
-          <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/close" method="POST">
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="dangerous">Close</button>
-          </form>
-        </td>
-      </tr>
-      {% for user in billing_project['users'] %}
-      <tr>
-        <td>{{ user }}</td>
-        <td>
-          <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/{{ user }}/remove" method="POST">
-            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-            <button class="dangerous">
-              Remove
-            </button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-      <tr>
-        <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/add" method="POST">
+<h1 class="text-2xl font-light mb-4 ">Billing Projects</h1>
+<form action="{{ base_path }}/billing_projects/create" method="POST">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+  <input class='border rounded-sm p-1' type="text" name="billing_project" spellcheck="false" autocorrect="off">
+  {{ submit_button('Create') }}
+</form>
+<table class='table-fixed overflow-hidden rounded mt-4'>
+  <thead>
+    <th class='h-16 bg-slate-200 font-normal pl-2 text-left rounded-tl'>Billing Project</th>
+    <th class='h-16 bg-slate-200 font-normal text-left'>Limit</th>
+    <th class='h-16 bg-slate-200 font-normal text-left'>Users</th>
+    <th class='h-16 bg-slate-200 font-normal text-left rounded-tr'></th>
+  </thead>
+  <tbody>
+    {% for bp in billing_projects %}
+    <tr class='border border-collapse hover:bg-slate-100' x-data='{ editing: false }'>
+      <td class='p-2'>
+        {{ bp['billing_project'] }}
+      </td>
+      <td class='p-2'>
+        <form action="{{ base_path }}/billing_limits/{{ bp['billing_project'] }}/edit" method="POST">
           <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          <td><input type="text" name="user" spellcheck="false" autocorrect="off"></td>
-          <td>
-            <button>Add</button>
-          </td>
+          <input class='border rounded-sm w-28' type='number' required name='limit' class='border rounded-sm' disabled
+            :disabled='!editing' value="{{ bp['limit'] }}">
+          <div class='pt-2' x-cloak x-show='editing'>
+            {{ submit_button('Update') }}
+          </div>
         </form>
-      </tr>
-    </tbody>
-    {% endfor %}
-    <tbody>
-      <form action="{{ base_path }}/billing_projects/create" method="POST">
-        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <tr>
-          <td><input type="text" name="billing_project" spellcheck="false" autocorrect="off"></td>
-          <td>
-            <button>Add</button>
-          </td>
-          <td></td>
-          <td></td>
-        </tr>
-      </form>
-    </tbody>
-  </table>
-</div>
-<h1>Closed</h1>
-<div class="searchbar-table">
-  <table class="data-table" id="closed-billing-projects">
-    <thead>
-    <tr>
-      <th>Billing Project</th>
-      <th></th>
+      </td>
+      <td class='p-2'>
+        <div class='flex-col'>
+          {% for user in bp['users'] %}
+          <div class='group flex justify-between items-top p-0.5 rounded-sm'
+            :class="editing ? '' : 'hover:bg-slate-200 hover:cursor-pointer'">
+            <div>{{ user }}</div>
+            <div class='invisible group-hover:visible' x-cloak x-show='editing'>
+              <form action="{{ base_path }}/billing_projects/{{ bp['billing_project'] }}/users/{{ user }}/remove"
+                method="POST">
+                <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+                <button class="hover:bg-slate-300 rounded-sm flex align-middle">
+                  <span class="material-symbols-outlined">close</span>
+                </button>
+              </form>
+            </div>
+          </div>
+          {% endfor %}
+          <div x-cloak x-show='editing'>
+            <form action="{{ base_path }}/billing_projects/{{ bp['billing_project'] }}/users/add" method="POST">
+              <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+              <input type="text" name="user" spellcheck="false" autocorrect="off" class='border rounded-sm w-28 mr-1'>
+              {{ submit_button('Add') }}
+            </form>
+          </div>
+        </div>
+      </td>
+      <td class='flex-col justify-center items-center'>
+        <div class='flex justify-center' x-show='!editing'>
+          <button x-on:click='editing=true' class="hover:bg-slate-300 rounded p-1 flex align-middle">
+            <span class="material-symbols-outlined">edit</span>
+          </button>
+        </div>
+        <div class='flex-col justify-around items-center space-y-1' x-cloak x-show='editing'>
+          <form action="{{ base_path }}/billing_projects/{{ bp['billing_project'] }}/close" method="POST">
+            <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            {{ danger_button('Close') }}
+          </form>
+          <button x-on:click='editing=false'
+            class='border border-gray-200 bg-gray-50 hover:bg-slate-400 hover:text-white px-2 py-1 rounded-md'>
+            Cancel
+          </button>
+        </div>
+      </td>
     </tr>
-    </thead>
-    <tbody>
-    {% for billing_project in closed_projects %}
-    <tr>
-      <td>{{ billing_project.billing_project }}</td>
-      <td>
-        <form action="{{ base_path }}/billing_projects/{{ billing_project.billing_project }}/reopen" method="POST">
+    {% endfor %}
+    {% for bp in closed_projects %}
+    <tr class='border border-collapse bg-gray-100'>
+      <td class='p-2 font-thin italic'>
+        {{ bp['billing_project'] }}
+      </td>
+      <td class='p-2 font-thin'>
+        {{ bp['limit'] }}
+      </td>
+      <td></td>
+      <td class='px-4'>
+        <form action="{{ base_path }}/billing_projects/{{ bp['billing_project'] }}/reopen" method="POST">
           <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          <button>Reopen</button>
+          {{ submit_button('Reopen') }}
         </form>
       </td>
     </tr>
     {% endfor %}
-    </tbody>
-  </table>
-</div>
-
+  </tbody>
+</table>
 {% endblock %}

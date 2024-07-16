@@ -99,35 +99,15 @@ install-dev-requirements:
 		-r batch/pinned-requirements.txt \
 		-r ci/pinned-requirements.txt
 
-hail/python/hailtop/pinned-requirements.txt: hail/python/hailtop/requirements.txt
-	./generate-pip-lockfile.sh hail/python/hailtop
-
-hail/python/pinned-requirements.txt: hail/python/hailtop/pinned-requirements.txt hail/python/requirements.txt
-	./generate-pip-lockfile.sh hail/python
-
-hail/python/dev/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/requirements.txt
-	./generate-pip-lockfile.sh hail/python/dev
-
-gear/pinned-requirements.txt: hail/python/pinned-requirements.txt hail/python/dev/pinned-requirements.txt hail/python/hailtop/pinned-requirements.txt gear/requirements.txt
-	./generate-pip-lockfile.sh gear
-
-web_common/pinned-requirements.txt: gear/pinned-requirements.txt web_common/requirements.txt
-	./generate-pip-lockfile.sh web_common
-
-batch/pinned-requirements.txt: web_common/pinned-requirements.txt batch/requirements.txt
-	./generate-pip-lockfile.sh batch
-
-ci/pinned-requirements.txt: web_common/pinned-requirements.txt ci/requirements.txt
-	./generate-pip-lockfile.sh ci
-
 .PHONY: generate-pip-lockfiles
-generate-pip-lockfiles: hail/python/hailtop/pinned-requirements.txt
-generate-pip-lockfiles: hail/python/pinned-requirements.txt
-generate-pip-lockfiles: hail/python/dev/pinned-requirements.txt
-generate-pip-lockfiles: gear/pinned-requirements.txt
-generate-pip-lockfiles: web_common/pinned-requirements.txt
-generate-pip-lockfiles: batch/pinned-requirements.txt
-generate-pip-lockfiles: ci/pinned-requirements.txt
+generate-pip-lockfiles:
+	./generate-pip-lockfile.sh hail/python/hailtop
+	./generate-pip-lockfile.sh hail/python
+	./generate-pip-lockfile.sh hail/python/dev
+	./generate-pip-lockfile.sh gear
+	./generate-pip-lockfile.sh web_common
+	./generate-pip-lockfile.sh batch
+	./generate-pip-lockfile.sh ci
 
 $(HAILTOP_VERSION):
 	$(MAKE) -C hail python/hailtop/hail_version
@@ -179,7 +159,8 @@ docs.tar.gz: hail/build/www
 
 website-image: docs.tar.gz
 
-$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $(shell git ls-files $$* ':!:**/deployment.yaml')
+.SECONDEXPANSION:
+$(SERVICES_IMAGES): %-image: $(SERVICES_IMAGE_DEPS) $$(shell git ls-files $$* ':!:**/deployment.yaml')
 	./docker-build.sh . $*/Dockerfile $(IMAGE_NAME) --build-arg BASE_IMAGE=$(shell cat hail-ubuntu-image)
 	echo $(IMAGE_NAME) > $@
 
@@ -246,9 +227,9 @@ $(SERVICES_DATABASES): %-db:
 	python3 ci/create_local_database.py $* local-$*
 endif
 
-.PHONY: sass-compile-watch
-sass-compile-watch:
-	cd web_common/web_common && sass --watch -I styles --style=compressed styles:static/css
+.PHONY: tailwind-compile-watch
+tailwind-compile-watch:
+	cd web_common && npx tailwindcss --watch -i input.css -o web_common/static/css/output.css
 
 .PHONY: run-dev-proxy
 run-dev-proxy:
@@ -256,7 +237,7 @@ run-dev-proxy:
 
 .PHONY: devserver
 devserver:
-	$(MAKE) -j 2 sass-compile-watch run-dev-proxy
+	$(MAKE) -j 2 tailwind-compile-watch run-dev-proxy
 
 .PHONY: benchmark
 benchmark: hail-dev-image

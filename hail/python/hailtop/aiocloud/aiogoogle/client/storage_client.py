@@ -5,7 +5,7 @@ import os
 import urllib.parse
 from contextlib import AsyncExitStack
 from types import TracebackType
-from typing import Any, AsyncIterator, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
+from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
 
 import aiohttp
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import  # pylint: disable=unused-import
@@ -427,6 +427,21 @@ class GoogleStorageClient(GoogleBaseClient):
         kwargs['json'] = {'sourceObjects': [{'name': name} for name in names]}
         self._update_params_with_user_project(kwargs, bucket)
         await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
+
+    async def rewrite(self, src_bucket: str, src_name: str, dest_bucket: str, dest_name: str, **kwargs):
+        if not (src_bucket and src_name and dest_bucket and dest_name):
+            raise ValueError('source and destination buckets and names must all be defined')
+        if 'body' in kwargs:
+            raise ValueError('`body` must not be in rewrite request arguments')
+        if 'json' not in kwargs:
+            kwargs['json'] = ''
+        self._update_params_with_user_project(kwargs, src_bucket)
+        self._update_params_with_user_project(kwargs, dest_bucket)
+        path = (
+            f'/b/{src_bucket}/o/{urllib.parse.quote(src_name, safe="")}/rewriteTo'
+            f'/b/{dest_bucket}/o/{urllib.parse.quote(dest_name, safe="")}'
+        )
+        return await self.post(path, **kwargs)
 
     def _update_params_with_user_project(self, request_kwargs, bucket):
         if 'params' not in request_kwargs:
@@ -859,6 +874,45 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status == 404:
                 raise FileNotFoundError(url) from e
             raise
+
+    async def copy_within_gcs(
+        self, src: str, dest: str, callback: Optional[Callable[[Dict[str, Any], bool], None]] = None
+    ) -> None:
+        """Copy a google cloud object ``src`` to another google cloud object ``dest``.
+
+        Parameters
+        ----------
+        src : :class:`str`
+            GCS object to copy, must be a valid ``gs://`` URL
+        dest : :class:`str`
+            Valid ``gs://`` URL for the destination of the copy
+        callback : function ( (response, first) -> None )
+            Optional callback to call after every request (for updating things like a progress bar).
+            The ``response`` argument is a `rewrite <https://cloud.google.com/storage/docs/json_api/v1/objects/rewrite#response>`_
+            response dictionary, and ``first`` will be ``True`` if this is the first time this
+            callback has been called for this copy.
+
+        Returns
+        -------
+        :obj:`NoneType`
+        """
+        src_url = self.parse_url(src, error_if_bucket=True)
+        dest_url = self.parse_url(dest, error_if_bucket=True)
+        kwargs = {'params': {}}
+        response = await retry_transient_errors(
+            self._storage_client.rewrite, src_url._bucket, src_url._path, dest_url._bucket, dest_url._path, **kwargs
+        )
+        first = True
+        while not response['done']:
+            if callback is not None:
+                callback(response, first)
+            first = False
+            kwargs['params']['rewriteToken'] = response['rewriteToken']
+            response = await retry_transient_errors(
+                self._storage_client.rewrite, src_url._bucket, src_url._path, dest_url._bucket, dest_url._path, **kwargs
+            )
+        if callback is not None:
+            callback(response, first)
 
     async def close(self) -> None:
         if hasattr(self, '_storage_client'):

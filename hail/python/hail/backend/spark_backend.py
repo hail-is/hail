@@ -14,6 +14,7 @@ from hail.table import Table
 from hail.utils import copy_log
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
+from hailtop.utils import async_to_blocking
 
 from .backend import local_jar_information
 from .py4j_backend import Py4JBackend
@@ -173,7 +174,7 @@ class SparkBackend(Py4JBackend):
         self._copy_log_on_error = copy_log_on_error
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._router_async_fs)
+        async_to_blocking(validate_file(uri, self._router_async_fs))
 
     def stop(self):
         super().stop()
@@ -201,17 +202,7 @@ class SparkBackend(Py4JBackend):
         r = CSERenderer()
         assert not body._ir.uses_randomness
         code = r(body._ir)
-        jbody = self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)))
-        self._registered_ir_function_names.add(name)
-
-        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
-            name,
-            [ta._parsable_string() for ta in type_parameters],
-            argument_names,
-            [pt._parsable_string() for pt in argument_types],
-            return_type._parsable_string(),
-            jbody,
-        )
+        self._register_ir_function(name, type_parameters, argument_names, argument_types, return_type, code)
 
     def execute(self, ir: BaseIR, timed: bool = False) -> Any:
         try:

@@ -12,7 +12,7 @@ from hail.ir.renderer import CSERenderer
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.validators import validate_file
 from hailtop.fs.router_fs import RouterFS
-from hailtop.utils import find_spark_home
+from hailtop.utils import async_to_blocking, find_spark_home
 
 from ..expr import Expression
 from ..expr.types import HailType
@@ -101,7 +101,7 @@ class LocalBackend(Py4JBackend):
         self._initialize_flags(flags)
 
     def validate_file(self, uri: str) -> None:
-        validate_file(uri, self._fs.afs)
+        async_to_blocking(validate_file(uri, self._fs.afs))
 
     def register_ir_function(
         self,
@@ -114,16 +114,8 @@ class LocalBackend(Py4JBackend):
     ):
         r = CSERenderer()
         code = r(finalize_randomness(body._ir))
-        jbody = self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)))
-        self._registered_ir_function_names.add(name)
-
-        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
-            name,
-            [ta._parsable_string() for ta in type_parameters],
-            value_parameter_names,
-            [pt._parsable_string() for pt in value_parameter_types],
-            return_type._parsable_string(),
-            jbody,
+        self._register_ir_function(
+            name, type_parameters, value_parameter_names, value_parameter_types, return_type, code
         )
 
     def stop(self):

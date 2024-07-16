@@ -6,8 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, LoweringAnalyses, MakeTuple, Name, SortField, TableIR, TableReader,
-  TypeCheck,
+  Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -32,6 +31,7 @@ import java.io._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
@@ -464,6 +464,10 @@ object ServiceBackendAPI {
     log.info("BatchConfig parsed.")
 
     implicit val formats: Formats = DefaultFormats
+
+    StreamReadConstraints.overrideDefaultStreamReadConstraints(
+      StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+    );
     val input = using(fs.openNoCompression(inputURL))(JsonMethods.parse(_))
     val rpcConfig = (input \ "config").extract[ServiceBackendRPCPayload]
 
@@ -555,7 +559,7 @@ case class ServiceBackendExecutePayload(
 case class SerializedIRFunction(
   name: String,
   type_parameters: Array[String],
-  value_parameter_names: Array[Name],
+  value_parameter_names: Array[String],
   value_parameter_types: Array[String],
   return_type: String,
   rendered_body: String,
@@ -638,7 +642,7 @@ class ServiceBackendAPI(
   ): Array[Byte] = {
     try {
       serializedFunctions.foreach { func =>
-        IRFunctionRegistry.pyRegisterIRForServiceBackend(
+        IRFunctionRegistry.registerIR(
           ctx,
           func.name,
           func.type_parameters,

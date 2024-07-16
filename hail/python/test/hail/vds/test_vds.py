@@ -658,6 +658,47 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
 
 
+def test_to_dense_mt_haploid():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    vds = hl.vds.filter_chromosomes(vds, keep='chr22')
+    vds.reference_data = vds.reference_data.annotate_entries(LGT=hl.call(0))
+
+    dense = hl.vds.to_dense_mt(vds).select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    assert (
+        dense.rows().select()._same(vds.variant_data.rows().select())
+    ), "rows differ between variant data and dense mt"
+
+    assert dense.filter_entries(hl.is_defined(dense.LA))._same(
+        vds.variant_data.select_entries('LGT', 'LA', 'GQ', 'DP')
+    ), "cannot recover variant data"
+
+    as_dict = dense.aggregate_entries(
+        hl.dict(hl.zip(hl.agg.collect((hl.str(dense.locus), dense.s)), hl.agg.collect(dense.entry)))
+    )
+
+    assert as_dict.get(('chr22:10514784', 'NA12891')) is None
+    assert as_dict.get(('chr22:10514784', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=23, DP=4)
+
+    assert as_dict.get(('chr22:10516102', 'NA12891')) == hl.Struct(LGT=hl.Call([0]), LA=None, GQ=12, DP=7)
+    assert as_dict.get(('chr22:10516102', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=26, DP=3)
+
+    assert as_dict.get(('chr22:10516150', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=64, DP=4)
+    assert as_dict.get(('chr22:10516150', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=10)
+
+    assert as_dict.get(('chr22:10519088', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=21)
+    assert as_dict.get(('chr22:10519088', 'NA12878')) is None
+
+    assert as_dict.get(('chr22:10557694', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=28, DP=19)
+    assert as_dict.get(('chr22:10557694', 'NA12878')) == hl.Struct(LGT=hl.Call([0]), LA=None, GQ=13, DP=16)
+
+    assert as_dict.get(('chr22:10562435', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
+    assert as_dict.get(('chr22:10562435', 'NA12878')) == hl.Struct(LGT=hl.Call([0]), LA=None, GQ=21, DP=9)
+
+    assert as_dict.get(('chr22:10562436', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
+    assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0]), LA=None, GQ=21, DP=9)
+
+
 @test_timeout(6 * 60)
 def test_merge_reference_blocks():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
@@ -832,3 +873,17 @@ def test_ref_block_does_not_densify_to_next_contig():
     mt = hl.vds.to_dense_mt(vds)
     mt = mt.filter_rows(mt.locus.contig == 'chr2')
     assert mt.aggregate_entries(hl.agg.count()) == 0
+
+
+def test_haploid_lpl_import():
+    mt = hl.utils.range_matrix_table(1, 1)
+    mt = mt.annotate_rows(alleles=['A', 'T', '<NON_REF>'], info=hl.struct(END=hl.missing(hl.tint32)))
+    mt = mt.annotate_entries(GT=hl.call(1), PL=[10, 0, 1000])
+    mt = mt.transmute_rows(locus=hl.locus('chrX', mt.row_idx + 1000, reference_genome='GRCh38'))
+    mt = mt.transmute_cols(s=hl.str(mt.col_idx))
+    mt = mt.key_rows_by('locus', 'alleles').key_cols_by('s')
+    vds = hl.vds.combiner.transform_gvcf(mt, reference_entry_fields_to_keep=[])
+    vd = vds.variant_data
+    lpl = vd.aggregate_entries(hl.agg.collect(vd.LPL))
+    lpl = lpl[0]
+    assert lpl == [10, 0]
