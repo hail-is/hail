@@ -225,8 +225,15 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/api/v1alpha/version')
-async def rest_get_version(_) -> web.Response:
-    return web.Response(text=version())
+async def rest_get_version(request: web.Request) -> web.Response:
+    headers = None
+    server_version = version()
+    client_version = request.headers.get("X-Hail-Version")
+    if client_version is not None and client_version != server_version:
+        headers = {
+            "X-Hail-Deprecated": f"The version of the Batch Client ({client_version}) does not match the version of Batch running on the server ({server_version}). Please upgrade your Hail version to the latest release."
+        }
+    return web.Response(text=server_version, headers=headers)
 
 
 @routes.get('/api/v1alpha/cloud')
@@ -666,7 +673,12 @@ async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
             ) from e
-    return json_response(job_log_strings)
+    return json_response(
+        job_log_strings,
+        headers={
+            "X-Hail-Deprecated": 'The endpoint "/api/v1alpha/batches/<batch_id>/jobs/<job_id>/log" is deprecated. Please upgrade your Hail version to the latest release.'
+        },
+    )
 
 
 async def get_job_container_log(request, batch_id):
@@ -849,7 +861,12 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
-    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
+    await _create_jobs(userdata, job_specs, batch_id, 1, app)
+    return web.Response(
+        headers={
+            "X-Hail-Deprecated": 'The endpoint "/api/v1alpha/batches/<batch_id>/jobs/create" is deprecated. Please upgrade your Hail version to the latest release.'
+        }
+    )
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
@@ -2097,7 +2114,11 @@ WHERE batch_id = %s AND update_id = 1;
     )
     if record:
         await _commit_update(app, batch_id, 1, user, db)
-    return web.Response()
+    return web.Response(
+        headers={
+            "X-Hail-Deprecated": 'The endpoint "/api/v1alpha/batches/<batch_id>/close" is deprecated. Please upgrade your Hail version to the latest release.'
+        }
+    )
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')

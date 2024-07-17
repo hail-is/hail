@@ -5,13 +5,14 @@ import logging
 import math
 import random
 import secrets
+import warnings
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
 
 import aiohttp
 import orjson
 
-from hailtop import httpx, is_notebook
+from hailtop import httpx, is_notebook, version
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
@@ -1283,19 +1284,20 @@ class BatchClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
         url = deploy_config.base_url('batch')
-        if headers is None:
-            headers = {}
+        headers = {"X-Hail-Version": version(), **({} if headers is None else headers)}
         credentials: CloudCredentials
         if _token is not None:
             credentials = HailExplicitTokenCredentials(_token)
         else:
             credentials = hail_credentials(tokens_file=token_file, cloud_credentials_file=cloud_credentials_file)
-        return BatchClient(
+        client = BatchClient(
             billing_project=billing_project,
             url=url,
             session=Session(credentials=credentials, http_session=session, timeout=aiohttp.ClientTimeout(total=30)),
             headers=headers,
         )
+        await client._get("/api/v1alpha/version")
+        return client
 
     def __init__(self, billing_project: str, url: str, session: Session, headers: Dict[str, str]):
         self.billing_project = billing_project
@@ -1303,17 +1305,27 @@ class BatchClient:
         self._session: Session = session
         self._headers = headers
 
+    async def _warn_if_deprecated(self, response: aiohttp.ClientResponse) -> aiohttp.ClientResponse:
+        deprecation_message = response.headers.get("X-Hail-Deprecated")
+        if deprecation_message is not None:
+            warnings.warn(f"DEPRECATED: {deprecation_message}")
+        return response
+
     async def _get(self, path, params=None) -> aiohttp.ClientResponse:
-        return await self._session.get(self.url + path, params=params, headers=self._headers)
+        return await self._warn_if_deprecated(
+            await self._session.get(self.url + path, params=params, headers=self._headers)
+        )
 
     async def _post(self, path, data=None, json=None) -> aiohttp.ClientResponse:
-        return await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
+        return await self._warn_if_deprecated(
+            await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
+        )
 
     async def _patch(self, path) -> aiohttp.ClientResponse:
-        return await self._session.patch(self.url + path, headers=self._headers)
+        return await self._warn_if_deprecated(await self._session.patch(self.url + path, headers=self._headers))
 
     async def _delete(self, path) -> aiohttp.ClientResponse:
-        return await self._session.delete(self.url + path, headers=self._headers)
+        return await self._warn_if_deprecated(await self._session.delete(self.url + path, headers=self._headers))
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project
