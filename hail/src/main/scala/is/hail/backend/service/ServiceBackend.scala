@@ -270,8 +270,8 @@ class ServiceBackend(
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
-    val batchState = (batch \ "state").extract[String]
-    if (batchState == "failed") {
+    val jobGroupState = (batch \ "state").extract[String]
+    if (jobGroupState == "error") {
       throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
     }
 
@@ -313,7 +313,13 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+    val r @ (error, results) = runAll[Option, Array[Byte]](executor) {
+      /* A missing file means the job was cancelled because another job failed. Assumes that if any
+       * job was cancelled, then at least one job failed. We want to ignore the missing file
+       * exceptions and return one of the actual failure exceptions. */
+      case (opt, _: FileNotFoundException) => opt
+      case (opt, e) => opt.orElse(Some(e))
+    }(None) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
         (() => readResult(root, jobIndex), partIdx)
       }
