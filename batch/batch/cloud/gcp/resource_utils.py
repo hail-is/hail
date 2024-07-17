@@ -312,6 +312,9 @@ MACHINE_TYPE_TO_PARTS = {
         machine_family='a2',
         worker_type='ultragpu',
     ),
+}
+
+MACHINE_TYPE_TO_PARTS_LAMBDA = {
     'gpu_8x_v100': MachineTypeParts(
         cores=92,
         memory=gib_to_bytes(460),
@@ -341,6 +344,9 @@ gcp_memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highm
 
 def gcp_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
     return MACHINE_TYPE_TO_PARTS.get(machine_type)
+
+def lambda_machine_type_to_parts(machine_type: str) -> Optional[MachineTypeParts]:
+    return MACHINE_TYPE_TO_PARTS_LAMBDA.get(machine_type)
 
 
 def gcp_machine_type_to_cores_and_memory_bytes(machine_type: str) -> Tuple[int, int]:
@@ -380,7 +386,10 @@ def gcp_local_ssd_size() -> int:
 
 
 def machine_type_to_gpu(machine_type: str) -> Optional[str]:
-    machine_type_parts = MACHINE_TYPE_TO_PARTS.get(machine_type)
+    if machine_type.startswith('gpu_'):
+        machine_type_parts = MACHINE_TYPE_TO_PARTS_LAMBDA.get(machine_type)
+    else:
+        machine_type_parts = MACHINE_TYPE_TO_PARTS.get(machine_type)
     if (machine_type_parts is None) or (machine_type_parts.gpu_config is None):
         return None
     return machine_type_parts.gpu_config.gpu_type
@@ -391,8 +400,12 @@ def is_gpu(machine_family: str) -> bool:
 
 
 def machine_type_to_gpu_num(machine_type: str) -> int:
-    assert machine_type in MACHINE_TYPE_TO_PARTS
-    machine_type_parts = MACHINE_TYPE_TO_PARTS[machine_type]
+    if machine_type.startswith('gpu_'):
+        assert machine_type in MACHINE_TYPE_TO_PARTS_LAMBDA
+        machine_type_parts = MACHINE_TYPE_TO_PARTS_LAMBDA.get(machine_type)
+    else:
+        assert machine_type in MACHINE_TYPE_TO_PARTS
+        machine_type_parts = MACHINE_TYPE_TO_PARTS[machine_type]
     if machine_type_parts.gpu_config is None:
         return 0
     return machine_type_parts.gpu_config.num_gpus

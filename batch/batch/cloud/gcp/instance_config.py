@@ -6,6 +6,7 @@ from .resource_utils import (
     gcp_machine_type_to_parts,
     machine_type_to_gpu,
     machine_type_to_gpu_num,
+    lambda_machine_type_to_parts
 )
 from .resources import (
     GCPAcceleratorResource,
@@ -168,7 +169,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
         location: str,
         instance_id: Optional[str],
     ) -> 'LambdaSlimInstanceConfig':  # pylint: disable=unused-argument
-        machine_type_parts = gcp_machine_type_to_parts(machine_type)
+        machine_type_parts = lambda_machine_type_to_parts(machine_type)
         assert machine_type_parts is not None, machine_type
         instance_family = machine_type_parts.machine_family
         region='us-central1'
@@ -206,7 +207,7 @@ class LambdaSlimInstanceConfig(InstanceConfig):
         self.preemptible = preemptible
         self.job_private = job_private
 
-        machine_type_parts = gcp_machine_type_to_parts(self._machine_type)
+        machine_type_parts = lambda_machine_type_to_parts(self._machine_type)
         assert machine_type_parts is not None, machine_type
         self.machine_type_parts = machine_type_parts
         self._instance_family = machine_type_parts.machine_family
