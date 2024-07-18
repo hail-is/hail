@@ -97,4 +97,9 @@ Visit ci.hail.is/envoy-config/gateway
 1. Go to the `standard` pool of your `batch-driver` page. Set
 max instances to 5
 2. Submit a 10_000 job batch of 0.25-core `true` jobs
-3. Go to `grafana.hail.is`, the `Performance` tab
+3. Go to `grafana.hail.is`, the `Performance` tab. You should see API requests,
+  SQL queries, and Batch Driver CPU utilization climb
+4. Go to ci.hail.is/namespaces and adjust the rate limit for the `batch-driver`
+  in your namespace. If you lower it, you should see rate limiting increase
+  and the load on your namespace decrease. Increasing it should increase
+  throughput until the Batch Driver or your database is fully saturated.
