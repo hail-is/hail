@@ -288,7 +288,7 @@ gcloud compute instances create bootstrap-vm \
   ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
   ```
 
-- Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy`.
+- Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy NAMESPACE=default`.
 
 - Create the initial (developer) user.
 
