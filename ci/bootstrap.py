@@ -159,7 +159,7 @@ class LocalBatchBuilder:
             if input_ok:
                 mount_options = ['-v', f'{job_root}/io:/io']
 
-                env_options = ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
+                env_options = ['-e', 'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
                 if j._env:
                     for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
