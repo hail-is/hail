@@ -43,6 +43,8 @@ Instructions:
 
   Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
 
+  Create another OAuth client ID of type `Desktop` and download it as `/tmp/hailctl_client_secret.json`.
+
 - Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
 
 
@@ -161,6 +163,7 @@ Instructions:
 
   ```sh
   sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/hailctl_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/hailctl_client_secret.enc.json
 
   # Optional
   sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
