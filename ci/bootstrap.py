@@ -219,7 +219,7 @@ users:
                     secrets.append({
                         'name': 'ci-gsa-key',
                         'namespace': 'default',
-                        'mount_path': '/gsa-key/key.json',
+                        'mount_path': '/gsa-key',
                     })
                     if secrets:
                         k8s_secrets = await asyncio.gather(*[
