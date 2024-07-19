@@ -79,11 +79,6 @@ bootstrap() {
     export HAIL_CI_GITHUB_CONTEXT=dummy
     export PYTHONPATH=$HAIL/ci:$HAIL/batch:$HAIL/hail/python:$HAIL/gear
 
-    if [ -n "$3" ] && [ -n "$4" ]; then
-        extra_code_config="--extra-code-config {\"username\":\"""$3""\",\"login_id\":\"""$4""\"}"
-    else
-        extra_code_config=""
-    fi
-    python3 ci/bootstrap.py $extra_code_config $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
+    python3 ci/bootstrap.py $HAIL_BRANCH $(git rev-parse HEAD) $DEPLOY_STEP
     cd -
 }

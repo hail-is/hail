@@ -1632,36 +1632,6 @@ steps:
       - create_certs
       - create_accounts
   - kind: runImage
-    name: create_initial_user
-    runIfRequested: true
-    image:
-      valueFrom: hailgenetics_hailtop_image.image
-    script: |
-      set -ex
-      export GOOGLE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
-      export AZURE_APPLICATION_CREDENTIALS=/test-dev-gsa-key/key.json
-      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-
-      {% if default_ns.name == "default" %}
-      hailctl auth create-user --developer {{ code.username }} {{ code.login_id }}
-      {% else %}
-      hailctl auth create-user \
-        --developer \
-        --hail-identity {{ code.hail_identity }} \
-        --hail-credentials-secret-name {{ code.username }}-gsa-key \
-        {{ code.username }} {{ code.login_id }}
-      {% endif %}
-    secrets:
-      - name: test-dev-gsa-key
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /test-dev-gsa-key
-    dependsOn:
-      - default_ns
-      - hailgenetics_hailtop_image
-      - merge_code
-      - deploy_auth
-  - kind: runImage
     name: delete_monitoring_tables
     image:
       valueFrom: monitoring_image.image

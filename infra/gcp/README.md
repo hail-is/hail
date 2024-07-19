@@ -275,7 +275,16 @@ You can now install Hail:
 - Create the initial (developer) user.
 
   ```
-  ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> create_initial_user <USERNAME> <EMAIL>
+  source $HAIL/devbin/functions.sh
+  make -C $HAIL/hail install-editable
+
+  mkdir ~/.hail
+  echo '{"location": "external", "default_namespace": "default", "domain": "sandbox.hail.is"}' > ~/.hail/deploy-config.json
+  echo '{"idp": "Google"}' > ~/.config/hail/identity.json
+  download-secret test-dev-gsa-key
+
+  GOOGLE_APPLICATION_CREDENTIALS=contents/key.json \
+      hailctl auth create-user --developer chrisl chrisl@broadinstitute.org
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
