@@ -127,7 +127,7 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
 
     sql = f"""\
 SELECT
-  batches.id,
+  batches.*,
   cancelled_t.cancelled <=> 1 AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
