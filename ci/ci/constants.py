@@ -29,5 +29,5 @@ AUTHORIZED_USERS = [
     User('iris-garden', 'irademac'),
     User('ehigham', 'ehigham', [COMPILER_TEAM]),
     User('sjparsa', 'parsa'),
-    User('cjllanwarne', 'chrisl', []),
+    User('cjllanwarne', 'chrisl'),
 ]
