@@ -8,6 +8,13 @@ COMPILER_TEAM = 'Compiler'
 TEAMS = [SERVICES_TEAM, COMPILER_TEAM]
 
 
+# Update July 2024:
+# Numbers have dwindled lately and the compiler/services split is now untenable.
+# For the purposes of the CI reviewer randomiser, anyone on the hail team is
+# fair game.
+HAIL_TEAM = TEAMS
+
+
 class User:
     def __init__(self, gh_username: str, hail_username: Optional[str] = None, teams: Optional[List[str]] = None):
         self.gh_username = gh_username
@@ -16,12 +23,12 @@ class User:
 
 
 AUTHORIZED_USERS = [
-    User('chrisvittal', 'cvittal'),
-    User('cjllanwarne', 'chrisl'),
-    User('ehigham', 'ehigham'),
+    User('chrisvittal', 'cvittal', HAIL_TEAM),
+    User('cjllanwarne', 'chrisl', HAIL_TEAM),
+    User('ehigham', 'ehigham', HAIL_TEAM),
     User('illusional', 'mfrankli'),
     User('iris-garden', 'irademac'),
     User('jkgoodrich', 'jgoodric'),
     User('konradjk', 'konradk'),
-    User('patrick-schultz', 'pschultz'),
+    User('patrick-schultz', 'pschultz', HAIL_TEAM),
 ]
