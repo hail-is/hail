@@ -164,7 +164,7 @@ INNER JOIN LATERAL (
   INNER JOIN resources USING (resource_id)
 ) AS cost_t ON TRUE
 WHERE {' AND '.join(where_conditions)}
-ORDER BY batches.id
+ORDER BY batches.id DESC
 LIMIT 51;
 """
 
