@@ -225,15 +225,8 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/api/v1alpha/version')
-async def rest_get_version(request: web.Request) -> web.Response:
-    headers = None
-    server_version = version()
-    client_version = request.headers.get("X-Hail-Version")
-    if client_version is not None and client_version != server_version:
-        headers = {
-            "X-Hail-Deprecated": f"The version of the Batch Client ({client_version}) does not match the version of Batch running on the server ({server_version}). Please upgrade your Hail version to the latest release."
-        }
-    return web.Response(text=server_version, headers=headers)
+async def rest_get_version(_) -> web.Response:
+    return web.Response(text=version())
 
 
 @routes.get('/api/v1alpha/cloud')

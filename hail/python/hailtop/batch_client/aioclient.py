@@ -12,7 +12,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, U
 import aiohttp
 import orjson
 
-from hailtop import httpx, is_notebook, version
+from hailtop import httpx, is_notebook
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.auth import hail_credentials
@@ -1284,20 +1284,19 @@ class BatchClient:
         if not deploy_config:
             deploy_config = get_deploy_config()
         url = deploy_config.base_url('batch')
-        headers = {"X-Hail-Version": version(), **({} if headers is None else headers)}
+        if headers is None:
+            headers = {}
         credentials: CloudCredentials
         if _token is not None:
             credentials = HailExplicitTokenCredentials(_token)
         else:
             credentials = hail_credentials(tokens_file=token_file, cloud_credentials_file=cloud_credentials_file)
-        client = BatchClient(
+        return BatchClient(
             billing_project=billing_project,
             url=url,
             session=Session(credentials=credentials, http_session=session, timeout=aiohttp.ClientTimeout(total=30)),
             headers=headers,
         )
-        await client._get("/api/v1alpha/version")
-        return client
 
     def __init__(self, billing_project: str, url: str, session: Session, headers: Dict[str, str]):
         self.billing_project = billing_project
