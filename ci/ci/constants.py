@@ -16,18 +16,12 @@ class User:
 
 
 AUTHORIZED_USERS = [
-    User('bw2'),
-    User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
+    User('chrisvittal', 'cvittal'),
     User('cjllanwarne', 'chrisl'),
-    User('cseed', 'cseed'),
-    User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
-    User('jigold', 'jigold'),
-    User('jkgoodrich', 'jgoodric'),
-    User('konradjk', 'konradk'),
-    User('nawatts'),
-    User('patrick-schultz', 'pschultz', [COMPILER_TEAM]),
+    User('ehigham', 'ehigham'),
     User('illusional', 'mfrankli'),
     User('iris-garden', 'irademac'),
-    User('ehigham', 'ehigham', [COMPILER_TEAM]),
-    User('sjparsa', 'parsa'),
+    User('jkgoodrich', 'jgoodric'),
+    User('konradjk', 'konradk'),
+    User('patrick-schultz', 'pschultz'),
 ]
