@@ -18,6 +18,7 @@ class User:
 AUTHORIZED_USERS = [
     User('bw2'),
     User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
+    User('cjllanwarne', 'chrisl'),
     User('cseed', 'cseed'),
     User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
     User('jigold', 'jigold'),
