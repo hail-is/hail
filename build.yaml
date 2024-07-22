@@ -1966,6 +1966,9 @@ steps:
       - name: record-failure-notifications
         script: /io/sql/record-failure-notifications.sql
         online: true
+      - name: add-service-rate-limits
+        script: /io/sql/add-service-rate-limits.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql

@@ -1,25 +1,26 @@
+{% from "utils.html" import submit_button %}
 {% extends "layout.html" %}
 {% block title %}User{% endblock %}
 {% block content %}
-  <div id="profile" class="vcentered">
-    <h1>{{ userdata['username'] }}</h1>
-    {% if cloud == "gcp" %}
-    <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
-    {% endif %}
-    {% if cloud == "azure" %}
-    <p><b>Azure Service Principal Display Name: </b>{{ userdata['display_name'] }}</p>
-    <p><b>Azure Service Principal Application ID: </b>{{ userdata['hail_identity'] }}</p>
-    {% endif %}
-    <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
-    <form action="{{ auth_base_url }}/copy-paste-token" method="post">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-      <button class="nb-create">Get a copy-paste login token</button>
-    </form>
-    <p>
-      <b>Notice:</b> The Hail system records your email address and IP address. Your email address
-      is recorded so that we can authenticate you. Your IP address is tracked as part of our
-      surveillance of all traffic to and from the Hail system. This broad surveillance enables the
-      protection of the Hail system from malicious actors.
-    </p>
-  </div>
+<div id="profile" class="vcentered space-y-2">
+  <h1 class='text-4xl mb-4'>{{ userdata['username'] }}</h1>
+  {% if cloud == "gcp" %}
+  <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
+  {% endif %}
+  {% if cloud == "azure" %}
+  <p><b>Azure Service Principal Display Name: </b>{{ userdata['display_name'] }}</p>
+  <p><b>Azure Service Principal Application ID: </b>{{ userdata['hail_identity'] }}</p>
+  {% endif %}
+  <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
+  <form action="{{ auth_base_url }}/copy-paste-token" method="post">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    {{ submit_button('Get a copy-paste login token') }}
+  </form>
+  <p>
+    <b>Notice:</b> The Hail system records your email address and IP address. Your email address
+    is recorded so that we can authenticate you. Your IP address is tracked as part of our
+    surveillance of all traffic to and from the Hail system. This broad surveillance enables the
+    protection of the Hail system from malicious actors.
+  </p>
+</div>
 {% endblock %}
