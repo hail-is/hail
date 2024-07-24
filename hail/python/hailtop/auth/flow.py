@@ -97,7 +97,9 @@ class GoogleFlow(Flow):
             self._credentials_file, scopes=GoogleFlow.scopes, state=None
         )
         flow.redirect_uri = redirect_uri
-        authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true', prompt='select_account')
+        authorization_url, state = flow.authorization_url(
+            access_type='offline', include_granted_scopes='true', prompt='select_account'
+        )
 
         return {
             'authorization_url': authorization_url,
