@@ -2294,8 +2294,6 @@ steps:
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
         online: true
-      - name: add-batches-id-user-index
-        script: /io/sql/add-batches-id-user-index.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
