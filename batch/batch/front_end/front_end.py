@@ -389,12 +389,13 @@ async def _query_job_group_jobs(
 @auth.authenticated_users_only()
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
     db = request.app['db']
-    where_args = [userdata['username']]
+    where_args = [userdata['username'], ROOT_JOB_GROUP_ID]
     wheres = [
         'billing_project_users.`user` = %s',
         'billing_project_users.billing_project = batches.billing_project',
         'batches.time_completed IS NOT NULL',
         'NOT deleted',
+        'job_groups.job_group_id = %s',
     ]
 
     limit = 100
