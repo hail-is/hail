@@ -26,6 +26,7 @@ import java.util.concurrent.{
 }
 import java.util.concurrent.atomic.AtomicBoolean
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import com.google.common.util.concurrent.AbstractFuture
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
@@ -35,9 +36,9 @@ import org.apache.hadoop.mapreduce.lib.input.{FileSplit => NewFileSplit}
 import org.apache.log4j.Level
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.sql.Row
-import org.json4s.{Extraction, Formats, JObject, NoTypeHints, Serializer}
+import org.json4s.{Extraction, Formats, JObject, JValue, JsonInput, NoTypeHints, Serializer}
 import org.json4s.JsonAST.{JArray, JString}
-import org.json4s.jackson.Serialization
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.reflect.TypeInfo
 
 package utils {
@@ -526,6 +527,13 @@ package object utils
   }
 
   val defaultJSONFormats: Formats = Serialization.formats(NoTypeHints) + GenericIndexedSeqSerializer
+
+  def parseJSON(in: JsonInput): JValue = {
+    StreamReadConstraints.overrideDefaultStreamReadConstraints(
+      StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+    )
+    JsonMethods.parse(in)
+  }
 
   def box(i: Int): java.lang.Integer = i
 

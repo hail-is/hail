@@ -82,7 +82,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
     implicit val formats: Formats = DefaultFormats
 
     try {
-      val body = using(exchange.getRequestBody)(JsonMethods.parse(_))
+      val body = using(exchange.getRequestBody)(parseJSON(_))
       if (exchange.getRequestURI.getPath == "/execute") {
         val config = body.extract[ExecutePayload]
         backend.execute(config.ir, config.timed) { (ctx, res, timings) =>
