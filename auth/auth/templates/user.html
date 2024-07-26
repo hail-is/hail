@@ -4,6 +4,7 @@
 {% block content %}
 <div id="profile" class="vcentered space-y-2">
   <h1 class='text-4xl mb-4'>{{ userdata['username'] }}</h1>
+
   {% if cloud == "gcp" %}
   <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
   {% endif %}
