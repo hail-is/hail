@@ -665,7 +665,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             If the specified object does not exist, or if the account being used to access GCS does not have permission
             to read the bucket's default storage policy and it is not a public access bucket.
         """
-        is_hot_storage = False
+        _is_hot_storage = False
         hot_storage_classes = {"standard", "regional", "multi_regional"}
         location = self.storage_location(uri)
         if location in self.allowed_storage_locations:
@@ -675,24 +675,24 @@ class GoogleStorageAsyncFS(AsyncFS):
             return (await (await self.statfile(_uri))["storageClass"]).lower() in hot_storage_classes
 
         try:
-            is_hot_storage = (await self._storage_client.bucket_info(location))[
+            _is_hot_storage = (await self._storage_client.bucket_info(location))[
                 "storageClass"
             ].lower() in hot_storage_classes
         except aiohttp.ClientResponseError as e:
             if "does not have storage.buckets.get access" in str(e):
                 try:
-                    is_hot_storage = await check_object(uri)
+                    _is_hot_storage = await check_object(uri)
                 except FileNotFoundError:
                     async for entry in await self.listfiles(uri, recursive=True):
                         if await entry.is_file():
-                            is_hot_storage = await check_object(await entry.url())
+                            _is_hot_storage = await check_object(await entry.url())
             else:
                 raise e
 
-        if is_hot_storage:
+        if _is_hot_storage:
             self.allowed_storage_locations.append(location)
 
-        return is_hot_storage
+        return _is_hot_storage
 
     @staticmethod
     def valid_url(url: str) -> bool:
