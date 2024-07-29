@@ -1,0 +1,19 @@
+name: require linked issue
+
+on:
+  pull_request_target:
+    branches: ["main"]
+    types: [opened, edited, reopened, synchronize]
+
+jobs:
+  check_pull_requests:
+    runs-on: ubuntu-latest
+    name: require linked issue
+    permissions:
+        issues: read
+        pull-requests: read
+    steps:
+      - uses: nearform-actions/github-action-check-linked-issues@v1
+        id: check-linked-issues
+        with:
+          comment: false
