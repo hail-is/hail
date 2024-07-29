@@ -63,15 +63,13 @@
 
 
 {% macro link(href, text) %}
-<a class='block' href="{{ href }}">
-  <div class='hover:cursor-pointer hover:text-sky-600 hover:underline underline-offset-2'>
-    {{ text }}
-  </div>
+<a class='block hover:cursor-pointer hover:text-sky-600 hover:underline underline-offset-2' href="{{ href }}">
+  {{ text }}
 </a>
 {% endmacro %}
 
 {% macro truncated_link(href, text) %}
 <a class='block hover:cursor-pointer hover:text-sky-600 hover:underline underline-offset-2 truncating-text'  href="{{ href }}">
-    {{ text }}
+  {{ text }}
 </a>
 {% endmacro %}

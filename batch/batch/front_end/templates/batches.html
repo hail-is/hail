@@ -38,9 +38,7 @@
         <td class='table-cell'>
           <div class='space-y-1 md:flex-row md:flex-wrap md:items-center md:space-y-0'>
             {% if 'attributes' in batch and 'name' in batch['attributes'] %}
-            <div>
               {{ truncated_link(base_path ~ "/batches/" ~ batch['id'], batch['attributes']['name']) }}
-            </div>
             {% else %}
             <div class='text-wrap pr-4 text-zinc-400 italic'>
               {{ truncated_link(base_path ~ "/batches/" ~ batch['id'], 'no name') }}
