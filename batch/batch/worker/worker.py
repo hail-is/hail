@@ -178,7 +178,7 @@ log.info(f'REGION {REGION}')
 
 instance_config: Optional[InstanceConfig] = None
 
-N_SLOTS = min(255, 4 * CORES)  # Jobs are allowed at minimum a quarter core, to a maximum of 255 total slots
+N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
 
 N_JVM_CONTAINERS = sum(1 for jvm_cores in (1, 2, 4, 8) for _ in range(CORES // jvm_cores))
 
@@ -318,12 +318,14 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        for subnet_index in range(N_SLOTS + N_JVM_CONTAINERS):
+        N_PUBLIC_INTERFACES = min(255, N_SLOTS, N_JVM_CONTAINERS)
+        for subnet_index in range(N_PUBLIC_INTERFACES):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
             self.public_networks.put_nowait(public)
 
-        for subnet_index in range(N_SLOTS):
+        N_PRIVATE_INTERFACES = min(255, N_SLOTS)
+        for subnet_index in range(N_PRIVATE_INTERFACES):
             private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
 
             await private.init()
