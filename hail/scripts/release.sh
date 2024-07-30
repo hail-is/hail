@@ -117,14 +117,14 @@ git tag $HAIL_PIP_VERSION -m "Hail version $HAIL_PIP_VERSION."
 git push origin $HAIL_PIP_VERSION
 
 # make GitHub release
-curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/hail/releases -d '{
-  "tag_name": "'$HAIL_PIP_VERSION'",
-  "target_commitish": "main",
-  "name": "'$HAIL_PIP_VERSION'",
-  "body": "Hail version '$HAIL_PIP_VERSION'\n\n[Change log](https://hail.is/docs/0.2/change_log.html#version-'${HAIL_PIP_VERSION//[\.]/-}')",
-  "draft": false,
-  "prerelease": false
-}'
+# curl -XPOST -H @$GITHUB_OAUTH_HEADER_FILE https://api.github.com/repos/hail-is/hail/releases -d '{
+#   "tag_name": "'$HAIL_PIP_VERSION'",
+#   "target_commitish": "main",
+#   "name": "'$HAIL_PIP_VERSION'",
+#   "body": "Hail version '$HAIL_PIP_VERSION'\n\n[Change log](https://hail.is/docs/0.2/change_log.html#version-'${HAIL_PIP_VERSION//[\.]/-}')",
+#   "draft": false,
+#   "prerelease": false
+# }'
 
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail:$HAIL_PIP_VERSION-py3.9
@@ -151,19 +151,19 @@ retry skopeo copy $HAIL_GENETICS_VEP_GRCH38_95_IMAGE docker://us-docker.pkg.dev/
 twine upload $WHEEL
 
 # deploy wheel for Azure HDInsight
-azure_wheel_url=gs://hail-common/azure-hdinsight-wheels/$(basename $AZURE_WHEEL)
-gcloud storage cp $AZURE_WHEEL $azure_wheel_url
-gcloud storage objects update $azure_wheel_url --temporary-hold
+# azure_wheel_url=gs://hail-common/azure-hdinsight-wheels/$(basename $AZURE_WHEEL)
+# gcloud storage cp $AZURE_WHEEL $azure_wheel_url
+# gcloud storage objects update $azure_wheel_url --temporary-hold
 
 # deploy datasets (annotation db) json
-datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
-gcloud storage cp python/hail/experimental/datasets.json $datasets_json_url
-gcloud storage objects update $datasets_json_url --temporary-hold
+# datasets_json_url=gs://hail-common/annotationdb/$HAIL_VERSION/datasets.json
+# gcloud storage cp python/hail/experimental/datasets.json $datasets_json_url
+# gcloud storage objects update $datasets_json_url --temporary-hold
 
 # Publish website
-website_url=gs://hail-common/website/$HAIL_PIP_VERSION/www.tar.gz
-gcloud storage cp $WEBSITE_TAR $website_url
-gcloud storage objects update $website_url --temporary-hold
+# website_url=gs://hail-common/website/$HAIL_PIP_VERSION/www.tar.gz
+# gcloud storage cp $WEBSITE_TAR $website_url
+# gcloud storage objects update $website_url --temporary-hold
 
 # Create pull request to update Terra and AoU Hail versions
 terra_docker_dir=$(mktemp -d)
@@ -193,5 +193,5 @@ make_pr_for() {
     git checkout master
 }
 
-make_pr_for terra-jupyter-hail
-make_pr_for terra-jupyter-aou
+# make_pr_for terra-jupyter-hail
+# make_pr_for terra-jupyter-aou
