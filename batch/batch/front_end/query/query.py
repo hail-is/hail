@@ -461,7 +461,7 @@ EXISTS (
   FROM job_group_attributes AS attrs
   WHERE attrs.batch_id = batches.id
     AND attrs.job_group_id = job_groups.job_group_id
-    AND (attrs.`key` = %s or attrs.`value` = %s)
+    AND (attrs.`key` = %s OR attrs.`value` = %s)
 )
 """
         return (sql, [self.term, self.term])
