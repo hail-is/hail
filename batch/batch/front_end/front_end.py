@@ -219,6 +219,18 @@ def cast_query_param_to_bool(param: Optional[str]) -> bool:
     return True
 
 
+def deprecated(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers["X-Hail-Deprecated"] = (
+            f'The endpoint "{request.url.path}" is deprecated. Please upgrade your Hail version to the latest release.'
+        )
+        return response
+
+    return wrapped
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
@@ -651,10 +663,10 @@ async def _get_full_job_status(app, record):
         raise
 
 
-# deprecated
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @billing_project_users_only()
 @add_metadata_to_request
+@deprecated
 async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
     job_id = int(request.match_info['job_id'])
     job_log_bytes = await _get_job_log(request.app, batch_id, job_id)
@@ -666,12 +678,7 @@ async def get_job_log(request: web.Request, _, batch_id: int) -> web.Response:
             raise web.HTTPBadRequest(
                 reason=f'log for container {container} is not valid UTF-8, upgrade your hail version to download the log'
             ) from e
-    return json_response(
-        job_log_strings,
-        headers={
-            "X-Hail-Deprecated": 'The endpoint "/api/v1alpha/batches/<batch_id>/jobs/<job_id>/log" is deprecated. Please upgrade your Hail version to the latest release.'
-        },
-    )
+    return json_response(job_log_strings)
 
 
 async def get_job_container_log(request, batch_id):
@@ -841,10 +848,10 @@ def check_service_account_permissions(user, sa):
     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
 
-# Deprecated. Use create_jobs_for_update instead
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
 @auth.authenticated_users_only()
 @add_metadata_to_request
+@deprecated  # Use create_jobs_for_update instead
 async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
     batch_id = int(request.match_info['batch_id'])
@@ -854,12 +861,7 @@ async def create_jobs(request: web.Request, userdata: UserData) -> web.Response:
     except ValidationError as e:
         raise web.HTTPBadRequest(reason=e.reason)
 
-    await _create_jobs(userdata, job_specs, batch_id, 1, app)
-    return web.Response(
-        headers={
-            "X-Hail-Deprecated": 'The endpoint "/api/v1alpha/batches/<batch_id>/jobs/create" is deprecated. Please upgrade your Hail version to the latest release.'
-        }
-    )
+    return await _create_jobs(userdata, job_specs, batch_id, 1, app)
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create')
@@ -2065,10 +2067,10 @@ async def cancel_job_group(request: web.Request, _, batch_id: int) -> web.Respon
     return web.Response()
 
 
-# deprecated
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
 @auth.authenticated_users_only()
 @add_metadata_to_request
+@deprecated
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
@@ -2107,11 +2109,7 @@ WHERE batch_id = %s AND update_id = 1;
     )
     if record:
         await _commit_update(app, batch_id, 1, user, db)
-    return web.Response(
-        headers={
-            "X-Hail-Deprecated": 'The endpoint "/api/v1alpha/batches/<batch_id>/close" is deprecated. Please upgrade your Hail version to the latest release.'
-        }
-    )
+    return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit')
