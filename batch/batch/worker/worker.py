@@ -178,7 +178,7 @@ log.info(f'REGION {REGION}')
 
 instance_config: Optional[InstanceConfig] = None
 
-N_SLOTS = 4 * CORES  # Jobs are allowed at minimum a quarter core
+N_SLOTS = min(255, 4 * CORES)  # Jobs are allowed at minimum a quarter core, to a maximum of 255 total slots
 
 N_JVM_CONTAINERS = sum(1 for jvm_cores in (1, 2, 4, 8) for _ in range(CORES // jvm_cores))
 
