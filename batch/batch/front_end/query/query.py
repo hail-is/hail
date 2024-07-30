@@ -459,7 +459,7 @@ class JobGroupQuotedExactMatchQuery(Query):
 EXISTS (
   SELECT NULL
   FROM job_group_attributes AS attrs
-  WHERE attrs.batch_id = batches.id
+  WHERE attrs.batch_id = job_groups.batch_id
     AND attrs.job_group_id = job_groups.job_group_id
     AND (attrs.`key` = %s OR attrs.`value` = %s)
 )
@@ -486,7 +486,7 @@ class JobGroupUnquotedPartialMatchQuery(Query):
 EXISTS (
   SELECT NULL
   FROM job_group_attributes AS attrs
-  WHERE attrs.batch_id = batches.id
+  WHERE attrs.batch_id = job_groups.batch_id
     AND attrs.job_group_id = job_groups.job_group_id
     AND (attrs.`key` LIKE %s OR attrs.`value` LIKE %s)
 )
@@ -517,7 +517,7 @@ class JobGroupKeywordQuery(Query):
 EXISTS (
   SELECT NULL
   FROM job_group_attributes AS attrs
-  WHERE attrs.batch_id = batches.id
+  WHERE attrs.batch_id = job_groups.batch_id
     AND attrs.job_group_id = job_groups.job_group_id
     AND attrs.`key` = %s
     AND attrs.`value` {op} %s
