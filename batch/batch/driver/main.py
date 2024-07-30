@@ -1559,10 +1559,6 @@ INNER JOIN LATERAL (
            , R.update_id
            , R.job_group_id
            , R.inst_coll
-    ORDER BY R.batch_id ASC
-           , R.update_id ASC
-           , R.job_group_id ASC
-           , R.inst_coll ASC
 ) AS R ON TRUE
 WHERE G.time_completed IS NOT NULL
   AND C.id IS NULL
