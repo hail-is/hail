@@ -1525,6 +1525,16 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 #     status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
 #     assert status['state'] == 'Success', str((status, b.debug_info()))
 
+@skip_in_azure
+async def test_over_64_cpus(client: BatchClient):
+    b = create_batch(client)._async_batch
+    j = b.new_job()
+    j.command('echo foo')
+    j._machine_type = 'n1-highmem-96'
+    await b.submit()
+    status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
+    assert status['state'] == 'Success', str((status, b.debug_info()))
+
 
 def test_job_private_instance_preemptible(client: BatchClient):
     b = create_batch(client)
