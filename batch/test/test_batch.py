@@ -1530,6 +1530,7 @@ async def test_gpu_accesibility_g2(client: BatchClient):
         # but not otherwise fail
         pass
 
+
 @skip_in_azure
 async def test_over_64_cpus(client: BatchClient):
     b = create_batch(client)._async_batch
