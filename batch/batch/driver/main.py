@@ -1531,8 +1531,9 @@ VALUES ({','.join(['%s' for _ in rowfields])});,
             (record[k] for k in rowfields),
         )
 
+    keys = ','.join([f'R.{k}' for k in keyfields])
     targets = db.execute_and_fetchall(
-        """\
+        f"""\
 SELECT R.*
 FROM job_groups AS G
 INNER JOIN job_group_self_and_ancestors AS D
@@ -1542,10 +1543,7 @@ LEFT JOIN job_groups_cancelled AS C
    ON C.id           = G.batch_id
   AND C.job_group_id = D.ancestor_id
 INNER JOIN LATERAL (
-    SELECT R.batch_id
-         , R.update_id
-         , R.job_group_id
-         , R.inst_coll
+    SELECT {keys}
          , SUM(R.n_creating_cancellable_jobs)    AS n_creating_cancellable_jobs
          , SUM(R.n_ready_cancellable_jobs)       AS n_ready_cancellable_jobs
          , SUM(R.n_running_cancellable_jobs)     AS n_running_cancellable_jobs
@@ -1554,10 +1552,7 @@ INNER JOIN LATERAL (
     FROM job_group_inst_coll_cancellable_resources AS R
     WHERE R.batch_id     = G.batch_id
       AND R.job_group_id = G.job_group_id
-    GROUP BY R.batch_id
-           , R.update_id
-           , R.job_group_id
-           , R.inst_coll
+    GROUP BY {keys}
     HAVING COUNT(*) > 1
 ) AS R ON TRUE
 WHERE G.time_completed IS NOT NULL
@@ -1579,9 +1574,10 @@ async def delete_dead_job_group_cancellable_resources_records(db: Database):
         'inst_coll',
     ]
 
+    keys = ','.join([f'R.{k}' for k in keyfields])
     targets = db.execute_and_fetchall(
         f"""\
-SELECT {','.join([f'R.{k}' for k in keyfields])}
+SELECT {keys}
 FROM job_groups AS G
 INNER JOIN job_group_self_and_ancestors AS D
    ON G.batch_id     = D.batch_id
@@ -1590,17 +1586,11 @@ LEFT JOIN job_groups_cancelled AS C
    ON C.id           = G.batch_id
   AND C.job_group_id = D.ancestor_id
 INNER JOIN LATERAL (
-    SELECT R.batch_id
-         , R.update_id
-         , R.job_group_id
-         , R.inst_coll
+    SELECT {keys}
     FROM job_group_inst_coll_cancellable_resources AS R
     WHERE R.batch_id     = G.batch_id
       AND R.job_group_id = G.job_group_id
-    GROUP BY R.batch_id
-           , R.update_id
-           , R.job_group_id
-           , R.inst_coll
+    GROUP BY {keys}
     HAVING COUNT(*)                              = 1
        AND MAX(R.n_creating_cancellable_jobs)    = 0
        AND MAX(R.n_ready_cancellable_jobs)       = 0
@@ -1888,7 +1878,7 @@ SELECT instance_id, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, delete_committed_job_groups_inst_coll_staging_records, db))
     task_manager.ensure_future(periodically_call(60, delete_prev_cancelled_job_group_cancellable_resources_records, db))
     task_manager.ensure_future(periodically_call(60, compact_job_group_cancellable_resources_records, app, db))
-    task_manager.ensure_future(periodically_call(60, delete_dead_job_group_cancellable_resources_records, app, db))
+    task_manager.ensure_future(periodically_call(60, delete_dead_job_group_cancellable_resources_records, db))
 
 
 async def on_cleanup(app):
