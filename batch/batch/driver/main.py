@@ -1493,9 +1493,6 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
 
 
 async def compact_job_group_cancellable_resources_records(app, db: Database):
-    if not app['feature_flags']['compact_billing_tables']:
-        return
-
     keyfields = [
         'batch_id',
         'update_id',
@@ -1881,7 +1878,7 @@ SELECT instance_id, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
     task_manager.ensure_future(periodically_call(60, delete_committed_job_groups_inst_coll_staging_records, db))
     task_manager.ensure_future(periodically_call(60, delete_prev_cancelled_job_group_cancellable_resources_records, db))
-    task_manager.ensure_future(periodically_call(60, compact_job_group_cancellable_resources_records, app, db))
+    task_manager.ensure_future(periodically_call(60, compact_job_group_cancellable_resources_records, db))
     task_manager.ensure_future(periodically_call(60, delete_dead_job_group_cancellable_resources_records, db))
 
 
