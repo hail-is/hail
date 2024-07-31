@@ -1539,8 +1539,8 @@ FROM job_groups AS G
 LEFT JOIN LATERAL (
     SELECT C.id FROM job_groups_cancelled AS C
     INNER JOIN job_group_self_and_ancestors AS D
-      ON C.id           = D.batch_id
-     AND C.job_group_id = D.job_group_id
+       ON C.id           = D.batch_id
+      AND C.job_group_id = D.job_group_id
     WHERE D.batch_id    = G.batch_id
       AND D.ancestor_id = G.job_group_id
 ) AS C ON TRUE
@@ -1584,8 +1584,8 @@ FROM job_groups AS G
 LEFT JOIN LATERAL (
     SELECT C.id FROM job_groups_cancelled AS C
     INNER JOIN job_group_self_and_ancestors AS D
-      ON C.id           = D.batch_id
-     AND C.job_group_id = D.job_group_id
+       ON C.id           = D.batch_id
+      AND C.job_group_id = D.job_group_id
     WHERE D.batch_id    = G.batch_id
       AND D.ancestor_id = G.job_group_id
 ) AS C ON TRUE
