@@ -1518,7 +1518,7 @@ async def compact_job_group_cancellable_resources_records(app, db: Database):
         await tx.just_execute(
             f"""\
 DELETE FROM job_group_inst_coll_cancellable_resources
-WHERE {'AND'.join([f'{k} = %s' for k in keyfields])};
+WHERE {' AND '.join([f'{k} = %s' for k in keyfields])};
 """,
             [record[k] for k in keyfields],
         )
@@ -1613,7 +1613,7 @@ LIMIT 1000;
         await db.just_execute(
             f"""\
 DELETE FROM job_group_inst_coll_cancellable_resources
-WHERE {'AND'.join([f'{k} = %s' for k in keyfields])};
+WHERE {' AND '.join([f'{k} = %s' for k in keyfields])};
 """,
             [target[k] for k in keyfields],
         )
