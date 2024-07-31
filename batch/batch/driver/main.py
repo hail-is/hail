@@ -1526,7 +1526,7 @@ WHERE {' AND '.join([f'{k} = %s' for k in keyfields])};
         await tx.execute_insertone(
             f"""\
 INSERT INTO job_group_inst_coll_cancellable_resources ({','.join(rowfields)})
-VALUES ({','.join(['%s' for _ in rowfields])});,
+VALUES ({','.join(['%s' for _ in rowfields])});
 """,
             [record[k] for k in rowfields],
         )
