@@ -1536,12 +1536,14 @@ VALUES ({','.join(['%s' for _ in rowfields])});,
         f"""\
 SELECT R.*
 FROM job_groups AS G
-INNER JOIN job_group_self_and_ancestors AS D
-   ON G.batch_id     = D.batch_id
-  AND G.job_group_id = D.job_group_id
-LEFT JOIN job_groups_cancelled AS C
-   ON C.id           = G.batch_id
-  AND C.job_group_id = D.ancestor_id
+LEFT JOIN LATERAL (
+    SELECT C.id FROM job_groups_cancelled AS C
+    INNER JOIN job_group_self_and_ancestors AS D
+      ON C.id           = D.batch_id
+     AND C.job_group_id = D.job_group_id
+    WHERE D.batch_id    = G.batch_id
+      AND D.ancestor_id = G.job_group_id
+) AS C ON TRUE
 INNER JOIN LATERAL (
     SELECT {keys}
          , SUM(R.n_creating_cancellable_jobs)    AS n_creating_cancellable_jobs
@@ -1579,12 +1581,14 @@ async def delete_dead_job_group_cancellable_resources_records(db: Database):
         f"""\
 SELECT {keys}
 FROM job_groups AS G
-INNER JOIN job_group_self_and_ancestors AS D
-   ON G.batch_id     = D.batch_id
-  AND G.job_group_id = D.job_group_id
-LEFT JOIN job_groups_cancelled AS C
-   ON C.id           = G.batch_id
-  AND C.job_group_id = D.ancestor_id
+LEFT JOIN LATERAL (
+    SELECT C.id FROM job_groups_cancelled AS C
+    INNER JOIN job_group_self_and_ancestors AS D
+      ON C.id           = D.batch_id
+     AND C.job_group_id = D.job_group_id
+    WHERE D.batch_id    = G.batch_id
+      AND D.ancestor_id = G.job_group_id
+) AS C ON TRUE
 INNER JOIN LATERAL (
     SELECT {keys}
     FROM job_group_inst_coll_cancellable_resources AS R
