@@ -1492,7 +1492,7 @@ WHERE batch_id = %s AND update_id = %s AND job_group_id = %s;
         )
 
 
-async def compact_job_group_cancellable_resources_records(app, db: Database):
+async def compact_job_group_cancellable_resources_records(db: Database):
     keyfields = [
         'batch_id',
         'update_id',
