@@ -1613,7 +1613,7 @@ LIMIT 1000;
         await db.just_execute(
             f"""\
 DELETE FROM job_group_inst_coll_cancellable_resources
-WHERE {','.join([f'{k} = %s' for k in keyfields])};
+WHERE {'AND'.join([f'{k} = %s' for k in keyfields])};
 """,
             [target[k] for k in keyfields],
         )
