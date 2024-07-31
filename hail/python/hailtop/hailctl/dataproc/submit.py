@@ -15,6 +15,7 @@ def submit(
     gcloud_configuration: Optional[str],
     dry_run: bool,
     region: Optional[str],
+    project: Optional[str],
     pass_through_args: List[str],
 ):
     print("Submitting to cluster '{}'...".format(name))
@@ -66,6 +67,9 @@ def submit(
 
     if region:
         cmd.append('--region={}'.format(region))
+
+    if project:
+        cmd.append('--project={}'.format(project))
 
     # append arguments to pass to the Hail script
     if pass_through_args:
