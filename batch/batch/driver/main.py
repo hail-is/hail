@@ -1520,7 +1520,7 @@ async def compact_job_group_cancellable_resources_records(app, db: Database):
 DELETE FROM job_group_inst_coll_cancellable_resources
 WHERE {','.join([f'{k} = %s' for k in keyfields])};
 """,
-            (record[k] for k in keyfields),
+            [record[k] for k in keyfields],
         )
 
         await tx.execute_insertone(
@@ -1528,7 +1528,7 @@ WHERE {','.join([f'{k} = %s' for k in keyfields])};
 INSERT INTO job_group_inst_coll_cancellable_resources ({','.join(rowfields)})
 VALUES ({','.join(['%s' for _ in rowfields])});,
 """,
-            (record[k] for k in rowfields),
+            [record[k] for k in rowfields],
         )
 
     keys = ','.join([f'R.{k}' for k in keyfields])
@@ -1611,7 +1611,7 @@ LIMIT 1000;
 DELETE FROM job_group_inst_coll_cancellable_resources
 WHERE {','.join([f'{k} = %s' for k in keyfields])};
 """,
-            (target[k] for k in keyfields),
+            [target[k] for k in keyfields],
         )
 
 
