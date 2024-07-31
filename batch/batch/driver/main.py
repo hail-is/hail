@@ -1528,7 +1528,7 @@ WHERE {','.join([f'{k} = %s' for k in keyfields])};
 INSERT INTO job_group_inst_coll_cancellable_resources ({','.join(rowfields)})
 VALUES ({','.join(['%s' for _ in rowfields])});,
 """,
-            [{**record, 'token': 0}[k] for k in rowfields],
+            (record[k] for k in rowfields),
         )
 
     targets = db.execute_and_fetchall(
@@ -1568,7 +1568,7 @@ LIMIT 1000;
     )
 
     async for target in targets:
-        await compact(target)
+        await compact({**target, 'token': 0})
 
 
 async def delete_dead_job_group_cancellable_resources_records(db: Database):
