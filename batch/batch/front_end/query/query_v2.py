@@ -125,46 +125,40 @@ def parse_list_batches_query_v2(user: str, q: str, last_batch_id: Optional[int])
         where_conditions.append(f'({cond})')
         where_args += args
 
-    sql = f"""\
-SELECT
-  batches.*,
-  cancelled_t.cancelled <=> 1 AS cancelled,
+    sql = f"""
+SELECT batches.*,
+  cancelled_t.cancelled IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
-  cost_t.cost,
-  cost_t.cost_breakdown
-FROM batches
-INNER JOIN job_groups
-  ON batches.id = job_groups.batch_id
-INNER JOIN billing_projects
-  ON batches.billing_project = billing_projects.name
-INNER JOIN billing_project_users
-  ON batches.billing_project = billing_project_users.billing_project
-INNER JOIN job_groups_n_jobs_in_complete_states
-  ON batches.id = job_groups_n_jobs_in_complete_states.id
-  AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
-LEFT JOIN (SELECT *, 1 AS cancelled FROM job_groups_cancelled) AS cancelled_t
-  ON batches.id = cancelled_t.id
-  AND job_groups.job_group_id = cancelled_t.job_group_id
-INNER JOIN LATERAL (
-  WITH resource_costs AS (
-    SELECT
-      resource_id,
-      CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
+  cost_t.cost, cost_t.cost_breakdown
+FROM job_groups
+LEFT JOIN batches ON batches.id = job_groups.batch_id
+LEFT JOIN billing_projects ON batches.billing_project = billing_projects.name
+LEFT JOIN job_groups_n_jobs_in_complete_states ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
+LEFT JOIN LATERAL (
+  SELECT 1 AS cancelled
+  FROM job_group_self_and_ancestors
+  INNER JOIN job_groups_cancelled
+    ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+      job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
+  WHERE job_groups.batch_id = job_group_self_and_ancestors.batch_id AND
+    job_groups.job_group_id = job_group_self_and_ancestors.job_group_id
+) AS cancelled_t ON TRUE
+STRAIGHT_JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+LEFT JOIN LATERAL (
+  SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
+  FROM (
+    SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
-    WHERE batch_id = batches.id
+    WHERE job_groups.batch_id = aggregated_job_group_resources_v3.batch_id AND job_groups.job_group_id = aggregated_job_group_resources_v3.job_group_id
     GROUP BY resource_id
-  )
-  SELECT
-    COALESCE(SUM(`usage` * rate), 0) AS cost,
-    JSON_OBJECTAGG(resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
-  FROM resource_costs
-  INNER JOIN resources USING (resource_id)
+  ) AS usage_t
+  LEFT JOIN resources ON usage_t.resource_id = resources.resource_id
 ) AS cost_t ON TRUE
 WHERE {' AND '.join(where_conditions)}
-ORDER BY batches.id DESC
+ORDER BY job_groups.batch_id DESC
 LIMIT 51;
 """
 
