@@ -31,6 +31,7 @@ import scala.util.control.NonFatal
 
 import java.io.{Closeable, PrintWriter}
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark._
@@ -257,6 +258,17 @@ object SparkBackend {
     gcsRequesterPaysBuckets: String = null,
   ): SparkBackend = synchronized {
     require(theSparkBackend == null)
+    // From https://github.com/hail-is/hail/issues/14580 :
+    //   IR can get quite big, especially as it can contain an arbitrary
+    //   amount of encoded literals from the user's python session. This
+    //   was a (controversial) restriction imposed by Jackson and should be lifted.
+    //
+    // We remove this restriction _here_ (as opposed to anywhere else) because
+    // this is the first call into the JVM we control as part of initializing
+    // hail for the spark backend
+    StreamReadConstraints.overrideDefaultStreamReadConstraints(
+      StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+    )
 
     if (!skipLoggingConfiguration)
       HailContext.configureLogging(logFile, quiet, append)

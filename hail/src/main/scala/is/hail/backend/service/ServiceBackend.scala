@@ -465,6 +465,12 @@ object ServiceBackendAPI {
 
     implicit val formats: Formats = DefaultFormats
 
+    // From https://github.com/hail-is/hail/issues/14580 :
+    //   IR can get quite big, especially as it can contain an arbitrary
+    //   amount of encoded literals from the user's python session. This
+    //   was a (controversial) restriction imposed by Jackson and should be lifted.
+    //
+    // We remove this restriction.
     StreamReadConstraints.overrideDefaultStreamReadConstraints(
       StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
     );
