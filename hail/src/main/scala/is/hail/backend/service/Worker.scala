@@ -207,22 +207,11 @@ object Worker {
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    retryTransientErrors {
-      write(s"$root/result.$i") { dos =>
-        result match {
-          case Right(bytes) =>
-            dos.writeBoolean(true)
-            dos.write(bytes)
-          case Left(throwableWhileExecutingUserCode) =>
-            val (shortMessage, expandedMessage, errorId) =
-              handleForPython(throwableWhileExecutingUserCode)
-            dos.writeBoolean(false)
-            writeString(dos, shortMessage)
-            writeString(dos, expandedMessage)
-            dos.writeInt(errorId)
-        }
-      }
-    }
+    /* TODO uncomment after testing retryTransientErrors { write(s"$root/result.$i") { dos => result
+     * match { case Right(bytes) => dos.writeBoolean(true) dos.write(bytes) case
+     * Left(throwableWhileExecutingUserCode) => val (shortMessage, expandedMessage, errorId) =
+     * handleForPython(throwableWhileExecutingUserCode) dos.writeBoolean(false) writeString(dos,
+     * shortMessage) writeString(dos, expandedMessage) dos.writeInt(errorId) } } } */
 
     timer.end("writeOutputs")
     timer.end(s"Job $i")

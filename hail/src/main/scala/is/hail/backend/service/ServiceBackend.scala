@@ -159,7 +159,7 @@ class ServiceBackend(
     collection: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
-  ): (String, String, Int) = {
+  ): (String, String, Int, Long, Long, IndexedSeq[JObject]) = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe
@@ -271,25 +271,45 @@ class ServiceBackend(
 
     stageCount += 1
     implicit val formats: Formats = DefaultFormats
-    val batchState = (batch \ "state").extract[String]
-    if (batchState == "failed") {
-      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
-    }
 
-    (token, root, n)
+    (token, root, n, batchId, updateId, jobs)
   }
 
-  private[this] def readResult(root: String, i: Int): Array[Byte] = {
-    val bytes = fs.readNoCompression(s"$root/result.$i")
-    if (bytes(0) != 0) {
-      bytes.slice(1, bytes.length)
-    } else {
-      val errorInformationBytes = bytes.slice(1, bytes.length)
-      val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
-      val shortMessage = readString(is)
-      val expandedMessage = readString(is)
-      val errorId = is.readInt()
-      throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
+  private[this] def readResult(
+    root: String,
+    i: Int,
+    batchId: Long,
+    updateId: Long,
+    jobs: IndexedSeq[JObject],
+  ): Array[Byte] = {
+    implicit val formats: Formats = DefaultFormats
+    try {
+      val bytes = fs.readNoCompression(s"$root/result.$i")
+      if (bytes(0) != 0) {
+        bytes.slice(1, bytes.length)
+      } else {
+        val errorInformationBytes = bytes.slice(1, bytes.length)
+        val is = new DataInputStream(new ByteArrayInputStream(errorInformationBytes))
+        val shortMessage = readString(is)
+        val expandedMessage = readString(is)
+        val errorId = is.readInt()
+        throw new HailWorkerException(i, shortMessage, expandedMessage, errorId)
+      }
+    } catch {
+      case e: HailWorkerException => throw e
+      case e: Exception =>
+        val jobId = (jobs(i) \ "job_id").extract[Int]
+        val err = s"Update $updateId for batch $batchId failed due to error in job $jobId."
+        val (jobData, jobLog) = batchClient.getJob(batchId, jobId)
+        (jobData \ "state").extract[String].toLowerCase() match {
+          case "failed" => throw new HailWorkerException(
+              i,
+              err,
+              s"""Log for job $jobId:\n\n${(jobLog \ "main").extract[String]}\n\n""",
+              -1,
+            )
+          case _ => throw new HailBatchFailure(err, e)
+        }
     }
   }
 
@@ -309,14 +329,14 @@ class ServiceBackend(
         .map(ps => (ps, ps.map(contexts)))
         .getOrElse((contexts.indices, contexts))
 
-    val (token, root, _) =
+    val (token, root, _, batchId, updateId, jobs) =
       submitAndWaitForBatch(_backendContext, fs, parts, stageIdentifier, f)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
     val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
-        (() => readResult(root, jobIndex), partIdx)
+        (() => readResult(root, jobIndex, batchId, updateId, jobs), partIdx)
       }
     }
 
@@ -431,7 +451,7 @@ class ServiceBackend(
 }
 
 class EndOfInputException extends RuntimeException
-class HailBatchFailure(message: String) extends RuntimeException(message)
+class HailBatchFailure(message: String, error: Exception) extends RuntimeException(message, error)
 
 object ServiceBackendAPI {
   private[this] val log = Logger.getLogger(getClass.getName())
