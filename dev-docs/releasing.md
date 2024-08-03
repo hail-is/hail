@@ -1,6 +1,64 @@
-# Releasing FAQ
+# Releasing
 
-## Commits were merged after a broken release
+## Version
+
+As far as I can tell, we don't really subscribe to any particular church when it
+comes to versioning. Our team is light on process and this is reflected on how
+we version our software.
+
+Konrad argues that we follow [numpy](https://numpy.org/doc/1.22/user/depending_on_numpy.html#understanding-numpy-s-versioning-and-api-abi-stability),
+"but `s/minor/patch/ | s/major/minor/`".
+
+### Format
+
+Released versions of hail follow the format MAJOR.MINOR.PATCH. Development
+versions use the current release version with the short SHA appended.
+
+### Major
+
+For now, we've never felt like decaring hail "`1.0` ready", so for now the
+major version is always `0`.
+
+### Minor
+
+Hail 0.1 started life as a command line tool called `k3`, allowing users could
+perform simple tasks like convert VCFs to VDS and run sampleqc. The team quickly
+realised that this had some major shortcomings and so added a python interface
+for hail 0.2 known as [PyHail](https://github.com/hail-is/hail/commit/b9a51e969928c5c6bf0fe303036450b9f54fe759).
+The name "PyHail" was dropped for "Hail" and this is where we are today.
+
+The minor version of `2` communicates that this is the second revision of hail,
+and programs that use a 0.2 release of hail will work for all subseqent 0.2
+releases, barring deprecations etc.
+
+### Patch
+
+We favour linear history - it's the reason we use squash commits on top of main.
+In the same way, our patch version records a linear sequence of releases. For
+now, we increment the patch version for all changes. We avoid breaking changes
+and provide deprecation notices for changes of behaviour.
+
+### Summary
+
+For the forseeable future, hail's version is `0.2.X`.
+Increment `X` for each new release.
+Avoid major breaking changes - try to maintain backwards compatibily.
+Issue deprecations notices and release note anything that may require users to
+change their code.
+
+## Preparing a New Release
+
+
+### Release Checklist
+
+[ ] bump patch version in `hail/build.sc` and `hail/version.mk`
+[ ] add query release notes in `hail/python/hail/docs/change_log.md`
+[ ] add batch release notes in `hail/python/hailtop/batch/docs/change_log.rst`
+[ ] open a PR titled "[release] 0.2.X", replacing X with the new patch version.
+
+## FAQ
+
+### Commits were merged after a broken release
 
 If the release process broke and new commits have merged since we modified the change log, which
 commit should we release?
@@ -8,7 +66,7 @@ commit should we release?
 If a commit has been tagged, release that commit. If fixes are necessary, create a branch from the
 tagged commit, add commits as necessary, modify the tag, and hand release that.
 
-## Failure due to "active Temporary Hold"
+### Failure due to "active Temporary Hold"
 
 The release build.yaml job fails due to "'hail-common/dataproc/0.2.XXX/vep-GRCh37.sh' is under
 active Temporary Hold". What do I do?
@@ -141,7 +199,7 @@ just run:
 
     rm -rf $TMPDIR
 
-## Failure due to a tag or a release already existing
+### Failure due to a tag or a release already existing
 
 If you are hand releasing and the release script exits because the tag or release already exists,
 you can safely comment out the lines that check for that and the lines that create those
