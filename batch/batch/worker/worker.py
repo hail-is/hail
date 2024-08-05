@@ -1698,6 +1698,57 @@ class Job(abc.ABC):
         return f'job {self.id}'
 
 
+class FakeJob(Job):
+    def __init__(
+        self,
+        batch_id: int,
+        job_id: int,
+        user: str,
+        credentials: Dict[str, str],
+        addtl_spec,  # this would be a job_spec, but we haven't read it yet
+        format_version,
+        task_manager: aiotools.BackgroundTaskManager,
+        pool: concurrent.futures.ThreadPoolExecutor,
+        client_session: httpx.ClientSession,
+        worker: 'Worker',
+    ):
+        resources = addtl_spec.get('resources', {})
+        # will this work?
+        resources['cores_mcpu'] = 0
+        resources['memory_bytes'] = 0
+        resources['storage_gib'] = 0
+        addtl_spec['resources'] = resources
+        super().__init__(batch_id, user, credentials, addtl_spec, format_version, task_manager, pool, worker)
+        self.client_session = client_session
+        self._job_id = job_id
+
+    @property
+    def job_id(self):
+        return self._job_id
+
+    def to_real_job(self, job_spec):
+        return Job.create(
+            batch_id=self.batch_id,
+            user=self.user,
+            credentials=self.credentials,
+            job_spec=job_spec,
+            format_version=self.format_version,
+            task_manager=self.task_manager,
+            pool=self.pool,
+            client_session=self.client_session,
+            worker=self.worker,
+        )
+
+    def cloudfuse_base_path(self):
+        raise NotImplementedError
+
+    def cloudfuse_data_path(self, bucket: str) -> str:
+        raise NotImplementedError
+
+    def cloudfuse_tmp_path(self, bucket: str) -> str:
+        raise NotImplementedError
+
+
 class DockerJob(Job):
     def __init__(
         self,
@@ -3048,6 +3099,7 @@ class Worker:
 
         batch_id = body['batch_id']
         job_id = body['job_id']
+        id = (batch_id, job_id)
 
         format_version = BatchFormatVersion(body['format_version'])
 
@@ -3055,31 +3107,8 @@ class Worker:
         start_job_id = body['start_job_id']
         addtl_spec = body['job_spec']
 
-        assert self.file_store
-        job_spec = await self.file_store.read_spec_file(batch_id, token, start_job_id, job_id)
-        job_spec = json.loads(job_spec)
-
-        job_spec['attempt_id'] = addtl_spec['attempt_id']
-        job_spec['job_group_id'] = addtl_spec['job_group_id']
-        job_spec['secrets'] = addtl_spec['secrets']
-
-        addtl_env = addtl_spec.get('env')
-        if addtl_env:
-            env = job_spec.get('env')
-            if not env:
-                env = []
-                job_spec['env'] = env
-            env.extend(addtl_env)
-
-        assert job_spec['job_id'] == job_id
-        id = (batch_id, job_id)
-
-        request['batch_telemetry'] = {
-            'operation': 'create_job',
-            'batch_id': str(batch_id),
-            'job_id': str(job_id),
-            'job_queue_time': str(body['queue_time']),
-        }
+        user = body['user']
+        gsa_key = body['gsa_key']
 
         # already running
         if id in self.jobs:
@@ -3089,25 +3118,69 @@ class Worker:
         if not self.active:
             return web.HTTPServiceUnavailable()
 
-        job = Job.create(
+        request['batch_telemetry'] = {
+            'operation': 'create_job',
+            'batch_id': str(batch_id),
+            'job_id': str(job_id),
+            'job_queue_time': str(body['queue_time']),
+        }
+
+        fake_job = FakeJob(
             batch_id,
-            body['user'],
-            body['gsa_key'],
-            job_spec,
+            job_id,
+            user,
+            gsa_key,
+            addtl_spec,
             format_version,
             self.task_manager,
             self.pool,
             self.client_session,
             self,
         )
+        self.jobs[fake_job.id] = fake_job
 
-        log.info(f'created {job} attempt {job.attempt_id}')
-
-        self.jobs[job.id] = job
-
-        self.task_manager.ensure_future(self.run_job(job))
+        self.task_manager.ensure_future(self.create_job_2(fake_job, token, start_job_id))
 
         return web.Response()
+
+    async def create_job_2(self, fake_job: 'FakeJob', token, start_job_id):
+        assert self.file_store
+        job = None
+        try:
+            job_spec = await self.file_store.read_spec_file(fake_job.batch_id, token, start_job_id, fake_job.job_id)
+            job_spec = json.loads(job_spec)
+
+            job_spec['attempt_id'] = fake_job.job_spec['attempt_id']
+            job_spec['job_group_id'] = fake_job.job_spec['job_group_id']
+            job_spec['secrets'] = fake_job.job_spec['secrets']
+
+            addtl_env = fake_job.job_spec.get('env')
+            if addtl_env:
+                env = job_spec.get('env')
+                if not env:
+                    env = []
+                    job_spec['env'] = env
+                env.extend(addtl_env)
+
+            assert job_spec['job_id'] == fake_job.job_id
+
+            job = fake_job.to_real_job(job_spec)
+            log.info(f'created {job} attempt {job.attempt_id}')
+            self.jobs[job.id] = job
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            if not user_error(e):
+                log.exception(f'while running {self}')
+
+            fake_job.start_time = time_msecs()
+            fake_job.state = 'error'
+            fake_job.error = traceback.format_exc()
+            fut = asyncio.create_task(asyncio.sleep(0))
+            await fake_job.mark_complete(fut)
+
+        if job is not None:
+            await self.run_job(job)
 
     async def create_job(self, request):
         if not self.active:

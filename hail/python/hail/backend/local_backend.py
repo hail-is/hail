@@ -114,16 +114,8 @@ class LocalBackend(Py4JBackend):
     ):
         r = CSERenderer()
         code = r(finalize_randomness(body._ir))
-        jbody = self._parse_value_ir(code, ref_map=dict(zip(value_parameter_names, value_parameter_types)))
-        self._registered_ir_function_names.add(name)
-
-        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
-            name,
-            [ta._parsable_string() for ta in type_parameters],
-            value_parameter_names,
-            [pt._parsable_string() for pt in value_parameter_types],
-            return_type._parsable_string(),
-            jbody,
+        self._register_ir_function(
+            name, type_parameters, value_parameter_names, value_parameter_types, return_type, code
         )
 
     def stop(self):

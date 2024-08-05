@@ -1,6 +1,7 @@
 package is.hail
 
 import is.hail.backend.ExecutionCache
+import is.hail.backend.spark.SparkBackend
 import is.hail.io.fs.RequesterPaysConfig
 import is.hail.types.encoded.EType
 import is.hail.utils._
@@ -11,7 +12,7 @@ import org.json4s.JsonAST.{JArray, JObject, JString}
 
 object HailFeatureFlags {
   val defaults = Map[String, (String, String)](
-    // Must match __flags_env_vars_and_defaults in hail/backend/backend.py
+    // Must match _flags_env_vars_and_defaults in hail/backend/backend.py
     //
     // The default values and envvars here are only used in the Scala tests. In all other
     // conditions, Python initializes the flags, see HailContext._initialize_flags in context.py.
@@ -40,6 +41,10 @@ object HailFeatureFlags {
     (ExecutionCache.Flags.UseFastRestarts, "HAIL_USE_FAST_RESTARTS" -> null),
     (RequesterPaysConfig.Flags.RequesterPaysBuckets, "HAIL_GCS_REQUESTER_PAYS_BUCKETS" -> null),
     (RequesterPaysConfig.Flags.RequesterPaysProject, "HAIL_GCS_REQUESTER_PAYS_PROJECT" -> null),
+    (
+      SparkBackend.Flags.MaxStageParallelism,
+      "HAIL_SPARK_MAX_STAGE_PARALLELISM" -> Integer.MAX_VALUE.toString,
+    ),
   )
 
   def fromMap(m: Map[String, String]): HailFeatureFlags =

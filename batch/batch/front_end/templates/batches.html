@@ -1,23 +1,24 @@
 {% from "table_search.html" import table_search with context %}
-{% from "components/utils.html" import batch_state_indicator, submit_button, link %}
+{% from "utils.html" import batch_state_indicator, submit_button, link %}
 {% extends "layout.html" %}
 {% block title %}Batches{% endblock %}
 {% block head %}
 <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
-<div class='flex-col m-auto w-full lg:px-10 space-y-4'>
+<div class='flex-col m-auto w-full space-y-4'>
   <h1 class="text-2xl font-light">Batches</h1>
   {{ table_search("batch-search", base_path ~ "/batches") }}
-  <table class='table-fixed w-full' id='batches'>
+  <table class='table-auto w-full' id='batches'>
     <thead>
-      <th class='h-16 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none'>
+      <th class='h-12 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none'>
         ID</th>
-      <th class='h-16 bg-slate-200 font-light text-md rounded-tr md:rounded-tr-none text-center w-4/5 lg:w-2/5'>Batch
+      <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none'>Batch
       </th>
-      <th class='h-16 bg-slate-200 font-light text-md px-10 text-center hidden lg:table-cell w-1/5'>Job Statuses</th>
-      <th class='h-16 bg-slate-200 font-light text-md text-center hidden lg:table-cell'>Duration</th>
-      <th class='h-16 bg-slate-200 font-light text-md text-center hidden md:table-cell rounded-tr'>Cost</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Billing Project</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Job Statuses</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Duration</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr'>Cost</th>
     </thead>
     <tbody class='border border-collapse border-slate-50'>
       {% for batch in batches %}
@@ -28,10 +29,10 @@
           </div>
         </td>
         <td class='table-cell'>
-          <div class='flex-col space-y-2 py-2 block overflow-x-auto'>
+          <div class='flex-col py-1 block overflow-x-auto'>
             <div class='flex flex-col space-y-1 md:flex-row md:flex-wrap md:items-center md:space-y-0'>
               {% if 'attributes' in batch and 'name' in batch['attributes'] %}
-              <div class='text-wrap pr-4 font-normal text-lg'>
+              <div class='text-wrap pr-4'>
                 {{ link(base_path ~ "/batches/" ~ batch['id'], batch['attributes']['name']) }}
               </div>
               {% else %}
@@ -41,10 +42,12 @@
               {% endif %}
               {{ batch_state_indicator(batch) }}
             </div>
-            <div class='font-light text-zinc-500'>{{ batch['billing_project'] }}</div>
           </div>
         </td>
-        <td class='hidden lg:table-cell overflow-hidden px-5'>
+        <td class='hidden lg:table-cell'>
+          <div class='font-light text-zinc-500'>{{ batch['billing_project'] }}</div>
+        </td>
+        <td class='hidden lg:table-cell overflow-hidden'>
           <div class='flex items-center font-light'>
             {% set statuses = [] %}
             {% if batch['n_jobs'] - batch['n_completed'] != 0 %}
@@ -54,7 +57,7 @@
             {% do statuses.append(batch['n_succeeded'] ~ ' succeeded') %}
             {% endif %}
             {% if batch['n_cancelled'] != 0 %}
-            {% do statuses.append(batch['n_succeeded'] ~ ' cancelled') %}
+            {% do statuses.append(batch['n_cancelled'] ~ ' cancelled') %}
             {% endif %}
             {% if batch['n_failed'] != 0 %}
             {% do statuses.append(batch['n_failed'] ~ ' failed') %}
@@ -62,10 +65,10 @@
             {{ statuses|join(', ') }}
           </div>
         </td>
-        <td class='hidden lg:table-cell font-light text-center'>
+        <td class='hidden lg:table-cell font-light'>
           {{ batch.get('duration') or '' }}
         </td>
-        <td class='hidden md:table-cell font-light text-center'>
+        <td class='hidden md:table-cell font-light'>
           {{ batch.get('cost') or '' }}
         </td>
       </tr>

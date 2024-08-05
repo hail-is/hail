@@ -32,4 +32,6 @@ of new namespaces/services, CI tracks which namespaces are active and periodical
 updates a K8s `ConfigMap` with fresh Envoy configuration. The gateways, using the
 [Envoy xDS API](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/operations/dynamic_configuration#xds-configuration-api-overview)
 can dynamically load this new configuration as it changes without dropping existing traffic.
-You can see CI's current view of the cluster's namespaces/services at ci.hail.is/namespaces.
+You can see CI's current view of the cluster's namespaces/services at ci.hail.is/namespaces
+and can inspect the current Envoy config at ci.hail.is/envoy-config/gateway and
+ci.hail.is/envoy-config/internal-gateway.

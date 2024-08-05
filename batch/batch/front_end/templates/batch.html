@@ -1,6 +1,6 @@
 {% from "table_search.html" import table_search with context %}
 {% from "components/metadata_tables.html" import kv_table, resource_cost_table, collapsible_li %}
-{% from "components/utils.html" import
+{% from "utils.html" import
 batch_state_indicator, job_state_indicator, danger_button, submit_button, link
 %}
 {% extends "layout.html" %}
@@ -74,28 +74,29 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
   <div class="flex flex-col w-full lg:basis-3/5">
     {{ table_search("job-search", base_path ~ "/batches/" ~ batch["id"]) }}
     <div class='flex flex-col mt-4'>
-      <table class="table-fixed md:table-auto w-full" id="batch">
+      <table class="table-auto w-full" id="batch">
         <thead>
-          <th class='h-16 bg-slate-200 font-light text-md text-left pl-4 rounded-tl w-1/12'>ID</th>
-          <th class='h-16 bg-slate-200 font-light text-md text-left pl-4 rounded-tr md:rounded-tr-none w-3/4 lg:w-1/2'>
+          <th class='h-12 bg-slate-200 font-light text-md text-left px-4 rounded-tl'>ID</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left rounded-tr md:rounded-tr-none'>
             Name</th>
-          <th class='h-16 bg-slate-200 font-light text-md text-left pl-4 hidden lg:table-cell'>Duration</th>
-          <th class='h-16 bg-slate-200 font-light text-md text-left pl-4 hidden md:table-cell rounded-tr'>Cost</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Exit Code</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Duration</th>
+          <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr'>Cost</th>
         </thead>
         <tbody class='border border-collapse border-slate-50'>
           {% for job in batch['jobs'] %}
           <tr class='border border-collapse hover:bg-slate-100'>
-            <td class='font-light py-2 px-4'>
+            <td class='font-light pl-4 w-20'>
               {{ link(base_path ~ '/batches/' ~ job['batch_id'] ~ '/jobs/' ~ job['job_id'], job['job_id']) }}
             </td>
-            <td class='py-2 px-4 block overflow-x-auto'>
-              <div class='flex flex-col space-y-1 md:flex-row md:flex-wrap md:space-y-0'>
+            <td class='py-1 block overflow-x-auto'>
+              <div class='flex flex-col space-x-0 md:space-x-2 md:flex-row md:flex-wrap'>
                 {% if 'name' in job and job['name'] is not none %}
-                <div class='text-wrap pr-4 font-normal text-lg'>
+                <div class='text-wrap'>
                   {{ link(base_path ~ '/batches/' ~ job['batch_id'] ~ '/jobs/' ~ job['job_id'], job['name']) }}
                 </div>
                 {% else %}
-                <div class='text-wrap pr-4 text-zinc-400 italic'>
+                <div class='text-wrap text-zinc-400 italic'>
                   {{ link(base_path ~ '/batches/' ~ job['batch_id'] ~ '/jobs/' ~ job['job_id'], 'no name') }}
                 </div>
                 {% endif %}
@@ -104,10 +105,13 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
                 </div>
               </div>
             </td>
-            <td class='hidden lg:table-cell font-light py-2 px-4'>
+            <td class='hidden lg:table-cell font-light'>
+              {{ job.get('exit_code', '') }}
+            </td>
+            <td class='hidden lg:table-cell font-light'>
               {{ job.get('duration') or '' }}
             </td>
-            <td class='hidden md:table-cell font-light py-2 px-4'>
+            <td class='hidden md:table-cell font-light'>
               {{ job.get('cost') or '' }}
             </td>
           </tr>

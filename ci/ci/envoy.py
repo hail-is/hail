@@ -1,12 +1,23 @@
 import sys
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import yaml
 
+LOAD_BALANCER_REPLICAS = 3
+
+
+class Service:
+    def __init__(self, name: str, rate_limit_rps: Optional[int] = None):
+        self.name = name
+        if rate_limit_rps is not None:
+            self.rate_limit_rps = rate_limit_rps
+        else:
+            self.rate_limit_rps = 180 if name == 'batch-driver' else 600
+
 
 def create_rds_response(
-    default_services: List[str],
-    internal_services_per_namespace: Dict[str, List[str]],
+    default_services: List[Service],
+    internal_services_per_namespace: Dict[str, List[Service]],
     proxy: str,
     *,
     domain: str,
@@ -45,7 +56,7 @@ def create_rds_response(
 
 
 def create_cds_response(
-    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+    default_services: List[Service], internal_services_per_namespace: Dict[str, List[Service]], proxy: str
 ) -> dict:
     return {
         'version_info': 'dummy',
@@ -57,15 +68,15 @@ def create_cds_response(
     }
 
 
-def gateway_default_host(service: str, domain: str) -> dict:
-    domains = [f'{service}.{domain}']
-    if service == 'www':
+def gateway_default_host(service: Service, domain: str) -> dict:
+    domains = [f'{service.name}.{domain}']
+    if service.name == 'www':
         domains.append(domain)
 
     if service == 'ukbb-rg':
         return {
             '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
-            'name': service,
+            'name': service.name,
             'domains': domains,
             'routes': [
                 {
@@ -87,12 +98,12 @@ def gateway_default_host(service: str, domain: str) -> dict:
 
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
-        'name': service,
+        'name': service.name,
         'domains': domains,
         'routes': [
             {
                 'match': {'prefix': '/'},
-                'route': route_to_cluster(service),
+                'route': route_to_cluster(service.name),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                     'envoy.filters.http.ext_authz': auth_check_exemption(),
@@ -102,15 +113,15 @@ def gateway_default_host(service: str, domain: str) -> dict:
     }
 
 
-def gateway_internal_host(services_per_namespace: Dict[str, List[str]], domain: str) -> dict:
+def gateway_internal_host(services_per_namespace: Dict[str, List[Service]], domain: str) -> dict:
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
         'domains': [f'internal.{domain}'],
         'routes': [
             {
-                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
-                'route': route_to_cluster(f'{namespace}-{service}'),
+                'match': {'path_separated_prefix': f'/{namespace}/{service.name}'},
+                'route': route_to_cluster(f'{namespace}-{service.name}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
@@ -121,15 +132,15 @@ def gateway_internal_host(services_per_namespace: Dict[str, List[str]], domain: 
     }
 
 
-def internal_gateway_default_host(service: str) -> dict:
+def internal_gateway_default_host(service: Service) -> dict:
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
-        'name': service,
-        'domains': [f'{service}.hail'],
+        'name': service.name,
+        'domains': [f'{service.name}.hail'],
         'routes': [
             {
                 'match': {'prefix': '/'},
-                'route': route_to_cluster(service),
+                'route': route_to_cluster(service.name),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
@@ -138,15 +149,15 @@ def internal_gateway_default_host(service: str) -> dict:
     }
 
 
-def internal_gateway_internal_host(services_per_namespace: Dict[str, List[str]]) -> dict:
+def internal_gateway_internal_host(services_per_namespace: Dict[str, List[Service]]) -> dict:
     return {
         '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
         'name': 'internal',
         'domains': ['internal.hail'],
         'routes': [
             {
-                'match': {'path_separated_prefix': f'/{namespace}/{service}'},
-                'route': route_to_cluster(f'{namespace}-{service}'),
+                'match': {'path_separated_prefix': f'/{namespace}/{service.name}'},
+                'route': route_to_cluster(f'{namespace}-{service.name}'),
                 'typed_per_filter_config': {
                     'envoy.filters.http.local_ratelimit': rate_limit_config(service),
                 },
@@ -173,8 +184,10 @@ def auth_check_exemption() -> dict:
     }
 
 
-def rate_limit_config(service: str) -> dict:
-    max_rps = 60 if service == 'batch-driver' else 200
+def rate_limit_config(service: Service) -> dict:
+    # The config is set per load balancer pod, so we must account for
+    # multiple replicas of the load balancer
+    max_rps = service.rate_limit_rps // LOAD_BALANCER_REPLICAS
 
     return {
         '@type': 'type.googleapis.com/envoy.extensions.filters.http.local_ratelimit.v3.LocalRateLimit',
@@ -202,23 +215,28 @@ def rate_limit_config(service: str) -> dict:
 
 
 def clusters(
-    default_services: List[str], internal_services_per_namespace: Dict[str, List[str]], proxy: str
+    default_services: List[Service], internal_services_per_namespace: Dict[str, List[Service]], proxy: str
 ) -> List[dict]:
     clusters = []
     for service in default_services:
-        if service == 'ukbb-rg':
+        if service.name == 'ukbb-rg':
             browser_cluster = make_cluster('ukbb-rg-browser', 'ukbb-rg-browser.ukbb-rg', proxy, verify_ca=True)
             static_cluster = make_cluster('ukbb-rg-static', 'ukbb-rg-static.ukbb-rg', proxy, verify_ca=True)
             clusters.append(browser_cluster)
             clusters.append(static_cluster)
         else:
-            clusters.append(make_cluster(service, f'{service}.default.svc.cluster.local', proxy, verify_ca=True))
+            clusters.append(
+                make_cluster(service.name, f'{service.name}.default.svc.cluster.local', proxy, verify_ca=True)
+            )
 
     for namespace, services in internal_services_per_namespace.items():
         for service in services:
             clusters.append(
                 make_cluster(
-                    f'{namespace}-{service}', f'{service}.{namespace}.svc.cluster.local', proxy, verify_ca=False
+                    f'{namespace}-{service.name}',
+                    f'{service.name}.{namespace}.svc.cluster.local',
+                    proxy,
+                    verify_ca=False,
                 )
             )
 
@@ -290,7 +308,7 @@ if __name__ == '__main__':
     proxy = sys.argv[1]
     domain = sys.argv[2]
     with open(sys.argv[3], 'r', encoding='utf-8') as services_file:
-        services = [service.rstrip() for service in services_file.readlines()]
+        services = [Service(service.rstrip()) for service in services_file.readlines()]
 
     with open(sys.argv[4], 'w', encoding='utf-8') as cds_file:
         cds_file.write(yaml.dump(create_cds_response(services, {}, proxy)))

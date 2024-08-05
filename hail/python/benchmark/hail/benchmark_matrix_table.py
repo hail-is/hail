@@ -352,7 +352,7 @@ def benchmark_matrix_table_scan_count_rows_2():
 
 
 @benchmark()
-def benchmark__matrix_table_scan_count_cols_2():
+def benchmark_matrix_table_scan_count_cols_2():
     mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
     mt = mt.annotate_cols(x=hl.scan.count())
     mt._force_count_rows()

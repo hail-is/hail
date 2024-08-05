@@ -5,6 +5,7 @@ import logging
 import math
 import random
 import secrets
+import warnings
 from enum import Enum
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, TypedDict, Union, cast
 
@@ -1303,17 +1304,27 @@ class BatchClient:
         self._session: Session = session
         self._headers = headers
 
+    async def _warn_if_deprecated(self, response: aiohttp.ClientResponse) -> aiohttp.ClientResponse:
+        deprecation_message = response.headers.get("X-Hail-Deprecated")
+        if deprecation_message is not None:
+            warnings.warn(f"DEPRECATED: {deprecation_message}")
+        return response
+
     async def _get(self, path, params=None) -> aiohttp.ClientResponse:
-        return await self._session.get(self.url + path, params=params, headers=self._headers)
+        return await self._warn_if_deprecated(
+            await self._session.get(self.url + path, params=params, headers=self._headers)
+        )
 
     async def _post(self, path, data=None, json=None) -> aiohttp.ClientResponse:
-        return await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
+        return await self._warn_if_deprecated(
+            await self._session.post(self.url + path, data=data, json=json, headers=self._headers)
+        )
 
     async def _patch(self, path) -> aiohttp.ClientResponse:
-        return await self._session.patch(self.url + path, headers=self._headers)
+        return await self._warn_if_deprecated(await self._session.patch(self.url + path, headers=self._headers))
 
     async def _delete(self, path) -> aiohttp.ClientResponse:
-        return await self._session.delete(self.url + path, headers=self._headers)
+        return await self._warn_if_deprecated(await self._session.delete(self.url + path, headers=self._headers))
 
     def reset_billing_project(self, billing_project):
         self.billing_project = billing_project

@@ -202,17 +202,7 @@ class SparkBackend(Py4JBackend):
         r = CSERenderer()
         assert not body._ir.uses_randomness
         code = r(body._ir)
-        jbody = self._parse_value_ir(code, ref_map=dict(zip(argument_names, argument_types)))
-        self._registered_ir_function_names.add(name)
-
-        self.hail_package().expr.ir.functions.IRFunctionRegistry.pyRegisterIR(
-            name,
-            [ta._parsable_string() for ta in type_parameters],
-            argument_names,
-            [pt._parsable_string() for pt in argument_types],
-            return_type._parsable_string(),
-            jbody,
-        )
+        self._register_ir_function(name, type_parameters, argument_names, argument_types, return_type, code)
 
     def execute(self, ir: BaseIR, timed: bool = False) -> Any:
         try:
