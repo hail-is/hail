@@ -192,8 +192,11 @@ def start(
         bool, Opt(help='Enable debug features on created cluster (heap dump on out-of-memory error)')
     ] = False,
     public_ip_address: Ann[
-        bool, Opt(help='Allow nodes to have a public IP address, and hence make requests on the public internet (default is internal-only from dataproc 2.2).')
-    ] = False,
+        bool,
+        Opt(
+            help='Allow nodes to have a public IP address, and hence make requests on the public internet (default is internal-only from dataproc 2.2).'
+        ),
+    ] = True,
 ):
     """
     Start a Dataproc cluster configured for Hail.
