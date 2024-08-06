@@ -151,7 +151,8 @@ STRAIGHT_JOIN LATERAL (
   WITH resource_costs AS (
     SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
-    WHERE batch_id = batches.id
+    WHERE     batch_id = batches.id
+      AND job_group_id = job_groups.job_group_id
     GROUP BY resource_id
   )
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost
