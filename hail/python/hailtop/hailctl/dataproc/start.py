@@ -177,7 +177,6 @@ def start(
     requester_pays_allow_annotation_db: bool,
     debug_mode: bool,
     beta: bool,
-    public_ip_address: bool,
 ):
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
@@ -396,8 +395,8 @@ def start(
         cmd.append('--expiration_time={}'.format(expiration_time))
     if service_account:
         cmd.append('--service-account={}'.format(service_account))
-    if public_ip_address:
-        cmd.append('--public-ip-address')
+
+    cmd.append('--public-ip-address')
 
     cmd.extend(pass_through_args)
 
