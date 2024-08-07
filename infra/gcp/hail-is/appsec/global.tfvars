@@ -3,7 +3,7 @@
 organization_domain = "appsec.hail.is"
 
 # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
-github_organization = "hail.is/appsec"
+github_organization = "hail-is/appsec"
 
 # batch_gcp_regions is a JSON array of string, the names of the gcp
 # regions to schedule over in Batch. E.g. "[\"us-central1\"]"
