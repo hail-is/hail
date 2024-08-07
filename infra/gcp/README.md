@@ -218,11 +218,18 @@ export GCP_PROJECT=<gcp project name>
 - Preparation
   - Install terraform.
   - Switch directory to `$HAIL/infra/gcp`.
+  - Clear any existing terraform state:
+
+```
+rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
+```
 
 - Run `terraform init`.
 
 - Run `terraform apply -var-file=$GITHUB_ORGANIZATION/global.tfvars`.  At the
   time of writing, this takes ~15m.
+
+## Set up kubectl
 
 - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
    to point at the vdc cluster:
@@ -235,6 +242,7 @@ export GCP_PROJECT=<gcp project name>
    Kubernetes global-config. This should point to the kubernetes
    external load balancer.
 
+## Deploy Hail to Kubernetes
 
 You can now install Hail:
 
