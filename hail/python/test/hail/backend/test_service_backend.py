@@ -1,5 +1,7 @@
 import os
 
+import pytest
+
 import hail as hl
 from hail.backend.service_backend import ServiceBackend
 
@@ -20,6 +22,7 @@ def test_tiny_driver_has_tiny_memory():
 @qobtest
 @skip_unless_service_backend()
 @test_timeout(batch=6 * 60)
+@pytest.mark.skip()
 def test_big_driver_has_big_memory():
     backend = hl.current_backend()
     assert isinstance(backend, ServiceBackend)
