@@ -1,7 +1,9 @@
 This is a work in progress to use Terraform to manage our cloud
 infrastructure.
 
-Instructions:
+# Instructions:
+
+## Project Setup
 
 - You will need a GCP project.  Configure `gcloud` to point at your project:
 
@@ -46,12 +48,22 @@ Instructions:
   - Create another OAuth client ID of type `Desktop app` 
     - Download it as `/tmp/hailctl_client_secret.json`.
 
+## Set up Terraform configuration
+
+- Creation some useful environment variables:
+    
+```
+export HAIL=<hail checkout directory>
+export GITHUB_ORGANIZATION=<path to your working directory within $HAIL/infra/gcp>
+export GCP_PROJECT=<gcp project name>
+```
+
 - Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
 
 
    ```
-   # organization_domain is a string that is the domain of the organization
-   # E.g. "hail.is"
+   # organization_domain is a location with the infra/gcp directory
+   # E.g. "hail.is/sandbox"
    organization_domain = "<domain>"
 
    # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
@@ -70,14 +82,14 @@ Instructions:
 
    # The storage class for the batch logs bucket.  It should span the
    # batch regions and be compatible with the bucket location.
-   batch_logs_bucket_storage_class = "MULTI_REGIONAL"
+   batch_logs_bucket_storage_class = "STANDARD"
 
    # Similarly, bucket locations and storage classes are specified
    # for other services:
    hail_query_bucket_location = "<bucket-location>"
-   hail_query_bucket_storage_class = "MULTI_REGIONAL"
+   hail_query_bucket_storage_class = "STANDARD"
    hail_test_gcs_bucket_location = "<bucket-location>"
-   hail_test_gcs_bucket_storage_class = "MULTI_REGIONAL"
+   hail_test_gcs_bucket_storage_class = "STANDARD"
 
    gcp_region = "<gcp-region>"
 
@@ -89,7 +101,8 @@ Instructions:
 
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
-   use_artifact_registry = false
+   use_artifact_registry = true
+   artifact_registry_location = "us"
    ```
 
 - You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub
@@ -123,6 +136,8 @@ Instructions:
       ]
   }
   ```
+
+## Check Service Accounts into Repository
 
 - Install [sops](https://github.com/mozilla/sops).
 
@@ -163,13 +178,13 @@ Instructions:
 - Encrypt the above files and add them to the repository.
 
   ```sh
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/hailctl_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/hailctl_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/hailctl_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/hailctl_client_secret.enc.json
 
   # Optional
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
 
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/terraform_sa_key.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/terraform_sa_key.enc.json
 
   git add $HAIL/infra/gcp/$GITHUB_ORGANIZATION/*
 
@@ -194,7 +209,11 @@ Instructions:
        >$HAIL/infra/gcp/$GITHUB_ORGANIZATION/zuliprc.enc
   ```
 
-- Install terraform.
+## Terraforming the Project
+
+- Preparation
+  - Install terraform.
+  - Switch directory to `$HAIL/infra/gcp`.
 
 - Run `terraform init`.
 
