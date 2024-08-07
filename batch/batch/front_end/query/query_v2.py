@@ -135,9 +135,9 @@ SELECT batches.*
      , cost_t.cost
      , cost_t.cost_breakdown
 FROM batches IGNORE INDEX (batches_deleted)
-STRAIGHT_JOIN billing_projects
+INNER JOIN billing_projects
   ON batches.billing_project = billing_projects.name
-STRAIGHT_JOIN billing_project_users
+INNER JOIN billing_project_users
   ON batches.billing_project = billing_project_users.billing_project
 STRAIGHT_JOIN job_groups
   ON job_groups.batch_id = batches.id
