@@ -147,7 +147,7 @@ STRAIGHT_JOIN job_groups_n_jobs_in_complete_states
 LEFT JOIN (SELECT *, 1 AS cancelled FROM job_groups_cancelled) AS cancelled_t
   ON job_groups.batch_id     = cancelled_t.id
  AND job_groups.job_group_id = cancelled_t.job_group_id
-STRAIGHT_JOIN LATERAL (
+INNER JOIN LATERAL (
   WITH resource_costs AS (
     SELECT resource_id, CAST(COALESCE(SUM(`usage`), 0) AS SIGNED) AS `usage`
     FROM aggregated_job_group_resources_v3
