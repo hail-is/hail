@@ -1,12 +1,14 @@
-from typing import Optional, List, Tuple, cast
 import asyncio
-import click
 import sys
+from typing import List, Optional, Tuple, cast
+
+import click
 import typer
 
 from hailtop import uvloopx
-from hailtop.aiotools.plan import plan, PlanError
-from hailtop.aiotools.sync import sync as aiotools_sync, SyncError
+from hailtop.aiotools.plan import PlanError, plan
+from hailtop.aiotools.sync import SyncError
+from hailtop.aiotools.sync import sync as aiotools_sync
 
 app_without_click = typer.Typer(
     name='fs',

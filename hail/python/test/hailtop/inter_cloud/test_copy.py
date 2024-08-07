@@ -2,21 +2,21 @@ import asyncio
 import os
 import secrets
 import tempfile
-
 from typing import AsyncIterator, Dict, List, Tuple
 
 import pytest
-from hailtop.utils import url_scheme
-from hailtop.aiotools.plan import plan, PlanError
-from hailtop.aiotools.sync import sync, SyncError
-from hailtop.aiotools.router_fs import RouterAsyncFS
+
 from hailtop.aiotools import (
-    Transfer,
-    FileAndDirectoryError,
-    Copier,
     AsyncFS,
+    Copier,
+    FileAndDirectoryError,
     FileListEntry,
+    Transfer,
 )
+from hailtop.aiotools.plan import PlanError, plan
+from hailtop.aiotools.router_fs import RouterAsyncFS
+from hailtop.aiotools.sync import SyncError, sync
+from hailtop.utils import url_scheme
 
 from .copy_test_specs import COPY_TEST_SPECS
 from .generate_copy_test_specs import create_test_dir, create_test_file, run_test_spec

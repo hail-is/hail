@@ -1,15 +1,15 @@
-from typing import Optional
 import asyncio
-import os
 import functools
+import os
+from typing import Optional
 
+from ..utils import bounded_gather2, retry_transient_errors
+from ..utils.rich_progress_bar import CopyToolProgressBar, make_listener
 from .copy import GrowingSempahore
-from .fs.fs import MultiPartCreate
 from .fs.copier import Copier
 from .fs.exceptions import UnexpectedEOFError
-from .router_fs import RouterAsyncFS, AsyncFS
-from ..utils import retry_transient_errors, bounded_gather2
-from ..utils.rich_progress_bar import make_listener, CopyToolProgressBar
+from .fs.fs import MultiPartCreate
+from .router_fs import AsyncFS, RouterAsyncFS
 
 
 class SyncError(ValueError):

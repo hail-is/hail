@@ -1,6 +1,8 @@
 import pytest
+
 from hailtop.utils import check_exec_output
 
+from .test_copy import cloud_scheme
 from .utils import fresh_dir
 
 

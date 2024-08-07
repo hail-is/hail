@@ -1,12 +1,13 @@
-from typing import List, Tuple, Optional
 import asyncio
 import os
 from contextlib import AsyncExitStack
+from typing import List, Optional, Tuple
+
 from hailtop.aiotools import FileAndDirectoryError
 
-from .router_fs import RouterAsyncFS
-from .fs import FileListEntry, FileStatus, AsyncFS, WritableStream
 from ..utils.rich_progress_bar import CopyToolProgressBar, Progress
+from .fs import AsyncFS, FileListEntry, FileStatus, WritableStream
+from .router_fs import RouterAsyncFS
 
 
 class PlanError(ValueError):
