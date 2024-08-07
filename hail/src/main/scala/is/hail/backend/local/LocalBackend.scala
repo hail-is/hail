@@ -24,7 +24,6 @@ import scala.reflect.ClassTag
 
 import java.io.PrintWriter
 
-import com.fasterxml.jackson.core.StreamReadConstraints
 import com.google.common.util.concurrent.MoreExecutors
 import org.apache.hadoop
 import org.json4s._
@@ -47,17 +46,6 @@ object LocalBackend {
     skipLoggingConfiguration: Boolean = false,
   ): LocalBackend = synchronized {
     require(theLocalBackend == null)
-    // From https://github.com/hail-is/hail/issues/14580 :
-    //   IR can get quite big, especially as it can contain an arbitrary
-    //   amount of encoded literals from the user's python session. This
-    //   was a (controversial) restriction imposed by Jackson and should be lifted.
-    //
-    // We remove this restriction _here_ (as opposed to anywhere else) because
-    // this is the first call into the JVM we control as part of initializing
-    // hail for the local backend
-    StreamReadConstraints.overrideDefaultStreamReadConstraints(
-      StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
-    )
 
     if (!skipLoggingConfiguration)
       HailContext.configureLogging(logFile, quiet, append)
