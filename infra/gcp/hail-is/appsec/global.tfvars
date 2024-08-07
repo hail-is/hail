@@ -38,5 +38,4 @@ domain = "appsec.hail.is"
 # If set to true, pull the base ubuntu image from Artifact Registry.
 # Otherwise, assumes GCR.
 use_artifact_registry = true
-artifact_registry_location = "us"
 
