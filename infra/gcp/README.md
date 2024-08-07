@@ -50,23 +50,27 @@ infrastructure.
 
 ## Set up Terraform configuration
 
-- Creation some useful environment variables:
-    
+- Create some useful environment variables:
+  - where `GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
+  - If multiple hail instances are using subdomains hosted from the same github organization/repository, you can use something like `hail-is/sandbox` to differentiate between them.
+
 ```
 export HAIL=<hail checkout directory>
 export GITHUB_ORGANIZATION=<path to your working directory within $HAIL/infra/gcp>
 export GCP_PROJECT=<gcp project name>
 ```
 
-- Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
+- Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below.
 
 
    ```
-   # organization_domain is a location with the infra/gcp directory
-   # E.g. "hail.is/sandbox"
+   # organization_domain is a string that is the domain of the organization
+   # E.g. "hail.is"
    organization_domain = "<domain>"
 
    # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
+   # Matching the location of your project files within the infra/gcp directory.
+   # eg hail.is/sandbox
    github_organization = "<github-organization>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
