@@ -106,7 +106,6 @@ export GCP_PROJECT=<gcp project name>
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
    use_artifact_registry = true
-   artifact_registry_location = "us"
    ```
 
 - You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub
