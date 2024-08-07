@@ -33,17 +33,18 @@ Instructions:
 - Delete the default network if it exists. Enabling the networking
   API creates it.
 
-- Go to the Google Cloud console, API & Services, Credentials.
-  Configure the consent screen.  Add the scope:
-  https://www.googleapis.com/auth/userinfo.email.  Back in Credentials, create an OAuth
-  client ID.  Authorize the redirect URIs:
+- Determine a domain name for the deployment. We will use it now and register it with a DNS provider later.
 
-   - https://auth.<domain>/oauth2callback
-   - http://127.0.0.1/oauth2callback
-
-  Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
-
-  Create another OAuth client ID of type `Desktop` and download it as `/tmp/hailctl_client_secret.json`.
+- Go to the Google Cloud console, API & Services.
+  - Configure the consent screen.
+    - You can probably leave most fields on the first page empty. Give it a sensible name and management email.
+    - Add the scope: `../auth/userinfo.email`.  
+  - Back in Credentials, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
+    - `https://auth.<domain>/oauth2callback`
+    - `http://127.0.0.1/oauth2callback`
+  - Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
+  - Create another OAuth client ID of type `Desktop app` 
+    - Download it as `/tmp/hailctl_client_secret.json`.
 
 - Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
 
