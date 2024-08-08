@@ -52,6 +52,12 @@ The process of running tests goes like:
 Examples of CI test runs can be seen by searching through the production batch log, as long as you have developer
 permissions. For example: `/batches?q=user+%3D+ci%0D%0Atest+%3D+1`
 
+#### CI Testing Timeline
+
+The image below shows the CI testing timeline:
+
+![CI Testing Timeline](ci-test.png)
+
 
 ## Merging PRs to the `main` branch
 
@@ -88,6 +94,12 @@ This should all be fine, because it was previously tested as part of the PR appr
 Examples of CI deploy runs can be seen by searching through the production batch log, as long as you have developer
 permissions. For example: `/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1`
 
+#### CI Deploy Timeline
+
+The image below shows the CI deployment timeline:
+
+![CI Testing Timeline](ci-deploy.png)
+
 ## Issues
 
 ### Hanging PR state
@@ -97,3 +109,6 @@ the PRs would be hanging in a "pending" state.
 
 This can be fixed by pushing a new commit to the branch.
 
+## References
+
+- Diagrams source: [Link](https://lucid.app/lucidchart/e4fbcce3-5d73-4fa8-a729-eb2a4488d464/edit?viewport_loc=-97%2C228%2C2061%2C1115%2C12R1RM5CUFfr&invitationId=inv_148dfe48-17b2-49c8-bce7-fb06fc92bf48)  
