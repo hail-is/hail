@@ -43,6 +43,8 @@ Instructions:
 
   Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
 
+  Create another OAuth client ID of type `Desktop` and download it as `/tmp/hailctl_client_secret.json`.
+
 - Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
 
 
@@ -161,6 +163,7 @@ Instructions:
 
   ```sh
   sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/hailctl_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/hailctl_client_secret.enc.json
 
   # Optional
   sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
@@ -218,6 +221,18 @@ You can now install Hail:
   connect to this instance with ssh.  You may want to add a suiteable
   ssh forwarding rule to the default network.
 
+```
+gcloud compute instances create bootstrap-vm \
+    --project=hail-vdc-dgoldste \
+    --zone=us-central1-a \
+    --machine-type=n1-standard-8 \
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --provisioning-model=STANDARD \
+    --service-account=terraform@hail-vdc-dgoldste.iam.gserviceaccount.com \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20240701,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+```
+
 - Clone the Hail Github repository:
 
   ```
@@ -260,8 +275,11 @@ You can now install Hail:
 - Download the global-config to be used by `bootstrap.py`.
 
   ```
-  mkdir /global-config
-  kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
+  sudo mkdir /global-config
+  source $HAIL/devbin/functions.sh
+  download-secret global-config
+  sudo cp -r contents /global-config
+  cd -
   ```
 
 - Bootstrap the cluster.
@@ -270,7 +288,7 @@ You can now install Hail:
   ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
   ```
 
-- Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy`.
+- Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy NAMESPACE=default`.
 
 - Create the initial (developer) user.
 
