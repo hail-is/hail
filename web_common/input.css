@@ -8,3 +8,11 @@
   left: 50vw;
   transform: translate(-50%, -50%);
 }
+
+.truncating-text {
+    text-wrap:nowrap;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    overflow:hidden;
+    x-overflow: hidden;
+}
