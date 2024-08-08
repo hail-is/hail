@@ -35,11 +35,6 @@ async def test_spec(request):
     return request.param
 
 
-@pytest.fixture(params=['gs', 's3', 'azure-https'])
-async def cloud_scheme(request):
-    yield request.param
-
-
 @pytest.fixture(
     params=[
         'file/file',

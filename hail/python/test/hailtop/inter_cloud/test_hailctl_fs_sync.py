@@ -1,13 +1,16 @@
+import asyncio
+from typing import Dict, Tuple
+
 import pytest
 
+from hailtop.aiotools import AsyncFS
 from hailtop.utils import check_exec_output
 
-from .test_copy import cloud_scheme
 from .utils import fresh_dir
 
 
 @pytest.mark.asyncio
-async def test_cli_file_and_dir(router_filesystem, cloud_scheme):
+async def test_cli_file_and_dir(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
     sema, fs, bases = router_filesystem
 
     test_dir = await fresh_dir(fs, bases, cloud_scheme)
@@ -61,7 +64,7 @@ async def test_cli_file_and_dir(router_filesystem, cloud_scheme):
 
 
 @pytest.mark.asyncio
-async def test_cli_subdir(router_filesystem, cloud_scheme):
+async def test_cli_subdir(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
     sema, fs, bases = router_filesystem
 
     test_dir = await fresh_dir(fs, bases, cloud_scheme)
@@ -99,7 +102,7 @@ async def test_cli_subdir(router_filesystem, cloud_scheme):
 
 
 @pytest.mark.asyncio
-async def test_cli_already_synced(router_filesystem, cloud_scheme):
+async def test_cli_already_synced(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
     sema, fs, bases = router_filesystem
 
     test_dir = await fresh_dir(fs, bases, cloud_scheme)
