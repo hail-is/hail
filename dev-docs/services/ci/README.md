@@ -11,7 +11,7 @@ It does all of these things only if certain conditions are met.
 ## Deployment
 
 The CI service itself is deployed as a Kubernetes service in the Hail Batch cluster. See 
-[architecture diagram](../Hail Batch Architectural Diagram.png).
+[architecture diagram](../Hail%20Batch%20Architectural%20Diagram.png).
 
 As part of its configuration, CI must be configured with an access token allowing it to operate on 
 behalf of a github account called hail-ci-robot.
