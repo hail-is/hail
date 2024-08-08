@@ -396,6 +396,8 @@ def start(
     if service_account:
         cmd.append('--service-account={}'.format(service_account))
 
+    cmd.append('--public-ip-address')
+
     cmd.extend(pass_through_args)
 
     # print underlying gcloud command
