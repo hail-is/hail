@@ -1,15 +1,14 @@
 import asyncio
-import json
 from enum import Enum
 from typing import Annotated as Ann
 from typing import Any, Dict, List, Optional, cast
 
+import orjson
 import typer
 from typer import Argument as Arg
 from typer import Option as Opt
 
 from . import billing, list_batches
-from . import submit as _submit
 from .batch_cli_utils import (
     ExtendedOutputFormat,
     ExtendedOutputFormatOption,
@@ -131,7 +130,7 @@ def wait(
         quiet = quiet or output != StructuredFormatPlusText.TEXT
         out = batch.wait(disable_progress_bar=quiet)
         if output == StructuredFormatPlusText.JSON:
-            print(json.dumps(out))
+            print(orjson.dumps(out).decode('utf-8'))
         else:
             print(out)
 
@@ -168,6 +167,7 @@ def submit(
     name: Ann[str, Opt(help='The name of the batch.')] = '',
     image_name: Ann[Optional[str], Opt(help='Name of Docker image for the job (default: hailgenetics/hail)')] = None,
     output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
+    wait: Ann[bool, Opt(help='Wait for the batch to complete.')] = False,
 ):
     """Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.
 
@@ -176,8 +176,61 @@ def submit(
 
 
     $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
+
+
+
+    Copy a local file into the working directory of the job:
+
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py --files a-file -- some-argument --animal dog
+
+
+
+    Copy a local file into a particular directory in the job:
+
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py --files a-file:/foo/bar/ -- some-argument --animal dog
+
+
+
+    Copy a local directory to the directory /foo/bar/a-directory in the job:
+
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py --files a-directory:/foo/bar/ -- some-argument --animal dog
+
+
+
+    Copy a local file or a directory to a specific location in the job:
+
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py --files a/local/path:/foo/bar -- some-argument --animal dog
+
+
+
+    Copy a local directory to a specific location in the job:
+
+
+
+    $ hailctl batch submit --image-name docker.io/image my_script.py --files a-file:/foo/bar -- some-argument --animal dog
+
+
+    Notes
+    -----
+
+    Copying a local directory to the root directory in the job is not supported (example: ``--files my-local-dir/:/``).
     """
-    asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
+    from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
+    from .submit import submit as _submit  # pylint: disable=import-outside-toplevel
+
+    try:
+        asyncio.run(_submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args], wait))
+    except HailctlBatchSubmitError as err:
+        print(err.message)
+        raise typer.Exit(err.exit_code)
 
 
 @app.command('init', help='Initialize a Hail Batch environment.')
