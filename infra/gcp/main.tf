@@ -2,7 +2,8 @@ terraform {
   required_providers {
     google = {
       source = "hashicorp/google"
-      version = "4.32.0"
+      # Updated 2024-08-08 to avoid race conditions during rapid service account creation
+      version = "5.40.0"
     }
     kubernetes = {
       source = "hashicorp/kubernetes"
@@ -235,7 +236,11 @@ resource "google_sql_database_instance" "db" {
     ip_configuration {
       ipv4_enabled = false
       private_network = google_compute_network.default.id
+      # These next two are equivalent, and require_ssl is going away, but
+      # if I remove it now, terraform tries to set it back to false, and
+      # that then collides with the ssl_mode option below it.
       require_ssl = true
+      ssl_mode = "TRUSTED_CLIENT_CERTIFICATE_REQUIRED"
     }
     database_flags {
       name = "innodb_log_buffer_size"
@@ -361,6 +366,10 @@ END
 }
 
 resource "google_container_registry" "registry" {
+  # Note: As of August 8 2024, *new* "container registry" instances get converted into "artifact repository" instances
+  # and the registry cannot be found after 'creation'. GCR is scheduled for a general switch-off in March 2025
+  # so this is only left here for backwards compatibility until then.
+  count = var.use_artifact_registry ? 0 : 1
 }
 
 resource "google_artifact_registry_repository" "repository" {
@@ -398,7 +407,8 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_
 }
 
 resource "google_storage_bucket_iam_member" "gcr_push_admin" {
-  bucket = google_container_registry.registry.id
+  count = var.use_artifact_registry ? 0 : 1
+  bucket = google_container_registry.registry[0].id
   role = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
@@ -792,6 +802,8 @@ module "ci" {
   bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
-  container_registry_id = google_container_registry.registry.id
+  # For now, GCP CI via this terraform relies on container registry, which is going away it March 2025
+  # so this might need adapting to be more like the gcp-broad main.tf when that happens
+  container_registry_id = google_container_registry.registry[0].id
   github_context = local.ci_config.data["github_context"]
 }
