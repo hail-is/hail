@@ -9,7 +9,6 @@ from hailtop.utils import check_exec_output
 from .utils import fresh_dir
 
 
-@pytest.mark.asyncio
 async def test_cli_file_and_dir(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
     sema, fs, bases = router_filesystem
 
@@ -63,7 +62,6 @@ async def test_cli_file_and_dir(router_filesystem: Tuple[asyncio.Semaphore, Asyn
     assert await fs.read(plandir2 + 'srconly') == b''
 
 
-@pytest.mark.asyncio
 async def test_cli_subdir(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
     sema, fs, bases = router_filesystem
 
@@ -101,7 +99,6 @@ async def test_cli_subdir(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, D
     assert await fs.read(plandir2 + 'matches') == f'{test_dir}dir/subdir/file1\t{test_dir}dir2/subdir/file1\n'.encode()
 
 
-@pytest.mark.asyncio
 async def test_cli_already_synced(router_filesystem: Tuple[asyncio.Semaphore, AsyncFS, Dict[str, str]], cloud_scheme):
     sema, fs, bases = router_filesystem
 
