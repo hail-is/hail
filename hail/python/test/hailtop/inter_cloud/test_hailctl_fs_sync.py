@@ -1,8 +1,6 @@
 import asyncio
 from typing import Dict, Tuple
 
-import pytest
-
 from hailtop.aiotools import AsyncFS
 from hailtop.utils import check_exec_output
 
