@@ -138,9 +138,9 @@ sequenceDiagram
     deactivate CIB
     PVM-->>PB: Done
     deactivate PVM
+    PB-->>CI: Detects completion
     CI->>Github: Update github check
 ```
-
 
 ## Merging PRs to the `main` branch
 
@@ -199,7 +199,41 @@ permissions. For example: `/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1`
 
 The image below shows the CI deployment timeline:
 
-![CI Testing Timeline](ci-deploy.svg)
+```mermaid
+sequenceDiagram
+    participant Github
+    box Kubernetes (PROD: 'default' namespace)
+    participant CI as PROD CI Service (default namespace)
+    participant PB as PROD Batch (default namespace)
+    end
+    box GCE (PROD VMs)
+    participant PVM as  PROD VMs
+    end
+
+    Github->>CI: Notify 'main' branch updated
+    CI->>PB: Submit CI deploy batch
+    activate PB
+    PB->>PVM: Submit build jobs
+    activate PVM
+    PVM-->>PB: Done
+    deactivate PVM
+    PB->>PVM: Submit deploy jobs
+    activate PVM
+    PVM->>PB: Redeploy batch service
+    PVM->>CI: Redeploy CI service
+    PVM-->>PB: Done
+    deactivate PVM
+    PB->>PVM: Submit test jobs
+    activate PVM
+    PVM->>PB: Submit test batches
+    PB->>PVM: Submit test batch jobs
+    activate PVM
+    PVM-->>PB: Validate results
+    deactivate PVM
+    PVM-->>PB: Done
+    deactivate PVM
+    PB-->>CI: Detects completion
+```
 
 ## Issues
 
