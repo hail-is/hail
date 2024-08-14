@@ -91,7 +91,55 @@ of the `ci` billing project. For example: `/batches?q=user+%3D+ci%0D%0Atest+%3D+
 
 The image below shows the CI testing timeline:
 
-![CI Testing Timeline](ci-tests.svg)
+```mermaid
+sequenceDiagram
+    participant Github
+    box Kubernetes (PROD: 'default' namespace)
+    participant CI as PROD CI Service (default namespace)
+    participant PB as PROD Batch (default namespace)
+    end
+    box GCE (PROD VMs)
+    participant PVM as  PROD VMs
+    end
+    box Kubernetes (CI: 'test-xyz' namespaces)
+    participant CIB as CI Batch (test-xyz namespaces)
+    end
+    box GCE (CI VMs)
+    participant CIVM as CI VMs
+    end
+
+    Github->>CI: Notify PR created/updated
+
+    CI->>Github: Register github check (pending)
+    CI->>PB: Submit CI test batch
+    activate PB
+    PB->>PVM: Submit build jobs
+    activate PVM
+    PVM-->>PB: Done
+    deactivate PVM
+    PB->>PVM: Submit deploy jobs
+    activate PVM
+    PVM->>CIB: Deploy batch service
+    activate CIB
+    PVM-->>PB: Done
+    deactivate PVM
+    PB->>PVM: Submit test jobs
+    activate PVM
+    PVM->>CIB: Submit test batches
+    CIB->>CIVM: Submit test batch jobs
+    activate CIVM
+    CIVM-->>CIB: Validate results
+    deactivate CIVM
+    PVM-->>PB: Done
+    deactivate PVM
+    PB->>PVM: Submit cleanup jobs
+    activate PVM
+    PVM->>CIB: Clean up service
+    deactivate CIB
+    PVM-->>PB: Done
+    deactivate PVM
+    CI->>Github: Update github check
+```
 
 
 ## Merging PRs to the `main` branch
