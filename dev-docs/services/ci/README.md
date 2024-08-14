@@ -91,7 +91,7 @@ of the `ci` billing project. For example: `/batches?q=user+%3D+ci%0D%0Atest+%3D+
 
 The image below shows the CI testing timeline:
 
-![CI Testing Timeline](ci-test.png)
+![CI Testing Timeline](ci-tests.svg)
 
 
 ## Merging PRs to the `main` branch
@@ -138,8 +138,9 @@ a deployment.
     - eg rolling out artifact registry cleanup policies, amongst many other things
 
 Note: It's not actually quite as waterfall-y as this. In fact the jobs are all running in a hail
-batch, and each service being deploy has its own path through the DAG. So it's quite possible that the services are 
-test/deploy-ing in parallel, and that the deploy for one service might happen before the test for another has even begun.
+batch, and each package being built and service being deployed has its own path through the DAG. So it's quite possible
+that the services are test/deploy-ing in parallel, and that the deploy for one service might happen before the test for
+another has even begun.
 
 This should all be fine, because it was previously tested as part of the PR approval process.
 
@@ -150,7 +151,7 @@ permissions. For example: `/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1`
 
 The image below shows the CI deployment timeline:
 
-![CI Testing Timeline](ci-deploy.png)
+![CI Testing Timeline](ci-deploy.svg)
 
 ## Issues
 
