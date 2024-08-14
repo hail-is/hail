@@ -124,10 +124,10 @@ The control flow from final approval to CI merging a PRs looks like:
 
 When a PR is merged into the `main` branch, a webhook will trigger. The CI service will set its `github_changed` flag.
 
-During its update loop, the CI service will determine that the SHA of the `WatchedBranch` called `main`  
+During its update loop, the CI service will determine that the SHA of the `WatchedBranch` has changed and trigger
+a deployment.
 
 - Check for validity
-  - The author must be a known developer
   - The PR must be against the `main` branch
 - Create a new batch job to:
   - Build various components and service images
