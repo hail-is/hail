@@ -344,6 +344,13 @@ object MathFunctions extends RegistryFunctions {
         )
     }
 
+    registerScalaFunction(
+      "phyper",
+      Array(TInt32, TInt32, TInt32, TInt32, TBoolean),
+      TFloat64,
+      null,
+    )(statsPackageClass, "phyper")
+
     registerScalaFunction("floor", Array(TFloat32), TFloat32, null)(thisClass, "floor")
     registerScalaFunction("floor", Array(TFloat64), TFloat64, null)(thisClass, "floor")
 
