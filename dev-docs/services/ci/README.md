@@ -1,6 +1,6 @@
 # The CI Service in Hail Batch
 
-Hail Batch includes a CI service which has three jobs:
+Hail Batch includes a CI service which has three functional purposes:
 
 - Runs tests against pull requests
 - Merges PRs to the `main` branch
@@ -159,14 +159,8 @@ The control flow from final approval to CI merging a PRs looks like:
 
 - The PR's state will change in github (either a check changes to SUCCESS, or a review is approved)
 - The github webhook callback will cause the `github_changed` flag will be marked as dirty for the `WatchedBranch`
-- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) scans all PRs against the branch. For each PR:
-  - If the status checks have changed, record that in the relevant PR object (linked from the WatchedBranch).
-  - If review statuses have changed, record that in the relevant PR object (linked from the WatchedBranch).
-  - In either case, mark the `state_changed` flag as dirty for the `WatchedBranch`
-- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) determines that the `WatchedBranch`'s `state_changed` flag is dirty
-- The `WatchedBranch`'s `tryToMerge()` method is called. It iterates over a list of PRs to:
-  - Check whether they are mergeable (ie all tests have passed, and all reviews are approved)
-  - If so: call `merge()`
+- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) scans all PRs against the branch and updates state that helps determine mergeability.
+- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) iterates again to merge all mergeable PRs, in priority order
 
 ## Deploying services to the live infrastructure
 
@@ -175,22 +169,20 @@ When a PR is merged into the `main` branch, a webhook will trigger. The CI servi
 During its update loop, the CI service will determine that the SHA of the `WatchedBranch` has changed and trigger
 a deployment.
 
-- Check for validity
-  - The PR must be against the `main` branch
 - Create a new batch job to:
   - Build various components and service images
-  - Deploy to a test namespace
-  - Run tests against the services
+  - Run various pre-deployment tests
   - Deploy to the `default` (ie prod) namespace
+  - Run various post-deployment tests
   - A handful of final actions
     - eg rolling out artifact registry cleanup policies, amongst many other things
 
 Note: It's not actually quite as waterfall-y as this. In fact the jobs are all running in a hail
 batch, and each package being built and service being deployed has its own path through the DAG. So it's quite possible
-that the services are test/deploy-ing in parallel, and that the deploy for one service might happen before the test for
-another has even begun.
+that services are deploy/test-ing in parallel, and that the deploy for one service might happen before the test for
+another has completed.
 
-This should all be fine, because it was previously tested as part of the PR approval process.
+This should all be fine, because everything was previously tested as part of the PR approval process.
 
 Examples of CI deploy runs can be seen by searching through the production batch log, as long as you have developer
 permissions. For example: `/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1`
@@ -247,3 +239,6 @@ these instances.
 
 1. Sometimes in logs we see logs like `"update github br-hail-ci-test-ci-test-<RANDOM>-main"` for various random branch names. 
 What does this mean?
+2. Do we really deploy first / test second? And do we really deploy Batch and CI using jobs that are already running in
+Batch and CI? Do the services get shut down and reconnect to existing instances of the deploy jobs started by the 
+previous version?
