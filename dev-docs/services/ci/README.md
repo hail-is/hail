@@ -239,15 +239,10 @@ sequenceDiagram
 
 ### Hanging PR state
 
-It is possible for a CI instance to fail when trying to update PR status. In that case,
-the PRs would be hanging in a "pending" state. 
-
-This can be fixed by pushing a new commit to the branch.
-
-## References
-
-- Diagrams source: [Link](https://lucid.app/lucidchart/e4fbcce3-5d73-4fa8-a729-eb2a4488d464/edit?viewport_loc=-97%2C228%2C2061%2C1115%2C12R1RM5CUFfr&invitationId=inv_148dfe48-17b2-49c8-bce7-fb06fc92bf48)  
-
+It is sometimes possible for a PR status to be stuck in pending even though the test batch has completed
+This can be fixed by pushing a new commit to the branch, but it's strange that regular polling does not catch
+these instances.
+ 
 ## Open Questions
 
 1. Sometimes in logs we see logs like `"update github br-hail-ci-test-ci-test-<RANDOM>-main"` for various random branch names. 
