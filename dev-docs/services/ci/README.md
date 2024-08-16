@@ -41,14 +41,15 @@ which the CI service is configured to monitor for changes. The CI service will r
 watched branch, will merge PRs against watched branches when they are ready, and will deploy services when the watched 
 branch is updated.
 
-For each branch, CI will track three 
-types of state flag which can be marked as dirty:
-- The state of github ("`github_changed`")
-- The state of the deployed system ("`batch_changed`")
-- The state of the watched branch itself (for example - its current commit) ("`state_changed`")
-
 > [!NOTE]  
 > In `hail-is/hail`, there is one watched branch: `hail-is/hail:main`.
+
+### Tracked State
+
+For each branch, CI will track three types of state which can be marked as stale using appropriate flage:
+- The state of github branches, commits, and PRs ("`github_changed`")
+- The state of batches CI is running to run tests or deploy to production ("`batch_changed`")
+- Whether CI needs to act externally, to update Github or start new batches ("`state_changed`")
 
 ### CI Update Loop
 
@@ -295,7 +296,8 @@ batch, and each package being built and service being deployed has its own path 
 that services are deploy/test-ing in parallel, and that the deploy for one service might happen before the test for
 another has completed.
 
-This should all be fine, because everything was previously tested as part of the PR approval process.
+This should all be fine, because we only merge in the first place if the PR in question has already passed
+tests against the current SHA of the watched branch.
 
 Examples of CI deploy runs can be seen by searching through the production batch log, as long as you have developer
 permissions. For example: `/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1`
