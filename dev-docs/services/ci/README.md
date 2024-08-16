@@ -1,49 +1,166 @@
-# The CI Service in Hail Batch
+# The CI Service
 
-Hail Batch includes a CI service which has three functional purposes:
+## Documentation Scope
 
-- Runs tests against pull requests
-- Merges PRs to the `main` branch
-- Deploys services to the live infrastructure
+This documentation is trying to achieve two goals:
+
+- How the CI service is structured and operates as a general purpose, customizable component
+- How the CI service is configured and deployed by the Hail team:
+  - From the `hail-is/hail:main` branch of the hail repository
+  - To the `default` namespace of the Hail Batch cluster in GCP
+
+The primary text of the document will focus on the first goal, documenting the general purpose component.
+
+When describing how CI is configured and deployed by the Hail team, this will be clearly annotated. 
+Note that the Hail team's configuration is mostly stable, but should be treated with a grain of salt and validated 
+against the actual configuration instead of being assumed to be true.
+
+## Overview of the CI Service
+
+The CI service has three functional purposes:
+
+- Runs tests against pull requests which target designated 'watched branches'
+- Merges PRs onto watched branches when they are ready
+- Deploys services to the live infrastructure when the watched branch is updated
 
 ## Structure and Operation
 
 The CI service itself is deployed as a Kubernetes service in the Hail Batch cluster. See 
 [architecture diagram](../Hail%20Batch%20Architectural%20Diagram.png).
 
-As part of its configuration, CI must be configured with an access token allowing it to operate on 
-behalf of a github account called hail-ci-robot.
+CI must be configured with an access token allowing it to operate on 
+behalf of a github account 
 
-### CI Update Loop
+> [!NOTE]  
+> This robot is called `hail-ci-robot` in hail-is/hail.
 
-The core CI update loop operates over a set of "watched branches" which each track three types of state flag which can 
-be marked as dirty:
+### Watched Branches
+
+One of the core concepts of the CI service is the "watched branch". A watched branch is a branch in a github repository
+which the CI service is configured to monitor for changes. The CI service will run tests against PRs which target the
+watched branch, will merge PRs against watched branches when they are ready, and will deploy services when the watched 
+branch is updated.
+
+For each branch, CI will track three 
+types of state flag which can be marked as dirty:
 - The state of github ("`github_changed`")
 - The state of the deployed system ("`batch_changed`")
 - The state of the watched branch itself (for example - its current commit) ("`state_changed`")
 
-In hail-is, there is exactly one watched branch, which is `hail-is/hail:main`.
+> [!NOTE]  
+> In `hail-is/hail`, there is one watched branch: `hail-is/hail:main`.
 
-At a configurable frequency, the CI service will mark every flag for each of its watched branches as dirty, which
+### CI Update Loop
+
+The core CI update loop iterates over its set of "watched branches". If any of the state flags for any of the watched
+branches are marked as dirty, then the CI service will re-evaluate the state of the watched branch and potentially take
+action to update either its own internal state or the state of github or the deployed system.
+
+#### Overview flowchart
+
+The following flowchart shows the various actions taken by the update loop. Note that this is a code-up view of how
+CI works. The "purpose down" view of how CI uses this flow to make the changes it wants to happen is given below. 
+
+```mermaid
+flowchart LR
+    UpdateLoop[Update Loop]
+    
+    UpdateLoop -->|github_changed| UpdateGithub(Update Github)
+    UpdateGithub --> UpdateSha(Update SHA for\nWatchedBranch)
+    subgraph UpdatePRs
+        direction LR
+        UpdatePRList(Update list of PRs for\nWatchedBranch)
+        UpdatePRList --> AssignReviewers(Assign Reviewers)
+        AssignReviewers --> UpdatePrGithub(Update local PR state from github)
+        UpdatePrGithub --> ChecksChanged{New check\nor review\nstate?}
+        ChecksChanged -->|yes| SetStateChanged(Set state_changed)
+
+    end
+
+    UpdateGithub --> UpdatePRs
+
+
+    UpdateLoop -->|batch_changed| UpdateBatch
+    UpdateBatch --> UpdateDeployable
+    UpdateBatch --> UpdatePRBatches 
+    subgraph UpdateDeployable
+        direction LR
+        Deployable{deployable?} --> UpdateDeployBatch(Update internal state of \ndeploy batch)
+    end
+    subgraph UpdatePRBatches
+        direction LR
+        IterateOverPrs(Iterate over PRs) --> FindLatest(Find latest non-cancelled batch for SHA)
+        FindLatest --> UpdateBatchState(Update local state of PR batch)
+        UpdateBatchState --> BatchStateChanged{changed?}
+        BatchStateChanged -->|yes| SetStateChanged2(Set state_changed)
+    end
+
+    UpdateLoop -->|state_changed| UpdateExternalState(Update external State)
+    UpdateExternalState --> Heal
+    subgraph Heal
+        direction LR
+        subgraph HealDeploy
+            direction LR
+            NewDeploy{new deployable SHA?} -->|yes| CreateDeploy(Create deploy\nbatch)
+        end
+        HealDeploy --> DetermineMergeCandidate(Determine merge candidate)
+        DetermineMergeCandidate --> HealPRs
+        subgraph HealPRs
+            direction LR
+            IterateOverPrs2(Iterate over PRs) --> PostGithubStatus(Post github status)
+            PostGithubStatus --> StartTestBatch
+            subgraph StartTestBatch
+                direction LR
+                NoTestsYet{no test batch yet?} -->|yes| CreateTestBatch(Create test batch)
+                CurrentMergeCandidate{current merge\ncandidate} -->|yes| TestBatchStale(previous test batch\noutdated)
+                TestBatchStale -->|yes| CreateTestBatch
+            end
+        end
+        HealPRs --> CancelOrphanBuilds    
+    end
+
+    UpdateExternalState --> TryToMerge
+    subgraph TryToMerge
+        direction LR
+        IterateOverMergeable(Iterate over\nmergeable PRs in\nmerge priority order)
+        IterateOverMergeable --> IsMergeable
+        subgraph IsMergeable
+            direction LR
+            LastBuildSucceeded{last build succeeded?} -->|yes| ReviewApproved{review approved?}
+            ReviewApproved -->|yes| TestBatchCurrent{last test batch\nagainst correct SHA?}
+            TestBatchCurrent -->|yes| NoDoNotMerge{no DO_NOT_MERGE\nlabel?}
+        end
+        IsMergeable -->|yes| Merge(Merge the PR)
+
+        Merge -->|failure| IterateOverMergeable
+        Merge -->|success| Return
+    end
+```
+
+#### Detecting Stale State
+
+##### Regular Polling
+
+At a configurable frequency, the CI service will mark **_all_** flags for **_all_** watched branches as dirty, which
 will trigger a re-evaluation of the system state.
 
-In hail-is, this polling happens every 5 minutes.
+##### Github Webhooks
 
-### Github Configuration
+To make CI more responsive it also has endpoints to receive webhook event triggers from the github repository. This endpoint
+is part of the CI API, listening on `/github_callback`.
 
-To make CI more responsive it can be configured to receive webhook event triggers from the github repository. 
-
-These are configured manually within the github repository itself and not managed by terraform or deploy scripts.
-
-- For hail-is, the webhook target is: `ci.hail.is/github_callback`
-- For hail-is, webhook callbacks are configured to happen on changes to the following:
-  - Pull request reviews
-  - Pull requests
-  - Pushes
-
-Depending on the type of webhook received, and the branch which it is targeting, the CI service will
-potentially dirty one of its watched branches' state flags, meaning that CI will prioritize re-evaluating
+Depending on the type of webhook received, and the branch or PR which it is targeting, the CI service will
+potentially dirty one or more of its watched branches' state flags, meaning that CI will prioritize re-evaluating
 the state of the branch in question.
+
+The webhooks themselves are configured manually within the github repository itself and not managed by terraform or deploy scripts.
+
+> [!NOTE]  
+> - For `hail-is/hail`, the webhook target is: `ci.hail.is/github_callback`
+> - For `hail-is/hail`, webhook callbacks are configured to happen on changes to the following:
+>   - Pull request reviews
+>   - Pull requests
+>   - Pushes
 
 ## Running tests against pull requests
 
@@ -72,8 +189,10 @@ The process of running tests goes like:
   - Tasks in the batch are defined in `build.yaml` in the top repo directory. CI generates jobs in the batch from the steps defined in there.
 - The batch contains jobs which will:
   - Clone the appropriate branch
-  - Squash and rebase against `main`
-  - Build a new set of docker images for the updated services.
+  - Squash and rebase onto `main`
+    - This is done in a way that means the resulting SHA will match the SHA which would be produced when the PR merges.
+  - Build new versions of all hail tools, packages and libraries
+  - Build a new set of docker images for hail query and the updated services
   - Deploy the batch suite of k8s services into one of many CI-owned namespaces in the Hail Batch cluster
     - These namespaces are named like `"pr-<PR_NUMBER>-<CI-NAMESPACE>-<RANDOM>"`
     - Where `CI-NAMESPACE` is the namespace where CI is running (usually `default`). 
@@ -142,24 +261,18 @@ sequenceDiagram
     CI->>Github: Update github check
 ```
 
-## Merging PRs to the `main` branch
+## Merging PRs
 
-When a PR state changes, it will cause the `github_changed` flag to become dirty. 
+Mergability is determined by:
 
-During its update loop, the CI service will determine whether any PRs targeting its watched branches are elibible to
-be merged.
-
-Readiness is determined by github status checks. The following conditions must be met:
-
-- The PR must be against the `main` branch
-- The PR must have passed all tests in GCP
+- All required checks must be successful
 - The PR must be approved
 
 The control flow from final approval to CI merging a PRs looks like:
 
 - The PR's state will change in github (either a check changes to SUCCESS, or a review is approved)
-- The github webhook callback will cause the `github_changed` flag will be marked as dirty for the `WatchedBranch`
-- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) scans all PRs against the branch and updates state that helps determine mergeability.
+- The github webhook callback will cause the `github_changed` flag to be marked as dirty for the `WatchedBranch` which is the target of this PR
+- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) scans all PRs against the branch and updates internal state that is used to calculate mergeability.
 - The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) iterates again to merge all mergeable PRs, in priority order
 
 ## Deploying services to the live infrastructure
