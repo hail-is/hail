@@ -57,86 +57,8 @@ The core CI update loop iterates over its set of "watched branches". If any of t
 branches are marked as dirty, then the CI service will re-evaluate the state of the watched branch and potentially take
 action to update either its own internal state or the state of github or the deployed system.
 
-#### Overview flowchart
-
-The following flowchart shows the various actions taken by the update loop. Note that this is a code-up view of how
-CI works. The "purpose down" view of how CI uses this flow to make the changes it wants to happen is given below. 
-
-```mermaid
-flowchart LR
-    UpdateLoop[Update Loop]
-    
-    UpdateLoop -->|github_changed| UpdateGithub(Update Github)
-    UpdateGithub --> UpdateSha(Update SHA for\nWatchedBranch)
-    subgraph UpdatePRs
-        direction LR
-        UpdatePRList(Update list of PRs for\nWatchedBranch)
-        UpdatePRList --> AssignReviewers(Assign Reviewers)
-        AssignReviewers --> UpdatePrGithub(Update local PR state from github)
-        UpdatePrGithub --> ChecksChanged{New check\nor review\nstate?}
-        ChecksChanged -->|yes| SetStateChanged(Set state_changed)
-
-    end
-
-    UpdateGithub --> UpdatePRs
-
-
-    UpdateLoop -->|batch_changed| UpdateBatch
-    UpdateBatch --> UpdateDeployable
-    UpdateBatch --> UpdatePRBatches 
-    subgraph UpdateDeployable
-        direction LR
-        Deployable{deployable?} --> UpdateDeployBatch(Update internal state of \ndeploy batch)
-    end
-    subgraph UpdatePRBatches
-        direction LR
-        IterateOverPrs(Iterate over PRs) --> FindLatest(Find latest non-cancelled batch for SHA)
-        FindLatest --> UpdateBatchState(Update local state of PR batch)
-        UpdateBatchState --> BatchStateChanged{changed?}
-        BatchStateChanged -->|yes| SetStateChanged2(Set state_changed)
-    end
-
-    UpdateLoop -->|state_changed| UpdateExternalState(Update external State)
-    UpdateExternalState --> Heal
-    subgraph Heal
-        direction LR
-        subgraph HealDeploy
-            direction LR
-            NewDeploy{new deployable SHA?} -->|yes| CreateDeploy(Create deploy\nbatch)
-        end
-        HealDeploy --> DetermineMergeCandidate(Determine merge candidate)
-        DetermineMergeCandidate --> HealPRs
-        subgraph HealPRs
-            direction LR
-            IterateOverPrs2(Iterate over PRs) --> PostGithubStatus(Post github status)
-            PostGithubStatus --> StartTestBatch
-            subgraph StartTestBatch
-                direction LR
-                NoTestsYet{no test batch yet?} -->|yes| CreateTestBatch(Create test batch)
-                CurrentMergeCandidate{current merge\ncandidate} -->|yes| TestBatchStale(previous test batch\noutdated)
-                TestBatchStale -->|yes| CreateTestBatch
-            end
-        end
-        HealPRs --> CancelOrphanBuilds    
-    end
-
-    UpdateExternalState --> TryToMerge
-    subgraph TryToMerge
-        direction LR
-        IterateOverMergeable(Iterate over\nmergeable PRs in\nmerge priority order)
-        IterateOverMergeable --> IsMergeable
-        subgraph IsMergeable
-            direction LR
-            LastBuildSucceeded{last build succeeded?} -->|yes| ReviewApproved{review approved?}
-            ReviewApproved -->|yes| TestBatchCurrent{last test batch\nagainst correct SHA?}
-            TestBatchCurrent -->|yes| NoDoNotMerge{no DO_NOT_MERGE\nlabel?}
-        end
-        IsMergeable -->|yes| Merge(Merge the PR)
-
-        Merge -->|failure| IterateOverMergeable
-        Merge -->|success| Return
-    end
-```
+A set of detailed flowcharts detailing the CI update loop is given in the [references](#references) section below, which
+can be cross-referenced against the purposes and outcomes of the CI service as described in the following text sections.
 
 #### Detecting Stale State
 
@@ -360,6 +282,131 @@ sequenceDiagram
     deactivate PVM
     PB-->>CI: Detects completion
 ```
+
+## References
+
+### The update loop
+
+The following reference diagrams show the actions taken during CI's main update loop.
+
+Note that these diagrams are code-up views of how CI works. They should be cross references against the
+"purpose down" descriptions above, of how CI uses these flows to make the changes it wants to happen.
+
+```mermaid
+flowchart LR
+    UpdateLoop[Update Loop]
+    
+    UpdateLoop --> UpdateGithub
+    subgraph UpdateGithub
+        GithubChanged{github_changed?} -->|yes| _update_github
+    end
+    
+    UpdateGithub --> UpdateBatch
+    subgraph UpdateBatch
+        BatchChanged{batch_changed?} -->|yes| _update_batch
+    end
+
+    UpdateBatch --> UpdateState
+    subgraph UpdateState
+        StateChanged{batch_changed?} -->|yes| _update_state
+    end
+
+    UpdateState --> Loop
+```
+
+#### Update Github
+
+```mermaid
+flowchart LR
+    UpdateLoop[Update Loop]
+    
+    UpdateLoop -->|github_changed| UpdateGithub(Update Github)
+    UpdateGithub --> UpdateSha(Update SHA for\nWatchedBranch)
+    subgraph UpdatePRs
+        direction LR
+        UpdatePRList(Update list of PRs for\nWatchedBranch)
+        UpdatePRList --> AssignReviewers(Assign Reviewers)
+        AssignReviewers --> UpdatePrGithub(Update local PR state from github)
+        UpdatePrGithub --> ChecksChanged{New check\nor review\nstate?}
+        ChecksChanged -->|yes| SetStateChanged(Set state_changed)
+
+    end
+
+    UpdateGithub --> UpdatePRs
+```
+
+#### Update Batch
+
+```mermaid
+flowchart LR
+    UpdateLoop[Update Loop]
+    
+    UpdateLoop -->|batch_changed| UpdateBatch
+    UpdateBatch --> UpdateDeployable
+    UpdateBatch --> UpdatePRBatches 
+    subgraph UpdateDeployable
+        direction LR
+        Deployable{deployable?} --> UpdateDeployBatch(Update internal state of \ndeploy batch)
+    end
+    subgraph UpdatePRBatches
+        direction LR
+        IterateOverPrs(Iterate over PRs) --> FindLatest(Find latest non-cancelled batch for SHA)
+        FindLatest --> UpdateBatchState(Update local state of PR batch)
+        UpdateBatchState --> BatchStateChanged{changed?}
+        BatchStateChanged -->|yes| SetStateChanged2(Set state_changed)
+    end
+
+```
+
+#### Update State
+
+Updating the external state involves two steps: a 'heal' step and a 'try to merge' step.
+
+```mermaid
+flowchart LR
+    UpdateLoop[Update Loop]
+    
+    UpdateLoop -->|state_changed| Heal
+    Heal --> TryToMerge(Try to merge)
+```
+
+##### Heal
+
+```mermaid
+flowchart LR
+    subgraph HealDeploy
+        direction LR
+        NewDeploy{new deployable SHA?} -->|yes| CreateDeploy(Create deploy\nbatch)
+    end
+    HealDeploy --> DetermineMergeCandidate(Determine merge candidate)
+    DetermineMergeCandidate --> HealPRs
+    subgraph HealPRs
+        direction LR
+        IterateOverPrs2(Iterate over PRs) --> PostGithubStatus(Post github status)
+        PostGithubStatus --> StartTestBatch
+        subgraph StartTestBatch
+            direction LR
+            NoTestsYet{no test batch yet?} -->|yes| CreateTestBatch(Create test batch)
+            CurrentMergeCandidate{current merge\ncandidate} -->|yes| TestBatchStale(previous test batch\noutdated)
+            TestBatchStale -->|yes| CreateTestBatch
+        end
+    end
+    HealPRs --> CancelOrphanBuilds    
+```
+
+##### Try to Merge
+
+```mermaid
+flowchart LR
+    IterateOverMergeable(Iterate over\nmergeable PRs in\nmerge priority order)
+    IterateOverMergeable --> IsMergeable{is_mergeable?\n\n-No DO_NOT_MERGE flag\n-Reviewed\n-Checks passed\n-Up to date test run}
+    
+    IsMergeable -->|yes| Merge(Merge the PR)
+
+    Merge -->|failure| IterateOverMergeable
+    Merge -->|success| Return
+```
+
 
 ## Issues
 
