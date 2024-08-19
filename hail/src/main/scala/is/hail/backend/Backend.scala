@@ -27,6 +27,7 @@ import scala.reflect.ClassTag
 import java.io._
 import java.nio.charset.StandardCharsets
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -54,6 +55,18 @@ trait BackendContext {
 }
 
 abstract class Backend {
+  // From https://github.com/hail-is/hail/issues/14580 :
+  //   IR can get quite big, especially as it can contain an arbitrary
+  //   amount of encoded literals from the user's python session. This
+  //   was a (controversial) restriction imposed by Jackson and should be lifted.
+  //
+  // We remove this restriction for all backends, and we do so here, in the
+  // constructor since constructing a backend is one of the first things that
+  // happens and this constraint should be overrided as early as possible.
+  StreamReadConstraints.overrideDefaultStreamReadConstraints(
+    StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+  )
+
   val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
 
   protected[this] def addJavaIR(ir: BaseIR): Int = {
