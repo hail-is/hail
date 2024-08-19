@@ -1,5 +1,5 @@
 {% from "table_search.html" import table_search with context %}
-{% from "utils.html" import batch_state_indicator, submit_button, link %}
+{% from "utils.html" import batch_state_indicator, submit_button, link, truncated_link %}
 {% extends "layout.html" %}
 {% block title %}Batches{% endblock %}
 {% block head %}
@@ -9,43 +9,42 @@
 <div class='flex-col m-auto w-full space-y-4'>
   <h1 class="text-2xl font-light">Batches</h1>
   {{ table_search("batch-search", base_path ~ "/batches") }}
-  <table class='table-auto w-full' id='batches'>
+  <table class='table-fixed w-full' id='batches'>
     <thead>
-      <th class='h-12 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none'>
-        ID</th>
-      <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none'>Batch
-      </th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Billing Project</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Job Statuses</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell'>Duration</th>
-      <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr'>Cost</th>
+      <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none' style='width:1rem'></th>
+      <th class='h-12 bg-slate-200 font-light text-md text-center rounded-tl rounded-tr md:rounded-tr-none' style='width:6rem'>ID</th>
+      <th class='h-12 bg-slate-200 font-light text-md rounded-tr text-left md:rounded-tr-none'>Batch Name</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:8rem'>Billing Project</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:8rem'>Job Statuses</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:12rem'>Created</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:12rem'>Completed</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden lg:table-cell' style='width:8rem'>Duration</th>
+      <th class='h-12 bg-slate-200 font-light text-md text-left hidden md:table-cell rounded-tr' style='width:6rem'>Cost</th>
     </thead>
     <tbody class='border border-collapse border-slate-50'>
       {% for batch in batches %}
       <tr class='border border-collapse hover:bg-slate-100'>
+        <td class='table-cell'>
+            {{ batch_state_indicator(batch) }}
+        </td>
         <td class='table-cell'>
           <div class='flex justify-center font-light'>
             {{ link(base_path ~ "/batches/" ~ batch['id'], batch['id']) }}
           </div>
         </td>
         <td class='table-cell'>
-          <div class='flex-col py-1 block overflow-x-auto'>
-            <div class='flex flex-col space-y-1 md:flex-row md:flex-wrap md:items-center md:space-y-0'>
-              {% if 'attributes' in batch and 'name' in batch['attributes'] %}
-              <div class='text-wrap pr-4'>
-                {{ link(base_path ~ "/batches/" ~ batch['id'], batch['attributes']['name']) }}
-              </div>
-              {% else %}
-              <div class='text-wrap pr-4 text-zinc-400 italic'>
-                {{ link(base_path ~ "/batches/" ~ batch['id'], 'no name') }}
-              </div>
-              {% endif %}
-              {{ batch_state_indicator(batch) }}
+          <div class='space-y-1 md:flex-row md:flex-wrap md:items-center md:space-y-0'>
+            {% if 'attributes' in batch and 'name' in batch['attributes'] %}
+              {{ truncated_link(base_path ~ "/batches/" ~ batch['id'], batch['attributes']['name']) }}
+            {% else %}
+            <div class='text-wrap pr-4 text-zinc-400 italic'>
+              {{ truncated_link(base_path ~ "/batches/" ~ batch['id'], 'no name') }}
             </div>
+            {% endif %}
           </div>
         </td>
         <td class='hidden lg:table-cell'>
-          <div class='font-light text-zinc-500'>{{ batch['billing_project'] }}</div>
+          <div class='font-light text-zinc-500 truncating-text'>{{ batch['billing_project'] }}</div>
         </td>
         <td class='hidden lg:table-cell overflow-hidden'>
           <div class='flex items-center font-light'>
@@ -64,6 +63,12 @@
             {% endif %}
             {{ statuses|join(', ') }}
           </div>
+        </td>
+        <td class='hidden lg:table-cell font-light'>
+          {{ batch.get('time_created') or '' }}
+        </td>
+        <td class='hidden lg:table-cell font-light'>
+          {{ batch.get('time_completed') or '--' }}
         </td>
         <td class='hidden lg:table-cell font-light'>
           {{ batch.get('duration') or '' }}

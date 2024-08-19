@@ -46,7 +46,7 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
 
       {% call collapsible_li(true, 'Jobs', batch['n_jobs']) %}
       {{ kv_table({
-      'Pending': batch['n_jobs'] - batch['n_completed'],
+      'Incomplete (Blocked, Queued or Running)': batch['n_jobs'] - batch['n_completed'],
       'Succeeded': batch['n_succeeded'],
       'Failed': batch['n_failed'],
       'Cancelled': batch['n_cancelled']
