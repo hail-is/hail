@@ -32,7 +32,7 @@ CI must be configured with an access token allowing it to operate on
 behalf of a github account 
 
 > [!NOTE]  
-> This robot is called `hail-ci-robot` in hail-is/hail.
+> This account is called `hail-ci-robot` in hail-is/hail.
 
 ### Watched Branches
 
@@ -46,7 +46,7 @@ branch is updated.
 
 ### Tracked State
 
-For each branch, CI will track three types of state which can be marked as stale using appropriate flage:
+For each branch, CI will track three types of state which can be marked as stale using appropriate flags:
 - The state of github branches, commits, and PRs ("`github_changed`")
 - The state of batches CI is running to run tests or deploy to production ("`batch_changed`")
 - Whether CI needs to act externally, to update Github or start new batches ("`state_changed`")
@@ -165,7 +165,7 @@ The webhooks themselves are configured manually within the github repository its
 
 ## Running tests against pull requests
 
-When a PR which targets a watched branch is created, updated or closed, the github_changed flag will be marked as dirty. 
+When a PR which targets a watched branch is created, updated or closed, the `github_changed` flag will be marked as dirty. 
 
 During its update loop, CI will potentially decide to run tests against all PRs targetting a watched branch:
 
@@ -175,11 +175,17 @@ During its update loop, CI will potentially decide to run tests against all PRs 
   - Otherwise, it will be ignored.
 - Check for validity
   - The PR must be against a watched branch, or else it wouldn't be considered.
-  - If the current commit has already had tests run against it, no further action is taken
+  - If the current commit has already had tests run against it, no further action is taken `*`
   - If the PR is marked with the "do_not_test" label, no further action is taken
 - Run tests
   - The CI service will run tests against the PR (see below) 
   - Report results back to Github using the Checks interface
+
+`*` Note: there is an important nuance to the statement "If the current commit has already had tests run against it, no further action is taken".
+
+- Every time CI loops through its update cycle, it will determine a "merge candidate" from all of the PRs which are approved.
+- If the batch tests for the merge candidate PR were run against a different SHA than the current SHA of the watched branch,
+  then CI trigger a new test batch. 
 
 ### Running Tests
 
@@ -205,7 +211,13 @@ The process of running tests goes like:
 - Once the batch has either succeeded or failed, CI uses that result to report status back to GitHub
 
 Examples of CI test runs can be seen by searching through the production batch log, as long as you are a member
-of the `ci` billing project. For example: `/batches?q=user+%3D+ci%0D%0Atest+%3D+1`.
+of the `ci` billing project. 
+
+> [!NOTE]
+> CI test runs in hail.is can be seen [here](https://batch.hail.is/batches?q=user+%3D+ci%0D%0Atest+%3D+1).
+> Note:
+> - You will need to be a member of the `ci` billing project to view these logs.
+> - Due to the numbers of batches involved, this page may take a while to load 
 
 #### CI Testing Timeline
 
@@ -267,25 +279,29 @@ sequenceDiagram
 Mergability is determined by:
 
 - All required checks must be successful
+- There must have been a CI-generated test batch
+  - The most recent test batch must have run against the current SHA of the watched branch 
 - The PR must be approved
+- The PR must not have the "DO_NOT_MERGE" label
 
 The control flow from final approval to CI merging a PRs looks like:
 
-- The PR's state will change in github (either a check changes to SUCCESS, or a review is approved)
-- The github webhook callback will cause the `github_changed` flag to be marked as dirty for the `WatchedBranch` which is the target of this PR
-- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) scans all PRs against the branch and updates internal state that is used to calculate mergeability.
-- The `WatchedBranch`'s `_update` method in [`github.py`](../../../ci/ci/github.py) iterates again to merge all mergeable PRs, in priority order
+- The PR's state will change in github (maybe a check changes to SUCCESS, or a review is approved)
+- The github webhook callback will cause the `github_changed` flag to be marked as dirty for the target `WatchedBranch`
+- CI will detect that this PR is now considered mergeable 
+- CI will attempt to merge all PRs which are mergeable, in priority order
+  - Note: as soon as one PR merges, the remaining branches will no longer be mergeable because the target SHA will have changed
 
 ## Deploying services to the live infrastructure
 
 When a PR is merged into the `main` branch, a webhook will trigger. The CI service will set its `github_changed` flag.
 
 During its update loop, the CI service will determine that the SHA of the `WatchedBranch` has changed and trigger
-a deployment.
+a deployment. Like in the test case, the CI service uses targets in `build.yaml` to generate a set of jobs in a
+batch run:  
 
 - Create a new batch job to:
   - Build various components and service images
-  - Run various pre-deployment tests
   - Deploy to the `default` (ie prod) namespace
   - Run various post-deployment tests
   - A handful of final actions
@@ -293,14 +309,17 @@ a deployment.
 
 Note: It's not actually quite as waterfall-y as this. In fact the jobs are all running in a hail
 batch, and each package being built and service being deployed has its own path through the DAG. So it's quite possible
-that services are deploy/test-ing in parallel, and that the deploy for one service might happen before the test for
-another has completed.
+that services are deploy/test-ing in parallel, and that the deploy and test jobs for one service might all complete before 
+the deploy and test for another have even started.
 
-This should all be fine, because we only merge in the first place if the PR in question has already passed
+This should all be fine. Because we only merge in the first place if the PR in question has already passed
 tests against the current SHA of the watched branch.
 
-Examples of CI deploy runs can be seen by searching through the production batch log, as long as you have developer
-permissions. For example: `/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1`
+> [!NOTE]
+> CI deploy runs in hail.is can be seen [here](https://batch.hail.is/batches?q=user+%3D+ci%0D%0Adeploy+%3D+1).
+> Note:
+> - You will need to be a member of the `ci` billing project to view these logs.
+> - Due to the numbers of batches involved, this page may take a while to load 
 
 #### CI Deploy Timeline
 
