@@ -485,6 +485,19 @@ class PR(Code):
                 self.last_known_github_status = last_known_github_status
                 self.target_branch.state_changed = True
 
+    @staticmethod
+    def _overall_review_status_from_latest_reviews_per_login(latest_reviews_per_login):
+        active_states = [
+            state for state in latest_reviews_per_login.values() if state in ('APPROVED', 'CHANGES_REQUESTED')
+        ]
+
+        if any(state == 'CHANGES_REQUESTED' for state in latest_reviews_per_login.values()):
+            return 'changes_requested'
+        elif len(active_states) < 2:
+            return 'pending'
+        else:
+            return 'approved'
+
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
         async for review in gh.getiter(
@@ -496,15 +509,7 @@ class PR(Code):
             if state != 'COMMENTED':
                 latest_state_by_login[login] = state
 
-        review_state = 'pending'
-        for login, state in latest_state_by_login.items():
-            if state == 'CHANGES_REQUESTED':
-                review_state = 'changes_requested'
-                break
-            if state == 'APPROVED':
-                review_state = 'approved'
-            else:
-                assert state in ('DISMISSED', 'COMMENTED', 'PENDING'), state
+        review_state = PR._overall_review_status_from_latest_reviews_per_login(latest_state_by_login)
 
         if review_state != self.review_state:
             self.set_review_state(review_state)
