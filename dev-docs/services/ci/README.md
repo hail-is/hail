@@ -308,7 +308,7 @@ flowchart LR
 
     UpdateBatch --> UpdateState
     subgraph UpdateState
-        StateChanged{batch_changed?} -->|yes| _update_state
+        StateChanged{state_changed?} -->|yes| _update_state
     end
 
     UpdateState --> Loop
