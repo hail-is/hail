@@ -486,25 +486,34 @@ class PR(Code):
                 self.target_branch.state_changed = True
 
     async def _update_github_review_state(self, gh):
-        latest_state_by_login = {}
-        async for review in gh.getiter(
-            f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/reviews'
-        ):
-            login = review['user']['login']
-            state = review['state']
-            # reviews is chronological, so later ones are newer statuses
-            if state != 'COMMENTED':
-                latest_state_by_login[login] = state
+        review_state_query = f"""
+        query {{
+            repository(owner: "{self.target_branch.branch.repo.owner}", name: "{self.target_branch.branch.repo.name}") {{
+                pullRequest(number: {self.number}) {{
+                      number
+                      reviewDecision
+                }}
+            }}
+        }}
+        """
 
-        review_state = 'pending'
-        for login, state in latest_state_by_login.items():
-            if state == 'CHANGES_REQUESTED':
-                review_state = 'changes_requested'
-                break
-            if state == 'APPROVED':
-                review_state = 'approved'
-            else:
-                assert state in ('DISMISSED', 'COMMENTED', 'PENDING'), state
+        response = await gh.post('/graphql', data={'query': review_state_query})
+        review_decision = response["data"]["repository"]["pullRequest"]["reviewDecision"]
+
+        if review_decision == 'APPROVED':
+            review_state = 'approved'
+        elif review_decision == 'CHANGES_REQUESTED':
+            review_state = 'changes_requested'
+        elif review_decision == 'REVIEW_REQUIRED':
+            review_state = 'pending'
+        elif review_decision is None:
+            # This probably means the repo has no "required reviews" configuration. But CI shouldn't merge without
+            # at least one approval, so we'll treat this as "pending":
+            review_state = 'pending'
+        else:
+            # Should be impossible, per https://docs.github.com/en/graphql/reference/enums#pullrequestreviewdecision
+            log.error(f'Unexpected review decision: {review_decision} in PR {self.number}')
+            review_state = 'pending'
 
         if review_state != self.review_state:
             self.set_review_state(review_state)
