@@ -490,7 +490,6 @@ class PR(Code):
         query {{
             repository(owner: "{self.target_branch.branch.repo.owner}", name: "{self.target_branch.branch.repo.name}") {{
                 pullRequest(number: {self.number}) {{
-                      number
                       reviewDecision
                 }}
             }}
