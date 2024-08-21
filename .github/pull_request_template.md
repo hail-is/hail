@@ -15,9 +15,14 @@ Fixes #<issue_number>.
 
 <!-- If the security impact is to be assessed in the PR:
 #### Security Assessment
-- [ ] Either: the security impact will be assessed in this PR description:
-    - [ ] This change has a high security impact
-      - [ ] The impact has been assessed and approved by appsec
-    - [ ] This change has a medium security impact
-    - [ ] This change has a low security impact
+
+- [ ] This change has a high security impact
+  - [ ] The impact has been assessed and approved by appsec
+- [ ] This change has a medium security impact
+- [ ] This change has a low security impact
+- [ ] This change has no security impact
+
+Please describe the security impact and necessary mitigations here.
+For none/low impact: a quick one/two sentence justification of the low rating is sufficient.
+For medium/high impact: please provide a detailed description of the impact and the mitigations in place.
 -->
