@@ -512,7 +512,7 @@ class PR(Code):
             review_state = 'pending'
         else:
             # Should be impossible, per https://docs.github.com/en/graphql/reference/enums#pullrequestreviewdecision
-            log.error(f'Unexpected review decision: {review_decision} in PR {self.number}')
+            log.error(f'{self.short_str()}: unexpected review decision from github: {review_decision}')
             review_state = 'pending'
 
         if review_state != self.review_state:
