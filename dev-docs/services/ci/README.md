@@ -406,20 +406,3 @@ flowchart LR
     Merge -->|failure| IterateOverMergeable
     Merge -->|success| Return
 ```
-
-
-## Issues
-
-### Hanging PR state
-
-It is sometimes possible for a PR status to be stuck in pending even though the test batch has completed
-This can be fixed by pushing a new commit to the branch, but it's strange that regular polling does not catch
-these instances.
- 
-## Open Questions
-
-1. Sometimes in logs we see logs like `"update github br-hail-ci-test-ci-test-<RANDOM>-main"` for various random branch names. 
-What does this mean?
-2. Do we really deploy first / test second? And do we really deploy Batch and CI using jobs that are already running in
-Batch and CI? Do the services get shut down and reconnect to existing instances of the deploy jobs started by the 
-previous version?
