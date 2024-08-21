@@ -195,6 +195,15 @@ HAIL_DEFAULT_NAMESPACE=default hailctl dev deploy -b <github_user_name>/hail:<br
 After this dev deploy completes, you should be able to access your namespace
 by navigating to https://internal.hail.is/<username>/batch.
 
+The service accounts used in developer namespaces do not have permission to create pet service accounts in the
+`hail-vdc` project, so the gsa-key secrets for these must be copied across from the default namespace in order
+to run real jobs on the developer namespaces' batch services:
+```bash
+$ download-secret <username>-gsa-key
+$ mv secret.json key.json
+$ kubectl create secret generic <username>-gsa-key --namespace=<username> --from-file=key.json
+```
+
 To submit jobs to your dev namespace, you need to configure your local hail
 installation to point to the dev namespace. You can do this by running
 
