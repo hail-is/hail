@@ -1095,8 +1095,8 @@ def exp(x) -> Float64Expression:
     return _func("exp", tfloat64, x)
 
 
-@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
-def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
+@typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32, _pvalue_only=bool)
+def fisher_exact_test(c1, c2, c3, c4, _pvalue_only=False) -> StructExpression:
     """Calculates the p-value, odds ratio, and 95% confidence interval using
     Fisher's exact test for a 2x2 table.
 
@@ -1138,8 +1138,11 @@ def fisher_exact_test(c1, c2, c3, c4) -> StructExpression:
         `ci_95_lower (:py:data:`.tfloat64`), and `ci_95_upper`
         (:py:data:`.tfloat64`).
     """
-    ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64, ci_95_lower=tfloat64, ci_95_upper=tfloat64)
-    return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
+    if _pvalue_only:
+        return struct(p_value=_func("fisher_exact_test_pvalue_only", tfloat64, c1, c2, c3, c4))
+    else:
+        ret_type = tstruct(p_value=tfloat64, odds_ratio=tfloat64, ci_95_lower=tfloat64, ci_95_upper=tfloat64)
+        return _func("fisher_exact_test", ret_type, c1, c2, c3, c4)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64, expr_ndarray(expr_float64)))
