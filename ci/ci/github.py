@@ -516,6 +516,7 @@ class PR(Code):
             review_state = 'pending'
 
         if review_state != self.review_state:
+            log.info(f'{self.short_str()}: review state changing from {self.review_state} => {review_state}')
             self.set_review_state(review_state)
             self.target_branch.state_changed = True
 
