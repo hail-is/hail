@@ -497,7 +497,7 @@ class PR(Code):
         """
 
         response = await gh.post('/graphql', data={'query': review_state_query})
-        review_decision = response["data"]["repository"]["pullRequest"]["reviewDecision"]
+        review_decision = response['data']['repository']['pullRequest']['reviewDecision']
 
         if review_decision == 'APPROVED':
             review_state = 'approved'
