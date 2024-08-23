@@ -1528,13 +1528,15 @@ def test_pool_standard_instance_cheapest(client: BatchClient):
 
 @skip_in_azure
 async def test_over_64_cpus(client: BatchClient):
-    b = create_batch(client)._async_batch
-    j = b.new_job()
-    j.command('echo foo')
-    j._machine_type = 'n1-highmem-96'
-    await b.submit()
-    status = await asyncio.wait_for(j.wait(), timeout=5 * 60)
+    # This test is being added to validate high CPU counts in custom machines.
+    # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
+    b = create_batch(client)
+    resources = {'machine_type': 'n1-highmem-96'}
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
+    status = j.wait()
     assert status['state'] == 'Success', str((status, b.debug_info()))
+    assert 'job-private' in status['status']['worker'], str((status, b.debug_info()))
 
 
 def test_job_private_instance_preemptible(client: BatchClient):
