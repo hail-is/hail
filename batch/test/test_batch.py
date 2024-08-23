@@ -1531,7 +1531,7 @@ async def test_over_64_cpus(client: BatchClient):
     # This test is being added to validate high CPU counts in custom machines.
     # The relevant part of this machine type ('highmem-96') is the CPU count, which is 96.
     b = create_batch(client)
-    resources = {'machine_type': 'n1-highmem-96'}
+    resources = {'machine_type': 'n1-highmem-96', 'preemptible': False}
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
