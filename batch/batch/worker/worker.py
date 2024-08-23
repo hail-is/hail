@@ -318,7 +318,7 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        N_PUBLIC_INTERFACES = min(255, N_SLOTS, N_JVM_CONTAINERS)
+        N_PUBLIC_INTERFACES = min(255, N_SLOTS + N_JVM_CONTAINERS)
         for subnet_index in range(N_PUBLIC_INTERFACES):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
