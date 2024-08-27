@@ -389,13 +389,12 @@ async def _query_job_group_jobs(
 @auth.authenticated_users_only()
 async def get_completed_batches_ordered_by_completed_time(request, userdata):
     db = request.app['db']
-    where_args = [userdata['username'], ROOT_JOB_GROUP_ID]
+    where_args = [userdata['username'], ]
     wheres = [
         'billing_project_users.`user` = %s',
         'billing_project_users.billing_project = batches.billing_project',
         'batches.time_completed IS NOT NULL',
         'NOT deleted',
-        'job_groups.job_group_id = %s',
     ]
 
     limit = 100
@@ -419,10 +418,13 @@ SELECT batches.*,
   job_groups_n_jobs_in_complete_states.n_failed,
   job_groups_n_jobs_in_complete_states.n_cancelled,
   cost_t.*
-FROM job_groups
-LEFT JOIN batches ON batches.id = job_groups.batch_id
-LEFT JOIN billing_projects
+
+FROM batches
+INNER JOIN billing_project_users
+    ON batches.billing_project = billing_project_users.billing_project
+INNER JOIN billing_projects
     ON batches.billing_project = billing_projects.name
+LEFT JOIN job_groups ON batches.id = job_groups.batch_id AND job_groups.job_group_id = %s
 LEFT JOIN job_groups_n_jobs_in_complete_states
        ON job_groups.batch_id = job_groups_n_jobs_in_complete_states.id AND job_groups.job_group_id = job_groups_n_jobs_in_complete_states.job_group_id
 LEFT JOIN (
@@ -430,8 +432,6 @@ LEFT JOIN (
   FROM job_groups_cancelled
   WHERE job_group_id = %s
 ) AS cancelled_t ON batches.id = cancelled_t.id
-STRAIGHT_JOIN billing_project_users
-    ON batches.billing_project = billing_project_users.billing_project
 LEFT JOIN LATERAL (
   SELECT COALESCE(SUM(`usage` * rate), 0) AS cost, JSON_OBJECTAGG(resources.resource, COALESCE(`usage` * rate, 0)) AS cost_breakdown
   FROM (
@@ -449,7 +449,7 @@ LIMIT %s;
     """
 
     records = [
-        batch async for batch in db.select_and_fetchall(sql, (ROOT_JOB_GROUP_ID, *where_args, limit), query_name='get_completed_batches')
+        batch async for batch in db.select_and_fetchall(sql, (ROOT_JOB_GROUP_ID, ROOT_JOB_GROUP_ID, *where_args, limit), query_name='get_completed_batches')
     ]
     # this comes out as a timestamp (rather than a formed date)
     last_completed_timestamp = records[-1]['time_completed']
