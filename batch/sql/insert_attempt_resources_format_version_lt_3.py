@@ -70,7 +70,9 @@ async def process_chunk(counter, db, start_offset, end_offset, size=None, quiet=
                               end_batch_id, end_batch_id, end_job_id, end_batch_id, end_job_id, end_attempt_id)
 
             if size is not None:
-                limit = f'LIMIT {size}'
+                # No risk in this file because all calls use int sizes,
+                # but this is good practice if we copy/paste this in the future:
+                limit = f'LIMIT {int(size)}'
             else:
                 limit = ''
 

@@ -67,7 +67,7 @@ async def find_chunk_offsets(db, size):
 
         await tx.just_execute('SET @rank=0;')
 
-        query = f'''
+        query = '''
 SELECT t.id FROM (
   SELECT id
   FROM batches

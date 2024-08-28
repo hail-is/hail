@@ -145,7 +145,7 @@ async def find_offsets(db, query, query_args):
 
 
 async def find_attempt_resources_offsets(db, size):
-    query = f'''
+    query = '''
 SELECT t.batch_id, t.job_id, t.attempt_id, t.resource FROM (
   SELECT batch_id, job_id, attempt_id, resource
   FROM attempt_resources
