@@ -774,7 +774,7 @@ are currently running, it will deactivate itself and shut itself down.
 
 
 Known Issues
-============
+------------
 
 - The current database structure serializes MJC operations because the
   table ``batches_n_jobs_in_complete_states`` has one row per batch
