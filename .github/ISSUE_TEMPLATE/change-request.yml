@@ -1,6 +1,6 @@
-name: Change Request
-description: Tracker issues for new features, enhancements, or configuration changes.
-labels: needs-triage
+name: Configuration Change
+description: Tracker issues for configuration changes
+labels: [ needs-triage ]
 body:
   - type: textarea
     id: description
@@ -15,15 +15,17 @@ body:
       label: Security Impact
       description: Level of security impact of the change
       options:
-          - None
+          - No Impact
           - Low
           - Medium
           - High
+    validations:
+      required: true
   - type: textarea
     id: security-impact-description
     attributes:
       label: Security Impact Description
-      description: If the impact is not None, please describe the security impact and necessary mitigations
+      description: If the impact is No Impact or Low, justify that rating. If the impact is Medium or High, describe the security impact and any mitigations.
     validations:
       required: true
   - type: checkboxes
