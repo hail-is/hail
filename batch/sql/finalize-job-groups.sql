@@ -10,7 +10,7 @@ BEGIN
 
   SET job_group_cancelled = EXISTS (SELECT TRUE
                                     FROM job_group_self_and_ancestors
-                                    INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                                    INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
                                       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
                                     WHERE batch_id = NEW.batch_id AND job_group_self_and_ancestors.job_group_id = NEW.job_group_id
                                     LOCK IN SHARE MODE);
@@ -142,7 +142,7 @@ BEGIN
 
   SET cur_job_group_cancelled = EXISTS (SELECT TRUE
                                         FROM job_group_self_and_ancestors
-                                        INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                                        INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
                                           job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
                                         WHERE batch_id = OLD.batch_id AND job_group_self_and_ancestors.job_group_id = OLD.job_group_id
                                         LOCK IN SHARE MODE);
@@ -318,7 +318,7 @@ BEGIN
 
   SET cur_cancelled = EXISTS (SELECT TRUE
                               FROM job_group_self_and_ancestors
-                              INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
+                              INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
                                 job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
                               WHERE batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
                               FOR UPDATE);

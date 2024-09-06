@@ -604,10 +604,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.id = jobs.batch_id
+  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.batch_id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -669,10 +669,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.id = jobs.batch_id
+  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.batch_id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -714,10 +714,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.id = jobs.batch_id
+  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.batch_id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
