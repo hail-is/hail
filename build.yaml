@@ -2294,6 +2294,9 @@ steps:
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
         online: true
+      - name: rename-job-groups-cancelled-column
+        script: /io/sql/rename-job-groups-cancelled-column.sql
+        online: false
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
