@@ -92,9 +92,8 @@ def store_ref_block_max_length(vds_path):
         warning(f"VDS at {vds_path} already contains a global annotation with the max reference block length")
         return
     rd = vds.reference_data
-    rd = rd.annotate_rows(__start_pos=rd.locus.position)
     fs = hl.current_backend().fs
-    ref_block_max_len = rd.aggregate_entries(hl.agg.max(rd.END - rd.__start_pos + 1))
+    ref_block_max_len = rd.aggregate_entries(hl.agg.max(rd.LEN))
     with fs.open(os.path.join(vds_path, extra_ref_globals_file), 'w') as f:
         json.dump({VariantDataset.ref_block_max_length_field: ref_block_max_len}, f)
 
