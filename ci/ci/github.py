@@ -464,7 +464,7 @@ class PR(Code):
         hail_statuses = {}
         for s in statuses:
             context = s['context']
-            if context == 'ci-test' or context.startswith('hail-ci'):
+            if context == 'ci-test':
                 if context in hail_statuses:
                     raise ValueError(
                         f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
