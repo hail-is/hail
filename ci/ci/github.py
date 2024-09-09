@@ -830,14 +830,21 @@ class WatchedBranch(Code):
                     await self._heal(db, batch_client, gh, frozen)
                     if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
                         await self.try_to_merge(gh)
+                    else:
+                        log.info(f'{self.short_str()}: not trying to merge. deploy_batch: {self.deploy_batch}; ' +
+                                 f'deploy_state: {self.deploy_state}; frozen: {frozen}; mergeable: {self.mergeable}')
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def try_to_merge(self, gh):
         assert self.mergeable
+        log.info(f'{self.short_str()}: PRs in merge priority order: {[ pr.short_str() for pr in 
+                                                                       self.prs_in_merge_priority_order() ]}')
         for pr in self.prs_in_merge_priority_order():
+            log.info(f'{self.short_str()}: considering merge of {pr.short_str()}')
             if pr.is_mergeable():
+                log.info(f'{self.short_str()}: is mergeable. Attempting merge of {pr.short_str()}')
                 if await pr.merge(gh):
                     self.github_changed = True
                     self.sha = None
