@@ -467,6 +467,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             _assert_reference_type=self._dataset_type.reference_type,
             _assert_variant_type=self._dataset_type.variant_type,
             _warn_no_ref_block_max_length=False,
+            _drop_end=True,
         )
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
@@ -638,6 +639,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 _assert_reference_type=reference_type,
                 _assert_variant_type=variant_type,
                 _warn_no_ref_block_max_length=False,
+                _drop_end=True,
             )
             for path in inputs
         ]
@@ -793,7 +795,7 @@ def new_combiner(
     gvcf_type = None
     if vds_paths:
         # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
-        vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
+        vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False, _drop_end=True)
         vds_ref_entry = set(
             name[1:] if name in ('LGT', 'LPGT') else name
             for name in vds.reference_data.entry
@@ -842,9 +844,7 @@ def new_combiner(
                 mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep
             )
 
-    dataset_type = CombinerOutType(
-        reference_type=VariantDataset._fix_ref_for_write(vds.reference_data)._type, variant_type=vds.variant_data._type
-    )
+    dataset_type = CombinerOutType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
 
     if save_path is None:
         sha = hashlib.sha256()

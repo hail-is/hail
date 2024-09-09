@@ -18,6 +18,7 @@ def read_vds(
     _assert_reference_type=None,
     _assert_variant_type=None,
     _warn_no_ref_block_max_length=True,
+    _drop_end=False,
 ) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
@@ -41,6 +42,8 @@ def read_vds(
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
 
     reference_data = VariantDataset._add_len_end(reference_data)
+    if _drop_end:
+        reference_data = reference_data.drop('END')
     vds = VariantDataset(reference_data, variant_data)
     if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
         fs = hl.current_backend().fs

@@ -98,8 +98,11 @@ def make_ref_entry_struct(e, entry_to_keep, row):
     reference_fields = {k: v for k, v in e.items() if k in entry_to_keep and k not in handled_names}
     return (
         hl.case()
-        .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields, **handled_fields))
-        .or_error('found END with non reference-genotype at' + hl.str(row.locus))
+        .when(
+            e.GT.is_hom_ref(),
+            hl.struct(LEN=row.info.END - row.locus.position + 1, **reference_fields, **handled_fields),
+        )
+        .or_error('found reference block with non reference-genotype at' + hl.str(row.locus))
     )
 
 
@@ -107,7 +110,7 @@ def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collectio
     if info_to_keep is None:
         info_to_keep = []
     if not info_to_keep:
-        info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
+        info_to_keep = [name for name in mt.info if name not in ('END', 'LEN', 'DP')]
     info_key = tuple(sorted(info_to_keep))  # hashable stable value
     mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
