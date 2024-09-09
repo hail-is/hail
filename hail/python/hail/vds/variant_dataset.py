@@ -160,9 +160,7 @@ class VariantDataset:
 
         gt_field = 'LGT' if 'LGT' in mt.entry else 'GT'
 
-        # remove LGT/GT and LA fields, which are trivial for reference blocks and do not need to be represented
-        if gt_field in used_ref_block_fields:
-            used_ref_block_fields.remove(gt_field)
+        # remove the LA field, which is trivial for reference blocks and does not need to be represented
         if 'LA' in used_ref_block_fields:
             used_ref_block_fields.remove('LA')
 
