@@ -433,6 +433,10 @@ set -x
 date
 
 set +x
+curl -L https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-arm64 -o /usr/bin/jq
+chmod +x /usr/bin/jq
+curl -L "https://dl.k8s.io/release/v1.31.0/bin/linux/arm64/kubectl" -o /usr/bin/kubectl
+chmod +x /usr/bin/kubectl
 USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.appId')
 PASSWORD=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.password')
 TENANT=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.tenant')

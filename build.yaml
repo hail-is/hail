@@ -3789,6 +3789,10 @@ steps:
     alwaysRun: true
     script: |
       set -e -o pipefail
+      curl -L https://github.com/jqlang/jq/releases/download/jq-1.7.1/jq-linux-arm64 -o /usr/bin/jq
+      chmod +x /usr/bin/jq
+      curl -L "https://dl.k8s.io/release/v1.31.0/bin/linux/arm64/kubectl" -o /usr/bin/kubectl
+      chmod +x /usr/bin/kubectl
       AZURE_USERNAME=$(jq -r '.appId' /batch-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /batch-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /batch-gsa-key/key.json)
