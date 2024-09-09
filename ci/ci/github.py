@@ -697,13 +697,34 @@ mkdir -p {shq(repo_dir)}
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT],
                 self.build_state,
             )
-        return (
-            self.review_state == 'approved'
-            and len(self.last_known_github_status) > 0
-            and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())
-            and self.is_up_to_date()
-            and all(label not in DO_NOT_MERGE for label in self.labels)
-        )
+
+        # return (
+        #     self.review_state == 'approved'
+        #     and len(self.last_known_github_status) > 0
+        #     and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())
+        #     and self.is_up_to_date()
+        #     and all(label not in DO_NOT_MERGE for label in self.labels)
+        # )
+
+        if not self.review_state == 'approved':
+            log.info(f'{self.short_str()} is not mergeable because review state is {self.review_state}')
+            return False
+        if not len(self.last_known_github_status) > 0:
+            log.info(f'{self.short_str()} is not mergeable because len(last_known_github_status) = {self.last_known_github_status}')
+            return False
+        if not all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values()):
+            expanded_kvps = [ f'{key}: {self.last_known_github_status[key]}' for key in self.last_known_github_status.keys()]
+            log.info(f'{self.short_str()} is not mergeable because last_known_statuses are: {expanded_kvps}')
+            return False
+        if not self.is_up_to_date():
+            log.info(f'{self.short_str()} is not mergeable because it is not up to date')
+            return False
+        if not all(label not in DO_NOT_MERGE for label in self.labels):
+            log.info(f'{self.short_str()} is not mergeable because it has a DO_NOT_MERGE label')
+            return False
+
+        return True
+
 
     async def merge(self, gh):
         try:
