@@ -36,7 +36,7 @@ final case class TStream(elementType: Type) extends TIterable {
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&
     a.asInstanceOf[IndexedSeq[_]].forall(elementType.typeCheck)
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
   override def isRealizable = false
 

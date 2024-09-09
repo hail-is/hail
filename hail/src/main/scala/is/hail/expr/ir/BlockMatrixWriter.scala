@@ -9,7 +9,7 @@ import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
-import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
+import is.hail.types.TypeWithRequiredness
 import is.hail.types.encoded.{EBlockMatrixNDArray, ENumpyBinaryNDArray, EType}
 import is.hail.types.virtual._
 import is.hail.utils._

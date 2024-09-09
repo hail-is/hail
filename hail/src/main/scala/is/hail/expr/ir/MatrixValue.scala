@@ -6,7 +6,6 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD}
-import is.hail.types.{MatrixType, TableType}
 import is.hail.types.physical.{PArray, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils._

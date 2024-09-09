@@ -10,7 +10,7 @@ import is.hail.utils._
 case class TableCalculateNewPartitions(
   nPartitions: Int
 ) extends TableToValueFunction {
-  def typ(childType: types.TableType): Type = TArray(TInterval(childType.keyType))
+  def typ(childType: TableType): Type = TArray(TInterval(childType.keyType))
 
   def unionRequiredness(childType: types.RTable, resultType: types.TypeWithRequiredness): Unit = {
     val rinterval = types.tcoerce[types.RInterval](

@@ -18,7 +18,7 @@ import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.{TArray, TInterval, TStruct, TVoid}
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 

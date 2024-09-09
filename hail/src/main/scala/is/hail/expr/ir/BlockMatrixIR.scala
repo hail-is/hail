@@ -8,7 +8,6 @@ import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsuppor
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
-import is.hail.types.{BlockMatrixSparsity, BlockMatrixType}
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64, ENumpyBinaryNDArray}
 import is.hail.types.virtual._
 import is.hail.utils._

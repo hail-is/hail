@@ -14,7 +14,7 @@ object SUnreachable {
   def fromVirtualType(t: Type): SType = {
     require(t.isRealizable)
     t match {
-      case t if t.isPrimitive => SType.canonical(t)
+      case Primitive(t) => SType.canonical(t)
       case TRNGState => SRNGState(Some(SRNGStateStaticInfo(0, false, 0)))
       case ts: TBaseStruct => SUnreachableStruct(ts)
       case tc: TContainer => SUnreachableContainer(tc)

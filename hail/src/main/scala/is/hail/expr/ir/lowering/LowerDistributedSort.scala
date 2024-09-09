@@ -7,7 +7,7 @@ import is.hail.expr.ir._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{tcoerce, RTable, TableType, VirtualTypeWithReq}
+import is.hail.types.{tcoerce, RTable, VirtualTypeWithReq}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._

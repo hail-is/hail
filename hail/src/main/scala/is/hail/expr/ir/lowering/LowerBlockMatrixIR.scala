@@ -5,7 +5,7 @@ import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{tcoerce, BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness}
+import is.hail.types.{tcoerce, TypeWithRequiredness}
 import is.hail.types.virtual._
 import is.hail.utils._
 

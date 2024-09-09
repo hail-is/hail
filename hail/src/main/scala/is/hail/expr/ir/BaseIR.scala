@@ -1,8 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
-import is.hail.types.BaseType
-import is.hail.types.virtual.Type
+import is.hail.types.virtual.{Type, VType}
 import is.hail.utils._
 import is.hail.utils.StackSafe._
 
@@ -11,7 +10,7 @@ case class Name(str: String) {
 }
 
 abstract class BaseIR {
-  def typ: BaseType
+  def typ: VType
 
   protected def childrenSeq: IndexedSeq[BaseIR]
 

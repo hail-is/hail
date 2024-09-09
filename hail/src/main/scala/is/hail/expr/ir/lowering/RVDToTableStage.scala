@@ -9,10 +9,10 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{RTable, TableType, VirtualTypeWithReq}
+import is.hail.types.{RTable, VirtualTypeWithReq}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.TStruct
+import is.hail.types.virtual.{TStruct, TableType}
 import is.hail.utils.FastSeq
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}

@@ -2,8 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.types.{TableType, VirtualTypeWithReq}
-import is.hail.types.virtual.TStruct
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.virtual.{TStruct, TableType}
 
 class FakeTableReader extends TableReader {
   override def pathsUsed: Seq[String] = ???

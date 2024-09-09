@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
 import is.hail.io.BufferSpec
-import is.hail.types.{MatrixType, VirtualTypeWithReq}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._

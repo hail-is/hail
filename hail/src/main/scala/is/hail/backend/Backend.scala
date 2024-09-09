@@ -16,7 +16,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.virtual.TFloat64
+import is.hail.types.virtual.{BlockMatrixType, TFloat64}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -172,39 +172,39 @@ abstract class Backend {
   def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T
 
   final def valueType(s: String): Array[Byte] =
-    withExecuteContext("valueType") { ctx =>
-      val v = IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      v.typ.toString.getBytes(StandardCharsets.UTF_8)
+    jsonToBytes {
+      withExecuteContext("valueType") { ctx =>
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap)).typ.toJSON
+      }
     }
 
   private[this] def jsonToBytes(f: => JValue): Array[Byte] =
     JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
 
-  final def tableType(s: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("tableType") { ctx =>
-      val x = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      x.typ.toJSON
+  final def tableType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("tableType") { ctx =>
+        val x = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
+        x.typ.toJSON
+      }
     }
-  }
 
-  final def matrixTableType(s: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("matrixTableType") { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap)).typ.pyJson
+  final def matrixTableType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("matrixTableType") { ctx =>
+        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap)).typ.toJSON
+      }
     }
-  }
 
-  final def blockMatrixType(s: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("blockMatrixType") { ctx =>
-      val x = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      val t = x.typ
-      JObject(
-        "element_type" -> JString(t.elementType.toString),
-        "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
-        "is_row_vector" -> JBool(t.isRowVector),
-        "block_size" -> JInt(t.blockSize),
-      )
+  final def blockMatrixType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("blockMatrixType") { ctx =>
+        IRParser.parse_blockmatrix_ir(
+          s,
+          IRParserEnvironment(ctx, irMap = persistedIR.toMap),
+        ).typ.toJSON
+      }
     }
-  }
 
   def loadReferencesFromDataset(path: String): Array[Byte] = {
     withExecuteContext("loadReferencesFromDataset") { ctx =>
