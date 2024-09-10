@@ -1471,7 +1471,7 @@ INNER JOIN LATERAL (
     1
   FROM job_group_self_and_ancestors AS descendant
   INNER JOIN job_groups_cancelled AS cancelled
-     ON descendant.batch_id = cancelled.id
+     ON descendant.batch_id = cancelled.batch_id
     AND descendant.ancestor_id = cancelled.job_group_id
   WHERE descendant.batch_id = group_resources.batch_id
     AND descendant.job_group_id = group_resources.job_group_id
