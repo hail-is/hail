@@ -1,19 +1,15 @@
 package is.hail.services
 
 import is.hail.utils._
-
-import java.io.{File, FileInputStream}
-
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 
+import java.nio.file.{Files, Path}
+
 object BatchConfig {
-  def fromConfigFile(file: String): Option[BatchConfig] =
-    if (new File(file).exists()) {
-      using(new FileInputStream(file))(in => Some(fromConfig(JsonMethods.parse(in))))
-    } else {
-      None
-    }
+  def fromConfigFile(file: Path): Option[BatchConfig] =
+    if (!file.toFile.exists()) None
+    else using(Files.newInputStream(file))(in => Some(fromConfig(JsonMethods.parse(in))))
 
   def fromConfig(config: JValue): BatchConfig = {
     implicit val formats: Formats = DefaultFormats
@@ -21,4 +17,4 @@ object BatchConfig {
   }
 }
 
-class BatchConfig(val batchId: Long, val jobGroupId: Long)
+case class BatchConfig(batchId: Int, jobGroupId: Int)
