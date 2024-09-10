@@ -29,9 +29,8 @@ trait LoweringPass {
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     ctx.timer.time(context) {
       ctx.timer.time("Verify")(before.verify(ir))
-      val result = ctx.timer.time("LoweringTransformation")(transform(ctx: ExecuteContext, ir))
+      val result = ctx.timer.time("Transform")(transform(ctx, ir))
       ctx.timer.time("Verify")(after.verify(result))
-
       result
     }
   }
@@ -40,10 +39,10 @@ trait LoweringPass {
 }
 
 case class OptimizePass(_context: String) extends LoweringPass {
-  val context = s"optimize: ${_context}"
+  val context = s"Optimize: ${_context}"
   val before: IRState = AnyIR
   val after: IRState = AnyIR
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, context, ctx)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ctx, ir)
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {

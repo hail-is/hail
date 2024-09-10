@@ -1,5 +1,6 @@
 package is.hail.backend
 
+import is.hail.expr.ir.{IRParser, IRParserEnvironment}
 import is.hail.utils._
 
 import java.net.InetSocketAddress
@@ -8,7 +9,7 @@ import java.util.concurrent._
 
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import org.json4s._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 case class IRTypePayload(ir: String)
 case class LoadReferencesFromDatasetPayload(path: String)
@@ -84,19 +85,32 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
     try {
       val body = using(exchange.getRequestBody)(JsonMethods.parse(_))
       if (exchange.getRequestURI.getPath == "/execute") {
-        val config = body.extract[ExecutePayload]
-        backend.execute(config.ir, config.timed) { (ctx, res, timings) =>
-          exchange.getResponseHeaders().add("X-Hail-Timings", timings)
+        val ExecutePayload(irStr, streamCodec, timed) = body.extract[ExecutePayload]
+        backend.withExecuteContext { ctx =>
+          val (res, timings) = ExecutionTimer.time { timer =>
+            ctx.local(timer = timer) { ctx =>
+              val irData = IRParser.parse_value_ir(
+                irStr,
+                IRParserEnvironment(ctx, irMap = backend.persistedIR.toMap),
+              )
+              backend.execute(ctx, irData)
+            }
+          }
+
+          if (timed) {
+            val ts = Serialization.write(Map("timings" -> timings))
+            exchange.getResponseHeaders.add("X-Hail-Timings", ts)
+          }
+
           res match {
             case Left(_) => exchange.sendResponseHeaders(200, -1L)
             case Right((t, off)) =>
               exchange.sendResponseHeaders(200, 0L) // 0 => an arbitrarily long response body
-              using(exchange.getResponseBody()) { os =>
-                backend.encodeToOutputStream(ctx, t, off, config.stream_codec, os)
+              using(exchange.getResponseBody) { os =>
+                backend.encodeToOutputStream(ctx, t, off, streamCodec, os)
               }
           }
         }
-        return
       }
       val response: Array[Byte] = exchange.getRequestURI.getPath match {
         case "/value/type" => backend.valueType(body.extract[IRTypePayload].ir)

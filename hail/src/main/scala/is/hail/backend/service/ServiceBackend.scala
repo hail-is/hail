@@ -6,7 +6,8 @@ import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck,
+  Compile, IR, IRParser, IRParserEnvironment, IRSize, LoweringAnalyses, MakeTuple, SortField,
+  TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -35,6 +36,7 @@ import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
+import sourcecode.Enclosing
 
 class ServiceBackendContext(
   val billingProject: String,
@@ -331,55 +333,48 @@ class ServiceBackend(
   def stop(): Unit =
     executor.shutdownNow()
 
-  private[this] def execute(ctx: ExecuteContext, _x: IR, bufferSpecString: String): Array[Byte] = {
-    TypeCheck(ctx, _x)
-    Validate(_x)
-    val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
-      .asInstanceOf[IR]
-    if (x.typ == TVoid) {
-      val (_, f) = Compile[AsmFunction1RegionUnit](
-        ctx,
-        FastSeq(),
-        FastSeq[TypeInfo[_]](classInfo[Region]),
-        UnitInfo,
-        x,
-        optimize = true,
-      )
-
-      ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
-      Array()
-    } else {
-      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = Compile[AsmFunction1RegionLong](
-        ctx,
-        FastSeq(),
-        FastSeq(classInfo[Region]),
-        LongInfo,
-        MakeTuple.ordered(FastSeq(x)),
-        optimize = true,
-      )
-      val elementType = pt.fields(0).typ
-      val off = ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))
-      val codec = TypedCodecSpec(
-        EType.fromPythonTypeEncoding(elementType.virtualType),
-        elementType.virtualType,
-        BufferSpec.parseOrDefault(bufferSpecString),
-      )
-      assert(pt.isFieldDefined(off, 0))
-      codec.encode(ctx, elementType, pt.loadField(off, 0))
+  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
+    ctx.time {
+      TypeCheck(ctx, ir)
+      Validate(ir)
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
+      ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
+      val res = _jvmLowerAndExecute(ctx, ir)
+      log.info(s"finished execution of query $queryID")
+      res
     }
-  }
 
-  def execute(
-    ctx: ExecuteContext,
-    code: String,
-    token: String,
-    bufferSpecString: String,
-  ): Array[Byte] = {
-    log.info(s"executing: $token ${ctx.fs.getConfiguration()}")
-    val ir = IRParser.parse_value_ir(ctx, code)
-    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
-    execute(ctx, ir, bufferSpecString)
-  }
+  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
+    ctx.time {
+      val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir).asInstanceOf[IR]
+
+      x.typ match {
+        case TVoid =>
+          val (_, f) = Compile[AsmFunction1RegionUnit](
+            ctx,
+            FastSeq(),
+            FastSeq[TypeInfo[_]](classInfo[Region]),
+            UnitInfo,
+            x,
+            optimize = true,
+          )
+
+          Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
+        case _ =>
+          val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) =
+            Compile[AsmFunction1RegionLong](
+              ctx,
+              FastSeq(),
+              FastSeq(classInfo[Region]),
+              LongInfo,
+              MakeTuple.ordered(FastSeq(x)),
+              optimize = true,
+            )
+
+          Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
+      }
+    }
 
   override def lowerDistributedSort(
     ctx: ExecuteContext,
@@ -403,8 +398,8 @@ class ServiceBackend(
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
 
-  override def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T =
-    ExecutionTimer.logTime(methodName) { timer =>
+  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
+    ExecutionTimer.logTime { timer =>
       ExecuteContext.scoped(
         tmpdir,
         "file:///tmp",
@@ -415,18 +410,16 @@ class ServiceBackend(
         theHailClassLoader,
         flags,
         serviceBackendContext,
+        IrMetadata(None),
       )(f)
     }
 
   def addLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    withExecuteContext("addLiftover") { ctx =>
-      references(name).addLiftover(ctx, chainFile, destRGName)
-    }
+    withExecuteContext(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
 
   def addSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    withExecuteContext("addSequence") { ctx =>
-      references(name).addSequence(ctx, fastaFile, indexFile)
-    }
+    withExecuteContext(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
+
 }
 
 class EndOfInputException extends RuntimeException
@@ -600,10 +593,23 @@ class ServiceBackendAPI(
         val qobExecutePayload = payload.extract[ServiceBackendExecutePayload]
         val bufferSpecString = qobExecutePayload.payload.stream_codec
         val code = qobExecutePayload.payload.ir
-        val token = qobExecutePayload.idempotency_token
-        backend.withExecuteContext("ServiceBackend.execute") { ctx =>
+        backend.withExecuteContext { ctx =>
           withIRFunctionsReadFromInput(qobExecutePayload.functions, ctx) { () =>
-            backend.execute(ctx, code, token, bufferSpecString)
+            val ir =
+              IRParser.parse_value_ir(code, IRParserEnvironment(ctx, backend.persistedIR.toMap))
+            backend.execute(ctx, ir) match {
+              case Left(()) =>
+                Array()
+              case Right((pt, off)) =>
+                val elementType = pt.fields(0).typ
+                val codec = TypedCodecSpec(
+                  EType.fromPythonTypeEncoding(elementType.virtualType),
+                  elementType.virtualType,
+                  BufferSpec.parseOrDefault(bufferSpecString),
+                )
+                assert(pt.isFieldDefined(off, 0))
+                codec.encode(ctx, elementType, pt.loadField(off, 0))
+            }
           }
         }
       case PARSE_VCF_METADATA =>

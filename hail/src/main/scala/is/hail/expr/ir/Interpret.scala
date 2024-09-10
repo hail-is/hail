@@ -958,7 +958,7 @@ object Interpret {
 
           // TODO Is this right? where does wrapped run?
           ctx.scopedExecution((hcl, fs, htc, r) =>
-            SafeRow(rt, f(hcl, fs, htc, r).apply(r, globalsOffset))
+            SafeRow(rt, f(hcl, fs, htc, r)(r, globalsOffset))
           )
         } else {
           val spec = BufferSpec.blockedUncompressed

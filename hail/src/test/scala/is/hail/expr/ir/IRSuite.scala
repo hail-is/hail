@@ -3921,7 +3921,7 @@ class IRSuite extends HailSuite {
   @Test def testCachedIR(): Unit = {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR 1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
+    val x2 = ExecuteContext.scoped { ctx =>
       IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
@@ -3930,7 +3930,7 @@ class IRSuite extends HailSuite {
   @Test def testCachedTableIR(): Unit = {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable 1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
+    val x2 = ExecuteContext.scoped { ctx =>
       IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
@@ -4153,9 +4153,8 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin,
     )
-    val v = ExecutionTimer.logTime("IRSuite.regressionTestUnifyBug") { timer =>
-      backend.execute(timer, ir, optimize = true)
-    }
+    val v = backend.execute(ctx, ir)
+
     assert(
       ir.typ.ordering(ctx.stateManager).equiv(
         FastSeq(
@@ -4217,12 +4216,12 @@ class IRSuite extends HailSuite {
 
     var memUsed = 0L
 
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       eval(ndSum, Env.empty, FastSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx)
       memUsed = ctx.r.pool.getHighestTotalUsage
     }
 
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       eval(ndSum, Env.empty, FastSeq(100 -> TInt32, startingArg -> ndType), None, None, true, ctx)
       assert(memUsed == ctx.r.pool.getHighestTotalUsage)
     }

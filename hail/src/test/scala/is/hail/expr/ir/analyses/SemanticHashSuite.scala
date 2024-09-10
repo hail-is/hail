@@ -7,7 +7,7 @@ import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
-import is.hail.utils.{using, FastSeq}
+import is.hail.utils.FastSeq
 
 import scala.util.control.NonFatal
 
@@ -327,21 +327,7 @@ class SemanticHashSuite extends HailSuite {
   }
 
   def semhash(fs: FS)(ir: BaseIR): Option[SemanticHash.Type] =
-    ExecuteContext.scoped() { ctx =>
-      using(new ExecuteContext(
-        ctx.tmpdir,
-        ctx.localTmpdir,
-        ctx.backend,
-        fs,
-        ctx.r,
-        ctx.timer,
-        ctx.tempFileManager,
-        ctx.theHailClassLoader,
-        ctx.flags,
-        ctx.backendContext,
-        ctx.irMetadata,
-      ))(SemanticHash(_)(ir))
-    }
+    ExecuteContext.scoped(_.local(fs = fs)(SemanticHash(_)(ir)))
 
   val fakeFs: FS =
     new FakeFS {

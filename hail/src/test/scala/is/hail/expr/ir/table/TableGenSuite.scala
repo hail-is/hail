@@ -109,7 +109,7 @@ class TableGenSuite extends HailSuite {
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
-      ExecuteContext.scoped()(ctx => loweredExecute(ctx, lowered, Env.empty, FastSeq(), None))
+      ExecuteContext.scoped(ctx => loweredExecute(ctx, lowered, Env.empty, FastSeq(), None))
     }
     ex.errorId shouldBe errorId
     ex.getMessage should include("partitioner contains 0 partitions, got 2 contexts.")
@@ -131,7 +131,7 @@ class TableGenSuite extends HailSuite {
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
-      ExecuteContext.scoped()(ctx => loweredExecute(ctx, lowered, Env.empty, FastSeq(), None))
+      ExecuteContext.scoped(ctx => loweredExecute(ctx, lowered, Env.empty, FastSeq(), None))
     }.getCause.asInstanceOf[HailException]
 
     ex.errorId shouldBe errorId

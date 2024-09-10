@@ -1434,10 +1434,10 @@ object RVD {
         }
     }
 
-    val partFilePartitionCounts = execCtx.timer.time("writeOriginUnionRDD")(new ContextRDD(
-      new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF)
-    )
-      .collect())
+    val partFilePartitionCounts = execCtx.time {
+      val rdd = new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF)
+      new ContextRDD(rdd).collect()
+    }
 
     val fileDataByOrigin =
       Array.fill[BoxedArrayBuilder[FileWriteMetadata]](nRVDs)(new BoxedArrayBuilder())

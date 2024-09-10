@@ -1,18 +1,16 @@
 package is.hail.backend.local
 
 import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
-import is.hail.annotations.{Region, SafeRow}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{IRParser, _}
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
-import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
-import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.{BlockMatrixType, TVoid}
@@ -26,8 +24,7 @@ import java.io.PrintWriter
 
 import com.google.common.util.concurrent.MoreExecutors
 import org.apache.hadoop
-import org.json4s._
-import org.json4s.jackson.Serialization
+import sourcecode.Enclosing
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
@@ -83,26 +80,8 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
   // flags can be set after construction from python
   def fs: FS = FS.buildRoutes(None, Some(flags), sys.env)
 
-  def withExecuteContext[T](timer: ExecutionTimer): (ExecuteContext => T) => T = {
-    val fs = this.fs
-    ExecuteContext.scoped(
-      tmpdir,
-      tmpdir,
-      this,
-      fs,
-      timer,
-      null,
-      theHailClassLoader,
-      flags,
-      new BackendContext {
-        override val executionCache: ExecutionCache =
-          ExecutionCache.fromFlags(flags, fs, tmpdir)
-      },
-    )
-  }
-
-  override def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T =
-    ExecutionTimer.logTime(methodName) { timer =>
+  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
+    ExecutionTimer.logTime { timer =>
       val fs = this.fs
       ExecuteContext.scoped(
         tmpdir,
@@ -117,6 +96,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
           override val executionCache: ExecutionCache =
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
+        IrMetadata(None),
       )(f)
     }
 
@@ -163,134 +143,69 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     ctx: ExecuteContext,
     ir0: IR,
     print: Option[PrintWriter] = None,
-  ): Either[Unit, (PTuple, Long)] = {
-    val ir =
-      LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
+  ): Either[Unit, (PTuple, Long)] =
+    ctx.time {
+      val ir =
+        LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
 
-    if (!Compilable(ir))
-      throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
+      if (!Compilable(ir))
+        throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
 
-    if (ir.typ == TVoid) {
-      val (_, f) = ctx.timer.time("Compile") {
-        Compile[AsmFunction1RegionUnit](
-          ctx,
-          FastSeq(),
-          FastSeq(classInfo[Region]),
-          UnitInfo,
-          ir,
-          print = print,
-        )
-      }
-
-      ctx.timer.time("Run") {
-        Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r)))
-      }
-    } else {
-      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
-        Compile[AsmFunction1RegionLong](
-          ctx,
-          FastSeq(),
-          FastSeq(classInfo[Region]),
-          LongInfo,
-          MakeTuple.ordered(FastSeq(ir)),
-          print = print,
-        )
-      }
-
-      ctx.timer.time("Run") {
-        Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r).apply(r))))
-      }
-    }
-  }
-
-  private[this] def _execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] = {
-    TypeCheck(ctx, ir)
-    Validate(ir)
-    val queryID = Backend.nextID()
-    log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
-    ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
-    val res = _jvmLowerAndExecute(ctx, ir)
-    log.info(s"finished execution of query $queryID")
-    res
-  }
-
-  def executeToJavaValue(timer: ExecutionTimer, ir: IR): (Any, ExecutionTimer) =
-    withExecuteContext(timer) { ctx =>
-      val result = _execute(ctx, ir) match {
-        case Left(_) =>
-          (null, ctx.timer)
-        case Right((pt, off)) =>
-          (SafeRow(pt, off).get(0), ctx.timer)
-      }
-      result
-    }
-
-  def executeToEncoded(timer: ExecutionTimer, ir: IR, bs: BufferSpec): Array[Byte] =
-    withExecuteContext(timer) { ctx =>
-      val result = _execute(ctx, ir) match {
-        case Left(_) => Array[Byte]()
-        case Right((pt, off)) =>
-          val elementType = pt.fields(0).typ
-          assert(pt.isFieldDefined(off, 0))
-          val codec = TypedCodecSpec(
-            EType.fromPythonTypeEncoding(elementType.virtualType),
-            elementType.virtualType,
-            bs,
+      ir.typ match {
+        case TVoid =>
+          val (_, f) = Compile[AsmFunction1RegionUnit](
+            ctx,
+            FastSeq(),
+            FastSeq(classInfo[Region]),
+            UnitInfo,
+            ir,
+            print = print,
           )
-          codec.encode(ctx, elementType, pt.loadField(off, 0))
+
+          Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
+        case _ =>
+          val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) =
+            Compile[AsmFunction1RegionLong](
+              ctx,
+              FastSeq(),
+              FastSeq(classInfo[Region]),
+              LongInfo,
+              MakeTuple.ordered(FastSeq(ir)),
+              print = print,
+            )
+
+          Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
       }
-      result
     }
 
-  def executeLiteral(irStr: String): Int = {
-    ExecutionTimer.logTime("SparkBackend.executeLiteral") { timer =>
-      withExecuteContext(timer) { ctx =>
-        val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-        val t = ir.typ
-        assert(t.isRealizable)
-        val queryID = Backend.nextID()
-        log.info(s"starting execution of query $queryID} of initial size ${IRSize(ir)}")
-        val retVal = _execute(ctx, ir)
-        val literalIR = retVal match {
-          case Left(_) => throw new HailException("Can't create literal")
-          case Right((pt, addr)) =>
-            GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
-        }
-        log.info(s"finished execution of query $queryID")
-        addJavaIR(literalIR)
-      }
+  override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
+    ctx.time {
+      TypeCheck(ctx, ir)
+      Validate(ir)
+      val queryID = Backend.nextID()
+      log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
+      ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
+      val res = _jvmLowerAndExecute(ctx, ir)
+      log.info(s"finished execution of query $queryID")
+      res
     }
-  }
 
-  override def execute(
-    ir: String,
-    timed: Boolean,
-  )(
-    consume: (ExecuteContext, Either[Unit, (PTuple, Long)], String) => Unit
-  ): Unit = {
-    withExecuteContext("LocalBackend.execute") { ctx =>
-      val res = ctx.timer.time("execute") {
-        val irData =
-          IRParser.parse_value_ir(ir, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-        val queryID = Backend.nextID()
-        log.info(s"starting execution of query $queryID of initial size ${IRSize(irData)}")
-        _execute(ctx, irData)
+  def executeLiteral(irStr: String): Int =
+    withExecuteContext { ctx =>
+      val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
+      execute(ctx, ir) match {
+        case Left(_) => throw new HailException("Can't create literal")
+        case Right((pt, addr)) =>
+          val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
+          addJavaIR(field)
       }
-      ctx.timer.finish()
-      val timings = if (timed)
-        Serialization.write(Map("timings" -> ctx.timer.toMap))(new DefaultFormats {})
-      else ""
-      consume(ctx, res, timings)
     }
-  }
 
   def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
   def pyRemoveReference(name: String): Unit = removeReference(name)
 
   def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    ExecutionTimer.logTime("LocalBackend.pyReferenceAddLiftover") { timer =>
-      withExecuteContext(timer)(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
-    }
+    withExecuteContext(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
 
   def pyRemoveLiftover(name: String, destRGName: String) =
     references(name).removeLiftover(destRGName)
@@ -303,63 +218,50 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     yContigs: java.util.List[String],
     mtContigs: java.util.List[String],
     parInput: java.util.List[String],
-  ): String = {
-    ExecutionTimer.logTime("LocalBackend.pyFromFASTAFile") { timer =>
-      withExecuteContext(timer) { ctx =>
-        val rg = ReferenceGenome.fromFASTAFile(
-          ctx,
-          name,
-          fastaFile,
-          indexFile,
-          xContigs.asScala.toArray,
-          yContigs.asScala.toArray,
-          mtContigs.asScala.toArray,
-          parInput.asScala.toArray,
-        )
-        rg.toJSONString
-      }
+  ): String =
+    withExecuteContext { ctx =>
+      val rg = ReferenceGenome.fromFASTAFile(
+        ctx,
+        name,
+        fastaFile,
+        indexFile,
+        xContigs.asScala.toArray,
+        yContigs.asScala.toArray,
+        mtContigs.asScala.toArray,
+        parInput.asScala.toArray,
+      )
+      rg.toJSONString
     }
-  }
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    ExecutionTimer.logTime("LocalBackend.pyAddSequence") { timer =>
-      withExecuteContext(timer)(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
-    }
+    withExecuteContext(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
 
   def pyRemoveSequence(name: String) = references(name).removeSequence()
 
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
-    ExecutionTimer.logTime("LocalBackend.parse_value_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IRParser.parse_value_ir(
-          s,
-          IRParserEnvironment(ctx, persistedIR.toMap),
-          BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
-            Name(n) -> IRParser.parseType(t)
-          }.toSeq: _*),
-        )
-      }
+    withExecuteContext { ctx =>
+      IRParser.parse_value_ir(
+        s,
+        IRParserEnvironment(ctx, persistedIR.toMap),
+        BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
+          Name(n) -> IRParser.parseType(t)
+        }.toSeq: _*),
+      )
     }
 
   def parse_table_ir(s: String): TableIR =
-    ExecutionTimer.logTime("LocalBackend.parse_table_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      }
+    withExecuteContext { ctx =>
+      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
     }
 
   def parse_matrix_ir(s: String): MatrixIR =
-    ExecutionTimer.logTime("LocalBackend.parse_matrix_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      }
+    withExecuteContext { ctx =>
+      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
     }
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
-    ExecutionTimer.logTime("LocalBackend.parse_blockmatrix_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
-        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      }
+    withExecuteContext { ctx =>
+      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
     }
 
   override def lowerDistributedSort(

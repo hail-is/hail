@@ -2,6 +2,8 @@ package is.hail.utils
 
 import scala.collection.mutable
 
+import sourcecode.Enclosing
+
 class TimeBlock(val name: String) {
   val children: mutable.ArrayBuffer[TimeBlock] = new mutable.ArrayBuffer()
   var totalTime: Long = 0L
@@ -50,16 +52,16 @@ class TimeBlock(val name: String) {
 }
 
 object ExecutionTimer {
-  def time[T](rootName: String)(f: ExecutionTimer => T): (T, ExecutionTimer) = {
-    val timer = new ExecutionTimer(rootName)
+  def time[T](f: ExecutionTimer => T)(implicit E: Enclosing): (T, Map[String, Any]) = {
+    val timer = new ExecutionTimer(E.value)
     val result = f(timer)
     timer.finish()
     timer.logInfo()
-    (result, timer)
+    (result, timer.toMap)
   }
 
-  def logTime[T](rootName: String)(f: ExecutionTimer => T): T = {
-    val (result, _) = time[T](rootName)(f)
+  def logTime[T](f: ExecutionTimer => T)(implicit E: Enclosing): T = {
+    val (result, _) = time[T](f)
     result
   }
 }
@@ -81,11 +83,12 @@ class ExecutionTimer(val rootName: String) {
     parent.children += child
     stack.push(child)
     val start = System.nanoTime()
-    val result: T = block
-    val end = System.nanoTime()
-    child.finish(end - start)
-    stack.pop()
-    result
+    try block
+    finally {
+      val end = System.nanoTime()
+      child.finish(end - start)
+      stack.pop()
+    }
   }
 
   def finish(): Unit = {
