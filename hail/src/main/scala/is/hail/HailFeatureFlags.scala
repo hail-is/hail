@@ -47,7 +47,7 @@ object HailFeatureFlags {
     ),
   )
 
-  def fromMap(m: Map[String, String]): HailFeatureFlags =
+  def fromEnv(m: Map[String, String] = sys.env): HailFeatureFlags =
     new HailFeatureFlags(
       mutable.Map(
         HailFeatureFlags.defaults.map {
