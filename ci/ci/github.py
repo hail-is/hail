@@ -475,7 +475,7 @@ class PR(Code):
     async def _update_github(self, gh):
         results = []
         cursor = None
-        review_decision = None
+        review_decision = -1
 
         def query():
             return f"""
@@ -485,7 +485,8 @@ class PR(Code):
                     name: "{self.target_branch.branch.repo.name}"
                   ) {{
                     pullRequest (number: {self.number}) {{
-                      {"reviewDecision" if review_decision is None else ""}
+                      {"reviewDecision" if review_decision == -1 else ""}
+                      mergeStateStatus
                       commits (last: 1) {{
                         nodes {{
                           commit {{
@@ -519,17 +520,17 @@ class PR(Code):
             """
 
         while (
-            contexts := (
+            rollup := (
                 pull_request := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"][
                     "pullRequest"
                 ]
-            )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
-        )["pageInfo"]["hasNextPage"]:
-            if review_decision is None:
+            )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        ) is not None and rollup["contexts"]["pageInfo"]["hasNextPage"]:
+            if review_decision is -1:
                 review_decision = pull_request["reviewDecision"]
-            cursor = contexts["pageInfo"]["endCursor"]
-            results.extend(contexts["nodes"])
-        results.extend(contexts["nodes"])
+            cursor = rollup["contexts"]["pageInfo"]["endCursor"]
+            results.extend(rollup["contexts"]["nodes"])
+        results.extend(rollup["contexts"]["nodes"])
 
         if review_decision == 'APPROVED':
             review_state = 'approved'
