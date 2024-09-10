@@ -57,15 +57,15 @@ def github_status(state: str) -> GithubStatus:
     or a conclusion for a check (https://docs.github.com/en/graphql/reference/enums#checkconclusionstate)
     from the GraphQL API to a GithubStatus.
     """
-    _state = state
-    if state in {"EXPECTED", "ACTION_REQUIRED", "STALE"}:
+    _state = None
+    if state in {"PENDING", "EXPECTED", "ACTION_REQUIRED", "STALE"}:
         _state = "PENDING"
-    elif state in {"ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE"}:
+    elif state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:
         _state = "FAILURE"
-    elif state in {"NEUTRAL", "SKIPPED"}:
+    elif state in {"SUCCESS", "NEUTRAL"}:
         _state = "SUCCESS"
-    if _state not in {item.name for item in GithubStatus}:
-        raise ValueError(f"Unexpected value for GithubStatus: {_state}")
+    if _state is None:
+        raise ValueError(f"Unexpected value for GithubStatus: {state}")
     return GithubStatus(_state)
 
 
