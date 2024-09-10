@@ -12,13 +12,11 @@ import is.hail.expr.ir.{
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
-import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.services._
 import is.hail.services.batch_client.BatchClient
 import is.hail.types._
-import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
@@ -601,14 +599,10 @@ class ServiceBackendAPI(
               case Left(()) =>
                 Array()
               case Right((pt, off)) =>
-                val elementType = pt.fields(0).typ
-                val codec = TypedCodecSpec(
-                  EType.fromPythonTypeEncoding(elementType.virtualType),
-                  elementType.virtualType,
-                  BufferSpec.parseOrDefault(bufferSpecString),
-                )
-                assert(pt.isFieldDefined(off, 0))
-                codec.encode(ctx, elementType, pt.loadField(off, 0))
+                using(new ByteArrayOutputStream()) { os =>
+                  Backend.encodeToOutputStream(ctx, pt, off, bufferSpecString, os)
+                  os.toByteArray
+                }
             }
           }
         }

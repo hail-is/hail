@@ -36,12 +36,6 @@ trait AbstractTypedCodecSpec extends Spec {
   def buildDecoder(ctx: ExecuteContext, requestedType: Type)
     : (PType, (InputStream, HailClassLoader) => Decoder)
 
-  def encode(ctx: ExecuteContext, t: PType, offset: Long): Array[Byte] = {
-    val baos = new ByteArrayOutputStream()
-    encode(ctx, t, offset, baos)
-    baos.toByteArray
-  }
-
   def encode(ctx: ExecuteContext, t: PType, offset: Long, os: OutputStream): Unit =
     using(buildEncoder(ctx, t)(os, ctx.theHailClassLoader))(_.writeRegionValue(ctx.r, offset))
 

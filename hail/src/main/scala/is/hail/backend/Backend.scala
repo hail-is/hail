@@ -47,6 +47,25 @@ object Backend {
     irID += 1
     irID
   }
+
+  def encodeToOutputStream(
+    ctx: ExecuteContext,
+    t: PTuple,
+    off: Long,
+    bufferSpecString: String,
+    os: OutputStream,
+  ): Unit = {
+    val bs = BufferSpec.parseOrDefault(bufferSpecString)
+    assert(t.size == 1)
+    val elementType = t.fields(0).typ
+    val codec = TypedCodecSpec(
+      EType.fromPythonTypeEncoding(elementType.virtualType),
+      elementType.virtualType,
+      bs,
+    )
+    assert(t.isFieldDefined(off, 0))
+    codec.encode(ctx, elementType, t.loadField(off, 0), os)
+  }
 }
 
 abstract class BroadcastValue[T] { def value: T }
@@ -266,25 +285,6 @@ abstract class Backend {
   }
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
-
-  def encodeToOutputStream(
-    ctx: ExecuteContext,
-    t: PTuple,
-    off: Long,
-    bufferSpecString: String,
-    os: OutputStream,
-  ): Unit = {
-    val bs = BufferSpec.parseOrDefault(bufferSpecString)
-    assert(t.size == 1)
-    val elementType = t.fields(0).typ
-    val codec = TypedCodecSpec(
-      EType.fromPythonTypeEncoding(elementType.virtualType),
-      elementType.virtualType,
-      bs,
-    )
-    assert(t.isFieldDefined(off, 0))
-    codec.encode(ctx, elementType, t.loadField(off, 0), os)
-  }
 }
 
 trait BackendWithCodeCache {

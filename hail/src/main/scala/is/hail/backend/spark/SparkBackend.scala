@@ -15,7 +15,6 @@ import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
 import is.hail.types._
-import is.hail.types.encoded.EType
 import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
@@ -565,20 +564,6 @@ class SparkBackend(
           addJavaIR(field)
       }
     }
-
-  def encodeToBytes(ctx: ExecuteContext, t: PTuple, off: Long, bufferSpecString: String)
-    : Array[Byte] = {
-    val bs = BufferSpec.parseOrDefault(bufferSpecString)
-    assert(t.size == 1)
-    val elementType = t.fields(0).typ
-    val codec = TypedCodecSpec(
-      EType.fromPythonTypeEncoding(elementType.virtualType),
-      elementType.virtualType,
-      bs,
-    )
-    assert(t.isFieldDefined(off, 0))
-    codec.encode(ctx, elementType, t.loadField(off, 0))
-  }
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) = {
     val key = jKey.asScala.toArray.toFastSeq
