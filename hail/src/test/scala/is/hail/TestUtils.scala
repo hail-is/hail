@@ -118,14 +118,12 @@ object TestUtils {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
 
-    ExecutionTimer.logTime("TestUtils.loweredExecute") { timer =>
-      HailContext.sparkBackend("TestUtils.loweredExecute")
-        .jvmLowerAndExecute(ctx, timer, x, optimize = false, lowerTable = true, lowerBM = true,
-          print = bytecodePrinter)
-    }
+    HailContext.sparkBackend("TestUtils.loweredExecute")
+      .jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true, lowerBM = true,
+        print = bytecodePrinter)
   }
 
-  def eval(x: IR): Any = ExecuteContext.scoped() { ctx =>
+  def eval(x: IR): Any = ExecuteContext.scoped { ctx =>
     eval(x, Env.empty, FastSeq(), None, None, true, ctx)
   }
 
@@ -273,7 +271,7 @@ object TestUtils {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Unit = {
     val t = x.typ
 
-    val (i, i2, c) = ExecuteContext.scoped() { ctx =>
+    val (i, i2, c) = ExecuteContext.scoped { ctx =>
       val i = Interpret[Any](ctx, x, env, args)
       val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
       val c = eval(x, env, args, None, None, true, ctx)
@@ -297,7 +295,7 @@ object TestUtils {
     args: IndexedSeq[(Any, Type)],
     regex: String,
   ): Unit =
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
       interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
@@ -319,7 +317,7 @@ object TestUtils {
     args: IndexedSeq[(Any, Type)],
     regex: String,
   ): Unit =
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
     }
 
