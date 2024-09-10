@@ -612,7 +612,7 @@ BEGIN
 
   SET job_group_cancelled = EXISTS (SELECT TRUE
                                     FROM job_group_self_and_ancestors
-                                    INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
+                                    INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
                                       job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
                                     WHERE batch_id = NEW.batch_id AND job_group_self_and_ancestors.job_group_id = NEW.job_group_id
                                     LOCK IN SHARE MODE);
@@ -671,7 +671,7 @@ BEGIN
 
   SET cur_job_group_cancelled = EXISTS (SELECT TRUE
                                         FROM job_group_self_and_ancestors
-                                        INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
+                                        INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
                                           job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
                                         WHERE batch_id = OLD.batch_id AND job_group_self_and_ancestors.job_group_id = OLD.job_group_id
                                         LOCK IN SHARE MODE);
@@ -1107,7 +1107,7 @@ BEGIN
 
   SET cur_cancelled = EXISTS (SELECT TRUE
                               FROM job_group_self_and_ancestors
-                              INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
+                              INNER JOIN job_groups_cancelled ON job_group_self_and_ancestors.batch_id = job_groups_cancelled.id AND
                                 job_group_self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
                               WHERE batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
                               FOR UPDATE);
@@ -1256,10 +1256,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.batch_id = jobs.batch_id
+  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -1376,10 +1376,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.batch_id = jobs.batch_id
+  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
@@ -1421,10 +1421,10 @@ BEGIN
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT (jobs.cancelled OR job_groups_cancelled.batch_id IS NOT NULL) AND NOT jobs.always_run
+  SELECT (jobs.cancelled OR job_groups_cancelled.id IS NOT NULL) AND NOT jobs.always_run
   INTO cur_job_cancel
   FROM jobs
-  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.batch_id = jobs.batch_id
+  LEFT JOIN job_groups_cancelled ON job_groups_cancelled.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
   LOCK IN SHARE MODE;
 
