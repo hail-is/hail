@@ -107,7 +107,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
             case Right((t, off)) =>
               exchange.sendResponseHeaders(200, 0L) // 0 => an arbitrarily long response body
               using(exchange.getResponseBody) { os =>
-                backend.encodeToOutputStream(ctx, t, off, streamCodec, os)
+                Backend.encodeToOutputStream(ctx, t, off, streamCodec, os)
               }
           }
         }
