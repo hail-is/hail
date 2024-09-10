@@ -1490,7 +1490,7 @@ class TableIRSuite extends HailSuite {
         ApplyAggOp(Collect())(GetField(Ref(TableIR.rowName, tableType.rowType), "rsid"))
       )),
     )
-    val optimized = Optimize(irToLower, "foo", ctx)
+    val optimized = Optimize(ctx, irToLower)
     val analyses = LoweringAnalyses.apply(optimized, ctx)
     LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
   }

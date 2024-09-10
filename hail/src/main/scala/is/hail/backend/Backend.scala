@@ -3,7 +3,7 @@ package is.hail.backend
 import is.hail.asm4s._
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{
-  BaseIR, CodeCacheKey, CompiledFunction, IRParser, IRParserEnvironment, LoweringAnalyses,
+  BaseIR, CodeCacheKey, CompiledFunction, IR, IRParser, IRParserEnvironment, LoweringAnalyses,
   SortField, TableIR, TableReader,
 }
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -30,6 +30,7 @@ import java.nio.charset.StandardCharsets
 import com.fasterxml.jackson.core.StreamReadConstraints
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+import sourcecode.Enclosing
 
 object Backend {
 
@@ -169,41 +170,41 @@ abstract class Backend {
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage
 
-  def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T
+  def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T
 
   private[this] def jsonToBytes(f: => JValue): Array[Byte] =
     JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
 
   final def valueType(s: String): Array[Byte] =
     jsonToBytes {
-      withExecuteContext("valueType") { ctx =>
+      withExecuteContext { ctx =>
         IRParser.parse_value_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
   final def tableType(s: String): Array[Byte] =
     jsonToBytes {
-      withExecuteContext("tableType") { ctx =>
+      withExecuteContext { ctx =>
         IRParser.parse_table_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
   final def matrixTableType(s: String): Array[Byte] =
     jsonToBytes {
-      withExecuteContext("matrixTableType") { ctx =>
+      withExecuteContext { ctx =>
         IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
   final def blockMatrixType(s: String): Array[Byte] =
     jsonToBytes {
-      withExecuteContext("blockMatrixType") { ctx =>
+      withExecuteContext { ctx =>
         IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
   def loadReferencesFromDataset(path: String): Array[Byte] = {
-    withExecuteContext("loadReferencesFromDataset") { ctx =>
+    withExecuteContext { ctx =>
       val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
       rgs.foreach(addReference)
 
@@ -221,14 +222,14 @@ abstract class Backend {
     mtContigs: Array[String],
     parInput: Array[String],
   ): Array[Byte] =
-    withExecuteContext("fromFASTAFile") { ctx =>
+    withExecuteContext { ctx =>
       val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
         xContigs, yContigs, mtContigs, parInput)
       rg.toJSONString.getBytes(StandardCharsets.UTF_8)
     }
 
   def parseVCFMetadata(path: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("parseVCFMetadata") { ctx =>
+    withExecuteContext { ctx =>
       val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
       implicit val formats = defaultJSONFormats
       Extraction.decompose(metadata)
@@ -237,7 +238,7 @@ abstract class Backend {
 
   def importFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String)
     : Array[Byte] =
-    withExecuteContext("importFam") { ctx =>
+    withExecuteContext { ctx =>
       LoadPlink.importFamJSON(ctx.fs, path, isQuantPheno, delimiter, missingValue).getBytes(
         StandardCharsets.UTF_8
       )
@@ -251,7 +252,7 @@ abstract class Backend {
     returnType: String,
     bodyStr: String,
   ): Unit = {
-    withExecuteContext("pyRegisterIR") { ctx =>
+    withExecuteContext { ctx =>
       IRFunctionRegistry.registerIR(
         ctx,
         name,
@@ -264,12 +265,7 @@ abstract class Backend {
     }
   }
 
-  def execute(
-    ir: String,
-    timed: Boolean,
-  )(
-    consume: (ExecuteContext, Either[Unit, (PTuple, Long)], String) => Unit
-  ): Unit = ()
+  def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
 
   def encodeToOutputStream(
     ctx: ExecuteContext,
