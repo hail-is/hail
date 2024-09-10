@@ -53,7 +53,9 @@ class GithubStatus(Enum):
 
 def github_status(state: str) -> GithubStatus:
     """
-    Converts a state for a commit status or a conclusion for a check from the GraphQL API to a GithubStatus.
+    Converts a state for a commit status (https://docs.github.com/en/graphql/reference/enums#statusstate)
+    or a conclusion for a check (https://docs.github.com/en/graphql/reference/enums#checkconclusionstate)
+    from the GraphQL API to a GithubStatus.
     """
     _state = state
     if state in {"EXPECTED", "ACTION_REQUIRED", "STALE"}:
@@ -62,6 +64,8 @@ def github_status(state: str) -> GithubStatus:
         _state = "FAILURE"
     elif state in {"NEUTRAL", "SKIPPED"}:
         _state = "SUCCESS"
+    if _state not in set([item.name for item in GithubStatus]):
+        raise ValueError(f"Unexpected value for GithubStatus: {_state}")
     return GithubStatus(_state)
 
 
@@ -469,48 +473,40 @@ class PR(Code):
                 log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
     async def _update_github(self, gh):
-        await self._update_last_known_github_status(gh)
-        await self._update_github_review_state(gh)
+        results = []
+        cursor = None
+        review_decision = None
 
-    async def _update_last_known_github_status(self, gh):
-        if self.source_sha:
-            results = []
-            cursor = None
-
-            def query():
-                def after():
-                    return f', after: "{cursor}"' if cursor is not None else ''
-
-                return f"""
-                    query {{
-                      repository (
-                        owner: "{self.target_branch.branch.repo.owner}",
-                        name: "{self.target_branch.branch.repo.name}"
-                      ) {{
-                        pullRequest (number: {self.number}) {{
-                          commits (last: 1) {{
-                            nodes {{
-                              commit {{
-                                statusCheckRollup {{
-                                  contexts (first: 10{after()}) {{
-                                    nodes {{
-                                      __typename
-                                      ... on CheckRun {{
-                                        name
-                                        conclusion
-                                        isRequired (pullRequestNumber: {self.number})
-                                      }}
-                                      ... on StatusContext {{
-                                        context
-                                        state
-                                        isRequired (pullRequestNumber: {self.number})
-                                      }}
-                                    }}
-                                    pageInfo {{
-                                      endCursor
-                                      hasNextPage
-                                    }}
+        def query():
+            return f"""
+                query {{
+                  repository (
+                    owner: "{self.target_branch.branch.repo.owner}",
+                    name: "{self.target_branch.branch.repo.name}"
+                  ) {{
+                    pullRequest (number: {self.number}) {{
+                      {"reviewDecision" if review_decision is None else ""}
+                      commits (last: 1) {{
+                        nodes {{
+                          commit {{
+                            statusCheckRollup {{
+                              contexts (first: 10{f', after: "{cursor}"' if cursor is not None else ''}) {{
+                                nodes {{
+                                  __typename
+                                  ... on CheckRun {{
+                                    name
+                                    conclusion
+                                    isRequired (pullRequestNumber: {self.number})
                                   }}
+                                  ... on StatusContext {{
+                                    context
+                                    state
+                                    isRequired (pullRequestNumber: {self.number})
+                                  }}
+                                }}
+                                pageInfo {{
+                                  endCursor
+                                  hasNextPage
                                 }}
                               }}
                             }}
@@ -518,43 +514,22 @@ class PR(Code):
                         }}
                       }}
                     }}
-                """
-
-            while (
-                contexts := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"]["pullRequest"][
-                    "commits"
-                ]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
-            )["pageInfo"]["hasNextPage"]:
-                cursor = contexts["pageInfo"]["endCursor"]
-                results.extend(contexts["nodes"])
-            results.extend(contexts["nodes"])
-            last_known_github_status = {}
-            for check in results:
-                if check["isRequired"]:
-                    if check["__typename"] == "StatusContext":
-                        last_known_github_status[check["context"]] = github_status(check["state"])
-                    else:
-                        last_known_github_status[check["name"]] = github_status(check["conclusion"])
-            if last_known_github_status != self.last_known_github_status:
-                log.info(
-                    f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}'
-                )
-                self.last_known_github_status = last_known_github_status
-                self.target_branch.state_changed = True
-
-    async def _update_github_review_state(self, gh):
-        review_state_query = f"""
-        query {{
-            repository(owner: "{self.target_branch.branch.repo.owner}", name: "{self.target_branch.branch.repo.name}") {{
-                pullRequest(number: {self.number}) {{
-                      reviewDecision
+                  }}
                 }}
-            }}
-        }}
-        """
+            """
 
-        response = await gh.post('/graphql', data={'query': review_state_query})
-        review_decision = response['data']['repository']['pullRequest']['reviewDecision']
+        while (
+            contexts := (
+                pull_request := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"][
+                    "pullRequest"
+                ]
+            )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
+        )["pageInfo"]["hasNextPage"]:
+            if review_decision is None:
+                review_decision = pull_request["reviewDecision"]
+            cursor = contexts["pageInfo"]["endCursor"]
+            results.extend(contexts["nodes"])
+        results.extend(contexts["nodes"])
 
         if review_decision == 'APPROVED':
             review_state = 'approved'
@@ -574,6 +549,22 @@ class PR(Code):
         if review_state != self.review_state:
             log.info(f'{self.short_str()}: review state changing from {self.review_state} => {review_state}')
             self.set_review_state(review_state)
+            self.target_branch.state_changed = True
+
+        last_known_github_status = {}
+        for check in results:
+            if check["isRequired"]:
+                if (typename := check["__typename"]) == "StatusContext":
+                    last_known_github_status[check["context"]] = github_status(check["state"])
+                elif typename == "CheckRun":
+                    last_known_github_status[check["name"]] = github_status(check["conclusion"])
+                else:
+                    raise ValueError(f"Unexpected statusCheckRollup type: {typename}")
+        if last_known_github_status != self.last_known_github_status:
+            log.info(
+                f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}'
+            )
+            self.last_known_github_status = last_known_github_status
             self.target_branch.state_changed = True
 
     async def _start_build(self, db: Database, batch_client: BatchClient):
