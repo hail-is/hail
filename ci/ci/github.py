@@ -530,7 +530,8 @@ class PR(Code):
                 review_decision = pull_request["reviewDecision"]
             cursor = rollup["contexts"]["pageInfo"]["endCursor"]
             results.extend(rollup["contexts"]["nodes"])
-        results.extend(rollup["contexts"]["nodes"])
+        if rollup is not None:
+            results.extend(rollup["contexts"]["nodes"])
 
         if review_decision == 'APPROVED':
             review_state = 'approved'
