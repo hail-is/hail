@@ -332,7 +332,7 @@ class SparkBackend(
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
 
-  private[this] val flags = HailFeatureFlags.fromMap(sys.env)
+  private[this] val flags = HailFeatureFlags.fromEnv()
 
   def getFlag(name: String): String = flags.get(name)
 
