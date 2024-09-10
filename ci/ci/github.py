@@ -51,6 +51,20 @@ class GithubStatus(Enum):
     FAILURE = 'failure'
 
 
+def github_status(state: str) -> GithubStatus:
+    """
+    Converts a state for a commit status or a conclusion for a check from the GraphQL API to a GithubStatus.
+    """
+    _state = state
+    if state in {"EXPECTED", "ACTION_REQUIRED", "STALE"}:
+        _state = "PENDING"
+    elif state in {"ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE"}:
+        _state = "FAILURE"
+    elif state in {"NEUTRAL", "SKIPPED"}:
+        _state = "SUCCESS"
+    return GithubStatus(_state)
+
+
 def select_random_teammate(team):
     return random.choice([user for user in AUTHORIZED_USERS if team in user.teams])
 
@@ -458,26 +472,69 @@ class PR(Code):
         await self._update_last_known_github_status(gh)
         await self._update_github_review_state(gh)
 
-    @staticmethod
-    def _hail_github_status_from_statuses(statuses_json) -> Dict[str, GithubStatus]:
-        statuses = statuses_json["statuses"]
-        hail_statuses = {}
-        for s in statuses:
-            context = s['context']
-            if context == 'ci-test':
-                if context in hail_statuses:
-                    raise ValueError(
-                        f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
-                    )
-                hail_statuses[context] = GithubStatus(s['state'])
-        return hail_statuses
-
     async def _update_last_known_github_status(self, gh):
         if self.source_sha:
-            source_sha_json = await gh.getitem(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/commits/{self.source_sha}/status'
-            )
-            last_known_github_status = PR._hail_github_status_from_statuses(source_sha_json)
+            results = []
+            cursor = None
+
+            def query():
+                def after():
+                    return f', after: "{cursor}"' if cursor is not None else ''
+
+                return f"""
+                    query {{
+                      repository (
+                        owner: "{self.target_branch.branch.repo.owner}",
+                        name: "{self.target_branch.branch.repo.name}"
+                      ) {{
+                        pullRequest (number: {self.number}) {{
+                          commits (last: 1) {{
+                            nodes {{
+                              commit {{
+                                statusCheckRollup {{
+                                  contexts (first: 10{after()}) {{
+                                    nodes {{
+                                      __typename
+                                      ... on CheckRun {{
+                                        name
+                                        conclusion
+                                        isRequired (pullRequestNumber: {self.number})
+                                      }}
+                                      ... on StatusContext {{
+                                        context
+                                        state
+                                        isRequired (pullRequestNumber: {self.number})
+                                      }}
+                                    }}
+                                    pageInfo {{
+                                      endCursor
+                                      hasNextPage
+                                    }}
+                                  }}
+                                }}
+                              }}
+                            }}
+                          }}
+                        }}
+                      }}
+                    }}
+                """
+
+            while (
+                contexts := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"]["pullRequest"][
+                    "commits"
+                ]["nodes"][0]["commit"]["statusCheckRollup"]["contexts"]
+            )["pageInfo"]["hasNextPage"]:
+                cursor = contexts["pageInfo"]["endCursor"]
+                results.extend(contexts["nodes"])
+            results.extend(contexts["nodes"])
+            last_known_github_status = {}
+            for check in results:
+                if check["isRequired"]:
+                    if check["__typename"] == "StatusContext":
+                        last_known_github_status[check["context"]] = github_status(check["state"])
+                    else:
+                        last_known_github_status[check["name"]] = github_status(check["conclusion"])
             if last_known_github_status != self.last_known_github_status:
                 log.info(
                     f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}'
