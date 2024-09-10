@@ -64,7 +64,7 @@ def github_status(state: str) -> GithubStatus:
         _state = "FAILURE"
     elif state in {"NEUTRAL", "SKIPPED"}:
         _state = "SUCCESS"
-    if _state not in set([item.name for item in GithubStatus]):
+    if _state not in {item.name for item in GithubStatus}:
         raise ValueError(f"Unexpected value for GithubStatus: {_state}")
     return GithubStatus(_state)
 
