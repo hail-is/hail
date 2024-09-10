@@ -1,25 +1,21 @@
 package is.hail.io.fs
 
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.cloud.http.HttpTransportOptions
+import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption}
+import com.google.cloud.storage.{Option => _, _}
+import com.google.cloud.{ReadChannel, WriteChannel}
 import is.hail.HailFeatureFlags
 import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
+import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.services.{isTransientError, retryTransientErrors}
 import is.hail.utils._
 
-import scala.jdk.CollectionConverters._
-
-import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
+import java.io.{FileNotFoundException, IOException}
 import java.nio.ByteBuffer
-import java.nio.file.Paths
-
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.google.auth.oauth2.ServiceAccountCredentials
-import com.google.cloud.{ReadChannel, WriteChannel}
-import com.google.cloud.http.HttpTransportOptions
-import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageException, StorageOptions}
-import com.google.cloud.storage.Storage.{
-  BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption,
-}
-import org.apache.log4j.Logger
+import java.nio.file.{Path, Paths}
+import scala.jdk.CollectionConverters._
 
 case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
   def addPathComponent(c: String): GoogleStorageFSURL =
@@ -41,11 +37,7 @@ case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
 }
 
 object GoogleStorageFS {
-  object EnvVars {
-    val GoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
-  }
 
-  private val log = Logger.getLogger(getClass.getName())
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
 
   def parseUrl(filename: String): GoogleStorageFSURL = {
@@ -64,6 +56,32 @@ object GoogleStorageFS {
           s"GCS URI must be of the form: gs://bucket/path, found $filename"
         )
     }
+  }
+
+  object RequesterPaysFailure {
+    def unapply(t: Throwable): Option[Throwable] =
+      Some(t).filter {
+        case e: IOException =>
+          Option(e.getCause).exists {
+            case RequesterPaysFailure(_) => true
+            case _ => false
+          }
+
+        case exc: StorageException =>
+          Option(exc.getMessage).exists { message =>
+            message == "userProjectMissing" ||
+              (exc.getCode == 400 && message.contains("requester pays"))
+          }
+
+        case exc: GoogleJsonResponseException =>
+          Option(exc.getMessage).exists { message =>
+            message == "userProjectMissing" ||
+              (exc.getStatusCode == 400 && message.contains("requester pays"))
+          }
+
+        case _ =>
+          false
+      }
   }
 }
 
@@ -86,6 +104,8 @@ object GoogleStorageFileListEntry {
     new BlobStorageFileListEntry(url.toString, null, 0, true)
 }
 
+case class RequesterPaysConfig(project: String, buckets: Option[Set[String]])
+
 object RequesterPaysConfig {
   object Flags {
     val RequesterPaysProject = "gcs_requester_pays_project"
@@ -107,16 +127,16 @@ object RequesterPaysConfig {
     }
 }
 
-case class RequesterPaysConfig(project: String, buckets: Option[Set[String]] = None)
-    extends Serializable
+case class GoogleStorageFSConfig(
+  credentials_file: Option[Path],
+  requester_pays_config: Option[RequesterPaysConfig],
+)
 
 class GoogleStorageFS(
-  private[this] val serviceAccountKey: Option[String] = None,
-  private[this] var requesterPaysConfig: Option[RequesterPaysConfig] = None,
+  private[this] val credentials: GoogleCloudCredentials,
+  private[this] var requesterPaysConfig: Option[RequesterPaysConfig],
 ) extends FS {
   type URL = GoogleStorageFSURL
-
-  import GoogleStorageFS.log
 
   override def parseUrl(filename: String): URL = GoogleStorageFS.parseUrl(filename)
 
@@ -140,32 +160,6 @@ class GoogleStorageFS(
         Seq()
     }
 
-  object RequesterPaysFailure {
-    def unapply(t: Throwable): Option[Throwable] =
-      Some(t).filter {
-        case e: IOException =>
-          Option(e.getCause).exists {
-            case RequesterPaysFailure(_) => true
-            case _ => false
-          }
-
-        case exc: StorageException =>
-          Option(exc.getMessage).exists { message =>
-            message == "userProjectMissing" ||
-            (exc.getCode == 400 && message.contains("requester pays"))
-          }
-
-        case exc: GoogleJsonResponseException =>
-          Option(exc.getMessage).exists { message =>
-            message == "userProjectMissing" ||
-            (exc.getStatusCode == 400 && message.contains("requester pays"))
-          }
-
-        case _ =>
-          false
-      }
-  }
-
   private[this] def handleRequesterPays[T, U](
     makeRequest: Seq[U] => T,
     makeUserProjectOption: String => U,
@@ -185,23 +179,12 @@ class GoogleStorageFS(
       .setConnectTimeout(5000)
       .setReadTimeout(5000)
       .build()
-    serviceAccountKey match {
-      case None =>
-        log.info("Initializing google storage client from latent credentials")
-        StorageOptions.newBuilder()
-          .setTransportOptions(transportOptions)
-          .build()
-          .getService
-      case Some(keyData) =>
-        log.info("Initializing google storage client from service account key")
-        StorageOptions.newBuilder()
-          .setCredentials(
-            ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes))
-          )
-          .setTransportOptions(transportOptions)
-          .build()
-          .getService
-    }
+
+    StorageOptions.newBuilder()
+      .setTransportOptions(transportOptions)
+      .setCredentials(credentials.value)
+      .build()
+      .getService
   }
 
   def openNoCompression(url: URL): SeekableDataInputStream = retryTransientErrors {
