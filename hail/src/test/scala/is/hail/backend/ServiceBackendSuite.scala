@@ -2,18 +2,18 @@ package is.hail.backend
 
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.service.{ServiceBackend, ServiceBackendRPCPayload}
-import is.hail.services.batch_client.BatchClient
+import is.hail.services.JobGroupStates.Success
+import is.hail.services._
 import is.hail.utils.tokenUrlSafe
-
-import scala.reflect.io.{Directory, Path}
-
-import org.json4s.{JArray, JBool, JInt, JObject, JString}
 import org.mockito.ArgumentMatchersSugar.any
 import org.mockito.IdiomaticMockito
 import org.mockito.MockitoSugar.when
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
+
+import scala.reflect.io.{Directory, Path}
+import scala.util.Random
 
 class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
@@ -23,8 +23,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
       val backend =
         ServiceBackend(
-          jarLocation =
-            classOf[ServiceBackend].getProtectionDomain.getCodeSource.getLocation.getPath,
+          jarLocation = "us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail@sha256:fake",
           name = "name",
           theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
           batchClient,
@@ -42,30 +41,39 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
       // - the number of jobs matches the number of partitions, and
       // - each job is created in the specified region, and
       // - each job's resource configuration matches the rpc config
-      when(batchClient.create(any[JObject], any[IndexedSeq[JObject]])) thenAnswer {
-        (batch: JObject, jobs: IndexedSeq[JObject]) =>
-          batch \ "billing_project" shouldBe JString(rpcPayload.billing_project)
-          batch \ "n_jobs" shouldBe JInt(contexts.length)
+      val batchId = Random.nextInt()
+
+      when(batchClient.newBatch(any[BatchRequest])) thenAnswer {
+        (batchRequest: BatchRequest) =>
+          batchRequest.billing_project shouldEqual rpcPayload.billing_project
+          batchId
+      }
+
+      when(batchClient.newJobGroup(any[Int], any[String], any[JobGroupRequest], any[IndexedSeq[JobRequest]])) thenAnswer {
+        (_: Int, _: String, jobGroup: JobGroupRequest, jobs: IndexedSeq[JobRequest]) =>
+          jobGroup.job_group_id shouldBe 1
+          jobGroup.absolute_parent_id shouldBe 0
 
           jobs.length shouldEqual contexts.length
           jobs.foreach { payload =>
-            payload \ "regions" shouldBe JArray(rpcPayload.regions.map(JString).toList)
-
-            payload \ "resources" shouldBe JObject(
-              "preemptible" -> JBool(true),
-              "cpu" -> JString(rpcPayload.worker_cores),
-              "memory" -> JString(rpcPayload.worker_memory),
-              "storage" -> JString(rpcPayload.storage),
+            payload.regions shouldBe rpcPayload.regions
+            payload.resources shouldBe Some(
+              JobResources(
+                preemptible = true,
+                cpu = Some(rpcPayload.worker_cores),
+                memory = Some(rpcPayload.worker_memory),
+                storage = Some(rpcPayload.storage)
+              )
             )
           }
 
-          37L
+          (batchId, 37)
       }
 
       // the service backend expects that each job write its output to a well-known
       // location when it finishes.
-      when(batchClient.waitForJobGroup(any[Long], any[Long])) thenAnswer {
-        (batchId: Long, jobGroupId: Long) =>
+      when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
+        (batchId: Int, jobGroupId: Int) =>
           batchId shouldEqual 37L
           jobGroupId shouldEqual 1L
 
@@ -76,7 +84,17 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
           resultsDir.createDirectory()
           for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
-          JObject("state" -> JString("success"))
+          JobGroupResponse(
+            batch_id = batchId,
+            job_group_id = jobGroupId,
+            state = Success,
+            complete = true,
+            n_jobs = contexts.length,
+            n_completed = contexts.length,
+            n_succeeded = contexts.length,
+            n_failed = 0,
+            n_cancelled = 0
+          )
       }
 
       val (failure, _) =
@@ -89,87 +107,8 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito {
 
       failure.foreach(throw _)
 
-      batchClient.create(any[JObject], any[IndexedSeq[JObject]]) wasCalled once
-    }
-
-  @Test def testUpdateJobPayload(): Unit =
-    withMockDriverContext { config =>
-      val batchClient = mock[BatchClient]
-
-      val backend =
-        ServiceBackend(
-          jarLocation =
-            classOf[ServiceBackend].getProtectionDomain.getCodeSource.getLocation.getPath,
-          name = "name",
-          theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
-          batchClient,
-          batchId = Some(23L),
-          jobGroupId = None,
-          scratchDir = config.remote_tmpdir,
-          rpcConfig = config,
-          sys.env + ("HAIL_CLOUD" -> "gcp"),
-        )
-
-      val contexts = Array.tabulate(1)(_.toString.getBytes)
-
-      // verify that the service backend
-      // - updates the batch with the correct billing project, and
-      // - the number of jobs matches the number of partitions, and
-      // - each job is created in the specified region, and
-      // - each job's resource configuration matches the rpc config
-      when(
-        batchClient.update(any[Long], any[String], any[JObject], any[IndexedSeq[JObject]])
-      ) thenAnswer {
-        (batchId: Long, _: String, _: JObject, jobs: IndexedSeq[JObject]) =>
-          batchId shouldEqual 23L
-
-          jobs.length shouldEqual contexts.length
-          jobs.foreach { payload =>
-            payload \ "regions" shouldBe JArray(config.regions.map(JString).toList)
-
-            payload \ "resources" shouldBe JObject(
-              "preemptible" -> JBool(true),
-              "cpu" -> JString(config.worker_cores),
-              "memory" -> JString(config.worker_memory),
-              "storage" -> JString(config.storage),
-            )
-          }
-
-          (2L, 3L)
-      }
-
-      when(batchClient.waitForJobGroup(any[Long], any[Long])) thenAnswer {
-        (batchId: Long, jobGroupId: Long) =>
-          batchId shouldEqual 23L
-          jobGroupId shouldEqual 3L
-
-          val resultsDir =
-            Path(backend.serviceBackendContext.remoteTmpDir) /
-              "parallelizeAndComputeWithIndex" /
-              tokenUrlSafe
-
-          resultsDir.createDirectory()
-          for (i <- contexts.indices) (resultsDir / f"result.$i").toFile.writeAll("11")
-          JObject("state" -> JString("success"))
-      }
-
-      val (failure, _) =
-        backend.parallelizeAndComputeWithIndex(
-          backend.serviceBackendContext,
-          backend.fs,
-          contexts,
-          "stage1",
-        )((bytes, _, _, _) => bytes)
-
-      failure.foreach(throw _)
-
-      batchClient.create(any[JObject], any[IndexedSeq[JObject]]) wasNever called
-      batchClient.update(
-        any[Long],
-        any[String],
-        any[JObject],
-        any[IndexedSeq[JObject]],
-      ) wasCalled once
+      batchClient.newBatch(any) wasCalled once
+      batchClient.newJobGroup(any, any, any, any) wasCalled once
     }
 
   def withMockDriverContext(test: ServiceBackendRPCPayload => Any): Any =

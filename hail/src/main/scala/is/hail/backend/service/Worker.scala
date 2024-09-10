@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HAIL_REVISION, HailContext}
+import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
@@ -11,13 +11,13 @@ import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.Duration
 import scala.util.control.NonFatal
-
 import java.io._
 import java.nio.charset._
 import java.util
 import java.util.{concurrent => javaConcurrent}
-
 import org.apache.log4j.Logger
+
+import java.nio.file.Path
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -125,7 +125,12 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
+    val fs = RouterFS.buildRoutes(
+      CloudStorageFSConfig.fromFlagsAndEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        HailFeatureFlags.fromEnv(),
+      )
+    )
 
     def open(x: String): SeekableDataInputStream =
       fs.openNoCompression(x)
