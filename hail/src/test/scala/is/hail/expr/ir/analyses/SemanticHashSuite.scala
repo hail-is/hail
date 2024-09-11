@@ -9,8 +9,6 @@ import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
-import scala.util.control.NonFatal
-
 import java.io.FileNotFoundException
 import java.lang
 
@@ -285,21 +283,11 @@ class SemanticHashSuite extends HailSuite {
 
   @DataProvider(name = "isBaseIRSemanticallyEquivalent")
   def isBaseIRSemanticallyEquivalent: Array[Array[Any]] =
-    try
-      Array.concat(
-        isValueIRSemanticallyEquivalent,
-        isTableIRSemanticallyEquivalent,
-        isBlockMatrixIRSemanticallyEquivalent,
-      ).map { x =>
-        TypeCheck(ctx, x(0).asInstanceOf[BaseIR])
-        TypeCheck(ctx, x(1).asInstanceOf[BaseIR])
-        x
-      }
-    catch {
-      case NonFatal(t) =>
-        t.printStackTrace()
-        throw t
-    }
+    Array.concat(
+      isValueIRSemanticallyEquivalent,
+      isTableIRSemanticallyEquivalent,
+      isBlockMatrixIRSemanticallyEquivalent,
+    )
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
@@ -318,8 +306,7 @@ class SemanticHashSuite extends HailSuite {
           throw new FileNotFoundException(url.getPath)
       }
 
-    val ir =
-      importMatrix("gs://fake-bucket/fake-matrix")
+    val ir = importMatrix("gs://fake-bucket/fake-matrix")
 
     assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
       semhash(fs)(ir)
