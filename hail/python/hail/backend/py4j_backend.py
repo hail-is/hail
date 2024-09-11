@@ -4,7 +4,7 @@ import socket
 import socketserver
 import sys
 from threading import Thread
-from typing import Mapping, Set, Tuple
+from typing import Mapping, Optional, Set, Tuple
 
 import orjson
 import py4j
@@ -156,6 +156,18 @@ action_routes = {
 }
 
 
+def parse_timings(str: Optional[str]) -> Optional[dict]:
+    def parse(node):
+        return {
+            'name': node[0],
+            'total_time': node[1],
+            'self_time': node[2],
+            'children': [parse(c) for c in node[3]],
+        }
+
+    return None if str is None else parse(orjson.loads(str))
+
+
 class Py4JBackend(Backend):
     @abc.abstractmethod
     def __init__(self, jvm: JVMView, jbackend: JavaObject, jhc: JavaObject):
@@ -211,7 +223,7 @@ class Py4JBackend(Backend):
             self._logger = Log4jLogger(self._utils_package_object)
         return self._logger
 
-    def _rpc(self, action, payload) -> Tuple[bytes, str]:
+    def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
         data = orjson.dumps(payload)
         path = action_routes[action]
         port = self._backend_server_port
@@ -221,7 +233,7 @@ class Py4JBackend(Backend):
             raise fatal_error_from_java_error_triplet(
                 error_json['short'], error_json['expanded'], error_json['error_id']
             )
-        return resp.content, resp.headers.get('X-Hail-Timings', '')
+        return resp.content, parse_timings(resp.headers.get('X-Hail-Timings', None))
 
     def persist_expression(self, expr):
         t = expr.dtype

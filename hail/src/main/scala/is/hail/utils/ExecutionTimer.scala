@@ -1,68 +1,80 @@
 package is.hail.utils
 
+import is.hail.utils.ExecutionTimer.{TimeBlock, Timings}
+
 import scala.collection.mutable
 
+import org.json4s.{JArray, JString, JValue}
+import org.json4s.JsonAST.JLong
 import sourcecode.Enclosing
 
-class TimeBlock(val name: String) {
-  val children: mutable.ArrayBuffer[TimeBlock] = new mutable.ArrayBuffer()
-  var totalTime: Long = 0L
-  var childrenTime: Long = 0L
-  var finished: Boolean = false
-
-  def finish(t: Long): Unit = {
-    assert(!finished)
-    finished = true
-
-    totalTime = t
-
-    var i = 0
-    while (i < children.length) {
-      childrenTime += children(i).totalTime
-      i += 1
-    }
-  }
-
-  def logInfo(prefix: IndexedSeq[String]): Unit = {
-    assert(finished)
-
-    val selfPrefix = prefix :+ name
-
-    log.info(s"timing ${selfPrefix.mkString("/")} total ${formatTime(totalTime)} self ${formatTime(
-        totalTime - childrenTime
-      )} children ${formatTime(childrenTime)} %children ${formatDouble(childrenTime.toDouble * 100 / totalTime, 2)}%")
-
-    var i = 0
-    while (i < children.length) {
-      children(i).logInfo(selfPrefix)
-      i += 1
-    }
-  }
-
-  def toMap: Map[String, Any] = {
-    assert(finished)
-    Map[String, Any](
-      "name" -> name,
-      "total_time" -> totalTime,
-      "self_time" -> (totalTime - childrenTime),
-      "children_time" -> childrenTime,
-      "children" -> children.map(_.toMap),
-    )
-  }
-}
-
 object ExecutionTimer {
-  def time[T](f: ExecutionTimer => T)(implicit E: Enclosing): (T, Map[String, Any]) = {
+
+  def time[T](f: ExecutionTimer => T)(implicit E: Enclosing): (T, Timings) = {
     val timer = new ExecutionTimer(E.value)
     val result = f(timer)
     timer.finish()
     timer.logInfo()
-    (result, timer.toMap)
+    (result, timer.result)
   }
 
   def logTime[T](f: ExecutionTimer => T)(implicit E: Enclosing): T = {
     val (result, _) = time[T](f)
     result
+  }
+
+  sealed trait Timings {
+    def toJSON: JValue
+  }
+
+  private class TimeBlock(val name: String) extends Timings {
+    val children: mutable.ArrayBuffer[TimeBlock] = new mutable.ArrayBuffer()
+    var totalTime: Long = 0L
+    var childrenTime: Long = 0L
+    var finished: Boolean = false
+
+    def finish(t: Long): Unit = {
+      assert(!finished)
+      finished = true
+
+      totalTime = t
+
+      var i = 0
+      while (i < children.length) {
+        childrenTime += children(i).totalTime
+        i += 1
+      }
+    }
+
+    def logInfo(prefix: IndexedSeq[String]): Unit = {
+      assert(finished)
+
+      val selfPrefix = prefix :+ name
+
+      log.info(
+        s"timing ${selfPrefix.mkString("/")} total ${formatTime(totalTime)} self ${formatTime(
+            totalTime - childrenTime
+          )} children ${formatTime(childrenTime)} %children ${formatDouble(childrenTime.toDouble * 100 / totalTime, 2)}%"
+      )
+
+      var i = 0
+      while (i < children.length) {
+        children(i).logInfo(selfPrefix)
+        i += 1
+      }
+    }
+
+    override def toJSON: JValue = {
+      assert(finished)
+      JArray(
+        List(
+          JString(name),
+          JLong(totalTime),
+          JLong(totalTime - childrenTime),
+          JArray(children.map(_.toJSON).toList),
+        )
+      )
+    }
   }
 }
 
@@ -106,8 +118,8 @@ class ExecutionTimer(val rootName: String) {
     rootBlock.logInfo(FastSeq.empty[String])
   }
 
-  def toMap: Map[String, Any] = {
+  def result: Timings = {
     assert(finished)
-    rootBlock.toMap
+    rootBlock
   }
 }
