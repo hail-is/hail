@@ -451,7 +451,7 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
-            data = {**data, 'state': 'FAILURE', 'context': 'hail-ci-azure'}
+            data = {**data, 'state': 'failure', 'context': 'hail-ci-azure'}
             log.info(f"sending status to github: {data}")
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
