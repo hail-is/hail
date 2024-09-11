@@ -288,10 +288,14 @@ class VariantDataset:
         if not isinstance(vd_col_key, hl.tstruct) or len(vd_col_key) != 1 or vd_col_key.types[0] != hl.tstr:
             error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
 
-        invalid_end = 'END' not in rd.entry or rd.END.dtype != hl.tint32
-        invalid_len = 'LEN' not in rd.entry or rd.LEN.dtype != hl.tint32
-        if invalid_end and invalid_len:
-            error("expect at least one of 'END' or 'LEN' in entry of reference data with type int32")
+        end_exists = 'END' in rd.entry
+        len_exists = 'LEN' in rd.entry
+        if not (end_exists or len_exists):
+            error("expect at least one of 'END' or 'LEN' in entry of reference data")
+        if end_exists and rd.END.dtype != hl.tint32:
+            error("'END' field in entry of reference data must have type tint32")
+        if len_exists and rd.LEN.dtype != hl.tint32:
+            error("'LEN' field in entry of reference data must have type tint32")
 
         if check_data:
             # check cols
