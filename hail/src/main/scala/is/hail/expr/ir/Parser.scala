@@ -2156,12 +2156,13 @@ object IRParser {
     s: String,
     env: IRParserEnvironment,
     typeEnv: BindingEnv[Type] = BindingEnv.empty,
-  ): IR = {
-    var ir = parse(s, ir_value_expr(env)(_).run())
-    ir = annotateTypes(env.ctx, ir, typeEnv).asInstanceOf[IR]
-    TypeCheck(env.ctx, ir, typeEnv)
-    ir
-  }
+  ): IR =
+    env.ctx.time {
+      var ir = parse(s, ir_value_expr(env)(_).run())
+      ir = annotateTypes(env.ctx, ir, typeEnv).asInstanceOf[IR]
+      TypeCheck(env.ctx, ir, typeEnv)
+      ir
+    }
 
   def parse_value_ir(ctx: ExecuteContext, s: String): IR =
     parse_value_ir(s, IRParserEnvironment(ctx))
@@ -2169,29 +2170,32 @@ object IRParser {
   def parse_table_ir(ctx: ExecuteContext, s: String): TableIR =
     parse_table_ir(s, IRParserEnvironment(ctx))
 
-  def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = {
-    var ir = parse(s, table_ir(env)(_).run())
-    ir = annotateTypes(env.ctx, ir, BindingEnv.empty).asInstanceOf[TableIR]
-    TypeCheck(env.ctx, ir)
-    ir
-  }
+  def parse_table_ir(s: String, env: IRParserEnvironment): TableIR =
+    env.ctx.time {
+      var ir = parse(s, table_ir(env)(_).run())
+      ir = annotateTypes(env.ctx, ir, BindingEnv.empty).asInstanceOf[TableIR]
+      TypeCheck(env.ctx, ir)
+      ir
+    }
 
-  def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = {
-    var ir = parse(s, matrix_ir(env)(_).run())
-    ir = annotateTypes(env.ctx, ir, BindingEnv.empty).asInstanceOf[MatrixIR]
-    TypeCheck(env.ctx, ir)
-    ir
-  }
+  def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR =
+    env.ctx.time {
+      var ir = parse(s, matrix_ir(env)(_).run())
+      ir = annotateTypes(env.ctx, ir, BindingEnv.empty).asInstanceOf[MatrixIR]
+      TypeCheck(env.ctx, ir)
+      ir
+    }
 
   def parse_matrix_ir(ctx: ExecuteContext, s: String): MatrixIR =
     parse_matrix_ir(s, IRParserEnvironment(ctx))
 
-  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = {
-    var ir = parse(s, blockmatrix_ir(env)(_).run())
-    ir = annotateTypes(env.ctx, ir, BindingEnv.empty).asInstanceOf[BlockMatrixIR]
-    TypeCheck(env.ctx, ir)
-    ir
-  }
+  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR =
+    env.ctx.time {
+      var ir = parse(s, blockmatrix_ir(env)(_).run())
+      ir = annotateTypes(env.ctx, ir, BindingEnv.empty).asInstanceOf[BlockMatrixIR]
+      TypeCheck(env.ctx, ir)
+      ir
+    }
 
   def parse_blockmatrix_ir(ctx: ExecuteContext, s: String): BlockMatrixIR =
     parse_blockmatrix_ir(s, IRParserEnvironment(ctx))

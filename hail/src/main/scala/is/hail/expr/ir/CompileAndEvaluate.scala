@@ -43,7 +43,7 @@ object CompileAndEvaluate {
     optimize: Boolean = true,
   ): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      val ir = LoweringPipeline.relationalLowerer(optimize).apply(ctx, ir0).asInstanceOf[IR]
+      val ir = LoweringPipeline.relationalLowerer(optimize)(ctx, ir0).asInstanceOf[IR]
 
       ir.typ match {
         case TVoid =>

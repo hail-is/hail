@@ -7,34 +7,35 @@ import is.hail.utils._
 case class LoweringPipeline(lowerings: LoweringPass*) {
   assert(lowerings.nonEmpty)
 
-  final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    var x = ir
+  final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time {
+      var x = ir
 
-    def render(context: String): Unit =
-      if (ctx.shouldLogIR())
-        log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x, elideLiterals = true))
+      def render(context: String): Unit =
+        if (ctx.shouldLogIR())
+          log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x, elideLiterals = true))
 
-    render(s"initial IR")
+      render(s"initial IR")
 
-    lowerings.foreach { l =>
-      try {
-        x = l.apply(ctx, x)
-        render(s"after ${l.context}")
-      } catch {
-        case e: Throwable =>
-          log.error(s"error while applying lowering '${l.context}'")
-          throw e
+      lowerings.foreach { l =>
+        try {
+          x = l.apply(ctx, x)
+          render(s"after ${l.context}")
+        } catch {
+          case e: Throwable =>
+            log.error(s"error while applying lowering '${l.context}'")
+            throw e
+        }
+        try
+          TypeCheck(ctx, x)
+        catch {
+          case e: Throwable =>
+            fatal(s"error after applying ${l.context}", e)
+        }
       }
-      try
-        TypeCheck(ctx, x)
-      catch {
-        case e: Throwable =>
-          fatal(s"error after applying ${l.context}", e)
-      }
+
+      x
     }
-
-    x
-  }
 
   def noOptimization(): LoweringPipeline =
     LoweringPipeline(lowerings.filter(l => !l.isInstanceOf[OptimizePass]): _*)

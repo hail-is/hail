@@ -349,7 +349,7 @@ class ServiceBackend(Backend):
         progress: Optional[BatchProgressBar] = None,
         driver_cores: Optional[Union[int, str]] = None,
         driver_memory: Optional[str] = None,
-    ) -> Tuple[bytes, str]:
+    ) -> Tuple[bytes, Optional[dict]]:
         timings = Timings()
         async with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
@@ -414,7 +414,7 @@ class ServiceBackend(Backend):
 
             with timings.step("read output"):
                 result_bytes = await retry_transient_errors(self._read_output, iodir + '/out', iodir + '/in')
-                return result_bytes, str(timings.to_dict())
+                return result_bytes, timings.to_dict()
 
     async def _read_output(self, output_uri: str, input_uri: str) -> bytes:
         try:
@@ -462,7 +462,7 @@ class ServiceBackend(Backend):
                 self._batch_was_submitted = False
             raise
 
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, str]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[str]]:
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
