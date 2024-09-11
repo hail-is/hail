@@ -126,16 +126,18 @@ class VariantDataset:
 
     @staticmethod
     def from_merged_representation(
-        mt, *, ref_block_field='END', ref_block_fields=(), infer_ref_block_fields: bool = True, is_split=False
+        mt, *, ref_block_indicator_field='END', ref_block_fields=(), infer_ref_block_fields: bool = True, is_split=False
     ):
         """Create a VariantDataset from a sparse MatrixTable containing variant and reference data."""
 
-        if ref_block_field not in ('END', 'LEN'):
-            raise ValueError(f'Invalid `ref_block_field` `{ref_block_field}` one of `LEN` or `END` expected')
-
-        if ref_block_field not in mt.entry:
+        if ref_block_indicator_field not in ('END', 'LEN'):
             raise ValueError(
-                f'VariantDataset.from_merged_representation: expect field `{ref_block_field}` in matrix table entry'
+                f'Invalid `ref_block_indicator_field` `{ref_block_indicator_field}` one of `LEN` or `END` expected'
+            )
+
+        if ref_block_indicator_field not in mt.entry:
+            raise ValueError(
+                f'VariantDataset.from_merged_representation: expect field `{ref_block_indicator_field}` in matrix table entry'
             )
 
         if 'LA' not in mt.entry and not is_split:
@@ -153,7 +155,7 @@ class VariantDataset:
         n_rows_to_use = 100
         info(f"inferring reference block fields from missingness patterns in first {n_rows_to_use} rows")
         used_ref_block_fields = set(ref_block_fields)
-        used_ref_block_fields.add(ref_block_field)
+        used_ref_block_fields.add(ref_block_indicator_field)
 
         if infer_ref_block_fields:
             mt_head = mt.head(n_rows=n_rows_to_use)
@@ -161,7 +163,7 @@ class VariantDataset:
                 list(mt_head.entry),
                 mt_head.aggregate_entries(
                     hl.agg.filter(
-                        hl.is_defined(mt_head[ref_block_field]),
+                        hl.is_defined(mt_head[ref_block_indicator_field]),
                         tuple(hl.agg.any(hl.is_defined(mt_head[x])) for x in mt_head.entry),
                     )
                 ),
@@ -182,11 +184,11 @@ class VariantDataset:
 
         rmt = mt.filter_entries(
             hl.case()
-            .when(hl.is_missing(mt[ref_block_field]), False)
-            .when(hl.is_defined(mt[ref_block_field]) & mt[gt_field].is_hom_ref(), True)
+            .when(hl.is_missing(mt[ref_block_indicator_field]), False)
+            .when(hl.is_defined(mt[ref_block_indicator_field]) & mt[gt_field].is_hom_ref(), True)
             .or_error(
                 hl.str(
-                    f'cannot create VDS from merged representation - found {ref_block_field} field with non-reference genotype at '
+                    f'cannot create VDS from merged representation - found {ref_block_indicator_field} field with non-reference genotype at '
                 )
                 + hl.str(mt.locus)
                 + hl.str(' / ')
@@ -203,8 +205,8 @@ class VariantDataset:
             rmt = rmt.distinct_by_row()
 
         vmt = (
-            mt.filter_entries(hl.is_missing(mt[ref_block_field]))
-            .drop(ref_block_field)
+            mt.filter_entries(hl.is_missing(mt[ref_block_indicator_field]))
+            .drop(ref_block_indicator_field)
             ._key_rows_by_assert_sorted('locus', 'alleles')
         )
         vmt = vmt.filter_rows(hl.agg.count() > 0)
