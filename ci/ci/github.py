@@ -533,6 +533,9 @@ class PR(Code):
         if rollup is not None:
             results.extend(rollup["contexts"]["nodes"])
 
+        if review_decision == -1:
+            review_decision = None
+
         if review_decision == 'APPROVED':
             review_state = 'approved'
         elif review_decision == 'CHANGES_REQUESTED':
