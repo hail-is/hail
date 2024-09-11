@@ -8,6 +8,7 @@ import os
 import random
 import re
 import signal
+import time
 import traceback
 from contextlib import AsyncExitStack
 from functools import wraps
@@ -2359,7 +2360,9 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
         return None
 
-    attempts.sort(key=lambda x: x['start_time'] or x['end_time'])
+    # Use current time as a base case for the sort, if there is nothing in the database:
+    current_epoch_millis = time.time() * 1000
+    attempts.sort(key=lambda x: x['start_time'] or x['end_time'] or current_epoch_millis)
 
     for attempt in attempts:
         start_time = attempt['start_time']
