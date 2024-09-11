@@ -450,6 +450,10 @@ class PR(Code):
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
+            await gh_client.post(
+                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
+                data={**data, 'state': 'FAILURE', 'context': 'hail-ci-azure'},
+            )
         except gidgethub.HTTPException:
             log.exception(f'{self.short_str()}: notify github of build state failed due to exception: {data}')
         except aiohttp.client_exceptions.ClientResponseError:
