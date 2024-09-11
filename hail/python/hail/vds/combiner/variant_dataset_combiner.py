@@ -797,9 +797,7 @@ def new_combiner(
         # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
         vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False, _drop_end=True)
         vds_ref_entry = set(
-            name[1:] if name in ('LGT', 'LPGT') else name
-            for name in vds.reference_data.entry
-            if name not in ('LEN', 'END')
+            name[1:] if name in ('LGT', 'LPGT') else name for name in vds.reference_data.entry if name != 'LEN'
         )
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
