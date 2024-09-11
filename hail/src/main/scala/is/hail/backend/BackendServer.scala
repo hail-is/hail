@@ -6,10 +6,11 @@ import is.hail.utils._
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
-
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+
+import scala.util.control.NonFatal
 
 case class IRTypePayload(ir: String)
 case class LoadReferencesFromDatasetPayload(path: String)
@@ -111,6 +112,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
               }
           }
         }
+        return
       }
       val response: Array[Byte] = exchange.getRequestURI.getPath match {
         case "/value/type" => backend.valueType(body.extract[IRTypePayload].ir)
@@ -140,7 +142,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
       exchange.sendResponseHeaders(200, response.length)
       using(exchange.getResponseBody())(_.write(response))
     } catch {
-      case t: Throwable =>
+      case NonFatal(t) =>
         val (shortMessage, expandedMessage, errorId) = handleForPython(t)
         val errorJson = JObject(
           "short" -> JString(shortMessage),
