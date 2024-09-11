@@ -447,17 +447,21 @@ class PR(Code):
             'context': GITHUB_STATUS_CONTEXT,
         }
         try:
+            log.info(f"sending status to github: {data}")
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
+            data = {**data, 'state': 'FAILURE', 'context': 'hail-ci-azure'}
+            log.info(f"sending status to github: {data}")
             await gh_client.post(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
-                data={**data, 'state': 'FAILURE', 'context': 'hail-ci-azure'},
+                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
         except gidgethub.HTTPException:
             log.exception(f'{self.short_str()}: notify github of build state failed due to exception: {data}')
         except aiohttp.client_exceptions.ClientResponseError:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+        except Exception as e:
+            log.exception(f'exception sending status to github: {e} {data}')
 
     async def assign_gh_reviewer_if_requested(self, gh_client):
         if len(self.assignees) == 0 and len(self.reviewers) == 0 and self.body is not None:
