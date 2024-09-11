@@ -698,7 +698,9 @@ LIMIT 300;
                 else:
                     regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
-                if record['n_prior_attempts'] > 5:
+                n_prior_attempts = record['n_prior_attempts']
+                log.info(f'Job {id}: {n_prior_attempts} prior attempts')
+                if n_prior_attempts >= 2:
                     await mark_job_errored(
                         self.app,
                         record['batch_id'],
