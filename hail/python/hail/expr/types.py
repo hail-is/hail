@@ -108,7 +108,6 @@ This function is able to reverse ``str(t)`` on a :class:`.HailType`.
 The grammar is defined as follows:
 
 .. code-block:: text
-
     {type_grammar_str}
 
 Parameters
