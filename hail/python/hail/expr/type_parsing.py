@@ -6,7 +6,7 @@ from hail.utils.java import unescape_parsable
 from . import types
 
 type_grammar_str = r"""
-    type = _ ( array / bool / call / dict / interval / int64 / int32 / float32 / float64 / locus / ndarray / set / stream / struct / str / tuple / union / void / variable / rng_state ) _
+    type = _ ( array / bool / call / dict / interval / int64 / int32 / float32 / float64 / locus / ndarray / rng_state / set / stream / struct / str / tuple / union / void / variable ) _
     variable = "?" simple_identifier (":" simple_identifier)?
     void = "void" / "tvoid"
     int64 = "int64" / "tint64"
