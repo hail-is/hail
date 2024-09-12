@@ -728,6 +728,9 @@ mkdir -p {shq(repo_dir)}
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT],
                 self.build_state,
             )
+        log.info(
+            f"is_mergeable for self.source_sha: {self.review_state == 'approved'} {len(self.last_known_github_status) > 0} {all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())} {self.is_up_to_date()} {all(label not in DO_NOT_MERGE for label in self.labels)}"
+        )
         return (
             self.review_state == 'approved'
             and len(self.last_known_github_status) > 0
