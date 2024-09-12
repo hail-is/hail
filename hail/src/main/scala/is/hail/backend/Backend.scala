@@ -171,38 +171,34 @@ abstract class Backend {
 
   def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T
 
+  private[this] def jsonToBytes(f: => JValue): Array[Byte] =
+    JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
+
   final def valueType(s: String): Array[Byte] =
     jsonToBytes {
       withExecuteContext("valueType") { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap)).typ.toJSON
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
-
-  private[this] def jsonToBytes(f: => JValue): Array[Byte] =
-    JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
 
   final def tableType(s: String): Array[Byte] =
     jsonToBytes {
       withExecuteContext("tableType") { ctx =>
-        val x = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-        x.typ.toJSON
+        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
   final def matrixTableType(s: String): Array[Byte] =
     jsonToBytes {
       withExecuteContext("matrixTableType") { ctx =>
-        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap)).typ.toJSON
+        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
   final def blockMatrixType(s: String): Array[Byte] =
     jsonToBytes {
       withExecuteContext("blockMatrixType") { ctx =>
-        IRParser.parse_blockmatrix_ir(
-          s,
-          IRParserEnvironment(ctx, irMap = persistedIR.toMap),
-        ).typ.toJSON
+        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
       }
     }
 
