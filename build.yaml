@@ -2294,6 +2294,9 @@ steps:
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
         online: true
+      - name: jobs-add-n-max-attempts
+        script: /io/sql/jobs-add-n-max-attempts.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
