@@ -803,6 +803,7 @@ class Batch:
         input_files: Optional[List[Tuple[str, str]]] = None,
         output_files: Optional[List[Tuple[str, str]]] = None,
         always_run: bool = False,
+        n_max_attempts: bool = False,
         always_copy_output: bool = False,
         timeout: Optional[Union[int, float]] = None,
         cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
@@ -853,6 +854,7 @@ class Batch:
 
         job_spec = {
             'always_run': always_run,
+            'n_max_attempts': n_max_attempts,
             'always_copy_output': always_copy_output,
             'job_id': self._in_update_job_id,
             'absolute_parent_ids': absolute_parent_ids,
