@@ -1401,11 +1401,13 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
     async def insert_jobs_into_db(tx):
         try:
-            await tx.execute_many(
-                """
+            sql = """
 INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep, n_max_attempts)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s %s);
-""",
+"""
+            log.info(f'about to run: {sql} \n\n with parameters: {jobs_args}')
+            await tx.execute_many(
+                sql,
                 jobs_args,
                 query_name='insert_jobs',
             )
