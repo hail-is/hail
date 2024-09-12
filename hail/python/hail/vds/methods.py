@@ -34,14 +34,15 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     :class:`.MatrixTable`
         Dataset in dense MatrixTable representation.
     """
-    ref = vds.reference_data
-    # FIXME(chrisvittal) consider changing END semantics on VDS to make this better
-    # see https://github.com/hail-is/hail/issues/13183 for why this is here and more discussion
-    # we assume that END <= contig.length
-    ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position(), _locus_pos=ref.locus.position)
-    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + (ref.END - ref._locus_pos))
 
-    to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos', '_locus_pos'
+    # NOTE: There is a strong assumption that ref block LEN does not extend
+    # past the end of a contig. That is bad data and we won't correct for it.
+    # Garbage in, garbage out.
+    ref = vds.reference_data
+    ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position())
+    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + ref.LEN)
+
+    to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos'
     ref = ref.drop(*(x for x in to_drop if x in ref.row))
     var = vds.variant_data
     refl = ref.localize_entries('_ref_entries')
@@ -83,7 +84,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
                 lambda tup: coalesce_join(
                     hl.coalesce(
                         refs_at_this_row[tup[0]],
-                        hl.or_missing(tup[1][1]._END_GLOBAL >= dr.locus.global_position(), tup[1][1]),
+                        hl.or_missing(tup[1][1]._END_GLOBAL > dr.locus.global_position(), tup[1][1]),
                     ),
                     tup[1][0],
                 )
