@@ -372,7 +372,7 @@ WHERE job_groups.user = %s AND job_groups.`state` = 'running';
                 async for record in self.db.select_and_fetchall(
                     """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
-  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id, count(attempts.job_id) AS n_prior_attempts
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id, n_max_attempts, count(attempts.job_id) AS n_prior_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
@@ -392,7 +392,7 @@ LIMIT %s;
                     async for record in self.db.select_and_fetchall(
                         """
 SELECT jobs.batch_id, jobs.job_id, jobs.spec, jobs.cores_mcpu, regions_bits_rep, COALESCE(SUM(instances.state IS NOT NULL AND
-  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id, count(attempts.job_id) AS n_prior_attempts
+  (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts, jobs.job_group_id, n_max_attempts, count(attempts.job_id) AS n_prior_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
@@ -432,9 +432,10 @@ LIMIT %s
                 record['attempt_id'] = attempt_id
                 job_group_id = record['job_group_id']
                 n_prior_attempts = record['n_prior_attempts']
+                n_max_attempts = record['n_max_attempts']
+                log.info(f'Job {id}: {n_prior_attempts} prior attempts out of a maximum of {n_max_attempts}')
 
-                log.info(f'Job {id}: {n_prior_attempts} prior attempts')
-                if n_prior_attempts >= 2:
+                if n_prior_attempts >= n_max_attempts:
                     await mark_job_errored(
                         self.app,
                         record['batch_id'],

@@ -635,7 +635,7 @@ ORDER BY job_groups.batch_id, job_groups.job_group_id;
             ):
                 async for record in self.db.select_and_fetchall(
                     """
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, count(attempts.job_id) AS n_prior_attempts
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.job_id) AS n_prior_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
@@ -656,7 +656,7 @@ LIMIT 300;
                 if not job_group['cancelled']:
                     async for record in self.db.select_and_fetchall(
                         """
-SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, count(attempts.attempt_id) AS n_prior_attempts
+SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.attempt_id) AS n_prior_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
@@ -699,8 +699,10 @@ LIMIT 300;
                     regions = regions_bits_rep_to_regions(regions_bits_rep, self.app['regions'])
 
                 n_prior_attempts = record['n_prior_attempts']
-                log.info(f'Job {id}: {n_prior_attempts} prior attempts')
-                if n_prior_attempts >= 2:
+                n_max_attempts = record['n_max_attempts']
+                log.info(f'Job {id}: {n_prior_attempts} prior attempts out of a maximum of {n_max_attempts}')
+
+                if n_prior_attempts >= n_max_attempts:
                     await mark_job_errored(
                         self.app,
                         record['batch_id'],
