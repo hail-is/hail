@@ -151,7 +151,7 @@ class HailContext(object):
 
     def stop(self):
         assert self._backend
-        self._backend.stop()
+        self._backend.close()
         self._backend = None
         Env._hc = None
         Env._dummy_table = None

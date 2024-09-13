@@ -2,8 +2,6 @@ package is.hail.io.fs
 
 import is.hail.services.oauth2.AzureCloudCredentials
 
-import java.io.FileInputStream
-import org.apache.commons.io.IOUtils
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
 
