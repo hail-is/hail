@@ -32,10 +32,18 @@ object oauth2 {
 
   def CloudScopes(env: Map[String, String] = sys.env): Array[String] =
     env.get("HAIL_CLOUD") match {
-      case Some("gcp") => Array("openid", "email", "profile")
-      case Some("azure") => sys.env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
-      case Some(cloud) => throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
-      case None => throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+      case Some("gcp") =>
+        Array(
+          "https://www.googleapis.com/auth/userinfo.profile",
+          "https://www.googleapis.com/auth/userinfo.email",
+          "openid",
+        )
+      case Some("azure") =>
+        sys.env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
+      case Some(cloud) =>
+        throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
+      case None =>
+        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
     }
 
   case class GoogleCloudCredentials(value: GoogleCredentials) extends CloudCredentials {
