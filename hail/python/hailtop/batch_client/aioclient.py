@@ -803,7 +803,7 @@ class Batch:
         input_files: Optional[List[Tuple[str, str]]] = None,
         output_files: Optional[List[Tuple[str, str]]] = None,
         always_run: bool = False,
-        n_max_attempts: bool = 20,
+        n_max_attempts: int = 20,
         always_copy_output: bool = False,
         timeout: Optional[Union[int, float]] = None,
         cloudfuse: Optional[List[Tuple[str, str, bool]]] = None,
