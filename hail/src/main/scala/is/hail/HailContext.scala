@@ -136,7 +136,7 @@ object HailContext {
 
   def stop(): Unit = synchronized {
     IRFunctionRegistry.clearUserFunctions()
-    backend.stop()
+    backend.close()
 
     theContext = null
   }
