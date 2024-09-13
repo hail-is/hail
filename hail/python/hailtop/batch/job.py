@@ -81,7 +81,7 @@ class Job:
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
-        self._n_max_attempts: bool = False
+        self._n_max_attempts: int = 20
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
@@ -352,7 +352,7 @@ class Job:
 
     def n_max_attempts(self, n_max_attempts: int) -> Self:
         """
-        Set the maximum number of attempts of this job, including dead-node recovery and preemption.
+        Set the maximum number of attempts (including dead node detection and preemption events)
 
         Examples
         --------
@@ -364,8 +364,9 @@ class Job:
 
         Parameters
         ----------
-        always_run:
-            If True, set job to always run.
+        n_max_attempts:
+            Total number of attempts (including dead node detection and preemption events) before the job is
+            considered to be in 'error' state.
 
         Returns
         -------
