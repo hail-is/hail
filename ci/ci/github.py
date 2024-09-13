@@ -527,6 +527,13 @@ class PR(Code):
                 }}
             """
 
+        def review_decision_and_commit_status(pull_request, rollup):
+            nonlocal review_decision
+            if review_decision is -1:
+                review_decision = pull_request["reviewDecision"]
+            if rollup is not None:
+                results.extend(rollup["contexts"]["nodes"])
+
         while (
             rollup := (
                 pull_request := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"][
@@ -534,12 +541,9 @@ class PR(Code):
                 ]
             )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
         ) is not None and rollup["contexts"]["pageInfo"]["hasNextPage"]:
-            if review_decision is -1:
-                review_decision = pull_request["reviewDecision"]
             cursor = rollup["contexts"]["pageInfo"]["endCursor"]
-            results.extend(rollup["contexts"]["nodes"])
-        if rollup is not None:
-            results.extend(rollup["contexts"]["nodes"])
+            review_decision_and_commit_status(pull_request, rollup)
+        review_decision_and_commit_status(pull_request, rollup)
 
         if review_decision == -1:
             review_decision = None
