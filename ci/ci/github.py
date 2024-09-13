@@ -57,16 +57,13 @@ def github_status(state: str) -> GithubStatus:
     or a conclusion for a check (https://docs.github.com/en/graphql/reference/enums#checkconclusionstate)
     from the GraphQL API to a GithubStatus.
     """
-    _state = None
     if state in {"PENDING", "EXPECTED", "ACTION_REQUIRED", "STALE"}:
-        _state = "pending"
+        return GithubStatus.PENDING
     elif state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:
-        _state = "failure"
+        return GithubStatus.FAILURE
     elif state in {"SUCCESS", "NEUTRAL"}:
-        _state = "success"
-    if _state is None:
-        raise ValueError(f"Unexpected value for GithubStatus: {state}")
-    return GithubStatus(_state)
+        return GithubStatus.SUCCESS
+    raise ValueError(f"Unexpected value for GithubStatus: {state}")
 
 
 def select_random_teammate(team):
@@ -475,7 +472,7 @@ class PR(Code):
     async def _update_github(self, gh):
         results = []
         cursor = None
-        review_decision = -1
+        review_decision = None
 
         def query():
             return f"""
@@ -485,7 +482,7 @@ class PR(Code):
                     name: "{self.target_branch.branch.repo.name}"
                   ) {{
                     pullRequest (number: {self.number}) {{
-                      {"reviewDecision" if review_decision == -1 else ""}
+                      {"reviewDecision" if review_decision is None or review_decision == "API_NONE" else ""}
                       mergeStateStatus
                       commits (last: 1) {{
                         nodes {{
@@ -521,8 +518,10 @@ class PR(Code):
 
         def review_decision_and_commit_status(pull_request, rollup):
             nonlocal review_decision
-            if review_decision is -1:
-                review_decision = pull_request["reviewDecision"]
+            if review_decision is None:
+                review_decision = (
+                    pull_request["reviewDecision"] if pull_request["reviewDecision"] is not None else "API_NONE"
+                )
             if rollup is not None:
                 results.extend(rollup["contexts"]["nodes"])
 
@@ -537,16 +536,13 @@ class PR(Code):
             review_decision_and_commit_status(pull_request, rollup)
         review_decision_and_commit_status(pull_request, rollup)
 
-        if review_decision == -1:
-            review_decision = None
-
         if review_decision == 'APPROVED':
             review_state = 'approved'
         elif review_decision == 'CHANGES_REQUESTED':
             review_state = 'changes_requested'
         elif review_decision == 'REVIEW_REQUIRED':
             review_state = 'pending'
-        elif review_decision is None:
+        elif review_decision == "API_NONE":
             # This probably means the repo has no "required reviews" configuration. But CI shouldn't merge without
             # at least one approval, so we'll treat this as "pending":
             review_state = 'pending'
