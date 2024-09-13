@@ -73,7 +73,7 @@ def gateway_default_host(service: Service, domain: str) -> dict:
     if service.name == 'www':
         domains.append(domain)
 
-    if service == 'ukbb-rg':
+    if service.name == 'ukbb-rg':
         return {
             '@type': 'type.googleapis.com/envoy.config.route.v3.VirtualHost',
             'name': service.name,

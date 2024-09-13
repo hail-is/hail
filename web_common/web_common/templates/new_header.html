@@ -61,17 +61,11 @@
     <a href="{{ auth_base_url }}/user">
       <b class='font-semibold'>{{ userdata["username"] }}</b>
     </a>
-    <span>|</span>
-    <form action="{{ auth_base_url }}/logout" method="POST">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-      <button type="submit">
-        Log out
-      </button>
-    </form>
     {% else %}
     <a href="{{ auth_base_url }}/signup">
       Sign Up
     </a>
+    <span>|</span>
     <a href="{{ auth_base_url }}/login">
       Login
     </a>
