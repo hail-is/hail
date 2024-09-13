@@ -86,8 +86,9 @@ object JobGroupStates {
 }
 
 object BatchClient {
-  def apply(deployConfig: DeployConfig, credentialsFile: Path): BatchClient =
-    new BatchClient(BatchServiceRequester(deployConfig, credentialsFile))
+  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
+  : BatchClient =
+    new BatchClient(BatchServiceRequester(deployConfig, credentialsFile, env))
 }
 
 case class BatchClient private (req: Requester) extends Logging with AutoCloseable {

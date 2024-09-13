@@ -122,7 +122,7 @@ class ServiceBackend(
   val tmpdir: String,
   val fs: FS,
   val serviceBackendContext: ServiceBackendContext,
-  val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+  val scratchDir: String,
 ) extends Backend with BackendWithNoCodeCache {
   import ServiceBackend.log
 
@@ -165,7 +165,7 @@ class ServiceBackend(
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe
-    val root = s"${backendContext.remoteTmpDir}parallelizeAndComputeWithIndex/$token"
+    val root = s"${backendContext.remoteTmpDir}/parallelizeAndComputeWithIndex/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
@@ -303,7 +303,7 @@ class ServiceBackend(
     r
   }
 
-  def stop(): Unit = {
+  override def close(): Unit = {
     executor.shutdownNow()
     batchClient.close()
   }
@@ -421,9 +421,7 @@ object ServiceBackendAPI {
         HailFeatureFlags.fromEnv(),
       )
     )
-    val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/secrets/deploy-config/deploy-config.json"
-    )
+    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 

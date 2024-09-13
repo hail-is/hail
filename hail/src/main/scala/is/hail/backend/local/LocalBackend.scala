@@ -137,7 +137,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
 
   def defaultParallelism: Int = 1
 
-  def stop(): Unit = LocalBackend.stop()
+  def close(): Unit = LocalBackend.stop()
 
   private[this] def _jvmLowerAndExecute(
     ctx: ExecuteContext,

@@ -306,7 +306,7 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
-        self._backend_server.stop()
+        self._backend_server.close()
         self._jhc.stop()
         self._jhc = None
         self._registered_ir_function_names = set()
