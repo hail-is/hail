@@ -447,12 +447,6 @@ class PR(Code):
             'context': GITHUB_STATUS_CONTEXT,
         }
         try:
-            log.info(f"sending status to github: {data}")
-            await gh_client.post(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
-            )
-            data = {**data, 'state': 'failure', 'context': 'hail-ci-azure'}
-            log.info(f"sending status to github: {data}")
             await gh_client.post(
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
@@ -460,8 +454,6 @@ class PR(Code):
             log.exception(f'{self.short_str()}: notify github of build state failed due to exception: {data}')
         except aiohttp.client_exceptions.ClientResponseError:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
-        except Exception as e:
-            log.exception(f'exception sending status to github: {e} {data}')
 
     async def assign_gh_reviewer_if_requested(self, gh_client):
         if len(self.assignees) == 0 and len(self.reviewers) == 0 and self.body is not None:
@@ -732,9 +724,6 @@ mkdir -p {shq(repo_dir)}
                 self.last_known_github_status[GITHUB_STATUS_CONTEXT],
                 self.build_state,
             )
-        log.info(
-            f"is_mergeable for self.source_sha: {self.review_state == 'approved'} {len(self.last_known_github_status) > 0} {all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())} {self.is_up_to_date()} {all(label not in DO_NOT_MERGE for label in self.labels)}"
-        )
         return (
             self.review_state == 'approved'
             and len(self.last_known_github_status) > 0

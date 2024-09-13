@@ -389,9 +389,6 @@ async def _api_get_job_group_jobs(request, batch_id: int, job_group_id: int, ver
 async def _get_job_record(app, batch_id, job_id):
     db: Database = app['db']
 
-    async for record in db.select_and_fetchall("SELECT * from jobs"):
-        log.info(f"jobs: {record}")
-
     record = await db.select_and_fetchone(
         """
 SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
