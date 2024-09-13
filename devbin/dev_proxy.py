@@ -35,6 +35,7 @@ async def default_proxied_web_route(request: web.Request):
 async def proxy(request: web.Request):
     backend_client = request.app[BC]
     backend_route = deploy_config.external_url(SERVICE, request.raw_path)
+    print(f'Proxying data request to {backend_route}')
     headers = {'x-hail-return-jinja-context': '1'}
     try:
         async with await backend_client.request(request.method, backend_route, headers=headers) as resp:
