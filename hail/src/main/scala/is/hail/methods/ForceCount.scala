@@ -3,8 +3,8 @@ package is.hail.methods
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.ir.functions.{MatrixToValueFunction, TableToValueFunction}
-import is.hail.types.{MatrixType, RTable, TableType, TypeWithRequiredness}
-import is.hail.types.virtual.{TInt64, Type}
+import is.hail.types.{RTable, TypeWithRequiredness}
+import is.hail.types.virtual.{MatrixType, TInt64, TableType, Type}
 
 case class ForceCountTable() extends TableToValueFunction {
   override def typ(childType: TableType): Type = TInt64

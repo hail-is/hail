@@ -6,8 +6,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IntArrayBuilder, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.stats._
-import is.hail.types.{MatrixType, TableType}
-import is.hail.types.virtual.{TArray, TFloat64, TStruct}
+import is.hail.types.virtual.{MatrixType, TArray, TFloat64, TStruct, TableType}
 import is.hail.utils._
 
 import breeze.linalg._

@@ -1,13 +1,12 @@
-package is.hail.types
+package is.hail.types.virtual
 
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
 import is.hail.types.physical.{PArray, PStruct}
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
-import org.json4s.CustomSerializer
+import org.json4s.{CustomSerializer, JValue}
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format =>
@@ -73,7 +72,7 @@ case class MatrixType(
   rowKey: IndexedSeq[String],
   rowType: TStruct,
   entryType: TStruct,
-) extends BaseType {
+) extends VType {
   assert(
     {
       val colFields = colType.fieldNames.toSet
@@ -251,14 +250,13 @@ case class MatrixType(
     firstKeyField.asInstanceOf[TLocus].rg
   }
 
-  def pyJson: JObject = {
+  override def toJSON: JValue =
     JObject(
       "row_type" -> JString(rowType.toString),
-      "row_key" -> JArray(rowKey.toList.map(JString(_))),
+      "row_key" -> JArray(rowKey.toList.map(JString)),
       "col_type" -> JString(colType.toString),
-      "col_key" -> JArray(colKey.toList.map(JString(_))),
+      "col_key" -> JArray(colKey.toList.map(JString)),
       "entry_type" -> JString(entryType.toString),
       "global_type" -> JString(globalType.toString),
     )
-  }
 }

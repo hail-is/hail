@@ -91,8 +91,8 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     JObject(
       "start" -> f(start),
       "end" -> f(end),
-      "includeStart" -> TBoolean.toJSON(includesStart),
-      "includeEnd" -> TBoolean.toJSON(includesEnd),
+      "includeStart" -> TBoolean.export(includesStart),
+      "includeEnd" -> TBoolean.export(includesEnd),
     )
 
   def isBelow(pord: ExtendedOrdering, other: Interval): Boolean =

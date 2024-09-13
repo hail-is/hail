@@ -21,7 +21,7 @@ from ..utils.java import escape_parsable
 from ..utils.misc import lookup_bit
 from ..utils.struct import Struct
 from .nat import NatBase, NatLiteral
-from .type_parsing import type_grammar, type_node_visitor
+from .type_parsing import type_grammar, type_grammar_str, type_node_visitor
 
 __all__ = [
     'dtype',
@@ -76,70 +76,49 @@ def summary_type(t):
 
 
 def dtype(type_str) -> 'HailType':
-    r"""Parse a type from its string representation.
-
-    Examples
-    --------
-
-    >>> hl.dtype('int')
-    dtype('int32')
-
-    >>> hl.dtype('float')
-    dtype('float64')
-
-    >>> hl.dtype('array<int32>')
-    dtype('array<int32>')
-
-    >>> hl.dtype('dict<str, bool>')
-    dtype('dict<str, bool>')
-
-    >>> hl.dtype('struct{a: int32, `field with spaces`: int64}')
-    dtype('struct{a: int32, `field with spaces`: int64}')
-
-    Notes
-    -----
-    This function is able to reverse ``str(t)`` on a :class:`.HailType`.
-
-    The grammar is defined as follows:
-
-    .. code-block:: text
-
-        type = _ (array / set / dict / struct / union / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
-        int64 = "int64" / "tint64"
-        int32 = "int32" / "tint32" / "int" / "tint"
-        float32 = "float32" / "tfloat32"
-        float64 = "float64" / "tfloat64" / "tfloat" / "float"
-        bool = "tbool" / "bool"
-        call = "tcall" / "call"
-        str = "tstr" / "str"
-        locus = ("tlocus" / "locus") _ "[" identifier "]"
-        array = ("tarray" / "array") _ "<" type ">"
-        array = ("tstream" / "stream") _ "<" type ">"
-        ndarray = ("tndarray" / "ndarray") _ "<" type, identifier ">"
-        set = ("tset" / "set") _ "<" type ">"
-        dict = ("tdict" / "dict") _ "<" type "," type ">"
-        struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
-        union = ("tunion" / "union") _ "{" (fields / _) "}"
-        tuple = ("ttuple" / "tuple") _ "(" ((type ("," type)*) / _) ")"
-        fields = field ("," field)*
-        field = identifier ":" type
-        interval = ("tinterval" / "interval") _ "<" type ">"
-        identifier = _ (simple_identifier / escaped_identifier) _
-        simple_identifier = ~"\w+"
-        escaped_identifier = ~"`([^`\\\\]|\\\\.)*`"
-        _ = ~"\s*"
-
-    Parameters
-    ----------
-    type_str : :class:`str`
-        String representation of type.
-
-    Returns
-    -------
-    :class:`.HailType`
-    """
     tree = type_grammar.parse(type_str)
     return type_node_visitor.visit(tree)
+
+
+dtype.__doc__ = f"""\
+Parse a type from its string representation.
+
+Examples
+--------
+
+>>> hl.dtype('int')
+dtype('int32')
+
+>>> hl.dtype('float')
+dtype('float64')
+
+>>> hl.dtype('array<int32>')
+dtype('array<int32>')
+
+>>> hl.dtype('dict<str, bool>')
+dtype('dict<str, bool>')
+
+>>> hl.dtype('struct{{a: int32, `field with spaces`: int64}}')
+dtype('struct{{a: int32, `field with spaces`: int64}}')
+
+Notes
+-----
+This function is able to reverse ``str(t)`` on a :class:`.HailType`.
+
+The grammar is defined as follows:
+
+.. code-block:: text
+    {type_grammar_str}
+
+Parameters
+----------
+type_str : :class:`str`
+    String representation of type.
+
+Returns
+-------
+:class:`.HailType`
+"""
 
 
 class HailTypeContext(object):

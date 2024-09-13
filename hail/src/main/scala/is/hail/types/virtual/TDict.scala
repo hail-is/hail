@@ -59,7 +59,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
       .map { case (k, v) => s"${keyType.showStr(k)}:${valueType.showStr(v)}" }
       .mkString("{", ",", "}")
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     Gen.buildableOf2[Map](Gen.zip(keyType.genValue(sm), valueType.genValue(sm)))

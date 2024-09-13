@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.types.{tcoerce, MatrixType, TableType}
+import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.FastSeq
@@ -106,7 +106,7 @@ object Bindings {
   )
 
   private def childEnvMatrix(ir: MatrixIR, i: Int): Bindings[Type] = {
-    import is.hail.types.MatrixType.{
+    import is.hail.types.virtual.MatrixType.{
       globalBindings, rowInEntryBindings, colInColBindings, rowInRowBindings, entryBindings,
       colInEntryBindings,
     }
@@ -173,7 +173,7 @@ object Bindings {
   }
 
   private def childEnvTable(ir: TableIR, i: Int): Bindings[Type] = {
-    import is.hail.types.TableType.{globalBindings, rowBindings}
+    import is.hail.types.virtual.TableType.{globalBindings, rowBindings}
     ir match {
       case TableFilter(child, _) if i == 1 =>
         Bindings.inFreshScope(child.typ.rowBindings)

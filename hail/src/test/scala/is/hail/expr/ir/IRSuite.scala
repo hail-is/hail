@@ -14,7 +14,7 @@ import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner}
-import is.hail.types.{tcoerce, BlockMatrixType, TableType, VirtualTypeWithReq}
+import is.hail.types.{tcoerce, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.primitives.SInt32

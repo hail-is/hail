@@ -15,7 +15,7 @@ import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.TVoid
+import is.hail.types.virtual.{BlockMatrixType, TVoid}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 

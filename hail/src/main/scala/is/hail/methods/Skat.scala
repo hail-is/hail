@@ -8,8 +8,7 @@ import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.stats.{
   eigSymD, GeneralizedChiSquaredDistribution, LogisticRegressionModel, RegressionUtils,
 }
-import is.hail.types._
-import is.hail.types.virtual.{TFloat64, TInt32, TStruct, Type}
+import is.hail.types.virtual.{MatrixType, TFloat64, TInt32, TStruct, TableType, Type}
 import is.hail.utils._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}

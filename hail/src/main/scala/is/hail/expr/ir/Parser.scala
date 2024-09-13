@@ -7,7 +7,7 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}
-import is.hail.types.{tcoerce, MatrixType, TableType, VirtualTypeWithReq}
+import is.hail.types.{tcoerce, VirtualTypeWithReq}
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.virtual._
