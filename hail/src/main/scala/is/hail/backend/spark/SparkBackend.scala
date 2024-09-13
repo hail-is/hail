@@ -472,7 +472,10 @@ class SparkBackend(
 
   override def asSpark(op: String): SparkBackend = this
 
-  def stop(): Unit = SparkBackend.stop()
+  def close(): Unit = {
+    SparkBackend.stop()
+    longLifeTempFileManager.close()
+  }
 
   def startProgressBar(): Unit =
     ProgressBarBuilder.build(sc)
@@ -760,9 +763,6 @@ class SparkBackend(
     val (rowPType: PStruct, orderedCRDD) = codec.decodeRDD(ctx, rowType, rdd.map(_._2))
     RVDTableReader(RVD.unkeyed(rowPType, orderedCRDD), globalsLit, rt)
   }
-
-  def close(): Unit =
-    longLifeTempFileManager.close()
 
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage = {

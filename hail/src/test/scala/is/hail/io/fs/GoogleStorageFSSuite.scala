@@ -1,6 +1,7 @@
 package is.hail.io.fs
 
 import is.hail.services.oauth2.GoogleCloudCredentials
+
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}

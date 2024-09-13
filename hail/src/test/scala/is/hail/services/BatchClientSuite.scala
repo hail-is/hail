@@ -1,15 +1,15 @@
 package is.hail.services
 
 import is.hail.utils._
-import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
 
 import java.nio.file.Path
 
-class BatchClientSuite extends TestNGSuite {
-  @Test def testBasic(): Unit = {
-    using(BatchClient(DeployConfig.get(), Path.of("/test-gsa-key/key.json"))) { client =>
+import org.scalatestplus.testng.TestNGSuite
+import org.testng.annotations.Test
 
+class BatchClientSuite extends TestNGSuite {
+  @Test def testBasic(): Unit =
+    using(BatchClient(DeployConfig.get(), Path.of("/test-gsa-key/key.json"))) { client =>
       val jobGroup = client.run(
         BatchRequest(
           billing_project = "test",
@@ -36,5 +36,4 @@ class BatchClientSuite extends TestNGSuite {
 
       assert(jobGroup.state == JobGroupStates.Success)
     }
-  }
 }
