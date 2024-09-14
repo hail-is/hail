@@ -2872,6 +2872,7 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
+      hail-pip-install -r /io/dev-requirements.txt
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -2890,6 +2891,8 @@ steps:
     inputs:
       - from: /repo/ci
         to: /io/ci
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
     scopes:
       - test
       - dev

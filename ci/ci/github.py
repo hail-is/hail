@@ -59,9 +59,9 @@ def github_status(state: str) -> GithubStatus:
     """
     if state in {"PENDING", "EXPECTED", "ACTION_REQUIRED", "STALE"}:
         return GithubStatus.PENDING
-    elif state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:
+    if state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:
         return GithubStatus.FAILURE
-    elif state in {"SUCCESS", "NEUTRAL"}:
+    if state in {"SUCCESS", "NEUTRAL"}:
         return GithubStatus.SUCCESS
     raise ValueError(f"Unexpected value for GithubStatus: {state}")
 
