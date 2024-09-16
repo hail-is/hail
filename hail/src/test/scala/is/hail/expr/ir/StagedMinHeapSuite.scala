@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeIndexedSeq}
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.functions.LocusFunctions
@@ -17,45 +18,18 @@ import is.hail.variant.{Locus, ReferenceGenome}
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 
-sealed trait StagedCoercions[A] {
-  def ti: TypeInfo[A]
-  def sType: SType
-  def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[A]): SValue
-  def toType(cb: EmitCodeBuilder, sa: SValue): Value[A]
-}
+class StagedMinHeapSuite extends HailSuite {
 
-sealed trait StagedCoercionInstances {
   implicit object StagedIntCoercions extends StagedCoercions[Int] {
-    override def ti: TypeInfo[Int] =
-      implicitly
+    override def ti: TypeInfo[Int] = implicitly
+    override def sType: SType = SInt32
 
-    override def sType: SType =
-      SInt32
-
-    override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Int]): SValue =
+    override def fromValue(cb: EmitCodeBuilder, region: Value[Region], a: Value[Int]): SValue =
       new SInt32Value(a)
 
-    override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Int] =
+    override def toValue(cb: EmitCodeBuilder, sa: SValue): Value[Int] =
       sa.asInt.value
   }
-
-  def stagedLocusCoercions(rg: ReferenceGenome): StagedCoercions[Locus] =
-    new StagedCoercions[Locus] {
-      override def ti: TypeInfo[Locus] =
-        implicitly
-
-      override def sType: SType =
-        PCanonicalLocus(rg.name, required = true).sType
-
-      override def fromType(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
-        LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])
-
-      override def toType(cb: EmitCodeBuilder, sa: SValue): Value[Locus] =
-        sa.asLocus.getLocusObj(cb)
-    }
-}
-
-class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
   @Test def testSorting(): Unit =
     forAll((xs: IndexedSeq[Int]) => sort(xs) == xs.sorted).check()
@@ -70,7 +44,7 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     }.check()
 
   @Test def testNonEmpty(): Unit =
-    gen("NonEmpty") { (heap: IntHeap) =>
+    gen(ctx, "NonEmpty") { (heap: IntHeap) =>
       heap.nonEmpty should be(false)
       for (i <- 0 to 10) heap.push(i)
       heap.nonEmpty should be(true)
@@ -86,10 +60,12 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
   @Test def testLocus(): Unit =
     forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      withReferenceGenome(rg) {
+      ctx.local(references = Map(rg.name -> rg)) { ctx =>
+        implicit val coercions: StagedCoercions[Locus] =
+          stagedLocusCoercions(rg)
 
         val sortedLoci =
-          gen("Locus", stagedLocusCoercions(rg)) { (heap: LocusHeap) =>
+          gen[Locus, LocusHeap, IndexedSeq[Locus]](ctx, "Locus") { (heap: LocusHeap) =>
             loci.foreach(heap.push)
             IndexedSeq.fill(loci.size)(heap.pop())
           }
@@ -98,20 +74,14 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
       }
     }.check()
 
-  def withReferenceGenome[A](rg: ReferenceGenome)(f: => A): A = {
-    ctx.backend.addReference(rg)
-    try f
-    finally ctx.backend.removeReference(rg.name)
-  }
-
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
-    gen("Sort") { (heap: IntHeap) =>
+    gen(ctx, "Sort") { (heap: IntHeap) =>
       xs.foreach(heap.push)
       IndexedSeq.fill(xs.size)(heap.pop())
     }
 
   def heapify(xs: IndexedSeq[Int]): IndexedSeq[Int] =
-    gen("Heapify") { (heap: IntHeap) =>
+    gen(ctx, "Heapify") { (heap: IntHeap) =>
       pool.scopedRegion { r =>
         xs.foreach(heap.push)
         val ptr = heap.toArray(r)
@@ -119,17 +89,9 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
       }
     }
 
-  def gen[H <: Heap[A], A, B](
+  def gen[A, H <: Heap[A], B](
+    ctx: ExecuteContext,
     name: String,
-    A: StagedCoercions[A],
-  )(
-    f: H => B
-  )(implicit H: TypeInfo[H]
-  ): B =
-    gen[H, A, B](name)(f)(H, A)
-
-  def gen[H <: Heap[A], A, B](
-    name: String
   )(
     f: H => B
   )(implicit
@@ -146,13 +108,13 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
 
     Main.defineEmitMethod("push", FastSeq(A.ti), UnitInfo) { mb =>
       mb.voidWithBuilder { cb =>
-        MinHeap.push(cb, A.fromType(cb, Main.partitionRegion, mb.getCodeParam[A](1)(A.ti)))
+        MinHeap.push(cb, A.fromValue(cb, Main.partitionRegion, mb.getCodeParam[A](1)(A.ti)))
       }
     }
 
     Main.defineEmitMethod("pop", FastSeq(), A.ti) { mb =>
       mb.emitWithBuilder[A] { cb =>
-        val res = A.toType(cb, MinHeap.peek(cb))
+        val res = A.toValue(cb, MinHeap.peek(cb))
         MinHeap.pop(cb)
         MinHeap.realloc(cb)
         res
@@ -182,11 +144,11 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
         MinHeap.init(cb, Main.pool())
       }
     }
-    Main.defineEmitMethod("close", FastSeq(), UnitInfo)(mb => mb.voidWithBuilder(MinHeap.close))
+    Main.defineEmitMethod("close", FastSeq(), UnitInfo)(_.voidWithBuilder(MinHeap.close))
 
-    pool.scopedRegion { r =>
+    ctx.scopedExecution { (cl, fs, tc, r) =>
       val heap = Main
-        .resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
+        .resultWithIndex()(cl, fs, tc, r)
         .asInstanceOf[H with Resource]
 
       heap.init()
@@ -208,4 +170,23 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     def nonEmpty: Boolean
     def toArray(r: Region): Long
   }
+
+  sealed trait StagedCoercions[A] {
+    def ti: TypeInfo[A]
+    def sType: SType
+    def fromValue(cb: EmitCodeBuilder, region: Value[Region], a: Value[A]): SValue
+    def toValue(cb: EmitCodeBuilder, sa: SValue): Value[A]
+  }
+
+  def stagedLocusCoercions(rg: ReferenceGenome): StagedCoercions[Locus] =
+    new StagedCoercions[Locus] {
+      override def ti: TypeInfo[Locus] = implicitly
+      override def sType: SType = PCanonicalLocus(rg.name, required = true).sType
+
+      override def fromValue(cb: EmitCodeBuilder, region: Value[Region], a: Value[Locus]): SValue =
+        LocusFunctions.emitLocus(cb, region, a, sType.storageType().asInstanceOf[PCanonicalLocus])
+
+      override def toValue(cb: EmitCodeBuilder, sa: SValue): Value[Locus] =
+        sa.asLocus.getLocusObj(cb)
+    }
 }
