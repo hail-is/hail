@@ -162,7 +162,7 @@ def eval_timed(expression):
         ir = expression._indices.source.select_globals(**{uid: expression}).index_globals()[uid]._ir
 
     (value, timings) = Env.backend().execute(MakeTuple([ir]), timed=True)
-    return (value[0], timings)
+    return value[0], timings
 
 
 @typecheck(expression=expr_any)

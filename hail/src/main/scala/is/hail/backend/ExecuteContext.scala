@@ -17,7 +17,7 @@ import java.security.SecureRandom
 import sourcecode.Enclosing
 
 trait TempFileManager extends AutoCloseable {
-  def newTmpPath(tmpdir: String, prefix: String, extension: String = ""): String
+  def newTmpPath(tmpdir: String, prefix: String, extension: String = null): String
 }
 
 class OwningTempFileManager(fs: FS) extends TempFileManager {
