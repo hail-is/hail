@@ -87,6 +87,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
         tmpdir,
         tmpdir,
         this,
+        references,
         fs,
         timer,
         null,

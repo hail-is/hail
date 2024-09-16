@@ -386,6 +386,7 @@ class ServiceBackend(
         tmpdir,
         "file:///tmp",
         this,
+        references,
         fs,
         timer,
         null,
