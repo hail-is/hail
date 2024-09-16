@@ -462,7 +462,7 @@ class ServiceBackend(Backend):
                 self._batch_was_submitted = False
             raise
 
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[str]]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):
