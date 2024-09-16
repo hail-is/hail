@@ -895,11 +895,12 @@ def test_ref_block_does_not_densify_to_next_contig():
     ref = vds.reference_data
     var = vds.variant_data.filter_entries(False)
     # max out all chr1 refblocks, and truncate all chr2 refblocks so that nothing in chr2 should be densified
+    chr1_end = hl.parse_locus_interval('chr1', reference_genome=ref.locus.dtype.reference_genome).end.position
     ref = ref.annotate_entries(
-        END=hl.if_else(
+        LEN=hl.if_else(
             ref.locus.contig == 'chr1',
-            hl.parse_locus_interval('chr1', reference_genome=ref.locus.dtype.reference_genome).end.position,
-            ref.locus.position,
+            chr1_end - ref.locus.position + 1,
+            1,
         )
     )
     vds = hl.vds.VariantDataset(reference_data=ref, variant_data=var)

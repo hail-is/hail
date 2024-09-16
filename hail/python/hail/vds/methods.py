@@ -983,7 +983,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
 
     # we've changed LEN so we need to make sure that END is correct.
     if 'END' in new_rd.entry:
-        new_rd = VariantDataset._add_end(new_rd.drop('END'))
+        new_rd = new_rd.annotate_entries(END=new_rd.LEN + new_rd.locus.position - 1)
 
     if isinstance(ds, hl.vds.VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
