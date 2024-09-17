@@ -227,7 +227,11 @@ class VariantDataset:
         # or the same as neighboring values, we expect that after small integer
         # compression and general purpose data compression that reference data should
         # be smaller using LEN over END
-        rd = VariantDataset._fix_ref_for_write(self.reference_data)
+        rd = self.reference_data
+        if 'LEN' not in rd.entry:
+            rd = VariantDataset._add_len(rd)
+        if 'END' in rd.entry:
+            rd = rd.drop('END')
 
         rd.write(VariantDataset._reference_path(path), **kwargs)
         self.variant_data.write(VariantDataset._variants_path(path), **kwargs)
@@ -360,17 +364,17 @@ class VariantDataset:
     def _add_len(rd):
         if 'LEN' in rd.entry:
             return rd
-        if 'END' not in rd.entry:
-            raise ValueError('Need `END` to compute `LEN` in reference data')
-        return rd.annotate_entries(LEN=rd.END - rd.locus.position + 1)
+        if 'END' in rd.entry:
+            return rd.annotate_entries(LEN=rd.END - rd.locus.position + 1)
+        raise ValueError('Need `END` to compute `LEN` in reference data')
 
     @staticmethod
     def _add_end(rd):
         if 'END' in rd.entry:
             return rd
-        if 'LEN' not in rd.entry:
-            raise ValueError('Need `LEN` to compute `END` in reference data')
-        return rd.annotate_entries(END=rd.LEN + rd.locus.position - 1)
+        if 'LEN' in rd.entry:
+            return rd.annotate_entries(END=rd.LEN + rd.locus.position - 1)
+        raise ValueError('Need `LEN` to compute `END` in reference data')
 
     @staticmethod
     def _add_len_end(rd):
@@ -378,14 +382,6 @@ class VariantDataset:
             raise ValueError('One of `END` or `LEN` must be defined in reference data')
         rd = VariantDataset._add_len(rd)
         rd = VariantDataset._add_end(rd)
-        return rd
-
-    @staticmethod
-    def _fix_ref_for_write(rd):
-        if 'LEN' not in rd.entry:
-            rd = VariantDataset._add_len(rd)
-        if 'END' in rd.entry:
-            rd = rd.drop('END')
         return rd
 
     def union_rows(*vdses):
