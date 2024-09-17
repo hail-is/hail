@@ -4,15 +4,16 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.backend.caching.BlockMatrixCache
 import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
+import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
@@ -26,9 +27,10 @@ import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
+
 import java.io.PrintWriter
+
 import com.fasterxml.jackson.core.StreamReadConstraints
-import is.hail.linalg.BlockMatrix
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark._
@@ -320,7 +322,7 @@ class SparkBackend(
   override val references: mutable.Map[String, ReferenceGenome],
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String,
-) extends Backend with BackendWithCodeCache with Py4JBackendExtensions {
+) extends Backend with Py4JBackendExtensions {
 
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
@@ -352,6 +354,7 @@ class SparkBackend(
     new OwningTempFileManager(fs)
 
   private[this] val bmCache = mutable.Map.empty[String, BlockMatrix]
+  private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
 
   def createExecuteContextForTests(
     timer: ExecutionTimer,
@@ -375,6 +378,7 @@ class SparkBackend(
       },
       new IrMetadata(),
       ImmutableMap.empty,
+      mutable.Map.empty,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
@@ -395,6 +399,7 @@ class SparkBackend(
         },
         new IrMetadata(),
         bmCache,
+        codeCache,
       )(f)
     }
 

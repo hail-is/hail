@@ -5,7 +5,6 @@ import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
-import is.hail.backend.caching.BlockMatrixCache
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.defs._
@@ -13,6 +12,7 @@ import is.hail.expr.ir.defs.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{PartitionBoundOrdering, RVD, RVDPartitioner}
 import is.hail.types.{tcoerce, VirtualTypeWithReq}
@@ -24,6 +24,7 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.{FastSeq, _}
 import is.hail.variant.{Call2, Locus}
 
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -3907,8 +3908,9 @@ class IRSuite extends HailSuite {
     assert(x2 == x)
   }
 
-  @Test def testBlockMatrixIRParserPersist(): Unit =
-    using(new BlockMatrixCache()) { cache =>
+  @Test def testBlockMatrixIRParserPersist(): Unit = {
+    val cache = mutable.Map.empty[String, BlockMatrix]
+    try {
       val bm = BlockMatrixRandom(0, gaussian = true, shape = Array(5L, 6L), blockSize = 3)
 
       backend.withExecuteContext { ctx =>
@@ -3926,7 +3928,9 @@ class IRSuite extends HailSuite {
           assert(x2 == persist)
         }
       }
-    }
+    } finally
+      cache.values.foreach(_.unpersist())
+  }
 
   @Test def testCachedIR(): Unit = {
     val cached = Literal(TSet(TInt32), Set(1))
