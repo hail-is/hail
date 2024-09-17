@@ -2,20 +2,29 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
 
+import scala.collection.mutable
+import scala.jdk.CollectionConverters.asScalaIteratorConverter
+
 import java.io.Closeable
 import java.util
 import java.util.Map.Entry
 
-class Cache[K, V](capacity: Int) {
+class Cache[K, V](capacity: Int) extends mutable.AbstractMap[K, V] {
   private[this] val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
   }
 
-  def get(k: K): Option[V] = synchronized(Option(m.get(k)))
+  override def +=(kv: (K, V)): Cache.this.type =
+    synchronized { m.put(kv._1, kv._2); this }
 
-  def +=(p: (K, V)): Unit = synchronized(m.put(p._1, p._2))
+  override def -=(key: K): Cache.this.type =
+    synchronized { m.remove(key); this }
 
-  def size: Int = synchronized(m.size())
+  override def get(key: K): Option[V] =
+    synchronized(Option(m.get(key)))
+
+  override def iterator: Iterator[(K, V)] =
+    for { e <- m.entrySet().iterator().asScala } yield (e.getKey, e.getValue)
 }
 
 class LongToRegionValueCache(capacity: Int) extends Closeable {
