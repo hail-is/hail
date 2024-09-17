@@ -4,15 +4,16 @@ import is.hail.expr.ir.{IRParser, IRParserEnvironment}
 import is.hail.utils._
 
 import scala.util.control.NonFatal
+
+import java.io.Closeable
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
+
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.compact
-
-import java.io.Closeable
 
 case class IRTypePayload(ir: String)
 case class LoadReferencesFromDatasetPayload(path: String)

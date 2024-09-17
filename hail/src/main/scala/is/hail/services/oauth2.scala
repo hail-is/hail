@@ -1,6 +1,5 @@
 package is.hail.services
 
-import com.google.auth.oauth2.{GoogleCredentials, ServiceAccountCredentials}
 import is.hail.services.oauth2.AzureCloudCredentials.EnvVars.AzureApplicationCredentials
 import is.hail.services.oauth2.GoogleCloudCredentials.EnvVars.GoogleApplicationCredentials
 import is.hail.shadedazure.com.azure.core.credential.{TokenCredential, TokenRequestContext}
@@ -8,12 +7,15 @@ import is.hail.shadedazure.com.azure.identity.{
   ClientSecretCredentialBuilder, DefaultAzureCredentialBuilder,
 }
 import is.hail.utils.{defaultJSONFormats, using}
-import org.json4s.Formats
-import org.json4s.jackson.JsonMethods
+
+import scala.collection.JavaConverters._
 
 import java.io.Serializable
 import java.nio.file.{Files, Path}
-import scala.collection.JavaConverters._
+
+import com.google.auth.oauth2.{GoogleCredentials, ServiceAccountCredentials}
+import org.json4s.Formats
+import org.json4s.jackson.JsonMethods
 
 object oauth2 {
 
