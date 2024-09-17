@@ -13,7 +13,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.RowMatrix
 import is.hail.types.physical.PStruct
-import is.hail.types.virtual.{TArray, TInterval, TStruct}
+import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.utils.{defaultJSONFormats, fatal, log, toRichIterable, HailException, Interval}
 import is.hail.variant.ReferenceGenome
 
@@ -152,7 +152,7 @@ trait Py4JBackendExtensions {
       val tir = TableLiteral(
         TableValue(
           ctx,
-          signature.virtualType.asInstanceOf[TStruct],
+          signature.virtualType,
           key,
           df.rdd,
           Some(signature),
@@ -177,17 +177,16 @@ trait Py4JBackendExtensions {
         case json4s.JObject(values) => values.toMap
       }
 
-      val paths =
-        kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map { case json4s.JString(s) =>
-          s
-        }
+      val paths = kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map {
+        case json4s.JString(s) => s
+      }
 
       val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
       val intervalObjects =
         JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
           .asInstanceOf[IndexedSeq[Interval]]
 
-      val opts = NativeReaderOptions(intervalObjects, intervalPointType, filterIntervals = false)
+      val opts = NativeReaderOptions(intervalObjects, intervalPointType)
       val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
         log.info(s"creating MatrixRead node for $p")
         val mnr = MatrixNativeReader(ctx.fs, p, Some(opts))
@@ -208,7 +207,7 @@ trait Py4JBackendExtensions {
       references(name).addLiftover(references(destRGName), LiftOver(ctx.fs, chainFile))
     }
 
-  def pyRemoveLiftover(name: String, destRGName: String) =
+  def pyRemoveLiftover(name: String, destRGName: String): Unit =
     references(name).removeLiftover(destRGName)
 
   private[this] def addReference(rg: ReferenceGenome): Unit = {
