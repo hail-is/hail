@@ -362,7 +362,7 @@ class SparkBackend(
           ExecutionCache.forTesting
       },
       new IrMetadata(),
-      null,
+      ImmutableMap.empty,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
