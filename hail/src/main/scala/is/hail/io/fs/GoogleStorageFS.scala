@@ -1,21 +1,25 @@
 package is.hail.io.fs
 
-import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.google.cloud.http.HttpTransportOptions
-import com.google.cloud.storage.Storage.{BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption}
-import com.google.cloud.storage.{Option => _, _}
-import com.google.cloud.{ReadChannel, WriteChannel}
 import is.hail.HailFeatureFlags
 import is.hail.io.fs.FSUtil.dropTrailingSlash
 import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
-import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.services.{isTransientError, retryTransientErrors}
+import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.utils._
+
+import scala.jdk.CollectionConverters._
 
 import java.io.{FileNotFoundException, IOException}
 import java.nio.ByteBuffer
 import java.nio.file.{Path, Paths}
-import scala.jdk.CollectionConverters._
+
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
+import com.google.cloud.{ReadChannel, WriteChannel}
+import com.google.cloud.http.HttpTransportOptions
+import com.google.cloud.storage.{Option => _, _}
+import com.google.cloud.storage.Storage.{
+  BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption,
+}
 
 case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
   def addPathComponent(c: String): GoogleStorageFSURL =
@@ -70,13 +74,13 @@ object GoogleStorageFS {
         case exc: StorageException =>
           Option(exc.getMessage).exists { message =>
             message == "userProjectMissing" ||
-              (exc.getCode == 400 && message.contains("requester pays"))
+            (exc.getCode == 400 && message.contains("requester pays"))
           }
 
         case exc: GoogleJsonResponseException =>
           Option(exc.getMessage).exists { message =>
             message == "userProjectMissing" ||
-              (exc.getStatusCode == 400 && message.contains("requester pays"))
+            (exc.getStatusCode == 400 && message.contains("requester pays"))
           }
 
         case _ =>

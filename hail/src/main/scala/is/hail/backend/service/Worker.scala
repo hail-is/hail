@@ -1,22 +1,24 @@
 package is.hail.backend.service
 
+import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
-import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
-import org.apache.log4j.Logger
+
+import scala.collection.mutable
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.duration.Duration
+import scala.util.control.NonFatal
 
 import java.io._
 import java.nio.charset._
 import java.nio.file.Path
 import java.util
 import java.util.{concurrent => javaConcurrent}
-import scala.collection.mutable
-import scala.concurrent.duration.Duration
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.control.NonFatal
+
+import org.apache.log4j.Logger
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0

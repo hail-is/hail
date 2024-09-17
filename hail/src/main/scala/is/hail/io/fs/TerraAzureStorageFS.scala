@@ -3,14 +3,15 @@ package is.hail.io.fs
 import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.shadedazure.com.azure.storage.blob.BlobServiceClient
 import is.hail.utils._
+
+import scala.collection.mutable
+
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.impl.client.HttpClients
 import org.apache.http.util.EntityUtils
-import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
-
-import scala.collection.mutable
+import org.json4s.jackson.JsonMethods
 
 object TerraAzureStorageFS {
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
