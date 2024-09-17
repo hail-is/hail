@@ -531,11 +531,11 @@ class SparkBackend(
       Validate(ir)
       ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
       try {
-        val lowerTable = getFlag("lower") != null
-        val lowerBM = getFlag("lower_bm") != null
+        val lowerTable = flags.get("lower") != null
+        val lowerBM = flags.get("lower_bm") != null
         _jvmLowerAndExecute(ctx, ir, optimize = true, lowerTable, lowerBM)
       } catch {
-        case e: LowererUnsupportedOperation if getFlag("lower_only") != null => throw e
+        case e: LowererUnsupportedOperation if flags.get("lower_only") != null => throw e
         case _: LowererUnsupportedOperation =>
           CompileAndEvaluate._apply(ctx, ir, optimize = true)
       }
@@ -548,7 +548,7 @@ class SparkBackend(
     rt: RTable,
     nPartitions: Option[Int],
   ): TableReader = {
-    if (getFlag("use_new_shuffle") != null)
+    if (flags.get("use_new_shuffle") != null)
       return LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt)
 
     val (globals, rvd) = TableStageToRVD(ctx, stage)
