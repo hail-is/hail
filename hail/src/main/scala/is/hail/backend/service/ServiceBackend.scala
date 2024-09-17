@@ -51,7 +51,6 @@ class ServiceBackendContext(
 ) extends BackendContext with Serializable {}
 
 object ServiceBackend {
-  private val log = Logger.getLogger(getClass.getName())
 
   def apply(
     jarLocation: String,
@@ -129,8 +128,7 @@ class ServiceBackend(
   val fs: FS,
   val serviceBackendContext: ServiceBackendContext,
   val scratchDir: String,
-) extends Backend with BackendWithNoCodeCache {
-  import ServiceBackend.log
+) extends Backend with Logging {
 
   private[this] var stageCount = 0
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 1000
@@ -382,6 +380,7 @@ class ServiceBackend(
         serviceBackendContext,
         new IrMetadata(),
         ImmutableMap.empty,
+        mutable.Map.empty,
       )(f)
     }
 
