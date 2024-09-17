@@ -4,16 +4,15 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
-import is.hail.expr.ir.{IRParser, _}
-import is.hail.expr.ir.IRParser.parseType
+import is.hail.backend.py4j.Py4JBackendExtensions
+import is.hail.expr.Validate
+import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
-import is.hail.linalg.{BlockMatrix, RowMatrix}
+import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVD
-import is.hail.stats.LinearMixedModel
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -21,23 +20,20 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
-import java.io.{Closeable, PrintWriter}
+import java.io.PrintWriter
 
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.json4s
-import org.json4s.jackson.JsonMethods
+import org.apache.spark.sql.SparkSession
 import sourcecode.Enclosing
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
@@ -274,8 +270,14 @@ object SparkBackend {
     sc1.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     theSparkBackend =
-      new SparkBackend(tmpdir, localTmpdir, sc1, gcsRequesterPaysProject, gcsRequesterPaysBuckets)
-    theSparkBackend.addDefaultReferences()
+      new SparkBackend(
+        tmpdir,
+        localTmpdir,
+        sc1,
+        mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*),
+        gcsRequesterPaysProject,
+        gcsRequesterPaysBuckets,
+      )
     theSparkBackend
   }
 
@@ -302,9 +304,11 @@ class SparkBackend(
   val tmpdir: String,
   val localTmpdir: String,
   val sc: SparkContext,
+  override val references: mutable.Map[String, ReferenceGenome],
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String,
-) extends Backend with Closeable with BackendWithCodeCache {
+) extends Backend with BackendWithCodeCache with Py4JBackendExtensions {
+
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
@@ -328,17 +332,13 @@ class SparkBackend(
     new HadoopFS(new SerializableHadoopConfiguration(conf))
   }
 
-  private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
+  override def backend: Backend = this
+  override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
+
+  override val longLifeTempFileManager: TempFileManager =
+    new OwningTempFileManager(fs)
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
-
-  private[this] val flags = HailFeatureFlags.fromEnv()
-
-  def getFlag(name: String): String = flags.get(name)
-
-  def setFlag(name: String, value: String) = flags.set(name, value)
-
-  val availableFlags: java.util.ArrayList[String] = flags.available
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
     : Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
@@ -362,7 +362,7 @@ class SparkBackend(
       tmpdir,
       localTmpdir,
       this,
-      references,
+      references.toMap,
       fs,
       region,
       timer,
@@ -376,34 +376,16 @@ class SparkBackend(
       new IrMetadata(),
     )
 
-  def withExecuteContext[T](
-    selfContainedExecution: Boolean = true
-  )(
-    f: ExecuteContext => T
-  )(implicit E: Enclosing
-  ): T =
-    withExecuteContext(
-      if (selfContainedExecution) null else NonOwningTempFileManager(longLifeTempFileManager)
-    )(f)
-
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
-    withExecuteContext(null.asInstanceOf[TempFileManager])(f)
-
-  def withExecuteContext[T](
-    tmpFileManager: TempFileManager
-  )(
-    f: ExecuteContext => T
-  )(implicit E: Enclosing
-  ): T =
     ExecutionTimer.logTime { timer =>
       ExecuteContext.scoped(
         tmpdir,
         localTmpdir,
         this,
-        references,
+        references.toMap,
         fs,
         timer,
-        tmpFileManager,
+        null,
         theHailClassLoader,
         flags,
         new BackendContext {
@@ -448,7 +430,7 @@ class SparkBackend(
         }
       }
 
-    val chunkSize = getFlag(SparkBackend.Flags.MaxStageParallelism).toInt
+    val chunkSize = flags.get(SparkBackend.Flags.MaxStageParallelism).toInt
     val partsToRun = partitions.getOrElse(contexts.indices)
     val buffer = new ArrayBuffer[(Array[Byte], Int)](partsToRun.length)
     var failure: Option[Throwable] = None
@@ -557,175 +539,6 @@ class SparkBackend(
         case _: LowererUnsupportedOperation =>
           CompileAndEvaluate._apply(ctx, ir, optimize = true)
       }
-    }
-
-  def executeLiteral(irStr: String): Int =
-    withExecuteContext { ctx =>
-      val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
-      assert(ir.typ.isRealizable)
-      execute(ctx, ir) match {
-        case Left(_) => throw new HailException("Can't create literal")
-        case Right((pt, addr)) =>
-          val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
-          addJavaIR(field)
-      }
-    }
-
-  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) = {
-    val key = jKey.asScala.toArray.toFastSeq
-    val signature =
-      SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      val tir = TableLiteral(
-        TableValue(
-          ctx,
-          signature.virtualType.asInstanceOf[TStruct],
-          key,
-          df.rdd,
-          Some(signature),
-        ),
-        ctx.theHailClassLoader,
-      )
-      val id = addJavaIR(tir)
-      (id, JsonMethods.compact(tir.typ.toJSON))
-    }
-  }
-
-  def pyToDF(s: String): DataFrame =
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      val tir = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      Interpret(tir, ctx).toDF()
-    }
-
-  def pyReadMultipleMatrixTables(jsonQuery: String): java.util.List[MatrixIR] = {
-    log.info("pyReadMultipleMatrixTables: got query")
-    val kvs = JsonMethods.parse(jsonQuery) match {
-      case json4s.JObject(values) => values.toMap
-    }
-
-    val paths = kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map { case json4s.JString(s) =>
-      s
-    }
-
-    val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
-    val intervalObjects =
-      JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
-        .asInstanceOf[IndexedSeq[Interval]]
-
-    val opts = NativeReaderOptions(intervalObjects, intervalPointType, filterIntervals = false)
-    val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
-      log.info(s"creating MatrixRead node for $p")
-      val mnr = MatrixNativeReader(fs, p, Some(opts))
-      MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
-    }
-    log.info("pyReadMultipleMatrixTables: returning N matrix tables")
-    matrixReaders.asJava
-  }
-
-  def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
-  def pyRemoveReference(name: String): Unit = removeReference(name)
-
-  def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    withExecuteContext(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
-
-  def pyRemoveLiftover(name: String, destRGName: String) =
-    references(name).removeLiftover(destRGName)
-
-  def pyFromFASTAFile(
-    name: String,
-    fastaFile: String,
-    indexFile: String,
-    xContigs: java.util.List[String],
-    yContigs: java.util.List[String],
-    mtContigs: java.util.List[String],
-    parInput: java.util.List[String],
-  ): String =
-    withExecuteContext { ctx =>
-      val rg = ReferenceGenome.fromFASTAFile(
-        ctx,
-        name,
-        fastaFile,
-        indexFile,
-        xContigs.asScala.toArray,
-        yContigs.asScala.toArray,
-        mtContigs.asScala.toArray,
-        parInput.asScala.toArray,
-      )
-      rg.toJSONString
-    }
-
-  def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    withExecuteContext(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
-
-  def pyRemoveSequence(name: String) = references(name).removeSequence()
-
-  def pyExportBlockMatrix(
-    pathIn: String,
-    pathOut: String,
-    delimiter: String,
-    header: String,
-    addIndex: Boolean,
-    exportType: String,
-    partitionSize: java.lang.Integer,
-    entries: String,
-  ): Unit =
-    withExecuteContext { ctx =>
-      val rm = RowMatrix.readBlockMatrix(fs, pathIn, partitionSize)
-      entries match {
-        case "full" =>
-          rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-        case "lower" =>
-          rm.exportLowerTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-        case "strict_lower" =>
-          rm.exportStrictLowerTriangle(
-            ctx,
-            pathOut,
-            delimiter,
-            Option(header),
-            addIndex,
-            exportType,
-          )
-        case "upper" =>
-          rm.exportUpperTriangle(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-        case "strict_upper" =>
-          rm.exportStrictUpperTriangle(
-            ctx,
-            pathOut,
-            delimiter,
-            Option(header),
-            addIndex,
-            exportType,
-          )
-      }
-    }
-
-  def pyFitLinearMixedModel(lmm: LinearMixedModel, pa_t: RowMatrix, a_t: RowMatrix): TableIR =
-    withExecuteContext(selfContainedExecution = false)(ctx => lmm.fit(ctx, pa_t, Option(a_t)))
-
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
-    withExecuteContext { ctx =>
-      IRParser.parse_value_ir(
-        s,
-        IRParserEnvironment(ctx, irMap = persistedIR.toMap),
-        BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
-          Name(n) -> IRParser.parseType(t)
-        }.toSeq: _*),
-      )
-    }
-
-  def parse_table_ir(s: String): TableIR =
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-    }
-
-  def parse_matrix_ir(s: String): MatrixIR =
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-    }
-
-  def parse_blockmatrix_ir(s: String): BlockMatrixIR =
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
     }
 
   override def lowerDistributedSort(
