@@ -1,4 +1,5 @@
 package is.hail.expr.ir
+
 import is.hail.annotations.NDArray
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
