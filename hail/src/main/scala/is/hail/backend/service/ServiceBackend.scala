@@ -6,13 +6,14 @@ import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, IRParserEnvironment, IRSize, LoweringAnalyses, MakeTuple, SortField,
+  Compile, IR, IRParser, IRSize, LoweringAnalyses, MakeTuple, SortField,
   TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
+import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.BlockMatrix
 import is.hail.services.{BatchClient, JobGroupRequest, _}
 import is.hail.services.JobGroupStates.Failure
@@ -24,6 +25,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import java.io._
@@ -34,7 +36,7 @@ import java.util.concurrent._
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 import sourcecode.Enclosing
 
 class ServiceBackendContext(
@@ -85,10 +87,26 @@ object ServiceBackend {
       ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir),
     )
 
-    val backend = new ServiceBackend(
+    val references = mutable.Map.empty[String, ReferenceGenome]
+    references ++= ReferenceGenome.builtinReferences()
+    rpcConfig.custom_references.map(ReferenceGenome.fromJSON).foreach { r =>
+      references += (r.name -> r)
+    }
+
+    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+      liftoversForSource.foreach { case (destGenome, chainFile) =>
+        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
+      }
+    }
+    rpcConfig.sequences.foreach { case (rg, seq) =>
+      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
+    }
+
+    new ServiceBackend(
       JarUrl(jarLocation),
       name,
       theHailClassLoader,
+      references.toMap,
       batchClient,
       batchConfig,
       flags,
@@ -97,19 +115,6 @@ object ServiceBackend {
       backendContext,
       scratchDir,
     )
-    backend.addDefaultReferences()
-
-    rpcConfig.custom_references.foreach(s => backend.addReference(ReferenceGenome.fromJSON(s)))
-    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
-      liftoversForSource.foreach { case (destGenome, chainFile) =>
-        backend.addLiftover(sourceGenome, chainFile, destGenome)
-      }
-    }
-    rpcConfig.sequences.foreach { case (rg, seq) =>
-      backend.addSequence(rg, seq.fasta, seq.index)
-    }
-
-    backend
   }
 }
 
@@ -117,6 +122,7 @@ class ServiceBackend(
   val jarSpec: JarSpec,
   var name: String,
   val theHailClassLoader: HailClassLoader,
+  val references: Map[String, ReferenceGenome],
   val batchClient: BatchClient,
   val batchConfig: BatchConfig,
   val flags: HailFeatureFlags,
@@ -388,12 +394,12 @@ class ServiceBackend(
       )(f)
     }
 
-  def addLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    withExecuteContext(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
-
-  def addSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    withExecuteContext(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
-
+  override def loadReferencesFromDataset(path: String): Array[Byte] =
+    withExecuteContext { ctx =>
+      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
+      implicit val formats: Formats = defaultJSONFormats
+      Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)
+    }
 }
 
 class EndOfInputException extends RuntimeException
@@ -568,8 +574,7 @@ class ServiceBackendAPI(
         val code = qobExecutePayload.payload.ir
         backend.withExecuteContext { ctx =>
           withIRFunctionsReadFromInput(qobExecutePayload.functions, ctx) { () =>
-            val ir =
-              IRParser.parse_value_ir(code, IRParserEnvironment(ctx, backend.persistedIR.toMap))
+            val ir = IRParser.parse_value_ir(ctx, code)
             backend.execute(ctx, ir) match {
               case Left(()) =>
                 Array()
