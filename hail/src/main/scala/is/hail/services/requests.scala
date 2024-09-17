@@ -2,19 +2,20 @@ package is.hail.services
 
 import is.hail.services.oauth2.{CloudCredentials, CloudScopes}
 import is.hail.utils.{log, _}
+
+import java.net.URL
+import java.nio.file.Path
+
+import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.apache.http.client.config.RequestConfig
 import org.apache.http.client.methods.{HttpGet, HttpPatch, HttpPost, HttpUriRequest}
 import org.apache.http.entity.ContentType.APPLICATION_JSON
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.{CloseableHttpClient, HttpClients}
 import org.apache.http.util.EntityUtils
-import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.json4s.JValue
 import org.json4s.JsonAST.JNothing
 import org.json4s.jackson.JsonMethods
-
-import java.net.URL
-import java.nio.file.Path
 
 object requests {
 

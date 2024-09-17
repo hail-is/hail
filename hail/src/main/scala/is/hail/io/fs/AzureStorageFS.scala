@@ -5,21 +5,21 @@ import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.services.retryTransientErrors
 import is.hail.shadedazure.com.azure.core.credential.AzureSasCredential
 import is.hail.shadedazure.com.azure.core.util.HttpClientOptions
+import is.hail.shadedazure.com.azure.storage.blob.{
+  BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,
+}
 import is.hail.shadedazure.com.azure.storage.blob.models.{
   BlobItem, BlobRange, BlobStorageException, ListBlobsOptions,
 }
 import is.hail.shadedazure.com.azure.storage.blob.specialized.BlockBlobClient
-import is.hail.shadedazure.com.azure.storage.blob.{
-  BlobClient, BlobContainerClient, BlobServiceClient, BlobServiceClientBuilder,
-}
 
-import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
-import java.nio.file.Paths
-import java.time.Duration
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import java.nio.file.Path
+
+import java.io.{ByteArrayOutputStream, FileNotFoundException, OutputStream}
+import java.nio.file.{Path, Paths}
+import java.time.Duration
 
 class AzureStorageFSURL(
   val account: String,

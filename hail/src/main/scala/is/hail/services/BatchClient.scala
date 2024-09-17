@@ -3,15 +3,17 @@ package is.hail.services
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.services.requests.{BatchServiceRequester, Requester}
 import is.hail.utils._
-import org.apache.http.entity.ByteArrayEntity
-import org.apache.http.entity.ContentType.APPLICATION_JSON
-import org.json4s.JsonAST.{JArray, JBool}
-import org.json4s.jackson.JsonMethods
-import org.json4s.{CustomSerializer, DefaultFormats, Extraction, Formats, JInt, JObject, JString}
+
+import scala.util.Random
 
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
-import scala.util.Random
+
+import org.apache.http.entity.ByteArrayEntity
+import org.apache.http.entity.ContentType.APPLICATION_JSON
+import org.json4s.{CustomSerializer, DefaultFormats, Extraction, Formats, JInt, JObject, JString}
+import org.json4s.JsonAST.{JArray, JBool}
+import org.json4s.jackson.JsonMethods
 
 case class BatchRequest(
   billing_project: String,
@@ -87,7 +89,7 @@ object JobGroupStates {
 
 object BatchClient {
   def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
-  : BatchClient =
+    : BatchClient =
     new BatchClient(BatchServiceRequester(deployConfig, credentialsFile, env))
 }
 

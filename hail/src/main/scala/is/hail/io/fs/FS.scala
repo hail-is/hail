@@ -1,6 +1,5 @@
 package is.hail.io.fs
 
-
 import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
@@ -10,10 +9,12 @@ import is.hail.utils._
 
 import scala.collection.mutable
 import scala.io.Source
+
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
+
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop

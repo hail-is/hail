@@ -3,10 +3,11 @@ package is.hail.io.fs
 import is.hail.HailFeatureFlags
 import is.hail.services.oauth2.{AzureCloudCredentials, GoogleCloudCredentials}
 import is.hail.utils.{FastSeq, SerializableHadoopConfiguration}
-import org.apache.hadoop.conf.Configuration
 
 import java.io.Serializable
 import java.nio.file.Path
+
+import org.apache.hadoop.conf.Configuration
 
 object RouterFSURL {
   def apply(fs: FS)(_url: fs.URL): RouterFSURL = RouterFSURL(_url, fs)
