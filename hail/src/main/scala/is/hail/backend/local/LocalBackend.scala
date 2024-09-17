@@ -99,7 +99,7 @@ class LocalBackend(
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
         new IrMetadata(),
-        mutable.Map.empty,
+        ImmutableMap.empty,
       )(f)
     }
 

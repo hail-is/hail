@@ -23,8 +23,11 @@ class BlockMatrixCache extends mutable.AbstractMap[String, BlockMatrix] with Aut
   override def iterator: Iterator[(String, BlockMatrix)] =
     blockmatrices.iterator
 
-  override def close(): Unit = {
+  override def clear(): Unit = {
     blockmatrices.values.foreach(_.unpersist())
     blockmatrices.clear()
   }
+
+  override def close(): Unit =
+    clear()
 }
