@@ -8,7 +8,9 @@ import is.hail.expr.{
 }
 import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver}
+import is.hail.io.reference.{
+  FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver,
+}
 import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
