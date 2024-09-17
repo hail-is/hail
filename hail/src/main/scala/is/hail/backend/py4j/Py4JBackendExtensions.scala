@@ -38,30 +38,29 @@ trait Py4JBackendExtensions {
   def flags: HailFeatureFlags
   def longLifeTempFileManager: TempFileManager
 
-  def getFlag(name: String): String =
+  def pyGetFlag(name: String): String =
     flags.get(name)
 
-  def setFlag(name: String, value: String): Unit =
+  def pySetFlag(name: String, value: String): Unit =
     flags.set(name, value)
 
-  val availableFlags: java.util.ArrayList[String] =
+  def pyAvailableFlags: java.util.ArrayList[String] =
     flags.available
 
   private[this] var irID: Int = 0
 
-  def nextIRID(): Int =
-    synchronized {
-      irID += 1
-      irID
-    }
+  private[this] def nextIRID(): Int = {
+    irID += 1
+    irID
+  }
 
-  protected[this] def addJavaIR(ir: BaseIR): Int = {
+  private[this] def addJavaIR(ir: BaseIR): Int = {
     val id = nextIRID()
     persistedIR += (id -> ir)
     id
   }
 
-  def removeJavaIR(id: Int): Unit =
+  def pyRemoveJavaIR(id: Int): Unit =
     persistedIR.remove(id)
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
@@ -133,7 +132,7 @@ trait Py4JBackendExtensions {
     }
   }
 
-  def executeLiteral(irStr: String): Int =
+  def pyExecuteLiteral(irStr: String): Int =
     backend.withExecuteContext { ctx =>
       val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
       assert(ir.typ.isRealizable)
@@ -212,7 +211,7 @@ trait Py4JBackendExtensions {
   def pyRemoveLiftover(name: String, destRGName: String) =
     references(name).removeLiftover(destRGName)
 
-  def addReference(rg: ReferenceGenome): Unit = {
+  private[this] def addReference(rg: ReferenceGenome): Unit = {
     references.get(rg.name) match {
       case Some(rg2) =>
         if (rg != rg2) {
@@ -227,7 +226,7 @@ trait Py4JBackendExtensions {
     }
   }
 
-  def removeReference(name: String): Unit =
+  private[this] def removeReference(name: String): Unit =
     references -= name
 
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
@@ -272,7 +271,8 @@ trait Py4JBackendExtensions {
   )(implicit E: Enclosing
   ): T =
     backend.withExecuteContext { ctx =>
-      if (selfContainedExecution && longLifeTempFileManager != null) f(ctx)
-      else ctx.local(tempFileManager = NonOwningTempFileManager(longLifeTempFileManager))(f)
+      val tempFileManager = longLifeTempFileManager
+      if (selfContainedExecution && tempFileManager != null) f(ctx)
+      else ctx.local(tempFileManager = NonOwningTempFileManager(tempFileManager))(f)
     }
 }
