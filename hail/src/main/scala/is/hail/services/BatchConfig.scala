@@ -1,10 +1,11 @@
 package is.hail.services
 
 import is.hail.utils._
-import org.json4s._
-import org.json4s.jackson.JsonMethods
 
 import java.nio.file.{Files, Path}
+
+import org.json4s._
+import org.json4s.jackson.JsonMethods
 
 object BatchConfig {
   def fromConfigFile(file: Path): Option[BatchConfig] =
