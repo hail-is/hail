@@ -237,17 +237,17 @@ class Py4JBackend(Backend):
 
     def persist_expression(self, expr):
         t = expr.dtype
-        return construct_expr(JavaIR(t, self._jbackend.executeLiteral(self._render_ir(expr._ir))), t)
+        return construct_expr(JavaIR(t, self._jbackend.pyExecuteLiteral(self._render_ir(expr._ir))), t)
 
     def _is_registered_ir_function_name(self, name: str) -> bool:
         return name in self._registered_ir_function_names
 
     def set_flags(self, **flags: Mapping[str, str]):
-        available = self._jbackend.availableFlags()
+        available = self._jbackend.pyAvailableFlags()
         invalid = []
         for flag, value in flags.items():
             if flag in available:
-                self._jbackend.setFlag(flag, value)
+                self._jbackend.pySetFlag(flag, value)
             else:
                 invalid.append(flag)
         if len(invalid) != 0:
@@ -256,7 +256,7 @@ class Py4JBackend(Backend):
             )
 
     def get_flags(self, *flags) -> Mapping[str, str]:
-        return {flag: self._jbackend.getFlag(flag) for flag in flags}
+        return {flag: self._jbackend.pyGetFlag(flag) for flag in flags}
 
     def _add_reference_to_scala_backend(self, rg):
         self._jbackend.pyAddReference(orjson.dumps(rg._config).decode('utf-8'))
