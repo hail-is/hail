@@ -102,6 +102,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
       jarSpec = GitRevision("123"),
       name = "name",
       theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
+      references = Map.empty,
       batchClient = client,
       batchConfig = BatchConfig(batchId = Random.nextInt(), jobGroupId = Random.nextInt()),
       flags = flags,

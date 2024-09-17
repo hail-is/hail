@@ -1,15 +1,14 @@
 package is.hail.variant
 
-import is.hail.HailContext
 import is.hail.annotations.ExtendedOrdering
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.backend.ExecuteContext
 import is.hail.check.Gen
 import is.hail.expr.{
   JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser,
 }
 import is.hail.expr.ir.RelationalSpec
 import is.hail.io.fs.FS
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver}
 import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
@@ -18,30 +17,9 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 import java.io.{FileNotFoundException, InputStream}
-import java.lang.ThreadLocal
 
-import htsjdk.samtools.reference.FastaSequenceIndex
-import org.apache.spark.TaskContext
-import org.json4s._
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 import org.json4s.jackson.{JsonMethods, Serialization}
-
-class BroadcastRG(rgParam: ReferenceGenome) extends Serializable {
-  @transient private[this] val rg: ReferenceGenome = rgParam
-
-  private[this] val rgBc: BroadcastValue[ReferenceGenome] =
-    if (TaskContext.get != null)
-      null
-    else
-      rg.broadcast
-
-  def value: ReferenceGenome = {
-    val t = if (rg != null)
-      rg
-    else
-      rgBc.value
-    t
-  }
-}
 
 case class ReferenceGenome(
   name: String,
@@ -53,7 +31,6 @@ case class ReferenceGenome(
   parInput: Array[(Locus, Locus)] = Array.empty[(Locus, Locus)],
 ) extends Serializable {
 
-  @transient lazy val broadcastRG: BroadcastRG = new BroadcastRG(this)
   val nContigs = contigs.length
 
   if (nContigs <= 0)
@@ -165,9 +142,8 @@ case class ReferenceGenome(
     Interval(start, end, includesStart = true, includesEnd = false)
   }
 
-  private var fastaFilePath: String = _
-  private var fastaIndexPath: String = _
-  @transient private var fastaReaderCfg: FASTAReaderConfig = _
+  private[this] var fastaFile: IndexedFastaSequenceFile = _
+  @transient private[this] var fastaReaderCfg: FASTAReaderConfig = _
 
   @transient lazy val contigParser = Parser.oneOfLiteral(contigs)
 
@@ -365,50 +341,14 @@ case class ReferenceGenome(
       )
   }
 
-  def hasSequence: Boolean = fastaFilePath != null
+  private def hasSequence: Boolean = fastaFile != null
 
-  def addSequence(ctx: ExecuteContext, fastaFile: String, indexFile: String): Unit = {
+  def addSequence(fasta: IndexedFastaSequenceFile): Unit = {
     if (hasSequence)
       fatal(s"FASTA sequence has already been loaded for reference genome '$name'.")
 
-    val tmpdir = ctx.localTmpdir
-    val fs = ctx.fs
-    if (!fs.isFile(fastaFile))
-      fatal(s"FASTA file '$fastaFile' does not exist, is not a file, or you do not have access.")
-    if (!fs.isFile(indexFile))
-      fatal(
-        s"FASTA index file '$indexFile' does not exist, is not a file, or you do not have access."
-      )
-    fastaFilePath = fastaFile
-    fastaIndexPath = indexFile
-
-    /* assumption, fastaFile and indexFile will not move or change for the entire duration of a hail
-     * pipeline */
-    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
-
-    val missingContigs = contigs.filterNot(index.hasIndexEntry)
-    if (missingContigs.nonEmpty)
-      fatal(
-        s"Contigs missing in FASTA '$fastaFile' that are present in reference genome '$name':\n  " +
-          s"@1",
-        missingContigs.truncatable("\n  "),
-      )
-
-    val invalidLengths = lengths.flatMap { case (c, l) =>
-      val fastaLength = index.getIndexEntry(c).getSize
-      if (fastaLength != l)
-        Some((c, l, fastaLength))
-      else
-        None
-    }.map { case (c, e, f) => s"$c\texpected:$e\tfound:$f" }
-
-    if (invalidLengths.nonEmpty)
-      fatal(
-        s"Contig sizes in FASTA '$fastaFile' do not match expected sizes for reference genome '$name':\n  " +
-          s"@1",
-        invalidLengths.truncatable("\n  "),
-      )
-    heal(tmpdir, fs)
+    fasta.raiseIfIncompatible(this)
+    fastaFile = fasta
   }
 
   @transient private lazy val realFastaReader: ThreadLocal[FASTAReader] =
@@ -417,6 +357,7 @@ case class ReferenceGenome(
   private def fastaReader(): FASTAReader = {
     if (!hasSequence)
       fatal(s"FASTA file has not been loaded for reference genome '$name'.")
+
     if (realFastaReader.get() == null)
       realFastaReader.set(fastaReaderCfg.reader)
     if (realFastaReader.get().cfg != fastaReaderCfg)
@@ -436,92 +377,45 @@ case class ReferenceGenome(
   def removeSequence(): Unit = {
     if (!hasSequence)
       fatal(s"Reference genome '$name' does not have sequence loaded.")
-    fastaFilePath = null
-    fastaIndexPath = null
+    fastaFile = null
     fastaReaderCfg = null
   }
 
-  private var chainFiles: Map[String, String] = Map.empty
-  @transient private[this] lazy val liftoverMap: mutable.Map[String, LiftOver] = mutable.Map.empty
+  private[this] val liftovers: mutable.Map[String, LiftOver] =
+    mutable.Map.empty
 
-  def hasLiftover(destRGName: String): Boolean = chainFiles.contains(destRGName)
-
-  def addLiftover(ctx: ExecuteContext, chainFile: String, destRGName: String): Unit = {
-    if (name == destRGName)
+  def addLiftover(destRef: ReferenceGenome, liftOver: LiftOver): Unit = {
+    if (name == destRef.name)
       fatal(s"Destination reference genome cannot have the same name as this reference '$name'")
-    if (hasLiftover(destRGName))
+    if (liftovers.contains(destRef.name))
       fatal(
-        s"Chain file already exists for source reference '$name' and destination reference '$destRGName'."
+        s"LiftOver already exists for source reference '$name' and destination reference '${destRef.name}'."
       )
 
-    val tmpdir = ctx.localTmpdir
-    val fs = ctx.fs
-
-    if (!fs.isFile(chainFile))
-      fatal(s"Chain file '$chainFile' does not exist, is not a file, or you do not have access.")
-
-    val chainFilePath = fs.parseUrl(chainFile).toString
-    val lo = LiftOver(fs, chainFilePath)
-    val destRG = ctx.getReference(destRGName)
-    lo.checkChainFile(this, destRG)
-
-    chainFiles += destRGName -> chainFile
-    heal(tmpdir, fs)
+    liftOver.checkChainFile(this, destRef)
+    liftovers += destRef.name -> liftOver
   }
 
-  def getLiftover(destRGName: String): LiftOver = {
-    if (!hasLiftover(destRGName))
-      fatal(
-        s"Chain file has not been loaded for source reference '$name' and destination reference '$destRGName'."
-      )
-    liftoverMap(destRGName)
-  }
+  def removeLiftover(destRGName: String): Unit =
+    liftovers -= destRGName
 
-  def removeLiftover(destRGName: String): Unit = {
-    if (!hasLiftover(destRGName))
-      fatal(s"liftover does not exist from reference genome '$name' to '$destRGName'.")
-    chainFiles -= destRGName
-    liftoverMap -= destRGName
-  }
-
-  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) = {
-    val lo = getLiftover(destRGName)
-    lo.queryLocus(l, minMatch)
-  }
+  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) =
+    liftovers(destRGName).queryLocus(l, minMatch)
 
   def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double)
-    : (Interval, Boolean) = {
-    val lo = getLiftover(destRGName)
-    lo.queryInterval(interval, minMatch)
-  }
+    : (Interval, Boolean) =
+    liftovers(destRGName).queryInterval(interval, minMatch)
 
   def heal(tmpdir: String, fs: FS): Unit = synchronized {
-    // Add liftovers
-    // NOTE: it shouldn't be possible for the liftover map to have more elements than the chain file
-    // since removeLiftover updates both maps, so we don't check to see if liftoverMap has
-    // keys that are not in chainFiles
-    for ((destRGName, chainFile) <- chainFiles) {
-      val chainFilePath = fs.parseUrl(chainFile).toString
-      liftoverMap.get(destRGName) match {
-        case Some(lo) if lo.chainFile == chainFilePath => // do nothing
-        case _ => liftoverMap += destRGName -> LiftOver(fs, chainFilePath)
-      }
-    }
-
+    liftovers.values.foreach(_.restore(fs))
     // add sequence
-    if (fastaFilePath != null) {
-      val fastaPath = fs.parseUrl(fastaFilePath).toString
-      val indexPath = fs.parseUrl(fastaIndexPath).toString
-      if (
-        fastaReaderCfg == null || fastaReaderCfg.fastaFile != fastaPath || fastaReaderCfg.indexFile != indexPath
-      ) {
-        fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
-      }
+    if (fastaFile != null) {
+      fastaFile.restore(fs)
+      val fastaPath = fs.parseUrl(fastaFile.path).toString
+      val indexPath = fs.parseUrl(fastaFile.index.path).toString
+      fastaReaderCfg = FASTAReaderConfig(tmpdir, fs, this, fastaPath, indexPath)
     }
   }
-
-  @transient lazy val broadcast: BroadcastValue[ReferenceGenome] =
-    HailContext.backend.broadcast(this)
 
   override def hashCode: Int = {
     import org.apache.commons.lang3.builder.HashCodeBuilder
@@ -555,9 +449,14 @@ case class ReferenceGenome(
 
   override def toString: String = name
 
+  implicit private[this] val fmts: Formats = DefaultFormats
+
   def write(fs: is.hail.io.fs.FS, file: String): Unit =
-    using(fs.create(file)) { out =>
-      val jrg = JSONExtractReferenceGenome(
+    using(fs.create(file))(out => Serialization.write(toJSON, out))
+
+  def toJSON: JValue =
+    Extraction.decompose(
+      JSONExtractReferenceGenome(
         name,
         contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
         xContigs,
@@ -567,23 +466,8 @@ case class ReferenceGenome(
           JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])
         ),
       )
-      implicit val formats: Formats = defaultJSONFormats
-      Serialization.write(jrg, out)
-    }
+    )
 
-  def toJSON: JSONExtractReferenceGenome = JSONExtractReferenceGenome(
-    name,
-    contigs.map(contig => JSONExtractContig(contig, contigLength(contig))),
-    xContigs,
-    yContigs,
-    mtContigs,
-    par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])),
-  )
-
-  def toJSONString: String = {
-    implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(toJSON)
-  }
 }
 
 object ReferenceGenome {
@@ -644,17 +528,11 @@ object ReferenceGenome {
 
     if (!fs.isFile(fastaFile))
       fatal(s"FASTA file '$fastaFile' does not exist, is not a file, or you do not have access.")
-    if (!fs.isFile(indexFile))
-      fatal(
-        s"FASTA index file '$indexFile' does not exist, is not a file, or you do not have access."
-      )
-
-    val index = using(fs.open(indexFile))(new FastaSequenceIndex(_))
 
     val contigs = new BoxedArrayBuilder[String]
     val lengths = new BoxedArrayBuilder[(String, Int)]
 
-    index.iterator().asScala.foreach { entry =>
+    FastaSequenceIndex(fs, indexFile).foreach { entry =>
       val contig = entry.getContig
       val length = entry.getSize
       contigs += contig

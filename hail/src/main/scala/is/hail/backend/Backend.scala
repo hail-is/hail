@@ -1,12 +1,12 @@
 package is.hail.backend
 
 import is.hail.asm4s._
+import is.hail.backend.Backend.jsonToBytes
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{
   BaseIR, CodeCacheKey, CompiledFunction, IR, IRParser, IRParserEnvironment, LoweringAnalyses,
   SortField, TableIR, TableReader,
 }
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -20,7 +20,6 @@ import is.hail.types.virtual.{BlockMatrixType, TFloat64}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -29,7 +28,7 @@ import java.nio.charset.StandardCharsets
 
 import com.fasterxml.jackson.core.StreamReadConstraints
 import org.json4s._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
 object Backend {
@@ -39,13 +38,6 @@ object Backend {
   def nextID(): String = {
     id += 1
     s"hail_query_$id"
-  }
-
-  private var irID: Int = 0
-
-  def nextIRID(): Int = {
-    irID += 1
-    irID
   }
 
   def encodeToOutputStream(
@@ -66,6 +58,9 @@ object Backend {
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
   }
+
+  def jsonToBytes(f: => JValue): Array[Byte] =
+    JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
 }
 
 abstract class BroadcastValue[T] { def value: T }
@@ -88,14 +83,6 @@ abstract class Backend extends Closeable {
   )
 
   val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
-
-  protected[this] def addJavaIR(ir: BaseIR): Int = {
-    val id = Backend.nextIRID()
-    persistedIR += (id -> ir)
-    id
-  }
-
-  def removeJavaIR(id: Int): Unit = persistedIR.remove(id)
 
   def defaultParallelism: Int
 
@@ -133,31 +120,6 @@ abstract class Backend extends Closeable {
   def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T])
     : CompiledFunction[T]
 
-  var references: Map[String, ReferenceGenome] = Map.empty
-
-  def addDefaultReferences(): Unit =
-    references = ReferenceGenome.builtinReferences()
-
-  def addReference(rg: ReferenceGenome): Unit = {
-    references.get(rg.name) match {
-      case Some(rg2) =>
-        if (rg != rg2) {
-          fatal(
-            s"Cannot add reference genome '${rg.name}', a different reference with that name already exists. Choose a reference name NOT in the following list:\n  " +
-              s"@1",
-            references.keys.truncatable("\n  "),
-          )
-        }
-      case None =>
-        references += (rg.name -> rg)
-    }
-  }
-
-  def hasReference(name: String) = references.contains(name)
-
-  def removeReference(name: String): Unit =
-    references -= name
-
   def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
@@ -191,9 +153,6 @@ abstract class Backend extends Closeable {
 
   def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T
 
-  private[this] def jsonToBytes(f: => JValue): Array[Byte] =
-    JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
-
   final def valueType(s: String): Array[Byte] =
     jsonToBytes {
       withExecuteContext { ctx =>
@@ -222,15 +181,7 @@ abstract class Backend extends Closeable {
       }
     }
 
-  def loadReferencesFromDataset(path: String): Array[Byte] = {
-    withExecuteContext { ctx =>
-      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
-      rgs.foreach(addReference)
-
-      implicit val formats: Formats = defaultJSONFormats
-      Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)
-    }
-  }
+  def loadReferencesFromDataset(path: String): Array[Byte]
 
   def fromFASTAFile(
     name: String,
@@ -242,18 +193,20 @@ abstract class Backend extends Closeable {
     parInput: Array[String],
   ): Array[Byte] =
     withExecuteContext { ctx =>
-      val rg = ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
-        xContigs, yContigs, mtContigs, parInput)
-      rg.toJSONString.getBytes(StandardCharsets.UTF_8)
+      jsonToBytes {
+        ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
+          xContigs, yContigs, mtContigs, parInput).toJSON
+      }
     }
 
-  def parseVCFMetadata(path: String): Array[Byte] = jsonToBytes {
+  def parseVCFMetadata(path: String): Array[Byte] =
     withExecuteContext { ctx =>
-      val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
-      implicit val formats = defaultJSONFormats
-      Extraction.decompose(metadata)
+      jsonToBytes {
+        val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
+        implicit val formats = defaultJSONFormats
+        Extraction.decompose(metadata)
+      }
     }
-  }
 
   def importFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String)
     : Array[Byte] =
@@ -262,27 +215,6 @@ abstract class Backend extends Closeable {
         StandardCharsets.UTF_8
       )
     }
-
-  def pyRegisterIR(
-    name: String,
-    typeParamStrs: java.util.ArrayList[String],
-    argNameStrs: java.util.ArrayList[String],
-    argTypeStrs: java.util.ArrayList[String],
-    returnType: String,
-    bodyStr: String,
-  ): Unit = {
-    withExecuteContext { ctx =>
-      IRFunctionRegistry.registerIR(
-        ctx,
-        name,
-        typeParamStrs.asScala.toArray,
-        argNameStrs.asScala.toArray,
-        argTypeStrs.asScala.toArray,
-        returnType,
-        bodyStr,
-      )
-    }
-  }
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
 }

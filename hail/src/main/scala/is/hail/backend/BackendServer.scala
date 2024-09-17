@@ -112,6 +112,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
         }
         return
       }
+
       val response: Array[Byte] = exchange.getRequestURI.getPath match {
         case "/value/type" => backend.valueType(body.extract[IRTypePayload].ir)
         case "/table/type" => backend.tableType(body.extract[IRTypePayload].ir)
