@@ -18,7 +18,7 @@ class HailWorkerException(
 trait ErrorHandling {
   def fatal(msg: String): Nothing = throw new HailException(msg)
 
-  def fatal(msg: String, errorId: Int) = throw new HailException(msg, errorId)
+  def fatal(msg: String, errorId: Int): Nothing = throw new HailException(msg, errorId)
 
   def fatal(msg: String, cause: Throwable): Nothing = throw new HailException(msg, None, cause)
 

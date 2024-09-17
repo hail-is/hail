@@ -12,11 +12,10 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
-import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.virtual.{BlockMatrixType, TFloat64}
+import is.hail.types.virtual.TFloat64
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -76,15 +75,6 @@ abstract class Backend extends Closeable {
   def canExecuteParallelTasksOnDriver: Boolean = true
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T]
-
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
-    : Unit
-
-  def unpersist(backendContext: BackendContext, id: String): Unit
-
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix
-
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
 
   def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
