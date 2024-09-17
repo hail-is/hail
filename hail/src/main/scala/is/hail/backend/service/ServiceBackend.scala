@@ -5,14 +5,17 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
-import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, IRSize, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
+import is.hail.expr.ir.{
+  Compile, IR, IRParser, IRParserEnvironment, IRSize, LoweringAnalyses, MakeTuple, SortField,
+  TableIR, TableReader, TypeCheck,
+}
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
-import is.hail.services.JobGroupStates.Failure
 import is.hail.services.{BatchClient, _}
+import is.hail.services.JobGroupStates.Failure
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -22,16 +25,17 @@ import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
 import scala.reflect.ClassTag
+
 import java.io._
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 import java.util.concurrent._
+
 import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
-
-import java.nio.file.Path
 
 class ServiceBackendContext(
   val billingProject: String,
@@ -181,7 +185,7 @@ class ServiceBackend(
     val uploadContexts = executor.submit[Unit](() =>
       retryTransientErrors {
         fs.writePDOS(s"$root/contexts") { os =>
-          var o = 12L * n  // 12L = sizeof(Long) + sizeof(Int)
+          var o = 12L * n // 12L = sizeof(Long) + sizeof(Int)
           collection.foreach { context =>
             val len = context.length
             os.writeLong(o)
