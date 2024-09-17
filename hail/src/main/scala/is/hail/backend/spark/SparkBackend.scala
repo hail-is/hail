@@ -9,6 +9,7 @@ import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -320,7 +321,7 @@ class SparkBackend(
   override val references: mutable.Map[String, ReferenceGenome],
   gcsRequesterPaysProject: String,
   gcsRequesterPaysBuckets: String,
-) extends Backend with BackendWithCodeCache with Py4JBackendExtensions {
+) extends Backend with Py4JBackendExtensions {
 
   assert(gcsRequesterPaysProject != null || gcsRequesterPaysBuckets == null)
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
@@ -351,8 +352,8 @@ class SparkBackend(
   override val longLifeTempFileManager: TempFileManager =
     new OwningTempFileManager(fs)
 
-  private[this] val bmCache: BlockMatrixCache =
-    new BlockMatrixCache()
+  private[this] val bmCache = new BlockMatrixCache()
+  private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
 
   def createExecuteContextForTests(
     timer: ExecutionTimer,
@@ -376,6 +377,7 @@ class SparkBackend(
       },
       new IrMetadata(),
       ImmutableMap.empty,
+      mutable.Map.empty,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
@@ -396,6 +398,7 @@ class SparkBackend(
         },
         new IrMetadata(),
         bmCache,
+        codeCache,
       )(f)
     }
 
