@@ -8,6 +8,7 @@ import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
@@ -84,13 +85,14 @@ object LocalBackend {
 class LocalBackend(
   val tmpdir: String,
   override val references: mutable.Map[String, ReferenceGenome],
-) extends Backend with BackendWithCodeCache with Py4JBackendExtensions {
+) extends Backend with Py4JBackendExtensions {
 
   override def backend: Backend = this
   override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
   override def longLifeTempFileManager: TempFileManager = null
 
-  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+  private[this] val theHailClassLoader = new HailClassLoader(getClass.getClassLoader)
+  private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
 
   // flags can be set after construction from python
   def fs: FS = RouterFS.buildRoutes(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
@@ -114,6 +116,7 @@ class LocalBackend(
         },
         new IrMetadata(),
         ImmutableMap.empty,
+        codeCache,
       )(f)
     }
 

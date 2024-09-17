@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.io.BufferSpec
