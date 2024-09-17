@@ -1135,7 +1135,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         spec['job_group_id'] = job_group_id
 
         always_run = spec.pop('always_run', False)
-        n_max_attempts = spec.pop('n_max_attempts', 5)
+        n_max_attempts = spec.pop('n_max_attempts', 20)
 
         cloud = spec.get('cloud', CLOUD)
 
