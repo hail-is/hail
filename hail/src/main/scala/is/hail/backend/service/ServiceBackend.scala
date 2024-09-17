@@ -381,7 +381,7 @@ class ServiceBackend(
         flags,
         serviceBackendContext,
         new IrMetadata(),
-        mutable.Map.empty,
+        ImmutableMap.empty,
       )(f)
     }
 
