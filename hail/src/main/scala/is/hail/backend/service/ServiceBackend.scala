@@ -14,8 +14,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
-import is.hail.linalg.BlockMatrix
-import is.hail.services.{BatchClient, JobGroupRequest, _}
+import is.hail.services.{BatchClient, _}
 import is.hail.services.JobGroupStates.Failure
 import is.hail.types._
 import is.hail.types.physical._
@@ -364,15 +363,6 @@ class ServiceBackend(
   ): TableReader =
     LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nPartitions)
 
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
-    : Unit = ???
-
-  def unpersist(backendContext: BackendContext, id: String): Unit = ???
-
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
-
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
-
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
@@ -391,6 +381,7 @@ class ServiceBackend(
         flags,
         serviceBackendContext,
         new IrMetadata(),
+        mutable.Map.empty,
       )(f)
     }
 

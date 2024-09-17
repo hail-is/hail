@@ -4,6 +4,7 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.caching.BlockMatrixCache
 import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
@@ -11,7 +12,6 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
-import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
@@ -338,20 +338,8 @@ class SparkBackend(
   override val longLifeTempFileManager: TempFileManager =
     new OwningTempFileManager(fs)
 
-  val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
-
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
-    : Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
-
-  def unpersist(backendContext: BackendContext, id: String): Unit = unpersist(id)
-
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix =
-    bmCache.getPersistedBlockMatrix(id)
-
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType =
-    bmCache.getPersistedBlockMatrixType(id)
-
-  def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
+  private[this] val bmCache: BlockMatrixCache =
+    new BlockMatrixCache()
 
   def createExecuteContextForTests(
     timer: ExecutionTimer,
@@ -374,6 +362,7 @@ class SparkBackend(
           ExecutionCache.forTesting
       },
       new IrMetadata(),
+      null,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
@@ -393,6 +382,7 @@ class SparkBackend(
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
         new IrMetadata(),
+        bmCache,
       )(f)
     }
 
@@ -457,6 +447,7 @@ class SparkBackend(
   override def asSpark(op: String): SparkBackend = this
 
   def close(): Unit = {
+    bmCache.close()
     SparkBackend.stop()
     longLifeTempFileManager.close()
   }

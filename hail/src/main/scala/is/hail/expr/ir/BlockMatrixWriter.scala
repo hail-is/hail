@@ -1,6 +1,4 @@
 package is.hail.expr.ir
-
-import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
@@ -190,7 +188,7 @@ case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends Bl
   def pathOpt: Option[String] = None
 
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
-    HailContext.backend.persist(ctx.backendContext, id, bm, storageLevel)
+    ctx.BlockMatrixCache += id -> bm.persist(storageLevel)
 
   def loweredTyp: Type = TVoid
 }
