@@ -6,6 +6,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
+import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -71,6 +72,7 @@ object ExecuteContext {
     flags: HailFeatureFlags,
     backendContext: BackendContext,
     irMetadata: IrMetadata,
+    blockMatrixCache: mutable.Map[String, BlockMatrix],
   )(
     f: ExecuteContext => T
   ): T = {
@@ -89,6 +91,7 @@ object ExecuteContext {
           flags,
           backendContext,
           irMetadata,
+          blockMatrixCache,
         ))(f(_))
       }
     }
@@ -118,6 +121,7 @@ class ExecuteContext(
   val flags: HailFeatureFlags,
   val backendContext: BackendContext,
   val irMetadata: IrMetadata,
+  val BlockMatrixCache: mutable.Map[String, BlockMatrix],
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -184,6 +188,7 @@ class ExecuteContext(
     flags: HailFeatureFlags = this.flags,
     backendContext: BackendContext = this.backendContext,
     irMetadata: IrMetadata = this.irMetadata,
+    blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
   )(
     f: ExecuteContext => A
   ): A =
@@ -200,5 +205,6 @@ class ExecuteContext(
       flags,
       backendContext,
       irMetadata,
+      blockMatrixCache,
     ))(f)
 }

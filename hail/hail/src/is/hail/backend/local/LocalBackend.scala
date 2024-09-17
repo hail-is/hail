@@ -11,11 +11,10 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
-import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.{BlockMatrixType, TVoid}
+import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -114,6 +113,7 @@ class LocalBackend(
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
         new IrMetadata(),
+        ImmutableMap.empty,
       )(f)
     }
 
@@ -215,15 +215,6 @@ class LocalBackend(
     nPartitions: Option[Int],
   ): TableReader =
     LowerDistributedSort.distributedSort(ctx, stage, sortFields, rt, nPartitions)
-
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
-    : Unit = ???
-
-  def unpersist(backendContext: BackendContext, id: String): Unit = ???
-
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
-
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
 
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
