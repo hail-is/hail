@@ -54,18 +54,15 @@ object NonOwningTempFileManager {
 }
 
 object ExecuteContext {
-  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T = {
-    val result = HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(
+  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
+    HailContext.sparkBackend.withExecuteContext(
       selfContainedExecution = false
     )(f)
-    result
-  }
 
   def scoped[T](
     tmpdir: String,
     localTmpdir: String,
     backend: Backend,
-    references: Map[String, ReferenceGenome],
     fs: FS,
     timer: ExecutionTimer,
     tempFileManager: TempFileManager,
@@ -73,6 +70,7 @@ object ExecuteContext {
     flags: HailFeatureFlags,
     backendContext: BackendContext,
     irMetadata: IrMetadata,
+    references: mutable.Map[String, ReferenceGenome],
     blockMatrixCache: mutable.Map[String, BlockMatrix],
     codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
     irCache: mutable.Map[Int, BaseIR],
@@ -85,7 +83,6 @@ object ExecuteContext {
           tmpdir,
           localTmpdir,
           backend,
-          references,
           fs,
           region,
           timer,
@@ -94,6 +91,7 @@ object ExecuteContext {
           flags,
           backendContext,
           irMetadata,
+          references,
           blockMatrixCache,
           codeCache,
           irCache,
@@ -117,7 +115,6 @@ class ExecuteContext(
   val tmpdir: String,
   val localTmpdir: String,
   val backend: Backend,
-  val references: Map[String, ReferenceGenome],
   val fs: FS,
   val r: Region,
   val timer: ExecutionTimer,
@@ -126,6 +123,7 @@ class ExecuteContext(
   val flags: HailFeatureFlags,
   val backendContext: BackendContext,
   val irMetadata: IrMetadata,
+  val References: mutable.Map[String, ReferenceGenome],
   val BlockMatrixCache: mutable.Map[String, BlockMatrix],
   val CodeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
   val IrCache: mutable.Map[Int, BaseIR],
@@ -142,7 +140,8 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(references)
+  def stateManager: HailStateManager =
+    HailStateManager(References.toMap)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
@@ -168,7 +167,7 @@ class ExecuteContext(
 
   def getFlag(name: String): String = flags.get(name)
 
-  def getReference(name: String): ReferenceGenome = references(name)
+  def getReference(name: String): ReferenceGenome = References(name)
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 
@@ -188,7 +187,6 @@ class ExecuteContext(
     tmpdir: String = this.tmpdir,
     localTmpdir: String = this.localTmpdir,
     backend: Backend = this.backend,
-    references: Map[String, ReferenceGenome] = this.references,
     fs: FS = this.fs,
     r: Region = this.r,
     timer: ExecutionTimer = this.timer,
@@ -196,6 +194,7 @@ class ExecuteContext(
     theHailClassLoader: HailClassLoader = this.theHailClassLoader,
     flags: HailFeatureFlags = this.flags,
     backendContext: BackendContext = this.backendContext,
+    references: mutable.Map[String, ReferenceGenome] = this.References,
     irMetadata: IrMetadata = this.irMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
     codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]] = this.CodeCache,
@@ -207,7 +206,6 @@ class ExecuteContext(
       tmpdir,
       localTmpdir,
       backend,
-      references,
       fs,
       r,
       timer,
@@ -216,6 +214,7 @@ class ExecuteContext(
       flags,
       backendContext,
       irMetadata,
+      references,
       blockMatrixCache,
       codeCache,
       irCache,

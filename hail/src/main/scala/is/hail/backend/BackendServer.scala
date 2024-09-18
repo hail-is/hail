@@ -1,41 +1,21 @@
 package is.hail.backend
 
-import is.hail.expr.ir.IRParser
+import is.hail.types.virtual.Kinds.{BlockMatrix, Matrix, Table, Value}
 import is.hail.utils._
-
-import scala.util.control.NonFatal
+import is.hail.utils.ExecutionTimer.Timings
 
 import java.io.Closeable
 import java.net.InetSocketAddress
-import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+import com.google.api.client.http.HttpStatusCodes
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import org.json4s._
-import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.JsonMethods.compact
-
-case class IRTypePayload(ir: String)
-case class LoadReferencesFromDatasetPayload(path: String)
-
-case class FromFASTAFilePayload(
-  name: String,
-  fasta_file: String,
-  index_file: String,
-  x_contigs: Array[String],
-  y_contigs: Array[String],
-  mt_contigs: Array[String],
-  par: Array[String],
-)
-
-case class ParseVCFMetadataPayload(path: String)
-case class ImportFamPayload(path: String, quant_pheno: Boolean, delimiter: String, missing: String)
-case class ExecutePayload(ir: String, stream_codec: String, timed: Boolean)
+import org.json4s.jackson.{JsonMethods, Serialization}
 
 class BackendServer(backend: Backend) extends Closeable {
   // 0 => let the OS pick an available port
   private[this] val httpServer = HttpServer.create(new InetSocketAddress(0), 10)
-  private[this] val handler = new BackendHttpHandler(backend)
 
   private[this] val thread = {
     // This HTTP server *must not* start non-daemon threads because such threads keep the JVM
@@ -59,7 +39,7 @@ class BackendServer(backend: Backend) extends Closeable {
     /* Source:
      * https://docs.oracle.com/en/java/javase/11/docs/api/jdk.httpserver/com/sun/net/httpserver/HttpServer.html#setExecutor(java.util.concurrent.Executor) */
     //
-    httpServer.createContext("/", handler)
+    httpServer.createContext("/", Handler)
     httpServer.setExecutor(null)
     val t = Executors.defaultThreadFactory().newThread(new Runnable() {
       def run(): Unit =
@@ -69,85 +49,75 @@ class BackendServer(backend: Backend) extends Closeable {
     t
   }
 
-  def port = httpServer.getAddress.getPort
+  def port: Int = httpServer.getAddress.getPort
 
   def start(): Unit =
     thread.start()
 
   override def close(): Unit =
     httpServer.stop(10)
-}
 
-class BackendHttpHandler(backend: Backend) extends HttpHandler {
-  def handle(exchange: HttpExchange): Unit = {
-    implicit val formats: Formats = DefaultFormats
+  private case class Request(exchange: HttpExchange, payload: JValue)
 
-    try {
-      val body = using(exchange.getRequestBody)(JsonMethods.parse(_))
-      if (exchange.getRequestURI.getPath == "/execute") {
-        val ExecutePayload(irStr, streamCodec, timed) = body.extract[ExecutePayload]
-        backend.withExecuteContext { ctx =>
-          val (res, timings) = ExecutionTimer.time { timer =>
-            ctx.local(timer = timer) { ctx =>
-              val irData = IRParser.parse_value_ir(ctx, irStr)
-              backend.execute(ctx, irData)
-            }
-          }
+  private[this] object Handler extends HttpHandler with HttpLikeBackendRpc[Request] {
 
-          if (timed) {
-            exchange.getResponseHeaders.add("X-Hail-Timings", compact(timings.toJSON))
-          }
+    override def handle(exchange: HttpExchange): Unit = {
+      val payload = using(exchange.getRequestBody)(JsonMethods.parse(_))
+      runRpc(Request(exchange, payload))
+    }
 
-          res match {
-            case Left(_) => exchange.sendResponseHeaders(200, -1L)
-            case Right((t, off)) =>
-              exchange.sendResponseHeaders(200, 0L) // 0 => an arbitrarily long response body
-              using(exchange.getResponseBody) { os =>
-                Backend.encodeToOutputStream(ctx, t, off, streamCodec, os)
-              }
-          }
+    implicit override protected object Ask extends Routing {
+
+      import Routes._
+
+      override def route(a: Request): Route =
+        a.exchange.getRequestURI.getPath match {
+          case "/value/type" => TypeOf(Value)
+          case "/table/type" => TypeOf(Table)
+          case "/matrixtable/type" => TypeOf(Matrix)
+          case "/blockmatrix/type" => TypeOf(BlockMatrix)
+          case "/execute" => Execute
+          case "/vcf/metadata/parse" => ParseVcfMetadata
+          case "/fam/import" => ImportFam
+          case "/references/load" => LoadReferencesFromDataset
+          case "/references/from_fasta" => LoadReferencesFromFASTA
         }
-        return
+
+      override def payload(a: Request): JValue = a.payload
+    }
+
+    implicit override protected object Write extends Write[Request] with ErrorHandling {
+
+      override def timings(req: Request)(t: Timings): Unit = {
+        val ts = Serialization.write(Map("timings" -> t))
+        req.exchange.getResponseHeaders.add("X-Hail-Timings", ts)
       }
 
-      val response: Array[Byte] = exchange.getRequestURI.getPath match {
-        case "/value/type" => backend.valueType(body.extract[IRTypePayload].ir)
-        case "/table/type" => backend.tableType(body.extract[IRTypePayload].ir)
-        case "/matrixtable/type" => backend.matrixTableType(body.extract[IRTypePayload].ir)
-        case "/blockmatrix/type" => backend.blockMatrixType(body.extract[IRTypePayload].ir)
-        case "/references/load" =>
-          backend.loadReferencesFromDataset(body.extract[LoadReferencesFromDatasetPayload].path)
-        case "/references/from_fasta" =>
-          val config = body.extract[FromFASTAFilePayload]
-          backend.fromFASTAFile(
-            config.name,
-            config.fasta_file,
-            config.index_file,
-            config.x_contigs,
-            config.y_contigs,
-            config.mt_contigs,
-            config.par,
-          )
-        case "/vcf/metadata/parse" =>
-          backend.parseVCFMetadata(body.extract[ParseVCFMetadataPayload].path)
-        case "/fam/import" =>
-          val config = body.extract[ImportFamPayload]
-          backend.importFam(config.path, config.quant_pheno, config.delimiter, config.missing)
-      }
+      override def result(req: Request)(result: Array[Byte]): Unit =
+        respond(req)(HttpStatusCodes.STATUS_CODE_OK, result)
 
-      exchange.sendResponseHeaders(200, response.length)
-      using(exchange.getResponseBody())(_.write(response))
-    } catch {
-      case NonFatal(t) =>
-        val (shortMessage, expandedMessage, errorId) = handleForPython(t)
-        val errorJson = JObject(
-          "short" -> JString(shortMessage),
-          "expanded" -> JString(expandedMessage),
-          "error_id" -> JInt(errorId),
+      override def error(req: Request)(t: Throwable): Unit =
+        respond(req)(
+          HttpStatusCodes.STATUS_CODE_SERVER_ERROR,
+          jsonToBytes {
+            val (shortMessage, expandedMessage, errorId) = handleForPython(t)
+            JObject(
+              "short" -> JString(shortMessage),
+              "expanded" -> JString(expandedMessage),
+              "error_id" -> JInt(errorId),
+            )
+          },
         )
-        val errorBytes = JsonMethods.compact(errorJson).getBytes(StandardCharsets.UTF_8)
-        exchange.sendResponseHeaders(500, errorBytes.length)
-        using(exchange.getResponseBody())(_.write(errorBytes))
+
+      private[this] def respond(req: Request)(code: Int, payload: Array[Byte]): Unit = {
+        req.exchange.sendResponseHeaders(code, payload.length)
+        using(req.exchange.getResponseBody)(_.write(payload))
+      }
+    }
+
+    implicit override protected object Context extends Context[Request] {
+      override def scoped[A](req: Request)(f: ExecuteContext => A): (A, Timings) =
+        backend.withExecuteContext(f)
     }
   }
 }

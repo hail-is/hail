@@ -1,28 +1,24 @@
 package is.hail.backend
 
-import is.hail.asm4s._
-import is.hail.backend.Backend.jsonToBytes
+import is.hail.asm4s.HailClassLoader
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{IR, IRParser, LoweringAnalyses, SortField, TableIR, TableReader}
+import is.hail.expr.ir.{IR, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
-import is.hail.io.fs._
-import is.hail.io.plink.LoadPlink
-import is.hail.io.vcf.LoadVCF
-import is.hail.types._
+import is.hail.io.fs.FS
+import is.hail.types.RTable
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.virtual.TFloat64
-import is.hail.utils._
-import is.hail.variant.ReferenceGenome
+import is.hail.utils.ExecutionTimer.Timings
+import is.hail.utils.fatal
 
 import scala.reflect.ClassTag
 
-import java.io._
+import java.io.{Closeable, OutputStream}
 import java.nio.charset.StandardCharsets
 
 import com.fasterxml.jackson.core.StreamReadConstraints
-import org.json4s._
+import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
@@ -39,16 +35,15 @@ object Backend {
     ctx: ExecuteContext,
     t: PTuple,
     off: Long,
-    bufferSpecString: String,
+    bufferSpec: BufferSpec,
     os: OutputStream,
   ): Unit = {
-    val bs = BufferSpec.parseOrDefault(bufferSpecString)
     assert(t.size == 1)
     val elementType = t.fields(0).typ
     val codec = TypedCodecSpec(
       EType.fromPythonTypeEncoding(elementType.virtualType),
       elementType.virtualType,
-      bs,
+      bufferSpec,
     )
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
@@ -96,8 +91,8 @@ abstract class Backend extends Closeable {
 
   def close(): Unit
 
-  def asSpark(op: String): SparkBackend =
-    fatal(s"${getClass.getSimpleName}: $op requires SparkBackend")
+  def asSpark(implicit E: Enclosing): SparkBackend =
+    fatal(s"${getClass.getSimpleName}: ${E.value} requires SparkBackend")
 
   def shouldCacheQueryInfo: Boolean = true
 
@@ -132,70 +127,7 @@ abstract class Backend extends Closeable {
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage
 
-  def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T
-
-  final def valueType(s: String): Array[Byte] =
-    withExecuteContext { ctx =>
-      jsonToBytes {
-        IRParser.parse_value_ir(ctx, s).typ.toJSON
-      }
-    }
-
-  final def tableType(s: String): Array[Byte] =
-    withExecuteContext { ctx =>
-      jsonToBytes {
-        IRParser.parse_table_ir(ctx, s).typ.toJSON
-      }
-    }
-
-  final def matrixTableType(s: String): Array[Byte] =
-    withExecuteContext { ctx =>
-      jsonToBytes {
-        IRParser.parse_matrix_ir(ctx, s).typ.toJSON
-      }
-    }
-
-  final def blockMatrixType(s: String): Array[Byte] =
-    withExecuteContext { ctx =>
-      jsonToBytes {
-        IRParser.parse_blockmatrix_ir(ctx, s).typ.toJSON
-      }
-    }
-
-  def loadReferencesFromDataset(path: String): Array[Byte]
-
-  def fromFASTAFile(
-    name: String,
-    fastaFile: String,
-    indexFile: String,
-    xContigs: Array[String],
-    yContigs: Array[String],
-    mtContigs: Array[String],
-    parInput: Array[String],
-  ): Array[Byte] =
-    withExecuteContext { ctx =>
-      jsonToBytes {
-        ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
-          xContigs, yContigs, mtContigs, parInput).toJSON
-      }
-    }
-
-  def parseVCFMetadata(path: String): Array[Byte] =
-    withExecuteContext { ctx =>
-      jsonToBytes {
-        val metadata = LoadVCF.parseHeaderMetadata(ctx.fs, Set.empty, TFloat64, path)
-        implicit val formats = defaultJSONFormats
-        Extraction.decompose(metadata)
-      }
-    }
-
-  def importFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String)
-    : Array[Byte] =
-    withExecuteContext { ctx =>
-      LoadPlink.importFamJSON(ctx.fs, path, isQuantPheno, delimiter, missingValue).getBytes(
-        StandardCharsets.UTF_8
-      )
-    }
+  def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): (T, Timings)
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
 }

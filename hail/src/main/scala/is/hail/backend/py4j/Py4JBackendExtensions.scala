@@ -14,7 +14,7 @@ import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.RowMatrix
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
-import is.hail.utils.{defaultJSONFormats, fatal, log, toRichIterable, HailException, Interval}
+import is.hail.utils.{fatal, log, toRichIterable, HailException, Interval}
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
@@ -22,13 +22,11 @@ import scala.jdk.CollectionConverters.{
   asScalaBufferConverter, mapAsScalaMapConverter, seqAsJavaListConverter,
 }
 
-import java.nio.charset.StandardCharsets
 import java.util
 
 import org.apache.spark.sql.DataFrame
 import org.json4s
-import org.json4s.Formats
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
 trait Py4JBackendExtensions {
@@ -140,7 +138,7 @@ trait Py4JBackendExtensions {
           val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
           addJavaIR(ctx, field)
       }
-    }
+    }._1
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) = {
     val key = jKey.asScala.toArray.toFastSeq
@@ -166,7 +164,7 @@ trait Py4JBackendExtensions {
     backend.withExecuteContext { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
       Interpret(tir, ctx).toDF()
-    }
+    }._1
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
     backend.withExecuteContext { ctx =>
@@ -192,7 +190,7 @@ trait Py4JBackendExtensions {
       }
       log.info("pyReadMultipleMatrixTables: returning N matrix tables")
       matrixReaders.asJava
-    }
+    }._1
 
   def pyAddReference(jsonConfig: String): Unit =
     addReference(ReferenceGenome.fromJSON(jsonConfig))
@@ -235,7 +233,7 @@ trait Py4JBackendExtensions {
           Name(n) -> IRParser.parseType(t)
         }.toSeq: _*),
       )
-    }
+    }._1
 
   def parse_table_ir(s: String): TableIR =
     withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_table_ir(ctx, s))
@@ -248,15 +246,6 @@ trait Py4JBackendExtensions {
       IRParser.parse_blockmatrix_ir(ctx, s)
     }
 
-  def loadReferencesFromDataset(path: String): Array[Byte] =
-    backend.withExecuteContext { ctx =>
-      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
-      rgs.foreach(addReference)
-
-      implicit val formats: Formats = defaultJSONFormats
-      Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)
-    }
-
   def withExecuteContext[T](
     selfContainedExecution: Boolean = true
   )(
@@ -267,5 +256,5 @@ trait Py4JBackendExtensions {
       val tempFileManager = longLifeTempFileManager
       if (selfContainedExecution && tempFileManager != null) f(ctx)
       else ctx.local(tempFileManager = NonOwningTempFileManager(tempFileManager))(f)
-    }
+    }._1
 }

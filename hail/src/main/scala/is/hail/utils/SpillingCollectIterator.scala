@@ -16,7 +16,7 @@ object SpillingCollectIterator {
     val nPartitions = rdd.partitions.length
     val x = new SpillingCollectIterator(localTmpdir, fs, nPartitions, sizeLimit)
     val ctc = classTag[T]
-    SparkBackend.sparkContext("SpillingCollectIterator.apply").runJob(
+    SparkBackend.sparkContext.runJob(
       rdd,
       (_, it: Iterator[T]) => it.toArray(ctc),
       0 until nPartitions,

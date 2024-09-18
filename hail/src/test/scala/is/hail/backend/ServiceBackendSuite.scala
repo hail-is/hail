@@ -2,12 +2,15 @@ package is.hail.backend
 
 import is.hail.HailFeatureFlags
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.service.{ServiceBackend, ServiceBackendContext, ServiceBackendRPCPayload}
+import is.hail.backend.service.{
+  BatchJobConfig, ServiceBackend, ServiceBackendContext, ServiceBackendRPCPayload,
+}
 import is.hail.io.fs.{CloudStorageFSConfig, RouterFS}
 import is.hail.services._
 import is.hail.services.JobGroupStates.Success
 import is.hail.utils.{tokenUrlSafe, using}
 
+import scala.collection.mutable
 import scala.reflect.io.{Directory, Path}
 import scala.util.Random
 
@@ -24,9 +27,9 @@ import org.testng.annotations.Test
 class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionValues {
 
   @Test def testCreateJobPayload(): Unit =
-    withMockDriverContext { rpcConfig =>
+    withMockDriverContext { case (rpcConfig, jobConfig) =>
       val batchClient = mock[BatchClient]
-      using(ServiceBackend(batchClient, rpcConfig)) { backend =>
+      using(ServiceBackend(batchClient, rpcConfig, jobConfig)) { backend =>
         val contexts = Array.tabulate(1)(_.toString.getBytes)
 
         // verify that
@@ -41,12 +44,12 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
             val jobs = jobGroup.jobs
             jobs.length shouldEqual contexts.length
             jobs.foreach { payload =>
-              payload.regions.value shouldBe rpcConfig.regions
+              payload.regions.value shouldBe jobConfig.regions
               payload.resources.value shouldBe JobResources(
                 preemptible = true,
-                cpu = Some(rpcConfig.worker_cores),
-                memory = Some(rpcConfig.worker_memory),
-                storage = Some(rpcConfig.storage),
+                cpu = Some(jobConfig.worker_cores),
+                memory = Some(jobConfig.worker_memory),
+                storage = Some(jobConfig.storage),
               )
             }
 
@@ -61,7 +64,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
             jobGroupId shouldEqual backend.batchConfig.jobGroupId + 1
 
             val resultsDir =
-              Path(backend.serviceBackendContext.remoteTmpDir) /
+              Path(rpcConfig.remote_tmpdir) /
                 "parallelizeAndComputeWithIndex" /
                 tokenUrlSafe
 
@@ -82,7 +85,11 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
 
         val (failure, _) =
           backend.parallelizeAndComputeWithIndex(
-            backend.serviceBackendContext,
+            ServiceBackendContext(
+              remoteTmpDir = rpcConfig.remote_tmpdir,
+              jobConfig = jobConfig,
+              executionCache = ExecutionCache.noCache,
+            ),
             backend.fs,
             contexts,
             "stage1",
@@ -95,58 +102,52 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
       }
     }
 
-  def ServiceBackend(client: BatchClient, rpcConfig: ServiceBackendRPCPayload): ServiceBackend = {
+  def ServiceBackend(
+    client: BatchClient,
+    rpcConfig: ServiceBackendRPCPayload,
+    jobConfig: BatchJobConfig,
+  ): ServiceBackend = {
     val flags = HailFeatureFlags.fromEnv()
     val fs = RouterFS.buildRoutes(CloudStorageFSConfig())
     new ServiceBackend(
-      jarSpec = GitRevision("123"),
       name = "name",
-      theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
-      references = Map.empty,
       batchClient = client,
+      jarSpec = GitRevision("123"),
+      theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
       batchConfig = BatchConfig(batchId = Random.nextInt(), jobGroupId = Random.nextInt()),
+      rpcConfig = rpcConfig,
+      jobConfig = jobConfig,
       flags = flags,
-      tmpdir = rpcConfig.tmp_dir,
       fs = fs,
-      serviceBackendContext =
-        new ServiceBackendContext(
-          rpcConfig.billing_project,
-          rpcConfig.remote_tmpdir,
-          rpcConfig.worker_cores,
-          rpcConfig.worker_memory,
-          rpcConfig.storage,
-          rpcConfig.regions,
-          rpcConfig.cloudfuse_configs,
-          profile = false,
-          ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir),
-        ),
-      scratchDir = rpcConfig.remote_tmpdir,
+      references = mutable.Map.empty,
     )
   }
 
-  def withMockDriverContext(test: ServiceBackendRPCPayload => Any): Any =
+  def withMockDriverContext(test: (ServiceBackendRPCPayload, BatchJobConfig) => Any): Any =
     using(LocalTmpFolder) { tmp =>
       withObjectSpied[is.hail.utils.UtilsType] {
         // not obvious how to pull out `tokenUrlSafe` and inject this directory
         // using a spy is a hack and i don't particularly like it.
         when(is.hail.utils.tokenUrlSafe) thenAnswer "TOKEN"
 
-        test {
+        test(
           ServiceBackendRPCPayload(
             tmp_dir = tmp.path,
             remote_tmpdir = tmp.path,
+            flags = Map(),
+            custom_references = Array(),
+            liftovers = Map(),
+            sequences = Map(),
+          ),
+          BatchJobConfig(
             billing_project = "fancy",
             worker_cores = "128",
             worker_memory = "a lot.",
             storage = "a big ssd?",
             cloudfuse_configs = Array(),
             regions = Array("lunar1"),
-            flags = Map(),
-            custom_references = Array(),
-            liftovers = Map(),
-            sequences = Map(),
-          )
-        }
+          ),
+        )
       }
     }
 
