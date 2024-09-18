@@ -15,6 +15,8 @@ import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Value}
 import is.hail.utils.{using, FastSeq}
 import is.hail.variant.{Locus, ReferenceGenome}
 
+import scala.collection.mutable
+
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.testng.annotations.Test
 
@@ -60,7 +62,7 @@ class StagedMinHeapSuite extends HailSuite {
 
   @Test def testLocus(): Unit =
     forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
-      ctx.local(references = Map(rg.name -> rg)) { ctx =>
+      ctx.local(references = mutable.Map(rg.name -> rg)) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =
           stagedLocusCoercions(rg)
 
