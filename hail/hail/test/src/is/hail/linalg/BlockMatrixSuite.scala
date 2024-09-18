@@ -1,6 +1,6 @@
 package is.hail.linalg
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.expr.ir.{CompileAndEvaluate, TableLiteral}
 import is.hail.expr.ir.defs.{GetField, TableCollect}
 import is.hail.linalg.BlockMatrix.ops._
@@ -871,9 +871,9 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize = 2)
     val expected = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
 
-    TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), DenseMatrix.fill(2, 3)(1.0))
-    TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
-    TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
+    assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), DenseMatrix.fill(2, 3)(1.0))
+    assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
+    assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
   }
 
   def filteredEquals(bm1: BlockMatrix, bm2: BlockMatrix): Boolean =
@@ -1164,17 +1164,17 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val v0 = Array(0.0, Double.NaN, Double.PositiveInfinity, Double.NegativeInfinity)
 
-    TestUtils.interceptFatal(notSupported)(bm0 / bm0)
-    TestUtils.interceptFatal(notSupported)(bm0.reverseRowVectorDiv(v))
-    TestUtils.interceptFatal(notSupported)(bm0.reverseColVectorDiv(v))
-    TestUtils.interceptFatal(notSupported)(1 / bm0)
+    interceptFatal(notSupported)(bm0 / bm0)
+    interceptFatal(notSupported)(bm0.reverseRowVectorDiv(v))
+    interceptFatal(notSupported)(bm0.reverseColVectorDiv(v))
+    interceptFatal(notSupported)(1 / bm0)
 
-    TestUtils.interceptFatal(notSupported)(bm0.rowVectorDiv(v0))
-    TestUtils.interceptFatal(notSupported)(bm0.colVectorDiv(v0))
-    TestUtils.interceptFatal("multiplication by scalar NaN")(bm0 * Double.NaN)
-    TestUtils.interceptFatal("division by scalar 0.0")(bm0 / 0)
+    interceptFatal(notSupported)(bm0.rowVectorDiv(v0))
+    interceptFatal(notSupported)(bm0.colVectorDiv(v0))
+    interceptFatal("multiplication by scalar NaN")(bm0 * Double.NaN)
+    interceptFatal("division by scalar 0.0")(bm0 / 0)
 
-    TestUtils.interceptFatal(notSupported)(bm0.pow(-1))
+    interceptFatal(notSupported)(bm0.pow(-1))
   }
 
   @Test

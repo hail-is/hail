@@ -1,7 +1,6 @@
 package is.hail.expr.ir.analyses
 
 import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
@@ -294,12 +293,14 @@ class SemanticHashSuite extends HailSuite {
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String)
     : scalatest.Assertion =
-    assertResult(
-      isEqual,
-      s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
-    )(
-      semhash(fakeFs)(a) == semhash(fakeFs)(b)
-    )
+    ctx.local(fs = fakeFs) { ctx =>
+      assertResult(
+        isEqual,
+        s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
+      )(
+        SemanticHash(ctx)(a) == SemanticHash(ctx)(b)
+      )
+    }
 
   @Test
   def testFileNotFoundExceptions(): scalatest.Assertion = {
@@ -311,13 +312,12 @@ class SemanticHashSuite extends HailSuite {
 
     val ir = importMatrix("gs://fake-bucket/fake-matrix")
 
-    assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
-      semhash(fs)(ir)
-    )
+    ctx.local(fs = fs) { ctx =>
+      assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
+        SemanticHash(ctx)(ir)
+      )
+    }
   }
-
-  def semhash(fs: FS)(ir: BaseIR): Option[SemanticHash.Type] =
-    ExecuteContext.scoped(_.local(fs = fs)(SemanticHash(_)(ir)))
 
   val fakeFs: FS =
     new FakeFS {

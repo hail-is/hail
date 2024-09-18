@@ -683,7 +683,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
       val broadcastRVD =
-        mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
+        mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark, rvd))
 
       val producer = new StreamProducer {
         override def method: EmitMethodBuilder[_] = mb

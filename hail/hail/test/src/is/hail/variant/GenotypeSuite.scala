@@ -1,6 +1,5 @@
 package is.hail.variant
 
-import is.hail.TestUtils
 import is.hail.scalacheck.partition
 import is.hail.testUtils.Variant
 import is.hail.utils._
@@ -122,6 +121,7 @@ class GenotypeSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
     assert(Call.parse("0|1") == Call2(0, 1, phased = true))
     intercept[UnsupportedOperationException](Call.parse("1/1/1"))
     intercept[UnsupportedOperationException](Call.parse("1|1|1"))
-    TestUtils.interceptFatal("invalid call expression:")(Call.parse("0/"))
+    val he = intercept[HailException](Call.parse("0/"))
+    assert(he.msg.contains("invalid call expression"))
   }
 }

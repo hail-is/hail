@@ -1,13 +1,11 @@
 package is.hail.backend.local
 
-import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
+import is.hail.{CancellingExecutorService, HailContext}
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
-import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.MakeTuple
@@ -18,17 +16,13 @@ import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
-import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import java.io.PrintWriter
 
 import com.fasterxml.jackson.core.StreamReadConstraints
 import com.google.common.util.concurrent.MoreExecutors
-import org.apache.hadoop
-import sourcecode.Enclosing
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
@@ -36,8 +30,7 @@ class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskC
   override def attemptNumber(): Int = 0
 }
 
-object LocalBackend {
-  private var theLocalBackend: LocalBackend = _
+object LocalBackend extends Backend {
 
   // From https://github.com/hail-is/hail/issues/14580 :
   //   IR can get quite big, especially as it can contain an arbitrary
@@ -52,91 +45,32 @@ object LocalBackend {
   )
 
   def apply(
-    tmpdir: String,
     logFile: String = "hail.log",
     quiet: Boolean = false,
     append: Boolean = false,
     skipLoggingConfiguration: Boolean = false,
-  ): LocalBackend = synchronized {
-    require(theLocalBackend == null)
-
-    if (!skipLoggingConfiguration)
-      HailContext.configureLogging(logFile, quiet, append)
-
-    theLocalBackend = new LocalBackend(
-      tmpdir,
-      mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*),
-    )
-
-    theLocalBackend
-  }
-
-  def stop(): Unit = synchronized {
-    if (theLocalBackend != null) {
-      theLocalBackend = null
-      // Hadoop does not honor the hadoop configuration as a component of the cache key for file
-      // systems, so we blow away the cache so that a new configuration can successfully take
-      // effect.
-      // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
-      hadoop.fs.FileSystem.closeAll()
+  ): LocalBackend.type =
+    synchronized {
+      if (!skipLoggingConfiguration) HailContext.configureLogging(logFile, quiet, append)
+      this
     }
-  }
-}
 
-class LocalBackend(
-  val tmpdir: String,
-  override val references: mutable.Map[String, ReferenceGenome],
-) extends Backend with Py4JBackendExtensions {
-
-  override def backend: Backend = this
-  override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
-  override def longLifeTempFileManager: TempFileManager = null
-
-  private[this] val theHailClassLoader = new HailClassLoader(getClass.getClassLoader)
-  private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
-  private[this] val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
-  private[this] val coercerCache = new Cache[Any, LoweredTableReaderCoercer](32)
-
-  // flags can be set after construction from python
-  def fs: FS = RouterFS.buildRoutes(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
-
-  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
-    ExecutionTimer.logTime { timer =>
-      val fs = this.fs
-      ExecuteContext.scoped(
-        tmpdir,
-        tmpdir,
-        this,
-        references.toMap,
-        fs,
-        timer,
-        null,
-        theHailClassLoader,
-        flags,
-        new BackendContext {
-          override val executionCache: ExecutionCache =
-            ExecutionCache.fromFlags(flags, fs, tmpdir)
-        },
-        new IrMetadata(),
-        ImmutableMap.empty,
-        codeCache,
-        persistedIR,
-        coercerCache,
-      )(f)
-    }
+  private case class Context(hcl: HailClassLoader, override val executionCache: ExecutionCache)
+      extends BackendContext
 
   def broadcast[T: ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
   private[this] var stageIdx: Int = 0
 
-  private[this] def nextStageId(): Int = {
-    val current = stageIdx
-    stageIdx += 1
-    current
-  }
+  private[this] def nextStageId(): Int =
+    synchronized {
+      val current = stageIdx
+      stageIdx += 1
+      current
+    }
 
   override def parallelizeAndComputeWithIndex(
-    backendContext: BackendContext,
+    ctx: BackendContext,
     fs: FS,
     contexts: IndexedSeq[Array[Byte]],
     stageIdentifier: String,
@@ -147,22 +81,24 @@ class LocalBackend(
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
 
     val stageId = nextStageId()
+    val hcl = ctx.asInstanceOf[Context].hcl
     runAllKeepFirstError(new CancellingExecutorService(MoreExecutors.newDirectExecutorService())) {
       partitions.getOrElse(contexts.indices).map { i =>
         (
-          () =>
-            using(new LocalTaskContext(i, stageId)) {
-              f(contexts(i), _, theHailClassLoader, fs)
-            },
+          () => using(new LocalTaskContext(i, stageId))(f(contexts(i), _, hcl, fs)),
           i,
         )
       }
     }
   }
 
+  override def backendContext(ctx: ExecuteContext): BackendContext =
+    Context(ctx.theHailClassLoader, ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir))
+
   def defaultParallelism: Int = 1
 
-  def close(): Unit = LocalBackend.stop()
+  def close(): Unit =
+    synchronized { stageIdx = 0 }
 
   private[this] def _jvmLowerAndExecute(
     ctx: ExecuteContext,
@@ -170,8 +106,7 @@ class LocalBackend(
     print: Option[PrintWriter] = None,
   ): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      val ir =
-        LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
+      val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir0).asInstanceOf[IR]
 
       if (!Compilable(ir))
         throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${Pretty(ctx, ir)}")
