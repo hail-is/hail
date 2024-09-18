@@ -698,14 +698,6 @@ mkdir -p {shq(repo_dir)}
                 self.build_state,
             )
 
-        # return (
-        #     self.review_state == 'approved'
-        #     and len(self.last_known_github_status) > 0
-        #     and all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values())
-        #     and self.is_up_to_date()
-        #     and all(label not in DO_NOT_MERGE for label in self.labels)
-        # )
-
         if not self.review_state == 'approved':
             log.info(f'{self.short_str()} is not mergeable because review state is {self.review_state}')
             return False
