@@ -4,8 +4,8 @@ import is.hail.HailFeatureFlags
 import is.hail.backend.{Backend, ExecuteContext, NonOwningTempFileManager, TempFileManager}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, BlockMatrixIR, IR, IRParser, Interpret, MatrixIR, MatrixNativeReader,
-  MatrixRead, Name, NativeReaderOptions, TableIR, TableLiteral, TableValue,
+  BaseIR, BlockMatrixIR, IRParser, Interpret, MatrixIR, MatrixNativeReader, MatrixRead,
+  NativeReaderOptions, TableLiteral, TableValue,
 }
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
@@ -14,21 +14,17 @@ import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.RowMatrix
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
-import is.hail.utils.{defaultJSONFormats, log, toRichIterable, FastSeq, HailException, Interval}
+import is.hail.utils.{log, toRichIterable, FastSeq, HailException, Interval}
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.{
-  asScalaBufferConverter, mapAsScalaMapConverter, seqAsJavaListConverter,
-}
+import scala.jdk.CollectionConverters.{asScalaBufferConverter, seqAsJavaListConverter}
 
-import java.nio.charset.StandardCharsets
 import java.util
 
 import org.apache.spark.sql.DataFrame
 import org.json4s
-import org.json4s.Formats
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
 trait Py4JBackendExtensions {
@@ -140,7 +136,7 @@ trait Py4JBackendExtensions {
           val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
           addJavaIR(ctx, field)
       }
-    }
+    }._1
 
   def pyFromDF(df: DataFrame, jKey: java.util.List[String]): (Int, String) = {
     val key = jKey.asScala.toArray.toFastSeq
@@ -166,7 +162,7 @@ trait Py4JBackendExtensions {
     backend.withExecuteContext { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
       Interpret(tir, ctx).toDF()
-    }
+    }._1
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
     backend.withExecuteContext { ctx =>
@@ -192,7 +188,7 @@ trait Py4JBackendExtensions {
       }
       log.info("pyReadMultipleMatrixTables: returning N matrix tables")
       matrixReaders.asJava
-    }
+    }._1
 
   def pyAddReference(jsonConfig: String): Unit =
     addReference(ReferenceGenome.fromJSON(jsonConfig))
@@ -214,35 +210,9 @@ trait Py4JBackendExtensions {
   private[this] def removeReference(name: String): Unit =
     references -= name
 
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
-    backend.withExecuteContext { ctx =>
-      IRParser.parse_value_ir(
-        ctx,
-        s,
-        BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
-          Name(n) -> IRParser.parseType(t)
-        }.toSeq: _*),
-      )
-    }
-
-  def parse_table_ir(s: String): TableIR =
-    withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_table_ir(ctx, s))
-
-  def parse_matrix_ir(s: String): MatrixIR =
-    withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_matrix_ir(ctx, s))
-
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       IRParser.parse_blockmatrix_ir(ctx, s)
-    }
-
-  def loadReferencesFromDataset(path: String): Array[Byte] =
-    backend.withExecuteContext { ctx =>
-      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
-      ReferenceGenome.addFatalOnCollision(references, rgs)
-
-      implicit val formats: Formats = defaultJSONFormats
-      Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)
     }
 
   def withExecuteContext[T](
@@ -255,5 +225,5 @@ trait Py4JBackendExtensions {
       val tempFileManager = longLifeTempFileManager
       if (selfContainedExecution && tempFileManager != null) f(ctx)
       else ctx.local(tempFileManager = NonOwningTempFileManager(tempFileManager))(f)
-    }
+    }._1
 }

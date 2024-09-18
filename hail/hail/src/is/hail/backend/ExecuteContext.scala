@@ -55,12 +55,10 @@ object NonOwningTempFileManager {
 }
 
 object ExecuteContext {
-  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T = {
-    val result = HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(
+  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
+    HailContext.sparkBackend.withExecuteContext(
       selfContainedExecution = false
     )(f)
-    result
-  }
 
   def scoped[T](
     tmpdir: String,
@@ -146,7 +144,8 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(references)
+  def stateManager: HailStateManager =
+    HailStateManager(references)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)

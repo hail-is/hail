@@ -22,7 +22,9 @@ import scala.reflect._
 import org.apache.spark.sql.Row
 
 object IRFunctionRegistry {
-  private val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type], Seq[Type]))] =
+  type UserDefinedFnKey = (String, (Type, Seq[Type], Seq[Type]))
+
+  private[this] val userAddedFunctions: mutable.Set[UserDefinedFnKey] =
     mutable.HashSet.empty
 
   def clearUserFunctions(): Unit = {
@@ -70,25 +72,41 @@ object IRFunctionRegistry {
     typeParamStrs: Array[String],
     argNameStrs: Array[String],
     argTypeStrs: Array[String],
-    returnType: String,
+    returnTypeStr: String,
     bodyStr: String,
-  ): Unit = {
+  ): UserDefinedFnKey = {
     requireJavaIdentifier(name)
-    val argNames = argNameStrs.map(Name)
     val typeParameters = typeParamStrs.map(IRParser.parseType).toFastSeq
     val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastSeq
-    val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
-    val body = IRParser.parse_value_ir(ctx, bodyStr, refMap)
+    val argNames = argNameStrs.map(Name)
 
-    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
+    val body =
+      IRParser.parse_value_ir(ctx, bodyStr, BindingEnv.eval(argNames.zip(valueParameterTypes): _*))
+    val returnType = IRParser.parseType(returnTypeStr)
+    assert(body.typ == returnType)
+
+    val key: UserDefinedFnKey = (name, (returnType, typeParameters, valueParameterTypes))
+    userAddedFunctions += key
     addIR(
       name,
       typeParameters,
       valueParameterTypes,
-      IRParser.parseType(returnType),
+      returnType,
       false,
       (_, args, _) => Subst(body, BindingEnv.eval(argNames.zip(args): _*)),
     )
+    key
+  }
+
+  def unregisterIr(key: UserDefinedFnKey): Unit = {
+    val (name, (returnType, typeParameterTypes, valueParameterTypes)) = key
+    if (userAddedFunctions.remove(key))
+      removeIRFunction(name, returnType, typeParameterTypes, valueParameterTypes)
+    else {
+      throw new NoSuchElementException(
+        s"No user defined function registered matching: ${prettyFunctionSignature(name, returnType, typeParameterTypes, valueParameterTypes)}"
+      )
+    }
   }
 
   def removeIRFunction(
@@ -113,7 +131,9 @@ object IRFunctionRegistry {
       case Seq() => None
       case Seq(f) => Some(f)
       case _ =>
-        fatal(s"Multiple functions found that satisfy $name(${valueParameterTypes.mkString(",")}).")
+        fatal(
+          s"Multiple functions found that satisfy ${prettyFunctionSignature(name, returnType, typeParameters, valueParameterTypes)}."
+        )
     }
 
   def lookupFunctionOrFail(
@@ -125,27 +145,33 @@ object IRFunctionRegistry {
     jvmRegistry.lift(name) match {
       case None =>
         fatal(
-          s"no functions found with the signature $name(${valueParameterTypes.mkString(", ")}): $returnType"
+          s"no functions found with the signature ${prettyFunctionSignature(name, returnType, typeParameters, valueParameterTypes)}."
         )
       case Some(functions) =>
         functions.filter(t =>
           t.unify(typeParameters, valueParameterTypes, returnType)
         ).toSeq match {
           case Seq() =>
-            val prettyFunctionSignature =
-              s"$name[${typeParameters.mkString(", ")}](${valueParameterTypes.mkString(", ")}): $returnType"
             val prettyMismatchedFunctionSignatures = functions.map(x => s"  $x").mkString("\n")
             fatal(
-              s"No function found with the signature $prettyFunctionSignature.\n" +
+              s"No function found with the signature ${prettyFunctionSignature(name, returnType, typeParameters, valueParameterTypes)}.\n" +
                 s"However, there are other functions with that name:\n$prettyMismatchedFunctionSignatures"
             )
           case Seq(f) => f
           case _ => fatal(
-              s"Multiple functions found that satisfy $name(${valueParameterTypes.mkString(", ")})."
+              s"Multiple functions found that satisfy ${prettyFunctionSignature(name, returnType, typeParameters, valueParameterTypes)})."
             )
         }
     }
   }
+
+  private[this] def prettyFunctionSignature(
+    name: String,
+    returnType: Type,
+    typeParameterTypes: Seq[Type],
+    valueParameterTypes: Seq[Type],
+  ): String =
+    s"$name[${typeParameterTypes.mkString(", ")}](${valueParameterTypes.mkString(", ")}): $returnType"
 
   def lookupIR(
     name: String,
@@ -166,7 +192,9 @@ object IRFunctionRegistry {
       case Seq() => None
       case Seq(kv) => Some(kv)
       case _ =>
-        fatal(s"Multiple functions found that satisfy $name(${valueParameterTypes.mkString(",")}).")
+        fatal(
+          s"Multiple functions found that satisfy ${prettyFunctionSignature(name, returnType, typeParameters, valueParameterTypes)}."
+        )
     }
   }
 

@@ -49,7 +49,7 @@ object HailSuite {
 
   lazy val hc: HailContext = {
     val hc = withSparkBackend()
-    hc.sparkBackend("HailSuite.hc").flags.set("lower", "1")
+    hc.backend.asSpark.flags.set("lower", "1")
     hc.checkRVDKeys = true
     hc
   }
@@ -62,7 +62,7 @@ class HailSuite extends TestNGSuite {
 
   @BeforeClass def ensureHailContextInitialized(): Unit = hc
 
-  def backend: SparkBackend = hc.sparkBackend("HailSuite.backend")
+  def backend: SparkBackend = hc.backend.asSpark
 
   def sc: SparkContext = backend.sc
 

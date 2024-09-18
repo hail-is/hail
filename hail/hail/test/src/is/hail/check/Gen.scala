@@ -553,10 +553,10 @@ class Gen[+T](val apply: Parameters => T) extends AnyVal {
   def flatMap[U](f: T => Gen[U]): Gen[U] = Gen(p => f(apply(p))(p))
 
   def resize(newSize: Int): Gen[T] = Gen((p: Parameters) => apply(p.copy(size = newSize)))
-  
+
   def withFilter(f: T => Boolean): Gen[T] =
     Gen((p: Parameters) => Stream.continually(apply(p)).takeWhile(f).head)
 
-  def filter(f: T => Boolean): Gen[T] = 
+  def filter(f: T => Boolean): Gen[T] =
     withFilter(f)
 }

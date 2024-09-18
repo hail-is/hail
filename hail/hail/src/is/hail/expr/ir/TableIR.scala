@@ -713,7 +713,7 @@ case class PartitionRVDReader(rvd: RVD, uidFieldName: String) extends PartitionR
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
       val broadcastRVD =
-        mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
+        mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark, rvd))
 
       val producer = new StreamProducer {
         override def method: EmitMethodBuilder[_] = mb
@@ -3198,7 +3198,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         fileStack += filesToMerge
 
         filesToMerge =
-          ContextRDD.weaken(SparkBackend.sparkContext("TableMapRows.execute").parallelize(
+          ContextRDD.weaken(SparkBackend.sparkContext.parallelize(
             0 until nToMerge,
             nToMerge,
           ))

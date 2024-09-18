@@ -123,9 +123,9 @@ object TestUtils {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
 
-    HailContext.sparkBackend("TestUtils.loweredExecute")
-      .jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true, lowerBM = true,
-        print = bytecodePrinter)
+    HailContext.sparkBackend.jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true,
+      lowerBM = true,
+      print = bytecodePrinter)
   }
 
   def eval(x: IR): Any = ExecuteContext.scoped { ctx =>

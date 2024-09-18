@@ -18,6 +18,7 @@ import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
+import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
@@ -100,8 +101,8 @@ class LocalBackend(
   // flags can be set after construction from python
   def fs: FS = RouterFS.buildRoutes(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
 
-  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
-    ExecutionTimer.logTime { timer =>
+  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): (T, Timings) =
+    ExecutionTimer.time { timer =>
       val fs = this.fs
       ExecuteContext.scoped(
         tmpdir,

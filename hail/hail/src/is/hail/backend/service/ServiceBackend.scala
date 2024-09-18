@@ -4,14 +4,12 @@ import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
 import is.hail.expr.Validate
-import is.hail.expr.ir.{
-  IR, IRParser, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
-}
+import is.hail.expr.ir.{IR, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.MakeTuple
-import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
@@ -20,8 +18,9 @@ import is.hail.services.JobGroupStates.{Cancelled, Failure, Running, Success}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual._
+import is.hail.types.virtual.{Kinds, TVoid}
 import is.hail.utils._
+import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.annotation.switch
@@ -33,108 +32,36 @@ import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 import java.util.concurrent._
 
-import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST._
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
-class ServiceBackendContext(
-  val billingProject: String,
-  val remoteTmpDir: String,
-  val workerCores: String,
-  val workerMemory: String,
-  val storageRequirement: String,
-  val regions: Array[String],
-  val cloudfuseConfig: Array[CloudfuseConfig],
-  val profile: Boolean,
-  val executionCache: ExecutionCache,
-) extends BackendContext with Serializable {}
+case class ServiceBackendContext(
+  remoteTmpDir: String,
+  jobConfig: BatchJobConfig,
+  override val executionCache: ExecutionCache,
+) extends BackendContext with Serializable
 
 object ServiceBackend {
-
-  def apply(
-    jarLocation: String,
-    name: String,
-    theHailClassLoader: HailClassLoader,
-    batchClient: BatchClient,
-    batchConfig: BatchConfig,
-    scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
-    rpcConfig: ServiceBackendRPCPayload,
-    env: Map[String, String],
-  ): ServiceBackend = {
-
-    val flags = HailFeatureFlags.fromEnv(rpcConfig.flags)
-    val shouldProfile = flags.get("profile") != null
-    val fs = RouterFS.buildRoutes(
-      CloudStorageFSConfig.fromFlagsAndEnv(
-        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-        flags,
-        env,
-      )
-    )
-
-    val backendContext = new ServiceBackendContext(
-      rpcConfig.billing_project,
-      rpcConfig.remote_tmpdir,
-      rpcConfig.worker_cores,
-      rpcConfig.worker_memory,
-      rpcConfig.storage,
-      rpcConfig.regions,
-      rpcConfig.cloudfuse_configs,
-      shouldProfile,
-      ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir),
-    )
-
-    val references = mutable.Map.empty[String, ReferenceGenome]
-    references ++= ReferenceGenome.builtinReferences()
-    ReferenceGenome.addFatalOnCollision(
-      references,
-      rpcConfig.custom_references.map(ReferenceGenome.fromJSON),
-    )
-
-    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
-      liftoversForSource.foreach { case (destGenome, chainFile) =>
-        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
-      }
-    }
-    rpcConfig.sequences.foreach { case (rg, seq) =>
-      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
-    }
-
-    new ServiceBackend(
-      JarUrl(jarLocation),
-      name,
-      theHailClassLoader,
-      references,
-      batchClient,
-      batchConfig,
-      flags,
-      rpcConfig.tmp_dir,
-      fs,
-      backendContext,
-      scratchDir,
-    )
-  }
+  val MaxAvailableGcsConnections = 1000
 }
 
 class ServiceBackend(
-  val jarSpec: JarSpec,
-  var name: String,
-  val theHailClassLoader: HailClassLoader,
-  val references: mutable.Map[String, ReferenceGenome],
-  val batchClient: BatchClient,
+  val name: String,
+  batchClient: BatchClient,
+  jarSpec: JarSpec,
+  theHailClassLoader: HailClassLoader,
   val batchConfig: BatchConfig,
-  val flags: HailFeatureFlags,
-  val tmpdir: String,
+  rpcConfig: ServiceBackendRPCPayload,
+  jobConfig: BatchJobConfig,
+  flags: HailFeatureFlags,
   val fs: FS,
-  val serviceBackendContext: ServiceBackendContext,
-  val scratchDir: String,
+  references: mutable.Map[String, ReferenceGenome],
 ) extends Backend with Logging {
 
   private[this] var stageCount = 0
-  private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 1000
-  private[this] val executor = Executors.newFixedThreadPool(MAX_AVAILABLE_GCS_CONNECTIONS)
+  private[this] val executor = Executors.newFixedThreadPool(MaxAvailableGcsConnections)
 
   def defaultParallelism: Int = 4
 
@@ -160,7 +87,6 @@ class ServiceBackend(
   }
 
   private[this] def submitJobGroupAndWait(
-    backendContext: ServiceBackendContext,
     collection: IndexedSeq[Array[Byte]],
     token: String,
     root: String,
@@ -180,13 +106,13 @@ class ServiceBackend(
         resources = Some(
           JobResources(
             preemptible = true,
-            cpu = Some(backendContext.workerCores).filter(_ != "None"),
-            memory = Some(backendContext.workerMemory).filter(_ != "None"),
-            storage = Some(backendContext.storageRequirement).filter(_ != "0Gi"),
+            cpu = Some(jobConfig.worker_cores).filter(_ != "None"),
+            memory = Some(jobConfig.worker_memory).filter(_ != "None"),
+            storage = Some(jobConfig.storage).filter(_ != "0Gi"),
           )
         ),
-        regions = Some(backendContext.regions).filter(_.nonEmpty),
-        cloudfuse = Some(backendContext.cloudfuseConfig).filter(_.nonEmpty),
+        regions = Some(jobConfig.regions).filter(_.nonEmpty),
+        cloudfuse = Some(jobConfig.cloudfuse_configs).filter(_.nonEmpty),
       )
 
     val jobs =
@@ -280,7 +206,7 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
-    val jobGroup = submitJobGroupAndWait(backendContext, parts, token, root, stageIdentifier)
+    val jobGroup = submitJobGroupAndWait(parts, token, root, stageIdentifier)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
@@ -375,11 +301,11 @@ class ServiceBackend(
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
 
-  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
-    ExecutionTimer.logTime { timer =>
+  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): (T, Timings) =
+    ExecutionTimer.time { timer =>
       ExecuteContext.scoped(
-        tmpdir,
-        "file:///tmp",
+        rpcConfig.tmp_dir,
+        rpcConfig.tmp_dir,
         this,
         references.toMap,
         fs,
@@ -387,7 +313,11 @@ class ServiceBackend(
         null,
         theHailClassLoader,
         flags,
-        serviceBackendContext,
+        ServiceBackendContext(
+          rpcConfig.tmp_dir,
+          jobConfig,
+          ExecutionCache.fromFlags(flags, fs, rpcConfig.tmp_dir),
+        ),
         new IrMetadata(),
         ImmutableMap.empty,
         ImmutableMap.empty,
@@ -395,21 +325,12 @@ class ServiceBackend(
         ImmutableMap.empty,
       )(f)
     }
-
-  override def loadReferencesFromDataset(path: String): Array[Byte] =
-    withExecuteContext { ctx =>
-      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
-      ReferenceGenome.addFatalOnCollision(references, rgs)
-      implicit val formats: Formats = defaultJSONFormats
-      Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)
-    }
 }
 
 class EndOfInputException extends RuntimeException
 class HailBatchFailure(message: String) extends RuntimeException(message)
 
-object ServiceBackendAPI {
-  private[this] val log = Logger.getLogger(getClass.getName())
+object ServiceBackendAPI extends HttpLikeBackendRpc with Logging {
 
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 7, argv.toFastSeq)
@@ -423,39 +344,70 @@ object ServiceBackendAPI {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    implicit val formats: Formats = DefaultFormats
+    implicit val fmts: Formats = DefaultFormats
 
-    val fs = RouterFS.buildRoutes(
+    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
+    DeployConfig.set(deployConfig)
+    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
+
+    var fs = RouterFS.buildRoutes(
       CloudStorageFSConfig.fromFlagsAndEnv(
         Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
         HailFeatureFlags.fromEnv(),
       )
     )
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
-    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
-    val batchClient = BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json"))
-    log.info("BatchClient allocated.")
+    val (rpcConfig, jobConfig, action, payload) =
+      using(fs.openNoCompression(inputURL)) { is =>
+        val input = JsonMethods.parse(is)
+        (
+          (input \ "rpc_config").extract[ServiceBackendRPCPayload],
+          (input \ "job_config").extract[BatchJobConfig],
+          (input \ "action").extract[Int],
+          input \ "payload",
+        )
+      }
 
-    val batchConfig =
-      BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json"))
-    log.info("BatchConfig parsed.")
+    // requester pays config is conveyed in feature flags currently
+    val featureFlags = HailFeatureFlags.fromEnv(rpcConfig.flags)
+    fs = RouterFS.buildRoutes(
+      CloudStorageFSConfig.fromFlagsAndEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        featureFlags,
+      )
+    )
 
-    val input = using(fs.openNoCompression(inputURL))(JsonMethods.parse(_))
-    val rpcConfig = (input \ "config").extract[ServiceBackendRPCPayload]
+    val references = mutable.Map[String, ReferenceGenome]()
+    references ++= ReferenceGenome.builtinReferences()
+    ReferenceGenome.addFatalOnCollision(
+      references,
+      rpcConfig.custom_references.map(ReferenceGenome.fromJSON),
+    )
+
+    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+      liftoversForSource.foreach { case (destGenome, chainFile) =>
+        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
+      }
+    }
+
+    rpcConfig.sequences.foreach { case (rg, seq) =>
+      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
+    }
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
-    val backend = ServiceBackend(
-      jarLocation,
+    val backend = new ServiceBackend(
       name,
-      new HailClassLoader(getClass().getClassLoader()),
-      batchClient,
-      batchConfig,
-      scratchDir,
+      BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json")),
+      JarUrl(jarLocation),
+      new HailClassLoader(getClass.getClassLoader),
+      BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),
       rpcConfig,
-      sys.env,
+      jobConfig,
+      featureFlags,
+      fs,
+      references,
     )
+
     log.info("ServiceBackend allocated.")
     if (HailContext.isInitialized) {
       HailContext.get.backend = backend
@@ -465,9 +417,84 @@ object ServiceBackendAPI {
       log.info("HailContexet initialized.")
     }
 
-    val action = (input \ "action").extract[Int]
-    val payload = (input \ "payload")
-    new ServiceBackendAPI(backend, fs, outputURL).executeOneCommand(action, payload)
+    runRpc(Env(backend, fs, outputURL, action, payload))
+  }
+
+  case class Env(
+    backend: ServiceBackend,
+    fs: FS,
+    outputUrl: String,
+    action: Int,
+    payload: JValue,
+  )
+
+  implicit override object Reader extends Routing {
+    import Routes._
+
+    override def route(a: Env): Route =
+      (a.action: @switch) match {
+        case 1 => TypeOf(Kinds.Value)
+        case 2 => TypeOf(Kinds.Table)
+        case 3 => TypeOf(Kinds.Matrix)
+        case 4 => TypeOf(Kinds.BlockMatrix)
+        case 5 => Execute
+        case 6 => ParseVcfMetadata
+        case 7 => ImportFam
+        case 8 => LoadReferencesFromDataset
+        case 9 => LoadReferencesFromFASTA
+      }
+
+    override def payload(a: Env): JValue = a.payload
+  }
+
+  implicit override object Writer extends Writer {
+
+    // service backend doesn't support sending timings back to the python client
+    override def timings(env: Env, t: Timings): Unit =
+      ()
+
+    override def result(env: Env, result: Array[Byte]): Unit =
+      retryTransientErrors {
+        using(env.fs.createNoCompression(env.outputUrl)) { outputStream =>
+          val output = new HailSocketAPIOutputStream(outputStream)
+          output.writeBool(true)
+          output.writeBytes(result)
+        }
+      }
+
+    override def error(env: Env, t: Throwable): Unit =
+      retryTransientErrors {
+        val (shortMessage, expandedMessage, errorId) =
+          t match {
+            case t: HailWorkerException =>
+              log.error(
+                "A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job.",
+                t,
+              )
+              (t.shortMessage, t.expandedMessage, t.errorId)
+            case _ =>
+              log.error(
+                "An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job.",
+                t,
+              )
+              handleForPython(t)
+          }
+
+        using(env.fs.createNoCompression(env.outputUrl)) { outputStream =>
+          val output = new HailSocketAPIOutputStream(outputStream)
+          output.writeBool(false)
+          output.writeString(shortMessage)
+          output.writeString(expandedMessage)
+          output.writeInt(errorId)
+        }
+
+        throw t
+      }
+  }
+
+  implicit override object Context extends Context {
+    override def scoped[A](env: Env)(f: ExecuteContext => A): (A, Timings) =
+      env.backend.withExecuteContext(f)
   }
 }
 
@@ -508,174 +535,18 @@ case class SequenceConfig(fasta: String, index: String)
 
 case class ServiceBackendRPCPayload(
   tmp_dir: String,
-  remote_tmpdir: String,
-  billing_project: String,
-  worker_cores: String,
-  worker_memory: String,
-  storage: String,
-  cloudfuse_configs: Array[CloudfuseConfig],
-  regions: Array[String],
   flags: Map[String, String],
   custom_references: Array[String],
   liftovers: Map[String, Map[String, String]],
   sequences: Map[String, SequenceConfig],
 )
 
-case class ServiceBackendExecutePayload(
-  functions: Array[SerializedIRFunction],
-  idempotency_token: String,
-  payload: ExecutePayload,
+case class BatchJobConfig(
+  token: String,
+  billing_project: String,
+  worker_cores: String,
+  worker_memory: String,
+  storage: String,
+  cloudfuse_configs: Array[CloudfuseConfig],
+  regions: Array[String],
 )
-
-case class SerializedIRFunction(
-  name: String,
-  type_parameters: Array[String],
-  value_parameter_names: Array[String],
-  value_parameter_types: Array[String],
-  return_type: String,
-  rendered_body: String,
-)
-
-class ServiceBackendAPI(
-  private[this] val backend: ServiceBackend,
-  private[this] val fs: FS,
-  private[this] val outputURL: String,
-) extends Thread {
-  private[this] val LOAD_REFERENCES_FROM_DATASET = 1
-  private[this] val VALUE_TYPE = 2
-  private[this] val TABLE_TYPE = 3
-  private[this] val MATRIX_TABLE_TYPE = 4
-  private[this] val BLOCK_MATRIX_TYPE = 5
-  private[this] val EXECUTE = 6
-  private[this] val PARSE_VCF_METADATA = 7
-  private[this] val IMPORT_FAM = 8
-  private[this] val FROM_FASTA_FILE = 9
-
-  private[this] val log = Logger.getLogger(getClass.getName())
-
-  private[this] def doAction(action: Int, payload: JValue): Array[Byte] = retryTransientErrors {
-    implicit val formats: Formats = DefaultFormats
-    (action: @switch) match {
-      case LOAD_REFERENCES_FROM_DATASET =>
-        val path = payload.extract[LoadReferencesFromDatasetPayload].path
-        backend.loadReferencesFromDataset(path)
-      case VALUE_TYPE =>
-        val ir = payload.extract[IRTypePayload].ir
-        backend.valueType(ir)
-      case TABLE_TYPE =>
-        val ir = payload.extract[IRTypePayload].ir
-        backend.tableType(ir)
-      case MATRIX_TABLE_TYPE =>
-        val ir = payload.extract[IRTypePayload].ir
-        backend.matrixTableType(ir)
-      case BLOCK_MATRIX_TYPE =>
-        val ir = payload.extract[IRTypePayload].ir
-        backend.blockMatrixType(ir)
-      case EXECUTE =>
-        val qobExecutePayload = payload.extract[ServiceBackendExecutePayload]
-        val bufferSpecString = qobExecutePayload.payload.stream_codec
-        val code = qobExecutePayload.payload.ir
-        backend.withExecuteContext { ctx =>
-          withIRFunctionsReadFromInput(qobExecutePayload.functions, ctx) { () =>
-            val ir = IRParser.parse_value_ir(ctx, code)
-            backend.execute(ctx, ir) match {
-              case Left(()) =>
-                Array()
-              case Right((pt, off)) =>
-                using(new ByteArrayOutputStream()) { os =>
-                  Backend.encodeToOutputStream(ctx, pt, off, bufferSpecString, os)
-                  os.toByteArray
-                }
-            }
-          }
-        }
-      case PARSE_VCF_METADATA =>
-        val path = payload.extract[ParseVCFMetadataPayload].path
-        backend.parseVCFMetadata(path)
-      case IMPORT_FAM =>
-        val famPayload = payload.extract[ImportFamPayload]
-        val path = famPayload.path
-        val quantPheno = famPayload.quant_pheno
-        val delimiter = famPayload.delimiter
-        val missing = famPayload.missing
-        backend.importFam(path, quantPheno, delimiter, missing)
-      case FROM_FASTA_FILE =>
-        val fastaPayload = payload.extract[FromFASTAFilePayload]
-        backend.fromFASTAFile(
-          fastaPayload.name,
-          fastaPayload.fasta_file,
-          fastaPayload.index_file,
-          fastaPayload.x_contigs,
-          fastaPayload.y_contigs,
-          fastaPayload.mt_contigs,
-          fastaPayload.par,
-        )
-    }
-  }
-
-  private[this] def withIRFunctionsReadFromInput(
-    serializedFunctions: Array[SerializedIRFunction],
-    ctx: ExecuteContext,
-  )(
-    body: () => Array[Byte]
-  ): Array[Byte] = {
-    try {
-      serializedFunctions.foreach { func =>
-        IRFunctionRegistry.registerIR(
-          ctx,
-          func.name,
-          func.type_parameters,
-          func.value_parameter_names,
-          func.value_parameter_types,
-          func.return_type,
-          func.rendered_body,
-        )
-      }
-      body()
-    } finally
-      IRFunctionRegistry.clearUserFunctions()
-  }
-
-  def executeOneCommand(action: Int, payload: JValue): Unit = {
-    try {
-      val result = doAction(action, payload)
-      retryTransientErrors {
-        using(fs.createNoCompression(outputURL)) { outputStream =>
-          val output = new HailSocketAPIOutputStream(outputStream)
-          output.writeBool(true)
-          output.writeBytes(result)
-        }
-      }
-    } catch {
-      case exc: HailWorkerException =>
-        retryTransientErrors {
-          using(fs.createNoCompression(outputURL)) { outputStream =>
-            val output = new HailSocketAPIOutputStream(outputStream)
-            output.writeBool(false)
-            output.writeString(exc.shortMessage)
-            output.writeString(exc.expandedMessage)
-            output.writeInt(exc.errorId)
-          }
-        }
-        log.error(
-          "A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job."
-        )
-        throw exc
-      case t: Throwable =>
-        val (shortMessage, expandedMessage, errorId) = handleForPython(t)
-        retryTransientErrors {
-          using(fs.createNoCompression(outputURL)) { outputStream =>
-            val output = new HailSocketAPIOutputStream(outputStream)
-            output.writeBool(false)
-            output.writeString(shortMessage)
-            output.writeString(expandedMessage)
-            output.writeInt(errorId)
-          }
-        }
-        log.error(
-          "An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job."
-        )
-        throw t
-    }
-  }
-}

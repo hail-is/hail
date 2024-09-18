@@ -4,7 +4,7 @@ import socket
 import socketserver
 import sys
 from threading import Thread
-from typing import Mapping, Optional, Set, Tuple
+from typing import Mapping, Optional, Tuple
 
 import orjson
 import py4j
@@ -193,8 +193,6 @@ class Py4JBackend(Backend):
         self._backend_server.start()
         self._requests_session = requests.Session()
 
-        self._registered_ir_function_names: Set[str] = set()
-
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
         install_exception_handler()
@@ -238,9 +236,6 @@ class Py4JBackend(Backend):
         t = expr.dtype
         return construct_expr(JavaIR(t, self._jbackend.pyExecuteLiteral(self._render_ir(expr._ir))), t)
 
-    def _is_registered_ir_function_name(self, name: str) -> bool:
-        return name in self._registered_ir_function_names
-
     def set_flags(self, **flags: Mapping[str, str]):
         available = self._jbackend.pyAvailableFlags()
         invalid = []
@@ -275,12 +270,6 @@ class Py4JBackend(Backend):
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
 
-    def _parse_value_ir(self, code, ref_map={}):
-        return self._jbackend.parse_value_ir(
-            code,
-            {k: t._parsable_string() for k, t in ref_map.items()},
-        )
-
     def _register_ir_function(self, name, type_parameters, argument_names, argument_types, return_type, code):
         self._registered_ir_function_names.add(name)
         self._jbackend.pyRegisterIR(
@@ -291,12 +280,6 @@ class Py4JBackend(Backend):
             return_type._parsable_string(),
             code,
         )
-
-    def _parse_table_ir(self, code):
-        return self._jbackend.parse_table_ir(code)
-
-    def _parse_matrix_ir(self, code):
-        return self._jbackend.parse_matrix_ir(code)
 
     def _parse_blockmatrix_ir(self, code):
         return self._jbackend.parse_blockmatrix_ir(code)
@@ -309,5 +292,5 @@ class Py4JBackend(Backend):
         self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
-        self._registered_ir_function_names = set()
         uninstall_exception_handler()
+        super().stop()
