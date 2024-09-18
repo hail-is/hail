@@ -13,10 +13,11 @@ import is.hail.types.physical.stypes.{
   PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
-import is.hail.types.virtual.Type
 import is.hail.utils._
 
 import java.io.PrintWriter
+
+import sourcecode.Enclosing
 
 case class CodeCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
@@ -32,8 +33,9 @@ case class CompiledFunction[T](
     (typ, f)
 }
 
-object Compile {
-  def apply[F: TypeInfo](
+object compile {
+
+  def Compile[F: TypeInfo](
     ctx: ExecuteContext,
     params: IndexedSeq[(Name, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
@@ -42,27 +44,69 @@ object Compile {
     optimize: Boolean = true,
     print: Option[PrintWriter] = None,
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) =
+    Impl[F, AnyVal](
+      ctx,
+      params,
+      None,
+      expectedCodeParamTypes,
+      expectedCodeReturnType,
+      body,
+      optimize,
+      print,
+    )
+
+  def CompileWithAggregators[F: TypeInfo](
+    ctx: ExecuteContext,
+    aggSigs: Array[AggStateSig],
+    params: IndexedSeq[(Name, EmitParamType)],
+    expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
+    expectedCodeReturnType: TypeInfo[_],
+    body: IR,
+    optimize: Boolean = true,
+    print: Option[PrintWriter] = None,
+  ): (
+    Option[SingleCodeType],
+    (HailClassLoader, FS, HailTaskContext, Region) => F with FunctionWithAggRegion,
+  ) =
+    Impl[F, FunctionWithAggRegion](
+      ctx,
+      params,
+      Some(aggSigs),
+      expectedCodeParamTypes,
+      expectedCodeReturnType,
+      body,
+      optimize,
+      print,
+    )
+
+  private[this] def Impl[F: TypeInfo, Mixin](
+    ctx: ExecuteContext,
+    params: IndexedSeq[(Name, EmitParamType)],
+    aggSigs: Option[Array[AggStateSig]],
+    expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
+    expectedCodeReturnType: TypeInfo[_],
+    body: IR,
+    optimize: Boolean,
+    print: Option[PrintWriter],
+  )(implicit
+    E: Enclosing,
+    N: sourcecode.Name,
+  ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F with Mixin) =
     ctx.time {
       val normalizedBody = NormalizeNames(ctx, body, allowFreeVariables = true)
       ctx.CodeCache.getOrElseUpdate(
-        CodeCacheKey(FastSeq(), params.map { case (n, pt) => (n, pt) }, normalizedBody), {
-          var ir = body
-          ir = Subst(
-            ir,
-            BindingEnv(params
-              .zipWithIndex
-              .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }),
+        CodeCacheKey(aggSigs.getOrElse(Array.empty).toFastSeq, params, normalizedBody), {
+          var ir = Subst(
+            body,
+            BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
           )
           ir = LoweringPipeline.compileLowerer(optimize)(ctx, ir).asInstanceOf[IR].noSharing(ctx)
-
           TypeCheck(ctx, ir)
 
           val fb = EmitFunctionBuilder[F](
             ctx,
-            "Compiled",
-            CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-              pt
-            },
+            N.value,
+            CodeParamType(typeInfo[Region]) +: params.map(_._2),
             CodeParamType(SingleCodeType.typeInfoFromType(ir.typ)),
             Some("Emit.scala"),
           )
@@ -83,65 +127,10 @@ object Compile {
           )
 
           val emitContext = EmitContext.analyze(ctx, ir)
-          val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
+          val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, aggSigs)
           CompiledFunction(rt, fb.resultWithIndex(print))
         },
-      ).asInstanceOf[CompiledFunction[F]].tuple
-    }
-}
-
-object CompileWithAggregators {
-  def apply[F: TypeInfo](
-    ctx: ExecuteContext,
-    aggSigs: Array[AggStateSig],
-    params: IndexedSeq[(Name, EmitParamType)],
-    expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
-    expectedCodeReturnType: TypeInfo[_],
-    body: IR,
-    optimize: Boolean = true,
-  ): (
-    Option[SingleCodeType],
-    (HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion),
-  ) =
-    ctx.time {
-      val normalizedBody = NormalizeNames(ctx, body, allowFreeVariables = true)
-      ctx.CodeCache.getOrElseUpdate(
-        CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody), {
-          var ir = body
-          ir = Subst(
-            ir,
-            BindingEnv(params
-              .zipWithIndex
-              .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }),
-          )
-          ir =
-            LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing(ctx)
-
-          TypeCheck(
-            ctx,
-            ir,
-            BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })),
-          )
-
-          val fb = EmitFunctionBuilder[F with FunctionWithAggRegion](
-            ctx,
-            "CompiledWithAggs",
-            CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
-            SingleCodeType.typeInfoFromType(ir.typ),
-            Some("Emit.scala"),
-          )
-
-          /* { def visit(x: IR): Unit = { println(f"${ System.identityHashCode(x) }%08x ${
-           * x.getClass.getSimpleName } ${ x.pType }") Children(x).foreach { case c: IR => visit(c)
-           * } }
-           *
-           * visit(ir) } */
-
-          val emitContext = EmitContext.analyze(ctx, ir)
-          val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
-          CompiledFunction(rt, fb.resultWithIndex())
-        },
-      ).asInstanceOf[CompiledFunction[F with FunctionWithAggRegion]].tuple
+      ).asInstanceOf[CompiledFunction[F with Mixin]].tuple
     }
 }
 

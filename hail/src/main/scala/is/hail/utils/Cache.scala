@@ -25,6 +25,9 @@ class Cache[K, V](capacity: Int) extends mutable.AbstractMap[K, V] {
 
   override def iterator: Iterator[(K, V)] =
     for { e <- m.entrySet().iterator().asScala } yield (e.getKey, e.getValue)
+
+  override def clear(): Unit =
+    m.clear()
 }
 
 class LongToRegionValueCache(capacity: Int) extends Closeable {
