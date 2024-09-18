@@ -9,7 +9,7 @@ import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
-import scala.language.higherKinds
+import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -90,6 +90,23 @@ package utils {
       }
       b.result()
     }
+  }
+
+  class Lazy[A] private[utils] (f: => A) {
+    private[this] var option: Option[A] = None
+
+    def apply(): A =
+      synchronized {
+        option match {
+          case Some(a) => a
+          case None => val a = f; option = Some(a); a
+        }
+      }
+
+    def isEvaluated: Boolean =
+      synchronized {
+        option.isDefined
+      }
   }
 }
 
@@ -1028,7 +1045,7 @@ package object utils
     val buffer = new mutable.ArrayBuffer[(A, Int)](tasks.length)
     val completer = new ExecutorCompletionService[(A, Int)](executor)
 
-    tasks.foreach { case (t, k) => completer.submit(() => t() -> k) }
+    val futures = tasks.map { case (t, k) => completer.submit(() => t() -> k) }
     tasks.foreach { _ =>
       try buffer += completer.take().get()
       catch {
@@ -1036,6 +1053,9 @@ package object utils
           err = accum(err, e.getCause)
         case NonFatal(ex) =>
           err = accum(err, ex)
+        case _: InterruptedException =>
+          futures.foreach(_.cancel(true))
+          Thread.currentThread().interrupt()
       }
     }
 
@@ -1046,6 +1066,11 @@ package object utils
     : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
     runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
 
+  def lazily[A](f: => A): Lazy[A] =
+    new Lazy(f)
+
+  implicit def evalLazy[A](f: Lazy[A]): A =
+    f()
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {

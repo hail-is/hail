@@ -477,14 +477,10 @@ def init_spark(
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
     app_name = app_name or 'Hail'
-    (
-        gcs_requester_pays_project,
-        gcs_requester_pays_buckets,
-    ) = convert_gcs_requester_pays_configuration_to_hadoop_conf_style(
-        get_gcs_requester_pays_configuration(
-            gcs_requester_pays_configuration=gcs_requester_pays_configuration,
-        )
+    gcs_requester_pays_configuration = get_gcs_requester_pays_configuration(
+        gcs_requester_pays_configuration=gcs_requester_pays_configuration,
     )
+
     backend = SparkBackend(
         idempotent,
         sc,
@@ -501,8 +497,7 @@ def init_spark(
         local_tmpdir,
         skip_logging_configuration,
         optimizer_iterations,
-        gcs_requester_pays_project=gcs_requester_pays_project,
-        gcs_requester_pays_buckets=gcs_requester_pays_buckets,
+        gcs_requester_pays_config=gcs_requester_pays_configuration,
         copy_log_on_error=copy_log_on_error,
     )
     if not backend.fs.exists(tmpdir):
@@ -680,7 +675,7 @@ def cite_hail_bibtex():
 
 def stop():
     """Stop the currently running Hail session."""
-    if Env._hc:
+    if Env.is_fully_initialized():
         Env.hc().stop()
 
 

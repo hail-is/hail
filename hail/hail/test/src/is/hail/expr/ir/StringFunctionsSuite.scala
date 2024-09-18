@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs.{F32, I32, I64, MakeTuple, NA, Str}
 import is.hail.types.virtual._

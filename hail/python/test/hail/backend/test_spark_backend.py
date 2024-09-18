@@ -13,8 +13,8 @@ def fatal(typ: hl.HailType, msg: str = "") -> hl.Expression:
 @pytest.mark.uninitialized
 @pytest.mark.backend('spark')
 @pytest.mark.parametrize('copy', [True, False])
-def test_copy_spark_log(copy):
-    hl.init(copy_spark_log_on_error=copy)
+def test_copy_spark_log(tmpdir, copy):
+    hl.init(copy_spark_log_on_error=copy, tmp_dir=str(tmpdir))
 
     expr = fatal(hl.tint32)
     with pytest.raises(Exception):
