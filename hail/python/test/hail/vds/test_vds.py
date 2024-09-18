@@ -4,6 +4,7 @@ import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
+from hail.vds import VariantDataset
 from hail.vds.combiner.combine import defined_entry_fields
 
 from ..helpers import qobtest, resource, test_timeout
@@ -824,6 +825,14 @@ def test_split_sparse_roundtrip():
         vds2.variant_data.select_entries(*vds_split.variant_data.entry).select_globals()._same(vds_split.variant_data)
     )
     assert vds2.reference_data._same(vds_split.reference_data.drop('ref_allele'))
+
+
+def test_split_alters_ref_gt():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    vds = VariantDataset(vds.reference_data.annotate_entries(LGT=hl.call(0, 0)), vds.variant_data)
+    vds_split = hl.vds.split_multi(vds)
+    assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
 
 
 def test_ref_block_max_len_patch():
