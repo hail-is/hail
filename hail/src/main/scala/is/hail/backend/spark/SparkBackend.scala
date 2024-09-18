@@ -9,6 +9,7 @@ import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
