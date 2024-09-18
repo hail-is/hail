@@ -166,38 +166,23 @@ object Worker {
 
     timer.end("readInputs")
     timer.start("executeFunction")
-    if (HailContext.isInitialized) {
-      HailContext.get.backend = new ServiceBackend(
-        null,
-        null,
-        new HailClassLoader(getClass().getClassLoader()),
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        null,
-        scratchDir,
-      )
-    } else {
-      HailContext(
-        // FIXME: workers should not have backends, but some things do need hail contexts
-        new ServiceBackend(
-          null,
-          null,
-          new HailClassLoader(getClass().getClassLoader()),
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          null,
-          scratchDir,
-        )
-      )
-    }
+
+    // FIXME: workers should not have backends, but some things do need hail contexts
+    val backend = new ServiceBackend(
+      null,
+      null,
+      null,
+      new HailClassLoader(getClass().getClassLoader()),
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+    )
+
+    if (HailContext.isInitialized) HailContext.get.backend = backend
+    else HailContext(backend)
 
     val result = using(new ServiceTaskContext(i)) { htc =>
       try
