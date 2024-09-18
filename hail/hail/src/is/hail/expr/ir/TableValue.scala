@@ -188,7 +188,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   }
 
   def toDF(): DataFrame =
-    HailContext.sparkBackend("toDF").sparkSession.createDataFrame(
+    HailContext.sparkBackend.sparkSession.createDataFrame(
       rvd.toRows,
       typ.rowType.schema.asInstanceOf[StructType],
     )

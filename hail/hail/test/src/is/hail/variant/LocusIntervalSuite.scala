@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.utils._
 
 import org.testng.annotations.Test
@@ -161,11 +161,11 @@ class LocusIntervalSuite extends HailSuite {
       true,
       true,
     ))
-    TestUtils.interceptFatal("Start 'X:0' is not within the range")(Locus.parseInterval(
+    interceptFatal("Start 'X:0' is not within the range")(Locus.parseInterval(
       "[X:0-5)",
       rg,
     ))
-    TestUtils.interceptFatal(s"End 'X:${xMax + 1}' is not within the range")(Locus.parseInterval(
+    interceptFatal(s"End 'X:${xMax + 1}' is not within the range")(Locus.parseInterval(
       s"[X:1-${xMax + 1}]",
       rg,
     ))
@@ -208,19 +208,19 @@ class LocusIntervalSuite extends HailSuite {
       false,
     ))
 
-    TestUtils.interceptFatal("invalid interval expression") {
+    interceptFatal("invalid interval expression") {
       Locus.parseInterval("4::start-5:end", rg)
     }
 
-    TestUtils.interceptFatal("invalid interval expression") {
+    interceptFatal("invalid interval expression") {
       Locus.parseInterval("4:start-", rg)
     }
 
-    TestUtils.interceptFatal("invalid interval expression") {
+    interceptFatal("invalid interval expression") {
       Locus.parseInterval("1:1.1111K-2k", rg)
     }
 
-    TestUtils.interceptFatal("invalid interval expression") {
+    interceptFatal("invalid interval expression") {
       Locus.parseInterval("1:1.1111111M-2M", rg)
     }
 
