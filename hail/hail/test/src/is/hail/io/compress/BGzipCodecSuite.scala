@@ -1,7 +1,6 @@
 package is.hail.io.compress
 
 import is.hail.HailSuite
-import is.hail.TestUtils._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr.ir.GenericLines
