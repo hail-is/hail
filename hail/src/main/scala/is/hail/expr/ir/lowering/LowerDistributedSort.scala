@@ -4,6 +4,7 @@ import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow}
 import is.hail.asm4s.{classInfo, AsmFunction1RegionLong, LongInfo}
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner

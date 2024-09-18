@@ -6,10 +6,10 @@ import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, IRSize, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader,
-  TypeCheck,
+  IR, IRParser, IRSize, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._

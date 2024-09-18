@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.types.physical.PTuple
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
