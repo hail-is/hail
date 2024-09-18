@@ -60,7 +60,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @DataProvider(name = "codecs")
   def codecs(): Array[Array[Any]] =
-    ExecuteContext.scoped(ctx => codecs(ctx))
+    codecs(ctx)
 
   def codecs(ctx: ExecuteContext): Array[Array[Any]] =
     (BufferSpec.specs ++ Array(TypedCodecSpec(

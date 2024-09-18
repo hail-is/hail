@@ -307,8 +307,6 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
   }
 
   @Test def testLiteralContainsStruct(): scalatest.Assertion = {
-    hc // force initialization
-
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -475,7 +473,6 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
   }
 
   @Test def testLocusContigComparison(): scalatest.Assertion = {
-    hc // force initialization
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
 
@@ -508,7 +505,6 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
   }
 
   @Test def testLocusPositionComparison(): scalatest.Assertion = {
-    hc // force initialization
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val pos = invoke("position", TInt32, k)
@@ -651,7 +647,6 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
   }
 
   @Test def testLocusContigContains(): scalatest.Assertion = {
-    hc // force initialization
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
     val contig = invoke("contig", TString, k)
@@ -1109,7 +1104,6 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
   }
 
   @Test def testIntegration(): scalatest.Assertion = {
-    hc // force initialization
     val tab1 = TableRange(10, 5)
 
     def k = GetField(Ref(TableIR.rowName, tab1.typ.rowType), "idx")

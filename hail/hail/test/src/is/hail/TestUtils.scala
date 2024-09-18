@@ -46,8 +46,9 @@ object ExecStrategy extends Enumeration {
   val allRelational: Set[ExecStrategy] = interpretOnly.union(lowering)
 }
 
-object TestUtils extends Assertions {
-  val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+trait TestUtils extends Assertions {
+
+  def ctx: ExecuteContext = ???
 
   def interceptException[E <: Throwable: Manifest](regex: String)(f: => Any): Assertion = {
     val thrown = intercept[E](f)
@@ -98,7 +99,7 @@ object TestUtils extends Assertions {
   def removeConstantCols(A: DenseMatrix[Int]): DenseMatrix[Int] = {
     val data = (0 until A.cols).flatMap { j =>
       val col = A(::, j)
-      if (TestUtils.isConstant(col))
+      if (isConstant(col))
         Array[Int]()
       else
         col.toArray
@@ -122,23 +123,19 @@ object TestUtils extends Assertions {
     if (agg.isDefined || !env.isEmpty || !args.isEmpty)
       throw new LowererUnsupportedOperation("can't test with aggs or user defined args/env")
 
-    HailContext.sparkBackend("TestUtils.loweredExecute")
-      .jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true, lowerBM = true,
-        print = bytecodePrinter)
-  }
-
-  def eval(x: IR): Any = ExecuteContext.scoped { ctx =>
-    eval(x, Env.empty, FastSeq(), None, None, true, ctx)
+    HailContext.sparkBackend.jvmLowerAndExecute(ctx, x, optimize = false, lowerTable = true,
+      lowerBM = true,
+      print = bytecodePrinter)
   }
 
   def eval(
     x: IR,
-    env: Env[(Any, Type)],
-    args: IndexedSeq[(Any, Type)],
-    agg: Option[(IndexedSeq[Row], TStruct)],
+    env: Env[(Any, Type)] = Env.empty,
+    args: IndexedSeq[(Any, Type)] = FastSeq(),
+    agg: Option[(IndexedSeq[Row], TStruct)] = None,
     bytecodePrinter: Option[PrintWriter] = None,
     optimize: Boolean = true,
-    ctx: ExecuteContext,
+    ctx: ExecuteContext = ctx,
   ): Any = {
     val inputTypesB = new BoxedArrayBuilder[Type]()
     val inputsB = new mutable.ArrayBuffer[Any]()
@@ -210,26 +207,29 @@ object TestUtils extends Assertions {
         assert(resultType2.virtualType == resultType)
 
         ctx.r.pool.scopedRegion { region =>
-          val rvb = new RegionValueBuilder(ctx.stateManager, region)
-          rvb.start(argsPType)
-          rvb.startTuple()
-          var i = 0
-          while (i < inputsB.length) {
-            rvb.addAnnotation(inputTypesB(i), inputsB(i))
-            i += 1
+          ctx.local(r = region) { ctx =>
+            val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+            rvb.start(argsPType)
+            rvb.startTuple()
+            var i = 0
+            while (i < inputsB.length) {
+              rvb.addAnnotation(inputTypesB(i), inputsB(i))
+              i += 1
+            }
+            rvb.endTuple()
+            val argsOff = rvb.end()
+
+            rvb.start(aggArrayPType)
+            rvb.startArray(aggElements.length)
+            aggElements.foreach(r => rvb.addAnnotation(aggType, r))
+            rvb.endArray()
+            val aggOff = rvb.end()
+
+            ctx.scopedExecution { (hcl, fs, tc, r) =>
+              val off = f(hcl, fs, tc, r)(r, argsOff, aggOff)
+              SafeRow(resultType2.asInstanceOf[PBaseStruct], off).get(0)
+            }
           }
-          rvb.endTuple()
-          val argsOff = rvb.end()
-
-          rvb.start(aggArrayPType)
-          rvb.startArray(aggElements.length)
-          aggElements.foreach(r => rvb.addAnnotation(aggType, r))
-          rvb.endArray()
-          val aggOff = rvb.end()
-
-          val resultOff =
-            f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff, aggOff)
-          SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
         }
 
       case None =>
@@ -249,19 +249,22 @@ object TestUtils extends Assertions {
         assert(resultType2.virtualType == resultType)
 
         ctx.r.pool.scopedRegion { region =>
-          val rvb = new RegionValueBuilder(ctx.stateManager, region)
-          rvb.start(argsPType)
-          rvb.startTuple()
-          var i = 0
-          while (i < inputsB.length) {
-            rvb.addAnnotation(inputTypesB(i), inputsB(i))
-            i += 1
+          ctx.local(r = region) { ctx =>
+            val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+            rvb.start(argsPType)
+            rvb.startTuple()
+            var i = 0
+            while (i < inputsB.length) {
+              rvb.addAnnotation(inputTypesB(i), inputsB(i))
+              i += 1
+            }
+            rvb.endTuple()
+            val argsOff = rvb.end()
+            ctx.scopedExecution { (hcl, fs, tc, r) =>
+              val resultOff = f(hcl, fs, tc, r)(r, argsOff)
+              SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
+            }
           }
-          rvb.endTuple()
-          val argsOff = rvb.end()
-
-          val resultOff = f(theHailClassLoader, ctx.fs, ctx.taskContext, region)(region, argsOff)
-          SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
         }
     }
   }
@@ -275,7 +278,7 @@ object TestUtils extends Assertions {
   def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Assertion = {
     val t = x.typ
 
-    val (i, i2, c) = ExecuteContext.scoped { ctx =>
+    val (i, i2, c) = {
       val i = Interpret[Any](ctx, x, env, args)
       val i2 = Interpret[Any](ctx, x, env, args, optimize = false)
       val c = eval(x, env, args, None, None, true, ctx)
@@ -298,12 +301,11 @@ object TestUtils extends Assertions {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  ): Assertion =
-    ExecuteContext.scoped { ctx =>
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
-      interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
-      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
-    }
+  ): Assertion = {
+    interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
+    interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
+    interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
+  }
 
   def assertFatal(x: IR, regex: String): Assertion =
     assertThrows[HailException](x, regex)
@@ -321,9 +323,7 @@ object TestUtils extends Assertions {
     args: IndexedSeq[(Any, Type)],
     regex: String,
   ): Assertion =
-    ExecuteContext.scoped { ctx =>
-      interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
-    }
+    interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
 
   def assertCompiledThrows[E <: Throwable: Manifest](x: IR, regex: String): Assertion =
     assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
