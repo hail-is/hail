@@ -341,6 +341,7 @@ class SparkBackend(
 
   private[this] val bmCache = new BlockMatrixCache()
   private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
+  private[this] val persistedIr = mutable.Map.empty[Int, BaseIR]
 
   def createExecuteContextForTests(
     timer: ExecutionTimer,
@@ -365,6 +366,7 @@ class SparkBackend(
       new IrMetadata(),
       ImmutableMap.empty,
       mutable.Map.empty,
+      ImmutableMap.empty,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
@@ -386,6 +388,7 @@ class SparkBackend(
         new IrMetadata(),
         bmCache,
         codeCache,
+        persistedIr,
       )(f)
     }
 
