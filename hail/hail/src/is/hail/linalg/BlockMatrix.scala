@@ -44,7 +44,7 @@ case class CollectMatricesRDDPartition(
 }
 
 class CollectMatricesRDD(@transient var bms: IndexedSeq[BlockMatrix])
-    extends RDD[BDM[Double]](SparkBackend.sparkContext("CollectMatricesRDD"), Nil) {
+    extends RDD[BDM[Double]](SparkBackend.sparkContext, Nil) {
   private val nBlocks = bms.map(_.blocks.getNumPartitions)
   private val firstPartition = nBlocks.scan(0)(_ + _).init
 
@@ -114,7 +114,7 @@ object BlockMatrix {
   def apply(gp: GridPartitioner, piBlock: (GridPartitioner, Int) => ((Int, Int), BDM[Double]))
     : BlockMatrix =
     new BlockMatrix(
-      new RDD[((Int, Int), BDM[Double])](SparkBackend.sparkContext("BlockMatrix.apply"), Nil) {
+      new RDD[((Int, Int), BDM[Double])](SparkBackend.sparkContext, Nil) {
         override val partitioner = Some(gp)
 
         protected def getPartitions: Array[Partition] = Array.tabulate(gp.numPartitions)(pi =>
@@ -2199,7 +2199,7 @@ class WriteBlocksRDD(
   parentPartStarts: Array[Long],
   entryField: String,
   gp: GridPartitioner,
-) extends RDD[(Int, String)](SparkBackend.sparkContext("WriteBlocksRDD"), Nil) {
+) extends RDD[(Int, String)](SparkBackend.sparkContext, Nil) {
 
   require(gp.nRows == parentPartStarts.last)
 
@@ -2369,7 +2369,7 @@ class BlockMatrixReadRowBlockedRDD(
   metadata: BlockMatrixMetadata,
   maybeMaximumCacheMemoryInBytes: Option[Int],
 ) extends RDD[RVDContext => Iterator[Long]](
-      SparkBackend.sparkContext("BlockMatrixReadRowBlockedRDD"),
+      SparkBackend.sparkContext,
       Nil,
     ) {
   import BlockMatrixReadRowBlockedRDD._
