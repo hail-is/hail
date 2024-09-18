@@ -393,6 +393,7 @@ class ServiceBackend(
         new IrMetadata(),
         ImmutableMap.empty,
         mutable.Map.empty,
+        ImmutableMap.empty,
       )(f)
     }
 
