@@ -644,10 +644,11 @@ def split_multi(vds: 'VariantDataset', *, filter_changed_loci: bool = False) -> 
     variant_data = hl.experimental.sparse_split_multi(vds.variant_data, filter_changed_loci=filter_changed_loci)
     reference_data = vds.reference_data
 
-    if 'GT' in reference_data.entry and 'LGT' in reference_data.entry:
-        reference_data = reference_data.drop('LGT')
-    elif 'LGT' in reference_data.entry:
-        reference_data = reference_data.transmute_entries(GT=reference_data.LGT)
+    if 'LGT' in reference_data.entry:
+        if 'GT' in reference_data.entry:
+            reference_data = reference_data.drop('LGT')
+        else:
+            reference_data = reference_data.transmute_entries(GT=reference_data.LGT)
 
     return VariantDataset(reference_data=reference_data, variant_data=variant_data)
 

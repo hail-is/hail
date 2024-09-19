@@ -828,8 +828,27 @@ def test_split_sparse_roundtrip():
 
 
 def test_split_alters_ref_gt():
-    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
-    vds = VariantDataset(vds.reference_data.annotate_entries(LGT=hl.call(0, 0)), vds.variant_data)
+    vds_base = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    # no lgt or gt
+    vds_split = hl.vds.split_multi(vds_base)
+    assert 'GT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+
+    # lgt only
+    vds = VariantDataset(vds_base.reference_data.annotate_entries(LGT=hl.call(0, 0)), vds_base.variant_data)
+    vds_split = hl.vds.split_multi(vds)
+    assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+
+    # gt only
+    vds = VariantDataset(vds_base.reference_data.annotate_entries(GT=hl.call(0, 0)), vds_base.variant_data)
+    vds_split = hl.vds.split_multi(vds)
+    assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+
+    # both lgt and gt
+    vds = VariantDataset(vds_base.reference_data.annotate_entries(LGT=hl.call(0,0), GT=hl.call(0, 0)), vds_base.variant_data)
     vds_split = hl.vds.split_multi(vds)
     assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
     assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
