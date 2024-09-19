@@ -848,7 +848,9 @@ def test_split_alters_ref_gt():
     assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
 
     # both lgt and gt
-    vds = VariantDataset(vds_base.reference_data.annotate_entries(LGT=hl.call(0,0), GT=hl.call(0, 0)), vds_base.variant_data)
+    vds = VariantDataset(
+        vds_base.reference_data.annotate_entries(LGT=hl.call(0, 0), GT=hl.call(0, 0)), vds_base.variant_data
+    )
     vds_split = hl.vds.split_multi(vds)
     assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
     assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
