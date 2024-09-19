@@ -140,6 +140,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
             sequences = Map(),
           ),
           BatchJobConfig(
+            token = tokenUrlSafe,
             billing_project = "fancy",
             worker_cores = "128",
             worker_memory = "a lot.",

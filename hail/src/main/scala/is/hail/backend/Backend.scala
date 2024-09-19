@@ -15,11 +15,8 @@ import is.hail.utils.fatal
 import scala.reflect.ClassTag
 
 import java.io.{Closeable, OutputStream}
-import java.nio.charset.StandardCharsets
 
 import com.fasterxml.jackson.core.StreamReadConstraints
-import org.json4s.JValue
-import org.json4s.jackson.JsonMethods
 import sourcecode.Enclosing
 
 object Backend {
@@ -48,9 +45,6 @@ object Backend {
     assert(t.isFieldDefined(off, 0))
     codec.encode(ctx, elementType, t.loadField(off, 0), os)
   }
-
-  def jsonToBytes(f: => JValue): Array[Byte] =
-    JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
 }
 
 abstract class BroadcastValue[T] { def value: T }
