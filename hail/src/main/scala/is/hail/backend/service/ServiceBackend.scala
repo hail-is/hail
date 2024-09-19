@@ -24,6 +24,7 @@ import is.hail.utils._
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
+import scala.annotation.switch
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -360,7 +361,7 @@ object ServiceBackendAPI extends HttpLikeBackendRpc[Request] with Logging {
       using(fs.openNoCompression(inputURL)) { is =>
         val input = JsonMethods.parse(is)
         (
-          (input \ "config").extract[ServiceBackendRPCPayload],
+          (input \ "rpc_config").extract[ServiceBackendRPCPayload],
           (input \ "job_config").extract[BatchJobConfig],
           (input \ "action").extract[Int],
           input \ "payload",
@@ -422,15 +423,15 @@ object ServiceBackendAPI extends HttpLikeBackendRpc[Request] with Logging {
     import Routes._
 
     override def route(a: Request): Route =
-      a.action match {
-        case 2 => TypeOf(Kinds.Value)
-        case 3 => TypeOf(Kinds.Table)
-        case 4 => TypeOf(Kinds.Matrix)
-        case 5 => TypeOf(Kinds.BlockMatrix)
-        case 6 => Execute
-        case 7 => ParseVcfMetadata
-        case 8 => ImportFam
-        case 1 => LoadReferencesFromDataset
+      (a.action: @switch) match {
+        case 1 => TypeOf(Kinds.Value)
+        case 2 => TypeOf(Kinds.Table)
+        case 3 => TypeOf(Kinds.Matrix)
+        case 4 => TypeOf(Kinds.BlockMatrix)
+        case 5 => Execute
+        case 6 => ParseVcfMetadata
+        case 7 => ImportFam
+        case 8 => LoadReferencesFromDataset
         case 9 => LoadReferencesFromFASTA
       }
 
@@ -533,6 +534,7 @@ case class ServiceBackendRPCPayload(
 )
 
 case class BatchJobConfig(
+  token: String,
   billing_project: String,
   worker_cores: String,
   worker_memory: String,
