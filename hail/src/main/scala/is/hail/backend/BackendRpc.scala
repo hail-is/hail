@@ -12,7 +12,6 @@ import is.hail.utils.{using, ExecutionTimer}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
-import scala.language.existentials
 import scala.util.control.NonFatal
 
 import java.io.ByteArrayOutputStream
@@ -117,7 +116,7 @@ trait BackendRpc {
                 val ir = IRParser.parse_value_ir(ctx, s)
                 val res = ctx.backend.execute(ctx, ir)
                 res match {
-                  case Left(_) => Array()
+                  case Left(_) => Array.empty[Byte]
                   case Right((pt, off)) =>
                     using(new ByteArrayOutputStream()) { os =>
                       Backend.encodeToOutputStream(ctx, pt, off, bufferSpec, os)
@@ -163,7 +162,7 @@ trait BackendRpc {
         }
       }
 
-      Write.result(env)(result.asInstanceOf[Array[Byte]])
+      Write.result(env)(result)
       Write.timings(env)(timings)
     } catch {
       case NonFatal(error) => Write.error(env)(error)
