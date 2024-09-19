@@ -3,11 +3,7 @@ package is.hail.backend.py4j
 import is.hail.HailFeatureFlags
 import is.hail.backend.{Backend, ExecuteContext, NonOwningTempFileManager, TempFileManager}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
-import is.hail.expr.ir.{
-  BaseIR, BindingEnv, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IR, IRParser, Interpret,
-  MatrixIR, MatrixNativeReader, MatrixRead, Name, NativeReaderOptions, TableIR, TableLiteral,
-  TableValue,
-}
+import is.hail.expr.ir.{BaseIR, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IRParser, Interpret, MatrixIR, MatrixNativeReader, MatrixRead, NativeReaderOptions, TableLiteral, TableValue}
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
@@ -18,9 +14,7 @@ import is.hail.utils.{fatal, log, toRichIterable, HailException, Interval}
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-import scala.jdk.CollectionConverters.{
-  asScalaBufferConverter, mapAsScalaMapConverter, seqAsJavaListConverter,
-}
+import scala.jdk.CollectionConverters.{asScalaBufferConverter, seqAsJavaListConverter}
 
 import java.util
 
@@ -223,23 +217,6 @@ trait Py4JBackendExtensions {
 
   private[this] def removeReference(name: String): Unit =
     references -= name
-
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
-    backend.withExecuteContext { ctx =>
-      IRParser.parse_value_ir(
-        ctx,
-        s,
-        BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
-          Name(n) -> IRParser.parseType(t)
-        }.toSeq: _*),
-      )
-    }._1
-
-  def parse_table_ir(s: String): TableIR =
-    withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_table_ir(ctx, s))
-
-  def parse_matrix_ir(s: String): MatrixIR =
-    withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_matrix_ir(ctx, s))
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>

@@ -5,21 +5,21 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.BufferSpec
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
-import is.hail.linalg.RowMatrix
 import is.hail.services.retryTransientErrors
 import is.hail.types.virtual.{Kind, TFloat64, VType}
 import is.hail.types.virtual.Kinds._
-import is.hail.utils.{toRichIterable, using, ExecutionTimer}
+import is.hail.utils.{using, ExecutionTimer}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
+import scala.language.existentials
 import scala.util.control.NonFatal
 
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
-import org.json4s.jackson.{JsonMethods, Serialization}
+import org.json4s.{DefaultFormats, Extraction, Formats, JArray, JValue}
+import org.json4s.jackson.JsonMethods
 
 case class IRTypePayload(ir: String)
 case class LoadReferencesFromDatasetPayload(path: String)
@@ -39,7 +39,7 @@ case class ImportFamPayload(path: String, quant_pheno: Boolean, delimiter: Strin
 
 case class ExecutePayload(
   ir: String,
-  fs: Array[SerializedIRFunction],
+  fns: Array[SerializedIRFunction],
   stream_codec: String,
 )
 
@@ -74,17 +74,6 @@ trait BackendRpc {
       y_contigs: Array[String],
       mt_contigs: Array[String],
       par: Array[String],
-    ) extends Command
-
-    case class ExportBlockMatrix(
-      pathIn: String,
-      pathOut: String,
-      delimiter: String,
-      header: String,
-      addIndex: Boolean,
-      exportType: String,
-      partitionSize: Int,
-      entries: String,
     ) extends Command
   }
 
@@ -144,14 +133,16 @@ trait BackendRpc {
               }
 
             case ImportFam(path, isQuantPheno, delimiter, missing) =>
-              LoadPlink
-                .importFamJSON(ctx.fs, path, isQuantPheno, delimiter, missing)
-                .getBytes(StandardCharsets.UTF_8)
+              jsonToBytes {
+                LoadPlink.importFamJSON(ctx.fs, path, isQuantPheno, delimiter, missing)
+              }
 
             case LoadReferencesFromDataset(path) =>
-              val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
-              ctx.References ++= rgs.map(rg => rg.name -> rg)
-              Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)
+              jsonToBytes {
+                val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
+                ctx.References ++= rgs.map(rg => rg.name -> rg)
+                JArray(rgs.map(_.toJSON).toList)
+              }
 
             case LoadReferencesFromFASTA(name, fasta, index, xContigs, yContigs, mtContigs, par) =>
               jsonToBytes {
@@ -168,51 +159,6 @@ trait BackendRpc {
                 ctx.References += rg.name -> rg
                 rg.toJSON
               }
-
-            case ExportBlockMatrix(pathIn, pathOut, delimiter, header, addIndex, exportType,
-                  partitionSize, entries) =>
-              val rm = RowMatrix.readBlockMatrix(ctx.fs, pathIn, partitionSize)
-              entries match {
-                case "full" =>
-                  rm.export(ctx, pathOut, delimiter, Option(header), addIndex, exportType)
-                case "lower" =>
-                  rm.exportLowerTriangle(
-                    ctx,
-                    pathOut,
-                    delimiter,
-                    Option(header),
-                    addIndex,
-                    exportType,
-                  )
-                case "strict_lower" =>
-                  rm.exportStrictLowerTriangle(
-                    ctx,
-                    pathOut,
-                    delimiter,
-                    Option(header),
-                    addIndex,
-                    exportType,
-                  )
-                case "upper" =>
-                  rm.exportUpperTriangle(
-                    ctx,
-                    pathOut,
-                    delimiter,
-                    Option(header),
-                    addIndex,
-                    exportType,
-                  )
-                case "strict_upper" =>
-                  rm.exportStrictUpperTriangle(
-                    ctx,
-                    pathOut,
-                    delimiter,
-                    Option(header),
-                    addIndex,
-                    exportType,
-                  )
-              }
-              Array()
           }
         }
       }
@@ -276,8 +222,8 @@ trait HttpLikeBackendRpc[A] extends BackendRpc {
         case Routes.TypeOf(k) =>
           TypeOf(k, payload(a).extract[IRTypePayload].ir)
         case Routes.Execute =>
-          val ExecutePayload(ir, fs, codec) = payload(a).extract[ExecutePayload]
-          Execute(ir, fs, codec)
+          val ExecutePayload(ir, fns, codec) = payload(a).extract[ExecutePayload]
+          Execute(ir, fns, codec)
         case Routes.ParseVcfMetadata =>
           ParseVcfMetadata(payload(a).extract[ParseVCFMetadataPayload].path)
         case Routes.ImportFam =>
