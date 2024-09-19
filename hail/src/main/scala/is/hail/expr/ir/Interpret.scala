@@ -967,7 +967,7 @@ object Interpret {
             ctx,
             extracted.states,
             FastSeq((
-              TableIR.rowName,
+              TableIR.globalName,
               SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)),
             )),
             FastSeq(classInfo[Region], LongInfo),
