@@ -85,8 +85,6 @@ abstract class Backend extends Closeable {
   def asSpark(op: String): SparkBackend =
     fatal(s"${getClass.getSimpleName}: $op requires SparkBackend")
 
-  def shouldCacheQueryInfo: Boolean = true
-
   def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
