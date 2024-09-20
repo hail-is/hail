@@ -1806,7 +1806,7 @@ object MatrixVCFReader {
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
         val (failureOpt, _) = backend.parallelizeAndComputeWithIndex(
-          ctx.backendContext,
+          ctx.backend.backendContext(ctx),
           fs,
           files.tail.map(_.getBytes),
           "load_vcf_parse_header",
