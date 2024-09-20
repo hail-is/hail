@@ -170,8 +170,15 @@ def parse_timings(str: Optional[str]) -> Optional[dict]:
 
 class Py4JBackend(Backend):
     @abc.abstractmethod
-    def __init__(self, jvm: JVMView, jbackend: JavaObject, jhc: JavaObject):
-        super(Py4JBackend, self).__init__()
+    def __init__(
+        self,
+        jvm: JVMView,
+        jbackend: JavaObject,
+        jhc: JavaObject,
+        tmpdir: str,
+        remote_tmpdir: str,
+    ):
+        super().__init__()
         import base64
 
         def decode_bytearray(encoded):
@@ -184,12 +191,11 @@ class Py4JBackend(Backend):
         self._jvm = jvm
         self._hail_package = getattr(self._jvm, 'is').hail
         self._utils_package_object = scala_package_object(self._hail_package.utils)
-        self._jbackend = jbackend
         self._jhc = jhc
 
-        self._backend_server = self._hail_package.backend.BackendServer(self._jbackend)
-        self._backend_server_port: int = self._backend_server.port()
-        self._backend_server.start()
+        self._jbackend = self._hail_package.backend.api.P4jBackendApi(jbackend)
+        self._jhttp_server = self._jbackend.pyHttpServer()
+        self._backend_server_port: int = self._jbackend.HttpServer.port()
         self._requests_session = requests.Session()
 
         # This has to go after creating the SparkSession. Unclear why.
@@ -289,7 +295,7 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
-        self._backend_server.close()
+        self._jhttp_server.close()
         self._jbackend.close()
         self._jhc.stop()
         self._jhc = None

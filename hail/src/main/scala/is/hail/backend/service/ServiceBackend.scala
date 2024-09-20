@@ -1,10 +1,10 @@
 package is.hail.backend.service
 
-import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
+import is.hail.{CancellingExecutorService, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
-import is.hail.backend.caching.NoCaching
+import is.hail.backend.api.BatchJobConfig
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
@@ -14,35 +14,19 @@ import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
-import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.services._
 import is.hail.services.JobGroupStates.Failure
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
-import is.hail.types.virtual.{Kinds, TVoid}
+import is.hail.types.virtual.TVoid
 import is.hail.utils._
-import is.hail.utils.ExecutionTimer.Timings
-import is.hail.variant.ReferenceGenome
 
-import scala.annotation.switch
-import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import java.io._
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
 import java.util.concurrent._
-
-import org.json4s.JsonAST._
-import org.json4s.jackson.JsonMethods
-import sourcecode.Enclosing
-
-case class ServiceBackendContext(
-  remoteTmpDir: String,
-  jobConfig: BatchJobConfig,
-  override val executionCache: ExecutionCache,
-) extends BackendContext with Serializable
 
 object ServiceBackend {
   val MaxAvailableGcsConnections = 1000
@@ -52,17 +36,23 @@ class ServiceBackend(
   val name: String,
   batchClient: BatchClient,
   jarLocation: String,
-  theHailClassLoader: HailClassLoader,
   batchConfig: Option[BatchConfig],
-  rpcConfig: ServiceBackendRPCPayload,
   jobConfig: BatchJobConfig,
-  flags: HailFeatureFlags,
-  val fs: FS,
-  references: mutable.Map[String, ReferenceGenome],
 ) extends Backend with Logging {
 
+  case class Context(
+    remoteTmpDir: String,
+    batchConfig: BatchConfig,
+    jobConfig: BatchJobConfig,
+    flags: HailFeatureFlags,
+    override val executionCache: ExecutionCache,
+  ) extends BackendContext
+
   private[this] var stageCount = 0
-  private[this] val executor = Executors.newFixedThreadPool(MaxAvailableGcsConnections)
+
+  private[this] val executor = lazily {
+    Executors.newFixedThreadPool(MaxAvailableGcsConnections)
+  }
 
   def defaultParallelism: Int = 4
 
@@ -80,6 +70,27 @@ class ServiceBackend(
     }
   }
 
+  override def backendContext(ctx: ExecuteContext): BackendContext =
+    Context(
+      remoteTmpDir = ctx.tmpdir,
+      batchConfig = batchConfig.getOrElse {
+        BatchConfig(
+          batchId = batchClient.newBatch(
+            BatchRequest(
+              billing_project = jobConfig.billing_project,
+              n_jobs = 0,
+              token = jobConfig.token,
+              attributes = Map("name" -> name),
+            )
+          ),
+          jobGroupId = 0,
+        )
+      },
+      jobConfig = jobConfig,
+      flags = ctx.flags,
+      executionCache = ExecutionCache.fromFlags(ctx.flags, ctx.fs, ctx.tmpdir),
+    )
+
   private[this] def readString(in: DataInputStream): String = {
     val n = in.readInt()
     val bytes = new Array[Byte](n)
@@ -94,8 +105,8 @@ class ServiceBackend(
     stageIdentifier: String,
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
   ): (String, String, Int) = {
-    val ServiceBackendContext(remoteTmp, jobConfig, _) =
-      _backendContext.asInstanceOf[ServiceBackendContext]
+    val Context(remoteTmp, batchConfig, jobConfig, flags, _) =
+      _backendContext.asInstanceOf[Context]
     val n = collection.length
     val token = tokenUrlSafe
     val root = s"$remoteTmp/parallelizeAndComputeWithIndex/$token"
@@ -128,7 +139,7 @@ class ServiceBackend(
 
     val jobGroup = JobGroupRequest(
       job_group_id = 1, // QoB creates an update for every new stage
-      absolute_parent_id = batchConfig.map(_.jobGroupId).getOrElse(0),
+      absolute_parent_id = batchConfig.jobGroupId,
       attributes = Map("name" -> stageIdentifier),
     )
 
@@ -164,29 +175,18 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val batchId = batchConfig.map(_.batchId).getOrElse {
-      batchClient.newBatch(
-        BatchRequest(
-          billing_project = jobConfig.billing_project,
-          n_jobs = 0,
-          token = token,
-          attributes = Map("name" -> name),
-        )
-      )
-    }
-
-    val (updateId, jobGroupId) = batchClient.newJobGroup(batchId, token, jobGroup, jobs)
-    val response = batchClient.waitForJobGroup(batchId, jobGroupId)
+    val (updateId, jobGroupId) = batchClient.newJobGroup(batchConfig.batchId, token, jobGroup, jobs)
+    val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
 
     stageCount += 1
     if (response.state == Failure) {
-      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
+      throw new HailBatchFailure(s"Update $updateId for batch ${batchConfig.batchId} failed")
     }
 
     (token, root, n)
   }
 
-  private[this] def readResult(root: String, i: Int): Array[Byte] = {
+  private[this] def readResult(fs: FS, root: String, i: Int): Array[Byte] = {
     val bytes = fs.readNoCompression(s"$root/result.$i")
     if (bytes(0) != 0) {
       bytes.slice(1, bytes.length)
@@ -223,7 +223,7 @@ class ServiceBackend(
     val startTime = System.nanoTime()
     val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
-        (() => readResult(root, jobIndex), partIdx)
+        (() => readResult(fs, root, jobIndex), partIdx)
       }
     }
 
@@ -237,7 +237,7 @@ class ServiceBackend(
   }
 
   override def close(): Unit = {
-    executor.shutdownNow()
+    if (executor.isEvaluated) executor.shutdownNow()
     batchClient.close()
   }
 
@@ -296,251 +296,6 @@ class ServiceBackend(
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
-
-  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): (T, Timings) =
-    ExecutionTimer.time { timer =>
-      ExecuteContext.scoped(
-        rpcConfig.tmp_dir,
-        rpcConfig.remote_tmpdir,
-        this,
-        fs,
-        timer,
-        null,
-        theHailClassLoader,
-        flags,
-        ServiceBackendContext(
-          rpcConfig.remote_tmpdir,
-          jobConfig,
-          ExecutionCache.fromFlags(flags, fs, rpcConfig.remote_tmpdir),
-        ),
-        new IrMetadata(),
-        references,
-        NoCaching,
-        NoCaching,
-        NoCaching,
-        NoCaching,
-      )(f)
-    }
 }
 
-class EndOfInputException extends RuntimeException
 class HailBatchFailure(message: String) extends RuntimeException(message)
-
-case class Request(
-  backend: ServiceBackend,
-  fs: FS,
-  outputUrl: String,
-  action: Int,
-  payload: JValue,
-)
-
-object ServiceBackendAPI extends HttpLikeBackendRpc[Request] with Logging {
-
-  def main(argv: Array[String]): Unit = {
-    assert(argv.length == 7, argv.toFastSeq)
-
-    val scratchDir = argv(0)
-    // val logFile = argv(1)
-    val jarLocation = argv(2)
-    val kind = argv(3)
-    assert(kind == Main.DRIVER)
-    val name = argv(4)
-    val inputURL = argv(5)
-    val outputURL = argv(6)
-
-    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
-    DeployConfig.set(deployConfig)
-    sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
-
-    var fs = RouterFS.buildRoutes(
-      CloudStorageFSConfig.fromFlagsAndEnv(
-        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-        HailFeatureFlags.fromEnv(),
-      )
-    )
-
-    val (rpcConfig, jobConfig, action, payload) =
-      using(fs.openNoCompression(inputURL)) { is =>
-        val input = JsonMethods.parse(is)
-        (
-          (input \ "rpc_config").extract[ServiceBackendRPCPayload],
-          (input \ "job_config").extract[BatchJobConfig],
-          (input \ "action").extract[Int],
-          input \ "payload",
-        )
-      }
-
-    // requester pays config is conveyed in feature flags currently
-    val featureFlags = HailFeatureFlags.fromEnv(rpcConfig.flags)
-    fs = RouterFS.buildRoutes(
-      CloudStorageFSConfig.fromFlagsAndEnv(
-        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
-        featureFlags,
-      )
-    )
-
-    val references = mutable.Map[String, ReferenceGenome]()
-    references ++= ReferenceGenome.builtinReferences()
-    rpcConfig.custom_references.toFastSeq.view.map(ReferenceGenome.fromJSON).foreach { rg =>
-      references += rg.name -> rg
-    }
-
-    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
-      liftoversForSource.foreach { case (destGenome, chainFile) =>
-        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
-      }
-    }
-
-    rpcConfig.sequences.foreach { case (rg, seq) =>
-      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
-    }
-
-    // FIXME: when can the classloader be shared? (optimizer benefits!)
-    val backend = new ServiceBackend(
-      name,
-      BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json")),
-      jarLocation,
-      new HailClassLoader(getClass.getClassLoader),
-      BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json")),
-      rpcConfig,
-      jobConfig,
-      featureFlags,
-      fs,
-      references,
-    )
-
-    log.info("ServiceBackend allocated.")
-    if (HailContext.isInitialized) {
-      HailContext.get.backend = backend
-      log.info("Default references added to already initialized HailContexet.")
-    } else {
-      HailContext(backend, 50, 3)
-      log.info("HailContexet initialized.")
-    }
-
-    runRpc(Request(backend, fs, outputURL, action, payload))
-  }
-
-  implicit override protected object Ask extends Routing {
-    import Routes._
-
-    override def route(a: Request): Route =
-      (a.action: @switch) match {
-        case 1 => TypeOf(Kinds.Value)
-        case 2 => TypeOf(Kinds.Table)
-        case 3 => TypeOf(Kinds.Matrix)
-        case 4 => TypeOf(Kinds.BlockMatrix)
-        case 5 => Execute
-        case 6 => ParseVcfMetadata
-        case 7 => ImportFam
-        case 8 => LoadReferencesFromDataset
-        case 9 => LoadReferencesFromFASTA
-      }
-
-    override def payload(a: Request): JValue = a.payload
-  }
-
-  implicit override protected object Write extends Write[Request] {
-
-    // service backend doesn't support sending timings back to the python client
-    override def timings(env: Request)(t: Timings): Unit =
-      ()
-
-    override def result(env: Request)(result: Array[Byte]): Unit =
-      retryTransientErrors {
-        using(env.fs.createNoCompression(env.outputUrl)) { outputStream =>
-          val output = new HailSocketAPIOutputStream(outputStream)
-          output.writeBool(true)
-          output.writeBytes(result)
-        }
-      }
-
-    override def error(env: Request)(t: Throwable): Unit =
-      retryTransientErrors {
-        val (shortMessage, expandedMessage, errorId) =
-          t match {
-            case t: HailWorkerException =>
-              log.error(
-                "A worker failed. The exception was written for Python but we will also throw an exception to fail this driver job.",
-                t,
-              )
-              (t.shortMessage, t.expandedMessage, t.errorId)
-            case _ =>
-              log.error(
-                "An exception occurred in the driver. The exception was written for Python but we will re-throw to fail this driver job.",
-                t,
-              )
-              handleForPython(t)
-          }
-
-        using(env.fs.createNoCompression(env.outputUrl)) { outputStream =>
-          val output = new HailSocketAPIOutputStream(outputStream)
-          output.writeBool(false)
-          output.writeString(shortMessage)
-          output.writeString(expandedMessage)
-          output.writeInt(errorId)
-        }
-
-        throw t
-      }
-  }
-
-  implicit override protected object Context extends Context[Request] {
-    override def scoped[A](env: Request)(f: ExecuteContext => A): (A, Timings) =
-      env.backend.withExecuteContext(f)
-  }
-}
-
-private class HailSocketAPIOutputStream(
-  private[this] val out: OutputStream
-) extends AutoCloseable {
-  private[this] var closed: Boolean = false
-  private[this] val dummy = new Array[Byte](8)
-
-  def writeBool(b: Boolean): Unit =
-    out.write(if (b) 1 else 0)
-
-  def writeInt(v: Int): Unit = {
-    Memory.storeInt(dummy, 0, v)
-    out.write(dummy, 0, 4)
-  }
-
-  def writeLong(v: Long): Unit = {
-    Memory.storeLong(dummy, 0, v)
-    out.write(dummy)
-  }
-
-  def writeBytes(bytes: Array[Byte]): Unit = {
-    writeInt(bytes.length)
-    out.write(bytes)
-  }
-
-  def writeString(s: String): Unit = writeBytes(s.getBytes(StandardCharsets.UTF_8))
-
-  def close(): Unit =
-    if (!closed) {
-      out.close()
-      closed = true
-    }
-}
-
-case class SequenceConfig(fasta: String, index: String)
-
-case class ServiceBackendRPCPayload(
-  tmp_dir: String,
-  remote_tmpdir: String,
-  flags: Map[String, String],
-  custom_references: Array[String],
-  liftovers: Map[String, Map[String, String]],
-  sequences: Map[String, SequenceConfig],
-)
-
-case class BatchJobConfig(
-  token: String,
-  billing_project: String,
-  worker_cores: String,
-  worker_memory: String,
-  storage: String,
-  cloudfuse_configs: Array[CloudfuseConfig],
-  regions: Array[String],
-)
