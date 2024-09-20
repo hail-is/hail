@@ -1618,7 +1618,7 @@ object LoadVCF {
     if (c.hasQual) {
       val qstr = l.parseString()
       if (qstr == ".")
-        rvb.addDouble(-10.0)
+        rvb.setMissing()
       else
         rvb.addDouble(qstr.toDouble)
     } else
