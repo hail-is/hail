@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.types.virtual.{TBoolean, TInt32, TStream}
 
 import org.testng.annotations.Test

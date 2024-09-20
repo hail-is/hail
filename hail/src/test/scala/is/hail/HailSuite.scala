@@ -1,28 +1,38 @@
 package is.hail
 
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.TestUtils._
 import is.hail.annotations._
-import is.hail.backend.{BroadcastValue, ExecuteContext}
+import is.hail.asm4s.HailClassLoader
+import is.hail.backend.{Backend, ExecuteContext}
+import is.hail.backend.caching.NoCaching
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
-import is.hail.io.fs.FS
+import is.hail.expr.ir.lowering.IrMetadata
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import java.io.{File, PrintWriter}
 
 import breeze.linalg.DenseMatrix
+import org.apache.hadoop
+import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
-import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
+import org.testng.annotations.{AfterClass, AfterMethod, BeforeClass, BeforeMethod}
 
 object HailSuite {
-  val theHailClassLoader = TestUtils.theHailClassLoader
 
-  def withSparkBackend(): HailContext = {
+  val theHailClassLoader: HailClassLoader =
+    new HailClassLoader(getClass.getClassLoader)
+
+  val flags: HailFeatureFlags =
+    HailFeatureFlags.fromEnv(sys.env + ("lower" -> "1"))
+
+  lazy val hc: HailContext = {
     HailContext.configureLogging("/tmp/hail.log", quiet = false, append = false)
     val backend = SparkBackend(
       sc = new SparkContext(
@@ -34,61 +44,69 @@ object HailSuite {
         )
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")
       ),
-      tmpdir = "/tmp",
-      localTmpdir = "file:///tmp",
       skipLoggingConfiguration = true,
     )
-    HailContext(backend)
-  }
-
-  lazy val hc: HailContext = {
-    val hc = withSparkBackend()
-    hc.backend.asSpark.flags.set("lower", "1")
+    val hc = HailContext(backend)
     hc.checkRVDKeys = true
     hc
   }
 }
 
-class HailSuite extends TestNGSuite {
-  val theHailClassLoader = HailSuite.theHailClassLoader
+class HailSuite extends TestNGSuite with TestUtils {
 
   def hc: HailContext = HailSuite.hc
 
-  @BeforeClass def ensureHailContextInitialized(): Unit = hc
+  @BeforeClass
+  def initFs(): Unit = {
+    val conf = new Configuration(sc.hadoopConfiguration)
+    fs = new HadoopFS(new SerializableHadoopConfiguration(conf))
+  }
 
-  def backend: SparkBackend = hc.backend.asSpark
+  @AfterClass
+  def closeFS(): Unit =
+    hadoop.fs.FileSystem.closeAll()
 
-  def sc: SparkContext = backend.sc
-
-  def fs: FS = backend.fs
-
-  def fsBc: BroadcastValue[FS] = fs.broadcast
-
-  var timer: ExecutionTimer = _
-
-  var ctx: ExecuteContext = _
-
+  var fs: FS = _
   var pool: RegionPool = _
+  private[this] var ctx_ : ExecuteContext = _
+
+  def backend: Backend = ctx.backend
+  def sc: SparkContext = backend.asSpark.sc
+  def timer: ExecutionTimer = ctx.timer
+  def theHailClassLoader: HailClassLoader = ctx.theHailClassLoader
+  override def ctx: ExecuteContext = ctx_
 
   @BeforeMethod
   def setupContext(context: ITestContext): Unit = {
-    assert(timer == null)
-    timer = new ExecutionTimer("HailSuite")
-    assert(ctx == null)
     pool = RegionPool()
-    ctx = backend.createExecuteContextForTests(timer, Region(pool = pool))
+    ctx_ = new ExecuteContext(
+      tmpdir = "/tmp",
+      localTmpdir = "file:///tmp",
+      backend = hc.backend,
+      fs = fs,
+      r = Region(pool = pool),
+      timer = new ExecutionTimer(context.getName),
+      _tempFileManager = null,
+      theHailClassLoader = HailSuite.theHailClassLoader,
+      flags = HailSuite.flags,
+      irMetadata = new IrMetadata(),
+      References = ImmutableMap(ReferenceGenome.builtinReferences()),
+      BlockMatrixCache = NoCaching,
+      CodeCache = NoCaching,
+      IrCache = NoCaching,
+      CoercerCache = NoCaching,
+    )
   }
 
   @AfterMethod
   def tearDownContext(context: ITestContext): Unit = {
-    ctx.close()
-    ctx = null
-    timer.finish()
-    timer = null
+    ctx_.timer.finish()
+    ctx_.close()
+    ctx_ = null
     pool.close()
 
-    if (backend.sc.isStopped)
-      throw new RuntimeException(s"method stopped spark context!")
+    if (sc.isStopped)
+      throw new RuntimeException(s"'${context.getName}' stopped spark context!")
   }
 
   def assertEvalsTo(
@@ -105,73 +123,71 @@ class HailSuite extends TestNGSuite {
     val t = x.typ
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
-    ExecuteContext.scoped { ctx =>
-      val filteredExecStrats: Set[ExecStrategy] =
-        if (HailContext.backend.isInstanceOf[SparkBackend])
-          execStrats
-        else {
-          info("skipping interpret and non-lowering compile steps on non-spark backend")
-          execStrats.intersect(ExecStrategy.backendOnly)
-        }
+    val filteredExecStrats: Set[ExecStrategy] =
+      if (HailContext.backend.isInstanceOf[SparkBackend])
+        execStrats
+      else {
+        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        execStrats.intersect(ExecStrategy.backendOnly)
+      }
 
-      filteredExecStrats.foreach { strat =>
-        try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args)
-            case ExecStrategy.InterpretUnoptimized =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args, optimize = false)
-            case ExecStrategy.JvmCompile =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(
-                x,
-                env,
-                args,
-                agg,
-                bytecodePrinter =
-                  Option(ctx.getFlag("jvm_bytecode_dump"))
-                    .map { path =>
-                      val pw = new PrintWriter(new File(path))
-                      pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                      pw
-                    },
-                true,
-                ctx,
-              )
-            case ExecStrategy.JvmCompileUnoptimized =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(
-                x,
-                env,
-                args,
-                agg,
-                bytecodePrinter =
-                  Option(ctx.getFlag("jvm_bytecode_dump"))
-                    .map { path =>
-                      val pw = new PrintWriter(new File(path))
-                      pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                      pw
-                    },
-                optimize = false,
-                ctx,
-              )
-            case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(ctx, x, env, args, agg)
-          }
-          if (t != TVoid) {
-            assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
-            assert(
-              t.valuesSimilar(res, expected),
-              s"\n  result=$res\n  expect=$expected\n  strategy=$strat)",
+    filteredExecStrats.foreach { strat =>
+      try {
+        val res = strat match {
+          case ExecStrategy.Interpret =>
+            assert(agg.isEmpty)
+            Interpret[Any](ctx, x, env, args)
+          case ExecStrategy.InterpretUnoptimized =>
+            assert(agg.isEmpty)
+            Interpret[Any](ctx, x, env, args, optimize = false)
+          case ExecStrategy.JvmCompile =>
+            assert(Forall(x, node => Compilable(node)))
+            eval(
+              x,
+              env,
+              args,
+              agg,
+              bytecodePrinter =
+                Option(ctx.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
+                    pw
+                  },
+              true,
+              ctx,
             )
-          }
-        } catch {
-          case e: Exception =>
-            error(s"error from strategy $strat")
-            if (execStrats.contains(strat)) throw e
+          case ExecStrategy.JvmCompileUnoptimized =>
+            assert(Forall(x, node => Compilable(node)))
+            eval(
+              x,
+              env,
+              args,
+              agg,
+              bytecodePrinter =
+                Option(ctx.getFlag("jvm_bytecode_dump"))
+                  .map { path =>
+                    val pw = new PrintWriter(new File(path))
+                    pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
+                    pw
+                  },
+              optimize = false,
+              ctx,
+            )
+          case ExecStrategy.LoweredJVMCompile =>
+            loweredExecute(ctx, x, env, args, agg)
         }
+        if (t != TVoid) {
+          assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
+          assert(
+            t.valuesSimilar(res, expected),
+            s"\n  result=$res\n  expect=$expected\n  strategy=$strat)",
+          )
+        }
+      } catch {
+        case e: Exception =>
+          error(s"error from strategy $strat")
+          if (execStrats.contains(strat)) throw e
       }
     }
   }
@@ -250,35 +266,33 @@ class HailSuite extends TestNGSuite {
     expected: DenseMatrix[Double],
   )(implicit execStrats: Set[ExecStrategy]
   ): Unit = {
-    ExecuteContext.scoped { ctx =>
-      val filteredExecStrats: Set[ExecStrategy] =
-        if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
-        else {
-          info("skipping interpret and non-lowering compile steps on non-spark backend")
-          execStrats.intersect(ExecStrategy.backendOnly)
-        }
-      filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
-        try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              Interpret(bm, ctx, optimize = true)
-            case ExecStrategy.InterpretUnoptimized =>
-              Interpret(bm, ctx, optimize = false)
-          }
-          assert(res.toBreezeMatrix() == expected)
-        } catch {
-          case e: Exception =>
-            error(s"error from strategy $strat")
-            if (execStrats.contains(strat)) throw e
-        }
+    val filteredExecStrats: Set[ExecStrategy] =
+      if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
+      else {
+        info("skipping interpret and non-lowering compile steps on non-spark backend")
+        execStrats.intersect(ExecStrategy.backendOnly)
       }
-      val expectedArray = Array.tabulate(expected.rows)(i =>
-        Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq
-      ).toFastSeq
-      assertNDEvals(BlockMatrixCollect(bm), expectedArray)(
-        filteredExecStrats.filterNot(ExecStrategy.interpretOnly)
-      )
+    filteredExecStrats.filter(ExecStrategy.interpretOnly).foreach { strat =>
+      try {
+        val res = strat match {
+          case ExecStrategy.Interpret =>
+            Interpret(bm, ctx, optimize = true)
+          case ExecStrategy.InterpretUnoptimized =>
+            Interpret(bm, ctx, optimize = false)
+        }
+        assert(res.toBreezeMatrix() == expected)
+      } catch {
+        case e: Exception =>
+          error(s"error from strategy $strat")
+          if (execStrats.contains(strat)) throw e
+      }
     }
+    val expectedArray = Array.tabulate(expected.rows)(i =>
+      Array.tabulate(expected.cols)(j => expected(i, j)).toFastSeq
+    ).toFastSeq
+    assertNDEvals(BlockMatrixCollect(bm), expectedArray)(
+      filteredExecStrats.filterNot(ExecStrategy.interpretOnly)
+    )
   }
 
   def assertAllEvalTo(

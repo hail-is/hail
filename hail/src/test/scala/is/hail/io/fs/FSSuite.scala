@@ -12,13 +12,10 @@ import org.apache.hadoop.fs.FileAlreadyExistsException
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
-trait FSSuite extends TestNGSuite {
+trait FSSuite extends TestNGSuite with TestUtils {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
   def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
-
   def tmpdir: String = System.getenv("HAIL_TEST_STORAGE_URI")
-
   def fs: FS
 
   /* Structure of src/test/resources/fs:
@@ -73,7 +70,7 @@ trait FSSuite extends TestNGSuite {
 
   @Test def testFileStatusOnDirIsFailure(): Unit = {
     val f = r("/dir")
-    TestUtils.interceptException[FileNotFoundException](f)(
+    interceptException[FileNotFoundException](f)(
       fs.fileStatus(f)
     )
   }

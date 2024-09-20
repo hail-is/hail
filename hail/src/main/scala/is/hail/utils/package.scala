@@ -9,7 +9,7 @@ import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.ExecutionException
-import scala.language.higherKinds
+import scala.language.{higherKinds, implicitConversions}
 import scala.reflect.ClassTag
 import scala.util.control.NonFatal
 
@@ -1052,6 +1052,29 @@ package object utils
   def runAllKeepFirstError[A](executor: ExecutorService)
     : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
     runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
+
+  def lazily[A](f: => A): Lazy[A] =
+    new Lazy(f)
+
+  implicit def evalLazy[A](f: Lazy[A]): A =
+    f()
+
+  class Lazy[A] private[utils] (f: => A) {
+    private[this] var option: Option[A] = None
+
+    def apply(): A =
+      synchronized {
+        option match {
+          case Some(a) => a
+          case None => val a = f; option = Some(a); a
+        }
+      }
+
+    def isEvaluated: Boolean =
+      synchronized {
+        option.isDefined
+      }
+  }
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {

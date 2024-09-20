@@ -1,6 +1,6 @@
 package is.hail.backend
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.HailFeatureFlags
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
@@ -55,11 +55,6 @@ object NonOwningTempFileManager {
 }
 
 object ExecuteContext {
-  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
-    HailContext.sparkBackend.withExecuteContext(
-      selfContainedExecution = false
-    )(f)
-
   def scoped[T](
     tmpdir: String,
     localTmpdir: String,
@@ -69,7 +64,6 @@ object ExecuteContext {
     tempFileManager: TempFileManager,
     theHailClassLoader: HailClassLoader,
     flags: HailFeatureFlags,
-    backendContext: BackendContext,
     irMetadata: IrMetadata,
     references: mutable.Map[String, ReferenceGenome],
     blockMatrixCache: mutable.Map[String, BlockMatrix],
@@ -91,7 +85,6 @@ object ExecuteContext {
           tempFileManager,
           theHailClassLoader,
           flags,
-          backendContext,
           irMetadata,
           references,
           blockMatrixCache,
@@ -124,7 +117,6 @@ class ExecuteContext(
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
   val flags: HailFeatureFlags,
-  val backendContext: BackendContext,
   val irMetadata: IrMetadata,
   val References: mutable.Map[String, ReferenceGenome],
   val BlockMatrixCache: mutable.Map[String, BlockMatrix],
@@ -197,7 +189,6 @@ class ExecuteContext(
     tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
     theHailClassLoader: HailClassLoader = this.theHailClassLoader,
     flags: HailFeatureFlags = this.flags,
-    backendContext: BackendContext = this.backendContext,
     references: mutable.Map[String, ReferenceGenome] = this.References,
     irMetadata: IrMetadata = this.irMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
@@ -217,7 +208,6 @@ class ExecuteContext(
       tempFileManager,
       theHailClassLoader,
       flags,
-      backendContext,
       irMetadata,
       references,
       blockMatrixCache,

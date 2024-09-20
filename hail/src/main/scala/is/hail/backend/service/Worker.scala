@@ -168,19 +168,7 @@ object Worker {
     timer.start("executeFunction")
 
     // FIXME: workers should not have backends, but some things do need hail contexts
-    val backend = new ServiceBackend(
-      null,
-      null,
-      null,
-      new HailClassLoader(getClass().getClassLoader()),
-      null,
-      null,
-      null,
-      null,
-      null,
-      null,
-    )
-
+    val backend = new ServiceBackend(null, null, null, null, null)
     if (HailContext.isInitialized) HailContext.get.backend = backend
     else HailContext(backend)
 

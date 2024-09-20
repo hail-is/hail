@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.expr.ir.DoubleArrayBuilder
 import is.hail.utils._
 
@@ -31,6 +31,6 @@ class SkatSuite extends HailSuite {
     val (qLarge, gramianLarge) = Skat.computeGramianLargeN(st)
 
     assert(D_==(qSmall, qLarge))
-    TestUtils.assertMatrixEqualityDouble(gramianSmall, gramianLarge)
+    assertMatrixEqualityDouble(gramianSmall, gramianLarge)
   }
 }

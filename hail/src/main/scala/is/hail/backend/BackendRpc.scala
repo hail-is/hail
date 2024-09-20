@@ -244,8 +244,4 @@ trait HttpLikeBackendRpc[A] extends BackendRpc {
           )
       }
   }
-
-  implicit protected def Ask: Routing
-  implicit protected def Write: Write[A]
-  implicit protected def Context: Context[A]
 }

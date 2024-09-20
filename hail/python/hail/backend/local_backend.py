@@ -74,7 +74,6 @@ class LocalBackend(Py4JBackend):
         hail_package = getattr(self._gateway.jvm, 'is').hail
 
         jbackend = hail_package.backend.local.LocalBackend.apply(
-            tmpdir,
             log,
             True,
             append,
