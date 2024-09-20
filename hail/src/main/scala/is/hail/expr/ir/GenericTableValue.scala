@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
@@ -143,16 +144,6 @@ class PartitionIteratorLongReader(
     )
 }
 
-abstract class LoweredTableReaderCoercer {
-  def coerce(
-    ctx: ExecuteContext,
-    globals: IR,
-    contextType: Type,
-    contexts: IndexedSeq[Any],
-    body: IR => IR,
-  ): TableStage
-}
-
 class GenericTableValue(
   val fullTableType: TableType,
   val uidFieldName: String,
@@ -168,12 +159,11 @@ class GenericTableValue(
   assert(contextType.hasField("partitionIndex"))
   assert(contextType.fieldType("partitionIndex") == TInt32)
 
-  private var ltrCoercer: LoweredTableReaderCoercer = _
-
   private def getLTVCoercer(ctx: ExecuteContext, context: String, cacheKey: Any)
-    : LoweredTableReaderCoercer = {
-    if (ltrCoercer == null) {
-      ltrCoercer = LoweredTableReader.makeCoercer(
+    : LoweredTableReaderCoercer =
+    ctx.CoercerCache.getOrElseUpdate(
+      (1, contextType, fullTableType.key, cacheKey),
+      LoweredTableReader.makeCoercer(
         ctx,
         fullTableType.key,
         1,
@@ -184,11 +174,8 @@ class GenericTableValue(
         bodyPType,
         body,
         context,
-        cacheKey,
-      )
-    }
-    ltrCoercer
-  }
+      ),
+    )
 
   def toTableStage(ctx: ExecuteContext, requestedType: TableType, context: String, cacheKey: Any)
     : TableStage = {
@@ -217,11 +204,13 @@ class GenericTableValue(
       val contextsIR = ToStream(Literal(TArray(contextType), contexts))
       TableStage(globalsIR, p, TableStageDependency.none, contextsIR, requestedBody)
     } else {
-      getLTVCoercer(ctx, context, cacheKey).coerce(
+      getLTVCoercer(ctx, context, cacheKey)(
         ctx,
         globalsIR,
-        contextType, contexts,
-        requestedBody)
+        contextType,
+        contexts,
+        requestedBody,
+      )
     }
   }
 }
