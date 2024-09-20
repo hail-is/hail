@@ -3,7 +3,10 @@ package is.hail.backend.py4j
 import is.hail.HailFeatureFlags
 import is.hail.backend.{Backend, ExecuteContext, NonOwningTempFileManager, TempFileManager}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
-import is.hail.expr.ir.{BaseIR, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IRParser, Interpret, MatrixIR, MatrixNativeReader, MatrixRead, NativeReaderOptions, TableLiteral, TableValue}
+import is.hail.expr.ir.{
+  BaseIR, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IRParser, Interpret, MatrixIR,
+  MatrixNativeReader, MatrixRead, NativeReaderOptions, TableLiteral, TableValue,
+}
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
