@@ -170,7 +170,7 @@ def make_variant_stream(stream, info_to_keep):
     if info_to_keep is None:
         info_to_keep = []
     if not info_to_keep:
-        info_to_keep = [name for name in info_t if name not in ['END', 'DP']]
+        info_to_keep = [name for name in info_t if name not in ('END', 'LEN', 'DP')]
     info_key = tuple(sorted(info_to_keep))  # hashable stable value
     stream = stream.filter(lambda elt: hl.is_missing(elt.info.END))
 
@@ -283,7 +283,7 @@ def combine_r(ts, ref_block_max_len_field):
 
 
 def combine_reference_row(row, globals):
-    merge_function = _merge_function_map.get((row.dtype, globals))
+    merge_function = _merge_function_map.get((row.dtype, globals.dtype))
     if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
         merge_function = hl.experimental.define_function(
             lambda row, gbl: hl.struct(
