@@ -482,8 +482,7 @@ class PR(Code):
                     name: "{self.target_branch.branch.repo.name}"
                   ) {{
                     pullRequest (number: {self.number}) {{
-                      {"reviewDecision" if review_decision is None or review_decision == "API_NONE" else ""}
-                      mergeStateStatus
+                      reviewDecision
                       commits (last: 1) {{
                         nodes {{
                           commit {{
