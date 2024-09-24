@@ -421,7 +421,7 @@ object StringFunctions extends RegistryFunctions {
             cb.assignAny(inputJavaValue, jv)
           },
         )
-        val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
+        val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("export", inputJavaValue)
         val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
         IEmitCode.present(cb, st.construct(cb, str))
     }

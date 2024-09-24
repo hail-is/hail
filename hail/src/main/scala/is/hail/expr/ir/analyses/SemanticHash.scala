@@ -173,7 +173,7 @@ case object SemanticHash extends Logging {
         buffer ++= Bytes.fromInt(idx)
 
       case Literal(typ, value) =>
-        buffer ++= EncodeTypename(typ) ++= typ.toJSON(value).toString.getBytes
+        buffer ++= EncodeTypename(typ) ++= typ.export(value).toString.getBytes
 
       case MakeTuple(fields) =>
         fields.foreach { case (index, _) => buffer ++= Bytes.fromInt(index) }

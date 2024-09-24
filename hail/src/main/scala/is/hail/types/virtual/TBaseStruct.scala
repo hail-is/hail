@@ -95,7 +95,7 @@ abstract class TBaseStruct extends Type {
     }
   }
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = {
     if (types.isEmpty) {

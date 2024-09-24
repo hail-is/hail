@@ -13,7 +13,7 @@ import is.hail.io._
 import is.hail.io.fs.SeekableDataInputStream
 import is.hail.io.index.{StagedIndexReader, StagedIndexWriter}
 import is.hail.lir
-import is.hail.types.{RStruct, TableType, TypeWithRequiredness}
+import is.hail.types.{RStruct, TypeWithRequiredness}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SingleCodeType
 import is.hail.types.physical.stypes.concrete._

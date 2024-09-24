@@ -1,11 +1,11 @@
-package is.hail.types
+package is.hail.types.virtual
 
 import is.hail.expr.ir._
 import is.hail.linalg.BlockMatrix
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.json4s.{JArray, JBool, JInt, JObject, JString, JValue}
 
 object BlockMatrixSparsity {
   private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
@@ -357,7 +357,7 @@ case class BlockMatrixType(
   isRowVector: Boolean,
   blockSize: Int,
   sparsity: BlockMatrixSparsity,
-) extends BaseType {
+) extends VType {
   require(blockSize >= 0)
   lazy val (nRows: Long, nCols: Long) = BlockMatrixType.tensorToMatrixShape(shape, isRowVector)
 
@@ -475,4 +475,12 @@ case class BlockMatrixType(
     newline()
     sb += '}'
   }
+
+  override def toJSON: JValue =
+    JObject(
+      "element_type" -> JString(elementType.toString),
+      "shape" -> JArray(shape.map(s => JInt(s)).toList),
+      "is_row_vector" -> JBool(isRowVector),
+      "block_size" -> JInt(blockSize),
+    )
 }

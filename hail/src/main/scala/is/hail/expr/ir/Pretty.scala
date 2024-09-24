@@ -5,8 +5,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
 import is.hail.expr.ir.agg._
 import is.hail.expr.ir.functions.RelationalFunctions
-import is.hail.types.{MatrixType, TableType}
-import is.hail.types.virtual.{TArray, TInterval, TStream, Type}
+import is.hail.types.virtual.{MatrixType, TArray, TInterval, TStream, TableType, Type}
 import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
 import is.hail.utils.richUtils.RichIterable
@@ -572,7 +571,7 @@ class Pretty(
         prettyName(cname),
         prettyName(gname), {
           val boundsJson =
-            Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.toJSON)))
+            Serialization.write(partitioner.rangeBounds.map(_.toJSON(partitioner.kType.export)))
           list(
             "Partitioner " + partitioner.kType.parsableString() + prettyStringLiteral(boundsJson)
           )
