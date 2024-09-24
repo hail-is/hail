@@ -2912,6 +2912,8 @@ steps:
       - deploy_ci
       - ci_image
       - create_ci_test_repo
+      - ci_utils_image
+      - hail_buildkit_image
   - kind: runImage
     name: test_hailtop_batch
     resources:
