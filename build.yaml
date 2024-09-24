@@ -2858,12 +2858,40 @@ steps:
       - create_certs
       - hail_buildkit_image
   - kind: runImage
+    name: test_ci_unit
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: hail_dev_image.image
+    script: |
+      set -ex
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/ci/unit-test
+    timeout: 1200
+    inputs:
+      - from: /repo/ci
+        to: /io/ci
+    scopes:
+      - test
+      - dev
+    dependsOn:
+      - merge_code
+      - hail_dev_image
+  - kind: runImage
     name: test_ci
     resources:
       memory: standard
       cpu: '0.25'
     image:
-      valueFrom: ci_image.image
+      valueFrom: hail_dev_image.image
     script: |
       set -ex
       export ORGANIZATION=hail-ci-test
@@ -2872,11 +2900,7 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
       export NAMESPACE="{{ default_ns.name }}"
-      export HAIL_CI_UTILS_IMAGE="{{ ci_utils_image.image }}"
-      export HAIL_BUILDKIT_IMAGE="{{ hail_buildkit_image.image }}"
-      export HAIL_CI_STORAGE_URI="{{ global.test_storage_uri }}"
-      export HAIL_CI_GITHUB_CONTEXT="ci-test"
-      hail-pip-install -r /io/dev-requirements.txt
+      pip install /io/ci
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -2891,16 +2915,10 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-dev-gsa-key
-      - name: global-config
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /global-config
     timeout: 5400
     inputs:
       - from: /repo/ci
         to: /io/ci
-      - from: /repo/hail/python/dev/pinned-requirements.txt
-        to: /io/dev-requirements.txt
     scopes:
       - test
       - dev
@@ -2911,10 +2929,8 @@ steps:
       - default_ns
       - create_certs
       - deploy_ci
-      - ci_image
+      - hail_dev_image
       - create_ci_test_repo
-      - ci_utils_image
-      - hail_buildkit_image
   - kind: runImage
     name: test_hailtop_batch
     resources:
