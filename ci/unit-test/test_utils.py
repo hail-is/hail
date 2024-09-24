@@ -1,6 +1,6 @@
 import pytest
 
-from ci.github import GithubStatus, github_status
+from ci.utils import GithubStatus, github_status
 
 
 def test_github_check_statuses():

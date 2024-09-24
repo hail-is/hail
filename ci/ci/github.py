@@ -6,7 +6,6 @@ import logging
 import os
 import random
 import secrets
-from enum import Enum
 from shlex import quote as shq
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
 
@@ -26,7 +25,7 @@ from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
-from .utils import add_deployed_services
+from .utils import GithubStatus, add_deployed_services, github_status
 
 repos_lock = asyncio.Lock()
 
@@ -43,27 +42,6 @@ if os.path.exists("/zulip-config/.zuliprc"):
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
 MAX_CONCURRENT_PR_BATCHES = 3
-
-
-class GithubStatus(Enum):
-    SUCCESS = 'success'
-    PENDING = 'pending'
-    FAILURE = 'failure'
-
-
-def github_status(state: str) -> GithubStatus:
-    """
-    Converts a state for a commit status (https://docs.github.com/en/graphql/reference/enums#statusstate)
-    or a conclusion for a check (https://docs.github.com/en/graphql/reference/enums#checkconclusionstate)
-    from the GraphQL API to a GithubStatus.
-    """
-    if state in {"PENDING", "EXPECTED", "ACTION_REQUIRED", "STALE"}:
-        return GithubStatus.PENDING
-    if state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:
-        return GithubStatus.FAILURE
-    if state in {"SUCCESS", "NEUTRAL"}:
-        return GithubStatus.SUCCESS
-    raise ValueError(f"Unexpected value for GithubStatus: {state}")
 
 
 def select_random_teammate(team):
