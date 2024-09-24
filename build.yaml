@@ -2863,9 +2863,10 @@ steps:
       memory: standard
       cpu: '0.25'
     image:
-      valueFrom: hail_dev_image.image
+      valueFrom: ci_image.image
     script: |
       set -ex
+      hail-pip-install -r /io/dev-requirements.txt
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -2879,12 +2880,14 @@ steps:
     inputs:
       - from: /repo/ci
         to: /io/ci
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
     scopes:
       - test
       - dev
     dependsOn:
       - merge_code
-      - hail_dev_image
+      - ci_image
   - kind: runImage
     name: test_ci
     resources:
