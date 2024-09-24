@@ -2875,6 +2875,7 @@ steps:
       export HAIL_CI_UTILS_IMAGE="{{ ci_utils_image.image }}"
       export HAIL_BUILDKIT_IMAGE="{{ hail_buildkit_image.image }}"
       export HAIL_CI_STORAGE_URI="{{ global.test_storage_uri }}"
+      export HAIL_CI_GITHUB_CONTEXT="ci-test"
       hail-pip-install -r /io/dev-requirements.txt
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
