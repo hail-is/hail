@@ -2858,6 +2858,37 @@ steps:
       - create_certs
       - hail_buildkit_image
   - kind: runImage
+    name: test_ci_unit
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_image.image
+    script: |
+      set -ex
+      hail-pip-install -r /io/dev-requirements.txt
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/ci/unit-test
+    timeout: 1200
+    inputs:
+      - from: /repo/ci
+        to: /io/ci
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    scopes:
+      - test
+      - dev
+    dependsOn:
+      - merge_code
+      - ci_image
+  - kind: runImage
     name: test_ci
     resources:
       memory: standard

@@ -6,7 +6,6 @@ import logging
 import os
 import random
 import secrets
-from enum import Enum
 from shlex import quote as shq
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
 
@@ -26,7 +25,7 @@ from .build import BuildConfiguration, Code
 from .constants import AUTHORIZED_USERS, COMPILER_TEAM, GITHUB_CLONE_URL, GITHUB_STATUS_CONTEXT, SERVICES_TEAM
 from .environment import DEPLOY_STEPS
 from .globals import is_test_deployment
-from .utils import add_deployed_services
+from .utils import GithubStatus, add_deployed_services, github_status
 
 repos_lock = asyncio.Lock()
 
@@ -43,12 +42,6 @@ if os.path.exists("/zulip-config/.zuliprc"):
 TRACKED_PRS = pc.Gauge('ci_tracked_prs', 'PRs currently being monitored by CI', ['build_state', 'review_state'])
 
 MAX_CONCURRENT_PR_BATCHES = 3
-
-
-class GithubStatus(Enum):
-    SUCCESS = 'success'
-    PENDING = 'pending'
-    FAILURE = 'failure'
 
 
 def select_random_teammate(team):
@@ -455,49 +448,70 @@ class PR(Code):
                 log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
     async def _update_github(self, gh):
-        await self._update_last_known_github_status(gh)
-        await self._update_github_review_state(gh)
+        results = []
+        cursor = None
+        review_decision = None
 
-    @staticmethod
-    def _hail_github_status_from_statuses(statuses_json) -> Dict[str, GithubStatus]:
-        statuses = statuses_json["statuses"]
-        hail_statuses = {}
-        for s in statuses:
-            context = s['context']
-            if context == 'ci-test' or context.startswith('hail-ci'):
-                if context in hail_statuses:
-                    raise ValueError(
-                        f'github sent multiple status summaries for context {context}: {s}\n\n{statuses_json}'
-                    )
-                hail_statuses[context] = GithubStatus(s['state'])
-        return hail_statuses
-
-    async def _update_last_known_github_status(self, gh):
-        if self.source_sha:
-            source_sha_json = await gh.getitem(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/commits/{self.source_sha}/status'
-            )
-            last_known_github_status = PR._hail_github_status_from_statuses(source_sha_json)
-            if last_known_github_status != self.last_known_github_status:
-                log.info(
-                    f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}'
-                )
-                self.last_known_github_status = last_known_github_status
-                self.target_branch.state_changed = True
-
-    async def _update_github_review_state(self, gh):
-        review_state_query = f"""
-        query {{
-            repository(owner: "{self.target_branch.branch.repo.owner}", name: "{self.target_branch.branch.repo.name}") {{
-                pullRequest(number: {self.number}) {{
+        def query():
+            return f"""
+                query {{
+                  repository (
+                    owner: "{self.target_branch.branch.repo.owner}",
+                    name: "{self.target_branch.branch.repo.name}"
+                  ) {{
+                    pullRequest (number: {self.number}) {{
                       reviewDecision
+                      commits (last: 1) {{
+                        nodes {{
+                          commit {{
+                            statusCheckRollup {{
+                              contexts (first: 10{f', after: "{cursor}"' if cursor is not None else ''}) {{
+                                nodes {{
+                                  __typename
+                                  ... on CheckRun {{
+                                    name
+                                    conclusion
+                                    isRequired (pullRequestNumber: {self.number})
+                                  }}
+                                  ... on StatusContext {{
+                                    context
+                                    state
+                                    isRequired (pullRequestNumber: {self.number})
+                                  }}
+                                }}
+                                pageInfo {{
+                                  endCursor
+                                  hasNextPage
+                                }}
+                              }}
+                            }}
+                          }}
+                        }}
+                      }}
+                    }}
+                  }}
                 }}
-            }}
-        }}
-        """
+            """
 
-        response = await gh.post('/graphql', data={'query': review_state_query})
-        review_decision = response['data']['repository']['pullRequest']['reviewDecision']
+        def review_decision_and_commit_status(pull_request, rollup):
+            nonlocal review_decision
+            if review_decision is None:
+                review_decision = (
+                    pull_request["reviewDecision"] if pull_request["reviewDecision"] is not None else "API_NONE"
+                )
+            if rollup is not None:
+                results.extend(rollup["contexts"]["nodes"])
+
+        while (
+            rollup := (
+                pull_request := (await gh.post("/graphql", data={"query": query()}))["data"]["repository"][
+                    "pullRequest"
+                ]
+            )["commits"]["nodes"][0]["commit"]["statusCheckRollup"]
+        ) is not None and rollup["contexts"]["pageInfo"]["hasNextPage"]:
+            cursor = rollup["contexts"]["pageInfo"]["endCursor"]
+            review_decision_and_commit_status(pull_request, rollup)
+        review_decision_and_commit_status(pull_request, rollup)
 
         if review_decision == 'APPROVED':
             review_state = 'approved'
@@ -505,7 +519,7 @@ class PR(Code):
             review_state = 'changes_requested'
         elif review_decision == 'REVIEW_REQUIRED':
             review_state = 'pending'
-        elif review_decision is None:
+        elif review_decision == "API_NONE":
             # This probably means the repo has no "required reviews" configuration. But CI shouldn't merge without
             # at least one approval, so we'll treat this as "pending":
             review_state = 'pending'
@@ -517,6 +531,22 @@ class PR(Code):
         if review_state != self.review_state:
             log.info(f'{self.short_str()}: review state changing from {self.review_state} => {review_state}')
             self.set_review_state(review_state)
+            self.target_branch.state_changed = True
+
+        last_known_github_status = {}
+        for check in results:
+            if check["isRequired"]:
+                if (typename := check["__typename"]) == "StatusContext":
+                    last_known_github_status[check["context"]] = github_status(check["state"])
+                elif typename == "CheckRun":
+                    last_known_github_status[check["name"]] = github_status(check["conclusion"])
+                else:
+                    raise ValueError(f"Unexpected statusCheckRollup type: {typename}")
+        if last_known_github_status != self.last_known_github_status:
+            log.info(
+                f'{self.short_str()}: new github statuses: {self.last_known_github_status} => {last_known_github_status}'
+            )
+            self.last_known_github_status = last_known_github_status
             self.target_branch.state_changed = True
 
     async def _start_build(self, db: Database, batch_client: BatchClient):
