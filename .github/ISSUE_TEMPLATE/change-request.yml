@@ -1,0 +1,38 @@
+name: Configuration Change
+description: Tracker issues for configuration changes
+labels: [ needs-triage ]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is the change?
+    validations:
+      required: true
+  - type: dropdown
+    id: security-impact
+    attributes:
+      label: Security Impact
+      description: Level of security impact of the change
+      options:
+          - No Impact
+          - Low
+          - Medium
+          - High
+    validations:
+      required: true
+  - type: textarea
+    id: security-impact-description
+    attributes:
+      label: Security Impact Description
+      description: If the impact is No Impact or Low, justify that rating. If the impact is Medium or High, describe the security impact and any mitigations.
+    validations:
+      required: true
+  - type: checkboxes
+    id: appsec-signoff
+    attributes:
+      label: Appsec Signoff
+      description: If the security impact is High, has the change been reviewed and approved by the Appsec team?
+      options:
+          - label: Reviewed and approved
+            required: false
