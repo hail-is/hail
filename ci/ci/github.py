@@ -702,11 +702,11 @@ mkdir -p {shq(repo_dir)}
             log.info(f'{self.short_str()} is not mergeable because review state is {self.review_state}')
             return False
         if not len(self.last_known_github_status) > 0:
-            log.info(f'{self.short_str()} is not mergeable because len(last_known_github_status) = {self.last_known_github_status}')
+            log.info(f'{self.short_str()} is not mergeable because last_known_github_status is empty')
             return False
         if not all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values()):
-            expanded_kvps = [ f'{key}: {self.last_known_github_status[key]}' for key in self.last_known_github_status.keys()]
-            log.info(f'{self.short_str()} is not mergeable because last_known_statuses are: {expanded_kvps}')
+            log.info(
+                f'{self.short_str()} is not mergeable because the value of last_known_github_status is: {self.last_known_github_status}')
             return False
         if not self.is_up_to_date():
             log.info(f'{self.short_str()} is not mergeable because it is not up to date')
@@ -988,7 +988,8 @@ url: {url}
                         merge_candidate = pr
                         merge_candidate_pri = pri
                 else:
-                    log.info(f'{pr.short_str()} is not a merge candidate because it has failed on at least one platform')
+                    log.info(
+                        f'{pr.short_str()} is not a merge candidate because it has failed on the following platform(s): {[platform for platform, status in self.last_known_github_status.items() if status == GithubStatus.FAILURE]}')
 
         self.merge_candidate = merge_candidate
 
