@@ -18,6 +18,7 @@ def read_vds(
     _assert_reference_type=None,
     _assert_variant_type=None,
     _warn_no_ref_block_max_length=True,
+    _drop_end=False,
 ) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
@@ -39,6 +40,14 @@ def read_vds(
         assert len(intervals) > 0
         reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
+
+    # if LEN is missing, add it, _add_len is a no-op if LEN is already present
+    reference_data = VariantDataset._add_len(reference_data)
+    if _drop_end and 'END' in reference_data.entry:
+        reference_data = reference_data.drop('END')
+    else:
+        # if END is missing, add it, _add_end is a no-op if END is already present
+        reference_data = VariantDataset._add_end(reference_data)
 
     vds = VariantDataset(reference_data, variant_data)
     if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
@@ -205,7 +214,19 @@ class VariantDataset:
 
     def write(self, path, **kwargs):
         """Write to `path`."""
-        self.reference_data.write(VariantDataset._reference_path(path), **kwargs)
+
+        # NOTE: Populate LEN and drop END from reference data to align with VCF 4.5.
+        # Furthermore, since LEN values are smaller and more likely to be close
+        # or the same as neighboring values, we expect that after small integer
+        # compression and general purpose data compression that reference data should
+        # be smaller using LEN over END
+        rd = self.reference_data
+        if 'LEN' not in rd.entry:
+            rd = VariantDataset._add_len(rd)
+        if 'END' in rd.entry:
+            rd = rd.drop('END')
+
+        rd.write(VariantDataset._reference_path(path), **kwargs)
         self.variant_data.write(VariantDataset._variants_path(path), **kwargs)
 
     def checkpoint(self, path, **kwargs) -> 'VariantDataset':
@@ -299,27 +320,25 @@ class VariantDataset:
             if n_distinct != n_rd_rows:
                 error(f'reference data loci are not distinct: found {n_rd_rows} rows, but {n_distinct} distinct loci')
 
-            # check END field
+            # check LEN field
             end_exprs = dict(
-                missing_end=hl.agg.filter(hl.is_missing(rd.END), hl.agg.take((rd.row_key, rd.col_key), 5)),
-                end_before_position=hl.agg.filter(rd.END < rd.locus.position, hl.agg.take((rd.row_key, rd.col_key), 5)),
+                missing_end=hl.agg.filter(hl.is_missing(rd.LEN), hl.agg.take((rd.row_key, rd.col_key), 5)),
+                end_before_position=hl.agg.filter(rd.LEN < 1, hl.agg.take((rd.row_key, rd.col_key), 5)),
             )
             if VariantDataset.ref_block_max_length_field in rd.globals:
                 rbml = rd[VariantDataset.ref_block_max_length_field]
-                end_exprs['blocks_too_long'] = hl.agg.filter(
-                    rd.END - rd.locus.position + 1 > rbml, hl.agg.take((rd.row_key, rd.col_key), 5)
-                )
+                end_exprs['blocks_too_long'] = hl.agg.filter(rd.LEN > rbml, hl.agg.take((rd.row_key, rd.col_key), 5))
 
             res = rd.aggregate_entries(hl.struct(**end_exprs))
 
             if res.missing_end:
                 error(
-                    'found records in reference data with missing END field\n  '
+                    'found records in reference data with missing LEN field\n  '
                     + '\n  '.join(str(x) for x in res.missing_end)
                 )
             if res.end_before_position:
                 error(
-                    'found records in reference data with END before locus position\n  '
+                    'found records in reference data with LEN less than 1\n  '
                     + '\n  '.join(str(x) for x in res.end_before_position)
                 )
             blocks_too_long = res.get('blocks_too_long', [])
@@ -331,6 +350,22 @@ class VariantDataset:
 
     def _same(self, other: 'VariantDataset'):
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
+
+    @staticmethod
+    def _add_len(rd):
+        if 'LEN' in rd.entry:
+            return rd
+        if 'END' in rd.entry:
+            return rd.annotate_entries(LEN=rd.END - rd.locus.position + 1)
+        raise ValueError('Need `END` to compute `LEN` in reference data')
+
+    @staticmethod
+    def _add_end(rd):
+        if 'END' in rd.entry:
+            return rd
+        if 'LEN' in rd.entry:
+            return rd.annotate_entries(END=rd.LEN + rd.locus.position - 1)
+        raise ValueError('Need `LEN` to compute `END` in reference data')
 
     def union_rows(*vdses):
         """Combine many VDSes with the same samples but disjoint variants.
