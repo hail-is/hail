@@ -242,7 +242,7 @@ def test_combiner_manual_filtration():
     plan.run()
     vds = hl.vds.read_vds(out_file)
     assert list(vds.variant_data.gvcf_info) == ['ExcessHet']
-    assert list(vds.reference_data.entry) == ['END', 'GQ']
+    assert sorted(vds.reference_data.entry) == ['END', 'GQ', 'LEN']
 
 
 @test_timeout(10 * 60)

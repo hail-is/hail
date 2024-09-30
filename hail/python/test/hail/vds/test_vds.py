@@ -52,14 +52,14 @@ def test_validate():
     with pytest.raises(ValueError):
         hl.vds.VariantDataset(
             vds.reference_data.annotate_entries(
-                END=hl.or_missing(vds.reference_data.locus.position % 2 == 0, vds.reference_data.END)
+                LEN=hl.or_missing(vds.reference_data.locus.position % 2 == 0, vds.reference_data.LEN)
             ),
             vds.variant_data,
         ).validate()
 
     with pytest.raises(ValueError):
         hl.vds.VariantDataset(
-            vds.reference_data.annotate_entries(END=vds.reference_data.END + 1),
+            vds.reference_data.annotate_entries(LEN=vds.reference_data.LEN + 1),
             vds.variant_data,
         ).validate()
 
