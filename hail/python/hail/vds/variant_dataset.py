@@ -41,9 +41,14 @@ def read_vds(
         reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
 
-    reference_data = VariantDataset._add_len_end(reference_data)
+    # if LEN is missing, add it, _add_len is a no-op if LEN is already present
+    reference_data = VariantDataset._add_len(reference_data)
     if _drop_end:
-        reference_data = reference_data.drop('END')
+        if 'END' in reference_data.entry:
+            reference_data = reference_data.drop('END')
+    else:  # if END is missing, add it, _add_end is a no-op if END is already present
+        reference_data = VariantDataset._add_end(reference_data)
+
     vds = VariantDataset(reference_data, variant_data)
     if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
         fs = hl.current_backend().fs
@@ -199,7 +204,10 @@ class VariantDataset:
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
         rmt = rmt.key_rows_by('locus').select_rows().select_cols()
-        rmt = VariantDataset._add_len_end(rmt)
+        if ref_block_indicator_field == 'END':
+            rmt = VariantDataset._add_len(rmt)
+        else:  # ref_block_indicator_field is 'LEN'
+            rmt = VariantDataset._add_end(rmt)
 
         if is_split:
             rmt = rmt.distinct_by_row()
@@ -375,14 +383,6 @@ class VariantDataset:
         if 'LEN' in rd.entry:
             return rd.annotate_entries(END=rd.LEN + rd.locus.position - 1)
         raise ValueError('Need `LEN` to compute `END` in reference data')
-
-    @staticmethod
-    def _add_len_end(rd):
-        if 'END' not in rd.entry and 'LEN' not in rd.entry:
-            raise ValueError('One of `END` or `LEN` must be defined in reference data')
-        rd = VariantDataset._add_len(rd)
-        rd = VariantDataset._add_end(rd)
-        return rd
 
     def union_rows(*vdses):
         """Combine many VDSes with the same samples but disjoint variants.
