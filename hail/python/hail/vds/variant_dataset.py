@@ -43,8 +43,9 @@ def read_vds(
 
     # if LEN is missing, add it, _add_len is a no-op if LEN is already present
     reference_data = VariantDataset._add_len(reference_data)
-    if _drop_end and 'END' in reference_data.entry:
-        reference_data = reference_data.drop('END')
+    if _drop_end:
+        if 'END' in reference_data.entry:
+            reference_data = reference_data.drop('END')
     else:
         # if END is missing, add it, _add_end is a no-op if END is already present
         reference_data = VariantDataset._add_end(reference_data)
