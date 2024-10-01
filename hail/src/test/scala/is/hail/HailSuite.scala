@@ -70,8 +70,8 @@ class HailSuite extends TestNGSuite with TestUtils {
   var pool: RegionPool = _
   private[this] var ctx_ : ExecuteContext = _
 
-  def backend: Backend = ctx.backend
-  def sc: SparkContext = backend.asSpark.sc
+  def backend: Backend = hc.backend
+  def sc: SparkContext = hc.backend.asSpark.sc
   def timer: ExecutionTimer = ctx.timer
   def theHailClassLoader: HailClassLoader = ctx.theHailClassLoader
   override def ctx: ExecuteContext = ctx_
