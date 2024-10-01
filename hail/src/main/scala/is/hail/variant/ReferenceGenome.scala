@@ -451,7 +451,7 @@ case class ReferenceGenome(
 
   override def toString: String = name
 
-  implicit private[this] val fmts: Formats = DefaultFormats
+  @transient implicit private[this] val fmts: Formats = DefaultFormats
 
   def write(fs: is.hail.io.fs.FS, file: String): Unit =
     using(fs.create(file))(out => Serialization.write(toJSON, out))
