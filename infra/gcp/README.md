@@ -228,7 +228,18 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 - Run `terraform apply -var-file=$GITHUB_ORGANIZATION/global.tfvars`.  At the
   time of writing, this takes ~15m.
 
-## Set up kubectl
+## Register the domain 
+
+   Register the predetermined `domain` with a DNS registry. 
+
+   This will be available in GCP cloud console under `Kubernetes Engine > Clusters > vdc > Cluster basics > External endpoint`.
+   The external IP address is the one to use.
+
+## Deploy Hail to Kubernetes
+
+We can now deploy Hail to the kubernetes cluster that terraform created.
+
+### Set up kubectl
 
 - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
    to point at the vdc cluster:
@@ -237,13 +248,7 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
    gcloud container clusters get-credentials --zone <gcp-zone> vdc
    ```
 
-   Register `domain` with a DNS registry with the `ip` field in the
-   Kubernetes global-config. This should point to the kubernetes
-   external load balancer.
-
-## Deploy Hail to Kubernetes
-
-You can now install Hail:
+### Deploy with a cloud VM
 
 - Create a VM on the internal network, standard-8, 100GB PD-SSD,
   Ubuntu 22.04 TLS, allow full access to all Cloud APIs, use the
