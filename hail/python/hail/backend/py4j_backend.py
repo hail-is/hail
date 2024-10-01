@@ -13,8 +13,10 @@ from py4j.java_gateway import JavaObject, JVMView
 
 import hail
 from hail.expr import construct_expr
+from hail.fs.hadoop_fs import HadoopFS
 from hail.ir import JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
+from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 
 from ..hail_logging import Logger
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
@@ -193,10 +195,16 @@ class Py4JBackend(Backend):
         self._utils_package_object = scala_package_object(self._hail_package.utils)
         self._jhc = jhc
 
-        self._jbackend = self._hail_package.backend.api.P4jBackendApi(jbackend)
+        self._jbackend = self._hail_package.backend.api.Py4JBackendApi(jbackend)
+        self._jbackend.pySetLocalTmp(tmpdir)
+        self._jbackend.pySetRemoteTmp(remote_tmpdir)
+
         self._jhttp_server = self._jbackend.pyHttpServer()
-        self._backend_server_port: int = self._jbackend.HttpServer.port()
+        self._backend_server_port: int = self._jhttp_server.port()
         self._requests_session = requests.Session()
+
+        self._gcs_requester_pays_config = None
+        self._fs = None
 
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
@@ -220,6 +228,23 @@ class Py4JBackend(Backend):
 
     def utils_package_object(self):
         return self._utils_package_object
+
+    @property
+    def gcs_requester_pays_configuration(self) -> Optional[GCSRequesterPaysConfiguration]:
+        return self._gcs_requester_pays_config
+
+    @gcs_requester_pays_configuration.setter
+    def gcs_requester_pays_configuration(self, config: Optional[GCSRequesterPaysConfiguration]):
+        self._gcs_requester_pays_config = config
+        project, buckets = (None, None) if config is None else (config, None) if isinstance(config, str) else config
+        self._jbackend.pySetGcsRequesterPaysConfig(project, buckets)
+        self._fs = None  # stale
+
+    @property
+    def fs(self):
+        if self._fs is None:
+            self._fs = HadoopFS(self._utils_package_object, self._jbackend.pyFs())
+        return self._fs
 
     @property
     def logger(self):

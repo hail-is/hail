@@ -92,7 +92,6 @@ package utils {
     }
   }
 
-
   class Lazy[A] private[utils] (f: => A) {
     private[this] var option: Option[A] = None
 

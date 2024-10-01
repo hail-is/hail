@@ -6,7 +6,10 @@ import is.hail.backend._
 import is.hail.backend.caching.BlockMatrixCache
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
-import is.hail.expr.ir.{BaseIR, BlockMatrixIR, CodeCacheKey, CompiledFunction, EncodedLiteral, GetFieldByIdx, IRParser, Interpret, MatrixIR, MatrixNativeReader, MatrixRead, NativeReaderOptions, TableLiteral, TableValue}
+import is.hail.expr.ir.{
+  BaseIR, BlockMatrixIR, CodeCacheKey, CompiledFunction, EncodedLiteral, GetFieldByIdx, IRParser,
+  Interpret, MatrixIR, MatrixNativeReader, MatrixRead, NativeReaderOptions, TableLiteral, TableValue,
+}
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -21,14 +24,18 @@ import is.hail.utils._
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
+import scala.annotation.nowarn
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.{asScalaBufferConverter, seqAsJavaListConverter}
+
 import java.io.Closeable
 import java.net.InetSocketAddress
 import java.util
 import java.util.concurrent._
+
 import com.google.api.client.http.HttpStatusCodes
 import com.sun.net.httpserver.{HttpExchange, HttpServer}
+import javax.annotation.Nullable
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.DataFrame
@@ -36,9 +43,6 @@ import org.json4s
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 import sourcecode.Enclosing
-
-import javax.annotation.Nullable
-import scala.annotation.nowarn
 
 final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandling {
 
@@ -74,6 +78,9 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
       manager.close()
   }
 
+  def pyFs: FS =
+    tmpFileManager.getFs
+
   def pyGetFlag(name: String): String =
     flags.get(name)
 
@@ -83,13 +90,14 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
   def pyAvailableFlags: java.util.ArrayList[String] =
     flags.available
 
-  def pySetTmpdir(tmp: String): Unit =
+  def pySetRemoteTmp(tmp: String): Unit =
     tmpdir = tmp
 
   def pySetLocalTmp(tmp: String): Unit =
     localTmpdir = tmp
 
-  def pySetRequesterPays(@Nullable project: String, @Nullable buckets: util.List[String]): Unit = {
+  def pySetGcsRequesterPaysConfig(@Nullable project: String, @Nullable buckets: util.List[String])
+    : Unit = {
     val cloudfsConf = CloudStorageFSConfig.fromFlagsAndEnv(None, flags)
 
     val rpConfig: Option[RequesterPaysConfig] =
