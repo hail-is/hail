@@ -38,6 +38,7 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import sourcecode.Enclosing
 
 import javax.annotation.Nullable
+import scala.annotation.nowarn
 
 final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandling {
 
@@ -92,9 +93,14 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
     val cloudfsConf = CloudStorageFSConfig.fromFlagsAndEnv(None, flags)
 
     val rpConfig: Option[RequesterPaysConfig] =
-      (Option(project).filter(_.nonEmpty), Option(buckets)) match {
-        case (Some(project), buckets) => Some(RequesterPaysConfig(project, buckets.map(_.asScala.toSet)))
-        case (None, Some(_)) => fatal("A non-empty, non-null requester pays google project is required to configure requester pays buckets.")
+      (
+        Option(project).filter(_.nonEmpty),
+        Option(buckets).map(_.asScala.toSet.filterNot(_.isBlank)).filter(_.nonEmpty),
+      ) match {
+        case (Some(project), buckets) => Some(RequesterPaysConfig(project, buckets))
+        case (None, Some(_)) => fatal(
+            "A non-empty, non-null requester pays google project is required to configure requester pays buckets."
+          )
         case (None, None) => None
       }
 
@@ -115,7 +121,9 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
     persistedIr.remove(id)
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    references(name).addSequence(IndexedFastaSequenceFile(tmpFileManager.getFs, fastaFile, indexFile))
+    references(name).addSequence(
+      IndexedFastaSequenceFile(tmpFileManager.getFs, fastaFile, indexFile)
+    )
 
   def pyRemoveSequence(name: String): Unit =
     references(name).removeSequence()
@@ -441,7 +449,7 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
         t
       }
 
-      def port: Int = httpServer.getAddress.getPort
+      @nowarn def port: Int = httpServer.getAddress.getPort
       override def close(): Unit = httpServer.stop(10)
 
       thread.start()
