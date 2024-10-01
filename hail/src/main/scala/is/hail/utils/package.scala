@@ -91,6 +91,24 @@ package utils {
       b.result()
     }
   }
+
+
+  class Lazy[A] private[utils] (f: => A) {
+    private[this] var option: Option[A] = None
+
+    def apply(): A =
+      synchronized {
+        option match {
+          case Some(a) => a
+          case None => val a = f; option = Some(a); a
+        }
+      }
+
+    def isEvaluated: Boolean =
+      synchronized {
+        option.isDefined
+      }
+  }
 }
 
 package object utils
@@ -1058,23 +1076,6 @@ package object utils
 
   implicit def evalLazy[A](f: Lazy[A]): A =
     f()
-
-  class Lazy[A] private[utils] (f: => A) {
-    private[this] var option: Option[A] = None
-
-    def apply(): A =
-      synchronized {
-        option match {
-          case Some(a) => a
-          case None => val a = f; option = Some(a); a
-        }
-      }
-
-    def isEvaluated: Boolean =
-      synchronized {
-        option.isDefined
-      }
-  }
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
