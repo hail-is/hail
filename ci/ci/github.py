@@ -706,7 +706,8 @@ mkdir -p {shq(repo_dir)}
             return False
         if not all(status == GithubStatus.SUCCESS for status in self.last_known_github_status.values()):
             log.info(
-                f'{self.short_str()} is not mergeable because the value of last_known_github_status is: {self.last_known_github_status}')
+                f'{self.short_str()} is not mergeable because the value of last_known_github_status is: {self.last_known_github_status}'
+            )
             return False
         if not self.is_up_to_date():
             log.info(f'{self.short_str()} is not mergeable because it is not up to date')
@@ -716,7 +717,6 @@ mkdir -p {shq(repo_dir)}
             return False
 
         return True
-
 
     async def merge(self, gh):
         try:
@@ -844,16 +844,20 @@ class WatchedBranch(Code):
                     if (self.deploy_batch is None or self.deploy_state is not None) and not frozen and self.mergeable:
                         await self.try_to_merge(gh)
                     else:
-                        log.info(f'{self.short_str()}: not trying to merge. deploy_batch: {self.deploy_batch}; ' +
-                                 f'deploy_state: {self.deploy_state}; frozen: {frozen}; mergeable: {self.mergeable}')
+                        log.info(
+                            f'{self.short_str()}: not trying to merge. deploy_batch: {self.deploy_batch}; '
+                            + f'deploy_state: {self.deploy_state}; frozen: {frozen}; mergeable: {self.mergeable}'
+                        )
         finally:
             log.info(f'update done {self.short_str()}')
             self.updating = False
 
     async def try_to_merge(self, gh):
         assert self.mergeable
-        log.info(f'{self.short_str()}: PRs in merge priority order: ' +
-                 f'{[ pr.short_str() for pr in self.prs_in_merge_priority_order() ]}')
+        log.info(
+            f'{self.short_str()}: PRs in merge priority order: '
+            + f'{[ pr.short_str() for pr in self.prs_in_merge_priority_order() ]}'
+        )
         for pr in self.prs_in_merge_priority_order():
             log.info(f'{self.short_str()}: considering merge of {pr.short_str()}')
             if pr.is_mergeable():
@@ -989,7 +993,8 @@ url: {url}
                         merge_candidate_pri = pri
                 else:
                     log.info(
-                        f'{pr.short_str()} is not a merge candidate because it has failed on the following platform(s): {[platform for platform, status in self.last_known_github_status.items() if status == GithubStatus.FAILURE]}')
+                        f'{pr.short_str()} is not a merge candidate because it has failed on the following platform(s): {[platform for platform, status in self.last_known_github_status.items() if status == GithubStatus.FAILURE]}'
+                    )
 
         self.merge_candidate = merge_candidate
 
