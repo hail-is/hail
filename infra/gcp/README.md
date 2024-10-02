@@ -250,23 +250,46 @@ We can now deploy Hail to the kubernetes cluster that terraform created.
 
 ### Deploy with a cloud VM
 
-- Create a VM on the internal network, standard-8, 100GB PD-SSD,
-  Ubuntu 22.04 TLS, allow full access to all Cloud APIs, use the
-  Terraform service account.  10GB will run out of space.  We assume
-  the rest of the commands are run on the VM.  You will need to
-  connect to this instance with ssh.  You may want to add a suiteable
-  ssh forwarding rule to the default network.
+#### Creating a suitable cloud VM
+
+Using the Google cloud console, create a VM in Compute Engine:
+
+  - Use an easy to recognize name (eg `cjl-temp-hail-deployer`)
+  - Region / zone: use the same as the GKE cluster
+  - n1-standard-8
+  - OS and storage
+    - Ubuntu 22.04 LTS
+    - 100GB PD-SSD
+  - On the internal network
+  - Security
+    - Allow full access to all Cloud APIs 
+    - Run as the Terraform service account 
+
+Note: 10GB will run out of space.  
+  
+An example command to create a VM via the gcloud CLI is given below, but be careful to make sure the settings
+are correct for your deployment.
 
 ```
 gcloud compute instances create bootstrap-vm \
-    --project=hail-vdc-dgoldste \
+    --project=<PROJECT> \
     --zone=us-central1-a \
     --machine-type=n1-standard-8 \
     --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
     --provisioning-model=STANDARD \
-    --service-account=terraform@hail-vdc-dgoldste.iam.gserviceaccount.com \
+    --service-account=<TERRAFORM-SERVICE-ACCOUNT> \
     --scopes=https://www.googleapis.com/auth/cloud-platform \
     --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20240701,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+```
+
+#### Cloud VM commands
+
+We assume the rest of the commands are run on the VM. You will need to connect to this instance with ssh. 
+You can copy a `gcloud compute ssh` command to do this directly from the VM details page in the cloud console, 
+or construct it manually via the gcloud CLI. It will look something like:
+
+```
+gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ```
 
 - Clone the Hail Github repository:
@@ -275,16 +298,21 @@ gcloud compute instances create bootstrap-vm \
   git clone https://github.com/hail-is/hail.git
   ```
 
+- If you are working from a branch, check out that branch now too.
+
 - In the $HAIL/infra directory, run
 
   ```
   ./install_bootstrap_dependencies.sh
   ```
 
-  At this point, log out and ssh back in (so that changes to group settings
-  for Docker can be applied). The following steps should be completed from
-  the $HAIL/infra/gcp directory, unless otherwise stated.
+- At this point, log out and ssh back in (so that changes to group settings
+  for Docker can be applied).
 
+---
+
+- The following steps should be completed from
+  the $HAIL/infra/gcp directory (or wherever the changes are being staged), unless otherwise stated.
 - Run the following to authenticate docker and kubectl with the new artifact
   registry and kubernetes cluster, respectively. The `GKE_ZONE` is the zone of
   the GKE cluster and the `GAR_REGION` is the region of the artifact registry.
@@ -333,3 +361,7 @@ gcloud compute instances create bootstrap-vm \
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
+
+## Remove the cloud VM
+
+- Once the deployment is complete, you can remove the cloud VM in the Google cloud console.
