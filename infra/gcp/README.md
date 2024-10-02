@@ -292,6 +292,29 @@ or construct it manually via the gcloud CLI. It will look something like:
 gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ```
 
+##### Prerequisites
+
+- If necessary, install `gke-gcloud-auth-plugin`: 
+
+  ```
+  # Check for necessity:
+  gke-gcloud-auth-plugin --version
+  ```
+  
+  - Follow the instructions [here](https://cloud.google.com/sdk/docs/install#deb) to install the Google Cloud SDK 
+    package source.
+  - Follow the `apt-get` instructions [here](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl#install_plugin)
+    to install the `gke-gcloud-auth-plugin`.
+
+- Install the `docker-buildx-plugin`:
+  - Follow the instructions [here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository) to set 
+    up the repository (ie step 1).
+  - Install the `docker-buildx-plugin`:
+    ```
+    sudo apt-get install docker-buildx-plugin
+    ```
+
+
 - Clone the Hail Github repository:
 
   ```
@@ -312,7 +335,8 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 ---
 
 - The following steps should be completed from
-  the $HAIL/infra/gcp directory (or wherever the changes are being staged), unless otherwise stated.
+  the $HAIL/infra/gcp directory, unless otherwise stated.
+
 - Run the following to authenticate docker and kubectl with the new artifact
   registry and kubernetes cluster, respectively. The `GKE_ZONE` is the zone of
   the GKE cluster and the `GAR_REGION` is the region of the artifact registry.
