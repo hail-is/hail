@@ -749,7 +749,7 @@ steps:
         to: /io/repo
     outputs:
       - from: /io/repo/hail/out
-      - to: /derived/release/hail/out
+        to: /derived/release/hail/out
       - from: /io/repo/hail/build/deploy/dist
         to: /derived/release/hail/build/deploy/dist
     dependsOn:
