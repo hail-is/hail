@@ -3278,8 +3278,8 @@ steps:
       fi
 
       cd hail
-      time retry sh millw --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1 \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3290,8 +3290,8 @@ steps:
         to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/
-        to: /io/repo/hail/out/
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
     secrets:
       - name: test-dataproc-service-account-key
         namespace:
@@ -3325,7 +3325,8 @@ steps:
 
       cd hail
       time retry sh millw --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1 \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
       - default_ns
@@ -3336,8 +3337,8 @@ steps:
         to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out
-        to: /io/repo/hail/out
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
     secrets:
       - name: test-dataproc-service-account-key
         namespace:
@@ -3380,8 +3381,9 @@ steps:
       fi
 
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
-      # use `assume-old` to prevent `mill` from rebuilding the "SHADOW_JAR"
-      HAIL_RELEASE_MODE=1 DEPLOY_REMOTE=origin make upload-artifacts
+      # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
+      make upload-artifacts HAIL_RELEASE_MODE=1 DEPLOY_REMOTE=origin \
+        -o out/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
@@ -3410,8 +3412,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/
-        to: /io/repo/hail/out/
+      - from: /derived/release/hail/out/assembly.dest/out.jar
+        to: /io/repo/hail/out/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
