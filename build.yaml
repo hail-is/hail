@@ -3324,7 +3324,6 @@ steps:
       fi
 
       cd hail
-      time retry sh millw --version
       make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1 \
           -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
