@@ -744,12 +744,15 @@ steps:
       WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
       du -h $WHEEL_PATH
       $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
+
+      # Remove transients from mill's build area
+      rm -rf out/mill-worker*
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
       - from: /io/repo/hail/out
-        to: /derived/release/hail/out
+        to: /derived/release/hail/out/
       - from: /io/repo/hail/build/deploy/dist
         to: /derived/release/hail/build/deploy/dist
     dependsOn:
@@ -781,6 +784,9 @@ steps:
       fi
 
       time retry make wheel
+
+      # Remove transients from mill's build area
+      rm -rf out/mill-worker*
     inputs:
       - from: /repo
         to: /io/repo
