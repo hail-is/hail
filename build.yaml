@@ -717,8 +717,8 @@ steps:
     image:
       valueFrom: base_image.image
     resources:
-      memory: standard
-      cpu: '2'
+      memory: 12Gi
+      cpu: '4'
     script: |
       set -ex
       cd /io/repo/hail
@@ -763,8 +763,8 @@ steps:
     image:
       valueFrom: base_image.image
     resources:
-      memory: standard
-      cpu: '2'
+      memory: 12Gi
+      cpu: '4'
     script: |
       set -ex
       cd /io/repo/hail
@@ -797,8 +797,8 @@ steps:
     image:
       valueFrom: base_image.image
     resources:
-      memory: standard
-      cpu: '2'
+      memory: 12Gi
+      cpu: '4'
     script: |
       set -ex
       cd /io/repo/hail
@@ -829,9 +829,6 @@ steps:
     name: build_hail_test_artifacts
     image:
       valueFrom: base_image.image
-    resources:
-      memory: standard
-      cpu: '2'
     script: |
       set -ex
       cd /io/repo/hail
@@ -861,8 +858,8 @@ steps:
     image:
       valueFrom: base_image.image
     resources:
-      memory: standard
-      cpu: '2'
+      memory: 12Gi
+      cpu: '4'
     script: |
       set -ex
       cd /io/repo/hail
