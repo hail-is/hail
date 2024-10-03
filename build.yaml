@@ -785,8 +785,6 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/test/assembly.dest/out.jar
-        to: /hail-debug-test.jar
       - from: /io/repo/hail/out
         to: /derived/debug/hail/out
       - from: /io/repo/hail/build/deploy/dist
