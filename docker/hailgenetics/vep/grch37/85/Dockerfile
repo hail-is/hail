@@ -1,8 +1,8 @@
 ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
 FROM $BASE_IMAGE
 
-ENV VEP_VERSION 85
-ENV VEP_DIR /vep
+ENV VEP_VERSION=85
+ENV VEP_DIR=/vep
 
 RUN apt-get update && apt-get -y install \
     apache2 \
@@ -24,20 +24,18 @@ RUN apt-get update && apt-get -y install \
     tabix \
     unzip \
     vim \
-    wget
-
-RUN cpanm Devel::CheckLib \
-    DBI \
-    DBD::mysql \
-    DBD::SQLite \
-    Try \
-    File::Copy::Recursive \
-    Archive::Extract \
-    Archive::Zip \
-    CGI \
-    Bio::Root::Version \
-    Bio::DB:HTS \
-    JSON || { for i in /root/.cpanm/work/*/build.log; do echo $i; cat $i; done }
+    wget \
+    libarchive-extract-perl \
+    libarchive-zip-perl \
+    libbio-db-hts-perl \
+    libbio-root-version-perl \
+    libdbd-mysql-perl \
+    libdbd-sqlite3-perl \
+    libdbi-perl \
+    libdevel-checklib-perl \
+    libfile-copy-recursive-perl \
+    libjson-perl \
+    libtry-perl
 
 RUN mkdir $VEP_DIR
 WORKDIR $VEP_DIR
