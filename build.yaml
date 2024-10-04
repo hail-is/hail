@@ -21,7 +21,7 @@ steps:
       mkdir -p repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python-version-info HAIL_RELEASE_MODE=1
+      make -C hail python-version-info HAIL_RELEASE_MODE=1 MILLOPTS=--no-server
       git rev-parse HEAD > git_version
     outputs:
       - from: /io/repo/
@@ -722,7 +722,9 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
+
+      export MILLOPTS='--no-server' HAIL_RELEASE_MODE=1
+      time retry sh millw --no-server --version
 
       # We've encountered the following sporadic error in CI between `mill`
       # finishing assembling the jar and `Make` copying the jar:
@@ -730,23 +732,21 @@ steps:
       # cp -f out/assembly.dest/out.jar python/hail/backend/hail-all-spark.jar
       # cp: cannot stat 'out/assembly.dest/out.jar': No such file or directory
       #
-      # I suspect mill is exiting before the jar has finished being written.
-      time retry make shadowJar HAIL_RELEASE_MODE=1
+      # This was likely from running mill in server mode; mill main exits before
+      # the jar has finished being written.
+      time retry make shadowJar
       if [ ! -f out/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
 
-      time retry make wheel HAIL_RELEASE_MODE=1
+      time retry make wheel
 
       # Check wheel size is small enough for pypi (< 200 MiB)
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
       WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
       du -h $WHEEL_PATH
       $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
-
-      # Remove transients from mill's build area
-      rm -rf out/mill-worker*
     inputs:
       - from: /repo
         to: /io/repo
@@ -768,7 +768,9 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
+
+      export MILLOPTS='--no-server'
+      time retry sh millw --no-server --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
@@ -778,9 +780,6 @@ steps:
       fi
 
       time retry make wheel
-
-      # Remove transients from mill's build area
-      rm -rf out/mill-worker*
     inputs:
       - from: /repo
         to: /io/repo
@@ -802,7 +801,9 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
+
+      export MILLOPTS='--no-server'
+      time retry sh millw --no-server --version
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowTestJar
@@ -810,9 +811,6 @@ steps:
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
-
-      # Remove transients from mill's build area
-      rm -rf out/mill-worker*
     inputs:
       - from: /repo
         to: /io/repo
@@ -863,17 +861,23 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1
-      time retry make wheel
 
-      mkdir /io/azure-wheel
-      mv build/deploy/dist/hail-*-py3-none-any.whl /io/azure-wheel/
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1 MILLOPTS='--no-server'
+      time retry sh millw --no-server --version
+
+      # See `build_hail_jar_and_wheel`
+      time retry make shadowJar
+      if [ ! -f out/assembly.dest/out.jar ]; then
+          echo 'no out.jar found after mill assembly returned. going to sleep'
+          sleep 5
+      fi
+
+      time retry make wheel
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/azure-wheel
+      - from: /io/repo/hail/build/deploy/dist
         to: /azure-wheel
     dependsOn:
       - base_image
