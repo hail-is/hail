@@ -98,8 +98,11 @@ def make_ref_entry_struct(e, entry_to_keep, row):
     reference_fields = {k: v for k, v in e.items() if k in entry_to_keep and k not in handled_names}
     return (
         hl.case()
-        .when(e.GT.is_hom_ref(), hl.struct(END=row.info.END, **reference_fields, **handled_fields))
-        .or_error('found END with non reference-genotype at' + hl.str(row.locus))
+        .when(
+            e.GT.is_hom_ref(),
+            hl.struct(LEN=row.info.END - row.locus.position + 1, **reference_fields, **handled_fields),
+        )
+        .or_error('found reference block with non reference-genotype at' + hl.str(row.locus))
     )
 
 
@@ -107,7 +110,7 @@ def make_variants_matrix_table(mt: MatrixTable, info_to_keep: Optional[Collectio
     if info_to_keep is None:
         info_to_keep = []
     if not info_to_keep:
-        info_to_keep = [name for name in mt.info if name not in ['END', 'DP']]
+        info_to_keep = [name for name in mt.info if name not in ('END', 'LEN', 'DP')]
     info_key = tuple(sorted(info_to_keep))  # hashable stable value
     mt = localize(mt)
     mt = mt.filter(hl.is_missing(mt.info.END))
@@ -167,7 +170,7 @@ def make_variant_stream(stream, info_to_keep):
     if info_to_keep is None:
         info_to_keep = []
     if not info_to_keep:
-        info_to_keep = [name for name in info_t if name not in ['END', 'DP']]
+        info_to_keep = [name for name in info_t if name not in ('END', 'LEN', 'DP')]
     info_key = tuple(sorted(info_to_keep))  # hashable stable value
     stream = stream.filter(lambda elt: hl.is_missing(elt.info.END))
 
@@ -280,7 +283,7 @@ def combine_r(ts, ref_block_max_len_field):
 
 
 def combine_reference_row(row, globals):
-    merge_function = _merge_function_map.get((row.dtype, globals))
+    merge_function = _merge_function_map.get((row.dtype, globals.dtype))
     if merge_function is None or not hl.current_backend()._is_registered_ir_function_name(merge_function._name):
         merge_function = hl.experimental.define_function(
             lambda row, gbl: hl.struct(

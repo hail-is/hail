@@ -814,6 +814,9 @@ def test_combiner_max_len():
 @test_timeout(4 * 60, local=6 * 60)
 def test_split_sparse_roundtrip():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    # this doesn't actually roundtrip because 1kg_chr22_5_samples was generated before
+    # we added GT to reference_data, to_merged_sparse_mt adds a reference GT
+    vds.reference_data = vds.reference_data.annotate_entries(LGT=hl.call(0, 0))
     smt = hl.vds.to_merged_sparse_mt(vds)
     smt = hl.experimental.sparse_split_multi(smt)
     vds2 = hl.vds.VariantDataset.from_merged_representation(
