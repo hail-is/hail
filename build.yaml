@@ -3414,6 +3414,8 @@ steps:
     image:
       valueFrom: ci_utils_image.image
     dependsOn:
+      - default_ns
+      - ci_utils_image
       - release
     inputs:
       - from: /hail_pip_version
