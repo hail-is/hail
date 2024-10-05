@@ -47,12 +47,13 @@ generate_ssl_certs() {
 }
 
 deploy_unmanaged() {
+    export NAMESPACE=default
+
     make -C $HAIL/hail python/hailtop/hail_version
 
     copy_images
     generate_ssl_certs
 
-    export NAMESPACE=default
     kubectl -n default apply -f $HAIL/ci/bootstrap.yaml
     make -C $HAIL pushed-private-ci-utils-image pushed-private-hail-buildkit-image
     make -C $HAIL pushed-private-batch-worker-image

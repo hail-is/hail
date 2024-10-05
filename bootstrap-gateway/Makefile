@@ -9,6 +9,7 @@ build:
 	$(MAKE) -C .. hail-ubuntu-image
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../hail-ubuntu-image)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(GATEWAY_IMAGE)
+	docker push $(GATEWAY_IMAGE)
 
 deploy: build
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"global":{"ip":"$(IP)"}}' service.yaml service.yaml.out
