@@ -3431,6 +3431,9 @@ steps:
         mountPath: /hail-ci-0-1-github-oauth-token
     clouds:
       - gcp
+    scopes:
+      - deploy
+      - dev
     script: |
       set -ex
       if [[ $(< /io/release-hail-flag) != '1' ]]
