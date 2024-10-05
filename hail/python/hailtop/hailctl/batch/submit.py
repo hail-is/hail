@@ -1,109 +1,197 @@
 import os
 import re
+from contextlib import AsyncExitStack
 from shlex import quote as shq
-from typing import Tuple
+from typing import List, Optional, Tuple
 
 import orjson
+import typer
 
-from hailtop import pip_version
+import hailtop.batch as hb
+from hailtop import pip_version, yamlx
+from hailtop.aiotools.copy import copy_from_dict
+from hailtop.aiotools.router_fs import AsyncFSURL, RouterAsyncFS
+from hailtop.batch.job import BashJob
+from hailtop.config import (
+    get_deploy_config,
+    get_remote_tmpdir,
+    get_user_config_path,
+)
+from hailtop.utils import (
+    secret_alnum_string,
+    unpack_comma_delimited_inputs,
+)
 
-FILE_REGEX = re.compile(r'(?P<src>[^:]+)(:(?P<dest>.+))?')
+from .batch_cli_utils import StructuredFormatPlusTextOption
 
 
-async def submit(name, image_name, files, output, script, arguments):
-    import hailtop.batch as hb  # pylint: disable=import-outside-toplevel
-    from hailtop.aiotools.copy import copy_from_dict  # pylint: disable=import-outside-toplevel
-    from hailtop.config import (  # pylint: disable=import-outside-toplevel
-        get_deploy_config,
-        get_remote_tmpdir,
-        get_user_config_path,
-    )
-    from hailtop.utils import (  # pylint: disable=import-outside-toplevel
-        secret_alnum_string,
-        unpack_comma_delimited_inputs,
-    )
+def real_absolute_expanded_path(path: str) -> Tuple[str, bool]:
+    had_trailing_slash = path[-1] == '/'  # NB: realpath removes trailing slash
+    return os.path.realpath(os.path.abspath(os.path.expanduser(path))), had_trailing_slash
 
-    files = unpack_comma_delimited_inputs(files)
-    user_config = str(get_user_config_path())
+
+def real_absolute_cwd() -> str:
+    return real_absolute_expanded_path(os.getcwd())[0]
+
+
+class HailctlBatchSubmitError(Exception):
+    def __init__(self, message: str, exit_code: int):
+        self.message = message
+        self.exit_code = exit_code
+
+
+async def submit(
+    name: str,
+    image_name: Optional[str],
+    files_options: List[str],
+    output: StructuredFormatPlusTextOption,
+    script: str,
+    arguments: List[str],
+    wait: bool,
+):
+    files_options = unpack_comma_delimited_inputs(files_options)
 
     quiet = output != 'text'
 
-    remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
-    remote_tmpdir = remote_tmpdir.rstrip('/')
+    async with AsyncExitStack() as exitstack:
+        fs = RouterAsyncFS()
+        exitstack.push_async_callback(fs.close)
 
-    tmpdir_path_prefix = secret_alnum_string()
+        remote_tmpdir = fs.parse_url(get_remote_tmpdir('hailctl batch submit')).with_new_path_component(
+            secret_alnum_string()
+        )
 
-    def cloud_prefix(path):
-        path = path.lstrip('/')
-        return f'{remote_tmpdir}/{tmpdir_path_prefix}/{path}'
+        backend = hb.ServiceBackend()
+        exitstack.push_async_callback(backend._async_close)
 
-    def file_input_to_src_dest(file: str) -> Tuple[str, str, str]:
-        match = FILE_REGEX.match(file)
-        if match is None:
-            raise ValueError(f'invalid file specification {file}. Must have the form "src" or "src:dest"')
+        b = hb.Batch(name=name, backend=backend)
+        j = b.new_bash_job()
+        j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}'))
+        j.env('HAIL_QUERY_BACKEND', 'batch')
 
-        result = match.groupdict()
+        await transfer_files_options_files_into_job(remote_tmpdir, files_options, j, b)
 
-        src = result.get('src')
-        if src is None:
-            raise ValueError(f'invalid file specification {file}. Must have a "src" defined.')
-        src = os.path.abspath(os.path.expanduser(src))
-        src = src.rstrip('/')
+        script_cloud_file, user_config_cloud_file = await upload_script_and_user_config(remote_tmpdir, script)
+        if user_config_cloud_file is not None:
+            config_file = b.read_input(user_config_cloud_file)
+            j.command('mkdir -p $HOME/.config/hail')
+            j.command(f'ln -s {shq(config_file)} $HOME/.config/hail/config.ini')
 
-        dest = result.get('dest')
-        if dest is not None:
-            dest = os.path.abspath(os.path.expanduser(dest))
+        real_cwd = real_absolute_cwd()
+        j.command(f'mkdir -p {shq(real_cwd)}')
+        j.command(f'cd {shq(real_cwd)}')
+
+        command = 'python3' if script.endswith('.py') else 'bash'
+        script_file = b.read_input(script_cloud_file)
+        script_arguments = " ".join(shq(x) for x in arguments)
+        j.command(f'{command} {script_file} {script_arguments}')
+
+        batch_handle = await b._async_run(wait=False, disable_progress_bar=quiet)
+        assert batch_handle
+
+        if output == 'text':
+            deploy_config = get_deploy_config()
+            url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}/jobs/1')
+            print(f'Submitted batch {batch_handle.id}, see {url}')
         else:
-            dest = os.getcwd()
+            assert output == 'json'
+            print(orjson.dumps({'id': batch_handle.id}).decode('utf-8'))
 
-        cloud_file = cloud_prefix(src)
+        if wait:
+            out = batch_handle.wait(disable_progress_bar=quiet)
+            try:
+                out['log'] = batch_handle.get_job_log(1)['main']
+            except:
+                out['log'] = 'Could not retrieve job log.'
+            if output == 'text':
+                print(yamlx.dump(out))
+            else:
+                print(orjson.dumps(out))
+            if out['state'] != 'success':
+                raise typer.Exit(1)
 
-        return (src, dest, cloud_file)
 
-    backend = hb.ServiceBackend()
-    b = hb.Batch(name=name, backend=backend)
-    j = b.new_bash_job()
-    j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}'))
+def cloud_prefix(remote_tmpdir: AsyncFSURL, path: str) -> str:
+    path = path.lstrip('/')
+    return str(remote_tmpdir.with_new_path_component(path))
 
-    local_files_to_cloud_files = []
 
-    for file in files:
-        src, dest, cloud_file = file_input_to_src_dest(file)
-        local_files_to_cloud_files.append({'from': src, 'to': cloud_file})
-        in_file = b.read_input(cloud_file)
-        j.command(f'mkdir -p {os.path.dirname(dest)}; ln -s {in_file} {dest}')
+FILE_REGEX = re.compile(r'([^:]+)(?::(.+))?')
 
-    script_src, _, script_cloud_file = file_input_to_src_dest(script)
-    user_config_src, _, user_config_cloud_file = file_input_to_src_dest(user_config)
 
-    await copy_from_dict(files=local_files_to_cloud_files)
+def parse_files_option_to_src_dest_and_cloud_intermediate(remote_tmpdir: AsyncFSURL, file: str) -> Tuple[str, str, str]:
+    match = FILE_REGEX.match(file)
+    if match is None:
+        raise ValueError(f'invalid file specification {file}. Must have the form "src" or "src:dest"')
+
+    src, dest = match.groups()
+
+    if src is None:
+        raise ValueError(f'invalid file specification {file}. Must have a "src" defined.')
+
+    src, src_looks_like_directory = real_absolute_expanded_path(src)
+
+    if dest is None:
+        dest = os.path.join(real_absolute_cwd(), os.path.basename(src))
+    else:
+        dest, dest_looks_like_directory = real_absolute_expanded_path(dest)
+
+        if src_looks_like_directory and dest == '/':
+            raise ValueError('cannot mount a directory to "/"')
+
+        if not src_looks_like_directory and dest_looks_like_directory:
+            dest = os.path.join(dest, os.path.basename(src))
+
+    return (src, dest, cloud_prefix(remote_tmpdir, src))
+
+
+async def transfer_files_options_files_into_job(
+    remote_tmpdir: AsyncFSURL, files_options: List[str], j: BashJob, b: hb.Batch
+):
+    src_dst_cloud_intermediate_triplets = [
+        parse_files_option_to_src_dest_and_cloud_intermediate(remote_tmpdir, files_option)
+        for files_option in files_options
+    ]
+
+    if non_existing_files := [src for src, _, _ in src_dst_cloud_intermediate_triplets if not os.path.exists(src)]:
+        non_existing_files_str = '- ' + '\n- '.join(non_existing_files)
+        raise HailctlBatchSubmitError(f'Some --files did not exist:\n{non_existing_files_str}', 1)
+
     await copy_from_dict(
         files=[
-            {'from': script_src, 'to': script_cloud_file},
-            {'from': user_config_src, 'to': user_config_cloud_file},
+            {'from': src, 'to': cloud_intermediate}
+            for src, _, cloud_intermediate in src_dst_cloud_intermediate_triplets
         ]
     )
 
-    script_file = b.read_input(script_cloud_file)
-    config_file = b.read_input(user_config_cloud_file)
+    for _, dest, cloud_intermediate in src_dst_cloud_intermediate_triplets:
+        in_file = b.read_input(cloud_intermediate)
+        j.command(f'mkdir -p {shq(os.path.dirname(dest))}; ln -s {shq(in_file)} {shq(dest)}')
 
-    j.env('HAIL_QUERY_BACKEND', 'batch')
 
-    command = 'python3' if script.endswith('.py') else 'bash'
-    script_arguments = " ".join(shq(x) for x in arguments)
+async def upload_script_and_user_config(remote_tmpdir: AsyncFSURL, script: str):
+    if not os.path.exists(script):
+        raise HailctlBatchSubmitError(f'Script file does not exist: {script}', 1)
+    script_src, _, script_cloud_file = parse_files_option_to_src_dest_and_cloud_intermediate(remote_tmpdir, script)
 
-    j.command(f'mkdir -p $HOME/.config/hail && ln -s {config_file} $HOME/.config/hail/config.ini')
-    j.command(f'cd {os.getcwd()}')
-    j.command(f'{command} {script_file} {script_arguments}')
-    batch_handle = await b._async_run(wait=False, disable_progress_bar=quiet)
-    assert batch_handle
+    extra_files_to_copy = [
+        # In Azure, two concurrent uploads to the same blob path race until one succeeds. The
+        # other fails with an error that is indistinguishable from a client-side logic
+        # error. We could treat "Invalid Block List" as a limited retry error, but, currently,
+        # multi-part-create does not retry when an error occurs in the `__aexit__` which is
+        # when we would experience the error for multi-part-creates.
+        # https://azure.github.io/Storage/docs/application-and-user-data/code-samples/concurrent-uploads-with-versioning/
+        # https://github.com/hail-is/hail/pull/13812#issuecomment-1882088862
+        {'from': script_src, 'to': script_cloud_file},
+    ]
 
-    if output == 'text':
-        deploy_config = get_deploy_config()
-        url = deploy_config.external_url('batch', f'/batches/{batch_handle.id}/jobs/1')
-        print(f'Submitted batch {batch_handle.id}, see {url}')
-    else:
-        assert output == 'json'
-        print(orjson.dumps({'id': batch_handle.id}).decode('utf-8'))
+    user_config_path = str(get_user_config_path())
+    user_config_cloud_file = None
+    if os.path.exists(user_config_path):
+        user_config_src, _, user_config_cloud_file = parse_files_option_to_src_dest_and_cloud_intermediate(
+            remote_tmpdir, user_config_path
+        )
+        extra_files_to_copy.append({'from': user_config_src, 'to': user_config_cloud_file})
 
-    await backend.async_close()
+    await copy_from_dict(files=extra_files_to_copy)
+    return script_cloud_file, user_config_cloud_file
