@@ -9,7 +9,7 @@ import aiohttp
 
 from hailtop import httpx
 from hailtop.aiocloud.aioazure import AzureCredentials
-from hailtop.aiocloud.aiogoogle import GoogleCredentials
+from hailtop.aiocloud.aiogoogle import GoogleCredentials, GoogleServiceAccountCredentials
 from hailtop.aiocloud.common import Session
 from hailtop.aiocloud.common.credentials import CloudCredentials
 from hailtop.config import DeployConfig, get_deploy_config, get_user_identity_config_path
@@ -47,6 +47,11 @@ class HailCredentials(CloudCredentials):
         self._cloud_credentials = cloud_credentials
         self._deploy_config = deploy_config
         self._authorize_target = authorize_target
+
+    @property
+    def identity_uid(self):
+        assert isinstance(self._cloud_credentials, GoogleServiceAccountCredentials)
+        return self._cloud_credentials.identity_uid
 
     async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
         headers = {}
