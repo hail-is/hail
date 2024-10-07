@@ -232,8 +232,12 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
    Register the predetermined `domain` with a DNS registry. 
 
-   This will be available in GCP cloud console under `Kubernetes Engine > Clusters > vdc > Cluster basics > External endpoint`.
-   The external IP address is the one to use.
+   This will be available in GCP cloud console under `Network Services -> Load balancing`.
+   Click through to the external load balancer and find its IP address.
+
+   Add two records with the same IP address:
+    - `<domain>`
+    - `*.<domain>`
 
 ## Deploy Hail to Kubernetes
 
