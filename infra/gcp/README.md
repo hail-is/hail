@@ -232,7 +232,7 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 
    Register the predetermined `domain` with a DNS registry. 
 
-   This will be available in GCP cloud console under `Network Services -> Load balancing`.
+   The IP address to use will be available in GCP cloud console under `Network Services -> Load balancing`.
    Click through to the external load balancer and find its IP address.
 
    Add two records with the same IP address:
