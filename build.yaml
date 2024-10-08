@@ -947,8 +947,6 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
-      - from: /repo/letsencrypt/subdomains.txt
-        to: /repo/letsencrypt/subdomains.txt
       - from: /jvm-entryway.jar
         to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
       - from: /hail_version
