@@ -372,7 +372,7 @@ class SparkBackend(
         override val executionCache: ExecutionCache =
           ExecutionCache.forTesting
       },
-      IrMetadata(None),
+      new IrMetadata(),
     )
 
   def withExecuteContext[T](
@@ -408,7 +408,7 @@ class SparkBackend(
           override val executionCache: ExecutionCache =
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
-        IrMetadata(None),
+        new IrMetadata(),
       )(f)
     }
 
@@ -542,7 +542,8 @@ class SparkBackend(
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
-      ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
+      assert(ir.typ.isRealizable)
+      ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
       try {
         val lowerTable = getFlag("lower") != null
         val lowerBM = getFlag("lower_bm") != null

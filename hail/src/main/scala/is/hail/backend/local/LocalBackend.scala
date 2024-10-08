@@ -96,7 +96,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
           override val executionCache: ExecutionCache =
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
-        IrMetadata(None),
+        new IrMetadata(),
       )(f)
     }
 
@@ -182,9 +182,10 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
+      assert(ir.typ.isRealizable)
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
-      ctx.irMetadata = ctx.irMetadata.copy(semhash = SemanticHash(ctx)(ir))
+      ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
       val res = _jvmLowerAndExecute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       res

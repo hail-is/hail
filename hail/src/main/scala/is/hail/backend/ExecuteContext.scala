@@ -114,7 +114,7 @@ class ExecuteContext(
   val theHailClassLoader: HailClassLoader,
   val flags: HailFeatureFlags,
   val backendContext: BackendContext,
-  var irMetadata: IrMetadata,
+  val irMetadata: IrMetadata,
 ) extends Closeable {
 
   val rngNonce: Long =
