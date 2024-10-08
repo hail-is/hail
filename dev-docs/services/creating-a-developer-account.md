@@ -1,5 +1,10 @@
 # Creating a Developer Account
 
+> [!IMPORTANT]
+> New account creation should be completed as part of following the new developer **_process_** -
+> which begins by creating a "New Developer" [issue](https://github.com/hail-is/hail/issues/new?template=new-developer.yml).
+
+
 Do *not* sign up for a developer account. The "sign up" link on "auth.hail.is"
 can only produce non-developer accounts. Instead, an extant developer must:
 
