@@ -117,6 +117,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
       jarLocation = "us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail@sha256:fake",
       name = "name",
       theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
+      references = Map.empty,
       batchClient = client,
       curBatchId = None,
       curJobGroupId = None,
