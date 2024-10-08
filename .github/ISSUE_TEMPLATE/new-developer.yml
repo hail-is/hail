@@ -1,5 +1,5 @@
-name: Configuration Change
-description: Tracker issues for configuration changes
+name: New Developer Account Request
+description: Tracker issue for adding new developers and administrators
 labels: [ needs-triage ]
 body:
   - type: textarea
