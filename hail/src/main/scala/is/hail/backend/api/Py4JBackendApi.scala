@@ -312,7 +312,7 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
           else NonOwningTempFileManager(tmpFileManager),
         theHailClassLoader = hcl,
         flags = flags,
-        irMetadata = IrMetadata(None),
+        irMetadata = new IrMetadata(),
         references = references,
         blockMatrixCache = bmCache,
         codeCache = codeCache,

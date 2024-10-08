@@ -89,7 +89,7 @@ class HailSuite extends TestNGSuite with TestUtils {
       _tempFileManager = null,
       theHailClassLoader = HailSuite.theHailClassLoader,
       flags = HailSuite.flags,
-      irMetadata = IrMetadata(None),
+      irMetadata = new IrMetadata(),
       References = ImmutableMap(ReferenceGenome.builtinReferences()),
       BlockMatrixCache = NoCaching,
       CodeCache = NoCaching,
