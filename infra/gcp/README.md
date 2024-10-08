@@ -370,7 +370,7 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
   sudo mkdir /global-config
   source $HAIL/devbin/functions.sh
   download-secret global-config
-  sudo cp -r contents /global-config
+  sudo cp contents/* /global-config/
   cd -
   ```
 
