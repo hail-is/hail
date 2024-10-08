@@ -36,7 +36,7 @@ async def notify_batch_job_complete(db: Database, client_session: httpx.ClientSe
 SELECT batches.*,
   cost_t.cost,
   cost_t.cost_breakdown,
-  job_groups_cancelled.id IS NOT NULL AS cancelled,
+  job_groups_cancelled.batch_id IS NOT NULL AS cancelled,
   job_groups_n_jobs_in_complete_states.n_completed,
   job_groups_n_jobs_in_complete_states.n_succeeded,
   job_groups_n_jobs_in_complete_states.n_failed,
@@ -56,7 +56,7 @@ LEFT JOIN LATERAL (
   GROUP BY batch_id
 ) AS cost_t ON TRUE
 LEFT JOIN job_groups_cancelled
-  ON batches.id = job_groups_cancelled.id
+  ON batches.id = job_groups_cancelled.batch_id
 WHERE batches.id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete';
 """,
@@ -123,7 +123,7 @@ LEFT JOIN LATERAL (
   SELECT 1 AS cancelled
   FROM job_group_self_and_ancestors AS self_and_ancestors
   INNER JOIN job_groups_cancelled
-    ON self_and_ancestors.batch_id = job_groups_cancelled.id AND
+    ON self_and_ancestors.batch_id = job_groups_cancelled.batch_id AND
        self_and_ancestors.ancestor_id = job_groups_cancelled.job_group_id
   WHERE self_and_ancestors.batch_id = job_group_self_and_ancestors.batch_id AND
     self_and_ancestors.job_group_id = job_group_self_and_ancestors.ancestor_id
