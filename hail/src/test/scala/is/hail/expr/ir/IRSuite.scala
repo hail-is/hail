@@ -23,6 +23,7 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.{FastSeq, _}
 import is.hail.variant.{Call2, Locus}
 
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -3876,12 +3877,8 @@ class IRSuite extends HailSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR, refMap: BindingEnv[Type]): Unit = {
-    val env = IRParserEnvironment(ctx)
-
     val s = Pretty.sexprStyle(x, elideLiterals = false)
-
-    val x2 = IRParser.parse_value_ir(s, env, refMap)
-
+    val x2 = IRParser.parse_value_ir(ctx, s, refMap)
     assert(x2 == x)
   }
 
@@ -3931,7 +3928,7 @@ class IRSuite extends HailSuite {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR 1)"
     val x2 = ExecuteContext.scoped { ctx =>
-      IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
+      ctx.local(irCache = mutable.Map(1 -> cached))(ctx => IRParser.parse_value_ir(ctx, s))
     }
     assert(x2 eq cached)
   }
@@ -3940,7 +3937,7 @@ class IRSuite extends HailSuite {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable 1)"
     val x2 = ExecuteContext.scoped { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
+      ctx.local(irCache = mutable.Map(1 -> cached))(ctx => IRParser.parse_table_ir(ctx, s))
     }
     assert(x2 eq cached)
   }
