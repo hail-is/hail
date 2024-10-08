@@ -14,14 +14,16 @@ object TypeCheck {
     apply(ctx, ir, BindingEnv.empty)
 
   def apply(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): Unit =
-    try
-      check(ctx, ir, env).run()
-    catch {
-      case e: Throwable =>
-        fatal(
-          s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true, allowUnboundRefs = true)}",
-          e,
-        )
+    ctx.time {
+      try
+        check(ctx, ir, env).run()
+      catch {
+        case e: Throwable =>
+          fatal(
+            s"Error while typechecking IR:\n${Pretty(ctx, ir, preserveNames = true, allowUnboundRefs = true)}",
+            e,
+          )
+      }
     }
 
   def check(ctx: ExecuteContext, ir: BaseIR, env: BindingEnv[Type]): StackFrame[Unit] = {

@@ -7,9 +7,7 @@ import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.virtual._
-import is.hail.utils.{using, FastSeq}
-
-import scala.util.control.NonFatal
+import is.hail.utils.FastSeq
 
 import java.io.FileNotFoundException
 import java.lang
@@ -285,21 +283,11 @@ class SemanticHashSuite extends HailSuite {
 
   @DataProvider(name = "isBaseIRSemanticallyEquivalent")
   def isBaseIRSemanticallyEquivalent: Array[Array[Any]] =
-    try
-      Array.concat(
-        isValueIRSemanticallyEquivalent,
-        isTableIRSemanticallyEquivalent,
-        isBlockMatrixIRSemanticallyEquivalent,
-      ).map { x =>
-        TypeCheck(ctx, x(0).asInstanceOf[BaseIR])
-        TypeCheck(ctx, x(1).asInstanceOf[BaseIR])
-        x
-      }
-    catch {
-      case NonFatal(t) =>
-        t.printStackTrace()
-        throw t
-    }
+    Array.concat(
+      isValueIRSemanticallyEquivalent,
+      isTableIRSemanticallyEquivalent,
+      isBlockMatrixIRSemanticallyEquivalent,
+    )
 
   @Test(dataProvider = "isBaseIRSemanticallyEquivalent")
   def testSemanticEquivalence(a: BaseIR, b: BaseIR, isEqual: Boolean, comment: String): Unit =
@@ -318,8 +306,7 @@ class SemanticHashSuite extends HailSuite {
           throw new FileNotFoundException(url.getPath)
       }
 
-    val ir =
-      importMatrix("gs://fake-bucket/fake-matrix")
+    val ir = importMatrix("gs://fake-bucket/fake-matrix")
 
     assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
       semhash(fs)(ir)
@@ -327,21 +314,7 @@ class SemanticHashSuite extends HailSuite {
   }
 
   def semhash(fs: FS)(ir: BaseIR): Option[SemanticHash.Type] =
-    ExecuteContext.scoped() { ctx =>
-      using(new ExecuteContext(
-        ctx.tmpdir,
-        ctx.localTmpdir,
-        ctx.backend,
-        fs,
-        ctx.r,
-        ctx.timer,
-        ctx.tempFileManager,
-        ctx.theHailClassLoader,
-        ctx.flags,
-        ctx.backendContext,
-        ctx.irMetadata,
-      ))(SemanticHash(_)(ir))
-    }
+    ExecuteContext.scoped(_.local(fs = fs)(SemanticHash(_)(ir)))
 
   val fakeFs: FS =
     new FakeFS {

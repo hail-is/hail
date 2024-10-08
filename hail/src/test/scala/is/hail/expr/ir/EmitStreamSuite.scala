@@ -1062,12 +1062,12 @@ class EmitStreamSuite extends HailSuite {
 
   def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR)
     : Unit = {
-    val memUsed1 = ExecuteContext.scoped() { ctx =>
+    val memUsed1 = ExecuteContext.scoped { ctx =>
       eval(f(lowSize), Env.empty, FastSeq(), None, None, false, ctx)
       ctx.r.pool.getHighestTotalUsage
     }
 
-    val memUsed2 = ExecuteContext.scoped() { ctx =>
+    val memUsed2 = ExecuteContext.scoped { ctx =>
       eval(f(highSize), Env.empty, FastSeq(), None, None, false, ctx)
       ctx.r.pool.getHighestTotalUsage
     }
