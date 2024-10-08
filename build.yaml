@@ -3410,6 +3410,52 @@ steps:
     clouds:
       - gcp
   - kind: runImage
+    name: make_terra_prs
+    image:
+      valueFrom: ci_utils_image.image
+    dependsOn:
+      - default_ns
+      - ci_utils_image
+      - release
+    inputs:
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+      - from: /release-hail-flag
+        to: /io/release-hail-flag
+      - from: /repo
+        to: /io/repo
+    secrets:
+      - name: hail-ci-0-1-github-oauth-token
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /hail-ci-0-1-github-oauth-token
+    clouds:
+      - gcp
+    scopes:
+      - deploy
+      - dev
+    script: |
+      set -ex
+      if [[ $(< /io/release-hail-flag) != '1' ]]
+      then
+          echo 'Skipping making terra update prs (no new release published)'
+          exit 0
+      fi
+
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
+      cd /io
+
+      printf 'Authorization: token ' > github-oauth
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+      printf '#!/bin/bash\necho ' > git-askpass
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
+      chmod 755 git-askpass
+      export GIT_ASKPASS=/io/git-askpass
+
+      cd /io/repo/hail
+      bash scripts/make-terra-prs.sh
+  - kind: runImage
     name: mirror_hailgenetics_images
     image: quay.io/skopeo/stable:v1.13.2
     script: |
