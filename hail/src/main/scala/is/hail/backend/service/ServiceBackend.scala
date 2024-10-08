@@ -335,7 +335,6 @@ class ServiceBackend(
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
-      assert(ir.typ.isRealizable)
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       ctx.irMetadata.semhash = SemanticHash(ctx)(ir)

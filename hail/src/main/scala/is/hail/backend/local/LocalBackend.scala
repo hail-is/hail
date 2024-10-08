@@ -182,7 +182,6 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
-      assert(ir.typ.isRealizable)
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
       ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
@@ -194,6 +193,7 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
   def executeLiteral(irStr: String): Int =
     withExecuteContext { ctx =>
       val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
+      assert(ir.typ.isRealizable)
       execute(ctx, ir) match {
         case Left(_) => throw new HailException("Can't create literal")
         case Right((pt, addr)) =>
