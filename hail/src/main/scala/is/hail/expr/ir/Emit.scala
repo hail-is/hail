@@ -29,8 +29,6 @@ import scala.language.existentials
 
 import java.io._
 
-import sourcecode.Enclosing
-
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
   def analyze(ctx: ExecuteContext, ir: IR, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
@@ -58,10 +56,7 @@ case class EmitContext(
   methodSplits: Memo[Unit],
   inLoopCriticalPath: Memo[Unit],
   tryingToSplit: Memo[Unit],
-) {
-  def time[A](block: => A)(implicit E: Enclosing): A =
-    executeContext.time(block)
-}
+)
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
   def bind(name: Name, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
@@ -106,7 +101,7 @@ object Emit {
     nParams: Int,
     aggs: Option[Array[AggStateSig]] = None,
   ): Option[SingleCodeType] =
-    ctx.time {
+    ctx.executeContext.time {
       TypeCheck(ctx.executeContext, ir)
 
       val mb = fb.apply_method

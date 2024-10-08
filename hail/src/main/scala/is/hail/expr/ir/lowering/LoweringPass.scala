@@ -6,9 +6,11 @@ import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.utils._
 
-final case class IrMetadata(semhash: Option[SemanticHash.Type]) {
+final class IrMetadata() {
   private[this] var hashCounter: Int = 0
   private[this] var markCounter: Int = 0
+
+  var semhash: Option[SemanticHash.Type] = None
 
   def nextHash: Option[SemanticHash.Type] = {
     hashCounter += 1

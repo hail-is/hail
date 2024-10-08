@@ -145,7 +145,7 @@ object EmitStream {
     env: EmitEnv,
     container: Option[AggContainer],
   ): IEmitCode =
-    emitter.ctx.time {
+    emitter.ctx.executeContext.time {
 
       @nowarn("cat=unused-locals&msg=local default argument")
       def emitVoid(
