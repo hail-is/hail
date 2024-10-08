@@ -542,7 +542,6 @@ class SparkBackend(
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
-      assert(ir.typ.isRealizable)
       ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
       try {
         val lowerTable = getFlag("lower") != null
@@ -558,6 +557,7 @@ class SparkBackend(
   def executeLiteral(irStr: String): Int =
     withExecuteContext { ctx =>
       val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
+      assert(ir.typ.isRealizable)
       execute(ctx, ir) match {
         case Left(_) => throw new HailException("Can't create literal")
         case Right((pt, addr)) =>
