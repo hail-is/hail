@@ -1,0 +1,42 @@
+name: Configuration Change
+description: Tracker issues for configuration changes
+labels: [ needs-triage ]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      value: |
+        Creation of a new hail developer account - 
+
+        Github username - @<github user>
+        Hail username - <proposed hail username>
+
+        Action items:
+        - Existing developer: Coordinate with appsec
+        - Existing developer: Create a new developer account - see [here](https://github.com/hail-is/hail/blob/main/dev-docs/services/creating-a-developer-account.md#creating-a-developer-account)
+        - New developer: Create a PR to add yourself as a new CI user (see [here](https://github.com/hail-is/hail/blob/main/ci/ci/constants.py))
+          - Existing developers: review and approve PR
+  - type: textarea
+    id: security-impact
+    attributes:
+      label: Security Impact
+      description: Level of security impact of the change
+      value: High
+    validations:
+      required: true
+  - type: textarea
+    id: security-impact-description
+    attributes:
+      label: Security Impact Description
+      value: High because a new user will be granted administrative privileges and developer access.
+    validations:
+      required: true
+  - type: checkboxes
+    id: appsec-signoff
+    attributes:
+      label: Appsec Signoff
+      description: Check here when the appsec team has been notified and has reviewed and approved the addition.
+      options:
+          - label: Reviewed and approved
+            required: false
