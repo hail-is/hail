@@ -1,8 +1,7 @@
 package is.hail.io.fs
 
-import java.io.FileInputStream
+import is.hail.services.oauth2.GoogleCloudCredentials
 
-import org.apache.commons.io.IOUtils
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
@@ -18,16 +17,7 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     }
   }
 
-  lazy val fs = {
-    val gac = System.getenv("GOOGLE_APPLICATION_CREDENTIALS")
-    if (gac == null) {
-      new GoogleStorageFS()
-    } else {
-      new GoogleStorageFS(
-        Some(new String(IOUtils.toByteArray(new FileInputStream(gac))))
-      )
-    }
-  }
+  lazy val fs = new GoogleStorageFS(GoogleCloudCredentials(None), None)
 
   @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "gs://bucket/path"
