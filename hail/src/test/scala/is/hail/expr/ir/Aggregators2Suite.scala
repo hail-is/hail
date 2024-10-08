@@ -4,6 +4,7 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.io.BufferSpec
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
