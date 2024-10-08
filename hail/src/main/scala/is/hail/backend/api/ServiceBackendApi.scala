@@ -101,7 +101,7 @@ object ServiceBackendApi extends HttpLikeBackendRpc[Request] with Logging {
           null,
           env.hcl,
           env.flags,
-          IrMetadata(None),
+          new IrMetadata(),
           mutable.Map(env.references.toSeq: _*),
           NoCaching,
           NoCaching,
