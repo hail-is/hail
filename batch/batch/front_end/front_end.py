@@ -8,6 +8,7 @@ import os
 import random
 import re
 import signal
+import time
 import traceback
 from contextlib import AsyncExitStack
 from functools import wraps
@@ -1134,6 +1135,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         spec['job_group_id'] = job_group_id
 
         always_run = spec.pop('always_run', False)
+        n_max_attempts = spec.pop('n_max_attempts', 20)
 
         cloud = spec.get('cloud', CLOUD)
 
@@ -1378,6 +1380,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             inst_coll_name,
             n_regions,
             regions_bits_rep,
+            n_max_attempts,
         ))
 
         jobs_telemetry_args.append((batch_id, job_id, time_ready))
@@ -1397,11 +1400,13 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
 
     async def insert_jobs_into_db(tx):
         try:
+            sql = """
+INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep, n_max_attempts)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+"""
+            log.info(f'about to run: {sql} \n\n with parameters: {jobs_args}')
             await tx.execute_many(
-                """
-INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
-""",
+                sql,
                 jobs_args,
                 query_name='insert_jobs',
             )
@@ -2359,7 +2364,9 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
     if len(attempts) == 1 and attempts[0]['attempt_id'] is None:
         return None
 
-    attempts.sort(key=lambda x: x['start_time'] or x['end_time'])
+    # Use current time as a base case for the sort, if there is nothing in the database:
+    current_epoch_millis = time.time() * 1000
+    attempts.sort(key=lambda x: x['start_time'] or x['end_time'] or current_epoch_millis)
 
     for attempt in attempts:
         start_time = attempt['start_time']
