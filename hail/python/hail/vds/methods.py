@@ -967,6 +967,9 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
             es.LEN % max_ref_block_base_pairs,
         ),
     )
+    # we've changed LEN so we need to make sure that END is correct
+    if 'END' in es.row:
+        es = es.annotate(END=es.LEN + es.locus.position - 1)
     es = es.key_by(es.locus).collect_by_key("new_blocks")
     es = es.transmute(moved_blocks_dict=hl.dict(es.new_blocks.map(lambda x: (x.col_idx, x.drop('col_idx')))))
 
@@ -980,10 +983,6 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
         entries_field_name='merged_blocks', cols_field_name='cols', col_key=list(rd.col_key)
     )
     new_rd = new_rd.annotate_globals(**{fd_name: max_ref_block_base_pairs})
-
-    # we've changed LEN so we need to make sure that END is correct.
-    if 'END' in new_rd.entry:
-        new_rd = new_rd.annotate_entries(END=new_rd.LEN + new_rd.locus.position - 1)
 
     if isinstance(ds, hl.vds.VariantDataset):
         return VariantDataset(reference_data=new_rd, variant_data=ds.variant_data)
