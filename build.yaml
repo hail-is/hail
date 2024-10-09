@@ -3922,18 +3922,10 @@ steps:
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_azure_batch_instances
-    image: mcr.microsoft.com/azure-cli
+    image: mcr.microsoft.com/azure-cli:azurelinux3.0
     alwaysRun: true
     script: |
       set -e -o pipefail
-      cat <<EOF | tee /etc/yum.repos.d/kubernetes.repo
-      [kubernetes]
-      name=Kubernetes
-      baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
-      enabled=1
-      gpgcheck=1
-      gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
-      EOF
       AZURE_USERNAME=$(jq -r '.appId' /batch-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /batch-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /batch-gsa-key/key.json)
@@ -3941,7 +3933,7 @@ steps:
       set +e
       set -x
       export AZURE_RESOURCE_GROUP="{{ global.azure_resource_group }}"
-      az aks install-cli
+      az aks install-cli --client-version
       kubectl -n {{ default_ns.name }} scale deployment batch-driver --replicas=0
       az vm list --resource-group $AZURE_RESOURCE_GROUP -o tsv \
           --query "[?tags.namespace == '{{ default_ns.name }}'].name" \
