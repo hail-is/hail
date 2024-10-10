@@ -354,6 +354,11 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
 - Deploy unmanaged resources by running
 
+  > [!WARNING]
+  > If using Google Artifact Registry, the kubernetes system user (called something like `<ID>-compute@developer.gserviceaccount.com`)
+  > will need to be granted read permission on the registry:
+  > `gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:<ID>-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"`
+
   ```
   ./bootstrap.sh deploy_unmanaged
   ```
