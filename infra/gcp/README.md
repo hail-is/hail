@@ -354,10 +354,10 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
 - Deploy unmanaged resources by running
 
-  > [!WARNING]
-  > If using Google Artifact Registry, the kubernetes system user (called something like `<ID>-compute@developer.gserviceaccount.com`)
-  > will need to be granted read permission on the registry:
-  > `gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:<ID>-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"`
+> [!WARNING]
+> If using Google Artifact Registry, the kubernetes system user (called something like `<ID>-compute@developer.gserviceaccount.com`)
+> will need to be granted read permission on the registry:
+> `gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:<ID>-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"`
 
   ```
   ./bootstrap.sh deploy_unmanaged
@@ -396,16 +396,16 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
 
-  >[!NOTE]
-  > Troubleshooting this step:
-  > When I ran this step (perhaps because I had to log in and out of my cloud VM a couple of times), the
-  > hailctl command was not properly authenticating and the create_initial_user step failed. To make it work, I had to:
-  >   - Edit the $HAIL/build.yaml file
-  >     - Under the 'create_initial_user' step, in the script section:
-  >       - Add an additional environment line: `export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'`
-  >       - Add some commands to create an additional domain-setting config file, right under the environment exports:
-  >         - `mkdir ~/.hail`
-  >         - `echo '{"location":"external","default_namespace":"default","domain":"<DOMAIN>"}'>~/.hail/deploy-config.json`
+> [!NOTE]
+> Troubleshooting this step:
+> When I ran this step (perhaps because I had to log in and out of my cloud VM a couple of times), the
+> hailctl command was not properly authenticating and the create_initial_user step failed. To make it work, I had to:
+>   - Edit the $HAIL/build.yaml file
+>     - Under the 'create_initial_user' step, in the script section:
+>       - Add an additional environment line: `export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'`
+>       - Add some commands to create an additional domain-setting config file, right under the environment exports:
+>         - `mkdir ~/.hail`
+>         - `echo '{"location":"external","default_namespace":"default","domain":"<DOMAIN>"}'>~/.hail/deploy-config.json`
 
 ## Remove the cloud VM
 
