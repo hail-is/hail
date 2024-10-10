@@ -372,6 +372,7 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
   download-secret global-config
   sudo cp contents/* /global-config/
   cd -
+  sudo chmod +r /global-config/*
   ```
 
 - Bootstrap the cluster.
