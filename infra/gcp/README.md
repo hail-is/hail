@@ -391,6 +391,17 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
 
+  >[!NOTE]
+  > Troubleshooting this step:
+  > When I ran this step (perhaps because I had to log in and out of my cloud VM a couple of times), the
+  > hailctl command was not properly authenticating and the create_initial_user step failed. To make it work, I had to:
+  >   - Edit the $HAIL/build.yaml file
+  >     - Under the 'create_initial_user' step, in the script section:
+  >       - Add an additional environment line: `export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'`
+  >       - Add some commands to create an additional domain-setting config file, right under the environment exports:
+  >         - `mkdir ~/.hail`
+  >         - `echo '{"location":"external","default_namespace":"default","domain":"<DOMAIN>"}'>~/.hail/deploy-config.json`
+
 ## Remove the cloud VM
 
 - Once the deployment is complete, you can remove the cloud VM in the Google cloud console.
