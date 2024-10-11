@@ -40,7 +40,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     # Garbage in, garbage out.
     ref = vds.reference_data
     ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position())
-    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + ref.LEN)
+    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + ref.LEN - 1)
 
     to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos'
     ref = ref.drop(*(x for x in to_drop if x in ref.row))
@@ -84,7 +84,7 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
                 lambda tup: coalesce_join(
                     hl.coalesce(
                         refs_at_this_row[tup[0]],
-                        hl.or_missing(tup[1][1]._END_GLOBAL > dr.locus.global_position(), tup[1][1]),
+                        hl.or_missing(tup[1][1]._END_GLOBAL >= dr.locus.global_position(), tup[1][1]),
                     ),
                     tup[1][0],
                 )
