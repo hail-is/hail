@@ -961,10 +961,9 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
     es = es.explode('new_start')
     es = es.transmute(
         locus=hl.locus(es.locus.contig, es.new_start, reference_genome=es.locus.dtype.reference_genome),
-        LEN=hl.if_else(
-            es.new_start + max_ref_block_base_pairs <= es.locus.position + es.LEN,
+        LEN=hl.min(
+            es.locus.position + es.LEN - es.new_start,
             max_ref_block_base_pairs,
-            es.LEN % max_ref_block_base_pairs,
         ),
     )
     # we've changed LEN so we need to make sure that END is correct
