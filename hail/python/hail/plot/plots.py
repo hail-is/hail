@@ -927,7 +927,7 @@ def _get_scatter_plot_elements(
     cds = ColumnDataSource(source_pd)
 
     if not label_cols:
-        sp.circle(x_col, y_col, source=cds, size=size)
+        sp.scatter(x_col, y_col, source=cds, size=size)
         return sp, None, None, None, None, None
     continuous_cols = [
         col
@@ -963,7 +963,7 @@ def _get_scatter_plot_elements(
     legend_items: Dict[str, List[LegendItem]] = {}
 
     if not factor_cols:
-        all_renderers = [sp.circle(x_col, y_col, color=transform(initial_col, initial_mapper), source=cds, size=size)]
+        all_renderers = [sp.scatter(x_col, y_col, color=transform(initial_col, initial_mapper), source=cds, size=size)]
 
     else:
         all_renderers = []
@@ -977,8 +977,13 @@ def _get_scatter_plot_elements(
                     ]
                 )
             )
-            renderer = sp.circle(
-                x_col, y_col, color=transform(initial_col, initial_mapper), source=cds, view=cds_view, size=size
+            renderer = sp.scatter(
+                x_col,
+                y_col,
+                color=transform(initial_col, initial_mapper),
+                source=cds,
+                view=cds_view,
+                size=size,
             )
             all_renderers.append(renderer)
             for i in range(0, len(factor_cols)):
