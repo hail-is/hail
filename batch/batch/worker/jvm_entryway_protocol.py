@@ -37,7 +37,7 @@ async def read(reader: asyncio.StreamReader, n: int) -> bytes:
             raise EndOfStream()
         left -= len(t)
         b.extend(t)
-    return b
+    return bytes(b)
 
 
 async def read_byte(reader: asyncio.StreamReader) -> int:
