@@ -1,5 +1,5 @@
 import os
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import orjson
 from aiohttp import web
@@ -9,6 +9,7 @@ from hailtop.aiocloud.aioazure import AzureCredentials
 from hailtop.aiocloud.aioterra.azure import TerraAzureAsyncFS
 from hailtop.aiotools.fs import AsyncFS
 from hailtop.auth.auth import IdentityProvider
+from hailtop.auth.flow import AzureFlow
 
 from .....worker.disk import CloudDisk
 from .....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
@@ -18,9 +19,11 @@ from ....terra.azure.instance_config import TerraAzureSlimInstanceConfig
 class TerraAzureWorkerAPI(CloudWorkerAPI):
     nameserver_ip = '168.63.129.16'
 
+    # async because ClientSession must be created inside a running event loop
     @staticmethod
     def from_env() -> 'TerraAzureWorkerAPI':
         return TerraAzureWorkerAPI(
+            httpx.client_session(),
             os.environ['WORKSPACE_STORAGE_CONTAINER_ID'],
             os.environ['WORKSPACE_STORAGE_CONTAINER_URL'],
             os.environ['WORKSPACE_ID'],
@@ -29,11 +32,13 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
 
     def __init__(
         self,
+        http_session: httpx.ClientSession,
         workspace_storage_container_id: str,
         workspace_storage_container_url: str,
         workspace_id: str,
         workspace_manager_url: str,
     ):
+        self._http_session = http_session
         self.workspace_storage_container_id = workspace_storage_container_id
         self.workspace_storage_container_url = workspace_storage_container_url
         self.workspace_id = workspace_id
@@ -69,6 +74,13 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         raise NotImplementedError
 
+    async def identity_uid(self, token: str) -> Optional[str]:
+        # Terra Azure does not have custom OAuth clients for apps
+        hail_oauth_config = {'appIdentifierUri': AzureCredentials.DEFAULT_SCOPE}
+        return await AzureFlow.get_identity_uid_from_access_token(
+            self._http_session, token, oauth2_client=hail_oauth_config
+        )
+
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> TerraAzureSlimInstanceConfig:
         return TerraAzureSlimInstanceConfig.from_dict(config_dict)
 
@@ -90,4 +102,4 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
         raise NotImplementedError
 
     async def close(self):
-        pass
+        await self._http_session.close()
