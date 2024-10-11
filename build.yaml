@@ -831,7 +831,7 @@ steps:
       set -ex
       cd /io/repo/hail
 
-      time tar czf test.tar.gz -C python test
+      time tar czf test.tar.gz -C python test pytest.ini
       time tar czf resources.tar.gz -C src/test resources
       time tar czf data.tar.gz -C python/hail/docs data
       time TESTNG_SPLITS=5 python3 generate_splits.py
