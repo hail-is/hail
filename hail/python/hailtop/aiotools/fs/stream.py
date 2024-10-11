@@ -310,9 +310,7 @@ class BlockingCollect(_Closable):
                 # need to slice/copy buf, since the S3 upload_part API
                 # call requires byte or bytearray:
                 # Invalid type for parameter Body, value: <memory at 0x7f512801b6d0>, type: <class 'memoryview'>, valid types: <class 'bytes'>, <class 'bytearray'>, file-like object
-                if off == len(buf):
-                    return buf
-                return buf[:off]
+                return bytes(buf if off == len(buf) else buf[:off])
 
             k = len(b)
             if k > n - off:
