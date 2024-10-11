@@ -181,7 +181,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
             status = await batch.last_known_status()
             jobs = await collect_aiter(batch.jobs())
             for j in jobs:
-                j['duration'] = humanize_timedelta_msecs(j['duration'])
+                j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
             page_context['batch'] = status
             page_context.update(filter_jobs(jobs))
             artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
@@ -271,7 +271,7 @@ async def get_batch(request: web.Request, userdata: UserData):
     status = await b.last_known_status()
     jobs = await collect_aiter(b.jobs())
     for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(j['duration'])
+        j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
     wb = get_maybe_wb_for_batch(b)
     page_context = {'batch': status, 'wb': wb}
     page_context.update(filter_jobs(jobs))

@@ -2106,7 +2106,7 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        await asyncio.wait([c.remove() for c in self.containers.values()])
+        await asyncio.wait([asyncio.create_task(c.remove()) for c in self.containers.values()])
 
     def status(self):
         status = super().status()
