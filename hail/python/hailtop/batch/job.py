@@ -859,6 +859,11 @@ class BashJob(Job):
         Same job object with command appended.
         """
 
+        if command.strip() == '':
+            job_name = f'job {self.name!r}' if self.name else 'unnamed job'
+            warnings.warn(f'Ignoring empty command specified for {job_name}.')
+            return self
+
         command = self._interpolate_command(command)
         self._command.append(command)
         return self
