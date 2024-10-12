@@ -17,3 +17,7 @@ output test_storage_uri {
 output ci_principal_id {
   value = module.ci_sp.principal_id
 }
+
+output worker_key_vault_id {
+  value = azurerm_key_vault.worker_key_vault.id
+}
