@@ -30,6 +30,14 @@ class ReadableStream(abc.ABC):
     async def readexactly(self, n: int) -> bytes:
         raise NotImplementedError
 
+    async def read_until_n_or_eof(self, n: int) -> bytes:
+        so_far = 0
+        content = bytes()
+        while (b := await self.read(n - so_far)) and so_far < n:
+            content += b
+            so_far += len(b)
+        return content
+
     async def seek(self, offset, whence) -> int:
         raise OSError
 
