@@ -9,8 +9,7 @@ Install Hail on Mac OS X
 
   .. code-block::
 
-    brew tap homebrew/cask-versions
-    brew install --cask temurin8
+    brew install temurin@11
 
   You *must* pick a Java installation with a compatible architecture. If you have an Apple M1 or M2
   you must use an "arm64" Java, otherwise you must use an "x86_64" Java. You can check if you have
