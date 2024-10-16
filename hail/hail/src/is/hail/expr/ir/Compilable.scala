@@ -20,7 +20,6 @@ object InterpretableButNotCompilable {
     case _: MatrixToValueApply => true
     case _: BlockMatrixToValueApply => true
     case _: BlockMatrixCollect => true
-    case _: BlockMatrixToTableApply => true
     case _ => false
   }
 }
@@ -44,7 +43,6 @@ object Compilable {
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false
       case _: BlockMatrixToValueApply => false
-      case _: BlockMatrixToTableApply => false
       case _: RelationalRef => false
       case _: RelationalLet => false
       case _ => true
