@@ -27,7 +27,7 @@ AUTHORIZED_USERS = [
     User('cjllanwarne', 'chrisl', HAIL_TEAM),
     User('ehigham', 'ehigham', HAIL_TEAM),
     User('jkgoodrich', 'jgoodric'),
-    User('ksittig', 'ksittig', HAIL_TEAM),
     User('konradjk', 'konradk'),
+    User('ksittig', 'ksittig', HAIL_TEAM),
     User('patrick-schultz', 'pschultz', HAIL_TEAM),
 ]
