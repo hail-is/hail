@@ -7,7 +7,9 @@ import is.hail.utils.HailException
 
 object FoldConstants {
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.r.pool.scopedRegion(region => ctx.local(r = region)(foldConstants(_, ir)))
+    ctx.time {
+      ctx.r.pool.scopedRegion(r => ctx.local(r = r)(foldConstants(_, ir)))
+    }
 
   private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     RewriteBottomUp(

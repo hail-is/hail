@@ -447,7 +447,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
     ctx.time {
       TypeCheck(ctx, ir)
       Validate(ir)
-      ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
+      ctx.irMetadata.semhash = SemanticHash(ctx, ir)
       try {
         val lowerTable = ctx.flags.get("lower") != null
         val lowerBM = ctx.flags.get("lower_bm") != null

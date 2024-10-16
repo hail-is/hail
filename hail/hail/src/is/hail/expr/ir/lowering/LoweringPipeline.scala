@@ -13,13 +13,13 @@ case class LoweringPipeline(lowerings: LoweringPass*) {
 
       def render(context: String): Unit =
         if (ctx.shouldLogIR())
-          log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x, elideLiterals = true))
+          log.info(s"$context: IR size ${IRSize(x)}: \n" + Pretty(ctx, x))
 
       render(s"initial IR")
 
-      lowerings.foreach { l =>
+      for (l <- lowerings) {
         try {
-          x = l.apply(ctx, x)
+          x = l(ctx, x)
           render(s"after ${l.context}")
         } catch {
           case e: Throwable =>

@@ -285,7 +285,7 @@ class ServiceBackend(
       Validate(ir)
       val queryID = Backend.nextID()
       log.info(s"starting execution of query $queryID of initial size ${IRSize(ir)}")
-      ctx.irMetadata.semhash = SemanticHash(ctx)(ir)
+      ctx.irMetadata.semhash = SemanticHash(ctx, ir)
       val res = _jvmLowerAndExecute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       res

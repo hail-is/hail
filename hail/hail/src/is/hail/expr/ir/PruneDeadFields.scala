@@ -114,34 +114,35 @@ object PruneDeadFields {
     }
   }
 
-  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    try {
-      val irCopy = ir.deepCopy()
-      val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
-      irCopy match {
-        case mir: MatrixIR =>
-          memoizeMatrixIR(ctx, mir, mir.typ, ms)
-          rebuild(ctx, mir, ms.rebuildState)
-        case tir: TableIR =>
-          memoizeTableIR(ctx, tir, tir.typ, ms)
-          rebuild(ctx, tir, ms.rebuildState)
-        case bmir: BlockMatrixIR =>
-          memoizeBlockMatrixIR(ctx, bmir, bmir.typ, ms)
-          rebuild(ctx, bmir, ms.rebuildState)
-        case vir: IR =>
-          memoizeValueIR(ctx, vir, vir.typ, ms)
-          rebuildIR(
-            ctx,
-            vir,
-            BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)),
-            ms.rebuildState,
-          )
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time {
+      try {
+        val irCopy = ir.deepCopy()
+        val ms = ComputeMutableState(Memo.empty[BaseType], mutable.HashMap.empty)
+        irCopy match {
+          case mir: MatrixIR =>
+            memoizeMatrixIR(ctx, mir, mir.typ, ms)
+            rebuild(ctx, mir, ms.rebuildState)
+          case tir: TableIR =>
+            memoizeTableIR(ctx, tir, tir.typ, ms)
+            rebuild(ctx, tir, ms.rebuildState)
+          case bmir: BlockMatrixIR =>
+            memoizeBlockMatrixIR(ctx, bmir, bmir.typ, ms)
+            rebuild(ctx, bmir, ms.rebuildState)
+          case vir: IR =>
+            memoizeValueIR(ctx, vir, vir.typ, ms)
+            rebuildIR(
+              ctx,
+              vir,
+              BindingEnv(Env.empty, Some(Env.empty), Some(Env.empty)),
+              ms.rebuildState,
+            )
+        }
+      } catch {
+        case e: Throwable =>
+          fatal(s"error trying to rebuild IR:\n${Pretty(ctx, ir, allowUnboundRefs = true)}", e)
       }
-    } catch {
-      case e: Throwable =>
-        fatal(s"error trying to rebuild IR:\n${Pretty(ctx, ir, allowUnboundRefs = true)}", e)
     }
-  }
 
   def selectKey(t: TStruct, k: IndexedSeq[String]): TStruct = t.filterSet(k.toSet)._1
 
