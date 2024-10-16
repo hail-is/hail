@@ -1,81 +1,83 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
+import is.hail.utils.fatal
+
 import scala.collection.mutable
+import scala.util.control.NonFatal
 
 object ForwardRelationalLets {
-  def apply(ir0: BaseIR): BaseIR = {
-
-    val usages = mutable.HashMap.empty[Name, (Int, Int)]
-
-    val nestingDepth = NestingDepth(ir0)
-
-    def visit(ir1: BaseIR): Unit = {
-      ir1 match {
-        case RelationalLet(name, _, _) =>
-          usages(name) = (0, 0)
-        case RelationalLetTable(name, _, _) =>
-          usages(name) = (0, 0)
-        case RelationalLetMatrixTable(name, _, _) =>
-          usages(name) = (0, 0)
-        case RelationalLetBlockMatrix(name, _, _) =>
-          usages(name) = (0, 0)
+  def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR =
+    ctx.time {
+      val uses = mutable.HashMap.empty[Name, (Int, Int)]
+      val nestingDepth = NestingDepth(ctx, ir0)
+      IRTraversal.levelOrder(ir0).foreach {
         case x @ RelationalRef(name, _) =>
-          val (n, nd) = usages(name)
-          usages(name) = (n + 1, math.max(nd, nestingDepth.lookupRef(x)))
+          val (n, nd) = uses.getOrElseUpdate(name, (0, 0))
+          uses(name) = (n + 1, math.max(nd, nestingDepth.lookupRef(x)))
         case _ =>
       }
-      ir1.children.foreach(visit)
-    }
 
-    visit(ir0)
+      def shouldForward(name: Name): Boolean =
+        uses.get(name).forall(t => t._1 < 2 && t._2 < 1)
 
-    def shouldForward(t: (Int, Int)): Boolean = t._1 < 2 && t._2 < 1
+      // short circuit if possible
+      if (!uses.keys.exists(shouldForward)) ir0
+      else {
+        val env = mutable.HashMap.empty[Name, IR]
 
-    // short circuit if possible
-    if (!usages.valuesIterator.exists(shouldForward))
-      ir0
-    else {
-      val m = mutable.HashMap.empty[Name, IR]
+        def rewrite(ir1: BaseIR): BaseIR = ir1 match {
+          case RelationalLet(name, value, body) =>
+            if (shouldForward(name)) {
+              env(name) = rewrite(value).asInstanceOf[IR]
+              rewrite(body)
+            } else
+              RelationalLet(name, rewrite(value).asInstanceOf[IR], rewrite(body).asInstanceOf[IR])
+          case RelationalLetTable(name, value, body) =>
+            if (shouldForward(name)) {
+              env(name) = rewrite(value).asInstanceOf[IR]
+              rewrite(body)
+            } else RelationalLetTable(
+              name,
+              rewrite(value).asInstanceOf[IR],
+              rewrite(body).asInstanceOf[TableIR],
+            )
+          case RelationalLetMatrixTable(name, value, body) =>
+            if (shouldForward(name)) {
+              env(name) = rewrite(value).asInstanceOf[IR]
+              rewrite(body)
+            } else RelationalLetMatrixTable(
+              name,
+              rewrite(value).asInstanceOf[IR],
+              rewrite(body).asInstanceOf[MatrixIR],
+            )
+          case RelationalLetBlockMatrix(name, value, body) =>
+            if (shouldForward(name)) {
+              env(name) = rewrite(value).asInstanceOf[IR]
+              rewrite(body)
+            } else RelationalLetBlockMatrix(
+              name,
+              rewrite(value).asInstanceOf[IR],
+              rewrite(body).asInstanceOf[BlockMatrixIR],
+            )
+          case x @ RelationalRef(name, _) =>
+            env.getOrElse(name, x)
+          case _ => ir1.mapChildren(rewrite)
+        }
 
-      def recur(ir1: BaseIR): BaseIR = ir1 match {
-        case RelationalLet(name, value, body) =>
-          if (shouldForward(usages(name))) {
-            m(name) = recur(value).asInstanceOf[IR]
-            recur(body)
-          } else RelationalLet(name, recur(value).asInstanceOf[IR], recur(body).asInstanceOf[IR])
-        case RelationalLetTable(name, value, body) =>
-          if (shouldForward(usages(name))) {
-            m(name) = recur(value).asInstanceOf[IR]
-            recur(body)
-          } else RelationalLetTable(
-            name,
-            recur(value).asInstanceOf[IR],
-            recur(body).asInstanceOf[TableIR],
-          )
-        case RelationalLetMatrixTable(name, value, body) =>
-          if (shouldForward(usages(name))) {
-            m(name) = recur(value).asInstanceOf[IR]
-            recur(body)
-          } else RelationalLetMatrixTable(
-            name,
-            recur(value).asInstanceOf[IR],
-            recur(body).asInstanceOf[MatrixIR],
-          )
-        case RelationalLetBlockMatrix(name, value, body) =>
-          if (shouldForward(usages(name))) {
-            m(name) = recur(value).asInstanceOf[IR]
-            recur(body)
-          } else RelationalLetBlockMatrix(
-            name,
-            recur(value).asInstanceOf[IR],
-            recur(body).asInstanceOf[BlockMatrixIR],
-          )
-        case x @ RelationalRef(name, _) =>
-          m.getOrElse(name, x)
-        case _ => ir1.mapChildren(recur)
+        val ir = rewrite(ir0)
+
+        try
+          TypeCheck(ctx, ir)
+        catch {
+          case NonFatal(e) =>
+            fatal(
+              s"bad ir from ForwardRelationalLets, started as\n${Pretty(ctx, ir0, preserveNames = true)}",
+              e,
+            )
+        }
+
+        ir
       }
-
-      recur(ir0)
     }
-  }
 }
