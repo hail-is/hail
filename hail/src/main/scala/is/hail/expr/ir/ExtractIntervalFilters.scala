@@ -24,52 +24,53 @@ object ExtractIntervalFilters {
 
   val MAX_LITERAL_SIZE = 4096
 
-  def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR = {
-    MapIR.mapBaseIR(
-      ir0,
-      (ir: BaseIR) => {
-        (
-          ir match {
-            case TableFilter(child, pred) =>
-              extractPartitionFilters(
-                ctx,
-                pred,
-                Ref(TableIR.rowName, child.typ.rowType),
-                child.typ.key,
-              )
-                .map { case (newCond, intervals) =>
+  def apply(ctx: ExecuteContext, ir0: BaseIR): BaseIR =
+    ctx.time {
+      MapIR.mapBaseIR(
+        ir0,
+        ir =>
+          (
+            ir match {
+              case TableFilter(child, pred) =>
+                extractPartitionFilters(
+                  ctx,
+                  pred,
+                  Ref(TableIR.rowName, child.typ.rowType),
+                  child.typ.key,
+                )
+                  .map { case (newCond, intervals) =>
+                    log.info(
+                      s"generated TableFilterIntervals node with ${intervals.length} intervals:\n  " +
+                        s"Intervals: ${intervals.mkString(", ")}\n  " +
+                        s"Predicate: ${Pretty(ctx, pred)}\n " + s"Post: ${Pretty(ctx, newCond)}"
+                    )
+                    TableFilter(TableFilterIntervals(child, intervals, keep = true), newCond)
+                  }
+              case MatrixFilterRows(child, pred) =>
+                extractPartitionFilters(
+                  ctx,
+                  pred,
+                  Ref(MatrixIR.rowName, child.typ.rowType),
+                  child.typ.rowKey,
+                ).map { case (newCond, intervals) =>
                   log.info(
-                    s"generated TableFilterIntervals node with ${intervals.length} intervals:\n  " +
+                    s"generated MatrixFilterIntervals node with ${intervals.length} intervals:\n  " +
                       s"Intervals: ${intervals.mkString(", ")}\n  " +
                       s"Predicate: ${Pretty(ctx, pred)}\n " + s"Post: ${Pretty(ctx, newCond)}"
                   )
-                  TableFilter(TableFilterIntervals(child, intervals, keep = true), newCond)
+                  MatrixFilterRows(MatrixFilterIntervals(child, intervals, keep = true), newCond)
                 }
-            case MatrixFilterRows(child, pred) => extractPartitionFilters(
-                ctx,
-                pred,
-                Ref(MatrixIR.rowName, child.typ.rowType),
-                child.typ.rowKey,
-              ).map { case (newCond, intervals) =>
-                log.info(
-                  s"generated MatrixFilterIntervals node with ${intervals.length} intervals:\n  " +
-                    s"Intervals: ${intervals.mkString(", ")}\n  " +
-                    s"Predicate: ${Pretty(ctx, pred)}\n " + s"Post: ${Pretty(ctx, newCond)}"
-                )
-                MatrixFilterRows(MatrixFilterIntervals(child, intervals, keep = true), newCond)
-              }
 
-            case _ => None
-          }
-        ).getOrElse(ir)
-      },
-    )
-  }
+              case _ => None
+            }
+          ).getOrElse(ir),
+      )
+    }
 
   def extractPartitionFilters(ctx: ExecuteContext, cond: IR, ref: Ref, key: IndexedSeq[String])
     : Option[(IR, IndexedSeq[Interval])] = {
     if (key.isEmpty) None
-    else {
+    else ctx.time {
       val extract =
         new ExtractIntervalFilters(ctx, ref.typ.asInstanceOf[TStruct].typeAfterSelectNames(key))
       val trueSet = extract.analyze(cond, ref.name)

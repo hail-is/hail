@@ -12,63 +12,52 @@ import scala.collection.mutable
 object Simplify {
 
   /** Transform 'ir' using simplification rules until none apply. */
-  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR = ir match {
-    case ir: IR => simplifyValue(ctx)(ir)
-    case tir: TableIR => simplifyTable(ctx)(tir)
-    case mir: MatrixIR => simplifyMatrix(ctx)(mir)
-    case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx)(bmir)
-  }
+  def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time(recur(ctx, ir))
+
+  private[this] def recur(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ir match {
+      case ir: IR => simplifyValue(ctx, ir)
+      case tir: TableIR => simplifyTable(ctx, tir)
+      case mir: MatrixIR => simplifyMatrix(ctx, mir)
+      case bmir: BlockMatrixIR => simplifyBlockMatrix(ctx, bmir)
+    }
 
   private[this] def visitNode[T <: BaseIR](
-    visitChildren: BaseIR => BaseIR,
-    transform: T => Option[T],
-    post: => (T => T),
+    transform: (ExecuteContext, T) => Option[T],
+    post: => (ExecuteContext, T) => T,
   )(
-    t: T
+    ctx: ExecuteContext,
+    t: T,
   ): T = {
-    val t1 = t.mapChildren(visitChildren).asInstanceOf[T]
-    transform(t1).map(post).getOrElse(t1)
+    val t1 = t.mapChildren(recur(ctx, _)).asInstanceOf[T]
+    transform(ctx, t).map(post(ctx, _)).getOrElse(t1)
   }
 
-  private[this] def simplifyValue(ctx: ExecuteContext): IR => IR =
-    visitNode(
-      Simplify(ctx, _),
-      rewriteValueNode(ctx),
-      simplifyValue(ctx),
-    )
+  private[this] val simplifyValue: (ExecuteContext, IR) => IR =
+    visitNode(rewriteValueNode, simplifyValue)
 
-  private[this] def simplifyTable(ctx: ExecuteContext)(tir: TableIR): TableIR =
-    visitNode(
-      Simplify(ctx, _),
-      rewriteTableNode(ctx),
-      simplifyTable(ctx),
-    )(tir)
+  private[this] val simplifyTable: (ExecuteContext, TableIR) => TableIR =
+    visitNode(rewriteTableNode, simplifyTable)
 
-  private[this] def simplifyMatrix(ctx: ExecuteContext)(mir: MatrixIR): MatrixIR =
-    visitNode(
-      Simplify(ctx, _),
-      rewriteMatrixNode(),
-      simplifyMatrix(ctx),
-    )(mir)
+  private[this] val simplifyMatrix: (ExecuteContext, MatrixIR) => MatrixIR =
+    visitNode(rewriteMatrixNode, simplifyMatrix)
 
-  private[this] def simplifyBlockMatrix(ctx: ExecuteContext)(bmir: BlockMatrixIR): BlockMatrixIR =
-    visitNode(
-      Simplify(ctx, _),
-      rewriteBlockMatrixNode,
-      simplifyBlockMatrix(ctx),
-    )(bmir)
+  private[this] val simplifyBlockMatrix: (ExecuteContext, BlockMatrixIR) => BlockMatrixIR =
+    visitNode(rewriteBlockMatrixNode, simplifyBlockMatrix)
 
-  private[this] def rewriteValueNode(ctx: ExecuteContext)(ir: IR): Option[IR] =
-    valueRules(ctx).lift(ir).orElse(numericRules(ir))
+  private[this] def rewriteValueNode(_ctx: ExecuteContext, ir: IR): Option[IR] =
+    valueRules.lift(ir).orElse(numericRules(ir))
 
-  private[this] def rewriteTableNode(ctx: ExecuteContext)(tir: TableIR): Option[TableIR] =
+  private[this] def rewriteTableNode(ctx: ExecuteContext, tir: TableIR): Option[TableIR] =
     tableRules(ctx).lift(tir)
 
-  private[this] def rewriteMatrixNode()(mir: MatrixIR): Option[MatrixIR] =
-    matrixRules().lift(mir)
+  private[this] def rewriteMatrixNode(_ctx: ExecuteContext, mir: MatrixIR): Option[MatrixIR] =
+    matrixRules.lift(mir)
 
-  private[this] def rewriteBlockMatrixNode: BlockMatrixIR => Option[BlockMatrixIR] =
-    blockMatrixRules.lift
+  private[this] def rewriteBlockMatrixNode(_ctx: ExecuteContext, bmir: BlockMatrixIR)
+    : Option[BlockMatrixIR] =
+    blockMatrixRules.lift(bmir)
 
   /** Returns true if any strict child of 'x' is NA. A child is strict if 'x' evaluates to missing
     * whenever the child does.
@@ -205,7 +194,7 @@ object Simplify {
     ).reduce((f, g) => ir => f(ir).orElse(g(ir)))
   }
 
-  private[this] def valueRules(ctx: ExecuteContext): PartialFunction[IR, IR] = {
+  private[this] def valueRules: PartialFunction[IR, IR] = {
     // propagate NA
     case x: IR if hasMissingStrictChild(x) =>
       NA(x.typ)
@@ -1166,7 +1155,7 @@ object Simplify {
       )
   }
 
-  private[this] def matrixRules(): PartialFunction[MatrixIR, MatrixIR] = {
+  private[this] def matrixRules: PartialFunction[MatrixIR, MatrixIR] = {
     case MatrixMapRows(child, Ref(n, _)) if n == MatrixIR.rowName => child
 
     case MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, _), keys, false) =>

@@ -24,12 +24,11 @@ case object SemanticHash extends Logging {
   def extend(x: Type, bytes: Array[Byte]): Type =
     MurmurHash3.hash32x86(bytes, 0, bytes.length, x)
 
-  def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
+  def apply(ctx: ExecuteContext, root: BaseIR): Option[Type] =
     ctx.time {
-
       // Running the algorithm on the name-normalised IR
       // removes sensitivity to compiler-generated names
-      val nameNormalizedIR = NormalizeNames(ctx, root, allowFreeVariables = true)
+      val nameNormalizedIR = NormalizeNames(allowFreeVariables = true)(ctx, root)
 
       def go: Option[Int] = {
         var hash: Type =

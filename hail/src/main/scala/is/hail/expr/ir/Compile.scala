@@ -93,7 +93,7 @@ object compile {
     N: sourcecode.Name,
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F with Mixin) =
     ctx.time {
-      val normalizedBody = NormalizeNames(ctx, body, allowFreeVariables = true)
+      val normalizedBody = NormalizeNames(allowFreeVariables = true)(ctx, body)
       ctx.CodeCache.getOrElseUpdate(
         CodeCacheKey(aggSigs.getOrElse(Array.empty).toFastSeq, params, normalizedBody), {
           var ir = Subst(

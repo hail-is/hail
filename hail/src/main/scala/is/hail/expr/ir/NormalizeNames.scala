@@ -9,7 +9,7 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 object NormalizeNames {
-  def apply[T <: BaseIR](ctx: ExecuteContext, ir: T, allowFreeVariables: Boolean = false): T =
+  def apply[T <: BaseIR](allowFreeVariables: Boolean = false)(ctx: ExecuteContext, ir: T): T =
     ctx.time {
       val freeVariables: Set[Name] = ir match {
         case ir: IR =>
