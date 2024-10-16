@@ -44,7 +44,7 @@ servers:
     description: "Current Batch service"
   - url: https://batch.hail.is/
     description: "Production Batch service"
-  - url: https://batch.{devname}.hail.is/
+  - url: https://internal.hail.is/{devname}/batch/
     description: "Developer Batch service"
     variables:
       devname:

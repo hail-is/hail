@@ -52,7 +52,7 @@ def setup_common_static_routes(routes):
         _compiled = True
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
-def setup_service_static_routes(service, routes):
+def setup_service_static_routes(routes, service):
     global _compiled
 
     if not _compiled:
