@@ -7,7 +7,7 @@ Hail uses Let's Encrypt certificates for the gateway pod.
 Update the `letsencrypt-config` secret:
 
 ```
-make -C letsencrypt run
+NAMESPACE=default make -C letsencrypt run
 ```
 
 Restart your gateway pods without downtime. When the restart they load the new certificate:
