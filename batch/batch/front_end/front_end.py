@@ -3409,6 +3409,7 @@ async def index(request: web.Request, _) -> NoReturn:
 async def swagger(request):
     page_context = {
         'service': 'batch',
+        'base_path': deploy_config.base_path('batch')
     }
     return await render_template('batch', request, None, 'swagger.html', page_context)
 
