@@ -36,7 +36,7 @@ class OwningTempFileManager(fs: FS) extends TempFileManager {
   }
 }
 
-case class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
+class NonOwningTempFileManager private (owner: TempFileManager) extends TempFileManager {
   override def newTmpPath(tmpdir: String, prefix: String, extension: String): String =
     owner.newTmpPath(tmpdir, prefix, extension)
 

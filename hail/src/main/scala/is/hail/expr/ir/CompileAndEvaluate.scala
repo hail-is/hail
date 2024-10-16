@@ -57,7 +57,12 @@ object CompileAndEvaluate {
             optimize = optimize,
           )
 
-          Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
+          val unit: Unit = ctx.scopedExecution { (hcl, fs, htc, r) =>
+            val execute = f(hcl, fs, htc, r)
+            ctx.time(execute(r))
+          }
+
+          Left(unit)
 
         case _ =>
           val (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) =
@@ -71,7 +76,12 @@ object CompileAndEvaluate {
               optimize = optimize,
             )
 
-          Right((resType, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
+          val res = ctx.scopedExecution { (hcl, fs, htc, r) =>
+            val execute = f(hcl, fs, htc, r)
+            ctx.time(execute(r))
+          }
+
+          Right((resType, res))
       }
     }
 }
