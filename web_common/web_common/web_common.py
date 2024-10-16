@@ -52,6 +52,14 @@ def setup_common_static_routes(routes):
         _compiled = True
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
+def setup_service_static_routes(service, routes):
+    global _compiled
+
+    if not _compiled:
+        sass_compile('web_common')
+        _compiled = True
+    routes.static(f'/{service}_static', f'{WEB_COMMON_ROOT}/{service}_static')
+
 
 def set_message(session, text, type):
     assert type in ('info', 'error')

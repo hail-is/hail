@@ -3405,6 +3405,13 @@ async def index(request: web.Request, _) -> NoReturn:
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
+@routes.get('/swagger')
+async def swagger(request):
+    page_context = {
+        'service': 'batch',
+    }
+    return await render_template('batch', request, None, 'swagger.html', page_context)
+
 
 async def cancel_batch_loop_body(app):
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
