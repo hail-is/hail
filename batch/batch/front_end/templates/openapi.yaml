@@ -95,22 +95,22 @@ paths:
             string:
               example: "TODO"
 
-#components:
-#  securitySchemes:
-#    main_auth:
-#      description: "Example description text of the OAuth2 scheme."
-#      type: oauth2
-#      flows:
-#        implicit:
-#          authorizationUrl: http://example.com/api/oauth/dialog
+components:
+  securitySchemes:
+    main_auth:
+      description: "Example description text of the OAuth2 scheme."
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: {{ auth_base_url }}/login
 #          scopes:
 #            'read:users': read user info
 #            'write:users': modify or remove users
-#    api_key:
-#      description: "Example description text of the API key scheme."
-#      type: apiKey
-#      in: header
-#      name: api_key
+    api_key:
+      description: "Use a token from another oauth login session. Not recommended!"
+      type: apiKey
+      in: header
+      name: Authorization
 #    basic_auth:
 #      type: http
 #      scheme: basic
