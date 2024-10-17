@@ -4,6 +4,7 @@ import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.caching.NoCaching
 import is.hail.backend.service.ServiceBackend.MaxAvailableGcsConnections
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
@@ -62,8 +63,6 @@ class ServiceBackend(
 
   private[this] var stageCount = 0
   private[this] val executor = Executors.newFixedThreadPool(MaxAvailableGcsConnections)
-
-  override def shouldCacheQueryInfo: Boolean = false
 
   def defaultParallelism: Int = 4
 
@@ -316,9 +315,10 @@ class ServiceBackend(
         ),
         new IrMetadata(),
         references,
-        ImmutableMap.empty,
-        mutable.Map.empty,
-        ImmutableMap.empty,
+        NoCaching,
+        NoCaching,
+        NoCaching,
+        NoCaching,
       )(f)
     }
 }
