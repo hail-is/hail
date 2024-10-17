@@ -69,7 +69,7 @@ from hailtop.utils import (
     time_msecs,
     time_msecs_str,
 )
-from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes, setup_service_static_routes
+from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
@@ -3555,7 +3555,6 @@ def run():
 
     setup_aiohttp_jinja2(app, 'batch.front_end')
     setup_common_static_routes(routes)
-    setup_service_static_routes(routes, 'batch')
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
 
