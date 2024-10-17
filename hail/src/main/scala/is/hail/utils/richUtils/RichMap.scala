@@ -1,5 +1,9 @@
 package is.hail.utils.richUtils
 
+import is.hail.utils.ImmutableMap
+
+import scala.collection.mutable
+
 class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
   def force =
     m.map(identity) // needed to make serializable: https://issues.scala-lang.org/browse/SI-7005
@@ -9,4 +13,7 @@ class RichMap[K, V](val m: Map[K, V]) extends AnyVal {
 
   def isTrivial(implicit eq: K =:= V): Boolean =
     m.forall { case (k, v) => k == v }
+
+  def immutableMutableMap: mutable.Map[K, V] =
+    ImmutableMap(m)
 }
