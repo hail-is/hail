@@ -19,7 +19,6 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.json4s.Extraction
 import org.json4s.jackson.JsonMethods
-import sourcecode.Enclosing
 
 case class FilePartition(index: Int, file: String) extends Partition
 
@@ -42,7 +41,7 @@ object HailContext {
 
   def backend: Backend = get.backend
 
-  def sparkBackend(implicit E: Enclosing): SparkBackend = get.backend.asSpark
+  def sparkBackend(implicit E: SourcePos): SparkBackend = get.backend.asSpark
 
   def configureLogging(logFile: String, quiet: Boolean, append: Boolean): Unit = {
     org.apache.log4j.helpers.LogLog.setInternalDebugging(true)
