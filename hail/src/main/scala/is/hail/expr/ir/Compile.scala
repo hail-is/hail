@@ -17,8 +17,6 @@ import is.hail.utils._
 
 import java.io.PrintWriter
 
-import sourcecode.Enclosing
-
 case class CodeCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
   args: Seq[(Name, EmitParamType)],
@@ -89,7 +87,7 @@ object compile {
     optimize: Boolean,
     print: Option[PrintWriter],
   )(implicit
-    E: Enclosing,
+    E: SourcePos,
     N: sourcecode.Name,
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F with Mixin) =
     ctx.time {
@@ -131,7 +129,7 @@ object compile {
           CompiledFunction(rt, fb.resultWithIndex(print))
         },
       ).asInstanceOf[CompiledFunction[F with Mixin]].tuple
-    }
+    }(E)
 }
 
 object CompileIterator {

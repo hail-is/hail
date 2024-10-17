@@ -6,11 +6,10 @@ import scala.collection.mutable
 
 import org.json4s.{JArray, JString, JValue}
 import org.json4s.JsonAST.JLong
-import sourcecode.Enclosing
 
 object ExecutionTimer {
 
-  def time[T](f: ExecutionTimer => T)(implicit E: Enclosing): (T, Timings) = {
+  def time[T](f: ExecutionTimer => T)(implicit E: SourcePos): (T, Timings) = {
     val timer = new ExecutionTimer(E.value)
     val result = f(timer)
     timer.finish()
@@ -18,7 +17,7 @@ object ExecutionTimer {
     (result, timer.result)
   }
 
-  def logTime[T](f: ExecutionTimer => T)(implicit E: Enclosing): T = {
+  def logTime[T](f: ExecutionTimer => T)(implicit E: SourcePos): T = {
     val (result, _) = time[T](f)
     result
   }

@@ -30,7 +30,6 @@ import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SparkSession
-import sourcecode.Enclosing
 
 class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Serializable {
   def value: T = bc.value
@@ -71,7 +70,7 @@ object SparkBackend {
 
   private var theSparkBackend: SparkBackend = _
 
-  def sparkContext(implicit E: Enclosing): SparkContext = HailContext.sparkBackend.sc
+  def sparkContext(implicit E: SourcePos): SparkContext = HailContext.sparkBackend.sc
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -352,7 +351,7 @@ class SparkBackend(val sc: SparkContext) extends Backend {
 
   def defaultParallelism: Int = sc.defaultParallelism
 
-  override def asSpark(implicit E: Enclosing): SparkBackend = this
+  override def asSpark(implicit E: SourcePos): SparkBackend = this
 
   def close(): Unit =
     SparkBackend.stop()

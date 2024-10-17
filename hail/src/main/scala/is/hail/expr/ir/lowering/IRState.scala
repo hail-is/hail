@@ -5,8 +5,9 @@ import is.hail.expr.ir.{
   BaseIR, IRTraversal, RelationalLet, RelationalRef, TableKeyBy, TableKeyByAndAggregate,
   TableOrderBy,
 }
+import is.hail.utils.SourcePos
 
-abstract class IRState(implicit E: sourcecode.Enclosing) {
+abstract class IRState(implicit E: SourcePos) {
   protected val rules: Array[Rule]
 
   final def verify(ctx: ExecuteContext, ir: BaseIR): Unit =
@@ -19,7 +20,7 @@ abstract class IRState(implicit E: sourcecode.Enclosing) {
       }
     }
 
-  def +(other: IRState)(implicit E: sourcecode.Enclosing): IRState = {
+  def +(other: IRState)(implicit E: SourcePos): IRState = {
     val newRules = rules ++ other.rules
     new IRState()(E) {
       val rules: Array[Rule] = newRules

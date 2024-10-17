@@ -1075,6 +1075,8 @@ package object utils
 
   implicit def evalLazy[A](f: Lazy[A]): A =
     f()
+
+  type SourcePos = sourcecode.FullName
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {

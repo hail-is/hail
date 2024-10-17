@@ -42,7 +42,6 @@ import org.apache.spark.sql.DataFrame
 import org.json4s
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
-import sourcecode.Enclosing
 
 final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandling {
 
@@ -298,7 +297,7 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
     selfContainedExecution: Boolean = true
   )(
     f: ExecuteContext => T
-  )(implicit E: Enclosing
+  )(implicit E: SourcePos
   ): (T, Timings) =
     ExecutionTimer.time { timer =>
       ExecuteContext.scoped(

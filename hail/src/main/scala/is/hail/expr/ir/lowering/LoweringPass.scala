@@ -23,7 +23,7 @@ final class IrMetadata() {
   }
 }
 
-abstract class LoweringPass(implicit E: sourcecode.Enclosing) {
+abstract class LoweringPass(implicit E: SourcePos) {
   val before: IRState
   val after: IRState
   val context: String
