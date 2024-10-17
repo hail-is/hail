@@ -1,6 +1,6 @@
 package is.hail.backend
 
-import is.hail.expr.ir.{IRParser, IRParserEnvironment}
+import is.hail.expr.ir.IRParser
 import is.hail.utils._
 
 import scala.util.control.NonFatal
@@ -89,10 +89,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
         backend.withExecuteContext { ctx =>
           val (res, timings) = ExecutionTimer.time { timer =>
             ctx.local(timer = timer) { ctx =>
-              val irData = IRParser.parse_value_ir(
-                irStr,
-                IRParserEnvironment(ctx, irMap = backend.persistedIR.toMap),
-              )
+              val irData = IRParser.parse_value_ir(ctx, irStr)
               backend.execute(ctx, irData)
             }
           }
