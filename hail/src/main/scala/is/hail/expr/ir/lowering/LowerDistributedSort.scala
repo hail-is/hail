@@ -25,13 +25,13 @@ object LowerDistributedSort {
     inputStage: TableStage,
     sortFields: IndexedSeq[SortField],
     rt: RTable,
-  ): TableReader = {
+  ): TableReader = ctx.time {
 
     val numPartitions = inputStage.partitioner.numPartitions
     val collected = inputStage.collectWithGlobals("shuffle_local_sort")
 
     val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) =
-      ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](
+      Compile[AsmFunction1RegionLong](
         ctx,
         FastSeq(),
         FastSeq(classInfo[Region]),
@@ -39,12 +39,12 @@ object LowerDistributedSort {
         collected,
         print = None,
         optimize = true,
-      ))
+      )
 
     val rowsAndGlobal = ctx.scopedExecution { (hcl, fs, htc, r) =>
       val fRunnable =
         ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(hcl, fs, htc, r))
-      val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
+      val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(r))
       ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(
         resultPType,
         resultAddress,

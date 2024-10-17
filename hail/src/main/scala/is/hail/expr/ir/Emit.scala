@@ -32,7 +32,7 @@ import java.io._
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
   def analyze(ctx: ExecuteContext, ir: IR, pTypeEnv: Env[PType] = Env.empty): EmitContext = {
-    ctx.timer.time("EmitContext.analyze") {
+    ctx.time {
       val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
       val requiredness = Requiredness(ir, usesAndDefs, ctx, pTypeEnv)
       val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
@@ -49,13 +49,13 @@ object EmitContext {
   }
 }
 
-class EmitContext(
-  val executeContext: ExecuteContext,
-  val req: RequirednessAnalysis,
-  val usesAndDefs: UsesAndDefs,
-  val methodSplits: Memo[Unit],
-  val inLoopCriticalPath: Memo[Unit],
-  val tryingToSplit: Memo[Unit],
+case class EmitContext(
+  executeContext: ExecuteContext,
+  req: RequirednessAnalysis,
+  usesAndDefs: UsesAndDefs,
+  methodSplits: Memo[Unit],
+  inLoopCriticalPath: Memo[Unit],
+  tryingToSplit: Memo[Unit],
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[EmitValue]) {
@@ -100,46 +100,47 @@ object Emit {
     rti: TypeInfo[_],
     nParams: Int,
     aggs: Option[Array[AggStateSig]] = None,
-  ): Option[SingleCodeType] = {
-    TypeCheck(ctx.executeContext, ir)
+  ): Option[SingleCodeType] =
+    ctx.executeContext.time {
+      TypeCheck(ctx.executeContext, ir)
 
-    val mb = fb.apply_method
-    val container = aggs.map { a =>
-      val c = fb.addAggStates(a)
-      AggContainer(a, c, () => ())
-    }
-    val emitter = new Emit[C](ctx, fb.ecb)
-    val region = mb.getCodeParam[Region](1)
-    val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
-      fb.apply_method.voidWithBuilder { cb =>
-        val env = EmitEnv(
-          Env.empty,
-          (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)),
-        ) // this, region, ...
-        emitter.emitVoid(cb, ir, region, env, container, None)
+      val mb = fb.apply_method
+      val container = aggs.map { a =>
+        val c = fb.addAggStates(a)
+        AggContainer(a, c, () => ())
       }
-      None
-    } else {
-      var sct: SingleCodeType = null
-      fb.emitWithBuilder { cb =>
-        val env = EmitEnv(
-          Env.empty,
-          (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)),
-        ) // this, region, ...
-        val sc = emitter.emitI(ir, cb, region, env, container, None).handle(
-          cb,
-          cb._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
-        )
+      val emitter = new Emit[C](ctx, fb.ecb)
+      val region = mb.getCodeParam[Region](1)
+      val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
+        fb.apply_method.voidWithBuilder { cb =>
+          val env = EmitEnv(
+            Env.empty,
+            (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)),
+          ) // this, region, ...
+          emitter.emitVoid(cb, ir, region, env, container, None)
+        }
+        None
+      } else {
+        var sct: SingleCodeType = null
+        fb.emitWithBuilder { cb =>
+          val env = EmitEnv(
+            Env.empty,
+            (0 until nParams).map(i => mb.storeEmitParamAsField(cb, i + 2)),
+          ) // this, region, ...
+          val sc = emitter.emitI(ir, cb, region, env, container, None).handle(
+            cb,
+            cb._throw(Code.newInstance[RuntimeException, String]("cannot return empty")),
+          )
 
-        val scp = SingleCodeSCode.fromSCode(cb, sc, region)
-        assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${scp.typ.ti}")
-        sct = scp.typ
-        scp.code
+          val scp = SingleCodeSCode.fromSCode(cb, sc, region)
+          assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${scp.typ.ti}")
+          sct = scp.typ
+          scp.code
+        }
+        Some(sct)
       }
-      Some(sct)
+      returnTypeOption
     }
-    returnTypeOption
-  }
 }
 
 object AggContainer {
