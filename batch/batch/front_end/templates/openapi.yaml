@@ -1,0 +1,142 @@
+openapi: 3.1.0
+info:
+  version: 0.2.133
+  title: Hail Services
+  # termsOfService: TBC
+  contact:
+    name: Contact our support
+    email: hail-team@broadinstitute.org
+    url: https://www.hail.is/gethelp.html
+  license:
+    name: MIT Licence
+    url: https://github.com/hail-is/hail/blob/main/LICENSE
+  x-logo:
+    url: 'https://hail.is/static/hail-logo-cropped-sm-opt.png'
+    altText: Hail logo
+  description: >
+    Hail is a ....
+    These services are for ....
+externalDocs:
+  description: "Find out how to create a GitHub repo for your OpenAPI definition."
+  url: 'https://github.com/Redocly/create-openapi-repo'
+tags:
+#  - name: Echo
+#    description: "Example echo operations."
+#  - name: User
+#    description: "Example actions on user accounts."
+#  - name: Admin
+#    description: "Example operations reserved for administrators."
+  - name: Info
+    description: "Operations for retrieving basic information about the service."
+#  - name: Tag
+#    description: "This is a tag description."
+#x-tagGroups:
+#  - name: General
+#    tags:
+#      - User
+#      - Info
+#      - Echo
+#  - name: Administration
+#    tags:
+#      - Admin
+servers:
+  - url: {{ base_url }}
+    description: "Current Batch service"
+  - url: https://batch.hail.is/
+    description: "GCP Production Batch service"
+  - url: https://batch.azure.hail.is/
+    description: "Azure Production Batch service"
+  - url: https://internal.hail.is/{devname}/batch/
+    description: "Developer Batch service"
+    variables:
+      devname:
+        description: Developer environment name
+paths:
+  '/api/v1alpha/version':
+    get:
+      summary: "Version"
+      description: "Get the version of the API."
+      operationId: getVersion
+      tags:
+        - Info
+      responses:
+        '200':
+          description: "Successfully retrieved the version of the API."
+          content:
+            string:
+              example: "0.2.133"
+  '/healthcheck':
+    get:
+      summary: "Healthcheck"
+      description: "Check the health of the API."
+      operationId: healthcheck
+      tags:
+        - Info
+      responses:
+        '200':
+          description: "Successfully checked the health of the API."
+  '/api/v1alpha/cloud':
+    get:
+      summary: "Cloud"
+      description: "Get the cloud provider supported by this batch instance."
+      operationId: getCloudProvider
+      tags:
+        - Info
+      responses:
+        '200':
+          description: "Successfully retrieved the cloud provider supported."
+          content:
+            string:
+              example: "gcp"
+  '/api/v1alpha/supported_regions':
+    get:
+      summary: "Supported Regions"
+      description: "Get the list of supported regions."
+      operationId: getSupportedRegions
+      tags:
+        - Info
+      responses:
+        '200':
+          description: "Successfully retrieved the regions list."
+          content:
+            string:
+              example: "TODO"
+
+#components:
+#  securitySchemes:
+#    main_auth:
+#      description: "Example description text of the OAuth2 scheme."
+#      type: oauth2
+#      flows:
+#        implicit:
+#          authorizationUrl: http://example.com/api/oauth/dialog
+#          scopes:
+#            'read:users': read user info
+#            'write:users': modify or remove users
+#    api_key:
+#      description: "Example description text of the API key scheme."
+#      type: apiKey
+#      in: header
+#      name: api_key
+#    basic_auth:
+#      type: http
+#      scheme: basic
+#webhooks:
+#  # TODO: Github -> CI webhooks?
+#  userInfo:
+#    post:
+#      summary: New user webhook
+#      description: "Information about a new user in the system."
+#      operationId: userInfo
+#      tags:
+#        - Info
+#      requestBody:
+#        content:
+#          application/json:
+#            schema:
+#              $ref: 'components/schemas/User.yaml'
+#      responses:
+#        '200':
+#          description: "Successfully retrieved information about a new user."
+#      security:
+#        - api_key: []
