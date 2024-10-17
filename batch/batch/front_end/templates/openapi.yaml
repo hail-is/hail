@@ -20,34 +20,27 @@ externalDocs:
   description: "Find out how to create a GitHub repo for your OpenAPI definition."
   url: 'https://github.com/Redocly/create-openapi-repo'
 tags:
-#  - name: Echo
-#    description: "Example echo operations."
-#  - name: User
-#    description: "Example actions on user accounts."
-#  - name: Admin
-#    description: "Example operations reserved for administrators."
-  - name: Info
-    description: "Operations for retrieving basic information about the service."
-#  - name: Tag
-#    description: "This is a tag description."
-#x-tagGroups:
-#  - name: General
-#    tags:
-#      - User
-#      - Info
-#      - Echo
+  - name: Public
+    description: "Operations for retrieving basic public information from the service."
+  - name: Authenticated Information
+    description: "Operations for retrieving information that require authentication."
+x-tagGroups:
+  - name: General
+    tags:
+      - 'Public'
+      - 'Authenticated Information'
 #  - name: Administration
 #    tags:
 #      - Admin
 servers:
   - url: {{ base_url }}
-    description: "Current Batch service"
+    description: "Current Batch service. No risk of CORS issues."
   - url: https://batch.hail.is/
-    description: "GCP Production Batch service"
+    description: "GCP Production Batch service. Beware CORS issues in swagger / browsers."
   - url: https://batch.azure.hail.is/
-    description: "Azure Production Batch service"
+    description: "Azure Production Batch service. Beware CORS issues in swagger / browsers."
   - url: https://internal.hail.is/{devname}/batch/
-    description: "Developer Batch service"
+    description: "Developer Batch service. Beware CORS issues in swagger / browsers."
     variables:
       devname:
         description: Developer environment name
@@ -58,7 +51,7 @@ paths:
       description: "Get the version of the API."
       operationId: getVersion
       tags:
-        - Info
+        - Public
       responses:
         '200':
           description: "Successfully retrieved the version of the API."
@@ -71,7 +64,7 @@ paths:
       description: "Check the health of the API."
       operationId: healthcheck
       tags:
-        - Info
+        - Public
       responses:
         '200':
           description: "Successfully checked the health of the API."
@@ -81,7 +74,7 @@ paths:
       description: "Get the cloud provider supported by this batch instance."
       operationId: getCloudProvider
       tags:
-        - Info
+        - Public
       responses:
         '200':
           description: "Successfully retrieved the cloud provider supported."
@@ -94,7 +87,7 @@ paths:
       description: "Get the list of supported regions."
       operationId: getSupportedRegions
       tags:
-        - Info
+        - Authenticated Information
       responses:
         '200':
           description: "Successfully retrieved the regions list."
