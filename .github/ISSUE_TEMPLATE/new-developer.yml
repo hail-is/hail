@@ -14,6 +14,7 @@ body:
 
         Action items:
         - Existing developer: Coordinate with appsec
+        - Existing project owner: Add new developer to the github project as (at least) an Editor, and with the Kubernetes Engine Admin role.
         - Existing developer: Create a new developer account - see [here](https://github.com/hail-is/hail/blob/main/dev-docs/services/creating-a-developer-account.md#creating-a-developer-account)
         - New developer: Create a PR to add yourself as a new CI user (see [here](https://github.com/hail-is/hail/blob/main/ci/ci/constants.py))
           - Existing developers: review and approve PR
