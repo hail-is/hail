@@ -187,7 +187,7 @@ class Py4JBackend(Backend):
         self._jbackend = jbackend
         self._jhc = jhc
 
-        self._backend_server = self._hail_package.backend.BackendServer.apply(self._jbackend)
+        self._backend_server = self._hail_package.backend.BackendServer(self._jbackend)
         self._backend_server_port: int = self._backend_server.port()
         self._backend_server.start()
         self._requests_session = requests.Session()
@@ -306,7 +306,8 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
-        self._backend_server.stop()
+        self._backend_server.close()
+        self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
         self._registered_ir_function_names = set()

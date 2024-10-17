@@ -14,8 +14,8 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
-import is.hail.services._
-import is.hail.services.batch_client.BatchClient
+import is.hail.services.{BatchClient, _}
+import is.hail.services.JobGroupStates.Failure
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -28,6 +28,7 @@ import scala.reflect.ClassTag
 
 import java.io._
 import java.nio.charset.StandardCharsets
+import java.nio.file.Path
 import java.util.concurrent._
 
 import org.apache.log4j.Logger
@@ -56,16 +57,22 @@ object ServiceBackend {
     name: String,
     theHailClassLoader: HailClassLoader,
     batchClient: BatchClient,
-    batchId: Option[Long],
-    jobGroupId: Option[Long],
+    batchId: Option[Int],
+    jobGroupId: Option[Int],
     scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
     rpcConfig: ServiceBackendRPCPayload,
     env: Map[String, String],
   ): ServiceBackend = {
 
-    val flags = HailFeatureFlags.fromMap(rpcConfig.flags)
+    val flags = HailFeatureFlags.fromEnv(rpcConfig.flags)
     val shouldProfile = flags.get("profile") != null
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), Some(flags), env)
+    val fs = RouterFS.buildRoutes(
+      CloudStorageFSConfig.fromFlagsAndEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        flags,
+        env,
+      )
+    )
 
     val backendContext = new ServiceBackendContext(
       rpcConfig.billing_project,
@@ -113,13 +120,13 @@ class ServiceBackend(
   var name: String,
   val theHailClassLoader: HailClassLoader,
   val batchClient: BatchClient,
-  val curBatchId: Option[Long],
-  val curJobGroupId: Option[Long],
+  val curBatchId: Option[Int],
+  val curJobGroupId: Option[Int],
   val flags: HailFeatureFlags,
   val tmpdir: String,
   val fs: FS,
   val serviceBackendContext: ServiceBackendContext,
-  val scratchDir: String = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse(""),
+  val scratchDir: String,
 ) extends Backend with BackendWithNoCodeCache {
   import ServiceBackend.log
 
@@ -162,7 +169,7 @@ class ServiceBackend(
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
     val n = collection.length
     val token = tokenUrlSafe
-    val root = s"${backendContext.remoteTmpDir}parallelizeAndComputeWithIndex/$token"
+    val root = s"${backendContext.remoteTmpDir}/parallelizeAndComputeWithIndex/$token"
 
     log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
     log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
@@ -178,7 +185,7 @@ class ServiceBackend(
     val uploadContexts = executor.submit[Unit](() =>
       retryTransientErrors {
         fs.writePDOS(s"$root/contexts") { os =>
-          var o = 12L * n
+          var o = 12L * n // 12L = sizeof(Long) + sizeof(Int)
           collection.foreach { context =>
             val len = context.length
             os.writeLong(o)
@@ -190,88 +197,60 @@ class ServiceBackend(
       }
     )
 
-    uploadFunction.get()
-    uploadContexts.get()
-
-    val parentJobGroup = curJobGroupId.getOrElse(0L)
-    val jobGroupIdInUpdate = 1 // QoB creates an update for every new stage
-    val workerJobGroup = JObject(
-      "job_group_id" -> JInt(jobGroupIdInUpdate),
-      "absolute_parent_id" -> JInt(parentJobGroup),
-      "attributes" -> JObject("name" -> JString(stageIdentifier)),
+    val jobGroup = JobGroupRequest(
+      job_group_id = 1, // QoB creates an update for every new stage
+      absolute_parent_id = curJobGroupId.getOrElse(0),
+      attributes = Map("name" -> stageIdentifier),
     )
-    log.info(s"worker job group spec: $workerJobGroup")
 
-    val jobs = collection.zipWithIndex.map { case (_, i) =>
-      var resources = JObject("preemptible" -> JBool(true))
-      if (backendContext.workerCores != "None") {
-        resources = resources.merge(JObject("cpu" -> JString(backendContext.workerCores)))
-      }
-      if (backendContext.workerMemory != "None") {
-        resources = resources.merge(JObject("memory" -> JString(backendContext.workerMemory)))
-      }
-      if (backendContext.storageRequirement != "0Gi") {
-        resources =
-          resources.merge(JObject("storage" -> JString(backendContext.storageRequirement)))
-      }
-      JObject(
-        "always_run" -> JBool(false),
-        "job_id" -> JInt(i + 1),
-        "in_update_parent_ids" -> JArray(List()),
-        "in_update_job_group_id" -> JInt(jobGroupIdInUpdate),
-        "process" -> JObject(
-          "jar_spec" -> JObject(
-            "type" -> JString("jar_url"),
-            "value" -> JString(jarLocation),
-          ),
-          "command" -> JArray(List(
-            JString(Main.WORKER),
-            JString(root),
-            JString(s"$i"),
-            JString(s"$n"),
-          )),
-          "type" -> JString("jvm"),
-          "profile" -> JBool(backendContext.profile),
+    log.info(s"worker job group spec: $jobGroup")
+
+    val jobs = collection.indices.map { i =>
+      JobRequest(
+        job_id = i + 1,
+        always_run = false,
+        in_update_job_group_id = jobGroup.job_group_id,
+        in_update_parent_ids = Array(),
+        process = JvmJob(
+          command = Array(Main.WORKER, root, s"${jobGroup.job_group_id}", s"$n"),
+          jar_url = jarLocation,
+          profile = flags.get("profile") != null,
         ),
-        "attributes" -> JObject(
-          "name" -> JString(s"${name}_stage${stageCount}_${stageIdentifier}_job$i")
-        ),
-        "resources" -> resources,
-        "regions" -> JArray(backendContext.regions.map(JString).toList),
-        "cloudfuse" -> JArray(backendContext.cloudfuseConfig.map { config =>
-          JObject(
-            "bucket" -> JString(config.bucket),
-            "mount_path" -> JString(config.mount_path),
-            "read_only" -> JBool(config.read_only),
+        resources = Some(
+          JobResources(
+            preemptible = true,
+            cpu = Some(backendContext.workerCores).filter(_ != "None"),
+            memory = Some(backendContext.workerMemory).filter(_ != "None"),
+            storage = Some(backendContext.storageRequirement).filter(_ != "0Gi"),
           )
-        }.toList),
+        ),
+        regions = Some(backendContext.regions).filter(_.nonEmpty),
+        cloudfuse = Some(backendContext.cloudfuseConfig).filter(_.nonEmpty),
+        attributes = Map("name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i"),
       )
     }
 
+    uploadFunction.get()
+    uploadContexts.get()
+
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val (batchId, (updateId, jobGroupId)) = curBatchId match {
-      case Some(id) =>
-        (id, batchClient.update(id, token, workerJobGroup, jobs))
-      case None =>
-        val batchId = batchClient.create(
-          JObject(
-            "billing_project" -> JString(backendContext.billingProject),
-            "n_jobs" -> JInt(n),
-            "token" -> JString(token),
-            "attributes" -> JObject("name" -> JString(name + "_" + stageCount)),
-          ),
-          jobs,
+    val batchId = curBatchId.getOrElse {
+      batchClient.newBatch(
+        BatchRequest(
+          billing_project = backendContext.billingProject,
+          n_jobs = 0,
+          token = token,
+          attributes = Map("name" -> name),
         )
-        (batchId, (1L, 1L))
+      )
     }
 
-    val batch = batchClient.waitForJobGroup(batchId, jobGroupId)
+    val (updateId, jobGroupId) = batchClient.newJobGroup(batchId, token, jobGroup, jobs)
+    val response = batchClient.waitForJobGroup(batchId, jobGroupId)
 
     stageCount += 1
-    implicit val formats: Formats = DefaultFormats
-    val batchState = (batch \ "state").extract[String]
-    if (batchState == "failed") {
+    if (response.state == Failure) {
       throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
     }
 
@@ -328,8 +307,10 @@ class ServiceBackend(
     r
   }
 
-  def stop(): Unit =
+  override def close(): Unit = {
     executor.shutdownNow()
+    batchClient.close()
+  }
 
   override def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {
@@ -438,17 +419,21 @@ object ServiceBackendAPI {
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
-    val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/secrets/deploy-config/deploy-config.json"
+    val fs = RouterFS.buildRoutes(
+      CloudStorageFSConfig.fromFlagsAndEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        HailFeatureFlags.fromEnv(),
+      )
     )
+    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
-    val batchClient = new BatchClient(s"$scratchDir/secrets/gsa-key/key.json")
+    val batchClient = BatchClient(deployConfig, Path.of(scratchDir, "secrets/gsa-key/key.json"))
     log.info("BatchClient allocated.")
 
-    val batchConfig = BatchConfig.fromConfigFile(s"$scratchDir/batch-config/batch-config.json")
+    val batchConfig =
+      BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json"))
     val batchId = batchConfig.map(_.batchId)
     val jobGroupId = batchConfig.map(_.jobGroupId)
     log.info("BatchConfig parsed.")
@@ -517,8 +502,6 @@ private class HailSocketAPIOutputStream(
       closed = true
     }
 }
-
-case class CloudfuseConfig(bucket: String, mount_path: String, read_only: Boolean)
 
 case class SequenceConfig(fasta: String, index: String)
 
