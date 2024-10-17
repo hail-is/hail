@@ -101,7 +101,7 @@ components:
       description: "Example description text of the OAuth2 scheme."
       type: oauth2
       flows:
-        authorizationCode:
+        implicit:
           authorizationUrl: {{ auth_base_url }}/login
 #          scopes:
 #            'read:users': read user info
