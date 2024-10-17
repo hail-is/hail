@@ -9,14 +9,13 @@ import is.hail.io.fs.FS
 import is.hail.types.RTable
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.utils.fatal
+import is.hail.utils.{fatal, SourcePos}
 
 import scala.reflect.ClassTag
 
 import java.io.{Closeable, OutputStream}
 
 import com.fasterxml.jackson.core.StreamReadConstraints
-import sourcecode.Enclosing
 
 object Backend {
 
@@ -85,7 +84,7 @@ abstract class Backend extends Closeable {
 
   def close(): Unit
 
-  def asSpark(implicit E: Enclosing): SparkBackend =
+  def asSpark(implicit E: SourcePos): SparkBackend =
     fatal(s"${getClass.getSimpleName}: ${E.value} requires SparkBackend")
 
   def lowerDistributedSort(
