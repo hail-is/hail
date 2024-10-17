@@ -63,6 +63,7 @@ object ExecuteContext {
     tmpdir: String,
     localTmpdir: String,
     backend: Backend,
+    references: Map[String, ReferenceGenome],
     fs: FS,
     timer: ExecutionTimer,
     tempFileManager: TempFileManager,
@@ -79,6 +80,7 @@ object ExecuteContext {
           tmpdir,
           localTmpdir,
           backend,
+          references,
           fs,
           region,
           timer,
@@ -107,6 +109,7 @@ class ExecuteContext(
   val tmpdir: String,
   val localTmpdir: String,
   val backend: Backend,
+  val references: Map[String, ReferenceGenome],
   val fs: FS,
   val r: Region,
   val timer: ExecutionTimer,
@@ -128,7 +131,7 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(backend.references)
+  val stateManager = HailStateManager(references)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
@@ -154,7 +157,7 @@ class ExecuteContext(
 
   def getFlag(name: String): String = flags.get(name)
 
-  def getReference(name: String): ReferenceGenome = backend.references(name)
+  def getReference(name: String): ReferenceGenome = references(name)
 
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 
@@ -174,6 +177,7 @@ class ExecuteContext(
     tmpdir: String = this.tmpdir,
     localTmpdir: String = this.localTmpdir,
     backend: Backend = this.backend,
+    references: Map[String, ReferenceGenome] = this.references,
     fs: FS = this.fs,
     r: Region = this.r,
     timer: ExecutionTimer = this.timer,
@@ -189,6 +193,7 @@ class ExecuteContext(
       tmpdir,
       localTmpdir,
       backend,
+      references,
       fs,
       r,
       timer,
