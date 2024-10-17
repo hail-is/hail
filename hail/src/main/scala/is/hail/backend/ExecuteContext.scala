@@ -17,8 +17,6 @@ import scala.collection.mutable
 import java.io._
 import java.security.SecureRandom
 
-import sourcecode.Enclosing
-
 trait TempFileManager extends AutoCloseable {
   def newTmpPath(tmpdir: String, prefix: String, extension: String = null): String
 }
@@ -150,7 +148,7 @@ class ExecuteContext(
 
   def scopedExecution[T](
     f: (HailClassLoader, FS, HailTaskContext, Region) => T
-  )(implicit E: Enclosing
+  )(implicit E: SourcePos
   ): T =
     using(new LocalTaskContext(0, 0)) { tc =>
       time {
@@ -176,7 +174,7 @@ class ExecuteContext(
     taskContext.close()
   }
 
-  def time[A](block: => A)(implicit E: Enclosing): A =
+  def time[A](block: => A)(implicit E: SourcePos): A =
     timer.time(E.value)(block)
 
   def local[A](
