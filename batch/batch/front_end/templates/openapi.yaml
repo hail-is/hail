@@ -102,7 +102,8 @@ components:
       type: oauth2
       flows:
         implicit:
-          authorizationUrl: {{ auth_base_url }}/login
+          authorizationUrl: {{ auth_base_url }}/login?next={{ base_url }}/swagger
+          clientId: '842871226259-4oshjtt0j9n88k4j8a601gsv64mc7eql.apps.googleusercontent.com'
 #          scopes:
 #            'read:users': read user info
 #            'write:users': modify or remove users
