@@ -3,17 +3,22 @@ import subprocess
 import sys
 from typing import List, Optional, Tuple
 
+# on windows, gcloud is a batch script `gcloud.cmd`, so it needs to be invoked with the shell
+NEED_SHELL = sys.platform == 'win32'
+
 
 def run(command: List[str]):
     """Run a gcloud command."""
-    return subprocess.check_call(["gcloud", *command])
+    return subprocess.check_call(["gcloud", *command], shell=NEED_SHELL)
 
 
 def get_config(setting: str) -> Optional[str]:
     """Get a gcloud configuration value."""
     try:
         return (
-            subprocess.check_output(["gcloud", "config", "get-value", setting], stderr=subprocess.DEVNULL)
+            subprocess.check_output(
+                ["gcloud", "config", "get-value", setting], stderr=subprocess.DEVNULL, shell=NEED_SHELL
+            )
             .decode()
             .strip()
         )
@@ -25,7 +30,9 @@ def get_config(setting: str) -> Optional[str]:
 def get_version() -> Tuple[int, int, int]:
     """Get gcloud version as a tuple."""
     version_output = (
-        subprocess.check_output(["gcloud", "version", "--format=json"], stderr=subprocess.DEVNULL).decode().strip()
+        subprocess.check_output(["gcloud", "version", "--format=json"], stderr=subprocess.DEVNULL, shell=NEED_SHELL)
+        .decode()
+        .strip()
     )
     version_info = json.loads(version_output)
     v = version_info["Google Cloud SDK"].split(".")
