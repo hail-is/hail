@@ -8,13 +8,14 @@ Requirements
 Before you can run Hail on Dataproc, you must have both Hail and the Google Cloud CLI installed on your machine.
 
 Installing Hail
-------
+---------------
+
 First, install Hail on your `Mac OS X <macosx.rst>`__ or `Linux <linux.rst>`__ laptop or
 desktop. The Hail pip package includes a tool called ``hailctl dataproc`` which starts, stops, and
 manipulates Hail-enabled Dataproc clusters.
 
 Installing and configuring the Google Cloud SDK
-------------
+-----------------------------------------------
 
 We recommend that you follow the `Google Cloud SDK documentation <https://cloud.google.com/sdk/docs/install>`__ to
 install the Google Cloud SDK.
@@ -34,7 +35,7 @@ If you'd like to set your Dataproc region globally, you can do so by running:
 Otherwise, you can set your Dataproc region using the `hailctl` `--region` command line flag.
 
 Starting your first Dataproc cluster
---------------
+------------------------------------
 
 Start a dataproc cluster named "my-first-cluster". Cluster names may only
 contain a mix lowercase letters and dashes. Starting a cluster can take as long
