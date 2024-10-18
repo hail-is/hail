@@ -5,7 +5,7 @@ Use Hail on Google Dataproc
 Requirements
 ------------
 
-Running Hail on Dataproc requires having both Hail and the Google Cloud CLI installed on your machine.
+Before you can run Hail on Dataproc, you must have both Hail and the Google Cloud CLI installed on your machine.
 
 Installing Hail
 ------
