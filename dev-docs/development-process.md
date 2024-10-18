@@ -200,8 +200,8 @@ The service accounts used in developer namespaces do not have permission to crea
 to run real jobs on the developer namespaces' batch services:
 ```bash
 $ download-secret <username>-gsa-key
-$ mv secret.json key.json
-$ kubectl create secret generic <username>-gsa-key --namespace=<username> --from-file=key.json
+$ kubectl create secret generic <username>-gsa-key --namespace=<username> --from-file=contents/key.json
+$ cd - # Return to your original directory
 ```
 
 To submit jobs to your dev namespace, you need to configure your local hail

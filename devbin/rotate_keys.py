@@ -56,6 +56,8 @@ class GSAKeySecret:
         return self.key_data['client_email']
 
     def private_key_id(self):
+        if not 'private_key_id' in self.key_data:
+            raise ValueError(f'No private_key_id field found for {self} in {self.key_data}.')
         return self.key_data['private_key_id']
 
     def matches_iam_key(self, k: 'IAMKey'):
