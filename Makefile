@@ -213,6 +213,10 @@ $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
 	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
 	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@
 
+.PHONY: clean-image-targets
+clean-image-targets:
+	rm -f *-image
+
 .PHONY: local-mysql
 local-mysql:
 	cd docker/mysql && docker compose up -d
