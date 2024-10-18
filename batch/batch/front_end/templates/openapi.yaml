@@ -98,12 +98,13 @@ paths:
 components:
   securitySchemes:
     main_auth:
-      description: "Example description text of the OAuth2 scheme."
+      description: "GCP production hail login (hail.is and internal.hail.is)"
       type: oauth2
       flows:
         implicit:
-          authorizationUrl: {{ auth_base_url }}/login?next={{ base_url }}/swagger
-          clientId: '842871226259-4oshjtt0j9n88k4j8a601gsv64mc7eql.apps.googleusercontent.com'
+          authorizationUrl: {{ auth_base_url }}/login
+#          clientId: '842871226259-4oshjtt0j9n88k4j8a601gsv64mc7eql.apps.googleusercontent.com'
+          redirectUrl: {{ base_url }}/swagger
 #          scopes:
 #            'read:users': read user info
 #            'write:users': modify or remove users
