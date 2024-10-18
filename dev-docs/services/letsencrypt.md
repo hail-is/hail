@@ -40,7 +40,7 @@ After setting the `kubectl` context to the appropriate cluster, clean the
 `letsencrypt-image` and `pushed-private-letsencrypt-image` files left by make.
 
 ```
-rm -f letsencrypt-image pushed-private-letsencrypt-image
+make clean-image-targets
 ```
 
 Update the `letsencrypt-config` secret:
