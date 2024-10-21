@@ -15,6 +15,9 @@ import org.json4s.jackson.JsonMethods
 
 object TerraAzureStorageFS {
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
+
+  val RequiredOAuthScopes: IndexedSeq[String] =
+    FastSeq("https://management.azure.com/.default")
 }
 
 class TerraAzureStorageFS(credential: AzureCloudCredentials) extends AzureStorageFS(credential) {
@@ -55,8 +58,7 @@ class TerraAzureStorageFS(credential: AzureCloudCredentials) extends AzureStorag
     val url =
       s"$workspaceManagerUrl/api/workspaces/v1/$workspaceId/resources/controlled/azure/storageContainer/$containerResourceId/getSasToken"
     val req = new HttpPost(url)
-    val token = credential.accessToken(FastSeq("https://management.azure.com/.default"))
-    req.addHeader("Authorization", s"Bearer $token")
+    req.addHeader("Authorization", s"Bearer ${credential.accessToken}")
 
     val tenHoursInSeconds = 10 * 3600
     val expiration = System.currentTimeMillis() + tenHoursInSeconds * 1000

@@ -2,7 +2,9 @@ package is.hail.services
 
 import is.hail.services.oauth2.AzureCloudCredentials.EnvVars.AzureApplicationCredentials
 import is.hail.services.oauth2.GoogleCloudCredentials.EnvVars.GoogleApplicationCredentials
-import is.hail.shadedazure.com.azure.core.credential.{TokenCredential, TokenRequestContext}
+import is.hail.shadedazure.com.azure.core.credential.{
+  AccessToken, TokenCredential, TokenRequestContext,
+}
 import is.hail.shadedazure.com.azure.identity.{
   ClientSecretCredentialBuilder, DefaultAzureCredentialBuilder,
 }
@@ -12,6 +14,7 @@ import scala.collection.JavaConverters._
 
 import java.io.Serializable
 import java.nio.file.{Files, Path}
+import java.time.OffsetDateTime
 
 import com.google.auth.oauth2.{GoogleCredentials, ServiceAccountCredentials}
 import org.json4s.Formats
@@ -20,38 +23,25 @@ import org.json4s.jackson.JsonMethods
 object oauth2 {
 
   sealed trait CloudCredentials extends Product with Serializable {
-    def accessToken(scopes: IndexedSeq[String]): String
+    def accessToken: String
   }
 
-  def CloudCredentials(credentialsPath: Path, env: Map[String, String] = sys.env)
-    : CloudCredentials =
+  def CloudCredentials(
+    keyPath: Path,
+    scopes: IndexedSeq[String],
+    env: Map[String, String] = sys.env,
+  ): CloudCredentials =
     env.get("HAIL_CLOUD") match {
-      case Some("gcp") => GoogleCloudCredentials(Some(credentialsPath))
-      case Some("azure") => AzureCloudCredentials(Some(credentialsPath))
+      case Some("gcp") => GoogleCloudCredentials(Some(keyPath), scopes, env)
+      case Some("azure") => AzureCloudCredentials(Some(keyPath), scopes, env)
       case Some(cloud) => throw new IllegalArgumentException(s"Unknown cloud: '$cloud'")
       case None => throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
     }
 
-  def CloudScopes(env: Map[String, String] = sys.env): Array[String] =
-    env.get("HAIL_CLOUD") match {
-      case Some("gcp") =>
-        Array(
-          "https://www.googleapis.com/auth/userinfo.profile",
-          "https://www.googleapis.com/auth/userinfo.email",
-          "openid",
-        )
-      case Some("azure") =>
-        sys.env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
-      case Some(cloud) =>
-        throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
-      case None =>
-        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
-    }
-
   case class GoogleCloudCredentials(value: GoogleCredentials) extends CloudCredentials {
-    override def accessToken(scopes: IndexedSeq[String]): String = {
+    override def accessToken: String = {
       value.refreshIfExpired()
-      value.createScoped(scopes.asJava).getAccessToken.getTokenValue
+      value.getAccessToken.getTokenValue
     }
   }
 
@@ -60,20 +50,45 @@ object oauth2 {
       val GoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
     }
 
-    def apply(keyPath: Option[Path], env: Map[String, String] = sys.env): GoogleCloudCredentials =
-      GoogleCloudCredentials(
-        keyPath.orElse(env.get(GoogleApplicationCredentials).map(Path.of(_))) match {
-          case Some(path) => using(Files.newInputStream(path))(ServiceAccountCredentials.fromStream)
-          case None => GoogleCredentials.getApplicationDefault
-        }
-      )
+    def apply(keyPath: Option[Path], scopes: IndexedSeq[String], env: Map[String, String] = sys.env)
+      : GoogleCloudCredentials =
+      GoogleCloudCredentials {
+        val creds: GoogleCredentials =
+          keyPath.orElse(env.get(GoogleApplicationCredentials).map(Path.of(_))) match {
+            case Some(path) =>
+              using(Files.newInputStream(path))(ServiceAccountCredentials.fromStream)
+            case None =>
+              GoogleCredentials.getApplicationDefault
+          }
+
+        creds.createScoped(scopes: _*)
+      }
   }
 
   sealed trait AzureCloudCredentials extends CloudCredentials {
-    def value: TokenCredential
 
-    override def accessToken(scopes: IndexedSeq[String]): String =
-      value.getTokenSync(new TokenRequestContext().setScopes(scopes.asJava)).getToken
+    def value: TokenCredential
+    def scopes: IndexedSeq[String]
+
+    @transient private[this] var token: AccessToken = _
+
+    override def accessToken: String = {
+      refreshIfRequired()
+      token.getToken
+    }
+
+    private[this] def refreshIfRequired(): Unit =
+      if (!isExpired) token.getToken
+      else synchronized {
+        if (isExpired) {
+          token = value.getTokenSync(new TokenRequestContext().setScopes(scopes.asJava))
+        }
+
+        token.getToken
+      }
+
+    private[this] def isExpired: Boolean =
+      token == null || OffsetDateTime.now.plusHours(1).isBefore(token.getExpiresAt)
   }
 
   object AzureCloudCredentials {
@@ -81,19 +96,22 @@ object oauth2 {
       val AzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
     }
 
-    def apply(keyPath: Option[Path], env: Map[String, String] = sys.env): AzureCloudCredentials =
+    def apply(keyPath: Option[Path], scopes: IndexedSeq[String], env: Map[String, String] = sys.env)
+      : AzureCloudCredentials =
       keyPath.orElse(env.get(AzureApplicationCredentials).map(Path.of(_))) match {
-        case Some(path) => AzureClientSecretCredentials(path)
-        case None => AzureDefaultCredentials
+        case Some(path) => AzureClientSecretCredentials(path, scopes)
+        case None => AzureDefaultCredentials(scopes)
       }
   }
 
-  private case object AzureDefaultCredentials extends AzureCloudCredentials {
+  private case class AzureDefaultCredentials(scopes: IndexedSeq[String])
+      extends AzureCloudCredentials {
     @transient override lazy val value: TokenCredential =
       new DefaultAzureCredentialBuilder().build()
   }
 
-  private case class AzureClientSecretCredentials(path: Path) extends AzureCloudCredentials {
+  private case class AzureClientSecretCredentials(path: Path, scopes: IndexedSeq[String])
+      extends AzureCloudCredentials {
     @transient override lazy val value: TokenCredential =
       using(Files.newInputStream(path)) { is =>
         implicit val fmts: Formats = defaultJSONFormats
