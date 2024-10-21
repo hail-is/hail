@@ -16,7 +16,8 @@ class AzureStorageFSSuite extends FSSuite {
     }
   }
 
-  lazy val fs = new AzureStorageFS(AzureCloudCredentials(None))
+  override lazy val fs: FS =
+    new AzureStorageFS(AzureCloudCredentials(None, AzureStorageFS.RequiredOAuthScopes))
 
   @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "https://account.blob.core.windows.net/container/path"

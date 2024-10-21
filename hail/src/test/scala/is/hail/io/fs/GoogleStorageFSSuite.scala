@@ -17,7 +17,8 @@ class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
     }
   }
 
-  lazy val fs = new GoogleStorageFS(GoogleCloudCredentials(None), None)
+  override lazy val fs: FS =
+    new GoogleStorageFS(GoogleCloudCredentials(None, GoogleStorageFS.RequiredOAuthScopes), None)
 
   @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "gs://bucket/path"

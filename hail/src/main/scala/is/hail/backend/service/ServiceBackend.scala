@@ -212,7 +212,7 @@ class ServiceBackend(
         in_update_job_group_id = jobGroup.job_group_id,
         in_update_parent_ids = Array(),
         process = JvmJob(
-          command = Array(Main.WORKER, root, s"${jobGroup.job_group_id}", s"$n"),
+          command = Array(Main.WORKER, root, s"$i", s"$n"),
           jar_url = jarLocation,
           profile = flags.get("profile") != null,
         ),

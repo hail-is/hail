@@ -1,11 +1,13 @@
 package is.hail.services
 
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.services.requests.{BatchServiceRequester, Requester}
+import is.hail.services.oauth2.CloudCredentials
+import is.hail.services.requests.Requester
 import is.hail.utils._
 
 import scala.util.Random
 
+import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
 
@@ -88,9 +90,29 @@ object JobGroupStates {
 }
 
 object BatchClient {
+
+  private[this] def BatchServiceScopes(env: Map[String, String]): Array[String] =
+    env.get("HAIL_CLOUD") match {
+      case Some("gcp") =>
+        Array(
+          "https://www.googleapis.com/auth/userinfo.profile",
+          "https://www.googleapis.com/auth/userinfo.email",
+          "openid",
+        )
+      case Some("azure") =>
+        env.get("HAIL_AZURE_OAUTH_SCOPE").toArray
+      case Some(cloud) =>
+        throw new IllegalArgumentException(s"Unknown cloud: '$cloud'.")
+      case None =>
+        throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
+    }
+
   def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
     : BatchClient =
-    new BatchClient(BatchServiceRequester(deployConfig, credentialsFile, env))
+    new BatchClient(Requester(
+      new URL(deployConfig.baseUrl("batch")),
+      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
+    ))
 }
 
 case class BatchClient private (req: Requester) extends Logging with AutoCloseable {
