@@ -52,13 +52,18 @@ object RouterFS {
   def buildRoutes(cloudConfig: CloudStorageFSConfig, env: Map[String, String] = sys.env): FS =
     new RouterFS(
       IndexedSeq.concat(
-        cloudConfig.google.map { case GoogleStorageFSConfig(path, maybeRequesterPaysConfig) =>
-          new GoogleStorageFS(GoogleCloudCredentials(path), maybeRequesterPaysConfig)
+        cloudConfig.google.map { case GoogleStorageFSConfig(path, mRPConfig) =>
+          new GoogleStorageFS(
+            GoogleCloudCredentials(path, GoogleStorageFS.RequiredOAuthScopes, env),
+            mRPConfig,
+          )
         },
         cloudConfig.azure.map { case AzureStorageFSConfig(path) =>
-          val cred = AzureCloudCredentials(path)
-          if (env.contains("HAIL_TERRA")) new TerraAzureStorageFS(cred)
-          else new AzureStorageFS(cred)
+          if (env.contains("HAIL_TERRA")) {
+            val creds = AzureCloudCredentials(path, TerraAzureStorageFS.RequiredOAuthScopes, env)
+            new TerraAzureStorageFS(creds)
+          } else
+            new AzureStorageFS(AzureCloudCredentials(path, AzureStorageFS.RequiredOAuthScopes, env))
         },
         FastSeq(new HadoopFS(new SerializableHadoopConfiguration(new Configuration()))),
       )

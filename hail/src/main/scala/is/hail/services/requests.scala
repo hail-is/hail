@@ -1,10 +1,9 @@
 package is.hail.services
 
-import is.hail.services.oauth2.{CloudCredentials, CloudScopes}
+import is.hail.services.oauth2.CloudCredentials
 import is.hail.utils.{log, _}
 
 import java.net.URL
-import java.nio.file.Path
 
 import org.apache.http.{HttpEntity, HttpEntityEnclosingRequest}
 import org.apache.http.client.config.RequestConfig
@@ -30,15 +29,7 @@ object requests {
 
   private[this] val TIMEOUT_MS = 5 * 1000
 
-  def BatchServiceRequester(conf: DeployConfig, keyFile: Path, env: Map[String, String] = sys.env)
-    : Requester =
-    Requester(
-      new URL(conf.baseUrl("batch")),
-      CloudCredentials(keyFile, env),
-      CloudScopes(env),
-    )
-
-  def Requester(baseUrl: URL, cred: CloudCredentials, scopes: IndexedSeq[String]): Requester = {
+  def Requester(baseUrl: URL, cred: CloudCredentials): Requester = {
 
     val httpClient: CloseableHttpClient = {
       log.info("creating HttpClient")
@@ -67,7 +58,7 @@ object requests {
 
     def request(req: HttpUriRequest, body: Option[HttpEntity] = None): JValue = {
       log.info(s"request ${req.getMethod} ${req.getURI}")
-      req.addHeader("Authorization", s"Bearer ${cred.accessToken(scopes)}")
+      req.addHeader("Authorization", s"Bearer ${cred.accessToken}")
       body.foreach(entity => req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(entity))
       retryTransientErrors {
         using(httpClient.execute(req)) { resp =>
