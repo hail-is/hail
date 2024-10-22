@@ -43,6 +43,16 @@ This creates git hooks that run certain linting checks, pyright on some sub-proj
 auto-formatting on changed files every commit. For example, services code uses the [Black python
 formatter](https://black.readthedocs.io/en/stable/) to enforce PEP8 compliance.
 
+Regarding pyright: this package requires node to work. While pip/conda installing pyright directly
+will automatically install node for you, doing so through the above `make` may not. If it doesn't,
+install node version 20 (a version which appears to be compatible with everything installed during the `make`)
+and add it to your path as follows:
+
+```bash
+brew install node@20
+echo 'export PATH="/opt/homebrew/opt/node@20/bin:$PATH"' >> ~/.zshrc
+```
+
 Sometimes large formatting or refactoring commits can muddle the git history
 for a file. If your change is one of these, follow up by adding the commit SHA to
 `.git-blame-ignore-revs`. To configure `git blame` to ignore these commits, run
