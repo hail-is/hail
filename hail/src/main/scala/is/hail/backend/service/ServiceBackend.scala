@@ -53,7 +53,7 @@ object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
 
   def apply(
-    jarSpec: JarSpec,
+    jarLocation: String,
     name: String,
     theHailClassLoader: HailClassLoader,
     batchClient: BatchClient,
@@ -86,7 +86,7 @@ object ServiceBackend {
     )
 
     val backend = new ServiceBackend(
-      jarSpec,
+      JarUrl(jarLocation),
       name,
       theHailClassLoader,
       batchClient,
@@ -397,16 +397,14 @@ object ServiceBackendAPI {
 
     val scratchDir = argv(0)
     // val logFile = argv(1)
-    val jarSpecStr = argv(2)
+    val jarLocation = argv(2)
     val kind = argv(3)
     assert(kind == Main.DRIVER)
     val name = argv(4)
     val inputURL = argv(5)
     val outputURL = argv(6)
 
-    implicit val formats: Formats = DefaultFormats + JarSpecFormats
-
-    val jarGitRevision = JsonMethods.parse(jarSpecStr).extract[JarSpec]
+    implicit val formats: Formats = DefaultFormats
 
     val fs = RouterFS.buildRoutes(
       CloudStorageFSConfig.fromFlagsAndEnv(
@@ -430,7 +428,7 @@ object ServiceBackendAPI {
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = ServiceBackend(
-      jarGitRevision,
+      jarLocation,
       name,
       new HailClassLoader(getClass().getClassLoader()),
       batchClient,
