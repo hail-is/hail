@@ -58,7 +58,7 @@ if id -nG "$USER" | grep -qw "docker"; then
 
     # Print "Generating certificates..." in yellow with a warning sign emoji
     printf "\e[33mGenerating certificates...\e[0m \e[33m⚠️\e[0m\n"
-    cd letscencrypt
+    cd letsencrypt
     make run NAMESPACE=default
 
     # If the command above fails, the script will exit else print "Certificates generated successfully!" in green with a green check mark
@@ -75,11 +75,12 @@ if id -nG "$USER" | grep -qw "docker"; then
 
     export HAIL=$HOME/hail
 
-    SERVICES_TO_RESTART=$(python3 -c 'import os
-    import yaml
-    hail_dir = os.getenv("HAIL")
-    x = yaml.safe_load(open(f"{hail_dir}/tls/config.yaml"))["principals"]
-    print(",".join(x["name"] for x in x))')
+    SERVICES_TO_RESTART=$(python3 -c '
+import os
+import yaml
+hail_dir = os.getenv("HAIL")
+x = yaml.safe_load(open(f"{hail_dir}/tls/config.yaml"))["principals"]
+print(",".join(x["name"] for x in x))')
 
     kubectl delete pods -l "app in ($SERVICES_TO_RESTART)"
 
