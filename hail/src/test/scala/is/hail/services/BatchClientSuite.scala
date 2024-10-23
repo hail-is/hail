@@ -1,9 +1,8 @@
 package is.hail.services
 
+import is.hail.HAIL_REVISION
 import is.hail.backend.service.Main
 import is.hail.utils._
-
-import scala.sys.process._
 
 import java.lang.reflect.Method
 import java.nio.file.Path
@@ -86,7 +85,7 @@ class BatchClientSuite extends TestNGSuite {
             always_run = false,
             process = JvmJob(
               command = Array(Main.TEST),
-              spec = GitRevision("git rev-parse main".!!.strip()),
+              spec = GitRevision(HAIL_REVISION),
               profile = false,
             ),
           )
