@@ -57,17 +57,18 @@ object requests {
     }
 
     def request(req: HttpUriRequest, body: Option[HttpEntity] = None): JValue = {
-      log.info(s"request ${req.getMethod} ${req.getURI}")
       req.addHeader("Authorization", s"Bearer ${cred.accessToken}")
       body.foreach(entity => req.asInstanceOf[HttpEntityEnclosingRequest].setEntity(entity))
       retryTransientErrors {
         using(httpClient.execute(req)) { resp =>
           val statusCode = resp.getStatusLine.getStatusCode
-          log.info(s"request ${req.getMethod} ${req.getURI} response $statusCode")
           val message = Option(resp.getEntity).map(EntityUtils.toString).filter(_.nonEmpty)
           if (statusCode < 200 || statusCode >= 300) {
+            log.warn(s"$statusCode ${req.getMethod} ${req.getURI}\n${message.orNull}")
             throw new ClientResponseException(statusCode, message.orNull)
           }
+
+          log.info(s"$statusCode ${req.getMethod} ${req.getURI}")
           message.map(JsonMethods.parse(_)).getOrElse(JNothing)
         }
       }
