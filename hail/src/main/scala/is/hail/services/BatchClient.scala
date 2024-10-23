@@ -1,6 +1,7 @@
 package is.hail.services
 
 import is.hail.expr.ir.ByteArrayBuilder
+import is.hail.services.BatchClient.BunchMaxSizeBytes
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
@@ -8,7 +9,7 @@ import is.hail.utils._
 import scala.util.Random
 
 import java.net.URL
-import java.nio.charset.StandardCharsets
+import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Path
 
 import org.apache.http.entity.ByteArrayEntity
@@ -19,41 +20,54 @@ import org.json4s.jackson.JsonMethods
 
 case class BatchRequest(
   billing_project: String,
-  n_jobs: Int,
   token: String,
+  n_jobs: Int,
   attributes: Map[String, String] = Map.empty,
 )
 
 case class JobGroupRequest(
-  job_group_id: Int,
+  batch_id: Int,
   absolute_parent_id: Int,
+  token: String,
   attributes: Map[String, String] = Map.empty,
+  jobs: IndexedSeq[JobRequest] = FastSeq(),
 )
 
 case class JobRequest(
-  job_id: Int,
   always_run: Boolean,
-  in_update_job_group_id: Int,
-  in_update_parent_ids: Array[Int],
   process: JobProcess,
+  attributes: Map[String, String] = Map.empty,
+  cloudfuse: Option[Array[CloudfuseConfig]] = None,
   resources: Option[JobResources] = None,
   regions: Option[Array[String]] = None,
-  cloudfuse: Option[Array[CloudfuseConfig]] = None,
-  attributes: Map[String, String] = Map.empty,
 )
 
 sealed trait JobProcess
+case class BashJob(image: String, command: Array[String]) extends JobProcess
+case class JvmJob(command: Array[String], spec: JarSpec, profile: Boolean) extends JobProcess
 
-case class BashJob(
-  image: String,
-  command: Array[String],
-) extends JobProcess
+sealed trait JarSpec
+case class GitRevision(sha: String) extends JarSpec
+case class JarUrl(url: String) extends JarSpec
 
-case class JvmJob(
-  command: Array[String],
-  jar_url: String,
-  profile: Boolean,
-) extends JobProcess
+object JarSpecFormats extends CustomSerializer[JarSpec](implicit fmts =>
+      (
+        {
+          case obj: JObject =>
+            val value = (obj \ "value").extract[String]
+            (obj \ "type").extract[String] match {
+              case "jar_url" => JarUrl(value)
+              case "git_revision" => GitRevision(value)
+            }
+        },
+        {
+          case JarUrl(url) =>
+            JObject("type" -> JString("jar_url"), "value" -> JString(url))
+          case GitRevision(sha) =>
+            JObject("type" -> JString("git_revision"), "value" -> JString(sha))
+        },
+      )
+    )
 
 case class JobResources(
   preemptible: Boolean,
@@ -113,6 +127,8 @@ object BatchClient {
       new URL(deployConfig.baseUrl("batch")),
       CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
     ))
+
+  private val BunchMaxSizeBytes: Int = 1024 * 1024
 }
 
 case class BatchClient private (req: Requester) extends Logging with AutoCloseable {
@@ -121,99 +137,43 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     DefaultFormats +
       JobProcessRequestSerializer +
       JobGroupStateDeserializer +
-      JobGroupResponseDeserializer
+      JobGroupResponseDeserializer +
+      JarSpecFormats
 
   def newBatch(createRequest: BatchRequest): Int = {
     val response = req.post("/api/v1alpha/batches/create", Extraction.decompose(createRequest))
     val batchId = (response \ "id").extract[Int]
-    log.info(s"run: created batch $batchId")
+    log.info(s"Created batch $batchId")
     batchId
   }
 
-  def newJobGroup(
-    batchId: Int,
-    token: String,
-    jobGroup: JobGroupRequest,
-    jobs: IndexedSeq[JobRequest],
-  ): (Int, Int) = {
+  def newJobGroup(req: JobGroupRequest): Int = {
+    val nJobs = req.jobs.length
+    val (updateId, startJobGroupId) = beginUpdate(req.batch_id, req.token, nJobs)
+    log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
 
-    val updateJson = JObject(
-      "n_jobs" -> JInt(jobs.length),
-      "n_job_groups" -> JInt(1),
-      "token" -> JString(token),
-    )
+    createJobGroup(updateId, req)
+    log.info(s"Created job group $startJobGroupId for batch ${req.batch_id}")
 
-    val jobGroupSpec = getJsonBytes(jobGroup)
-    val jobBunches = createBunches(jobs)
-    val updateIDAndJobGroupId =
-      if (jobBunches.length == 1 && jobBunches(0).length + jobGroupSpec.length < 1024 * 1024) {
-        val b = new ByteArrayBuilder()
-        b ++= "{\"job_groups\":".getBytes(StandardCharsets.UTF_8)
-        addBunchBytes(b, Array(jobGroupSpec))
-        b ++= ",\"bunch\":".getBytes(StandardCharsets.UTF_8)
-        addBunchBytes(b, jobBunches(0))
-        b ++= ",\"update\":".getBytes(StandardCharsets.UTF_8)
-        b ++= JsonMethods.compact(updateJson).getBytes(StandardCharsets.UTF_8)
-        b += '}'
-        val data = b.result()
-        val resp = req.post(
-          s"/api/v1alpha/batches/$batchId/update-fast",
-          new ByteArrayEntity(data, APPLICATION_JSON),
-        )
-        b.clear()
-        ((resp \ "update_id").extract[Int], (resp \ "start_job_group_id").extract[Int])
-      } else {
-        val resp = req.post(s"/api/v1alpha/batches/$batchId/updates/create", updateJson)
-        val updateID = (resp \ "update_id").extract[Int]
-        val startJobGroupId = (resp \ "start_job_group_id").extract[Int]
+    createJobsIncremental(req.batch_id, updateId, req.jobs)
+    log.info(s"Submitted $nJobs in job group $startJobGroupId for batch ${req.batch_id}")
 
-        val b = new ByteArrayBuilder()
-        b ++= "[".getBytes(StandardCharsets.UTF_8)
-        b ++= jobGroupSpec
-        b ++= "]".getBytes(StandardCharsets.UTF_8)
-        req.post(
-          s"/api/v1alpha/batches/$batchId/updates/$updateID/job-groups/create",
-          new ByteArrayEntity(b.result(), APPLICATION_JSON),
-        )
+    commitUpdate(req.batch_id, updateId)
+    log.info(s"Committed update $updateId for batch ${req.batch_id}.")
 
-        b.clear()
-        var i = 0
-        while (i < jobBunches.length) {
-          addBunchBytes(b, jobBunches(i))
-          val data = b.result()
-          req.post(
-            s"/api/v1alpha/batches/$batchId/updates/$updateID/jobs/create",
-            new ByteArrayEntity(data, APPLICATION_JSON),
-          )
-          b.clear()
-          i += 1
-        }
-
-        req.patch(s"/api/v1alpha/batches/$b/updates/$updateID/commit")
-        (updateID, startJobGroupId)
-      }
-
-    log.info(s"run: created update $updateIDAndJobGroupId for batch $batchId")
-    updateIDAndJobGroupId
+    startJobGroupId
   }
 
-  def run(batchRequest: BatchRequest, jobGroup: JobGroupRequest, jobs: IndexedSeq[JobRequest])
-    : JobGroupResponse = {
-    val batchID = newBatch(batchRequest)
-    val (_, jobGroupId) = newJobGroup(batchID, batchRequest.token, jobGroup, jobs)
-    waitForJobGroup(batchID, jobGroupId)
-  }
+  def getJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
+    req
+      .get(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId")
+      .extract[JobGroupResponse]
 
-  def waitForJobGroup(batchID: Int, jobGroupId: Int): JobGroupResponse = {
-
-    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-
+  def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
 
     while (true) {
-      val jobGroup = req
-        .get(s"/api/v1alpha/batches/$batchID/job-groups/$jobGroupId")
-        .extract[JobGroupResponse]
+      val jobGroup = getJobGroup(batchId, jobGroupId)
 
       if (jobGroup.complete)
         return jobGroup
@@ -236,47 +196,85 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     throw new AssertionError("unreachable")
   }
 
-  private def createBunches(jobs: IndexedSeq[JobRequest]): BoxedArrayBuilder[Array[Array[Byte]]] = {
-    val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
-    val bunchb = new BoxedArrayBuilder[Array[Byte]]()
-
-    var i = 0
-    var size = 0
-    while (i < jobs.length) {
-      val jobBytes = getJsonBytes(jobs(i))
-      if (size + jobBytes.length > 1024 * 1024) {
-        bunches += bunchb.result()
-        bunchb.clear()
-        size = 0
-      }
-      bunchb += jobBytes
-      size += jobBytes.length
-      i += 1
-    }
-    assert(bunchb.size > 0)
-
-    bunches += bunchb.result()
-    bunchb.clear()
-    bunches
-  }
-
-  private def getJsonBytes(obj: Any): Array[Byte] =
-    JsonMethods.compact(Extraction.decompose(obj)).getBytes(StandardCharsets.UTF_8)
-
-  private def addBunchBytes(b: ByteArrayBuilder, bunch: Array[Array[Byte]]): Unit = {
-    var j = 0
-    b += '['
-    while (j < bunch.length) {
-      if (j > 0)
-        b += ','
-      b ++= bunch(j)
-      j += 1
-    }
-    b += ']'
-  }
-
   override def close(): Unit =
     req.close()
+
+  private[this] def createJobsIncremental(
+    batchId: Int,
+    updateId: Int,
+    jobs: IndexedSeq[JobRequest],
+  ): Unit = {
+    val buff = new ByteArrayBuilder(BunchMaxSizeBytes)
+    var sym = "["
+
+    def flush(): Unit = {
+      buff ++= "]".getBytes(UTF_8)
+      req.post(
+        s"/api/v1alpha/batches/$batchId/updates/$updateId/jobs/create",
+        new ByteArrayEntity(buff.result(), APPLICATION_JSON),
+      )
+      buff.clear()
+      sym = "["
+    }
+
+    for ((job, idx) <- jobs.zipWithIndex) {
+      val jobPayload = jobToJson(job, idx).getBytes(UTF_8)
+
+      if (buff.size + jobPayload.length > BunchMaxSizeBytes) {
+        flush()
+      }
+
+      buff ++= sym.getBytes(UTF_8)
+      buff ++= jobPayload
+      sym = ","
+    }
+
+    if (buff.size > 0) { flush() }
+  }
+
+  private[this] def jobToJson(j: JobRequest, jobIdx: Int): String =
+    JsonMethods.compact {
+      Extraction.decompose(j)
+        .asInstanceOf[JObject]
+        .merge(
+          JObject(
+            "job_id" -> JInt(jobIdx),
+            "in_update_job_group_id" -> JInt(1),
+          )
+        )
+    }
+
+  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int) =
+    req
+      .post(
+        s"/api/v1alpha/batches/$batchId/updates/create",
+        JObject(
+          "token" -> JString(token),
+          "n_jobs" -> JInt(nJobs),
+          "n_job_groups" -> JInt(1),
+        ),
+      )
+      .as { case obj: JObject =>
+        (
+          (obj \ "update_id").extract[Int],
+          (obj \ "start_job_group_id").extract[Int],
+        )
+      }
+
+  private[this] def commitUpdate(batchId: Int, updateId: Int): Unit =
+    req.patch(s"/api/v1alpha/batches/$batchId/updates/$updateId/commit")
+
+  private[this] def createJobGroup(updateId: Int, jobGroup: JobGroupRequest): Unit =
+    req.post(
+      s"/api/v1alpha/batches/${jobGroup.batch_id}/updates/$updateId/job-groups/create",
+      JArray(List(
+        JObject(
+          "job_group_id" -> JInt(1), // job group id relative to the update
+          "absolute_parent_id" -> JInt(jobGroup.absolute_parent_id),
+          "attributes" -> Extraction.decompose(jobGroup.attributes),
+        )
+      )),
+    )
 
   private[this] object JobProcessRequestSerializer
       extends CustomSerializer[JobProcess](_ =>
@@ -289,11 +287,11 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
                 "image" -> JString(image),
                 "command" -> JArray(command.map(JString).toList),
               )
-            case JvmJob(command, url, profile) =>
+            case JvmJob(command, jarSpec, profile) =>
               JObject(
                 "type" -> JString("jvm"),
                 "command" -> JArray(command.map(JString).toList),
-                "jar_spec" -> JObject("type" -> JString("jar_url"), "value" -> JString(url)),
+                "jar_spec" -> Extraction.decompose(jarSpec),
                 "profile" -> JBool(profile),
               )
           },
