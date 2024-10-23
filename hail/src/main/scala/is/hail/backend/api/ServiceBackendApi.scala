@@ -11,7 +11,9 @@ import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.services._
 import is.hail.types.virtual.Kinds
-import is.hail.utils.{toRichIterable, using, ErrorHandling, ExecutionTimer, HailWorkerException, Logging}
+import is.hail.utils.{
+  toRichIterable, using, ErrorHandling, ExecutionTimer, HailWorkerException, Logging,
+}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
