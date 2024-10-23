@@ -29,31 +29,16 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
       using(ServiceBackend(batchClient, rpcConfig)) { backend =>
         val contexts = Array.tabulate(1)(_.toString.getBytes)
 
-        // verify that the service backend
-        // - creates the batch with the correct billing project, and
+        // verify that
         // - the number of jobs matches the number of partitions, and
         // - each job is created in the specified region, and
         // - each job's resource configuration matches the rpc config
-        val batchId = Random.nextInt()
 
-        when(batchClient.newBatch(any[BatchRequest])) thenAnswer {
-          (batchRequest: BatchRequest) =>
-            batchRequest.billing_project shouldEqual rpcConfig.billing_project
-            batchRequest.n_jobs shouldBe 0
-            batchRequest.attributes.get("name").value shouldBe backend.name
-            batchId
-        }
-
-        when(batchClient.newJobGroup(
-          any[Int],
-          any[String],
-          any[JobGroupRequest],
-          any[IndexedSeq[JobRequest]],
-        )) thenAnswer {
-          (id: Int, _: String, jobGroup: JobGroupRequest, jobs: IndexedSeq[JobRequest]) =>
-            id shouldBe batchId
-            jobGroup.job_group_id shouldBe 1
-            jobGroup.absolute_parent_id shouldBe 0
+        when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
+          jobGroup: JobGroupRequest =>
+            jobGroup.batch_id shouldBe backend.batchConfig.batchId
+            jobGroup.absolute_parent_id shouldBe backend.batchConfig.jobGroupId
+            val jobs = jobGroup.jobs
             jobs.length shouldEqual contexts.length
             jobs.foreach { payload =>
               payload.regions.value shouldBe rpcConfig.regions
@@ -65,15 +50,15 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
               )
             }
 
-            (37, 1)
+            backend.batchConfig.jobGroupId + 1
         }
 
         // the service backend expects that each job write its output to a well-known
         // location when it finishes.
         when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
           (id: Int, jobGroupId: Int) =>
-            id shouldEqual batchId
-            jobGroupId shouldEqual 1
+            id shouldEqual backend.batchConfig.batchId
+            jobGroupId shouldEqual backend.batchConfig.jobGroupId + 1
 
             val resultsDir =
               Path(backend.serviceBackendContext.remoteTmpDir) /
@@ -106,7 +91,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
         failure.foreach(throw _)
 
         batchClient.newBatch(any) wasCalled once
-        batchClient.newJobGroup(any, any, any, any) wasCalled once
+        batchClient.newJobGroup(any) wasCalled once
       }
     }
 
@@ -114,12 +99,11 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
     val flags = HailFeatureFlags.fromEnv()
     val fs = RouterFS.buildRoutes(CloudStorageFSConfig())
     new ServiceBackend(
-      jarLocation = "us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail@sha256:fake",
+      jarSpec = GitRevision("123"),
       name = "name",
       theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
       batchClient = client,
-      curBatchId = None,
-      curJobGroupId = None,
+      batchConfig = BatchConfig(batchId = Random.nextInt(), jobGroupId = Random.nextInt()),
       flags = flags,
       tmpdir = rpcConfig.tmp_dir,
       fs = fs,

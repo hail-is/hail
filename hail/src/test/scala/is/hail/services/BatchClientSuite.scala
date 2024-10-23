@@ -1,41 +1,100 @@
 package is.hail.services
 
+import is.hail.backend.service.Main
 import is.hail.utils._
 
+import scala.sys.process._
+
+import java.lang.reflect.Method
 import java.nio.file.Path
 
 import org.scalatestplus.testng.TestNGSuite
-import org.testng.annotations.Test
-import sourcecode.FullName
+import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
 
 class BatchClientSuite extends TestNGSuite {
-  @Test def testBasic(): Unit =
-    using(BatchClient(DeployConfig.get(), Path.of("/tmp/test-gsa-key/key.json"))) { client =>
-      val jobGroup = client.run(
-        BatchRequest(
-          billing_project = "test",
-          n_jobs = 0,
+
+  private[this] var client: BatchClient = _
+  private[this] var batchId: Int = _
+  private[this] var parentJobGroupId: Int = _
+
+  @BeforeClass
+  def createClientAndBatch(): Unit = {
+    client = BatchClient(DeployConfig.get(), Path.of("/tmp/test-gsa-key/key.json"))
+    batchId = client.newBatch(
+      BatchRequest(
+        billing_project = "test",
+        n_jobs = 0,
+        token = tokenUrlSafe,
+        attributes = Map("name" -> s"${getClass.getName}"),
+      )
+    )
+  }
+
+  @BeforeMethod
+  def createEmptyParentJobGroup(m: Method): Unit = {
+    parentJobGroupId = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = 0,
+        token = tokenUrlSafe,
+        attributes = Map("name" -> m.getName),
+        jobs = FastSeq(),
+      )
+    )
+  }
+
+  @AfterClass
+  def closeClient(): Unit =
+    client.close()
+
+  @Test
+  def testNewJobGroup(): Unit =
+    // The query driver submits a job group per stage with one job per partition
+    for (i <- 1 to 2) {
+      val jobGroupId = client.newJobGroup(
+        req = JobGroupRequest(
+          batch_id = batchId,
+          absolute_parent_id = parentJobGroupId,
           token = tokenUrlSafe,
-          attributes = Map("name" -> s"Test ${implicitly[FullName].value}"),
-        ),
-        JobGroupRequest(
-          job_group_id = 1,
-          absolute_parent_id = 0,
-        ),
-        FastSeq(
+          attributes = Map("name" -> s"JobGroup$i"),
+          jobs = (1 to i).map { k =>
+            JobRequest(
+              always_run = false,
+              process = BashJob(
+                image = "ubuntu:22.04",
+                command = Array("/bin/bash", "-c", s"echo 'job $k'"),
+              ),
+            )
+          },
+        )
+      )
+
+      val result = client.getJobGroup(batchId, jobGroupId)
+      assert(result.n_jobs == i)
+    }
+
+  @Test
+  def testJvmJob(): Unit = {
+    val jobGroupId = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        token = tokenUrlSafe,
+        attributes = Map("name" -> "TableStage"),
+        jobs = FastSeq(
           JobRequest(
-            job_id = 1,
             always_run = false,
-            in_update_job_group_id = 0,
-            in_update_parent_ids = Array(),
-            process = BashJob(
-              image = "ubuntu:22.04",
-              command = Array("/bin/bash", "-c", "echo 'hello, hail!'"),
+            process = JvmJob(
+              command = Array(Main.WORKER, "", "", ""),
+              spec = GitRevision("git rev-parse main".!!.strip()),
+              profile = false,
             ),
           )
         ),
       )
+    )
 
-      assert(jobGroup.state == JobGroupStates.Success)
-    }
+    val result = client.getJobGroup(batchId, jobGroupId)
+    assert(result.n_jobs == 1)
+  }
 }

@@ -64,7 +64,7 @@ object requests {
         using(httpClient.execute(req)) { resp =>
           val statusCode = resp.getStatusLine.getStatusCode
           log.info(s"request ${req.getMethod} ${req.getURI} response $statusCode")
-          val message = Option(resp.getEntity).map(EntityUtils.toString)
+          val message = Option(resp.getEntity).map(EntityUtils.toString).filter(_.nonEmpty)
           if (statusCode < 200 || statusCode >= 300) {
             throw new ClientResponseException(statusCode, message.orNull)
           }
