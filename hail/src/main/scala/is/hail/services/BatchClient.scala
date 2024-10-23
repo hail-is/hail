@@ -50,25 +50,6 @@ sealed trait JarSpec
 case class GitRevision(sha: String) extends JarSpec
 case class JarUrl(url: String) extends JarSpec
 
-object JarSpecFormats extends CustomSerializer[JarSpec](implicit fmts =>
-      (
-        {
-          case obj: JObject =>
-            val value = (obj \ "value").extract[String]
-            (obj \ "type").extract[String] match {
-              case "jar_url" => JarUrl(value)
-              case "git_revision" => GitRevision(value)
-            }
-        },
-        {
-          case JarUrl(url) =>
-            JObject("type" -> JString("jar_url"), "value" -> JString(url))
-          case GitRevision(sha) =>
-            JObject("type" -> JString("git_revision"), "value" -> JString(sha))
-        },
-      )
-    )
-
 case class JobResources(
   preemptible: Boolean,
   cpu: Option[String],
@@ -138,7 +119,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobProcessRequestSerializer +
       JobGroupStateDeserializer +
       JobGroupResponseDeserializer +
-      JarSpecFormats
+      JarSpecSerializer
 
   def newBatch(createRequest: BatchRequest): Int = {
     val response = req.post("/api/v1alpha/batches/create", Extraction.decompose(createRequest))
@@ -329,6 +310,19 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
               )
           },
           PartialFunction.empty,
+        )
+      )
+
+  private[this] object JarSpecSerializer
+      extends CustomSerializer[JarSpec](_ =>
+        (
+          PartialFunction.empty,
+          {
+            case JarUrl(url) =>
+              JObject("type" -> JString("jar_url"), "value" -> JString(url))
+            case GitRevision(sha) =>
+              JObject("type" -> JString("git_revision"), "value" -> JString(sha))
+          },
         )
       )
 }
