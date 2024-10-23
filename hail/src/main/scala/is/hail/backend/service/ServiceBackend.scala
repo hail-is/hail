@@ -14,7 +14,7 @@ import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
-import is.hail.services.{BatchClient, _}
+import is.hail.services.{BatchClient, JobGroupRequest, _}
 import is.hail.services.JobGroupStates.Failure
 import is.hail.types._
 import is.hail.types.physical._
@@ -53,12 +53,11 @@ object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
 
   def apply(
-    jarLocation: String,
+    jarSpec: JarSpec,
     name: String,
     theHailClassLoader: HailClassLoader,
     batchClient: BatchClient,
-    batchId: Option[Int],
-    jobGroupId: Option[Int],
+    batchConfig: BatchConfig,
     scratchDir: String = sys.env.getOrElse("HAIL_WORKER_SCRATCH_DIR", ""),
     rpcConfig: ServiceBackendRPCPayload,
     env: Map[String, String],
@@ -87,12 +86,11 @@ object ServiceBackend {
     )
 
     val backend = new ServiceBackend(
-      jarLocation,
+      jarSpec,
       name,
       theHailClassLoader,
       batchClient,
-      batchId,
-      jobGroupId,
+      batchConfig,
       flags,
       rpcConfig.tmp_dir,
       fs,
@@ -116,12 +114,11 @@ object ServiceBackend {
 }
 
 class ServiceBackend(
-  val jarLocation: String,
+  val jarSpec: JarSpec,
   var name: String,
   val theHailClassLoader: HailClassLoader,
   val batchClient: BatchClient,
-  val curBatchId: Option[Int],
-  val curJobGroupId: Option[Int],
+  val batchConfig: BatchConfig,
   val flags: HailFeatureFlags,
   val tmpdir: String,
   val fs: FS,
@@ -197,23 +194,12 @@ class ServiceBackend(
       }
     )
 
-    val jobGroup = JobGroupRequest(
-      job_group_id = 1, // QoB creates an update for every new stage
-      absolute_parent_id = curJobGroupId.getOrElse(0),
-      attributes = Map("name" -> stageIdentifier),
-    )
-
-    log.info(s"worker job group spec: $jobGroup")
-
     val jobs = collection.indices.map { i =>
       JobRequest(
-        job_id = i + 1,
         always_run = false,
-        in_update_job_group_id = jobGroup.job_group_id,
-        in_update_parent_ids = Array(),
         process = JvmJob(
           command = Array(Main.WORKER, root, s"$i", s"$n"),
-          jar_url = jarLocation,
+          spec = jarSpec,
           profile = flags.get("profile") != null,
         ),
         resources = Some(
@@ -235,23 +221,22 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: running job")
 
-    val batchId = curBatchId.getOrElse {
-      batchClient.newBatch(
-        BatchRequest(
-          billing_project = backendContext.billingProject,
-          n_jobs = 0,
-          token = token,
-          attributes = Map("name" -> name),
-        )
+    val jobGroupId = batchClient.newJobGroup(
+      JobGroupRequest(
+        batch_id = batchConfig.batchId,
+        absolute_parent_id = batchConfig.jobGroupId,
+        token = tokenUrlSafe,
+        attributes = Map("name" -> stageIdentifier),
+        jobs = jobs,
       )
-    }
+    )
 
-    val (updateId, jobGroupId) = batchClient.newJobGroup(batchId, token, jobGroup, jobs)
-    val response = batchClient.waitForJobGroup(batchId, jobGroupId)
+    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
+    val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
 
     stageCount += 1
     if (response.state == Failure) {
-      throw new HailBatchFailure(s"Update $updateId for batch $batchId failed")
+      throw new HailBatchFailure(s"JobGroup $jobGroupId for batch ${batchConfig.batchId} failed")
     }
 
     (token, root, n)
@@ -412,12 +397,16 @@ object ServiceBackendAPI {
 
     val scratchDir = argv(0)
     // val logFile = argv(1)
-    val jarLocation = argv(2)
+    val jarSpecStr = argv(2)
     val kind = argv(3)
     assert(kind == Main.DRIVER)
     val name = argv(4)
     val inputURL = argv(5)
     val outputURL = argv(6)
+
+    implicit val formats: Formats = DefaultFormats + JarSpecFormats
+
+    val jarGitRevision = JsonMethods.parse(jarSpecStr).extract[JarSpec]
 
     val fs = RouterFS.buildRoutes(
       CloudStorageFSConfig.fromFlagsAndEnv(
@@ -434,23 +423,18 @@ object ServiceBackendAPI {
 
     val batchConfig =
       BatchConfig.fromConfigFile(Path.of(scratchDir, "batch-config/batch-config.json"))
-    val batchId = batchConfig.map(_.batchId)
-    val jobGroupId = batchConfig.map(_.jobGroupId)
     log.info("BatchConfig parsed.")
-
-    implicit val formats: Formats = DefaultFormats
 
     val input = using(fs.openNoCompression(inputURL))(JsonMethods.parse(_))
     val rpcConfig = (input \ "config").extract[ServiceBackendRPCPayload]
 
     // FIXME: when can the classloader be shared? (optimizer benefits!)
     val backend = ServiceBackend(
-      jarLocation,
+      jarGitRevision,
       name,
       new HailClassLoader(getClass().getClassLoader()),
       batchClient,
-      batchId,
-      jobGroupId,
+      batchConfig,
       scratchDir,
       rpcConfig,
       sys.env,
