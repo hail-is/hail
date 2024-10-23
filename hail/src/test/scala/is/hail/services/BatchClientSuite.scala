@@ -19,7 +19,7 @@ class BatchClientSuite extends TestNGSuite {
 
   @BeforeClass
   def createClientAndBatch(): Unit = {
-    client = BatchClient(DeployConfig.get(), Path.of("/tmp/test-gsa-key/key.json"))
+    client = BatchClient(DeployConfig.get(), Path.of("/test-gsa-key/key.json"))
     batchId = client.newBatch(
       BatchRequest(
         billing_project = "test",
