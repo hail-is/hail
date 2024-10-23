@@ -3723,6 +3723,7 @@ steps:
       - hail_run_image
       - build_debug_hail_test_jar
       - build_hail_test_artifacts
+      - upload_query_jar
       - deploy_batch
   - kind: runImage
     name: start_hail_benchmark
