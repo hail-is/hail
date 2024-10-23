@@ -4,7 +4,7 @@ import hail as hl
 from hail import ir
 from hail.expr.types import tarray, tcall, tfloat32, tfloat64, tint32, tstruct
 from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import dictof, sized_tupleof, enumeration, nullable, oneof, sequenceof, typecheck
+from hail.typecheck import dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck
 from hail.utils.java import info, warning
 
 from .functions import lgt_to_gt
