@@ -90,8 +90,8 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
 
         failure.foreach(throw _)
 
-        batchClient.newBatch(any) wasCalled once
         batchClient.newJobGroup(any) wasCalled once
+        batchClient.waitForJobGroup(any, any) wasCalled once
       }
     }
 
