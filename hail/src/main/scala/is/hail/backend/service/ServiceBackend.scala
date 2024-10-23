@@ -294,4 +294,3 @@ class ServiceBackend(
 }
 
 class HailBatchFailure(message: String) extends RuntimeException(message)
-

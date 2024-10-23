@@ -11,16 +11,18 @@ import is.hail.io.fs.{CloudStorageFSConfig, FS, RouterFS}
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.services._
 import is.hail.types.virtual.Kinds
-import is.hail.utils.{ErrorHandling, ExecutionTimer, HailWorkerException, Logging, toRichIterable, using}
+import is.hail.utils.{toRichIterable, using, ErrorHandling, ExecutionTimer, HailWorkerException, Logging}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
-import org.json4s.{DefaultFormats, Formats}
 
 import scala.annotation.switch
 import scala.collection.mutable
+
 import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Path
+
+import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST.JValue
 import org.json4s.jackson.JsonMethods
 
