@@ -238,7 +238,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         .asInstanceOf[JObject]
         .merge(
           JObject(
-            "job_id" -> JInt(jobIdx),
+            "job_id" -> JInt(jobIdx + 1),
             "in_update_job_group_id" -> JInt(1),
           )
         )

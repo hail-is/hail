@@ -85,7 +85,7 @@ class BatchClientSuite extends TestNGSuite {
           JobRequest(
             always_run = false,
             process = JvmJob(
-              command = Array(Main.WORKER, "", "", ""),
+              command = Array(Main.TEST),
               spec = GitRevision("git rev-parse main".!!.strip()),
               profile = false,
             ),

@@ -5,6 +5,7 @@ import com.fasterxml.jackson.core.StreamReadConstraints
 object Main {
   val WORKER = "worker"
   val DRIVER = "driver"
+  val TEST = "test"
 
   /* This constraint should be overridden as early as possible. See:
    * - https://github.com/hail-is/hail/issues/14580
@@ -18,6 +19,7 @@ object Main {
     argv(3) match {
       case WORKER => Worker.main(argv)
       case DRIVER => ServiceBackendAPI.main(argv)
+      case TEST => ()
       case kind => throw new RuntimeException(s"unknown kind: $kind")
     }
 }
