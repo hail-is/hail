@@ -1,6 +1,7 @@
 from . import combiner
 from .combiner import load_combiner, new_combiner
 from .functions import lgt_to_gt, local_to_global
+from .impex import export_vcf, import_vcf
 from .methods import (
     filter_chromosomes,
     filter_intervals,
@@ -22,26 +23,28 @@ from .variant_dataset import VariantDataset, read_vds, store_ref_block_max_lengt
 
 __all__ = [
     'VariantDataset',
-    'read_vds',
+    'combiner',
+    'export_vcf',
+    'filter_chromosomes',
     'filter_intervals',
     'filter_samples',
     'filter_variants',
-    'filter_chromosomes',
-    'sample_qc',
-    'split_multi',
-    'to_dense_mt',
-    'to_merged_sparse_mt',
-    'combiner',
-    'load_combiner',
-    'new_combiner',
-    'write_variant_datasets',
-    'segment_reference_blocks',
-    'interval_coverage',
+    'import_vcf',
     'impute_sex_chr_ploidy_from_interval_coverage',
     'impute_sex_chromosome_ploidy',
-    'truncate_reference_blocks',
-    'merge_reference_blocks',
+    'interval_coverage',
     'lgt_to_gt',
+    'load_combiner',
     'local_to_global',
+    'merge_reference_blocks',
+    'new_combiner',
+    'read_vds',
+    'sample_qc',
+    'segment_reference_blocks',
+    'split_multi',
     'store_ref_block_max_length',
+    'to_dense_mt',
+    'to_merged_sparse_mt',
+    'truncate_reference_blocks',
+    'write_variant_datasets',
 ]

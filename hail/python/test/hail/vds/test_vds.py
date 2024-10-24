@@ -921,3 +921,36 @@ def test_haploid_lpl_import():
     lpl = vd.aggregate_entries(hl.agg.collect(vd.LPL))
     lpl = lpl[0]
     assert lpl == [10, 0]
+
+
+def test_basic_impex():
+    orig_vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    path = new_temp_file(extension='vcf.bgz')
+    hl.vds.export_vcf(orig_vds, path)
+
+    metadata = hl.get_vcf_metadata(path)
+    format_md = metadata['format']
+
+    assert 'GT' in format_md, format_md
+    assert 'LGT' not in format_md, format_md
+    assert 'LAA' in format_md, format_md
+    assert 'LA' not in format_md, format_md
+    assert 'gvcf_info' not in format_md, format_md
+    # LPGT is in this VDS, so we can check for PGT existing and LPGT not existing
+    assert 'PGT' in format_md, format_md
+    assert 'LPGT' not in format_md, format_md
+
+    new_vds = hl.vds.import_vcf(path, reference_genome=orig_vds.variant_data.locus.dtype.reference_genome)
+
+    assert orig_vds.variant_data.count() == new_vds.variant_data.count()
+    assert orig_vds.variant_data.aggregate_entries(hl.agg.count()) == new_vds.variant_data.aggregate_entries(
+        hl.agg.count()
+    )
+
+    assert orig_vds.reference_data.count() == new_vds.reference_data.count()
+    assert orig_vds.reference_data.aggregate_entries(hl.agg.count()) == new_vds.reference_data.aggregate_entries(
+        hl.agg.count()
+    )
+
+    new_vds.variant_data._force_count_rows()
+    new_vds.reference_data._force_count_rows()
