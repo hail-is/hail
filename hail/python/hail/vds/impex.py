@@ -68,7 +68,7 @@ def export_vcf(
 
     Parameters
     ----------
-    dataset : :class:`.MatrixTable`
+    dataset : :class:`.VariantDataset`
         Dataset.
     output : :class:`str`
         Path of .vcf or .vcf.bgz file to write.
@@ -96,11 +96,6 @@ def export_vcf(
         ref = ref.drop('END')
 
     if 'gvcf_info' in var.entry and isinstance(var.gvcf_info.dtype, tstruct):
-        warning(
-            'vds.export_vcf: dropping `gvcf_info` as exporting entry field of type `struct<...>` '
-            'to VCF is not supported. To preserve this information, flatten the struct onto the '
-            'entries.'
-        )
         var = var.drop('gvcf_info')
 
     if 'LGT' in var.entry:
@@ -213,8 +208,8 @@ def import_vcf(
     Parameters
     ----------
     path : :class:`str` or :obj:`list` of :obj:`str`
-        One or more paths to VCF files to read. Each path may or may not include glob expressions
-        like ``*``, ``?``, or ``[abc123]``.
+        One or more paths to VCF files to read. Each path may include glob expressions like ``*``,
+        ``?``, or ``[abc123]``, which, if present, will be expanded.
     is_split : :obj:`bool`
         If ``True`` indicate that this is a dataset where multi-allelic variants have been split.
         When ``True``, the ``LA``/``LAA`` fields need not be present.
