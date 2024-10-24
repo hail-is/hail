@@ -4,9 +4,9 @@ import is.hail.HailFeatureFlags
 import is.hail.backend.{Backend, ExecuteContext, NonOwningTempFileManager, TempFileManager}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IR, IRParser,
-  IRParserEnvironment, Interpret, MatrixIR, MatrixNativeReader, MatrixRead, Name,
-  NativeReaderOptions, TableIR, TableLiteral, TableValue,
+  BaseIR, BindingEnv, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IR, IRParser, Interpret,
+  MatrixIR, MatrixNativeReader, MatrixRead, Name, NativeReaderOptions, TableIR, TableLiteral,
+  TableValue,
 }
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -34,7 +34,6 @@ import sourcecode.Enclosing
 trait Py4JBackendExtensions {
   def backend: Backend
   def references: mutable.Map[String, ReferenceGenome]
-  def persistedIR: mutable.Map[Int, BaseIR]
   def flags: HailFeatureFlags
   def longLifeTempFileManager: TempFileManager
 
@@ -54,14 +53,14 @@ trait Py4JBackendExtensions {
     irID
   }
 
-  private[this] def addJavaIR(ir: BaseIR): Int = {
+  private[this] def addJavaIR(ctx: ExecuteContext, ir: BaseIR): Int = {
     val id = nextIRID()
-    persistedIR += (id -> ir)
+    ctx.IrCache += (id -> ir)
     id
   }
 
   def pyRemoveJavaIR(id: Int): Unit =
-    persistedIR.remove(id)
+    backend.withExecuteContext(_.IrCache.remove(id))
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
     backend.withExecuteContext { ctx =>
@@ -118,7 +117,7 @@ trait Py4JBackendExtensions {
     argTypeStrs: java.util.ArrayList[String],
     returnType: String,
     bodyStr: String,
-  ): Unit = {
+  ): Unit =
     backend.withExecuteContext { ctx =>
       IRFunctionRegistry.registerIR(
         ctx,
@@ -130,17 +129,16 @@ trait Py4JBackendExtensions {
         bodyStr,
       )
     }
-  }
 
   def pyExecuteLiteral(irStr: String): Int =
     backend.withExecuteContext { ctx =>
-      val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
+      val ir = IRParser.parse_value_ir(ctx, irStr)
       assert(ir.typ.isRealizable)
       backend.execute(ctx, ir) match {
         case Left(_) => throw new HailException("Can't create literal")
         case Right((pt, addr)) =>
           val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
-          addJavaIR(field)
+          addJavaIR(ctx, field)
       }
     }
 
@@ -159,14 +157,14 @@ trait Py4JBackendExtensions {
         ),
         ctx.theHailClassLoader,
       )
-      val id = addJavaIR(tir)
+      val id = addJavaIR(ctx, tir)
       (id, JsonMethods.compact(tir.typ.toJSON))
     }
   }
 
   def pyToDF(s: String): DataFrame =
     backend.withExecuteContext { ctx =>
-      val tir = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
+      val tir = IRParser.parse_table_ir(ctx, s)
       Interpret(tir, ctx).toDF()
     }
 
@@ -231,8 +229,8 @@ trait Py4JBackendExtensions {
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
     backend.withExecuteContext { ctx =>
       IRParser.parse_value_ir(
+        ctx,
         s,
-        IRParserEnvironment(ctx, irMap = persistedIR.toMap),
         BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
           Name(n) -> IRParser.parseType(t)
         }.toSeq: _*),
@@ -240,18 +238,14 @@ trait Py4JBackendExtensions {
     }
 
   def parse_table_ir(s: String): TableIR =
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-    }
+    withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_table_ir(ctx, s))
 
   def parse_matrix_ir(s: String): MatrixIR =
-    withExecuteContext(selfContainedExecution = false) { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-    }
+    withExecuteContext(selfContainedExecution = false)(ctx => IRParser.parse_matrix_ir(ctx, s))
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
+      IRParser.parse_blockmatrix_ir(ctx, s)
     }
 
   def loadReferencesFromDataset(path: String): Array[Byte] =
