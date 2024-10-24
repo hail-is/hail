@@ -1,5 +1,4 @@
 package is.hail.backend.service
-
 import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -156,52 +155,24 @@ class ServiceBackend(
     new String(bytes, StandardCharsets.UTF_8)
   }
 
-  private[this] def submitAndWaitForBatch(
-    _backendContext: BackendContext,
-    fs: FS,
+  private[this] def submitJobGroupAndWait(
+    backendContext: ServiceBackendContext,
     collection: IndexedSeq[Array[Byte]],
+    token: String,
+    root: String,
     stageIdentifier: String,
-    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte],
-  ): (String, String, Int) = {
-    val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
-    val n = collection.length
-    val token = tokenUrlSafe
-    val root = s"${backendContext.remoteTmpDir}/parallelizeAndComputeWithIndex/$token"
+  ): JobGroupResponse = {
+    val defaultProcess =
+      JvmJob(
+        command = null,
+        spec = jarSpec,
+        profile = flags.get("profile") != null,
+      )
 
-    log.info(s"parallelizeAndComputeWithIndex: $token: nPartitions $n")
-    log.info(s"parallelizeAndComputeWithIndex: $token: writing f and contexts")
-
-    val uploadFunction = executor.submit[Unit](() =>
-      retryTransientErrors {
-        fs.writePDOS(s"$root/f") { fos =>
-          using(new ObjectOutputStream(fos))(oos => oos.writeObject(f))
-        }
-      }
-    )
-
-    val uploadContexts = executor.submit[Unit](() =>
-      retryTransientErrors {
-        fs.writePDOS(s"$root/contexts") { os =>
-          var o = 12L * n // 12L = sizeof(Long) + sizeof(Int)
-          collection.foreach { context =>
-            val len = context.length
-            os.writeLong(o)
-            os.writeInt(len)
-            o += len
-          }
-          collection.foreach(context => os.write(context))
-        }
-      }
-    )
-
-    val jobs = collection.indices.map { i =>
+    val defaultJob =
       JobRequest(
         always_run = false,
-        process = JvmJob(
-          command = Array(Main.WORKER, root, s"$i", s"$n"),
-          spec = jarSpec,
-          profile = flags.get("profile") != null,
-        ),
+        process = null,
         resources = Some(
           JobResources(
             preemptible = true,
@@ -212,34 +183,33 @@ class ServiceBackend(
         ),
         regions = Some(backendContext.regions).filter(_.nonEmpty),
         cloudfuse = Some(backendContext.cloudfuseConfig).filter(_.nonEmpty),
-        attributes = Map("name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i"),
       )
-    }
 
-    uploadFunction.get()
-    uploadContexts.get()
+    val jobs =
+      collection.indices.map { i =>
+        defaultJob.copy(
+          attributes = Map("name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i"),
+          process = defaultProcess.copy(
+            command = Array(Main.WORKER, root, s"$i", s"${collection.length}")
+          ),
+        )
+      }
 
-    log.info(s"parallelizeAndComputeWithIndex: $token: running job")
-
-    val jobGroupId = batchClient.newJobGroup(
-      JobGroupRequest(
-        batch_id = batchConfig.batchId,
-        absolute_parent_id = batchConfig.jobGroupId,
-        token = tokenUrlSafe,
-        attributes = Map("name" -> stageIdentifier),
-        jobs = jobs,
+    val jobGroupId =
+      batchClient.newJobGroup(
+        JobGroupRequest(
+          batch_id = batchConfig.batchId,
+          absolute_parent_id = batchConfig.jobGroupId,
+          token = token,
+          attributes = Map("name" -> stageIdentifier),
+          jobs = jobs,
+        )
       )
-    )
-
-    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-    val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
 
     stageCount += 1
-    if (response.state == Failure) {
-      throw new HailBatchFailure(s"JobGroup $jobGroupId for batch ${batchConfig.batchId} failed")
-    }
 
-    (token, root, n)
+    Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
+    batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
   }
 
   private[this] def readResult(root: String, i: Int): Array[Byte] = {
@@ -267,13 +237,45 @@ class ServiceBackend(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
 
+    val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
+
+    val token = tokenUrlSafe
+    val root = s"${backendContext.remoteTmpDir}/parallelizeAndComputeWithIndex/$token"
+
+    val uploadFunction = executor.submit[Unit](() =>
+      retryTransientErrors {
+        fs.writePDOS(s"$root/f") { fos =>
+          using(new ObjectOutputStream(fos))(oos => oos.writeObject(f))
+          log.info(s"parallelizeAndComputeWithIndex: $token: uploaded f")
+        }
+      }
+    )
+
     val (partIdxs, parts) =
       partitions
         .map(ps => (ps, ps.map(contexts)))
         .getOrElse((contexts.indices, contexts))
 
-    val (token, root, _) =
-      submitAndWaitForBatch(_backendContext, fs, parts, stageIdentifier, f)
+    val uploadContexts = executor.submit[Unit](() =>
+      retryTransientErrors {
+        fs.writePDOS(s"$root/contexts") { os =>
+          var o = 12L * parts.length // 12L = sizeof(Long) + sizeof(Int)
+          parts.foreach { context =>
+            val len = context.length
+            os.writeLong(o)
+            os.writeInt(len)
+            o += len
+          }
+          parts.foreach(os.write)
+          log.info(s"parallelizeAndComputeWithIndex: $token: wrote ${parts.length} contexts")
+        }
+      }
+    )
+
+    uploadFunction.get()
+    uploadContexts.get()
+
+    val jobGroup = submitJobGroupAndWait(backendContext, parts, token, root, stageIdentifier)
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
@@ -284,6 +286,12 @@ class ServiceBackend(
     }
 
     error.foreach(throw _)
+
+    if (jobGroup.state == Failure) {
+      throw new HailBatchFailure(
+        s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed with an unknown error"
+      )
+    }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
     val rate = results.length / resultsReadingSeconds
