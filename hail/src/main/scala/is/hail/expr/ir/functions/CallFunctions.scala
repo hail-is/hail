@@ -201,8 +201,8 @@ object CallFunctions extends RegistryFunctions {
       TCall,
       { case (_: Type, sc: SCall, _: SType) => sc },
     ) {
-      case (_, cb, _, call, localAlleles, errorID) =>
-        call.asCall.lgtToGT(cb, localAlleles.asIndexable, errorID)
+      case (_, cb, _, call: SCallValue, localAlleles: SIndexableValue, errorID) =>
+        call.lgtToGT(cb, localAlleles, errorID)
     }
 
     registerWrappedScalaFunction2(

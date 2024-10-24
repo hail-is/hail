@@ -9,32 +9,29 @@ import scala.annotation.tailrec
 import scala.collection.mutable
 
 object NormalizeNames {
-  def apply[T <: BaseIR](
-    ctx: ExecuteContext,
-    ir: T,
-    allowFreeVariables: Boolean = false,
-  ): T = {
-    val freeVariables: Set[Name] = ir match {
-      case ir: IR =>
-        if (allowFreeVariables) {
-          val env = FreeVariables(ir, true, true)
-          env.eval.m.keySet union
-            env.agg.map(_.m.keySet).getOrElse(Set.empty) union
-            env.scan.map(_.m.keySet).getOrElse(Set.empty) union
-            env.relational.m.keySet
-        } else {
+  def apply[T <: BaseIR](ctx: ExecuteContext, ir: T, allowFreeVariables: Boolean = false): T =
+    ctx.time {
+      val freeVariables: Set[Name] = ir match {
+        case ir: IR =>
+          if (allowFreeVariables) {
+            val env = FreeVariables(ir, true, true)
+            env.eval.m.keySet union
+              env.agg.map(_.m.keySet).getOrElse(Set.empty) union
+              env.scan.map(_.m.keySet).getOrElse(Set.empty) union
+              env.relational.m.keySet
+          } else {
+            Set.empty
+          }
+        case _ =>
           Set.empty
-        }
-      case _ =>
-        Set.empty
+      }
+      val env = BindingEnv.empty[Name].createAgg.createScan
+      val noSharing = ir.noSharing(ctx)
+      val normalize = new NormalizeNames(freeVariables)
+      val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
+      uidCounter = math.max(uidCounter, normalize.count)
+      res
     }
-    val env = BindingEnv.empty[Name].createAgg.createScan
-    val noSharing = ir.noSharing(ctx)
-    val normalize = new NormalizeNames(freeVariables)
-    val res = normalize.normalizeIR(noSharing, env).run().asInstanceOf[T]
-    uidCounter = math.max(uidCounter, normalize.count)
-    res
-  }
 
   protected def needsRenaming(ir: BaseIR): Boolean = ir match {
     case _: RelationalLetMatrixTable | _: TableGen | _: TableMapPartitions | _: RelationalLetTable =>
