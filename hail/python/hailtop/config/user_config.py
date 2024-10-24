@@ -145,4 +145,4 @@ def get_remote_tmpdir(
                 f'remote_tmpdir must be a storage uri path like gs://bucket/folder. Received: {remote_tmpdir}. Possible schemes include gs for GCP and https for Azure'
             )
 
-    return remote_tmpdir[:-1] if remote_tmpdir[-1] == '/' else remote_tmpdir
+    return remote_tmpdir.rstrip('/')
