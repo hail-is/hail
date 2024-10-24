@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
