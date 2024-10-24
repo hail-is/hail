@@ -1,4 +1,5 @@
 package is.hail.backend.service
+
 import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
