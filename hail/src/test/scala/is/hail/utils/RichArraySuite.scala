@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.utils.richUtils.RichArray
 
 import org.testng.annotations.Test
@@ -15,7 +15,7 @@ class RichArraySuite extends HailSuite {
     RichArray.importFromDoubles(fs, file, a2, bufSize = 16)
     assert(a === a2)
 
-    TestUtils.interceptFatal("Premature") {
+    interceptFatal("Premature") {
       RichArray.importFromDoubles(fs, file, new Array[Double](101), bufSize = 64)
     }
   }
