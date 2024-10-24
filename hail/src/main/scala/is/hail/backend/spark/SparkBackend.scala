@@ -19,6 +19,7 @@ import is.hail.types.physical.{PStruct, PTuple}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
@@ -76,7 +77,7 @@ object SparkBackend {
 
   private var theSparkBackend: SparkBackend = _
 
-  def sparkContext(op: String): SparkContext = HailContext.sparkBackend(op).sc
+  def sparkContext(implicit E: Enclosing): SparkContext = HailContext.sparkBackend.sc
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -346,17 +347,15 @@ class SparkBackend(
   def createExecuteContextForTests(
     timer: ExecutionTimer,
     region: Region,
-    selfContainedExecution: Boolean = true,
   ): ExecuteContext =
     new ExecuteContext(
       tmpdir,
       localTmpdir,
       this,
-      references.toMap,
       fs,
       region,
       timer,
-      if (selfContainedExecution) null else NonOwningTempFileManager(longLifeTempFileManager),
+      null,
       theHailClassLoader,
       flags,
       new BackendContext {
@@ -364,18 +363,18 @@ class SparkBackend(
           ExecutionCache.forTesting
       },
       new IrMetadata(),
+      references,
       ImmutableMap.empty,
       mutable.Map.empty,
       ImmutableMap.empty,
     )
 
-  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
-    ExecutionTimer.logTime { timer =>
+  override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): (T, Timings) =
+    ExecutionTimer.time { timer =>
       ExecuteContext.scoped(
         tmpdir,
         localTmpdir,
         this,
-        references.toMap,
         fs,
         timer,
         null,
@@ -386,6 +385,7 @@ class SparkBackend(
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
         new IrMetadata(),
+        references,
         bmCache,
         codeCache,
         persistedIr,
@@ -450,7 +450,7 @@ class SparkBackend(
 
   def defaultParallelism: Int = sc.defaultParallelism
 
-  override def asSpark(op: String): SparkBackend = this
+  override def asSpark(implicit E: Enclosing): SparkBackend = this
 
   def close(): Unit = {
     bmCache.close()
