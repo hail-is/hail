@@ -32,7 +32,7 @@ attrs==24.2.0
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   aiohttp
-frozenlist==1.4.1
+frozenlist==1.5.0
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
@@ -53,7 +53,7 @@ jinja2==3.1.4
     #   aiohttp-jinja2
 libsass==0.23.0
     # via -r web_common/requirements.txt
-markupsafe==3.0.1
+markupsafe==3.0.2
     # via
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
@@ -77,7 +77,7 @@ typing-extensions==4.12.2
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
     #   -c web_common/../hail/python/pinned-requirements.txt
     #   multidict
-yarl==1.14.0
+yarl==1.16.0
     # via
     #   -c web_common/../gear/pinned-requirements.txt
     #   -c web_common/../hail/python/dev/pinned-requirements.txt
