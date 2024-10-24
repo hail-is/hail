@@ -18,7 +18,6 @@ import org.apache.spark.sql.Row
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
-import sourcecode.Enclosing
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -44,7 +43,7 @@ object HailSuite {
 
   lazy val hc: HailContext = {
     val hc = withSparkBackend()
-    hc.sparkBackend("HailSuite.hc").setFlag("lower", "1")
+    hc.sparkBackend("HailSuite.hc").flags.set("lower", "1")
     hc.checkRVDKeys = true
     hc
   }
@@ -91,9 +90,6 @@ class HailSuite extends TestNGSuite {
     if (backend.sc.isStopped)
       throw new RuntimeException(s"method stopped spark context!")
   }
-
-  def withExecuteContext[T]()(f: ExecuteContext => T)(implicit E: Enclosing): T =
-    hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext(f)
 
   def assertEvalsTo(
     x: IR,

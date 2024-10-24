@@ -55,7 +55,7 @@ class UnsafeSuite extends HailSuite {
 
   @DataProvider(name = "codecs")
   def codecs(): Array[Array[Any]] =
-    withExecuteContext()(ctx => codecs(ctx))
+    ExecuteContext.scoped(ctx => codecs(ctx))
 
   def codecs(ctx: ExecuteContext): Array[Array[Any]] =
     (BufferSpec.specs ++ Array(TypedCodecSpec(
