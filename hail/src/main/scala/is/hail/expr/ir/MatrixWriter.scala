@@ -1022,9 +1022,9 @@ case class VCFPartitionWriter(
         cb.if_(ploidy.ceq(0), cb._fatal("VCF does not support 0-ploid calls."))
         cb.if_(
           ploidy.ceq(1) && v.isPhased(cb),
-          // FIXME: VCFv4.4 released Jan. 2023, supports phased haploid calls, when support is better
-          //        and we update the version of vcf that we output to 4.5 to account for SVCR additions,
-          //        we'll want to change this
+          /* FIXME: VCFv4.4 released Jan. 2023, supports phased haploid calls, when support is
+           * better and we update the version of vcf that we output to 4.5 to account for SVCR
+           * additions, we'll want to change this */
           cb._fatal("VCFv4.2 does not support phased haploid calls."),
         )
         val c = v.canonicalCall(cb)
