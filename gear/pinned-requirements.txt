@@ -53,7 +53,7 @@ charset-normalizer==3.4.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
-frozenlist==1.4.1
+frozenlist==1.5.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -113,7 +113,7 @@ propcache==0.2.0
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   yarl
-proto-plus==1.24.0
+proto-plus==1.25.0
     # via google-api-core
 protobuf==3.20.2
     # via
@@ -138,7 +138,7 @@ pymysql==1.1.1
     # via
     #   -r gear/requirements.txt
     #   aiomysql
-pyparsing==3.1.4
+pyparsing==3.2.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   httplib2
@@ -166,7 +166,7 @@ rsa==4.9
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-setuptools==75.1.0
+setuptools==75.2.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   kubernetes-asyncio
@@ -202,7 +202,7 @@ wrapt==1.16.0
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   prometheus-async
-yarl==1.14.0
+yarl==1.16.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt

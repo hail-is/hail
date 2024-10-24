@@ -42,7 +42,7 @@ attrs==24.2.0
     #   aiohttp
 dictdiffer==0.9.0
     # via -r batch/requirements.txt
-frozenlist==1.4.1
+frozenlist==1.5.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -121,7 +121,7 @@ tzdata==2024.2
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   pandas
-yarl==1.14.0
+yarl==1.16.0
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
