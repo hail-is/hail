@@ -88,7 +88,7 @@ object oauth2 {
       }
 
     private[this] def isExpired: Boolean =
-      token == null || OffsetDateTime.now.plusHours(1).isBefore(token.getExpiresAt)
+      token == null || OffsetDateTime.now.plusMinutes(5).isBefore(token.getExpiresAt)
   }
 
   object AzureCloudCredentials {
