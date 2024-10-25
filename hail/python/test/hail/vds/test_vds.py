@@ -942,6 +942,13 @@ def test_basic_impex():
 
     new_vds = hl.vds.import_vcf(path, reference_genome=orig_vds.variant_data.locus.dtype.reference_genome)
 
+    assert (
+        VariantDataset.ref_block_max_length_field in new_vds.reference_data.globals
+    ), 'failed to parse ref_block_max_length line from header'
+    orig_rbml = hl.eval(orig_vds.reference_data[VariantDataset.ref_block_max_length_field])
+    new_rbml = hl.eval(new_vds.reference_data[VariantDataset.ref_block_max_length_field])
+    assert orig_rbml == new_rbml
+
     assert orig_vds.variant_data.count() == new_vds.variant_data.count()
     assert orig_vds.variant_data.aggregate_entries(hl.agg.count()) == new_vds.variant_data.aggregate_entries(
         hl.agg.count()

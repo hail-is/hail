@@ -273,6 +273,33 @@ def import_vcf(
     else:  # call_fields is a sequence
         call_fields = tuple({'LGT', *call_fields})
 
+    # read ref_block_max_length from header
+    if header_file is None:
+        if isinstance(path, str):
+            paths = [entry['path'] for entry in hl.hadoop_ls(path)]
+        else:
+            paths = [entry['path'] for item in path for entry in hl.hadoop_ls(item)]
+        if not paths:
+            raise ValueError(f'File(s) in {path} refer to no files')
+        header_file = paths[0]
+
+    ref_block_max_length = None
+    with hl.hadoop_open(header_file) as header:  # use hadoop_open to handle gzip
+        for _line in header:
+            line = _line.strip()
+            if not line:
+                continue
+            if not line.startswith('##'):
+                break
+            if (newline := line.removeprefix('##ref_block_max_length=')) != line:
+                try:
+                    ref_block_max_length = int(newline)
+                    if ref_block_max_length <= 0:
+                        raise ValueError
+                except ValueError:
+                    ref_block_max_length = None  # ensure this is None
+                    warning(f"invalid ref_block_max_length '{newline}', ignoring it")
+
     vcf = hl.import_vcf(
         path=path,
         force=force,
@@ -326,5 +353,10 @@ def import_vcf(
         infer_ref_block_fields=infer_ref_block_fields,
         is_split=is_split,
     )
+
+    if ref_block_max_length is not None:
+        vds.reference_data = vds.reference_data.annotate_globals(**{
+            VariantDataset.ref_block_max_length_field: ref_block_max_length
+        })
 
     return vds
