@@ -197,8 +197,9 @@ def import_vcf(
     ----
     The following validations and transformations take place:
 
-    #. The ``LEN`` FORMAT field must exist and be of type :py:data:`.tint32`
-    #. One of ``GT`` or ``LGT`` must be a FORMAT field of type :py:data:`.tcall`
+    #. The ``LEN`` FORMAT field must exist and be of type ``Integer``
+    #. One of ``GT`` or ``LGT`` must be a FORMAT field of type ``String`` and must represent
+       a :py:data:`.tcall`
     #. If ``is_split`` is ``False`` (the default), one of ``LA`` or ``LAA``, the local (alternate)
        alleles field must be a FORMAT field of type ``array<int32>``.
     #. ``LAA`` is transformed back into ``LA`` if ``LA`` is not already present, and then ``LAA`` is
