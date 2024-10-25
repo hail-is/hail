@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
@@ -202,6 +202,7 @@ class ServiceBackend(
           batch_id = batchConfig.batchId,
           absolute_parent_id = batchConfig.jobGroupId,
           token = token,
+          cancel_after_n_failures = Some(1),
           attributes = Map("name" -> stageIdentifier),
           jobs = jobs,
         )
@@ -280,12 +281,17 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    var r @ (err, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+    var r @ (err, results) = runAll[Option, Array[Byte]](executor) {
+      /* A missing file means the job was cancelled because another job failed. Assumes that if any
+       * job was cancelled, then at least one job failed. We want to ignore the missing file
+       * exceptions and return one of the actual failure exceptions. */
+      case (opt, _: FileNotFoundException) => opt
+      case (opt, e) => opt.orElse(Some(e))
+    }(None) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
         (() => readResult(root, jobIndex), partIdx)
       }
     }
-
     if (jobGroup.state != Success && err.isEmpty) {
       assert(jobGroup.state != Running)
       val error =
