@@ -70,7 +70,15 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
     synchronized { tmpdir = tmp }
 
   def pySetLocalTmp(tmp: String): Unit =
-    synchronized { localTmpdir = tmp }
+    synchronized {
+      localTmpdir = tmp
+      backend match {
+        case s: SparkBackend =>
+          s.sc.getConf.set("spark.local.dir", tmp)
+        case _ =>
+          ()
+      }
+    }
 
   def pySetGcsRequesterPaysConfig(project: String, buckets: util.List[String]): Unit =
     synchronized {
