@@ -40,7 +40,7 @@ class BatchClientSuite extends TestNGSuite {
         attributes = Map("name" -> m.getName),
         jobs = FastSeq(),
       )
-    )
+    )._1
   }
 
   @AfterClass
@@ -49,7 +49,7 @@ class BatchClientSuite extends TestNGSuite {
 
   @Test
   def testCancelAfterNFailures(): Unit = {
-    val jobGroupId = client.newJobGroup(
+    val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
         absolute_parent_id = parentJobGroupId,
@@ -80,10 +80,23 @@ class BatchClientSuite extends TestNGSuite {
   }
 
   @Test
+  def testGetJobGroupJobsByState(): Unit = {
+    val jobGroup = client.getJobGroup(8218901, 2)
+    assert(jobGroup.n_jobs == 2)
+    assert(jobGroup.n_failed == 1)
+    assert(client.getJobGroupJobs(8218901, 2).head.length == 2)
+    for (state <- Array(JobStates.Failed, JobStates.Success))
+      for (jobs <- client.getJobGroupJobs(8218901, 2, Some(state))) {
+        assert(jobs.length == 1)
+        assert(jobs(0).state == state)
+      }
+  }
+
+  @Test
   def testNewJobGroup(): Unit =
     // The query driver submits a job group per stage with one job per partition
     for (i <- 1 to 2) {
-      val jobGroupId = client.newJobGroup(
+      val (jobGroupId, _) = client.newJobGroup(
         req = JobGroupRequest(
           batch_id = batchId,
           absolute_parent_id = parentJobGroupId,
@@ -107,7 +120,7 @@ class BatchClientSuite extends TestNGSuite {
 
   @Test
   def testJvmJob(): Unit = {
-    val jobGroupId = client.newJobGroup(
+    val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
         absolute_parent_id = parentJobGroupId,
