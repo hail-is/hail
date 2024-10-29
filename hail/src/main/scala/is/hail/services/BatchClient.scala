@@ -8,7 +8,7 @@ import is.hail.utils._
 
 import scala.util.Random
 
-import java.net.URL
+import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Path
 
@@ -87,6 +87,28 @@ object JobGroupStates {
   case object Running extends JobGroupState
 }
 
+sealed trait JobState extends Product with Serializable
+
+object JobStates {
+  case object Pending extends JobState
+  case object Ready extends JobState
+  case object Creating extends JobState
+  case object Running extends JobState
+  case object Cancelled extends JobState
+  case object Error extends JobState
+  case object Failed extends JobState
+  case object Success extends JobState
+}
+
+case class JobListEntry(
+  batch_id: Int,
+  job_id: Int,
+  state: JobState,
+  exit_code: Int,
+)
+
+case class JobResponse(job_id: Int, state: JobState, attributes: Option[Map[String, String]])
+
 object BatchClient {
 
   private[this] def BatchServiceScopes(env: Map[String, String]): Array[String] =
@@ -122,7 +144,10 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobProcessRequestSerializer +
       JobGroupStateDeserializer +
       JobGroupResponseDeserializer +
-      JarSpecSerializer
+      JarSpecSerializer +
+      JobStateDeserializer +
+      JobListEntryDeserializer +
+      JobResponseDeserializer
 
   def newBatch(createRequest: BatchRequest): Int = {
     val response = req.post("/api/v1alpha/batches/create", Extraction.decompose(createRequest))
@@ -152,6 +177,17 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     req
       .get(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId")
       .extract[JobGroupResponse]
+
+  def getJobGroupJobs(batchId: Int, jobGroupId: Int, status: Option[JobState] = None)
+    : IndexedSeq[JobListEntry] = {
+    val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
+    req.get(
+      s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}"
+    ).as { case obj: JObject => (obj \ "jobs").extract[IndexedSeq[JobListEntry]] }
+  }
+
+  def getJob(batchId: Int, jobId: Int): JobResponse =
+    req.get(s"/api/v1alpha/batches/$batchId/jobs/$jobId").extract[JobResponse]
 
   def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
@@ -298,6 +334,23 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
       )
 
+  private[this] object JobStateDeserializer
+      extends CustomSerializer[JobState](_ =>
+        (
+          {
+            case JString("Pending") => JobStates.Pending
+            case JString("Ready") => JobStates.Ready
+            case JString("Creating") => JobStates.Creating
+            case JString("Running") => JobStates.Running
+            case JString("Cancelled") => JobStates.Cancelled
+            case JString("Error") => JobStates.Error
+            case JString("Failed") => JobStates.Failed
+            case JString("Success") => JobStates.Success
+          },
+          PartialFunction.empty,
+        )
+      )
+
   private[this] object JobGroupResponseDeserializer
       extends CustomSerializer[JobGroupResponse](implicit fmts =>
         (
@@ -313,6 +366,37 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
                 n_succeeded = (o \ "n_succeeded").extract[Int],
                 n_failed = (o \ "n_failed").extract[Int],
                 n_cancelled = (o \ "n_failed").extract[Int],
+              )
+          },
+          PartialFunction.empty,
+        )
+      )
+
+  private[this] object JobListEntryDeserializer
+      extends CustomSerializer[JobListEntry](implicit fmts =>
+        (
+          {
+            case o: JObject =>
+              JobListEntry(
+                batch_id = (o \ "batch_id").extract[Int],
+                job_id = (o \ "job_id").extract[Int],
+                state = (o \ "state").extract[JobState],
+                exit_code = (o \ "exit_code").extract[Int],
+              )
+          },
+          PartialFunction.empty,
+        )
+      )
+
+  private[this] object JobResponseDeserializer
+      extends CustomSerializer[JobResponse](implicit fmts =>
+        (
+          {
+            case o: JObject =>
+              JobResponse(
+                job_id = (o \ "job_id").extract[Int],
+                state = (o \ "state").extract[JobState],
+                attributes = (o \ "attributes").extract[Option[Map[String, String]]],
               )
           },
           PartialFunction.empty,

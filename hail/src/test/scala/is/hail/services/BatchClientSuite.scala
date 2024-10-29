@@ -19,7 +19,7 @@ class BatchClientSuite extends TestNGSuite {
 
   @BeforeClass
   def createClientAndBatch(): Unit = {
-    client = BatchClient(DeployConfig.get(), Path.of("/test-gsa-key/key.json"))
+    client = BatchClient(DeployConfig.get(), Path.of("/tmp/test-gsa-key/key.json"))
     batchId = client.newBatch(
       BatchRequest(
         billing_project = "test",
@@ -77,6 +77,46 @@ class BatchClientSuite extends TestNGSuite {
     val result = client.waitForJobGroup(batchId, jobGroupId)
     assert(result.state == Failure)
     assert(result.n_cancelled == 1)
+  }
+
+  @Test
+  def testGetJobGroupJobsByState(): Unit = {
+    val jobGroup = client.getJobGroup(8218901, 2)
+    assert(jobGroup.n_jobs == 2)
+    assert(jobGroup.n_failed == 1)
+    assert(client.getJobGroupJobs(8218901, 2).length == 2)
+    for (state <- Array(JobStates.Failed, JobStates.Success)) {
+      val jobs = client.getJobGroupJobs(8218901, 2, Some(state))
+      assert(jobs.length == 1)
+      assert(jobs(0).state == state)
+    }
+  }
+
+  @Test
+  def testGetJobs(): Unit = {
+    val jobGroupId = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        token = tokenUrlSafe,
+        jobs = IndexedSeq(
+          JobRequest(
+            always_run = false,
+            attributes = Map("foo" -> "bar"),
+            process = BashJob(
+              image = "ubuntu:22.04",
+              command = Array("/bin/bash", "-c", s"exit 0"),
+            ),
+          )
+        ),
+      )
+    )
+    val jobGroupJobs = client.getJobGroupJobs(batchId, jobGroupId)
+    for (entry <- jobGroupJobs) {
+      val job = client.getJob(batchId, entry.job_id)
+      assert(job.attributes.isDefined)
+      assert(job.attributes.get == Map("foo" -> "bar"))
+    }
   }
 
   @Test

@@ -5,10 +5,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
-import is.hail.expr.ir.{
-  Compile, IR, IRParser, IRParserEnvironment, IRSize, LoweringAnalyses, MakeTuple, SortField,
-  TableIR, TableReader, TypeCheck,
-}
+import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, IRSize, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader, TypeCheck}
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
@@ -189,7 +186,10 @@ class ServiceBackend(
     val jobs =
       collection.indices.map { i =>
         defaultJob.copy(
-          attributes = Map("name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i"),
+          attributes = Map(
+            "name" -> s"${name}_stage${stageCount}_${stageIdentifier}_job$i",
+            "idx" -> i.toString,
+          ),
           process = defaultProcess.copy(
             command = Array(Main.WORKER, root, s"$i", s"${collection.length}")
           ),
@@ -278,6 +278,11 @@ class ServiceBackend(
     uploadContexts.get()
 
     val jobGroup = submitJobGroupAndWait(backendContext, parts, token, root, stageIdentifier)
+
+    // case match on jobGroup
+    // success => read files
+    // failure => read failure only
+    // cancelled => propagate failure message
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
