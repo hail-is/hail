@@ -15,7 +15,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
 import is.hail.services.{BatchClient, JobGroupRequest, _}
-import is.hail.services.JobGroupStates.Failure
+import is.hail.services.JobGroupStates.{Cancelled, Failure, Running, Success}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
@@ -280,18 +280,27 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    val r @ (error, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+    var r @ (err, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
         (() => readResult(root, jobIndex), partIdx)
       }
     }
 
-    error.foreach(throw _)
+    if (jobGroup.state != Success && err.isEmpty) {
+      assert(jobGroup.state != Running)
+      val error =
+        jobGroup.state match {
+          case Failure =>
+            new HailBatchFailure(
+              s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed with an unknown error"
+            )
+          case Cancelled =>
+            new CancellationException(
+              s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} was cancelled"
+            )
+        }
 
-    if (jobGroup.state == Failure) {
-      throw new HailBatchFailure(
-        s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed with an unknown error"
-      )
+      r = (Some(error), results)
     }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
