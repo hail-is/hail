@@ -196,8 +196,8 @@ class Py4JBackend(Backend):
         self._jhc = jhc
 
         self._jbackend = self._hail_package.backend.api.Py4JBackendApi(jbackend)
-        self._jbackend.pySetLocalTmp(tmpdir)
-        self._jbackend.pySetRemoteTmp(remote_tmpdir)
+        self.local_tmpdir = tmpdir
+        self.remote_tmpdir = tmpdir
 
         self._jhttp_server = self._jbackend.pyHttpServer()
         self._backend_server_port: int = self._jhttp_server.port()
@@ -326,3 +326,21 @@ class Py4JBackend(Backend):
         self._jhc = None
         uninstall_exception_handler()
         super().stop()
+
+    @property
+    def local_tmpdir(self) -> str:
+        return self._local_tmpdir
+
+    @local_tmpdir.setter
+    def local_tmpdir(self, tmpdir: str) -> None:
+        self._local_tmpdir = tmpdir
+        self._jbackend.pySetLocalTmp(tmpdir)
+
+    @property
+    def remote_tmpdir(self) -> str:
+        return self._remote_tmpdir
+
+    @remote_tmpdir.setter
+    def remote_tmpdir(self, tmpdir: str) -> None:
+        self._remote_tmpdir = tmpdir
+        self._jbackend.pySetRemoteTmp(tmpdir)
