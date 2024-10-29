@@ -240,6 +240,7 @@ class ServiceBackend(Backend):
         self._batch_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
+        self.local_tmpdir = tmp_dir()
         self.remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
         self._registered_ir_function_names: Set[str] = set()
@@ -441,7 +442,7 @@ class ServiceBackend(Backend):
         return await self._run_on_batch(
             name=f'{action.name.lower()}(...)',
             service_backend_config=ServiceBackendRPCConfig(
-                tmp_dir=tmp_dir(),
+                tmp_dir=self.local_tmpdir,
                 remote_tmpdir=self.remote_tmpdir,
                 flags=self.flags,
                 custom_references=[

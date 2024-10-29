@@ -392,3 +392,13 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def requires_lowering(self):
         pass
+
+    @property
+    @abc.abstractmethod
+    def local_tmpdir(self) -> str:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def remote_tmpdir(self) -> str:
+        pass
