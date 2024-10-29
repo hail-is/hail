@@ -2,13 +2,16 @@ package is.hail.backend
 
 import is.hail.HailFeatureFlags
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.service.{ServiceBackend, ServiceBackendContext, ServiceBackendRPCPayload}
+import is.hail.backend.service.{
+  ServiceBackend, ServiceBackendContext, ServiceBackendRPCPayload, Worker,
+}
 import is.hail.io.fs.{CloudStorageFSConfig, RouterFS}
 import is.hail.services._
-import is.hail.services.JobGroupStates.Success
-import is.hail.utils.{tokenUrlSafe, using}
+import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
+import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
 
 import scala.collection.mutable
+import scala.concurrent.CancellationException
 import scala.reflect.io.{Directory, Path}
 import scala.util.Random
 
@@ -18,7 +21,7 @@ import org.mockito.ArgumentMatchersSugar.any
 import org.mockito.IdiomaticMockito
 import org.mockito.MockitoSugar.when
 import org.scalatest.OptionValues
-import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
+import org.scalatest.matchers.should.Matchers.{a, convertToAnyShouldWrapper}
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -50,8 +53,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
                 storage = Some(rpcConfig.storage),
               )
             }
-
-            backend.batchConfig.jobGroupId + 1
+            (backend.batchConfig.jobGroupId + 1, 1)
         }
 
         // the service backend expects that each job write its output to a well-known
@@ -93,6 +95,127 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
 
         batchClient.newJobGroup(any) wasCalled once
         batchClient.waitForJobGroup(any, any) wasCalled once
+      }
+    }
+
+  @Test def testFailedJobGroup(): Unit =
+    withMockDriverContext { rpcConfig =>
+      val batchClient = mock[BatchClient]
+      using(ServiceBackend(batchClient, rpcConfig)) { backend =>
+        val contexts = Array.tabulate(100)(_.toString.getBytes)
+        val startJobGroupId = 2356
+        when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
+          jobGroup: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobGroupId)
+        }
+        val successes = Array(13, 34, 65, 81) // arbitrary indices
+        val failures = Array(21, 44)
+        val expectedCause = new NoSuchMethodError("")
+        when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
+          (id: Int, jobGroupId: Int) =>
+            val resultsDir =
+              Path(backend.serviceBackendContext.remoteTmpDir) /
+                "parallelizeAndComputeWithIndex" /
+                tokenUrlSafe
+
+            resultsDir.createDirectory()
+            for (i <- successes) (resultsDir / f"result.$i").toFile.writeAll("11")
+
+            for (i <- failures)
+              backend.fs.writePDOS((resultsDir / f"result.$i").toString()) {
+                os => Worker.writeException(os, expectedCause)
+              }
+            JobGroupResponse(
+              batch_id = id,
+              job_group_id = jobGroupId,
+              state = Failure,
+              complete = true,
+              n_jobs = contexts.length,
+              n_completed = contexts.length,
+              n_succeeded = successes.length,
+              n_failed = failures.length,
+              n_cancelled = contexts.length - failures.length - successes.length,
+            )
+        }
+        when(batchClient.getJobGroupJobs(any[Int], any[Int], any[Option[JobState]])) thenAnswer {
+          (batchId: Int, _: Int, s: Option[JobState]) =>
+            s match {
+              case Some(JobStates.Failed) =>
+                Stream(failures.map(i =>
+                  JobListEntry(batchId, i + startJobGroupId, JobStates.Failed, 1)
+                ).toIndexedSeq)
+
+              case Some(JobStates.Success) =>
+                Stream(successes.map(i =>
+                  JobListEntry(batchId, i + startJobGroupId, JobStates.Success, 1)
+                ).toIndexedSeq)
+            }
+
+        }
+
+        val (failure, result) =
+          backend.parallelizeAndComputeWithIndex(
+            backend.serviceBackendContext,
+            backend.fs,
+            contexts,
+            "stage1",
+          )((bytes, _, _, _) => bytes)
+        val (shortMessage, expanded, id) = handleForPython(expectedCause)
+        failure.value shouldBe new HailWorkerException(failures.head, shortMessage, expanded, id)
+        result.map(_._2) shouldBe successes
+      }
+    }
+
+  @Test def testCancelledJobGroup(): Unit =
+    withMockDriverContext { rpcConfig =>
+      val batchClient = mock[BatchClient]
+      using(ServiceBackend(batchClient, rpcConfig)) { backend =>
+        val contexts = Array.tabulate(100)(_.toString.getBytes)
+        val startJobGroupId = 2356
+        when(batchClient.newJobGroup(any[JobGroupRequest])) thenAnswer {
+          jobGroup: JobGroupRequest => (backend.batchConfig.jobGroupId + 1, startJobGroupId)
+        }
+        val successes = Array(13, 34, 65, 81) // arbitrary indices
+        when(batchClient.waitForJobGroup(any[Int], any[Int])) thenAnswer {
+          (id: Int, jobGroupId: Int) =>
+            val resultsDir =
+              Path(backend.serviceBackendContext.remoteTmpDir) /
+                "parallelizeAndComputeWithIndex" /
+                tokenUrlSafe
+
+            resultsDir.createDirectory()
+            for (i <- successes) (resultsDir / f"result.$i").toFile.writeAll("11")
+
+            JobGroupResponse(
+              batch_id = id,
+              job_group_id = jobGroupId,
+              state = Cancelled,
+              complete = true,
+              n_jobs = contexts.length,
+              n_completed = contexts.length,
+              n_succeeded = successes.length,
+              n_failed = 0,
+              n_cancelled = contexts.length - successes.length,
+            )
+        }
+        when(batchClient.getJobGroupJobs(any[Int], any[Int], any[Option[JobState]])) thenAnswer {
+          (batchId: Int, _: Int, s: Option[JobState]) =>
+            s match {
+              case Some(JobStates.Success) =>
+                Stream(successes.map(i =>
+                  JobListEntry(batchId, i + startJobGroupId, JobStates.Success, 1)
+                ).toIndexedSeq)
+            }
+        }
+
+        val (failure, result) =
+          backend.parallelizeAndComputeWithIndex(
+            backend.serviceBackendContext,
+            backend.fs,
+            contexts,
+            "stage1",
+          )((bytes, _, _, _) => bytes)
+        failure.value shouldBe a[CancellationException]
+        result.map(_._2) shouldBe successes
       }
     }
 

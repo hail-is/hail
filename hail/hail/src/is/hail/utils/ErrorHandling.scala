@@ -8,7 +8,7 @@ class HailException(val msg: String, val logMsg: Option[String], cause: Throwabl
   def this(msg: String, errorId: Int) = this(msg, None, null, errorId)
 }
 
-class HailWorkerException(
+case class HailWorkerException(
   val partitionId: Int,
   val shortMessage: String,
   val expandedMessage: String,
