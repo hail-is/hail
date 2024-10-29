@@ -79,7 +79,6 @@ class SequenceConfig:
 class ServiceBackendRPCConfig:
     tmp_dir: str
     remote_tmpdir: str
-    billing_project: str
     flags: Dict[str, str]
     custom_references: List[str]
     liftovers: Dict[str, Dict[str, str]]
