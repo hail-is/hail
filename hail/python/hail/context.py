@@ -66,8 +66,6 @@ class HailContext(object):
         log: str,
         quiet: bool,
         append: bool,
-        tmpdir: str,
-        local_tmpdir: str,
         default_reference: str,
         global_seed: Optional[int],
         backend: Backend,
@@ -76,25 +74,17 @@ class HailContext(object):
             log=log,
             quiet=quiet,
             append=append,
-            tmpdir=tmpdir,
-            local_tmpdir=local_tmpdir,
             global_seed=global_seed,
             backend=backend,
         )
         hc.initialize_references(default_reference)
         return hc
 
-    @typecheck_method(
-        log=str, quiet=bool, append=bool, tmpdir=str, local_tmpdir=str, global_seed=nullable(int), backend=Backend
-    )
-    def __init__(self, log, quiet, append, tmpdir, local_tmpdir, global_seed, backend):
+    @typecheck_method(log=str, quiet=bool, append=bool, global_seed=nullable(int), backend=Backend)
+    def __init__(self, log, quiet, append, global_seed, backend: Backend):
         assert not Env._hc
 
         self._log = log
-
-        self._tmpdir = tmpdir
-        self._local_tmpdir = local_tmpdir
-
         self._backend = backend
 
         self._warn_cols_order = True
@@ -135,6 +125,14 @@ class HailContext(object):
             self._default_ref = self._backend.get_reference(default_reference)
         else:
             self._default_ref = ReferenceGenome.read(default_reference)
+
+    @property
+    def _tmpdir(self) -> str:
+        return self._backend.remote_tmpdir
+
+    @property
+    def _local_tmpdir(self) -> str:
+        return self._backend.local_tmpdir
 
     @property
     def default_reference(self) -> ReferenceGenome:
@@ -498,7 +496,7 @@ def init_spark(
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
-    HailContext.create(log, quiet, append, tmpdir, local_tmpdir, default_reference, global_seed, backend)
+    HailContext.create(log, quiet, append, default_reference, global_seed, backend)
     if not quiet:
         connect_logger(backend._utils_package_object, 'localhost', 12888)
 
@@ -569,7 +567,7 @@ async def init_batch(
         tmpdir = os.path.join(backend.remote_tmpdir, 'tmp/hail', secret_alnum_string())
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
-    HailContext.create(log, quiet, append, tmpdir, local_tmpdir, default_reference, global_seed, backend)
+    HailContext.create(log, quiet, append, default_reference, global_seed, backend)
 
 
 @typecheck(
@@ -621,7 +619,7 @@ def init_local(
     if not backend.fs.exists(tmpdir):
         backend.fs.mkdir(tmpdir)
 
-    HailContext.create(log, quiet, append, tmpdir, tmpdir, default_reference, global_seed, backend)
+    HailContext.create(log, quiet, append, default_reference, global_seed, backend)
     if not quiet:
         connect_logger(backend._utils_package_object, 'localhost', 12888)
 
