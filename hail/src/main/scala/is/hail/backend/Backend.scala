@@ -123,8 +123,6 @@ abstract class Backend extends Closeable {
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
 
-  def close(): Unit
-
   def asSpark(op: String): SparkBackend =
     fatal(s"${getClass.getSimpleName}: $op requires SparkBackend")
 
