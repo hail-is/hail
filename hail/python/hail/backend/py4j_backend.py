@@ -332,7 +332,7 @@ class Py4JBackend(Backend):
         return self._local_tmpdir
 
     @local_tmpdir.setter
-    def local_tmpdir(self, tmpdir) -> str:
+    def local_tmpdir(self, tmpdir: str) -> None:
         self._local_tmpdir = tmpdir
         self._jbackend.pySetLocalTmp(tmpdir)
 
@@ -341,6 +341,6 @@ class Py4JBackend(Backend):
         return self._remote_tmpdir
 
     @remote_tmpdir.setter
-    def remote_tmpdir(self, tmpdir) -> str:
+    def remote_tmpdir(self, tmpdir: str) -> None:
         self._remote_tmpdir = tmpdir
         self._jbackend.pySetRemoteTmp(tmpdir)

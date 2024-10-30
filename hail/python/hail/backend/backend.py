@@ -398,7 +398,17 @@ class Backend(abc.ABC):
     def local_tmpdir(self) -> str:
         pass
 
+    @local_tmpdir.setter
+    @abc.abstractmethod
+    def local_tmpdir(self, dir: str) -> None:
+        pass
+
     @property
     @abc.abstractmethod
     def remote_tmpdir(self) -> str:
+        pass
+
+    @remote_tmpdir.setter
+    @abc.abstractmethod
+    def remote_tmpdir(self, dir: str) -> None:
         pass
