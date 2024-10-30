@@ -6,10 +6,7 @@ import is.hail.backend._
 import is.hail.backend.caching.BlockMatrixCache
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
-import is.hail.expr.ir.{
-  BaseIR, BlockMatrixIR, CodeCacheKey, CompiledFunction, EncodedLiteral, GetFieldByIdx, IRParser,
-  Interpret, MatrixIR, MatrixNativeReader, MatrixRead, NativeReaderOptions, TableLiteral, TableValue,
-}
+import is.hail.expr.ir._
 import is.hail.expr.ir.IRParser.parseType
 import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -32,23 +29,18 @@ import java.io.Closeable
 import java.net.InetSocketAddress
 import java.util
 import java.util.concurrent._
-import java.util.concurrent.locks.ReentrantReadWriteLock
+import java.util.concurrent.locks.ReentrantLock
 
 import com.google.api.client.http.HttpStatusCodes
 import com.sun.net.httpserver.{HttpExchange, HttpServer}
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.DataFrame
-import org.json4s
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 import sourcecode.Enclosing
 
 final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandling {
-
-  private[this] val rwlock = new ReentrantReadWriteLock()
-  private[this] def weak = rwlock.readLock()
-  private[this] def mutex = rwlock.writeLock()
 
   private[this] val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
   private[this] val hcl = new HailClassLoader(getClass.getClassLoader)
@@ -57,51 +49,39 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
   private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
   private[this] val persistedIr = mutable.Map[Int, BaseIR]()
   private[this] val coercerCache = new Cache[Any, LoweredTableReaderCoercer](32)
-
   private[this] var irID: Int = 0
+
+  private[this] val mutex = new ReentrantLock()
+
   private[this] var tmpdir: String = _
   private[this] var localTmpdir: String = _
 
-  private[this] object tmpFileManager extends TempFileManager {
-    private[this] var fs = newFs(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
-    private[this] var manager = new OwningTempFileManager(fs)
-
-    def setFs(fs: FS): Unit = {
-      close()
-      this.fs = fs
-      manager = new OwningTempFileManager(fs)
-    }
-
-    def getFs: FS =
-      fs
-
-    override def newTmpPath(tmpdir: String, prefix: String, extension: String): String =
-      manager.newTmpPath(tmpdir, prefix, extension)
-
-    override def close(): Unit =
-      manager.close()
-  }
+  private[this] var tmpFileManager = new OwningTempFileManager(
+    newFs(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
+  )
 
   def pyFs: FS =
-    using(weak.acquire())(_ => tmpFileManager.getFs)
+    guard(tmpFileManager.fs)
 
   def pyGetFlag(name: String): String =
-    using(weak.acquire())(_ => flags.get(name))
+    guard(flags.get(name))
 
   def pySetFlag(name: String, value: String): Unit =
-    using(weak.acquire())(_ => flags.set(name, value))
+    guard(flags.set(name, value))
 
   def pyAvailableFlags: java.util.ArrayList[String] =
     flags.available
 
   def pySetRemoteTmp(tmp: String): Unit =
-    using(weak.acquire())(_ => tmpdir = tmp)
+    guard { tmpdir = tmp }
 
   def pySetLocalTmp(tmp: String): Unit =
-    using(weak.acquire())(_ => localTmpdir = tmp)
+    guard { localTmpdir = tmp }
 
   def pySetGcsRequesterPaysConfig(project: String, buckets: util.List[String]): Unit =
-    using(weak.acquire()) { _ =>
+    guard {
+      tmpFileManager.close()
+
       val cloudfsConf = CloudStorageFSConfig.fromFlagsAndEnv(None, flags)
 
       val rpConfig: Option[RequesterPaysConfig] =
@@ -126,20 +106,20 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
         )
       )
 
-      tmpFileManager.setFs(fs)
+      tmpFileManager = new OwningTempFileManager(fs)
     }
 
   def pyRemoveJavaIR(id: Int): Unit =
-    using(weak.acquire())(_ => persistedIr.remove(id))
+    guard(persistedIr.remove(id))
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    using(weak.acquire()) { _ =>
-      val seq = IndexedFastaSequenceFile(tmpFileManager.getFs, fastaFile, indexFile)
+    guard {
+      val seq = IndexedFastaSequenceFile(tmpFileManager.fs, fastaFile, indexFile)
       references(name).addSequence(seq)
     }
 
   def pyRemoveSequence(name: String): Unit =
-    using(weak.acquire())(_ => references(name).removeSequence())
+    guard(references(name).removeSequence())
 
   def pyExportBlockMatrix(
     pathIn: String,
@@ -240,51 +220,66 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
     withExecuteContext() { ctx =>
+      implicit val fmts: Formats = DefaultFormats
       log.info("pyReadMultipleMatrixTables: got query")
-      val kvs = JsonMethods.parse(jsonQuery) match {
-        case json4s.JObject(values) => values.toMap
-      }
 
-      val paths = kvs("paths").asInstanceOf[json4s.JArray].arr.toArray.map {
-        case json4s.JString(s) => s
-      }
-
-      val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
+      val kvs = JsonMethods.parse(jsonQuery).extract[Map[String, JValue]]
+      val paths = kvs("paths").extract[IndexedSeq[String]]
+      val intervalPointType = parseType(kvs("intervalPointType").extract[String])
       val intervalObjects =
         JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
           .asInstanceOf[IndexedSeq[Interval]]
 
       val opts = NativeReaderOptions(intervalObjects, intervalPointType)
-      val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
-        log.info(s"creating MatrixRead node for $p")
-        val mnr = MatrixNativeReader(ctx.fs, p, Some(opts))
-        MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
-      }
+      val matrixReaders: util.List[MatrixIR] =
+        paths.map { p =>
+          log.info(s"creating MatrixRead node for $p")
+          val mnr = MatrixNativeReader(ctx.fs, p, Some(opts))
+          MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
+        }.asJava
+
       log.info("pyReadMultipleMatrixTables: returning N matrix tables")
-      matrixReaders.asJava
+      matrixReaders
     }._1
 
   def pyAddReference(jsonConfig: String): Unit =
-    using(weak.acquire())(_ => addReference(ReferenceGenome.fromJSON(jsonConfig)))
+    guard(addReference(ReferenceGenome.fromJSON(jsonConfig)))
 
   def pyRemoveReference(name: String): Unit =
-    using(weak.acquire())(_ => removeReference(name))
+    guard(removeReference(name))
 
   def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    using(weak.acquire()) { _ =>
+    guard {
       references(name).addLiftover(
         references(destRGName),
-        LiftOver(tmpFileManager.getFs, chainFile),
+        LiftOver(tmpFileManager.fs, chainFile),
       )
     }
 
   def pyRemoveLiftover(name: String, destRGName: String): Unit =
-    using(weak.acquire())(_ => references(name).removeLiftover(destRGName))
+    guard(references(name).removeLiftover(destRGName))
 
   def parse_blockmatrix_ir(s: String): BlockMatrixIR =
     withExecuteContext(selfContainedExecution = false) { ctx =>
       IRParser.parse_blockmatrix_ir(ctx, s)
     }._1
+
+  override def close(): Unit =
+    guard {
+      bmCache.close()
+      codeCache.clear()
+      persistedIr.clear()
+      coercerCache.clear()
+      backend.close()
+
+      if (backend.isInstanceOf[SparkBackend]) {
+        // Hadoop does not honor the hadoop configuration as a component of the cache key for file
+        // systems, so we blow away the cache so that a new configuration can successfully take
+        // effect.
+        // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
+        hadoop.fs.FileSystem.closeAll()
+      }
+    }
 
   private[this] def addReference(rg: ReferenceGenome): Unit = {
     references.get(rg.name) match {
@@ -310,13 +305,13 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
     f: ExecuteContext => T
   )(implicit E: Enclosing
   ): (T, Timings) =
-    using(mutex.acquire()) { _ =>
+    guard {
       ExecutionTimer.time { timer =>
         ExecuteContext.scoped(
           tmpdir = tmpdir,
           localTmpdir = localTmpdir,
           backend = backend,
-          fs = tmpFileManager.getFs,
+          fs = tmpFileManager.fs,
           timer = timer,
           tempFileManager =
             if (selfContainedExecution) null
@@ -367,22 +362,11 @@ final class Py4JBackendApi(backend: Backend) extends Closeable with ErrorHandlin
     id
   }
 
-  override def close(): Unit =
-    using(weak.acquire()) { _ =>
-      bmCache.close()
-      codeCache.clear()
-      persistedIr.clear()
-      coercerCache.clear()
-      backend.close()
-
-      if (backend.isInstanceOf[SparkBackend]) {
-        // Hadoop does not honor the hadoop configuration as a component of the cache key for file
-        // systems, so we blow away the cache so that a new configuration can successfully take
-        // effect.
-        // https://github.com/hail-is/hail/pull/12133#issuecomment-1241322443
-        hadoop.fs.FileSystem.closeAll()
-      }
-    }
+  private[this] def guard[A](f: => A): A = {
+    mutex.lock()
+    try f
+    finally mutex.unlock()
+  }
 
   def pyHttpServer: HttpLikeBackendRpc[HttpExchange] with Closeable =
     new HttpLikeBackendRpc[HttpExchange] with Closeable {

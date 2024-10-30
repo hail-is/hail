@@ -23,7 +23,7 @@ trait TempFileManager extends AutoCloseable {
   def newTmpPath(tmpdir: String, prefix: String, extension: String = null): String
 }
 
-class OwningTempFileManager(fs: FS) extends TempFileManager {
+class OwningTempFileManager(val fs: FS) extends TempFileManager {
   private[this] val tmpPaths = mutable.ArrayBuffer[String]()
 
   override def newTmpPath(tmpdir: String, prefix: String, extension: String): String = {
