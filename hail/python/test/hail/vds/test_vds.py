@@ -936,7 +936,8 @@ def test_basic_impex():
     assert 'LAA' in format_md, format_md
     assert 'LA' not in format_md, format_md
     assert 'gvcf_info' not in format_md, format_md
-    # LPGT is in this VDS, so we can check for PGT existing and LPGT not existing
+    # LPGT is in orig_vds, so we can check for PGT existing and LPGT not existing in the exported
+    # metadata
     assert 'PGT' in format_md, format_md
     assert 'LPGT' not in format_md, format_md
 
