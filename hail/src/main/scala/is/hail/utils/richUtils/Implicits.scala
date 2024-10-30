@@ -12,8 +12,10 @@ import scala.reflect.ClassTag
 import scala.util.matching.Regex
 
 import java.io.InputStream
+import java.util.concurrent.locks.Lock
 
 import breeze.linalg.DenseMatrix
+import org.apache.hadoop.util.AutoCloseableLock
 import org.apache.spark.SparkContext
 import org.apache.spark.mllib.linalg.distributed.IndexedRowMatrix
 import org.apache.spark.rdd.RDD
@@ -144,4 +146,7 @@ trait Implicits {
 
   implicit def valueToRichCodeIterator[T](it: Value[Iterator[T]]): RichCodeIterator[T] =
     new RichCodeIterator[T](it)
+
+  implicit def lockToAutoClosableLock(l: Lock): AutoCloseableLock =
+    new AutoCloseableLock(l)
 }
