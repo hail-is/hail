@@ -116,7 +116,7 @@ def export_vcf(
     #   the vcf 4.5 changes necessary for completely correct metadata.
 
     extra_header = (
-        '##SVCR="This is an VCF that implements hail\'s Scalable Variant Call '
+        '##SVCR="This is a VCF that implements hail\'s Scalable Variant Call '
         'Representation. See https://doi.org/10.1101/2024.01.09.574205 for more '
         'information."\n'
     )
