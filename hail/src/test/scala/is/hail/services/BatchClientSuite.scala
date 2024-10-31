@@ -60,7 +60,7 @@ class BatchClientSuite extends TestNGSuite {
             always_run = false,
             process = BashJob(
               image = "ubuntu:22.04",
-              command = Array("/bin/bash", "-c", "sleep 1d"),
+              command = Array("/bin/bash", "-c", "sleep 5m"),
             ),
             resources = Some(JobResources(preemptible = true)),
           ),
