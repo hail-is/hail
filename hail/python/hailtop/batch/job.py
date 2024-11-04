@@ -882,7 +882,7 @@ class BashJob(Job):
 
         job_path = f'{remote_tmpdir}/{self._dirname}'
         code_path = f'{job_path}/code.sh'
-        code = self._batch.read_input(code_path)
+        code = await self._batch._async_read_input(code_path)
 
         wrapper_command = f"""
 chmod u+x {code}

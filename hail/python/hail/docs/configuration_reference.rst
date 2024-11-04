@@ -48,6 +48,6 @@ Supported Configuration Variables
     * - :bash:`hailctl` and Environment Variable Format
       - :bash:`bucket1,bucket2`
     * - Effect
-      - Prevents Hail Query from erroring if the default storage policy for any of the given locations is to use cold storage.
+      - Prevents Hail Query from erroring if the default storage policy for any of the given buckets is to use cold storage. Note: Only the default storage policy for the bucket is checked; individual objects in a bucket may be configured to use cold storage, even if the bucket is not. In the case of public access GCP buckets where the user does not have the appropriate permissions to check the default storage class of the bucket, the first object encountered in the bucket will have its storage class checked, and this will be assumed to be the default storage policy of the bucket.
     * - Shared between Query and Batch
       - Yes

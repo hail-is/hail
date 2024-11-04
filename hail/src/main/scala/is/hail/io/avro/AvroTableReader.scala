@@ -4,7 +4,7 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{TableType, VirtualTypeWithReq}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalStruct, PCanonicalTuple, PInt64Required}
 import is.hail.types.virtual._
 import is.hail.utils.{plural, FastSeq}

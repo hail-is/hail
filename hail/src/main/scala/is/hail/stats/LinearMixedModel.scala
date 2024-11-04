@@ -7,9 +7,8 @@ import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64}
-import is.hail.types.virtual.TStruct
+import is.hail.types.virtual.{TStruct, TableType}
 import is.hail.utils._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}

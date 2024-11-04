@@ -29,6 +29,31 @@ resources:
         validation_context:
           filename: /ssl-config/internal-gateway-outgoing.pem
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
+    name: www
+    lb_policy: ROUND_ROBIN
+    type: STRICT_DNS
+    load_assignment:
+      cluster_name: www
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: www.default.svc.cluster.local
+                port_value: 443
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        '@type': type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: /ssl-config/internal-gateway-cert.pem
+            private_key:
+              filename: /ssl-config/internal-gateway-key.pem
+        validation_context:
+          filename: /ssl-config/internal-gateway-outgoing.pem
+  - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     name: test-bar
     lb_policy: ROUND_ROBIN
     type: STRICT_DNS

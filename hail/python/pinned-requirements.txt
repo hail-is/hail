@@ -45,27 +45,27 @@ azure-mgmt-storage==20.1.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-azure-storage-blob==12.20.0
+azure-storage-blob==12.21.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.3.4
     # via -r hail/python/requirements.txt
-boto3==1.34.138
+boto3==1.34.145
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.34.138
+botocore==1.34.145
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
     #   s3transfer
-cachetools==5.3.3
+cachetools==5.4.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   google-auth
-certifi==2024.6.2
+certifi==2024.7.4
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msrest
@@ -89,7 +89,7 @@ commonmark==0.9.1
     #   rich
 contourpy==1.2.1
     # via bokeh
-cryptography==42.0.8
+cryptography==43.0.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -110,7 +110,7 @@ frozenlist==1.4.1
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.31.0
+google-auth==2.32.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -119,7 +119,7 @@ google-auth-oauthlib==0.8.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-humanize==1.1.0
+humanize==4.10.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -144,13 +144,13 @@ jmespath==1.0.1
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   boto3
     #   botocore
-jproperties==2.1.1
+jproperties==2.1.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
 markupsafe==2.1.5
     # via jinja2
-msal==1.29.0
+msal==1.30.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -201,7 +201,7 @@ pillow==10.4.0
     # via bokeh
 plotly==5.22.0
     # via -r hail/python/requirements.txt
-portalocker==2.10.0
+portalocker==2.10.1
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   msal-extensions
@@ -303,7 +303,7 @@ tabulate==0.9.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-tenacity==8.4.2
+tenacity==8.5.0
     # via plotly
 tornado==6.4.1
     # via bokeh

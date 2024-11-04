@@ -192,7 +192,7 @@ def start(
         bool, Opt(help='Enable debug features on created cluster (heap dump on out-of-memory error)')
     ] = False,
     public_ip_address: Ann[
-        bool, Opt(help='Allow nodes to have a public IP address, and hence make requests on the public internet (default is internal-only from dataproc 2.2).')
+        bool, Opt(help='Deprecated -- Hail 0.2.133 always enables public IP address.')
     ] = False,
 ):
     """
@@ -246,7 +246,6 @@ def start(
         requester_pays_allow_annotation_db,
         debug_mode,
         use_gcloud_beta,
-        public_ip_address,
     )
 
 
@@ -323,6 +322,7 @@ def submit(
     ] = None,
     dry_run: DryRunOption = False,
     region: Ann[Optional[str], Opt(help='Compute region for the cluster.')] = None,
+    project: Ann[Optional[str], Opt(help='GCP project for the cluster.')] = None,
     arguments: Ann[
         Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
     ] = None,
@@ -338,7 +338,16 @@ def submit(
 
     """
     dataproc_submit(
-        name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args]
+        name,
+        script,
+        files,
+        pyfiles,
+        properties,
+        gcloud_configuration,
+        dry_run,
+        region,
+        project,
+        [*(arguments or []), *ctx.args],
     )
 
 

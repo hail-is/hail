@@ -9,7 +9,6 @@ import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Locus

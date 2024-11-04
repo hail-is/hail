@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.io.fs.FS
 import is.hail.rvd._
-import is.hail.types._
+import is.hail.types.virtual.TableType
 import is.hail.utils._
 
 import java.io.OutputStreamWriter

@@ -7,8 +7,8 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.ir.functions.MatrixToValueFunction
-import is.hail.types.{MatrixType, RTable, TypeWithRequiredness}
-import is.hail.types.virtual.{TVoid, Type}
+import is.hail.types.{RTable, TypeWithRequiredness}
+import is.hail.types.virtual.{MatrixType, TVoid, Type}
 import is.hail.utils._
 
 import java.io.{BufferedOutputStream, OutputStreamWriter}

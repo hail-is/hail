@@ -126,7 +126,7 @@ class StringFunctionsSuite extends HailSuite {
   def json(annotation: IR, typ: Type): Unit =
     assertEvalsTo(
       invoke("json", TString, annotation),
-      JsonMethods.compact(typ.toJSON(eval(annotation))),
+      JsonMethods.compact(typ.export(eval(annotation))),
     )
 
   @DataProvider(name = "time")

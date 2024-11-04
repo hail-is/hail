@@ -6,7 +6,6 @@ import is.hail.expr.ir._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec
-import is.hail.types.{MatrixType, TableType}
 import is.hail.types.virtual._
 import is.hail.utils.{using, FastSeq}
 

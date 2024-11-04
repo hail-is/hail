@@ -9,7 +9,12 @@
       <th colspan="1">Namespace</th>
       <th colspan="1">Creation Time</th>
       <th colspan="1">Expiration Time</th>
-      <th colspan="2">Services</th>
+      <th colspan="3">Services</th>
+    </tr>
+    <tr>
+      <th colspan="3"></th>
+      <th>Name</th>
+      <th>Inbound Requests Per Second Limit</th>
     </tr>
   </thead>
   {% for ns in namespaces %}
@@ -34,31 +39,36 @@
       <td>
         {{ service }}
       </td>
+      <td>
+        <form action="{{ base_path }}/namespaces/{{ ns['namespace'] }}/services/{{ service }}/edit" method="POST">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+          {% if ns['services'][service] %}
+          <input type="number" name="rate_limit" value="{{ ns['services'][service] }}" placeholder='default'>
+          {% else %}
+          <input type="number" name="rate_limit" placeholder='default'>
+          {% endif %}
+          <button>
+            Update
+          </button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
     <tr>
       <form action="{{ base_path }}/namespaces/{{ ns['namespace'] }}/services/add" method="POST">
         <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-        <td><input type="text" name="service"></td>
         <td>
+          <input type="text" name="service">
           <button>Add</button>
         </td>
       </form>
     </tr>
   </tbody>
   {% endfor %}
-  <tbody>
-    <form action="{{ base_path }}/namespaces/add" method="POST">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-      <tr>
-        <td><input type="text" name="namespace"></td>
-        <td>
-          <button>Add</button>
-        </td>
-        <td></td>
-        <td></td>
-      </tr>
-    </form>
-  </tbody>
 </table>
+<form action="{{ base_path }}/namespaces/add" method="POST">
+  <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+  <input type="text" name="namespace">
+  <button>Add</button>
+</form>
 {% endblock %}

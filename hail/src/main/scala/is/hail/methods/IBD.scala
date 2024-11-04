@@ -5,9 +5,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{MatrixType, TableType}
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PFloat64, PInt64}
-import is.hail.types.virtual.{TFloat64, TStruct}
+import is.hail.types.virtual.{MatrixType, TFloat64, TStruct, TableType}
 import is.hail.utils._
 import is.hail.variant.{AllelePair, Call, Genotype, HardCallView}
 

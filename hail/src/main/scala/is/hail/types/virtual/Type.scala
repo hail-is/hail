@@ -5,7 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
-import is.hail.types._
 import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -16,7 +15,7 @@ import org.apache.spark.sql.types.DataType
 import org.json4s.{CustomSerializer, JValue}
 import org.json4s.JsonAST.JString
 
-class TypeSerializer extends CustomSerializer[Type](format =>
+class TypeSerializer extends CustomSerializer[Type](_ =>
       (
         { case JString(s) => IRParser.parseType(s) },
         { case t: Type => JString(t.parsableString()) },
@@ -113,8 +112,7 @@ object Type {
     Arbitrary(genArb)
 }
 
-abstract class Type extends BaseType with Serializable {
-  self =>
+abstract class Type extends VType with Serializable {
 
   def children: IndexedSeq[Type] = FastSeq()
 
@@ -175,7 +173,11 @@ abstract class Type extends BaseType with Serializable {
       s
   }
 
-  def toJSON(a: Annotation): JValue = JSONAnnotationImpex.exportAnnotation(a, this)
+  def export(a: Annotation): JValue =
+    JSONAnnotationImpex.exportAnnotation(a, this)
+
+  override def toJSON: JValue =
+    JString(toString)
 
   def genNonmissingValue(sm: HailStateManager): Gen[Annotation]
 
@@ -207,10 +209,10 @@ abstract class Type extends BaseType with Serializable {
   }
 
   def jsonReader: JSONReader[Annotation] =
-    (a: JValue) => JSONAnnotationImpex.importAnnotation(a, self)
+    (a: JValue) => JSONAnnotationImpex.importAnnotation(a, this)
 
   def jsonWriter: JSONWriter[Annotation] =
-    (pk: Annotation) => JSONAnnotationImpex.exportAnnotation(pk, self)
+    (pk: Annotation) => JSONAnnotationImpex.exportAnnotation(pk, this)
 
   def _typeCheck(a: Any): Boolean
 

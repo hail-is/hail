@@ -10,7 +10,6 @@ import is.hail.io.fs.FS
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.{ContextRDD, OriginUnionPartition, OriginUnionRDD}
-import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._

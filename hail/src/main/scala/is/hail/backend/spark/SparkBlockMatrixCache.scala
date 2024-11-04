@@ -1,7 +1,7 @@
 package is.hail.backend.spark
 
 import is.hail.linalg.BlockMatrix
-import is.hail.types.BlockMatrixType
+import is.hail.types.virtual.BlockMatrixType
 import is.hail.utils._
 
 import scala.collection.mutable
