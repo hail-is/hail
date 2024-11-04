@@ -11,9 +11,8 @@ import is.hail.io.exportTypes
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.{MatrixType, TableType}
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
-import is.hail.types.virtual.{Field, TArray, TStruct}
+import is.hail.types.virtual.{Field, MatrixType, TArray, TStruct, TableType}
 import is.hail.utils._
 
 import org.apache.spark.rdd.RDD

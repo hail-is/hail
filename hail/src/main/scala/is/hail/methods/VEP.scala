@@ -9,7 +9,6 @@ import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
-import is.hail.types._
 import is.hail.types.physical.PType
 import is.hail.types.virtual._
 import is.hail.utils._

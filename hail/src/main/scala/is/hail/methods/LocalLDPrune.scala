@@ -4,7 +4,6 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.methods.BitPackedVector._
-import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._

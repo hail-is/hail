@@ -152,7 +152,7 @@ object JSONAnnotationImpex {
           }.toList)
         case TCall => JString(Call.toString(a.asInstanceOf[Call]))
         case TLocus(_) => a.asInstanceOf[Locus].toJSON
-        case TInterval(pointType) => a.asInstanceOf[Interval].toJSON(pointType.toJSON)
+        case TInterval(pointType) => a.asInstanceOf[Interval].toJSON(pointType.export)
         case TStruct(fields) =>
           val row = a.asInstanceOf[Row]
           JObject(List.tabulate(row.size) { i =>
@@ -361,9 +361,9 @@ object TableAnnotationImpex {
       t match {
         case TFloat64 => "%.4e".format(a.asInstanceOf[Double])
         case TString => a.asInstanceOf[String]
-        case t: TContainer => JsonMethods.compact(t.toJSON(a))
-        case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
-        case t: TNDArray => JsonMethods.compact(t.toJSON(a))
+        case t: TContainer => JsonMethods.compact(t.export(a))
+        case t: TBaseStruct => JsonMethods.compact(t.export(a))
+        case t: TNDArray => JsonMethods.compact(t.export(a))
         case TInterval(TLocus(_)) =>
           val i = a.asInstanceOf[Interval]
           val bounds = if (i.start.asInstanceOf[Locus].contig == i.end.asInstanceOf[Locus].contig)
@@ -372,7 +372,7 @@ object TableAnnotationImpex {
             s"${i.start}-${i.end}"
           s"${if (i.includesStart) "[" else "("}$bounds${if (i.includesEnd) "]" else ")"}"
         case _: TInterval =>
-          JsonMethods.compact(t.toJSON(a))
+          JsonMethods.compact(t.export(a))
         case TCall => Call.toString(a.asInstanceOf[Call])
         case _ => a.toString
       }

@@ -1963,6 +1963,9 @@ steps:
       - name: record-failure-notifications
         script: /io/sql/record-failure-notifications.sql
         online: true
+      - name: add-service-rate-limits
+        script: /io/sql/add-service-rate-limits.sql
+        online: true
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
@@ -2852,6 +2855,37 @@ steps:
       - deploy_ci_agent
       - create_certs
       - hail_buildkit_image
+  - kind: runImage
+    name: test_ci_unit
+    resources:
+      memory: standard
+      cpu: '0.25'
+    image:
+      valueFrom: ci_image.image
+    script: |
+      set -ex
+      hail-pip-install -r /io/dev-requirements.txt
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              /io/ci/unit-test
+    timeout: 1200
+    inputs:
+      - from: /repo/ci
+        to: /io/ci
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    scopes:
+      - test
+      - dev
+    dependsOn:
+      - merge_code
+      - ci_image
   - kind: runImage
     name: test_ci
     resources:
@@ -3824,6 +3858,15 @@ steps:
     alwaysRun: true
     script: |
       set -e -o pipefail
+      cat <<EOF | tee /etc/yum.repos.d/kubernetes.repo
+      [kubernetes]
+      name=Kubernetes
+      baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
+      enabled=1
+      gpgcheck=1
+      gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
+      EOF
+      yum install -y kubectl jq
       AZURE_USERNAME=$(jq -r '.appId' /batch-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /batch-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /batch-gsa-key/key.json)

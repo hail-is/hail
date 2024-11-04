@@ -1,5 +1,28 @@
 # FAQ when developing Hail Batch
 
+#### How do I bring up the local UI dev service?
+
+Eg for `batch`:
+```bash
+# First time only:
+$ pip install -e web_common -e batch -e gear
+
+#Then:
+$ SERVICE=batch make devserver
+```
+
+This starts running a local instance of the batch UI for faster turnaround developing
+UI features.
+
+Note that:
+- HTML (template) changes will be reflected instantly when you refresh the page
+- Python code changes will not be reflected in the devserver:
+  - Your UI requests to localhost get sent to the [dev proxy](../../devbin/dev_proxy.py)
+  - The dev proxy sends data requests to your dev namespace service
+    - Note the use of the 'x-hail-return-jinja-context' header which instructs the remote server to return json data instead of rendering the page.
+    - This header can also be used elsewhere to see what data the jinja templates are working with
+  - The dev proxy renders the data using your local template, and that is what you see.
+
 #### I messed up the Batch database in my dev namespace. How do I start fresh?
 
 If you only want to delete the Batch database and leave the other databases alone,

@@ -1,9 +1,8 @@
-package is.hail.types
+package is.hail.types.virtual
 
 import is.hail.expr.ir._
 import is.hail.rvd.RVDType
 import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
 import org.json4s._
@@ -28,8 +27,7 @@ object TableType {
   def rowBindings: IndexedSeq[Int] = FastSeq(0, 1)
 }
 
-case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct)
-    extends BaseType {
+case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends VType {
   lazy val canonicalRowPType = PType.canonical(rowType).setRequired(true).asInstanceOf[PStruct]
   lazy val canonicalRVDType = RVDType(canonicalRowPType, key)
 
@@ -91,7 +89,7 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     sb += '}'
   }
 
-  def toJSON: JObject =
+  override def toJSON: JObject =
     JObject(
       "global_type" -> JString(globalType.toString),
       "row_type" -> JString(rowType.toString),

@@ -43,7 +43,7 @@ final case class TArray(elementType: Type) extends TContainer {
       .map(elt => elementType.showStr(elt))
       .mkString("[", ",", "]")
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
   override def genNonmissingValue(sm: HailStateManager): Gen[IndexedSeq[Annotation]] =
     Gen.buildableOf[Array](elementType.genValue(sm)).map(x => x: IndexedSeq[Annotation])

@@ -323,6 +323,7 @@ def submit(
     ] = None,
     dry_run: DryRunOption = False,
     region: Ann[Optional[str], Opt(help='Compute region for the cluster.')] = None,
+    project: Ann[Optional[str], Opt(help='GCP project for the cluster.')] = None,
     arguments: Ann[
         Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
     ] = None,
@@ -338,7 +339,16 @@ def submit(
 
     """
     dataproc_submit(
-        name, script, files, pyfiles, properties, gcloud_configuration, dry_run, region, [*(arguments or []), *ctx.args]
+        name,
+        script,
+        files,
+        pyfiles,
+        properties,
+        gcloud_configuration,
+        dry_run,
+        region,
+        project,
+        [*(arguments or []), *ctx.args],
     )
 
 

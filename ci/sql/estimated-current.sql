@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS `active_namespaces` (
 CREATE TABLE IF NOT EXISTS `deployed_services` (
   `namespace` VARCHAR(100) NOT NULL,
   `service` VARCHAR(100) NOT NULL,
+  `rate_limit_rps` INT,
   PRIMARY KEY (`namespace`, `service`),
   FOREIGN KEY (`namespace`) REFERENCES active_namespaces(namespace) ON DELETE CASCADE
 ) ENGINE = InnoDB;

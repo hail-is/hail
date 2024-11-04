@@ -55,7 +55,7 @@ def pytest_collection_modifyitems(items):
             elif backend == 'batch':
                 item.fixturenames.insert(0, 'reinitialize_hail_for_testing')
 
-        cloud_mark = item.get_closest_marker('backend')
+        cloud_mark = item.get_closest_marker('cloud')
         if (
             cloud is not None
             and cloud_mark is not None

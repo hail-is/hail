@@ -433,6 +433,15 @@ set -x
 date
 
 set +x
+cat <<EOF | tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
+EOF
+yum install -y kubectl jq
 USERNAME=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.appId')
 PASSWORD=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.password')
 TENANT=$(cat $AZURE_APPLICATION_CREDENTIALS | jq -j '.tenant')

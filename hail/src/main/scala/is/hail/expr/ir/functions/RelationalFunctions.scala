@@ -4,8 +4,8 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{MatrixValue, RelationalSpec, TableValue}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
-import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}
-import is.hail.types.virtual.Type
+import is.hail.types.{RTable, TypeWithRequiredness}
+import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
 import is.hail.utils._
 
 import org.json4s.{Extraction, JValue, ShortTypeHints}

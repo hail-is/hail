@@ -5,8 +5,8 @@ from hail.utils.java import unescape_parsable
 
 from . import types
 
-type_grammar = Grammar(r"""
-    type = _ (array / ndarray / set / dict / struct / union / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void / variable) _
+type_grammar_str = r"""
+    type = _ ( array / bool / call / dict / interval / int64 / int32 / float32 / float64 / locus / ndarray / rng_state / set / stream / struct / str / tuple / union / void / variable ) _
     variable = "?" simple_identifier (":" simple_identifier)?
     void = "void" / "tvoid"
     int64 = "int64" / "tint64"
@@ -20,6 +20,7 @@ type_grammar = Grammar(r"""
     array = ("tarray" / "array") _ "<" type ">"
     ndarray = ("tndarray" / "ndarray") _ "<" type "," nat ">"
     set = ("tset" / "set") _ "<" type ">"
+    stream = ("tstream" / "stream") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
     union = ("tunion" / "union") _ "{" (fields / _) "}"
@@ -33,8 +34,11 @@ type_grammar = Grammar(r"""
     nat = _ (nat_literal / nat_variable) _
     nat_literal = ~"[0-9]+"
     nat_variable = "?nat"
+    rng_state = "rng_state"
     _ = ~r"\s*"
-    """)
+    """
+
+type_grammar = Grammar(type_grammar_str)
 
 
 class TypeConstructor(NodeVisitor):
@@ -83,6 +87,10 @@ class TypeConstructor(NodeVisitor):
     def visit_array(self, node, visited_children):
         tarray, _, angle_bracket, t, angle_bracket = visited_children
         return types.tarray(t)
+
+    def visit_stream(self, node, visited_children):
+        tarray, _, angle_bracket, t, angle_bracket = visited_children
+        return types.tstream(t)
 
     def visit_ndarray(self, node, visited_children):
         tndarray, _, angle_bracket, elem_t, comma, ndim, angle_bracket = visited_children
@@ -151,6 +159,9 @@ class TypeConstructor(NodeVisitor):
 
     def visit_nat_variable(self, node, visited_children):
         return NatVariable()
+
+    def visit_rng_state(self, node, visited_children):
+        return types.trngstate
 
 
 type_node_visitor = TypeConstructor()

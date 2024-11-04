@@ -27,12 +27,12 @@ async def delete_orphaned_disks(
     params = {'filter': f'(labels.namespace = {namespace})'}
 
     for zone in zones:
-        async for disk in await compute_client.list(f'/zones/{zone}/disks', params=params):
+        async for disk in compute_client.list(f'/zones/{zone}/disks', params=params):
             disk_name = disk['name']
             instance_name = disk['labels']['instance-name']
             instance = inst_coll_manager.get_instance(instance_name)
 
-            creation_timestamp_msecs = parse_timestamp_msecs(disk.get('creationTimestamp'))
+            creation_timestamp_msecs = parse_timestamp_msecs(disk['creationTimestamp'])
             last_attach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastAttachTimestamp'))
             last_detach_timestamp_msecs = parse_timestamp_msecs(disk.get('lastDetachTimestamp'))
 

@@ -10,9 +10,8 @@ import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.io._
 import is.hail.io.index.IndexWriter
 import is.hail.sparkextras._
-import is.hail.types._
 import is.hail.types.physical.{PCanonicalStruct, PInt64, PStruct}
-import is.hail.types.virtual.{TInterval, TStruct}
+import is.hail.types.virtual.{MatrixType, TInterval, TStruct}
 import is.hail.utils._
 import is.hail.utils.PartitionCounts.{getPCSubsetOffset, incrementalPCSubsetOffset, PCSubsetOffset}
 

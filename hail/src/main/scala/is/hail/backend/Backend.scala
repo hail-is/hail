@@ -16,7 +16,7 @@ import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.types.virtual.TFloat64
+import is.hail.types.virtual.{BlockMatrixType, TFloat64}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -27,6 +27,7 @@ import scala.reflect.ClassTag
 import java.io._
 import java.nio.charset.StandardCharsets
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
 
@@ -54,6 +55,18 @@ trait BackendContext {
 }
 
 abstract class Backend {
+  // From https://github.com/hail-is/hail/issues/14580 :
+  //   IR can get quite big, especially as it can contain an arbitrary
+  //   amount of encoded literals from the user's python session. This
+  //   was a (controversial) restriction imposed by Jackson and should be lifted.
+  //
+  // We remove this restriction for all backends, and we do so here, in the
+  // constructor since constructing a backend is one of the first things that
+  // happens and this constraint should be overrided as early as possible.
+  StreamReadConstraints.overrideDefaultStreamReadConstraints(
+    StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+  )
+
   val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
 
   protected[this] def addJavaIR(ir: BaseIR): Int = {
@@ -158,40 +171,36 @@ abstract class Backend {
 
   def withExecuteContext[T](methodName: String)(f: ExecuteContext => T): T
 
-  final def valueType(s: String): Array[Byte] =
-    withExecuteContext("valueType") { ctx =>
-      val v = IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      v.typ.toString.getBytes(StandardCharsets.UTF_8)
-    }
-
   private[this] def jsonToBytes(f: => JValue): Array[Byte] =
     JsonMethods.compact(f).getBytes(StandardCharsets.UTF_8)
 
-  final def tableType(s: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("tableType") { ctx =>
-      val x = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      x.typ.toJSON
+  final def valueType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("valueType") { ctx =>
+        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+      }
     }
-  }
 
-  final def matrixTableType(s: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("matrixTableType") { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap)).typ.pyJson
+  final def tableType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("tableType") { ctx =>
+        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+      }
     }
-  }
 
-  final def blockMatrixType(s: String): Array[Byte] = jsonToBytes {
-    withExecuteContext("blockMatrixType") { ctx =>
-      val x = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-      val t = x.typ
-      JObject(
-        "element_type" -> JString(t.elementType.toString),
-        "shape" -> JArray(t.shape.map(s => JInt(s)).toList),
-        "is_row_vector" -> JBool(t.isRowVector),
-        "block_size" -> JInt(t.blockSize),
-      )
+  final def matrixTableType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("matrixTableType") { ctx =>
+        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+      }
     }
-  }
+
+  final def blockMatrixType(s: String): Array[Byte] =
+    jsonToBytes {
+      withExecuteContext("blockMatrixType") { ctx =>
+        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+      }
+    }
 
   def loadReferencesFromDataset(path: String): Array[Byte] = {
     withExecuteContext("loadReferencesFromDataset") { ctx =>

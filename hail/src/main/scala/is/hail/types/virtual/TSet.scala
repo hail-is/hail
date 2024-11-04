@@ -46,7 +46,7 @@ final case class TSet(elementType: Type) extends TContainer {
       .map { case elt => elementType.showStr(elt) }
       .mkString("{", ",", "}")
 
-  override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
+  override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     Gen.buildableOf[Set](elementType.genValue(sm))

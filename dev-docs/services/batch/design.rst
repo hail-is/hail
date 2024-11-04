@@ -619,6 +619,30 @@ billing information and update the current rates of each product used
 accordingly.
 
 
+Case Studies
+^^^^^^^^^^^^
+
+This section describes some of the emergent behaviors that occur with
+multiple components acting together.
+
+Preemption
+""""""""""
+
+Preemption is a special case of "dead node" detection.
+
+1. The  ``batch-driver`` service has a background loop in ``instance_collection/base.py``
+   that checks the status of all instances.
+
+  - If a running instance is not reachable then a ``failed_request_count`` is incremented.
+  - If the ``failed_request_count`` exceeds a threshold, the instance is deleted.
+  - As part of deletion, the database's ``deactivate_instance`` stored procedure is called.
+  - During the stored procedure, any jobs that are running on the instance are marked as ``Ready``
+
+2. The newly ``Ready`` jobs will be picked up by the next iteration of the schedule
+   loop (eg in``instance_collection/pool.py``)
+
+  - The scheduler is also what creates a new attempt record in the database for the new attempt.
+
 
 Database
 --------

@@ -18,13 +18,17 @@ RUN chmod 755 /bin/retry && \
     chmod 755 /controller.sh && \
     echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     mkdir -p /usr/share/keyrings/ && \
-    hail-apt-get-install curl gpg jq rsync && \
+    hail-apt-get-install curl apt-transport-https ca-certificates gnupg jq rsync && \
     curl 'https://keyserver.ubuntu.com/pks/lookup?search=0xF23C5A6CF475977595C89F51BA6932366A755776&hash=on&exact=on&options=mr&op=get' \
          | gpg --dearmor > /usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg && \
     echo 'deb [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
          >> /etc/apt/sources.list && \
     echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
          >> /etc/apt/sources.list && \
+    curl 'https://packages.cloud.google.com/apt/doc/apt-key.gpg' \
+        | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
+    echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' \
+        >> /etc/apt/sources.list && \
     hail-apt-get-install python$PYTHON_VERSION-minimal python$PYTHON_VERSION-dev python$PYTHON_VERSION-distutils gcc g++ && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1 && \
     curl https://bootstrap.pypa.io/get-pip.py | python3 && \
