@@ -2,13 +2,14 @@ package is.hail.backend
 
 import is.hail.expr.ir.IRParser
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.expr.ir.functions.IRFunctionRegistry.UserDefinedFnKey
 import is.hail.io.BufferSpec
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.LoadVCF
 import is.hail.services.retryTransientErrors
 import is.hail.types.virtual.{Kind, TFloat64, VType}
 import is.hail.types.virtual.Kinds._
-import is.hail.utils.{using, ExecutionTimer}
+import is.hail.utils.{using, BoxedArrayBuilder, ExecutionTimer}
 import is.hail.utils.ExecutionTimer.Timings
 import is.hail.variant.ReferenceGenome
 
@@ -177,9 +178,10 @@ trait BackendRpc {
   )(
     body: => A
   ): A = {
+    val fns = new BoxedArrayBuilder[UserDefinedFnKey](serializedFunctions.length)
     try {
-      serializedFunctions.foreach { func =>
-        IRFunctionRegistry.registerIR(
+      for (func <- serializedFunctions) {
+        fns += IRFunctionRegistry.registerIR(
           ctx,
           func.name,
           func.type_parameters,
@@ -192,7 +194,8 @@ trait BackendRpc {
 
       body
     } finally
-      IRFunctionRegistry.clearUserFunctions()
+      for (i <- 0 until fns.length)
+        IRFunctionRegistry.unregisterIr(fns(i))
   }
 }
 
