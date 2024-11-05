@@ -6,6 +6,7 @@ import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
 
+import scala.collection.immutable.Stream.cons
 import scala.util.Random
 
 import java.net.{URL, URLEncoder}
@@ -107,8 +108,6 @@ case class JobListEntry(
   exit_code: Int,
 )
 
-case class JobResponse(job_id: Int, state: JobState, attributes: Option[Map[String, String]])
-
 object BatchClient {
 
   private[this] def BatchServiceScopes(env: Map[String, String]): Array[String] =
@@ -146,8 +145,12 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobGroupResponseDeserializer +
       JarSpecSerializer +
       JobStateDeserializer +
-      JobListEntryDeserializer +
-      JobResponseDeserializer
+      JobListEntryDeserializer
+
+  private[this] def paginated[S, A](s0: S)(f: S => (A, S)): Stream[A] = {
+    val (a, s1) = f(s0)
+    cons(a, paginated(s1)(f))
+  }
 
   def newBatch(createRequest: BatchRequest): Int = {
     val response = req.post("/api/v1alpha/batches/create", Extraction.decompose(createRequest))
@@ -156,9 +159,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     batchId
   }
 
-  def newJobGroup(req: JobGroupRequest): Int = {
+  def newJobGroup(req: JobGroupRequest): (Int, Int) = {
     val nJobs = req.jobs.length
-    val (updateId, startJobGroupId) = beginUpdate(req.batch_id, req.token, nJobs)
+    val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
     log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
 
     createJobGroup(updateId, req)
@@ -170,7 +173,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     commitUpdate(req.batch_id, updateId)
     log.info(s"Committed update $updateId for batch ${req.batch_id}.")
 
-    startJobGroupId
+    (startJobGroupId, startJobId)
   }
 
   def getJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
@@ -179,15 +182,24 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       .extract[JobGroupResponse]
 
   def getJobGroupJobs(batchId: Int, jobGroupId: Int, status: Option[JobState] = None)
-    : IndexedSeq[JobListEntry] = {
+    : Stream[IndexedSeq[JobListEntry]] = {
     val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
-    req.get(
-      s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}"
-    ).as { case obj: JObject => (obj \ "jobs").extract[IndexedSeq[JobListEntry]] }
+    paginated(Some(0): Option[Int]) {
+      case Some(jobId) =>
+        req.get(
+          s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}&last_job_id=$jobId"
+        )
+          .as { case obj: JObject =>
+            (
+              (obj \ "jobs").extract[IndexedSeq[JobListEntry]],
+              (obj \ "last_job_id").extract[Option[Int]],
+            )
+          }
+      case None =>
+        (IndexedSeq.empty, None)
+    }
+      .takeWhile(_.nonEmpty)
   }
-
-  def getJob(batchId: Int, jobId: Int): JobResponse =
-    req.get(s"/api/v1alpha/batches/$batchId/jobs/$jobId").extract[JobResponse]
 
   def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
@@ -264,7 +276,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
     }
 
-  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int) =
+  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int, Int) =
     req
       .post(
         s"/api/v1alpha/batches/$batchId/updates/create",
@@ -278,6 +290,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         (
           (obj \ "update_id").extract[Int],
           (obj \ "start_job_group_id").extract[Int],
+          (obj \ "start_job_id").extract[Int],
         )
       }
 
@@ -382,21 +395,6 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
                 job_id = (o \ "job_id").extract[Int],
                 state = (o \ "state").extract[JobState],
                 exit_code = (o \ "exit_code").extract[Int],
-              )
-          },
-          PartialFunction.empty,
-        )
-      )
-
-  private[this] object JobResponseDeserializer
-      extends CustomSerializer[JobResponse](implicit fmts =>
-        (
-          {
-            case o: JObject =>
-              JobResponse(
-                job_id = (o \ "job_id").extract[Int],
-                state = (o \ "state").extract[JobState],
-                attributes = (o \ "attributes").extract[Option[Map[String, String]]],
               )
           },
           PartialFunction.empty,

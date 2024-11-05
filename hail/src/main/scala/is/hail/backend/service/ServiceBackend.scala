@@ -162,7 +162,7 @@ class ServiceBackend(
     token: String,
     root: String,
     stageIdentifier: String,
-  ): JobGroupResponse = {
+  ): (JobGroupResponse, Int) = {
     val defaultProcess =
       JvmJob(
         command = null,
@@ -199,7 +199,18 @@ class ServiceBackend(
         )
       }
 
-    val jobGroupId =
+    // When we create a JobGroup with n jobs, Batch gives us the absolute JobGroupId,
+    // and the startJobId for the first job.
+    /* This means that all JobId's in the JobGroup will have values in range (startJobId, startJobId
+     * + n). */
+    // Therefore, we know the partition index for a given job by using this startJobId offset.
+
+    // Why do we do this?
+    // Consider a situation where we're submitting thousands of jobs in a job group.
+    /* If one of those jobs fails, we don't want to make thousands of requests to batch to get a
+     * partition index */
+    // that that job corresponds to.
+    val (jobGroupId, startJobId) =
       batchClient.newJobGroup(
         JobGroupRequest(
           batch_id = batchConfig.batchId,
@@ -214,7 +225,8 @@ class ServiceBackend(
     stageCount += 1
 
     Thread.sleep(600) // it is not possible for the batch to be finished in less than 600ms
-    batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
+    val response = batchClient.waitForJobGroup(batchConfig.batchId, jobGroupId)
+    (response, startJobId)
   }
 
   private[this] def readPartitionResult(root: String, i: Int): Array[Byte] = {
@@ -234,16 +246,6 @@ class ServiceBackend(
     val expandedMessage = readString(is)
     val errorId = is.readInt()
     new HailWorkerException(i, shortMessage, expandedMessage, errorId)
-  }
-
-  private[this] def getPartitionIndex(batchId: Int, jobId: Int): Int = {
-    val job = batchClient.getJob(batchId, jobId)
-    val attr = job.attributes.getOrElse(
-      throw new HailBatchFailure(
-        s"Job $jobId in batch $batchId did not have attributes."
-      )
-    )
-    attr("idx").toInt
   }
 
   override def parallelizeAndComputeWithIndex(
@@ -295,9 +297,21 @@ class ServiceBackend(
     uploadFunction.get()
     uploadContexts.get()
 
-    val jobGroup = submitJobGroupAndWait(backendContext, parts, token, root, stageIdentifier)
+    val (jobGroup, startJobId) =
+      submitJobGroupAndWait(backendContext, parts, token, root, stageIdentifier)
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
+
+    def streamSuccessfulJobResults: Stream[(Array[Byte], Int)] =
+      for {
+        successes <- batchClient.getJobGroupJobs(
+          jobGroup.batch_id,
+          jobGroup.job_group_id,
+          Some(JobStates.Success),
+        )
+        job <- successes
+        partIdx = job.job_id - startJobId
+      } yield (readPartitionResult(root, partIdx), partIdx)
 
     val r @ (_, results) =
       jobGroup.state match {
@@ -317,31 +331,14 @@ class ServiceBackend(
             failedEntries.nonEmpty,
             s"Job group ${jobGroup.job_group_id} failed, but no failed jobs found.",
           )
-          val partId = getPartitionIndex(jobGroup.batch_id, failedEntries.head.job_id)
-          val error = readPartitionError(root, partId)
-          val successes = batchClient.getJobGroupJobs(
-            jobGroup.batch_id,
-            jobGroup.job_group_id,
-            Some(JobStates.Success),
-          )
-          val results = successes.map { job =>
-            val partIdx = getPartitionIndex(jobGroup.batch_id, job.job_id)
-            (readPartitionResult(root, partIdx), partIdx)
-          }
-          (Some(error), results)
+          val error = readPartitionError(root, failedEntries.head.head.job_id - startJobId)
+
+          (Some(error), streamSuccessfulJobResults.toIndexedSeq)
         case Cancelled =>
-          val successes = batchClient.getJobGroupJobs(
-            jobGroup.batch_id,
-            jobGroup.job_group_id,
-            Some(JobStates.Success),
-          )
-          val results = successes.map { job =>
-            val partIdx = getPartitionIndex(jobGroup.batch_id, job.job_id)
-            (readPartitionResult(root, partIdx), partIdx)
-          }
           val error =
             new CancellationException(s"Job Group ${jobGroup.job_group_id} was cancelled.")
-          (Some(error), results)
+
+          (Some(error), streamSuccessfulJobResults.toIndexedSeq)
       }
 
     val resultsReadingSeconds = (System.nanoTime() - startTime) / 1000000000.0
