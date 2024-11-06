@@ -80,7 +80,7 @@ class CloudBillingManager(abc.ABC):
 
     async def _refresh_resources_from_retail_prices(self, prices: List[Price]):
         log.info('refreshing resources from retail prices')
-        resource_updates = []
+        resource_updates = {}
         product_version_updates = []
 
         for price in prices:
@@ -96,7 +96,9 @@ class CloudBillingManager(abc.ABC):
 
             if is_new_product:
                 resource_name = product_version_to_resource(product, latest_product_version)
-                resource_updates.append((resource_name, latest_resource_rate))
+                rate = resource_updates.setdefault(resource_name, latest_resource_rate)
+                if rate != latest_resource_rate:
+                    raise ValueError(f'product {product} is duplicated with differing rates ({rate}) vs ({latest_resource_rate})')
                 product_version_updates.append((product, latest_product_version, latest_sku))
                 log.info(
                     f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate} and sku {latest_sku}'
@@ -132,7 +134,9 @@ class CloudBillingManager(abc.ABC):
                 elif not have_latest_version and not have_latest_rate:
                     if price.is_current_price():
                         latest_resource_name = product_version_to_resource(product, latest_product_version)
-                        resource_updates.append((latest_resource_name, latest_resource_rate))
+                        rate = resource_updates.setdefault(latest_resource_name, latest_resource_rate)
+                        if rate != latest_resource_rate:
+                            raise ValueError(f'product {product} is duplicated with differing rates ({rate}) vs ({latest_resource_rate})')
                         product_version_updates.append((product, latest_product_version, latest_sku))
                         log.info(
                             f'product {product} changed from {current_product_version} to {latest_product_version} with rate change of '
@@ -163,7 +167,7 @@ FOR UPDATE
 INSERT INTO `resources` (resource, rate)
 VALUES (%s, %s)
 """,
-                    resource_updates,
+                    list(resource_updates.items()),
                 )
 
                 await tx.execute_update(
