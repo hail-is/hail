@@ -125,7 +125,7 @@ class GCPLocalSSDDiskPrice(Price):
 
     @property
     def product(self):
-        return f'{self.sku}:{GCPLocalSSDStaticSizedDiskResource.product_name(self.preemptible, self.region)}'
+        return GCPLocalSSDStaticSizedDiskResource.product_name(self.preemptible, self.region)
 
     @property
     def rate(self):
@@ -310,12 +310,6 @@ def process_memory_sku(sku: dict, regions: List[str]) -> List[GCPMemoryPrice]:
 
 
 def process_local_ssd_sku(sku: dict, regions: List[str]) -> List[GCPLocalSSDDiskPrice]:
-
-    if sku['skuId'] == '6F51-46EA-FD60' or sku['skuId'] == '3C20-2B95-CA0D':
-        print(f'sku {sku["skuId"]}: {sku}')
-    else:
-        print(f'Not logging extra details for sku {sku["skuId"]}')
-
     category = sku['category']
     assert category['resourceFamily'] == 'Storage', sku
     assert category['resourceGroup'] == 'LocalSSD', sku
