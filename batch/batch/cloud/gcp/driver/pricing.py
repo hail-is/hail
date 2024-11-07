@@ -373,6 +373,15 @@ async def fetch_prices(
     params = {'currencyCode': currency_code}
     async for sku in billing_client.list_skus('/6F81-5844-456A/skus', params=params):
         category = sku['category']
+        reserved = sku['description'].startswith('Reserved')
+        if reserved:
+            # See https://cloud.google.com/compute/docs/instances/reservations-overview
+            # As of November 2024, reservations seem to have different SKUs to the resource they are
+            # reserving which is breaking our database primary keys.
+            # We can assume that no user work is being done on reserved resources (by definition),
+            # therefore, it is safe to skip adding prices for reserved resources.
+            continue
+
         if 'GPU' in category['resourceGroup']:
             for accelerator_price in process_accelerator_sku(sku, regions):
                 yield accelerator_price
