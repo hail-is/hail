@@ -310,6 +310,10 @@ def process_memory_sku(sku: dict, regions: List[str]) -> List[GCPMemoryPrice]:
 
 
 def process_local_ssd_sku(sku: dict, regions: List[str]) -> List[GCPLocalSSDDiskPrice]:
+
+    if sku['skuId'] is 'E725-3CC5-D4BE' or sku['skuId'] is '3C20-2B95-CA0D':
+        print(f'sku {sku["skuId"]}: {sku}')
+
     category = sku['category']
     assert category['resourceFamily'] == 'Storage', sku
     assert category['resourceGroup'] == 'LocalSSD', sku
