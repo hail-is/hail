@@ -313,6 +313,8 @@ def process_local_ssd_sku(sku: dict, regions: List[str]) -> List[GCPLocalSSDDisk
 
     if sku['skuId'] is 'E725-3CC5-D4BE' or sku['skuId'] is '3C20-2B95-CA0D':
         print(f'sku {sku["skuId"]}: {sku}')
+    else:
+        print(f'Not logging extra details for sku {sku["skuId"]}')
 
     category = sku['category']
     assert category['resourceFamily'] == 'Storage', sku
