@@ -125,7 +125,7 @@ class GCPLocalSSDDiskPrice(Price):
 
     @property
     def product(self):
-        return GCPLocalSSDStaticSizedDiskResource.product_name(self.preemptible, self.region)
+        return f'{self.sku}:{GCPLocalSSDStaticSizedDiskResource.product_name(self.preemptible, self.region)}'
 
     @property
     def rate(self):
