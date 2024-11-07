@@ -98,7 +98,9 @@ class CloudBillingManager(abc.ABC):
                 resource_name = product_version_to_resource(product, latest_product_version)
                 rate = resource_updates.setdefault(resource_name, latest_resource_rate)
                 if rate != latest_resource_rate:
-                    raise ValueError(f'product {product} is duplicated with differing rates ({rate}) vs ({latest_resource_rate})')
+                    raise ValueError(
+                        f'product {product} is duplicated with differing rates ({rate}) vs ({latest_resource_rate})'
+                    )
                 product_version_updates.append((product, latest_product_version, latest_sku))
                 log.info(
                     f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate} and sku {latest_sku}'
@@ -136,7 +138,9 @@ class CloudBillingManager(abc.ABC):
                         latest_resource_name = product_version_to_resource(product, latest_product_version)
                         rate = resource_updates.setdefault(latest_resource_name, latest_resource_rate)
                         if rate != latest_resource_rate:
-                            raise ValueError(f'product {product} is duplicated with differing rates ({rate}) vs ({latest_resource_rate})')
+                            raise ValueError(
+                                f'product {product} is duplicated with differing rates ({rate}) vs ({latest_resource_rate})'
+                            )
                         product_version_updates.append((product, latest_product_version, latest_sku))
                         log.info(
                             f'product {product} changed from {current_product_version} to {latest_product_version} with rate change of '
