@@ -25,6 +25,7 @@ class GetJobResponseV1Alpha(TypedDict):
     spec: Optional[Dict[str, Any]]
     attributes: NotRequired[Dict[str, str]]
     always_run: bool
+    n_max_attempts: int
     display_state: Optional[str]
 
 
@@ -42,6 +43,7 @@ class JobListEntryV1Alpha(TypedDict):
     msec_mcpu: int
     cost_breakdown: List[CostBreakdownEntry]
     always_run: bool
+    n_max_attempts: int
     display_state: Optional[str]
 
 
