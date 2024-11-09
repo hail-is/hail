@@ -1,4 +1,5 @@
 data "azurerm_subscription" "primary" {}
+data "azurerm_client_config" "primary" {}
 
 resource "azurerm_network_security_group" "batch_worker" {
   name                = "batch-worker-nsg"
@@ -64,6 +65,28 @@ resource "kubernetes_secret" "batch_worker_ssh_public_key" {
   data = {
     "ssh_rsa.pub" = file("~/.ssh/batch_worker_ssh_rsa.pub")
   }
+}
+
+resource "azurerm_key_vault" "worker_key_vault" {
+  name                        = "worker-key-vault"
+  location                    = var.resource_group.location
+  resource_group_name         = var.resource_group.name
+  tenant_id                   = data.azurerm_client_config.primary.tenant_id
+  enabled_for_disk_encryption = true
+  soft_delete_retention_days  = 7
+  purge_protection_enabled    = false
+
+  sku_name = "standard"
+}
+
+resource "azurerm_key_vault_access_policy" "batch_worker_read" {
+  key_vault_id = azurerm_key_vault.worker_key_vault.id
+  tenant_id    = data.azurerm_client_config.primary.tenant_id
+  object_id    = azurerm_user_assigned_identity.batch_worker.principal_id
+
+  secret_permissions = [
+    "Get",
+  ]
 }
 
 resource "azurerm_storage_account" "batch" {
