@@ -2,7 +2,7 @@ import base64
 import os
 import tempfile
 from contextlib import AsyncExitStack
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import orjson
 from aiohttp import web
@@ -10,6 +10,7 @@ from aiohttp import web
 from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.auth.auth import IdentityProvider
+from hailtop.auth.flow import GoogleFlow
 from hailtop.utils import check_exec_output
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
@@ -83,6 +84,9 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
         return create_app(aiogoogle.GoogleServiceAccountCredentials(key), self._metadata_server_client)
+
+    async def identity_uid(self, token: str) -> Optional[str]:
+        return await GoogleFlow.get_identity_uid_from_access_token(self._http_session, token, oauth2_client=None)
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)

@@ -41,6 +41,8 @@ from gear.auth import AIOHTTPHandler, UserData
 from gear.clients import get_cloud_async_fs
 from gear.profiling import install_profiler_if_requested
 from hailtop import aiotools, httpx, uvloopx
+from hailtop.aiocloud.common import Session
+from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import ROOT_JOB_GROUP_ID
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -270,7 +272,7 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    return json_response({'token': token})
+    return json_response({'token': token, 'batch_identity_uid': request.app['batch_identity_uid']})
 
 
 @routes.post('/api/v1alpha/instances/activate')
@@ -1734,6 +1736,11 @@ SELECT instance_id, frozen FROM globals;
 
     app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
     exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
+
+    batch_credentials = hail_credentials()
+    app['batch_identity_uid'] = batch_credentials.identity_uid
+    app['worker_client_session'] = Session(credentials=batch_credentials)
+    exit_stack.push_async_callback(app['worker_client_session'].close)
 
     app['driver'] = await get_cloud_driver(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
     exit_stack.push_async_callback(app['driver'].shutdown)
