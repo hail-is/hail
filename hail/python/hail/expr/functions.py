@@ -3300,6 +3300,16 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     return hl.bind(lambda x: x / hl.sum(x), a.map(lambda p: hl.if_else(p == 0.0, 0.0, hl.rand_gamma(p, 1, seed=seed))))
 
 
+@typecheck(ngood=expr_int32, nbad=expr_int32, nsample=expr_int32, seed=nullable(int))
+def rand_hyper(ngood, nbad, nsample, seed=None) -> Int32Expression:
+    return _seeded_func("rand_hyper", tint32, seed, ngood, nbad, nsample)
+
+
+@typecheck(colors=expr_array(expr_int32), nsample=expr_int32, seed=nullable(int))
+def rand_multi_hyper(colors, nsample, seed=None) -> Int32Expression:
+    return _seeded_func("rand_multi_hyper", tarray(tint32), seed, colors, nsample)
+
+
 @typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))
 @ndarray_broadcasting
 def sqrt(x) -> Float64Expression:
