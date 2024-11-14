@@ -122,6 +122,283 @@ paths:
             application/json:
               schema:
                 type: object
+  '/api/v1alpha/batches/create':
+    post:
+      summary: "Create a batch"
+      description: "Create a batch."
+      operationId: createBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/create-fast':
+    post:
+      summary: "Create a batch fast"
+      description: "Create a batch fast."
+      operationId: createBatchFastv1alpha
+      tags:
+        - Batches API v1Alpha
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the batch fast."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/update-fast':
+    post:
+      summary: "Perform a fast update to a batch"
+      description: "Perform a fast batch update without separate create / add content / commit steps"
+      operationId: updateBatchFastv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully updated the batch fast."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/create':
+    post:
+      summary: "Create a batch update"
+      description: "Create a batch update."
+      operationId: createBatchUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the batch update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/{update_id}/job-groups/create':
+    post:
+      summary: "Create a job group"
+      description: "Create a job group as part of an update operation."
+      operationId: createJobGroupUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: update_id
+          in: path
+          description: "The ID of the update."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the job group update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create':
+    post:
+      summary: "Create a job"
+      description: "Create a job as part of an update operation."
+      operationId: createJobUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: update_id
+          in: path
+          description: "The ID of the update."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the job update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/create':
+    post:
+      summary: "Create a job (deprecated)"
+      description: "Create a job."
+      operationId: createJobv1alpha
+      deprecated: true
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit':
+    post:
+      summary: "Commit update"
+      description: "Commit an update."
+      operationId: commitUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: update_id
+          in: path
+          description: "The ID of the update."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully committed the update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/cancel':
+    patch:
+      summary: "Cancel batch"
+      description: "Cancel a batch."
+      operationId: cancelBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully cancelled the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/cancel':
+    patch:
+      summary: "Cancel job group"
+      description: "Cancel a job group."
+      operationId: cancelJobGroupv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully cancelled the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/close':
+    close:
+      summary: "Close batch"
+      description: "Close a batch."
+      operationId: closeBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully closed the batch."
+          content:
+            application/json:
+              schema:
+                type: object
   '/api/v1alpha/batches/{batch_id}':
     get:
       summary: "Get a batch"
@@ -504,6 +781,175 @@ paths:
             application/json:
               schema:
                 type: object
+  '/api/v1alpha/billing_projects/{billing_project}/create':
+    post:
+      summary: "Create a billing project"
+      description: "Create a billing project."
+      operationId: createBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The name of the billing project."
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
+    post:
+      summary: "Add a user to a billing project"
+      description: "Add a user to a billing project."
+      operationId: addUserToBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: path
+          description: "The username of the user."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully added the user to the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove':
+    post:
+      summary: "Remove a user from a billing project"
+      description: "Remove a user from a billing project."
+      operationId: removeUserFromBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: path
+          description: "The username of the user."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully removed the user from the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/close':
+    post:
+      summary: "Close billing project"
+      description: "Close a billing project."
+      operationId: closeBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully closed the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/reopen':
+    post:
+      summary: "Reopen billing project"
+      description: "Reopen a billing project."
+      operationId: reopenBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully reopened the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/delete':
+    post:
+      summary: "Delete billing project"
+      description: "Delete a billing project."
+      operationId: deleteBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully deleted the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_limits/{billing_project}/edit':
+    post:
+      summary: "Edit billing limits"
+      description: "Edit the billing limits of a billing project."
+      operationId: editBillingLimits
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully edited the billing limits."
+          content:
+            application/json:
+              schema:
+                type: object
   '/batches':
     get:
       summary: "Batches page (UI)"
@@ -552,6 +998,64 @@ paths:
       responses:
         '200':
           description: "Successfully retrieved the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/cancel':
+    post:
+      summary: "Cancel batch (UI)"
+      description: "Cancel a batch and render the result, or (dev only) its supporting jinja context"
+      operationId: cancelBatchUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+              type: boolean
+              default: false
+              example: true
+      responses:
+        '200':
+          description: "Successfully cancelled the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/delete':
+    post:
+      summary: "Delete batch (UI)"
+      description: "Delete a batch and render a result HTML, or (dev only) its supporting jinja context"
+      operationId: deleteBatchUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+              type: boolean
+              default: false
+              example: true
+      responses:
+        '200':
+          description: "Successfully deleted the batch."
           content:
             application/json:
               schema:
@@ -713,6 +1217,40 @@ paths:
             application/json:
               schema:
                 type: object
+  '/billing_limits/{billing_project}/edit':
+    post:
+        summary: "Edit billing limits and return rendered result HTML, or (dev only) its supporting jinja context"
+        description: "Edit the billing limits of a billing project."
+        operationId: editBillingLimitsUI
+        tags:
+            - Billing Projects
+        parameters:
+            - name: billing_project
+              in: path
+              description: "The ID of the billing project."
+              required: true
+              schema:
+                  type: string
+            - name: x-hail-return-jinja-context
+              in: header
+              description: "Do not render, and instead return the jinja context json."
+              required: false
+              schema:
+                  type: boolean
+                  default: false
+                  example: true
+        requestBody:
+            content:
+            application/json:
+                schema:
+                type: object
+        responses:
+            '200':
+            description: "Successfully edited the billing limits."
+            content:
+                application/json:
+                schema:
+                    type: object
   '/billing_projects':
     get:
       summary: "Billing projects page (UI)"
@@ -732,6 +1270,156 @@ paths:
       responses:
         '200':
           description: "Successfully retrieved the billing projects page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/create':
+    post:
+      summary: "Create billing project element (UI)"
+      description: "Create a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: createBillingProjectUI
+      tags:
+        - Billing Projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully created the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/users/add':
+    post:
+      summary: "Add user to billing project element (UI)"
+      description: "Add a user to a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: addUserToBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully added the user to the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/users/{user}/remove':
+    post:
+      summary: "Remove user from billing project element (UI)"
+      description: "Remove a user from a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: removeUserFromBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: path
+          description: "The username of the user."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully removed the user from the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/close':
+    post:
+      summary: "Close billing project element (UI)"
+      description: "Close a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: closeBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully closed the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/reopen':
+    post:
+      summary: "Reopen billing project element (UI)"
+      description: "Reopen a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: reopenBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully reopened the billing project."
           content:
             application/json:
               schema:
