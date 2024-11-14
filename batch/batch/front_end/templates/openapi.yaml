@@ -47,6 +47,8 @@ x-tagGroups:
     tags:
       - UI Support
 servers:
+  - url: {{ base_url }}
+    description: "Current Batch service. No risk of CORS issues."
   - url: https://batch.hail.is/
     description: "GCP Production Batch service. Beware CORS issues in swagger / browsers."
   - url: https://batch.azure.hail.is/
