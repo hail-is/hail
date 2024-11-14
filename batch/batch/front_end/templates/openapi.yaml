@@ -28,18 +28,24 @@ tags:
     description: "v1alpha batches API"
   - name: Batches API v2Alpha
     description: "v2alpha batches API"
+  - name: Billing Projects
+    description: "Operations for billing projects."
+  - name: UI Support
 x-tagGroups:
   - name: General
     tags:
       - 'Public'
       - 'Authenticated Information'
-  - name: Batches
+  - name: v1 API
     tags:
       - 'Batches API v1Alpha'
-      - 'Batches API v2Alpha'
-  - name: Administration
+      - 'Billing Projects'
+  - name: v2 API
     tags:
-      - Admin
+      - 'Batches API v2Alpha'
+  - name: Internal
+    tags:
+      - UI Support
 servers:
   - url: https://batch.hail.is/
     description: "GCP Production Batch service. Beware CORS issues in swagger / browsers."
@@ -100,6 +106,20 @@ paths:
           content:
             string:
               example: "TODO"
+  '/api/v1alpha/batches':
+    get:
+      summary: "List batches"
+      description: "List batches."
+      operationId: getBatchesv1alpha
+      tags:
+        - Batches API v1Alpha
+      responses:
+        '200':
+          description: "Successfully retrieved the batches."
+          content:
+            application/json:
+              schema:
+                type: object
   '/api/v1alpha/batches/{batch_id}':
     get:
       summary: "Get a batch"
@@ -121,11 +141,289 @@ paths:
             application/json:
               schema:
                 type: object
-  '/api/v2alpha/batches/{batch_id}':
+  '/api/v1alpha/batches/{batch_id}/jobs':
     get:
-      summary: "Get a batch"
-      description: "Get a batch by ID."
-      operationId: getBatchv2alpha
+      summary: "Get all jobs in a batch"
+      description: "Get all jobs in a batch by ID."
+      operationId: getJobsInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups':
+    get:
+      summary: "Get all job groups in a batch"
+      description: "Get all job groups in a batch by ID."
+      operationId: getJobGroupsInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job groups in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}':
+    get:
+      summary: "Get a job group in a batch"
+      description: "Get a job group in a batch by ID."
+      operationId: getJobGroupInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job group in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
+    get:
+      summary: "Get all jobs in a job group"
+      description: "Get all jobs in a job group by ID."
+      operationId: getJobsInJobGroupv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/job-groups':
+    get:
+      summary: "Get all job groups in a job group"
+      description: "Get all job groups in a job group by ID."
+      operationId: getJobGroupsInJobGroupv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job groups in the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}':
+    get:
+      summary: "Get a job in a batch"
+      description: "Get a job in a batch by ID."
+      operationId: getJobInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts':
+    get:
+      summary: "Get all attempts in a job"
+      description: "Get all attempts in a job by ID."
+      operationId: getAttemptsInJobv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the attempts in the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log':
+    get:
+      summary: "Get job log"
+      description: "Get the log of a job by ID."
+      operationId: getLogInJobv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the log of the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}':
+    get:
+      summary: "Get job log by container"
+      description: "Get the log of a job from a specific container."
+      operationId: getLogInJobContainerV1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: container
+          in: path
+          description: "The name of the container."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully retrieved the log of the job in the container."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resources_usage':
+    get:
+      summary: "Get job resource usage"
+      description: "Get the resources usage of a job."
+      operationId: getResourcesUsageInJobv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the resources usage of the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches':
+    get:
+      summary: "List batches"
+      description: "List batches."
+      operationId: getBatchesv2alpha
+      tags:
+        - Batches API v2Alpha
+      responses:
+        '200':
+          description: "Successfully retrieved the batches."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches/{batch_id}/jobs':
+    get:
+      summary: "List jobs in a batch"
+      description: "List jobs in a batch by batch ID."
+      operationId: getJobsInBatchv2alpha
       tags:
         - Batches API v2Alpha
       parameters:
@@ -137,12 +435,351 @@ paths:
             type: number
       responses:
         '200':
+          description: "Successfully retrieved the jobs in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
+    get:
+      summary: "List jobs in a job group"
+      description: "List jobs in a job group by job group ID."
+      operationId: getJobsInJobGroupv2alpha
+      tags:
+        - Batches API v2Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects':
+    get:
+      summary: "List billing projects"
+      description: "List billing projects."
+      operationId: getBillingProjects
+      tags:
+        - Billing Projects
+      responses:
+        '200':
+          description: "Successfully retrieved the billing projects."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}':
+    get:
+      summary: "Get a billing project"
+      description: "Get a billing project by ID."
+      operationId: getBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully retrieved the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches':
+    get:
+      summary: "Batches page (UI)"
+      description: "Render the batches page, or (dev only) its supporting jinja context"
+      operationId: getBatchesUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the batches."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}':
+    get:
+      summary: "Batch page (UI)"
+      description: "Render the batch page, or (dev only) its supporting jinja context"
+      operationId: getBatchUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
           description: "Successfully retrieved the batch."
           content:
             application/json:
               schema:
                 type: object
-
+  '/batches/{batch_id}/jobs/{job_id}':
+    get:
+      summary: "Job page (UI)"
+      description: "Render the job page, or (dev only) its supporting jinja context"
+      operationId: getJobUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/jobs/{job_id}/jvm_profile':
+    get:
+      summary: "Job JVM profile page (UI)"
+      description: "Render the job JVM profile page, or (dev only) its supporting jinja context"
+      operationId: getJobJVMProfileUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the job JVM profile."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/jobs/{job_id}/log/{container}':
+    get:
+      summary: "Job log page (UI)"
+      description: "Render the job log page, or (dev only) its supporting jinja context"
+      operationId: getJobLogUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: container
+          in: path
+          description: "The name of the container."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the job log."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing':
+    get:
+      summary: "Billing page (UI)"
+      description: "Render the billing page, or (dev only) its supporting jinja context"
+      operationId: getBillingUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_limits':
+    get:
+      summary: "Billing limits page (UI)"
+      description: "Render the billing limits page, or (dev only) its supporting jinja context"
+      operationId: getBillingLimitsUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing limits page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects':
+    get:
+      summary: "Billing projects page (UI)"
+      description: "Render the billing projects page, or (dev only) its supporting jinja context"
+      operationId: getBillingProjectsUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing projects page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/openapi.yaml':
+    get:
+      summary: "OpenAPI spec"
+      description: "Render the OpenAPI spec, or (dev only) its supporting jinja context"
+      operationId: getOpenAPI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the OpenAPI spec."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/swagger':
+    get:
+      summary: "Swagger UI"
+      description: "Render the swagger UI page, or (dev only) its supporting jinja context"
+      operationId: getOpenAPI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the Swagger UI"
+          content:
+            application/json:
+              schema:
+                type: object
 
 #components:
 #  securitySchemes:
