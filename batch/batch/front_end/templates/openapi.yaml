@@ -1459,42 +1459,4 @@ paths:
                 type: object
 
 #components:
-#  securitySchemes:
-#    main_auth:
-#      description: "GCP production hail login (hail.is and internal.hail.is)"
-#      type: oauth2
-#      flows:
-#        implicit:
-#          authorizationUrl: {{ auth_base_url }}/login
-#          clientId: '842871226259-4oshjtt0j9n88k4j8a601gsv64mc7eql.apps.googleusercontent.com'
-#          redirectUrl: {{ base_url }}/swagger
-#          scopes:
-#            'read:users': read user info
-#            'write:users': modify or remove users
-#    api_key:
-#      description: "Use a token from another oauth login session. Not recommended!"
-#      type: apiKey
-#      in: header
-#      name: Authorization
-#    basic_auth:
-#      type: http
-#      scheme: basic
-#webhooks:
-#  # TODO: Github -> CI webhooks?
-#  userInfo:
-#    post:
-#      summary: New user webhook
-#      description: "Information about a new user in the system."
-#      operationId: userInfo
-#      tags:
-#        - Info
-#      requestBody:
-#        content:
-#          application/json:
-#            schema:
-#              $ref: 'components/schemas/User.yaml'
-#      responses:
-#        '200':
-#          description: "Successfully retrieved information about a new user."
-#      security:
-#        - api_key: []
+  # TODO: Add response types
