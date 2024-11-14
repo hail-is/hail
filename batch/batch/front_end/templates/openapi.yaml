@@ -20,21 +20,27 @@ externalDocs:
   description: "Find out how to create a GitHub repo for your OpenAPI definition."
   url: 'https://github.com/Redocly/create-openapi-repo'
 tags:
-  - name: Public
+  - name: Public Server Information
     description: "Operations for retrieving basic public information from the service."
-  - name: Authenticated Information
+  - name: Authenticated Server Information
     description: "Operations for retrieving information that require authentication."
+  - name: Batches API v1Alpha
+    description: "v1alpha batches API"
+  - name: Batches API v2Alpha
+    description: "v2alpha batches API"
 x-tagGroups:
   - name: General
     tags:
       - 'Public'
       - 'Authenticated Information'
-#  - name: Administration
-#    tags:
-#      - Admin
+  - name: Batches
+    tags:
+      - 'Batches API v1Alpha'
+      - 'Batches API v2Alpha'
+  - name: Administration
+    tags:
+      - Admin
 servers:
-  - url: {{ base_url }}
-    description: "Current Batch service. No risk of CORS issues."
   - url: https://batch.hail.is/
     description: "GCP Production Batch service. Beware CORS issues in swagger / browsers."
   - url: https://batch.azure.hail.is/
@@ -94,25 +100,68 @@ paths:
           content:
             string:
               example: "TODO"
+  '/api/v1alpha/batches/{batch_id}':
+    get:
+      summary: "Get a batch"
+      description: "Get a batch by ID."
+      operationId: getBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches/{batch_id}':
+    get:
+      summary: "Get a batch"
+      description: "Get a batch by ID."
+      operationId: getBatchv2alpha
+      tags:
+        - Batches API v2Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the batch."
+          content:
+            application/json:
+              schema:
+                type: object
 
-components:
-  securitySchemes:
-    main_auth:
-      description: "GCP production hail login (hail.is and internal.hail.is)"
-      type: oauth2
-      flows:
-        implicit:
-          authorizationUrl: {{ auth_base_url }}/login
+
+#components:
+#  securitySchemes:
+#    main_auth:
+#      description: "GCP production hail login (hail.is and internal.hail.is)"
+#      type: oauth2
+#      flows:
+#        implicit:
+#          authorizationUrl: {{ auth_base_url }}/login
 #          clientId: '842871226259-4oshjtt0j9n88k4j8a601gsv64mc7eql.apps.googleusercontent.com'
-          redirectUrl: {{ base_url }}/swagger
+#          redirectUrl: {{ base_url }}/swagger
 #          scopes:
 #            'read:users': read user info
 #            'write:users': modify or remove users
-    api_key:
-      description: "Use a token from another oauth login session. Not recommended!"
-      type: apiKey
-      in: header
-      name: Authorization
+#    api_key:
+#      description: "Use a token from another oauth login session. Not recommended!"
+#      type: apiKey
+#      in: header
+#      name: Authorization
 #    basic_auth:
 #      type: http
 #      scheme: basic
