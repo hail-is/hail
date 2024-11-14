@@ -31,21 +31,6 @@ tags:
   - name: Billing Projects
     description: "Operations for billing projects."
   - name: UI Support
-x-tagGroups:
-  - name: General
-    tags:
-      - 'Public Server Information'
-      - 'Authenticated Server Information'
-  - name: v1 API
-    tags:
-      - 'Batches API v1Alpha'
-      - 'Billing Projects'
-  - name: v2 API
-    tags:
-      - 'Batches API v2Alpha'
-  - name: Internal
-    tags:
-      - UI Support
 servers:
   - url: {{ base_url }}
     description: "Current Batch service. No risk of CORS issues."
@@ -65,7 +50,7 @@ paths:
       description: "Get the version of the API."
       operationId: getVersion
       tags:
-        - Public
+        - Public Server Information
       responses:
         '200':
           description: "Successfully retrieved the version of the API."
@@ -78,7 +63,7 @@ paths:
       description: "Check the health of the API."
       operationId: healthcheck
       tags:
-        - Public
+        - Public Server Information
       responses:
         '200':
           description: "Successfully checked the health of the API."
@@ -88,7 +73,7 @@ paths:
       description: "Get the cloud provider supported by this batch instance."
       operationId: getCloudProvider
       tags:
-        - Public
+        - Public Server Information
       responses:
         '200':
           description: "Successfully retrieved the cloud provider supported."
@@ -101,7 +86,7 @@ paths:
       description: "Get the list of supported regions."
       operationId: getSupportedRegions
       tags:
-        - Authenticated Information
+        - Authenticated Server Information
       responses:
         '200':
           description: "Successfully retrieved the regions list."
@@ -278,7 +263,7 @@ paths:
                 type: object
   '/api/v1alpha/batches/{batch_id}/jobs/create':
     post:
-      summary: "Create a job (deprecated)"
+      summary: "Create a job"
       description: "Create a job."
       operationId: createJobv1alpha
       deprecated: true
@@ -379,10 +364,11 @@ paths:
               schema:
                 type: object
   '/api/v1alpha/batches/{batch_id}/close':
-    close:
+    patch:
       summary: "Close batch"
       description: "Close a batch."
       operationId: closeBatchv1alpha
+      deprecated: true
       tags:
         - Batches API v1Alpha
       parameters:
@@ -602,6 +588,7 @@ paths:
       summary: "Get job log"
       description: "Get the log of a job by ID."
       operationId: getLogInJobv1alpha
+      deprecated: true
       tags:
         - Batches API v1Alpha
       parameters:
