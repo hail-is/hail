@@ -34,8 +34,8 @@ tags:
 x-tagGroups:
   - name: General
     tags:
-      - 'Public'
-      - 'Authenticated Information'
+      - 'Public Server Information'
+      - 'Authenticated Server Information'
   - name: v1 API
     tags:
       - 'Batches API v1Alpha'
