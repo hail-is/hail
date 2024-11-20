@@ -119,7 +119,7 @@ class LocalBackend(Py4JBackend):
         )
 
     def stop(self):
-        super().stop()
+        super(Py4JBackend, self).stop()
         self._exit_stack.close()
         uninstall_exception_handler()
 
