@@ -27,30 +27,32 @@ object requests {
     def patch(route: String): JValue
   }
 
-  private[this] val TIMEOUT_MS = 5 * 1000
+  private[this] val TimeoutMs = 5 * 1000
+  private[this] val MaxNumConnectionPerRoute = 20
+  private[this] val MaxNumConnections = 100
 
   def Requester(baseUrl: URL, cred: CloudCredentials): Requester = {
 
     val httpClient: CloseableHttpClient = {
       log.info("creating HttpClient")
       val requestConfig = RequestConfig.custom()
-        .setConnectTimeout(TIMEOUT_MS)
-        .setConnectionRequestTimeout(TIMEOUT_MS)
-        .setSocketTimeout(TIMEOUT_MS)
+        .setConnectTimeout(TimeoutMs)
+        .setConnectionRequestTimeout(TimeoutMs)
+        .setSocketTimeout(TimeoutMs)
         .build()
       try {
         HttpClients.custom()
           .setSSLContext(tls.getSSLContext)
-          .setMaxConnPerRoute(20)
-          .setMaxConnTotal(100)
+          .setMaxConnPerRoute(MaxNumConnectionPerRoute)
+          .setMaxConnTotal(MaxNumConnections)
           .setDefaultRequestConfig(requestConfig)
           .build()
       } catch {
         case _: NoSSLConfigFound =>
           log.info("creating HttpClient with no SSL Context")
           HttpClients.custom()
-            .setMaxConnPerRoute(20)
-            .setMaxConnTotal(100)
+            .setMaxConnPerRoute(MaxNumConnectionPerRoute)
+            .setMaxConnTotal(MaxNumConnections)
             .setDefaultRequestConfig(requestConfig)
             .build()
       }
