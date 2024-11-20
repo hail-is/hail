@@ -1,5 +1,14 @@
 package is.hail.io.fs
 
+import is.hail.HailFeatureFlags
+import is.hail.services.oauth2.{AzureCloudCredentials, GoogleCloudCredentials}
+import is.hail.utils.{FastSeq, SerializableHadoopConfiguration}
+
+import java.io.Serializable
+import java.nio.file.Path
+
+import org.apache.hadoop.conf.Configuration
+
 object RouterFSURL {
   def apply(fs: FS)(_url: fs.URL): RouterFSURL = RouterFSURL(_url, fs)
 }
@@ -13,6 +22,52 @@ case class RouterFSURL private (_url: FSURL, val fs: FS) extends FSURL {
     RouterFSURL(fs)(fs.urlAddPathComponent(url, component))
 
   override def toString(): String = url.toString
+}
+
+case class CloudStorageFSConfig(
+  azure: Option[AzureStorageFSConfig] = None,
+  google: Option[GoogleStorageFSConfig] = None,
+) extends Serializable
+
+object CloudStorageFSConfig {
+  def fromFlagsAndEnv(
+    credentialsFile: Option[Path],
+    flags: HailFeatureFlags,
+    env: Map[String, String] = sys.env,
+  ): CloudStorageFSConfig = {
+    env.get("HAIL_CLOUD") match {
+      case Some("azure") =>
+        CloudStorageFSConfig(azure = Some(AzureStorageFSConfig(credentialsFile)))
+      case Some("gcp") | None =>
+        val rpConf = RequesterPaysConfig.fromFlags(flags)
+        CloudStorageFSConfig(google = Some(GoogleStorageFSConfig(credentialsFile, rpConf)))
+      case _ =>
+        CloudStorageFSConfig()
+    }
+  }
+}
+
+object RouterFS {
+
+  def buildRoutes(cloudConfig: CloudStorageFSConfig, env: Map[String, String] = sys.env): FS =
+    new RouterFS(
+      IndexedSeq.concat(
+        cloudConfig.google.map { case GoogleStorageFSConfig(path, mRPConfig) =>
+          new GoogleStorageFS(
+            GoogleCloudCredentials(path, GoogleStorageFS.RequiredOAuthScopes, env),
+            mRPConfig,
+          )
+        },
+        cloudConfig.azure.map { case AzureStorageFSConfig(path) =>
+          if (env.contains("HAIL_TERRA")) {
+            val creds = AzureCloudCredentials(path, TerraAzureStorageFS.RequiredOAuthScopes, env)
+            new TerraAzureStorageFS(creds)
+          } else
+            new AzureStorageFS(AzureCloudCredentials(path, AzureStorageFS.RequiredOAuthScopes, env))
+        },
+        FastSeq(new HadoopFS(new SerializableHadoopConfiguration(new Configuration()))),
+      )
+    )
 }
 
 class RouterFS(fss: IndexedSeq[FS]) extends FS {
