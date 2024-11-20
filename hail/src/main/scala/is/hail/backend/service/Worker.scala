@@ -177,6 +177,7 @@ object Worker {
         null,
         null,
         null,
+        null,
         scratchDir,
       )
     } else {
@@ -186,6 +187,7 @@ object Worker {
           null,
           null,
           new HailClassLoader(getClass().getClassLoader()),
+          null,
           null,
           null,
           null,
