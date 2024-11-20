@@ -1,7 +1,10 @@
 package is.hail.services
 
 import is.hail.expr.ir.ByteArrayBuilder
-import is.hail.services.BatchClient.BunchMaxSizeBytes
+import is.hail.services.BatchClient.{
+  BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
+  JobProcessRequestSerializer,
+}
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
@@ -86,7 +89,16 @@ object JobGroupStates {
 
 object BatchClient {
 
-  private[this] def BatchServiceScopes(env: Map[String, String]): Array[String] =
+  val BunchMaxSizeBytes: Int = 1024 * 1024
+
+  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
+    : BatchClient =
+    new BatchClient(Requester(
+      new URL(deployConfig.baseUrl("batch")),
+      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
+    ))
+
+  def BatchServiceScopes(env: Map[String, String]): Array[String] =
     env.get("HAIL_CLOUD") match {
       case Some("gcp") =>
         Array(
@@ -102,14 +114,70 @@ object BatchClient {
         throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
     }
 
-  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
-    : BatchClient =
-    new BatchClient(Requester(
-      new URL(deployConfig.baseUrl("batch")),
-      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
-    ))
+  object JobProcessRequestSerializer extends CustomSerializer[JobProcess](implicit fmts =>
+        (
+          PartialFunction.empty,
+          {
+            case BashJob(image, command) =>
+              JObject(
+                "type" -> JString("docker"),
+                "image" -> JString(image),
+                "command" -> JArray(command.map(JString).toList),
+              )
+            case JvmJob(command, jarSpec, profile) =>
+              JObject(
+                "type" -> JString("jvm"),
+                "command" -> JArray(command.map(JString).toList),
+                "jar_spec" -> Extraction.decompose(jarSpec),
+                "profile" -> JBool(profile),
+              )
+          },
+        )
+      )
 
-  private val BunchMaxSizeBytes: Int = 1024 * 1024
+  object JobGroupStateDeserializer extends CustomSerializer[JobGroupState](_ =>
+        (
+          {
+            case JString("failure") => JobGroupStates.Failure
+            case JString("cancelled") => JobGroupStates.Cancelled
+            case JString("success") => JobGroupStates.Success
+            case JString("running") => JobGroupStates.Running
+          },
+          PartialFunction.empty,
+        )
+      )
+
+  object JobGroupResponseDeserializer extends CustomSerializer[JobGroupResponse](implicit fmts =>
+        (
+          {
+            case o: JObject =>
+              JobGroupResponse(
+                batch_id = (o \ "batch_id").extract[Int],
+                job_group_id = (o \ "job_group_id").extract[Int],
+                state = (o \ "state").extract[JobGroupState],
+                complete = (o \ "complete").extract[Boolean],
+                n_jobs = (o \ "n_jobs").extract[Int],
+                n_completed = (o \ "n_completed").extract[Int],
+                n_succeeded = (o \ "n_succeeded").extract[Int],
+                n_failed = (o \ "n_failed").extract[Int],
+                n_cancelled = (o \ "n_failed").extract[Int],
+              )
+          },
+          PartialFunction.empty,
+        )
+      )
+
+  object JarSpecSerializer extends CustomSerializer[JarSpec](_ =>
+        (
+          PartialFunction.empty,
+          {
+            case JarUrl(url) =>
+              JObject("type" -> JString("jar_url"), "value" -> JString(url))
+            case GitRevision(sha) =>
+              JObject("type" -> JString("git_revision"), "value" -> JString(sha))
+          },
+        )
+      )
 }
 
 case class BatchClient private (req: Requester) extends Logging with AutoCloseable {
@@ -220,6 +288,11 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         .merge(
           JObject(
             "job_id" -> JInt(jobIdx + 1),
+            // Batch allows clients to create multiple job groups in an update.
+            // For each table stage, we create one job group in an update; all jobs in
+            // that update belong to that one job group. This allows us to abstract updates
+            // from the case class used by the ServiceBackend but that information needs to
+            // get added back here.
             "in_update_job_group_id" -> JInt(1),
           )
         )
@@ -256,73 +329,4 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
       )),
     )
-
-  private[this] object JobProcessRequestSerializer
-      extends CustomSerializer[JobProcess](_ =>
-        (
-          PartialFunction.empty,
-          {
-            case BashJob(image, command) =>
-              JObject(
-                "type" -> JString("docker"),
-                "image" -> JString(image),
-                "command" -> JArray(command.map(JString).toList),
-              )
-            case JvmJob(command, jarSpec, profile) =>
-              JObject(
-                "type" -> JString("jvm"),
-                "command" -> JArray(command.map(JString).toList),
-                "jar_spec" -> Extraction.decompose(jarSpec),
-                "profile" -> JBool(profile),
-              )
-          },
-        )
-      )
-
-  private[this] object JobGroupStateDeserializer
-      extends CustomSerializer[JobGroupState](_ =>
-        (
-          {
-            case JString("failure") => JobGroupStates.Failure
-            case JString("cancelled") => JobGroupStates.Cancelled
-            case JString("success") => JobGroupStates.Success
-            case JString("running") => JobGroupStates.Running
-          },
-          PartialFunction.empty,
-        )
-      )
-
-  private[this] object JobGroupResponseDeserializer
-      extends CustomSerializer[JobGroupResponse](implicit fmts =>
-        (
-          {
-            case o: JObject =>
-              JobGroupResponse(
-                batch_id = (o \ "batch_id").extract[Int],
-                job_group_id = (o \ "job_group_id").extract[Int],
-                state = (o \ "state").extract[JobGroupState],
-                complete = (o \ "complete").extract[Boolean],
-                n_jobs = (o \ "n_jobs").extract[Int],
-                n_completed = (o \ "n_completed").extract[Int],
-                n_succeeded = (o \ "n_succeeded").extract[Int],
-                n_failed = (o \ "n_failed").extract[Int],
-                n_cancelled = (o \ "n_failed").extract[Int],
-              )
-          },
-          PartialFunction.empty,
-        )
-      )
-
-  private[this] object JarSpecSerializer
-      extends CustomSerializer[JarSpec](_ =>
-        (
-          PartialFunction.empty,
-          {
-            case JarUrl(url) =>
-              JObject("type" -> JString("jar_url"), "value" -> JString(url))
-            case GitRevision(sha) =>
-              JObject("type" -> JString("git_revision"), "value" -> JString(sha))
-          },
-        )
-      )
 }

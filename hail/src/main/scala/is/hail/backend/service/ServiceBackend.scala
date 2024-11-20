@@ -242,6 +242,7 @@ class ServiceBackend(
 
     val token = tokenUrlSafe
     val root = s"${backendContext.remoteTmpDir}/parallelizeAndComputeWithIndex/$token"
+    log.info(s"parallelizeAndComputeWithIndex: token='$token', nPartitions=${contexts.length}")
 
     val uploadFunction = executor.submit[Unit](() =>
       retryTransientErrors {

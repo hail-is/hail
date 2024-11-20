@@ -19,6 +19,10 @@ object Main {
     argv(3) match {
       case WORKER => Worker.main(argv)
       case DRIVER => ServiceBackendAPI.main(argv)
+
+      // Batch's "JvmJob" is a special kind of job that can only call `Main.main`.
+      // TEST is used for integration testing the `BatchClient` to verify that we
+      // can create JvmJobs without having to mock the payload to a `Worker` job.
       case TEST => ()
       case kind => throw new RuntimeException(s"unknown kind: $kind")
     }
