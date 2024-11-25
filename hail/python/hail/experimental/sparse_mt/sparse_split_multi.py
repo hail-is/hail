@@ -215,15 +215,28 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                     hl.is_defined(old_entry.LPL),
                     hl.or_missing(
                         hl.is_defined(local_a_index),
-                        hl.range(0, 3).map(
-                            lambda i: hl.min(
-                                hl.range(0, hl.triangle(hl.len(old_entry.LA)))
-                                .filter(
-                                    lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index)
-                                    == hl.unphased_diploid_gt_index_call(i)
+                        hl.if_else(
+                            old_entry.LGT.is_diploid(),
+                            hl.range(0, 3).map(
+                                lambda i: hl.min(
+                                    hl.range(0, hl.triangle(hl.len(old_entry.LA)))
+                                    .filter(
+                                        lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index)
+                                        == hl.unphased_diploid_gt_index_call(i)
+                                    )
+                                    .map(lambda idx: old_entry.LPL[idx])
                                 )
-                                .map(lambda idx: old_entry.LPL[idx])
-                            )
+                            ),
+                            hl.range(0, 2).map(
+                                lambda i: hl.min(
+                                    hl.range(0, hl.len(old_entry.LA))
+                                    .filter(
+                                        lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index)
+                                        == hl.unphased_diploid_gt_index_call(i)
+                                    )
+                                    .map(lambda idx: old_entry.LPL[idx])
+                                )
+                            ),
                         ),
                     ),
                 )
