@@ -12,7 +12,7 @@ from benchmark.tools import init_logging
 def pytest_addoption(parser):
     parser.addoption("--log", type=str, help='Log file path', default=None)
     parser.addoption("--output", type=str, help="Output file path.", default=None)
-    parser.addoption("--data-dir", type=str, help="Data directory.", default=None)
+    parser.addoption("--data-dir", type=str, help="Data directory.", default=os.getenv('HAIL_BENCHMARK_DIR'))
     parser.addoption('--iterations', type=int, help='override number of iterations for all benchmarks', default=None)
     parser.addoption('--cores', type=int, help='Number of cores to use.', default=1)
     parser.addoption(
@@ -23,36 +23,36 @@ def pytest_addoption(parser):
         const='cpu',
         default=None,
     )
-    parser.addoption('--profiler-path', type=str, help='path to aysnc profiler', default=None)
-    parser.addoption('--profiler-fmt', choices=['html', 'flame', 'jfr'], help='Choose profiler output.', default='html')
-
-
-def run_config_from_pytest_config(pytest_config):
-    return type(
-        'RunConfig',
-        (object,),
-        {
-            **{
-                flag: pytest_config.getoption(flag) or default
-                for flag, default in [
-                    ('log', None),
-                    ('output', None),
-                    ('cores', 1),
-                    ('data_dir', os.getenv('HAIL_BENCHMARK_DIR')),
-                    ('iterations', None),
-                    ('profile', None),
-                    ('profiler_path', os.getenv('ASYNC_PROFILER_HOME')),
-                    ('profiler_fmt', None),
-                ]
-            },
-            'verbose': pytest_config.getoption('verbose') > 0,
-            'quiet': pytest_config.getoption('verbose') < 0,
-            'timeout': int(pytest_config.getoption('timeout') or 1800),
-        },
+    parser.addoption(
+        '--max-duration',
+        type=int,
+        help='Maximum permitted duration for any benchmark trial in seconds, not to be confused with pytest-timeout',
+        default=200,
     )
+    parser.addoption('--max-failures', type=int, help='Stop benchmarking item after this many failures', default=3)
+    parser.addoption(
+        '--profiler-path', type=str, help='path to aysnc profiler', default=os.getenv('ASYNC_PROFILER_HOME')
+    )
+    parser.addoption('--profiler-fmt', choices=['html', 'flame', 'jfr'], help='Choose profiler output.', default='html')
 
 
 @pytest.hookimpl
 def pytest_configure(config):
-    config.run_config = run_config_from_pytest_config(config)
-    init_logging(file=config.run_config.log)
+    init_logging(file=config.getoption('log'))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collection_modifyitems(config, items):
+    max_duration = config.getoption('max_duration')
+
+    xfail = pytest.mark.xfail(
+        raises=TimeoutError,
+        reason=f'Runtime exceeds maximum permitted duration of {max_duration}s',
+    )
+
+    for item in items:
+        if (xtimeout := item.get_closest_marker('xtimeout')) is None:
+            continue
+
+        if len(xtimeout.args) == 0 or (len(xtimeout.args) == 1 and xtimeout.args[0] >= max_duration):
+            item.add_marker(xfail)
