@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import json
 import logging
 import random
@@ -13,7 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 import benchmark
 import pytest
-from benchmark.tools import chunk, init_logging
+from benchmark.tools import chunk, init_logging, maybe
 
 from hailtop import batch as hb
 from hailtop.batch import Batch, Resource
@@ -22,39 +21,59 @@ from hailtop.utils import sync_check_exec
 
 
 class CollectBenchmarks:
-    def __init__(self):
+    def __init__(self, include: Optional[List[str]], exclude: Optional[List[str]]):
+        assert not ((include is not None) and (exclude is not None))
+        self.includes = maybe(set, include)
+        self.excludes = maybe(set, exclude)
         self.items = []
 
     @pytest.hookimpl(trylast=True)
     def pytest_collection_modifyitems(self, items):
-        self.items = [
-            (item.location[0], item.name, marker.kwargs['batch_jobs'])
-            for item in items
-            if (marker := item.get_closest_marker('benchmark'))
-        ]
+        for item in items:
+            if (marker := item.get_closest_marker('benchmark')) is None:
+                continue
+
+            if (self.excludes is not None) and (item.nodeid in self.excludes):
+                print(f"Skipping {item.nodeid} because it was explicitly excluded")
+                continue
+
+            if (self.includes is not None) and (item.nodeid not in self.includes):
+                print(f"Skipping {item.nodeid} because it was not explicitly included")
+                continue
+
+            self.items.append((item.nodeid, marker.kwargs.get('instances', 5)))
 
 
 # https://github.com/pytest-dev/pytest/discussions/2039
-def list_benchmarks(include: str, exclude: str) -> List[Tuple[Path, str, int]]:
-    collect = CollectBenchmarks()
+def list_benchmarks(
+    include: Optional[List[str]],
+    exclude: Optional[List[str]],
+) -> List[Tuple[str, int]]:
+    collect = CollectBenchmarks(include, exclude)
     directory = Path(benchmark.__file__).parent.parent
     pytest.main(
         [
             '-qq',
             '--co',
-            directory,
+            str(directory),
             '-m',
             'benchmark',
-            *(['-k', include] if include is not None else []),
-            *(['--ignore', exclude] if exclude is not None else []),
         ],
         plugins=[collect],
     )
-    return collect.items
+
+    items = collect.items
+
+    if include is not None:
+        diff = set(include) - set([nodeid for nodeid, *_ in items])
+        if len(diff) != 0:
+            logging.warning(f'The following includes matched no pytest items {diff}')
+
+    return items
 
 
 def run_list_benchmarks(args: Namespace) -> None:
-    print(sep='\n', *[f'{path}::{name}' for path, name, _ in list_benchmarks(args.include, args.exclude)])
+    print(sep='\n', *[nodeid for nodeid, *_ in list_benchmarks(args.include, args.exclude)])
 
 
 def build_and_push_benchmark_image(hail_dev_image: str, artifact_uri: str, tag: str) -> str:
@@ -88,13 +107,13 @@ def make_test_storage_permissions_job(b: Batch, object_prefix: str, labelled_sha
 def make_benchmark_trial(
     b: Batch,
     env: Dict[str, Optional[str]],
-    path: Path,
-    benchmark_name: str,
+    benchmark_id: str,
     trial: int,
     iterations: Optional[int],
+    max_duration: Optional[int],
     deps: List[Job],  # dont reformat
-) -> Job:
-    j = b.new_job(name=f'{path}::{benchmark_name}-{trial}')
+) -> Resource:
+    j = b.new_job(name=f'{benchmark_id}-{trial}')
     j.depends_on(*deps)
     j.always_copy_output()
 
@@ -110,7 +129,7 @@ def make_benchmark_trial(
     j.command('mkdir -p benchmark-resources')
     j.command(
         ' '.join([
-            f"python3 -m pytest '{path}::{benchmark_name}'",
+            f"python3 -m pytest '{benchmark_id}'",
             '-Werror:::hail -Werror:::hailtop -Werror::ResourceWarning',
             '--log-cli-level=ERROR',
             '-s',
@@ -118,16 +137,17 @@ def make_benchmark_trial(
             '-vv',
             '--instafail',
             '--durations=50',
-            '--timeout=1800',
             # pytest keeps 3 test sessions worth of temp files by default.
             # some benchmarks generate very large output files which can quickly
             # fill the tmpfs and so we'll make pytest always delete tmp files
             # immediately when tmp_path fixtures are torn-down.
             '--override-ini=tmp_path_retention_count=0',
             '--override-ini=tmp_path_retention_policy=failed',
+            '--override-ini=xfail_strict=False',
             f'--output={j.ofile}',
             '--data-dir=benchmark-resources',
             f'--iterations={iterations}' if iterations is not None else '',
+            f'--max-duration={max_duration}' if max_duration is not None else '',
         ])
     )
 
@@ -135,11 +155,19 @@ def make_benchmark_trial(
 
 
 def read_jsonl(p: Path):
-    logging.info(f'reading json lines from {p}.')
-    with p.open(encoding='utf-8') as r:
-        for line in r:
-            if len(line) > 1:
-                yield json.loads(line)
+    try:
+        f = p.open(encoding='utf-8')
+    except IOError as e:
+        logging.error(e)
+    else:
+        logging.info(f'reading json lines from {p}.')
+        with f:
+            for line in f:
+                if len(line) > 1:
+                    try:
+                        yield json.loads(line)
+                    except Exception as e:
+                        logging.error(e)
 
 
 def combine(output: Resource, files: List[Resource]) -> None:
@@ -151,7 +179,7 @@ def combine(output: Resource, files: List[Resource]) -> None:
     logging.info(f'combining {len(files)} files')
 
     jsonl = [line for f in files for line in read_jsonl(Path(f))]
-    jsonl.sort(key=lambda r: (r['path'], r['name'], r['trial']))
+    jsonl.sort(key=lambda r: (r['path'], r['name'], r['version'], r['trial']))
 
     logging.info(f'Writing combine output to {output}')
     logging.info(f'collected {len(jsonl)} benchmark jobs.')
@@ -165,9 +193,22 @@ def run_combine(args: Namespace) -> None:
     combine(args.output, args.files)
 
 
-def make_combine_job(b: Batch, context: str, files: List[Resource]) -> Resource:
-    j = b.new_python_job(f'combine_output_{context}')
-    j.call(combine, j.ofile, files)
+def upload_this(b: Batch) -> Resource:
+    this = Path(__file__)
+    j = b.new_job(f'upload {this.name}')
+    j.always_run = True
+    eof = 'E' + 'O' + 'F'
+    j.command(f"""
+cat << '{eof}' > "{j.ofile}"
+{this.read_text(encoding="utf-8")}
+{eof}
+""")
+
+    return j.ofile
+
+def make_combine_job(b: Batch, this: Resource, context: str, files: List[Resource]) -> Resource:
+    j = b.new_job(f'combine_output_{context}')
+    j.command(f'PYTHONPATH=. python3 {this} combine -o {j.ofile} {" ".join(files)}')
     j.always_run()
     return j.ofile
 
@@ -175,9 +216,10 @@ def make_combine_job(b: Batch, context: str, files: List[Resource]) -> Resource:
 def combine_results_as_tree(b: Batch, branch_factor: int, results: List[Resource]) -> Resource:
     phase_i = 1
 
+    this = upload_this(b)
     while len(results) > 1:
         results = [
-            (make_combine_job(b, f'phase{phase_i}_job{job_id}', files) if len(files) > 1 else files[0])
+            (make_combine_job(b, this, f'phase{phase_i}_job{job_id}', files) if len(files) > 1 else files[0])
             for job_id, files in enumerate(chunk(branch_factor, results), start=1)
         ]
         phase_i += 1
@@ -192,8 +234,8 @@ def run_submit(args: Namespace) -> None:
     output_file = P.join(object_prefix, f'{timestamp}-{labelled_sha}.jsonl')
 
     all_benchmarks = [
-        (path, name, trial)
-        for path, name, num_jobs in list_benchmarks(args.include, args.exclude)
+        (nodeid, trial)
+        for nodeid, num_jobs in list_benchmarks(args.include, args.exclude)
         for trial in range(args.jobs or num_jobs)
     ]
 
@@ -235,8 +277,16 @@ def run_submit(args: Namespace) -> None:
         b,
         args.branch_factor,
         [
-            make_benchmark_trial(b, envvars, path, name, trial, args.iterations, deps=[test_permissions])
-            for path, name, trial in all_benchmarks
+            make_benchmark_trial(
+                b,
+                envvars,
+                nodeid,
+                trial,
+                args.iterations,
+                args.max_duration,
+                deps=[test_permissions],
+            )
+            for nodeid, trial in all_benchmarks
         ],
     )
 
@@ -265,8 +315,21 @@ if __name__ == '__main__':
         'list',
         description='List known hail benchmarks',
     )
-    list_p.add_argument('--include', type=nonempty, help="see pytest -k", default=None)
-    list_p.add_argument('--exclude', type=nonempty, help='see pytest --ignore', default=None)
+    group = list_p.add_mutually_exclusive_group(required=False)
+    group.add_argument(
+        '--include',
+        type=nonempty,
+        help='fully-qualified benchmark name to run',
+        action='append',
+        default=None,
+    )
+    group.add_argument(
+        '--exclude',
+        type=nonempty,
+        help='fully-qualified benchmark name to skip',
+        action='append',
+        default=None,
+    )
     list_p.set_defaults(main=run_list_benchmarks)
 
     combine_p = subparser.add_parser(
@@ -290,16 +353,41 @@ if __name__ == '__main__':
     submit_p.add_argument('--label', type=nonempty, help='batch job label', default=None)
     submit_p.add_argument('--branch-factor', type=int, help='number of benchmarks to combine at a time', default=32)
     submit_p.add_argument(
-        '--iterations', type=int, help='override number of iterations for each benchmark', default=None
+        '--iterations',
+        type=int,
+        help='override number of iterations for each benchmark',
+        default=None,
     )
     submit_p.add_argument(
-        '--jobs', type=int, help='override number of batch jobs created for each benchmark', default=None
+        '--jobs',
+        type=int,
+        help='override number of batch jobs created for each benchmark',
+        default=None,
     )
-    submit_p.add_argument('--include', type=nonempty, help="see pytest -k", default=None)
-    submit_p.add_argument('--exclude', type=nonempty, help='see pytest --ignore', default=None)
+    group = submit_p.add_mutually_exclusive_group(required=False)
+    group.add_argument(
+        '--include',
+        type=nonempty,
+        help='fully-qualified benchmark name to run. May be specified more than once.',
+        action='append',
+        default=None,
+    )
+    group.add_argument(
+        '--exclude',
+        type=nonempty,
+        help='fully-qualified benchmark name to skip. May be specified more than once.',
+        action='append',
+        default=None,
+    )
     submit_p.add_argument('--lower', action='store_true')
     submit_p.add_argument('--lower-only', action='store_true')
     submit_p.add_argument('--wait', action='store_true', help='wait for batch to complete')
+    submit_p.add_argument(
+        '--max-duration',
+        type=int,
+        help='Maximum duration in seconds for a benchmark trial, after which the trial will be interrupted.',
+        default=None,
+    )
     submit_p.set_defaults(main=run_submit)
 
     args = parser.parse_args()
