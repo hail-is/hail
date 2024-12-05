@@ -3,14 +3,14 @@ import gzip
 import pytest
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=5, burn_in_iterations=10)
 def benchmark_sentinel_read_gunzip(many_ints_tsv):
     with gzip.open(many_ints_tsv) as f:
         for _ in f:
             pass
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=5)
 def benchmark_sentinel_cpu_hash_1():
     x = 0
     for _ in range(10_000):
