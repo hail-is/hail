@@ -24,14 +24,14 @@ def benchmark_compile_2k_merge(empty_gvcf, tmp_path):
     hl.vds.write_variant_datasets(combined, str(tmp_path / 'combiner-multi-write'), overwrite=True)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=10)
 @pytest.mark.xtimeout(270)
 def benchmark_python_only_10k_transform(empty_gvcf):
     for vcf in [import_vcf(empty_gvcf)] * 10_000:
         transform_gvcf(vcf, [])
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=20)
 def benchmark_python_only_10k_combine(empty_gvcf):
     vcf = import_vcf(empty_gvcf)
     mt = transform_gvcf(vcf, [])
@@ -39,7 +39,7 @@ def benchmark_python_only_10k_combine(empty_gvcf):
         combine_variant_datasets(mts)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=10)
 def benchmark_import_and_transform_gvcf(single_gvcf):
     mt = import_vcf(single_gvcf)
     vds = transform_gvcf(mt, [])
@@ -47,7 +47,7 @@ def benchmark_import_and_transform_gvcf(single_gvcf):
     vds.variant_data._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=15, burn_in_iterations=8)
 def benchmark_import_gvcf_force_count(single_gvcf):
     mt = import_vcf(single_gvcf)
     mt._force_count_rows()
@@ -62,7 +62,7 @@ def tmp_and_output_paths(tmp_path):
     return (tmp, output)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=10)
 @pytest.mark.xtimeout(180)
 def benchmark_vds_combiner_chr22(chr22_gvcfs, tmp_and_output_paths):
     parts = hl.eval([hl.parse_locus_interval('chr22:start-end', reference_genome='GRCh38')])
