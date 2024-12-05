@@ -3,7 +3,7 @@ import pytest
 import hail as hl
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=10)
 def benchmark_shuffle_key_rows_by_mt(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_rows(reversed_position_locus=hl.struct(contig=mt.locus.contig, position=-mt.locus.position))
@@ -11,14 +11,14 @@ def benchmark_shuffle_key_rows_by_mt(profile25_mt):
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=22)
 def benchmark_shuffle_order_by_10m_int():
     t = hl.utils.range_table(10_000_000, n_partitions=100)
     t = t.order_by(-t.idx)
     t._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=4)
 def benchmark_shuffle_key_rows_by_4096_byte_rows():
     mt = hl.utils.range_matrix_table(100_000, (1 << 12) // 4)
     mt = mt.annotate_entries(entry=mt.row_idx * mt.col_idx)
@@ -26,7 +26,7 @@ def benchmark_shuffle_key_rows_by_4096_byte_rows():
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=4)
 def benchmark_shuffle_key_rows_by_65k_byte_rows():
     mt = hl.utils.range_matrix_table(10_000, (1 << 16) // 4)
     mt = mt.annotate_entries(entry=mt.row_idx * mt.col_idx)
@@ -34,13 +34,13 @@ def benchmark_shuffle_key_rows_by_65k_byte_rows():
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=5, burn_in_iterations=8)
 def benchmark_shuffle_key_by_aggregate_bad_locality(many_ints_ht):
     ht = hl.read_table(str(many_ints_ht))
     ht.group_by(x=ht.i0 % 1000).aggregate(c=hl.agg.count(), m=hl.agg.mean(ht.i2))._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=10, burn_in_iterations=5)
 def benchmark_shuffle_key_by_aggregate_good_locality(many_ints_ht):
     ht = hl.read_table(str(many_ints_ht))
     divisor = 7_500_000 / 51  # should ensure each partition never overflows default buffer size
