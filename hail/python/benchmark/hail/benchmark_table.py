@@ -4,7 +4,7 @@ import hail as hl
 from benchmark.hail.fixtures import many_partitions_ht
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=10, burn_in_iterations=6)
 def benchmark_table_key_by_shuffle():
     n = 1_000_000
     ht = hl.utils.range_table(n)
@@ -12,7 +12,7 @@ def benchmark_table_key_by_shuffle():
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=25, burn_in_iterations=10)
 def benchmark_table_group_by_aggregate_sorted():
     n = 10_000_000
     ht = hl.utils.range_table(n)
@@ -20,7 +20,7 @@ def benchmark_table_group_by_aggregate_sorted():
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=20, burn_in_iterations=6)
 def benchmark_table_group_by_aggregate_unsorted():
     n = 10_000_000
     ht = hl.utils.range_table(n)
@@ -28,26 +28,25 @@ def benchmark_table_group_by_aggregate_unsorted():
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=25, burn_in_iterations=10)
 def benchmark_table_range_force_count():
     hl.utils.range_table(100_000_000)._force_count()
 
 
-@pytest.mark.benchmark()
-def benchmark_table_range_join_1b_1k():
-    ht1 = hl.utils.range_table(1_000_000_000)
-    ht2 = hl.utils.range_table(1_000)
+@pytest.mark.parametrize(
+    'a, b',
+    [
+        pytest.param(1_000_000_000, 1_000, marks=pytest.mark.benchmark(mds=1.2, instances=15, iterations=25, burn_in_iterations=20)),
+        pytest.param(1_000_000_000, 1_000_000_000, marks=pytest.mark.benchmark(mds=1.1, instances=5, iterations=20, burn_in_iterations=10)),
+    ],
+)
+def benchmark_table_range_join(a, b):
+    ht1 = hl.utils.range_table(a)
+    ht2 = hl.utils.range_table(b)
     ht1.join(ht2, 'inner').count()
 
 
-@pytest.mark.benchmark()
-def benchmark_table_range_join_1b_1b():
-    ht1 = hl.utils.range_table(1_000_000_000)
-    ht2 = hl.utils.range_table(1_000_000_000)
-    ht1.join(ht2, 'inner').count()
-
-
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=25, burn_in_iterations=10)
 def benchmark_table_python_construction():
     n = 100
     ht = hl.utils.range_table(100)
@@ -56,6 +55,7 @@ def benchmark_table_python_construction():
 
 
 @pytest.mark.benchmark()
+@pytest.mark.xfail(raises=TimeoutError, reason=XFail.Timeout)
 def benchmark_table_big_aggregate_compilation():
     n = 1_000
     ht = hl.utils.range_table(1)
@@ -72,15 +72,20 @@ def benchmark_table_big_aggregate_compile_and_execute():
     ht.aggregate(expr)
 
 
-@pytest.mark.benchmark()
-@pytest.mark.parametrize('m, n', [(1_000_000, 1_000_000), (1_000_000, 1_000)])
+@pytest.mark.parametrize(
+    'm, n',
+    [
+        pytest.param(1_000_000, 1_000, marks=pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=8)),
+        pytest.param(1_000_000, 1_000_000, marks=pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=20)),
+    ],
+)
 def benchmark_table_foreign_key_join(m, n):
     ht = hl.utils.range_table(m)
     ht2 = hl.utils.range_table(n)
     ht.annotate(x=ht2[(m - 1 - ht.idx) % n])._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=20, burn_in_iterations=5)
 def benchmark_table_aggregate_array_sum():
     n = 10_000_000
     m = 100
@@ -88,7 +93,7 @@ def benchmark_table_aggregate_array_sum():
     ht.aggregate(hl.agg.array_sum(hl.range(0, m)))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=20, burn_in_iterations=18)
 def benchmark_table_annotate_many_flat():
     n = 1_000_000
     m = 100
@@ -131,19 +136,19 @@ def benchmark_table_annotate_many_nested_dependence():
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=5)
 def benchmark_table_read_force_count_ints(many_ints_ht):
     ht = hl.read_table(str(many_ints_ht))
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=10)
 def benchmark_table_read_force_count_strings(many_strings_ht):
     ht = hl.read_table(str(many_strings_ht))
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=9)
 def benchmark_table_import_ints(many_ints_tsv):
     hl.import_table(
         str(many_ints_tsv),
@@ -151,17 +156,17 @@ def benchmark_table_import_ints(many_ints_tsv):
     )._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=10)
 def benchmark_table_import_ints_impute(many_ints_tsv):
     hl.import_table(str(many_ints_tsv), impute=True)._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=25, burn_in_iterations=3)
 def benchmark_table_import_strings(many_strings_tsv):
     hl.import_table(str(many_strings_tsv))._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=18)
 def benchmark_table_aggregate_int_stats(many_ints_ht):
     ht = hl.read_table(str(many_ints_ht))
     ht.aggregate(
@@ -173,20 +178,20 @@ def benchmark_table_aggregate_int_stats(many_ints_ht):
     )
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=10)
 def benchmark_table_range_means():
     ht = hl.utils.range_table(10_000_000, 16)
     ht = ht.annotate(m=hl.mean(hl.range(0, ht.idx % 1111)))
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=20, burn_in_iterations=6)
 def benchmark_table_range_array_range_force_count():
     ht = hl.utils.range_table(30).annotate(big_range=hl.range(100_000_000))
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=15)
 def benchmark_table_aggregate_approx_cdf(random_doubles_mt):
     mt = hl.read_matrix_table(str(random_doubles_mt))
     mt.aggregate_entries((
@@ -196,13 +201,13 @@ def benchmark_table_aggregate_approx_cdf(random_doubles_mt):
     ))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=5, burn_in_iterations=20)
 def benchmark_table_aggregate_counter(many_strings_ht):
     ht = hl.read_table(str(many_strings_ht))
     ht.aggregate(hl.tuple([hl.agg.counter(ht[f'f{i}']) for i in range(8)]))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=5, burn_in_iterations=10)
 def benchmark_table_aggregate_take_by_strings(many_strings_ht):
     ht = hl.read_table(str(many_strings_ht))
     ht.aggregate(hl.tuple([hl.agg.take(ht['f18'], 25, ordering=ht[f'f{i}']) for i in range(18)]))
@@ -214,7 +219,7 @@ def benchmark_table_aggregate_downsample_dense(many_ints_ht):
     ht.aggregate(tuple([hl.agg.downsample(ht[f'i{i}'], ht['i3'], label=hl.str(ht['i4'])) for i in range(3)]))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=10)
 def benchmark_table_aggregate_downsample_worst_case():
     ht = hl.utils.range_table(250_000_000, 8)
     ht.aggregate(hl.agg.downsample(ht.idx, -ht.idx))
@@ -227,44 +232,63 @@ def benchmark_table_aggregate_downsample_sparse():
     ht.aggregate(hl.agg.downsample(hl.rand_norm() ** 5, hl.rand_norm() ** 5))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=10, burn_in_iterations=8)
 def benchmark_table_aggregate_linreg(many_ints_ht):
     ht = hl.read_table(str(many_ints_ht))
     ht.aggregate(hl.agg.array_agg(lambda i: hl.agg.linreg(ht.i0 + i, [ht.i1, ht.i2, ht.i3, ht.i4]), hl.range(75)))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=25)
 def benchmark_table_take(many_strings_ht):
     ht = hl.read_table(str(many_strings_ht))
     ht.take(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=30, burn_in_iterations=20)
 def benchmark_table_show(many_strings_ht):
     ht = hl.read_table(str(many_strings_ht))
     ht.show(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=15, burn_in_iterations=20)
 def benchmark_table_expr_take(many_strings_ht):
     ht = hl.read_table(str(many_strings_ht))
     hl.tuple([ht.f1, ht.f2]).take(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.parametrize(
+    'many_partitions_ht',
+    [
+        pytest.param(10, marks=pytest.mark.benchmark(mds=1.1, instances=25, iterations=15, burn_in_iterations=10)),
+        pytest.param(100, marks=pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=8)),
+        pytest.param(1000, marks=pytest.mark.benchmark(mds=1.1, instances=15, iterations=10, burn_in_iterations=10)),
+    ],
+    indirect=True,
+)
 def benchmark_read_force_count_partitions(many_partitions_ht):
     hl.read_table(str(many_partitions_ht))._force_count()
 
 
-@pytest.mark.benchmark()
-@pytest.mark.parametrize('n,n_partitions', [(10_000_000, 1000), (10_000_000, 100), (10_000_000, 10)])
+@pytest.mark.parametrize(
+    'n,n_partitions',
+    [
+        pytest.param(10_000_000, 10, marks=pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iteratins=5)),
+        pytest.param(10_000_000, 100, marks=pytest.mark.benchmark(mds=1.1, instances=20, iterations=12, burn_in_iterations=3)),
+        pytest.param(10_000_000, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=7)),
+     ],
+)
 def benchmark_write_range_table(tmp_path, n, n_partitions):
     ht = hl.utils.range_table(n, n_partitions)
     ht.write(str(tmp_path / 'tmp.ht'))
 
 
-@pytest.mark.benchmark()
-@pytest.mark.parametrize('many_partitions_ht', [1_000], indirect=True)
+@pytest.mark.parametrize(
+    'many_partitions_ht',
+    [
+        pytest.param(1000, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=8)),
+    ],
+    indirect=True,
+)
 def benchmark_read_with_index(many_partitions_ht):
     rows = 10_000_000
     bins = 1_000
@@ -277,40 +301,68 @@ def benchmark_read_with_index(many_partitions_ht):
 many_partitions_ht1, many_partitions_ht2 = [many_partitions_ht] * 2
 
 
-@pytest.mark.benchmark()
+@pytest.mark.parametrize(
+    'many_partitions_ht1, many_partitions_ht2',
+    [
+        pytest.param(10, 10, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=5)),
+        pytest.param(10, 100, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=15, burn_in_iterations=5)),
+        pytest.param(10, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=8)),
+        pytest.param(100, 10, marks=pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=20)),
+        pytest.param(100, 100, marks=pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=5)),
+        pytest.param(100, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=15, iterations=10, burn_in_iterations=15)),
+        pytest.param(1000, 10, marks=pytest.mark.benchmark(mds=1.2, instances=15, iterations=5, burn_in_iterations=12)),
+        pytest.param(1000, 100, marks=pytest.mark.benchmark(mds=1.2, instances=15, iterations=10, burn_in_iterations=6)),
+        pytest.param(1000, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=10)),
+    ],
+    indirect=True,
+)
 def benchmark_union_partitions_table(many_partitions_ht1, many_partitions_ht2):
     ht1 = hl.read_table(str(many_partitions_ht1))
     ht2 = hl.read_table(str(many_partitions_ht2))
     ht1.union(ht2)._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.parametrize(
+    'many_partitions_ht1, many_partitions_ht2',
+    [
+        pytest.param(10, 10, marks=pytest.mark.benchmark(mds=1.1, instances=15, iterations=15, burn_in_iterations=6)),
+        pytest.param(10, 100, marks=pytest.mark.benchmark(mds=1.1, instances=25, iterations=15, burn_in_iterations=4)),
+        pytest.param(10, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=15, burn_in_iterations=14)),
+        pytest.param(100, 10, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=10)),
+        pytest.param(100, 100, marks=pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=10)),
+        pytest.param(100, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=15, iterations=5, burn_in_iterations=10)),
+        pytest.param(1000, 10, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=20, burn_in_iterations=12)),
+        pytest.param(1000, 100, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=20, burn_in_iterations=10)),
+        pytest.param(1000, 1000, marks=pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=10)),
+    ],
+    indirect=True,
+)
 def benchmark_join_partitions_table(many_partitions_ht1, many_partitions_ht2):
     ht1 = hl.read_table(str(many_partitions_ht1))
     ht2 = hl.read_table(str(many_partitions_ht2))
     ht1.join(ht2)._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=8)
 def benchmark_group_by_collect_per_row(gnomad_dp_sim):
     ht = hl.read_matrix_table(str(gnomad_dp_sim)).localize_entries('e', 'c')
     ht.group_by(*ht.key).aggregate(value=hl.agg.collect(ht.row_value))._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=10)
 def benchmark_group_by_take_rekey(gnomad_dp_sim):
     ht = hl.read_matrix_table(str(gnomad_dp_sim)).localize_entries('e', 'c')
     ht.group_by(k=hl.int(ht.row_idx / 50)).aggregate(value=hl.agg.take(ht.row_value, 1))._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=5, burn_in_iterations=6)
 def benchmark_table_scan_sum_1k_partitions():
     ht = hl.utils.range_table(1000000, n_partitions=1000)
     ht = ht.annotate(x=hl.scan.sum(ht.idx))
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=20)
 def benchmark_table_scan_prev_non_null():
     ht = hl.utils.range_table(100000000, n_partitions=10)
     ht = ht.annotate(x=hl.range(0, ht.idx % 25))
@@ -318,21 +370,21 @@ def benchmark_table_scan_prev_non_null():
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=15)
 def benchmark_test_map_filter_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(100_000_000))
     high_mem_table = high_mem_table.filter(high_mem_table.idx % 2 == 0)
     assert high_mem_table._force_count() == 15
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=5, burn_in_iterations=10)
 def benchmark_test_head_and_tail_region_memory():
     high_mem_table = hl.utils.range_table(100).annotate(big_array=hl.zeros(100_000_000))
     high_mem_table = high_mem_table.head(30)
     high_mem_table._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=10, burn_in_iterations=10)
 def benchmark_test_inner_join_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
     high_mem_table2 = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
@@ -340,7 +392,7 @@ def benchmark_test_inner_join_region_memory():
     joined._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=9)
 def benchmark_test_left_join_region_memory():
     high_mem_table = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
     high_mem_table2 = hl.utils.range_table(30).naive_coalesce(1).annotate(big_array=hl.zeros(50_000_000))
