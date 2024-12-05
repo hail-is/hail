@@ -7,7 +7,7 @@ from benchmark.tools.impex import dump_tsv, import_timings
 from benchmark.tools.statistics import analyze_benchmarks
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=10)
 def benchmark_analyze_benchmarks(local_tmpdir, onethreetwo, onethreethree):
     inputs = (onethreetwo, onethreethree)
     inputs = ((v, Path(tempfile.mktemp(dir=local_tmpdir))) for v in inputs)
