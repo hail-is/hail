@@ -12,32 +12,32 @@ def benchmark_block_matrix_nested_multiply(tmp_path):
     bm.write(str(tmp_path / 'result.mt'), overwrite=True)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=5)
 def benchmark_make_ndarray():
     ht = hl.utils.range_table(200_000)
     ht = ht.annotate(x=hl.nd.array(hl.range(ht.idx)))
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=20, burn_in_iterations=10)
 def benchmark_ndarray_addition():
     arr = hl.nd.ones((1024, 1024))
     hl.eval(arr + arr)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=20, iterations=5, burn_in_iterations=10)
 def benchmark_ndarray_matmul_int64():
     arr = hl.nd.arange(1024 * 1024).map(hl.int64).reshape((1024, 1024))
     hl.eval(arr @ arr)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=6)
 def benchmark_ndarray_matmul_float64():
     arr = hl.nd.arange(1024 * 1024).map(hl.float64).reshape((1024, 1024))
     hl.eval(arr @ arr)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=10)
 @pytest.mark.xtimeout(200)
 def benchmark_blockmatrix_write_from_entry_expr_range_mt(tmp_path):
     mt = hl.utils.range_matrix_table(40_000, 40_000, n_partitions=4)
@@ -55,7 +55,7 @@ def benchmark_blockmatrix_write_from_entry_expr_range_mt_standardize(tmp_path):
     )
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=5, iterations=8, burn_in_iterations=10)
 def benchmark_sum_table_of_ndarrays():
     ht = hl.utils.range_table(400).annotate(nd=hl.nd.ones((4096, 4096)))
     ht.aggregate(hl.agg.ndarray_sum(ht.nd))

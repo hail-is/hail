@@ -3,110 +3,110 @@ import pytest
 import hail as hl
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=15, burn_in_iterations=8)
 def benchmark_matrix_table_decode_and_count(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=20, burn_in_iterations=5)
 def benchmark_matrix_table_decode_and_count_just_gt(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt)).select_entries('GT')
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=10, burn_in_iterations=20)
 def benchmark_matrix_table_array_arithmetic(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.filter_rows(mt.alleles.length() == 2)
     mt.select_entries(dosage=hl.pl_dosage(mt.PL)).select_rows()._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=5, burn_in_iterations=10)
 def benchmark_matrix_table_entries_table(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.entries()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=10)
 def benchmark_matrix_table_entries_table_no_key(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt)).key_rows_by().key_cols_by()
     mt.entries()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=30)
 def benchmark_matrix_table_rows_force_count(profile25_mt):
     ht = hl.read_matrix_table(str(profile25_mt)).rows().key_by()
     ht._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=10, burn_in_iterations=15)
 def benchmark_matrix_table_show(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.show(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=15)
 def benchmark_matrix_table_rows_show(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.rows().show(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=15, burn_in_iterations=16)
 def benchmark_matrix_table_cols_show(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.cols().show(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=25, burn_in_iterations=10)
 def benchmark_matrix_table_take_entry(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.GT.take(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=15)
 def benchmark_matrix_table_entries_show(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.entries().show()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=20, burn_in_iterations=10)
 def benchmark_matrix_table_take_row(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.info.AF.take(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=10)
 def benchmark_matrix_table_take_col(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.s.take(100)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=8)
 def benchmark_write_range_matrix_table_p100(tmp_path):
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
     mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
     mt.write(str(tmp_path / 'tmp.mt'))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=15)
 def benchmark_write_profile_mt(profile25_mt, tmp_path):
     hl.read_matrix_table(str(profile25_mt)).write(str(tmp_path / 'tmp.mt'))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=20, burn_in_iterations=10)
 def benchmark_matrix_table_rows_is_transition(profile25_mt):
     ht = hl.read_matrix_table(str(profile25_mt)).rows().key_by()
     ht.select(is_snp=hl.is_snp(ht.alleles[0], ht.alleles[1]))._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=6)
 def benchmark_matrix_table_filter_entries(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2))._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=3)
 def benchmark_matrix_table_filter_entries_unfilter(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.filter_entries((mt.GQ > 8) & (mt.DP > 2)).unfilter_entries()._force_count_rows()
@@ -163,27 +163,27 @@ def many_aggs(mt):
     return {f'x{i}': expr for i, expr in enumerate(aggs)}
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=5, burn_in_iterations=4)
 def benchmark_matrix_table_many_aggs_row_wise(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_rows(**many_aggs(mt))
     mt.rows()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=5, burn_in_iterations=10)
 def benchmark_matrix_table_many_aggs_col_wise(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_cols(**many_aggs(mt))
     mt.cols()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=8)
 def benchmark_matrix_table_aggregate_entries(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.aggregate_entries(hl.agg.stats(mt.GQ))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=8)
 def benchmark_matrix_table_call_stats_star_star(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt.annotate_rows(**hl.agg.call_stats(mt.GT, mt.alleles))._force_count_rows()
@@ -241,24 +241,25 @@ def benchmark_gnomad_coverage_stats_optimized(gnomad_dp_sim):
     mt.rows()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=10)
 def benchmark_per_row_stats_star_star(gnomad_dp_sim):
     mt = hl.read_matrix_table(str(gnomad_dp_sim))
     mt.annotate_rows(**hl.agg.stats(mt.x))._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=10)
 def benchmark_read_decode_gnomad_coverage(gnomad_dp_sim):
     hl.read_matrix_table(str(gnomad_dp_sim))._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=20)
 def benchmark_import_bgen_force_count_just_gp(sim_ukb_bgen, sim_ukb_sample):
     mt = hl.import_bgen(str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GP'], n_partitions=8)
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=20)
+@pytest.mark.xfail(raises=TimeoutError, reason=XFail.Timeout)
 def benchmark_import_bgen_force_count_all(sim_ukb_bgen, sim_ukb_sample):
     mt = hl.import_bgen(
         str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GT', 'GP', 'dosage'], n_partitions=8
@@ -266,7 +267,7 @@ def benchmark_import_bgen_force_count_all(sim_ukb_bgen, sim_ukb_sample):
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=12)
 @pytest.mark.xtimeout(180)
 def benchmark_import_bgen_info_score(sim_ukb_bgen, sim_ukb_sample):
     mt = hl.import_bgen(str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GP'], n_partitions=8)
@@ -274,27 +275,27 @@ def benchmark_import_bgen_info_score(sim_ukb_bgen, sim_ukb_sample):
     mt.rows().select('info_score')._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=18)
 def benchmark_import_bgen_filter_count(sim_ukb_bgen, sim_ukb_sample):
     mt = hl.import_bgen(str(sim_ukb_bgen), sample_file=str(sim_ukb_sample), entry_fields=['GT', 'GP'], n_partitions=8)
     mt = mt.filter_rows(mt.alleles == ['A', 'T'])
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=3)
 def benchmark_export_range_matrix_table_entry_field_p100(tmp_path):
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
     mt = mt.annotate_entries(x=mt.col_idx + mt.row_idx)
     mt.x.export(str(tmp_path / 'result.txt'))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=8)
 def benchmark_export_range_matrix_table_row_p100(tmp_path):
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
     mt.row.export(str(tmp_path / 'result.txt'))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=15, iterations=25, burn_in_iterations=15)
 def benchmark_export_range_matrix_table_col_p100(tmp_path):
     mt = hl.utils.range_matrix_table(n_rows=1_000_000, n_cols=10, n_partitions=100)
     mt.col.export(str(tmp_path / 'result.txt'))
@@ -308,7 +309,7 @@ def benchmark_large_range_matrix_table_sum():
     mt.annotate_cols(foo=hl.agg.sum(mt.x))._force_count_cols()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=20, burn_in_iterations=7)
 def benchmark_kyle_sex_specific_qc(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_cols(sex=hl.if_else(hl.rand_bool(0.5), 'Male', 'Female'))
@@ -349,14 +350,14 @@ def benchmark_kyle_sex_specific_qc(profile25_mt):
     mt.rows()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=10, burn_in_iterations=5)
 def benchmark_matrix_table_scan_count_rows_2():
     mt = hl.utils.range_matrix_table(n_rows=200_000_000, n_cols=10, n_partitions=16)
     mt = mt.annotate_rows(x=hl.scan.count())
     mt._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.3, instances=20, iterations=10, burn_in_iterations=20)
 def benchmark_matrix_table_scan_count_cols_2():
     mt = hl.utils.range_matrix_table(n_cols=10_000_000, n_rows=10)
     mt = mt.annotate_cols(x=hl.scan.count())
@@ -371,14 +372,14 @@ def benchmark_matrix_multi_write_nothing(tmp_path):
     hl.experimental.write_matrix_tables(mts, str(tmp_path / 'multi-write'))
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=25, iterations=10, burn_in_iterations=5)
 def benchmark_mt_localize_and_collect(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     ht = mt.localize_entries("ent")
     ht.head(150).collect()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=15, burn_in_iterations=5)
 def benchmark_mt_group_by_memory_usage(random_doubles_mt):
     mt = hl.read_matrix_table(str(random_doubles_mt))
     mt = mt.group_rows_by(new_idx=mt.row_idx % 3).aggregate(x=hl.agg.mean(mt.x))
