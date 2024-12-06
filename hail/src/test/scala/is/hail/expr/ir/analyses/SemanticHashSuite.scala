@@ -295,7 +295,7 @@ class SemanticHashSuite extends HailSuite {
         isEqual,
         s"expected semhash($a) ${if (isEqual) "==" else "!="} semhash($b), $comment",
       )(
-        SemanticHash(ctx)(a) == SemanticHash(ctx)(b)
+        SemanticHash(ctx, a) == SemanticHash(ctx, b)
       )
     }
 
@@ -311,12 +311,12 @@ class SemanticHashSuite extends HailSuite {
 
     ctx.local(fs = fs) { ctx =>
       assertResult(None, "SemHash should be resilient to FileNotFoundExceptions.")(
-        SemanticHash(ctx)(ir)
+        SemanticHash(ctx, ir)
       )
     }
   }
 
-  val fakeFs: FS =
+  private[this] val fakeFs: FS =
     new FakeFS {
       override def eTag(url: FakeURL): Option[String] =
         Some(url.getPath)

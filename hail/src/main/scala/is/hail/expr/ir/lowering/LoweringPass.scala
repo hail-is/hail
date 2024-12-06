@@ -23,16 +23,16 @@ final class IrMetadata() {
   }
 }
 
-trait LoweringPass {
+abstract class LoweringPass(implicit E: sourcecode.Enclosing) {
   val before: IRState
   val after: IRState
   val context: String
 
   final def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
-    ctx.timer.time(context) {
-      ctx.timer.time("Verify")(before.verify(ir))
-      val result = ctx.timer.time("Transform")(transform(ctx, ir))
-      ctx.timer.time("Verify")(after.verify(result))
+    ctx.time {
+      before.verify(ctx, ir)
+      val result = transform(ctx, ir)
+      after.verify(ctx, result)
       result
     }
 
@@ -96,13 +96,16 @@ case object InlineApplyIR extends LoweringPass {
   val after: IRState = CompilableIRNoApply
   val context: String = "InlineApplyIR"
 
-  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = RewriteBottomUp(
-    ir,
-    {
-      case x: ApplyIR => Some(x.explicitNode)
-      case _ => None
-    },
-  )
+  override def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time {
+      RewriteBottomUp(
+        ir,
+        {
+          case x: ApplyIR => Some(x.explicitNode)
+          case _ => None
+        },
+      )
+    }
 }
 
 case object LowerArrayAggsToRunAggsPass extends LoweringPass {
@@ -110,53 +113,54 @@ case object LowerArrayAggsToRunAggsPass extends LoweringPass {
   val after: IRState = EmittableIR
   val context: String = "LowerArrayAggsToRunAggs"
 
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
-    val x = ir.noSharing(ctx)
-    val r = Requiredness(x, ctx)
-    RewriteBottomUp(
-      x,
-      {
-        case x @ StreamAgg(a, name, query) =>
-          val aggs = Extract(query, r)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+    ctx.time {
+      val x = ir.noSharing(ctx)
+      val r = Requiredness(x, ctx)
+      RewriteBottomUp(
+        x,
+        {
+          case x @ StreamAgg(a, name, query) =>
+            val aggs = Extract(query, r)
 
-          val newNode = aggs.rewriteFromInitBindingRoot { root =>
-            Let(
-              FastSeq(
-                aggs.resultRef.name -> RunAgg(
-                  Begin(FastSeq(
-                    aggs.init,
-                    StreamFor(a, name, aggs.seqPerElt),
-                  )),
-                  aggs.results,
-                  aggs.states,
-                )
-              ),
-              root,
-            )
-          }
+            val newNode = aggs.rewriteFromInitBindingRoot { root =>
+              Let(
+                FastSeq(
+                  aggs.resultRef.name -> RunAgg(
+                    Begin(FastSeq(
+                      aggs.init,
+                      StreamFor(a, name, aggs.seqPerElt),
+                    )),
+                    aggs.results,
+                    aggs.states,
+                  )
+                ),
+                root,
+              )
+            }
 
-          if (newNode.typ != x.typ)
-            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-          Some(newNode.noSharing(ctx))
-        case x @ StreamAggScan(a, name, query) =>
-          val aggs = Extract(query, r, isScan = true)
-          val newNode = aggs.rewriteFromInitBindingRoot { root =>
-            RunAggScan(
-              a,
-              name,
-              aggs.init,
-              aggs.seqPerElt,
-              Let(FastSeq(aggs.resultRef.name -> aggs.results), root),
-              aggs.states,
-            )
-          }
-          if (newNode.typ != x.typ)
-            throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
-          Some(newNode.noSharing(ctx))
-        case _ => None
-      },
-    )
-  }
+            if (newNode.typ != x.typ)
+              throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+            Some(newNode.noSharing(ctx))
+          case x @ StreamAggScan(a, name, query) =>
+            val aggs = Extract(query, r, isScan = true)
+            val newNode = aggs.rewriteFromInitBindingRoot { root =>
+              RunAggScan(
+                a,
+                name,
+                aggs.init,
+                aggs.seqPerElt,
+                Let(FastSeq(aggs.resultRef.name -> aggs.results), root),
+                aggs.states,
+              )
+            }
+            if (newNode.typ != x.typ)
+              throw new RuntimeException(s"types differ:\n  new: ${newNode.typ}\n  old: ${x.typ}")
+            Some(newNode.noSharing(ctx))
+          case _ => None
+        },
+      )
+    }
 }
 
 case class EvalRelationalLetsPass(passesBelow: LoweringPipeline) extends LoweringPass {
