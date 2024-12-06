@@ -1,5 +1,7 @@
 package is.hail.backend.service
 
+import is.hail.backend.api.ServiceBackendApi
+
 import com.fasterxml.jackson.core.StreamReadConstraints
 
 object Main {
@@ -18,7 +20,7 @@ object Main {
   def main(argv: Array[String]): Unit =
     argv(3) match {
       case WORKER => Worker.main(argv)
-      case DRIVER => ServiceBackendAPI.main(argv)
+      case DRIVER => ServiceBackendApi.main(argv)
       case TEST => ()
       case kind => throw new RuntimeException(s"unknown kind: $kind")
     }
