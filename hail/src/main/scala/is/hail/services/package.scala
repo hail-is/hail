@@ -69,10 +69,7 @@ package object services {
           ) || e.getMessage.contains("Unexpected end of file")) =>
         true
       case e: HttpResponseException
-          if e.getStatusCode() == 400 && e.getMessage != null && (
-            e.getMessage.contains("Invalid grant: account not found") ||
-              e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
-          ) =>
+          if e.getStatusCode() == 400 =>
         true
       case e: IOException
           if e.getMessage != null && e.getMessage.contains("Connection reset by peer") =>
