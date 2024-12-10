@@ -266,10 +266,10 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	cp ../README.md build/deploy/
 	rsync -r \
 	    --exclude '.eggs/' \
+	    --exclude '.mypy_cache/' \
 	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
-	    --exclude 'benchmark_hail/' \
-	    --exclude '.mypy_cache/' \
+	    --exclude 'benchmark/' \
 	    --exclude 'docs/' \
 	    --exclude 'dist/' \
 	    --exclude 'test/' \
