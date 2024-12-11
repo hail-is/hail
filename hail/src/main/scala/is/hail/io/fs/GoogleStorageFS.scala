@@ -2,24 +2,24 @@ package is.hail.io.fs
 
 import is.hail.HailFeatureFlags
 import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.io.fs.GoogleStorageFS.RequesterPaysFailure
 import is.hail.services.{isTransientError, retryTransientErrors}
+import is.hail.services.oauth2.GoogleCloudCredentials
 import is.hail.utils._
 
 import scala.jdk.CollectionConverters._
 
-import java.io.{ByteArrayInputStream, FileNotFoundException, IOException}
+import java.io.{FileNotFoundException, IOException}
 import java.nio.ByteBuffer
-import java.nio.file.Paths
+import java.nio.file.{Path, Paths}
 
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
-import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.http.HttpTransportOptions
-import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageException, StorageOptions}
+import com.google.cloud.storage.{Option => _, _}
 import com.google.cloud.storage.Storage.{
   BlobGetOption, BlobListOption, BlobSourceOption, BlobWriteOption,
 }
-import org.apache.log4j.Logger
 
 case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
   def addPathComponent(c: String): GoogleStorageFSURL =
@@ -41,12 +41,11 @@ case class GoogleStorageFSURL(bucket: String, path: String) extends FSURL {
 }
 
 object GoogleStorageFS {
-  object EnvVars {
-    val GoogleApplicationCredentials = "GOOGLE_APPLICATION_CREDENTIALS"
-  }
 
-  private val log = Logger.getLogger(getClass.getName())
   private[this] val GCS_URI_REGEX = "^gs:\\/\\/([a-z0-9_\\-\\.]+)(\\/.*)?".r
+
+  val RequiredOAuthScopes: IndexedSeq[String] =
+    FastSeq("https://www.googleapis.com/auth/devstorage.read_write")
 
   def parseUrl(filename: String): GoogleStorageFSURL = {
     val scheme = filename.split(":")(0)
@@ -65,80 +64,6 @@ object GoogleStorageFS {
         )
     }
   }
-}
-
-object GoogleStorageFileListEntry {
-  def apply(blob: Blob): BlobStorageFileListEntry = {
-    val isDir = blob.isDirectory
-
-    new BlobStorageFileListEntry(
-      s"gs://${blob.getBucket}/${blob.getName}",
-      if (isDir)
-        null
-      else
-        blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
-      blob.getSize,
-      isDir,
-    )
-  }
-
-  def dir(url: GoogleStorageFSURL): BlobStorageFileListEntry =
-    new BlobStorageFileListEntry(url.toString, null, 0, true)
-}
-
-object RequesterPaysConfig {
-  object Flags {
-    val RequesterPaysProject = "gcs_requester_pays_project"
-    val RequesterPaysBuckets = "gcs_requester_pays_buckets"
-  }
-
-  def fromFlags(flags: HailFeatureFlags): Option[RequesterPaysConfig] =
-    FastSeq(Flags.RequesterPaysProject, Flags.RequesterPaysBuckets).map(flags.lookup) match {
-      case Seq(Some(project), buckets) =>
-        Some(RequesterPaysConfig(project, buckets.map(_.split(",").toSet)))
-      case Seq(None, Some(buckets)) =>
-        fatal(
-          s"'${Flags.RequesterPaysBuckets}' requires '${Flags.RequesterPaysProject}'." +
-            s"Expected: <undefined>" +
-            s"  Actual: '$buckets'"
-        )
-      case _ =>
-        None
-    }
-}
-
-case class RequesterPaysConfig(project: String, buckets: Option[Set[String]] = None)
-    extends Serializable
-
-class GoogleStorageFS(
-  private[this] val serviceAccountKey: Option[String] = None,
-  private[this] var requesterPaysConfig: Option[RequesterPaysConfig] = None,
-) extends FS {
-  type URL = GoogleStorageFSURL
-
-  import GoogleStorageFS.log
-
-  override def parseUrl(filename: String): URL = GoogleStorageFS.parseUrl(filename)
-
-  override def validUrl(filename: String): Boolean =
-    filename.startsWith("gs://")
-
-  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
-
-  def getConfiguration(): Option[RequesterPaysConfig] =
-    requesterPaysConfig
-
-  def setConfiguration(config: Any): Unit =
-    requesterPaysConfig = config.asInstanceOf[Option[RequesterPaysConfig]]
-
-  private[this] def requesterPaysOptions[T](bucket: String, makeUserProjectOption: String => T)
-    : Seq[T] =
-    requesterPaysConfig match {
-      case Some(RequesterPaysConfig(project, buckets)) if buckets.fold(true)(_.contains(bucket)) =>
-        Seq(makeUserProjectOption(project))
-      case _ =>
-        Seq()
-    }
 
   object RequesterPaysFailure {
     def unapply(t: Throwable): Option[Throwable] =
@@ -165,6 +90,82 @@ class GoogleStorageFS(
           false
       }
   }
+}
+
+object GoogleStorageFileListEntry {
+  def apply(blob: Blob): BlobStorageFileListEntry = {
+    val isDir = blob.isDirectory
+
+    new BlobStorageFileListEntry(
+      s"gs://${blob.getBucket}/${blob.getName}",
+      if (isDir)
+        null
+      else
+        blob.getUpdateTimeOffsetDateTime.toInstant().toEpochMilli(),
+      blob.getSize,
+      isDir,
+    )
+  }
+
+  def dir(url: GoogleStorageFSURL): BlobStorageFileListEntry =
+    new BlobStorageFileListEntry(url.toString, null, 0, true)
+}
+
+case class RequesterPaysConfig(project: String, buckets: Option[Set[String]])
+
+object RequesterPaysConfig {
+  object Flags {
+    val RequesterPaysProject = "gcs_requester_pays_project"
+    val RequesterPaysBuckets = "gcs_requester_pays_buckets"
+  }
+
+  def fromFlags(flags: HailFeatureFlags): Option[RequesterPaysConfig] =
+    FastSeq(Flags.RequesterPaysProject, Flags.RequesterPaysBuckets).map(flags.lookup) match {
+      case Seq(Some(project), buckets) =>
+        Some(RequesterPaysConfig(project, buckets.map(_.split(",").toSet)))
+      case Seq(None, Some(buckets)) =>
+        fatal(
+          s"'${Flags.RequesterPaysBuckets}' requires '${Flags.RequesterPaysProject}'." +
+            s"Expected: <undefined>" +
+            s"  Actual: '$buckets'"
+        )
+      case _ =>
+        None
+    }
+}
+
+case class GoogleStorageFSConfig(
+  credentials_file: Option[Path],
+  requester_pays_config: Option[RequesterPaysConfig],
+)
+
+class GoogleStorageFS(
+  private[this] val credentials: GoogleCloudCredentials,
+  private[this] var requesterPaysConfig: Option[RequesterPaysConfig],
+) extends FS {
+  type URL = GoogleStorageFSURL
+
+  override def parseUrl(filename: String): URL = GoogleStorageFS.parseUrl(filename)
+
+  override def validUrl(filename: String): Boolean =
+    filename.startsWith("gs://")
+
+  def urlAddPathComponent(url: URL, component: String): URL = url.addPathComponent(component)
+
+  def getConfiguration(): Option[RequesterPaysConfig] =
+    requesterPaysConfig
+
+  def setConfiguration(config: Any): Unit =
+    requesterPaysConfig = config.asInstanceOf[Option[RequesterPaysConfig]]
+
+  private[this] def requesterPaysOptions[T](bucket: String, makeUserProjectOption: String => T)
+    : Seq[T] =
+    requesterPaysConfig match {
+      case Some(RequesterPaysConfig(project, buckets)) if buckets.fold(true)(_.contains(bucket)) =>
+        Seq(makeUserProjectOption(project))
+      case _ =>
+        Seq()
+    }
 
   private[this] def handleRequesterPays[T, U](
     makeRequest: Seq[U] => T,
@@ -185,23 +186,12 @@ class GoogleStorageFS(
       .setConnectTimeout(5000)
       .setReadTimeout(5000)
       .build()
-    serviceAccountKey match {
-      case None =>
-        log.info("Initializing google storage client from latent credentials")
-        StorageOptions.newBuilder()
-          .setTransportOptions(transportOptions)
-          .build()
-          .getService
-      case Some(keyData) =>
-        log.info("Initializing google storage client from service account key")
-        StorageOptions.newBuilder()
-          .setCredentials(
-            ServiceAccountCredentials.fromStream(new ByteArrayInputStream(keyData.getBytes))
-          )
-          .setTransportOptions(transportOptions)
-          .build()
-          .getService
-    }
+
+    StorageOptions.newBuilder()
+      .setTransportOptions(transportOptions)
+      .setCredentials(credentials.value)
+      .build()
+      .getService
   }
 
   def openNoCompression(url: URL): SeekableDataInputStream = retryTransientErrors {

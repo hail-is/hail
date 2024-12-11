@@ -1,11 +1,9 @@
 package is.hail.io.fs
 
-import is.hail.{HailContext, HailFeatureFlags}
+import is.hail.HailContext
 import is.hail.backend.BroadcastValue
 import is.hail.io.compress.{BGzipInputStream, BGzipOutputStream}
-import is.hail.io.fs.AzureStorageFS.EnvVars.AzureApplicationCredentials
 import is.hail.io.fs.FSUtil.{containsWildcard, dropTrailingSlash}
-import is.hail.io.fs.GoogleStorageFS.EnvVars.GoogleApplicationCredentials
 import is.hail.services._
 import is.hail.utils._
 
@@ -14,14 +12,12 @@ import scala.io.Source
 
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.charset._
 import java.nio.file.FileSystems
 import java.util.zip.GZIPOutputStream
 
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.io.IOUtils
 import org.apache.hadoop
-import org.apache.log4j.Logger
 
 class WrappedSeekableDataInputStream(is: SeekableInputStream)
     extends DataInputStream(is) with Seekable {
@@ -258,55 +254,8 @@ abstract class FSPositionedOutputStream(val capacity: Int) extends OutputStream 
   def getPosition: Long = pos
 }
 
-object FS {
-  def buildRoutes(
-    credentialsPath: Option[String],
-    flags: Option[HailFeatureFlags],
-    env: Map[String, String],
-  ): FS =
-    retryTransientErrors {
-
-      def readString(path: String): String =
-        using(new FileInputStream(path))(is => IOUtils.toString(is, Charset.defaultCharset()))
-
-      def gcs = new GoogleStorageFS(
-        credentialsPath.orElse(sys.env.get(GoogleApplicationCredentials)).map(readString),
-        flags.flatMap(RequesterPaysConfig.fromFlags),
-      )
-
-      def az = env.get("HAIL_TERRA") match {
-        case Some(_) => new TerraAzureStorageFS()
-        case None => new AzureStorageFS(
-            credentialsPath.orElse(sys.env.get(AzureApplicationCredentials)).map(readString)
-          )
-      }
-
-      val cloudSpecificFSs = env.get("HAIL_CLOUD") match {
-        case Some("gcp") => FastSeq(gcs)
-        case Some("azure") => FastSeq(az)
-        case Some(cloud) =>
-          throw new IllegalArgumentException(s"Unknown cloud provider: '$cloud'.'")
-        case None =>
-          if (credentialsPath.isEmpty) FastSeq(gcs, az)
-          else fatal(
-            "Don't know to which cloud credentials belong because 'HAIL_CLOUD' was not set."
-          )
-      }
-
-      new RouterFS(
-        cloudSpecificFSs :+ new HadoopFS(
-          new SerializableHadoopConfiguration(new hadoop.conf.Configuration())
-        )
-      )
-    }
-
-  private val log = Logger.getLogger(getClass.getName())
-}
-
-trait FS extends Serializable {
+trait FS extends Serializable with Logging {
   type URL <: FSURL
-
-  import FS.log
 
   def parseUrl(filename: String): URL
 
