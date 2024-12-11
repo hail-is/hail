@@ -93,7 +93,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
         combiner.run()
 
-        vds = hl.read_vds('gs://bucket/dataset.vds')
+        vds = hl.vds.read_vds('gs://bucket/dataset.vds')
 
     The following combines four new samples from GVCFs with multiple extant Variant Datasets::
 
@@ -120,7 +120,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
 
         combiner.run()
 
-        vds = hl.read_vds('gs://bucket/dataset.vds')
+        vds = hl.vds.read_vds('gs://bucket/dataset.vds')
 
 
     The speed of the Variant Dataset Combiner critically depends on data partitioning. Although the
