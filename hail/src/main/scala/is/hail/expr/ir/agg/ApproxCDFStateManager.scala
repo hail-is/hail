@@ -525,10 +525,26 @@ object ApproxCDFStateManager {
 
   def fromData(k: Int, levels: Array[Int], items: Array[Double], compactionCounts: Array[Int])
     : ApproxCDFStateManager = {
+    assert(levels.last == items.length)
+    val minLevelsCapacity = QuantilesAggregator.findInitialLevelsCapacity(k, defaultM)
+    val (paddedLevels, paddedCompactionCounts) = if (levels.length - 1 < minLevelsCapacity) {
+      val newLevels = java.util.Arrays.copyOf(levels, minLevelsCapacity + 1)
+      java.util.Arrays.fill(newLevels, levels.length, newLevels.length, items.length)
+      val newCounts = java.util.Arrays.copyOf(compactionCounts, minLevelsCapacity)
+      (newLevels, newCounts)
+    } else (levels, compactionCounts)
+    val minCapacity = QuantilesAggregator.computeTotalCapacity(paddedLevels.length - 1, k, defaultM)
+    val paddedItems = if (items.length < minCapacity) {
+      val newItems = Array.ofDim[Double](minCapacity)
+      val offset = newItems.length - items.length
+      System.arraycopy(items, 0, newItems, offset, items.length)
+      paddedLevels.transform(_ + offset)
+      newItems
+    } else items
     val combiner: ApproxCDFCombiner = new ApproxCDFCombiner(
-      levels,
-      items,
-      compactionCounts,
+      paddedLevels,
+      paddedItems,
+      paddedCompactionCounts,
       levels.length - 1,
       new java.util.Random,
     )
@@ -586,6 +602,9 @@ class ApproxCDFStateManager(val k: Int, var combiner: ApproxCDFCombiner) {
    *
    * [KLL] "Optimal Quantile Approximation in Streams", Karnin, Lang, and Liberty
    * https://github.com/DataSketches/sketches-core/tree/master/src/main/java/com/yahoo/sketches/kll */
+
+  assert(levelsCapacity >= QuantilesAggregator.findInitialLevelsCapacity(k, m))
+  assert(items.length >= computeTotalCapacity(levelsCapacity))
 
   def levels: Array[Int] = combiner.levels
 
