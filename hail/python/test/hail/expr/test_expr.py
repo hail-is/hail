@@ -4220,10 +4220,10 @@ def cdf_max_observed_error(cdf):
     return rank_error / cdf.ranks[-1]
 
 
-@pytest.fixture(scope='module', params=[0, 1])
+@pytest.fixture(scope='module', params=(True, False))
 def cdf_test_data(request):
     with hl.TemporaryDirectory(ensure_exists=False) as f:
-        if request.param == 0:
+        if request.param:
             t = hl.utils.range_table(1_000_000)
             t = t.annotate(x=hl.rand_int64())
             t.key_by(t.x).write(f, overwrite=True)
