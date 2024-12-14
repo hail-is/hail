@@ -60,6 +60,8 @@ class RefreshTokenCredential(AsyncTokenCredential):
 
 
 class AzureCredentials(CloudCredentials):
+    DEFAULT_SCOPE = 'https://management.azure.com/.default'
+
     @staticmethod
     def from_file_or_default(
         credentials_file: Optional[str] = None,
@@ -118,9 +120,7 @@ class AzureCredentials(CloudCredentials):
         self._access_token = None
         self._expires_at = None
 
-        if scopes is None:
-            scopes = ['https://management.azure.com/.default']
-        self.scopes = scopes
+        self.scopes = scopes or [AzureCredentials.DEFAULT_SCOPE]
 
     async def auth_headers_with_expiration(self) -> Tuple[Dict[str, str], Optional[float]]:
         access_token, expiration = await self.access_token_with_expiration()
