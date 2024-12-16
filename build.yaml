@@ -3735,13 +3735,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_dev_image
-      - test_hail_java
-      - test_hail_python_local_backend
-      - test_hail_python_service_backend_gcp
-      - test_hail_python_service_backend_azure
-      - test_hail_scala_fs
-      - test_hail_services_java
-      - test_hail_spark_conf_requester_pays_parsing
       - release
     image:
       valueFrom: hail_dev_image.image
