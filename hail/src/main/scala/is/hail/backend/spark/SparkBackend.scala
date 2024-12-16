@@ -345,6 +345,7 @@ class SparkBackend(
     new HadoopFS(new SerializableHadoopConfiguration(conf))
   }
 
+  override def backend: Backend = this
   override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
 
   override val longLifeTempFileManager: TempFileManager =
@@ -374,6 +375,7 @@ class SparkBackend(
       tmpdir,
       localTmpdir,
       this,
+      references.toMap,
       fs,
       region,
       timer,
@@ -393,6 +395,7 @@ class SparkBackend(
         tmpdir,
         localTmpdir,
         this,
+        references.toMap,
         fs,
         timer,
         null,

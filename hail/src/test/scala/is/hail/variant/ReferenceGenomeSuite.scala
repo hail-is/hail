@@ -1,11 +1,11 @@
 package is.hail.variant
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.backend.HailStateManager
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.types.virtual.TLocus
 import is.hail.utils._
 
@@ -222,7 +222,7 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testSerializeOnFB(): Unit = {
-    withExecuteContext() { ctx =>
+    ExecuteContext.scoped { ctx =>
       val grch38 = ctx.getReference(ReferenceGenome.GRCh38)
       val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
       val rgfield = fb.getReferenceGenome(grch38.name)
@@ -234,11 +234,11 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testSerializeWithLiftoverOnFB(): Unit = {
-    withExecuteContext() { ctx =>
+    ExecuteContext.scoped { ctx =>
       val grch37 = ctx.getReference(ReferenceGenome.GRCh37)
       val liftoverFile = "src/test/resources/grch37_to_grch38_chr20.over.chain.gz"
 
-      grch37.addLiftover(ctx, liftoverFile, "GRCh38")
+      grch37.addLiftover(ctx.references("GRCh38"), LiftOver(ctx.fs, liftoverFile))
 
       val fb =
         EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")
