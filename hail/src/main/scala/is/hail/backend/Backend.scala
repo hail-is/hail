@@ -74,7 +74,7 @@ trait BackendContext {
   def executionCache: ExecutionCache
 }
 
-abstract class Backend {
+abstract class Backend extends Closeable {
   // From https://github.com/hail-is/hail/issues/14580 :
   //   IR can get quite big, especially as it can contain an arbitrary
   //   amount of encoded literals from the user's python session. This
@@ -122,8 +122,6 @@ abstract class Backend {
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)])
-
-  def stop(): Unit
 
   def asSpark(op: String): SparkBackend =
     fatal(s"${getClass.getSimpleName}: $op requires SparkBackend")

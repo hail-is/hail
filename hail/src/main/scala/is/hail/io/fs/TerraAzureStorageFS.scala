@@ -1,9 +1,6 @@
 package is.hail.io.fs
 
-import is.hail.shadedazure.com.azure.core.credential.TokenRequestContext
-import is.hail.shadedazure.com.azure.identity.{
-  DefaultAzureCredential, DefaultAzureCredentialBuilder,
-}
+import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.shadedazure.com.azure.storage.blob.BlobServiceClient
 import is.hail.utils._
 
@@ -13,17 +10,18 @@ import org.apache.http.client.methods.HttpPost
 import org.apache.http.client.utils.URIBuilder
 import org.apache.http.impl.client.HttpClients
 import org.apache.http.util.EntityUtils
-import org.apache.log4j.Logger
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods
 
 object TerraAzureStorageFS {
-  private val log = Logger.getLogger(getClass.getName)
   private val TEN_MINUTES_IN_MS = 10 * 60 * 1000
+
+  val RequiredOAuthScopes: IndexedSeq[String] =
+    FastSeq("https://management.azure.com/.default")
 }
 
-class TerraAzureStorageFS extends AzureStorageFS() {
-  import TerraAzureStorageFS.{log, TEN_MINUTES_IN_MS}
+class TerraAzureStorageFS(credential: AzureCloudCredentials) extends AzureStorageFS(credential) {
+  import TerraAzureStorageFS.TEN_MINUTES_IN_MS
 
   private[this] val httpClient = HttpClients.custom().build()
   private[this] val sasTokenCache = mutable.Map[String, (URL, Long)]()
@@ -32,8 +30,6 @@ class TerraAzureStorageFS extends AzureStorageFS() {
   private[this] val workspaceId = sys.env("WORKSPACE_ID")
   private[this] val containerResourceId = sys.env("WORKSPACE_STORAGE_CONTAINER_ID")
   private[this] val storageContainerUrl = parseUrl(sys.env("WORKSPACE_STORAGE_CONTAINER_URL"))
-
-  private[this] val credential: DefaultAzureCredential = new DefaultAzureCredentialBuilder().build()
 
   override def getServiceClient(url: URL): BlobServiceClient =
     if (blobInWorkspaceStorageContainer(url)) {
@@ -59,14 +55,10 @@ class TerraAzureStorageFS extends AzureStorageFS() {
   private def createTerraSasToken(): (URL, Long) = {
     implicit val formats: Formats = DefaultFormats
 
-    val context = new TokenRequestContext()
-    context.addScopes("https://management.azure.com/.default")
-    val token = credential.getToken(context).block().getToken()
-
     val url =
       s"$workspaceManagerUrl/api/workspaces/v1/$workspaceId/resources/controlled/azure/storageContainer/$containerResourceId/getSasToken"
     val req = new HttpPost(url)
-    req.addHeader("Authorization", s"Bearer $token")
+    req.addHeader("Authorization", s"Bearer ${credential.accessToken}")
 
     val tenHoursInSeconds = 10 * 3600
     val expiration = System.currentTimeMillis() + tenHoursInSeconds * 1000

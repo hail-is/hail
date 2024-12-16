@@ -573,7 +573,7 @@ async def init_batch(
 
     log = _get_log(log)
     if tmpdir is None:
-        tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
+        tmpdir = os.path.join(backend.remote_tmpdir, 'tmp/hail', secret_alnum_string())
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
     HailContext.create(log, quiet, append, tmpdir, local_tmpdir, default_reference, global_seed, backend)

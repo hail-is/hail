@@ -1,8 +1,7 @@
 package is.hail.io.fs
 
-import java.io.FileInputStream
+import is.hail.services.oauth2.AzureCloudCredentials
 
-import org.apache.commons.io.IOUtils
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
 
@@ -17,16 +16,8 @@ class AzureStorageFSSuite extends FSSuite {
     }
   }
 
-  lazy val fs = {
-    val aac = System.getenv("AZURE_APPLICATION_CREDENTIALS")
-    if (aac == null) {
-      new AzureStorageFS()
-    } else {
-      new AzureStorageFS(
-        Some(new String(IOUtils.toByteArray(new FileInputStream(aac))))
-      )
-    }
-  }
+  override lazy val fs: FS =
+    new AzureStorageFS(AzureCloudCredentials(None, AzureStorageFS.RequiredOAuthScopes))
 
   @Test def testMakeQualified(): Unit = {
     val qualifiedFileName = "https://account.blob.core.windows.net/container/path"
