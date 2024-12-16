@@ -89,6 +89,15 @@ object JobGroupStates {
 
 object BatchClient {
 
+  val BunchMaxSizeBytes: Int = 1024 * 1024
+
+  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
+    : BatchClient =
+    new BatchClient(Requester(
+      new URL(deployConfig.baseUrl("batch")),
+      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
+    ))
+
   private[this] def BatchServiceScopes(env: Map[String, String]): Array[String] =
     env.get("HAIL_CLOUD") match {
       case Some("gcp") =>
@@ -105,14 +114,7 @@ object BatchClient {
         throw new IllegalArgumentException(s"HAIL_CLOUD must be set.")
     }
 
-  def apply(deployConfig: DeployConfig, credentialsFile: Path, env: Map[String, String] = sys.env)
-    : BatchClient =
-    new BatchClient(Requester(
-      new URL(deployConfig.baseUrl("batch")),
-      CloudCredentials(credentialsFile, BatchServiceScopes(env), env),
-    ))
 
-  private val BunchMaxSizeBytes: Int = 1024 * 1024
 }
 
 case class BatchClient private (req: Requester) extends Logging with AutoCloseable {
@@ -223,6 +225,11 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         .merge(
           JObject(
             "job_id" -> JInt(jobIdx + 1),
+            // Batch allows clients to create multiple job groups in an update.
+            // For each table stage, we create one job group in an update; all jobs in
+            // that update belong to that one job group. This allows us to abstract updates
+            // from the case class used by the ServiceBackend but that information needs to
+            // get added back here.
             "in_update_job_group_id" -> JInt(1),
           )
         )

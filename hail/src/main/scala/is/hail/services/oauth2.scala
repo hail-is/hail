@@ -1,5 +1,6 @@
 package is.hail.services
 
+import is.hail.services.oauth2.AzureCloudCredentials.AzureTokenRefreshMinutes
 import is.hail.services.oauth2.AzureCloudCredentials.EnvVars.AzureApplicationCredentials
 import is.hail.services.oauth2.GoogleCloudCredentials.EnvVars.GoogleApplicationCredentials
 import is.hail.shadedazure.com.azure.core.credential.{
@@ -88,13 +89,17 @@ object oauth2 {
       }
 
     private[this] def isExpired: Boolean =
-      token == null || OffsetDateTime.now.plusMinutes(5).isBefore(token.getExpiresAt)
+      token == null || OffsetDateTime.now.plusMinutes(AzureTokenRefreshMinutes).isBefore(
+        token.getExpiresAt
+      )
   }
 
   object AzureCloudCredentials {
     object EnvVars {
       val AzureApplicationCredentials = "AZURE_APPLICATION_CREDENTIALS"
     }
+
+    private[AzureCloudCredentials] val AzureTokenRefreshMinutes = 5
 
     def apply(keyPath: Option[Path], scopes: IndexedSeq[String], env: Map[String, String] = sys.env)
       : AzureCloudCredentials =
