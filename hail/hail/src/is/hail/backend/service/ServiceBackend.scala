@@ -13,6 +13,7 @@ import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
+import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.BlockMatrix
 import is.hail.services.{BatchClient, JobGroupRequest, _}
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Running, Success}
@@ -93,7 +94,16 @@ object ServiceBackend {
       rpcConfig.custom_references.map(ReferenceGenome.fromJSON),
     )
 
-    val backend = new ServiceBackend(
+    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+      liftoversForSource.foreach { case (destGenome, chainFile) =>
+        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
+      }
+    }
+    rpcConfig.sequences.foreach { case (rg, seq) =>
+      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
+    }
+
+    new ServiceBackend(
       JarUrl(jarLocation),
       name,
       theHailClassLoader,
@@ -106,19 +116,6 @@ object ServiceBackend {
       backendContext,
       scratchDir,
     )
-
-    backend.withExecuteContext { ctx =>
-      rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
-        liftoversForSource.foreach { case (destGenome, chainFile) =>
-          references(sourceGenome).addLiftover(ctx, chainFile, destGenome)
-        }
-      }
-      rpcConfig.sequences.foreach { case (rg, seq) =>
-        references(rg).addSequence(ctx, seq.fasta, seq.index)
-      }
-    }
-
-    backend
   }
 }
 
@@ -126,7 +123,7 @@ class ServiceBackend(
   val jarSpec: JarSpec,
   var name: String,
   val theHailClassLoader: HailClassLoader,
-  override val references: mutable.Map[String, ReferenceGenome],
+  val references: mutable.Map[String, ReferenceGenome],
   val batchClient: BatchClient,
   val batchConfig: BatchConfig,
   val flags: HailFeatureFlags,
@@ -397,6 +394,7 @@ class ServiceBackend(
         tmpdir,
         "file:///tmp",
         this,
+        references.toMap,
         fs,
         timer,
         null,

@@ -68,6 +68,9 @@ class HailFeatureFlags private (
     flags.update(flag, value)
   }
 
+  def +(feature: (String, String)): HailFeatureFlags =
+    new HailFeatureFlags(flags + (feature._1 -> feature._2))
+
   def get(flag: String): String = flags(flag)
 
   def lookup(flag: String): Option[String] =

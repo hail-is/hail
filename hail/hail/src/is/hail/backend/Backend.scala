@@ -105,8 +105,6 @@ abstract class Backend extends Closeable {
   def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T])
     : CompiledFunction[T]
 
-  def references: mutable.Map[String, ReferenceGenome]
-
   def lowerDistributedSort(
     ctx: ExecuteContext,
     stage: TableStage,
@@ -181,10 +179,8 @@ abstract class Backend extends Closeable {
   ): Array[Byte] =
     withExecuteContext { ctx =>
       jsonToBytes {
-        Extraction.decompose {
-          ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
-            xContigs, yContigs, mtContigs, parInput).toJSON
-        }(defaultJSONFormats)
+        ReferenceGenome.fromFASTAFile(ctx, name, fastaFile, indexFile,
+          xContigs, yContigs, mtContigs, parInput).toJSON
       }
     }
 

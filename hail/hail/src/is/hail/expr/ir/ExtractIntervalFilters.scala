@@ -647,7 +647,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
           BoolValue.fromComparison(l, op).restrict(keySet)
         case Contig(rgStr) =>
           // locus contig equality comparison
-          val b = getIntervalFromContig(l.asInstanceOf[String], ctx.getReference(rgStr)) match {
+          val b = getIntervalFromContig(l.asInstanceOf[String], ctx.references(rgStr)) match {
             case Some(i) =>
               val b = BoolValue(
                 KeySet(i),
@@ -671,7 +671,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         case Position(rgStr) =>
           // locus position comparison
           val posBoolValue = BoolValue.fromComparison(l, op)
-          val rg = ctx.getReference(rgStr)
+          val rg = ctx.references(rgStr)
           val b = BoolValue(
             KeySet(liftPosIntervalsToLocus(posBoolValue.trueBound, rg, ctx)),
             KeySet(liftPosIntervalsToLocus(posBoolValue.falseBound, rg, ctx)),

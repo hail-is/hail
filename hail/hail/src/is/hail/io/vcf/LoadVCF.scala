@@ -1779,7 +1779,7 @@ object MatrixVCFReader {
     val backend = ctx.backend
     val fs = ctx.fs
 
-    val referenceGenome = params.rg.map(ctx.getReference)
+    val referenceGenome = params.rg.map(ctx.references)
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
@@ -2011,7 +2011,7 @@ class MatrixVCFReader(
     val fs = ctx.fs
     val sm = ctx.stateManager
 
-    val rgBc = referenceGenome.map(_.broadcast)
+    val rgBc = referenceGenome.map(ctx.backend.broadcast)
     val localArrayElementsRequired = params.arrayElementsRequired
     val localContigRecoding = params.contigRecoding
     val localSkipInvalidLoci = params.skipInvalidLoci

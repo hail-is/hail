@@ -72,7 +72,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   }
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] =
-    rgContainers.keys.map(ctx.getReference(_)).toIndexedSeq.sortBy(_.name)
+    rgContainers.keys.map(ctx.references(_)).toIndexedSeq.sortBy(_.name)
 
   def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] =
     rgContainers.toFastSeq.sortBy(_._1).map(_._2)
