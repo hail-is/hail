@@ -4,48 +4,47 @@ import is.hail.HailSuite
 
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
+import scala.reflect.runtime.universe._
 
 import org.testng.annotations.Test
 
 class FlipbookIteratorSuite extends HailSuite {
 
-  class Box[A] extends AnyRef {
+  class Box[A: TypeTag] extends AnyRef {
+    def typ = typeOf[A]
     var value: A = _
-
-    def canEqual(a: Any): Boolean = a.isInstanceOf[Box[A]]
 
     override def equals(that: Any): Boolean =
       that match {
-        case that: Box[A] => value == that.value
+        case that: Box[_] if typ == that.typ => value == that.value.asInstanceOf[A]
         case _ => false
       }
-
   }
 
   object Box {
-    def apply[A](): Box[A] = new Box
+    def apply[A: TypeTag]: Box[A] = new Box[A]()
 
-    def apply[A](a: A): Box[A] = {
-      val box = Box[A]()
+    def apply[A: TypeTag](a: A): Box[A] = {
+      val box = Box[A]
       box.value = a
       box
     }
   }
 
-  def boxOrdView[A](implicit ord: Ordering[A]): OrderingView[Box[A]] = new OrderingView[Box[A]] {
+  def boxOrdView[A: Ordering]: OrderingView[Box[A]] = new OrderingView[Box[A]] {
     var value: A = _
 
     def setFiniteValue(a: Box[A]): Unit =
       value = a.value
 
     def compareFinite(a: Box[A]): Int =
-      ord.compare(value, a.value)
+      implicitly[Ordering[A]].compare(value, a.value)
   }
 
-  def boxBuffer[A]: Growable[Box[A]] with Iterable[Box[A]] =
+  def boxBuffer[A: TypeTag]: Growable[Box[A]] with Iterable[Box[A]] =
     new Growable[Box[A]] with Iterable[Box[A]] {
       val buf = ArrayBuffer[A]()
-      val box = Box[A]()
+      val box = Box[A]
       def clear(): Unit = buf.clear()
 
       def +=(x: Box[A]) = {
@@ -72,10 +71,10 @@ class FlipbookIteratorSuite extends HailSuite {
     else l.value - r.value
   }
 
-  def makeTestIterator[A](elems: A*): StagingIterator[Box[A]] = {
+  def makeTestIterator[A: TypeTag](elems: A*): StagingIterator[Box[A]] = {
     val it = elems.iterator
     val sm = new StateMachine[Box[A]] {
-      val value: Box[A] = Box()
+      val value: Box[A] = Box[A]
       var isValid = true
       def advance(): Unit =
         if (it.hasNext)

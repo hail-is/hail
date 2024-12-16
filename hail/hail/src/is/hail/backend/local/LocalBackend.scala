@@ -87,6 +87,7 @@ class LocalBackend(
   override val references: mutable.Map[String, ReferenceGenome],
 ) extends Backend with BackendWithCodeCache with Py4JBackendExtensions {
 
+  override def backend: Backend = this
   override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
   override def longLifeTempFileManager: TempFileManager = null
 
@@ -102,6 +103,7 @@ class LocalBackend(
         tmpdir,
         tmpdir,
         this,
+        references.toMap,
         fs,
         timer,
         null,

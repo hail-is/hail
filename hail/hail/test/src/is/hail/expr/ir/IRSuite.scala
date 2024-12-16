@@ -3251,7 +3251,7 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "valueIRs")
   def valueIRs(): Array[Array[Object]] =
-    withExecuteContext()(ctx => valueIRs(ctx))
+    ExecuteContext.scoped(ctx => valueIRs(ctx))
 
   def valueIRs(ctx: ExecuteContext): Array[Array[Object]] = {
     val fs = ctx.fs
@@ -3596,7 +3596,7 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "tableIRs")
   def tableIRs(): Array[Array[TableIR]] =
-    withExecuteContext()(ctx => tableIRs(ctx))
+    ExecuteContext.scoped(ctx => tableIRs(ctx))
 
   def tableIRs(ctx: ExecuteContext): Array[Array[TableIR]] = {
     try {
@@ -3705,7 +3705,7 @@ class IRSuite extends HailSuite {
 
   @DataProvider(name = "matrixIRs")
   def matrixIRs(): Array[Array[MatrixIR]] =
-    withExecuteContext()(ctx => matrixIRs(ctx))
+    ExecuteContext.scoped(ctx => matrixIRs(ctx))
 
   def matrixIRs(ctx: ExecuteContext): Array[Array[MatrixIR]] = {
     try {

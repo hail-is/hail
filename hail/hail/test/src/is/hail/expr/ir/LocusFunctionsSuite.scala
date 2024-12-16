@@ -13,7 +13,7 @@ class LocusFunctionsSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.javaOnly
 
-  private def grch38: ReferenceGenome = ctx.getReference(ReferenceGenome.GRCh38)
+  private def grch38: ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
   private def tlocus = TLocus(grch38.name)
   private def tvariant = TStruct("locus" -> tlocus, "alleles" -> TArray(TString))
 
@@ -83,8 +83,8 @@ class LocusFunctionsSuite extends HailSuite {
     assertEvalsTo(
       ir,
       Row(
-        Locus("1", 1, ctx.getReference(ReferenceGenome.GRCh37)),
-        Locus("chr1", 1, ctx.getReference(ReferenceGenome.GRCh38)),
+        Locus("1", 1, ctx.references(ReferenceGenome.GRCh37)),
+        Locus("chr1", 1, ctx.references(ReferenceGenome.GRCh38)),
       ),
     )
   }

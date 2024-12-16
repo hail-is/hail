@@ -187,7 +187,7 @@ object MatrixPLINKReader {
     implicit val formats: Formats = DefaultFormats
     val params = jv.extract[MatrixPLINKReaderParameters]
 
-    val referenceGenome = params.rg.map(ctx.getReference)
+    val referenceGenome = params.rg.map(ctx.references)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
     val locusType = TLocus.schemaFromRG(params.rg)
