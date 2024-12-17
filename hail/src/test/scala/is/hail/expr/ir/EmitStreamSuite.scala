@@ -1,10 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
+import is.hail.annotations.{Region, RegionPool, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.{CollectStateSig, PhysicalAggSig, TypedStateSig}
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.lowering.LoweringPipeline
@@ -1063,14 +1061,14 @@ class EmitStreamSuite extends HailSuite {
 
   def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR)
     : Unit = {
-    val memUsed1 = ExecuteContext.scoped { ctx =>
-      eval(f(lowSize), Env.empty, FastSeq(), None, None, false, ctx)
-      ctx.r.pool.getHighestTotalUsage
+    val memUsed1 = RegionPool.scoped { pool =>
+      ctx.local(r = Region(pool = pool))(ctx => eval(f(lowSize), optimize = false, ctx = ctx))
+      pool.getHighestTotalUsage
     }
 
-    val memUsed2 = ExecuteContext.scoped { ctx =>
-      eval(f(highSize), Env.empty, FastSeq(), None, None, false, ctx)
-      ctx.r.pool.getHighestTotalUsage
+    val memUsed2 = RegionPool.scoped { pool =>
+      ctx.local(r = Region(pool = pool))(ctx => eval(f(highSize), optimize = false, ctx = ctx))
+      pool.getHighestTotalUsage
     }
 
     if (memUsed1 != memUsed2)

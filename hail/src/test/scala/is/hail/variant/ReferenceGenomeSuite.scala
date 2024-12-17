@@ -1,6 +1,6 @@
 package is.hail.variant
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.backend.HailStateManager
 import is.hail.check.Prop._
 import is.hail.check.Properties
@@ -51,18 +51,18 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testAssertions(): Unit = {
-    TestUtils.interceptFatal("Must have at least one contig in the reference genome.")(
+    interceptFatal("Must have at least one contig in the reference genome.")(
       ReferenceGenome("test", Array.empty[String], Map.empty[String, Int])
     )
-    TestUtils.interceptFatal("No lengths given for the following contigs:")(ReferenceGenome(
+    interceptFatal("No lengths given for the following contigs:")(ReferenceGenome(
       "test",
       Array("1", "2", "3"),
       Map("1" -> 5),
     ))
-    TestUtils.interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(
+    interceptFatal("Contigs found in 'lengths' that are not present in 'contigs'")(
       ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5, "4" -> 100))
     )
-    TestUtils.interceptFatal("The following X contig names are absent from the reference:")(
+    interceptFatal("The following X contig names are absent from the reference:")(
       ReferenceGenome(
         "test",
         Array("1", "2", "3"),
@@ -70,7 +70,7 @@ class ReferenceGenomeSuite extends HailSuite {
         xContigs = Set("X"),
       )
     )
-    TestUtils.interceptFatal("The following Y contig names are absent from the reference:")(
+    interceptFatal("The following Y contig names are absent from the reference:")(
       ReferenceGenome(
         "test",
         Array("1", "2", "3"),
@@ -78,7 +78,7 @@ class ReferenceGenomeSuite extends HailSuite {
         yContigs = Set("Y"),
       )
     )
-    TestUtils.interceptFatal(
+    interceptFatal(
       "The following mitochondrial contig names are absent from the reference:"
     )(ReferenceGenome(
       "test",
@@ -86,13 +86,13 @@ class ReferenceGenomeSuite extends HailSuite {
       Map("1" -> 5, "2" -> 5, "3" -> 5),
       mtContigs = Set("MT"),
     ))
-    TestUtils.interceptFatal("The contig name for PAR interval")(ReferenceGenome(
+    interceptFatal("The contig name for PAR interval")(ReferenceGenome(
       "test",
       Array("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
       parInput = Array((Locus("X", 1), Locus("X", 5))),
     ))
-    TestUtils.interceptFatal("in both X and Y contigs.")(ReferenceGenome(
+    interceptFatal("in both X and Y contigs.")(ReferenceGenome(
       "test",
       Array("1", "2", "3"),
       Map("1" -> 5, "2" -> 5, "3" -> 5),
@@ -103,7 +103,7 @@ class ReferenceGenomeSuite extends HailSuite {
 
   @Test def testContigRemap(): Unit = {
     val mapping = Map("23" -> "foo")
-    TestUtils.interceptFatal("have remapped contigs in reference genome")(
+    interceptFatal("have remapped contigs in reference genome")(
       ctx.References(ReferenceGenome.GRCh37).validateContigRemap(mapping)
     )
   }

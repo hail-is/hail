@@ -9,7 +9,6 @@ import is.hail.io.fs.FS
 import is.hail.types.RTable
 import is.hail.types.encoded.EType
 import is.hail.types.physical.PTuple
-import is.hail.utils.ExecutionTimer.Timings
 import is.hail.utils.fatal
 
 import scala.reflect.ClassTag
@@ -105,7 +104,7 @@ abstract class Backend extends Closeable {
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage
 
-  def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): (T, Timings)
-
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
+
+  def backendContext(ctx: ExecuteContext): BackendContext
 }

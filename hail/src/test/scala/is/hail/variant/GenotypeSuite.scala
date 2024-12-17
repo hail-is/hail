@@ -9,8 +9,7 @@ import is.hail.utils._
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class GenotypeSuite extends TestNGSuite {
-
+class GenotypeSuite extends TestNGSuite with TestUtils {
   val v = Variant("1", 1, "A", "T")
 
   @Test def gtPairGtIndexIsId(): Unit =
@@ -119,6 +118,6 @@ class GenotypeSuite extends TestNGSuite {
     assert(Call.parse("0|1") == Call2(0, 1, phased = true))
     intercept[UnsupportedOperationException](Call.parse("1/1/1"))
     intercept[UnsupportedOperationException](Call.parse("1|1|1"))
-    TestUtils.interceptFatal("invalid call expression:")(Call.parse("0/"))
+    interceptFatal("invalid call expression:")(Call.parse("0/"))
   }
 }

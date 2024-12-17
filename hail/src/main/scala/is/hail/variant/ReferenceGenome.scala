@@ -690,4 +690,14 @@ object ReferenceGenome {
 
       existing += (rg.name -> rg)
     }
+
+  def addFatalOnCollision(
+    existing: Map[String, ReferenceGenome],
+    newReferences: IndexedSeq[ReferenceGenome],
+  ): Map[String, ReferenceGenome] = {
+    val mut = mutable.Map(existing.toSeq: _*)
+    addFatalOnCollision(mut, newReferences)
+    mut.toMap
+  }
+
 }
