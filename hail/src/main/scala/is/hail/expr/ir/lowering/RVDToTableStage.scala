@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.expr.ir._
+import is.hail.expr.ir.compile.Compile
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}

@@ -4,8 +4,7 @@ import is.hail.asm4s._
 import is.hail.backend.Backend.jsonToBytes
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{
-  BaseIR, CodeCacheKey, CompiledFunction, IR, IRParser, IRParserEnvironment, LoweringAnalyses,
-  SortField, TableIR, TableReader,
+  BaseIR, IR, IRParser, IRParserEnvironment, LoweringAnalyses, SortField, TableIR, TableReader,
 }
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
@@ -91,9 +90,6 @@ abstract class Backend extends Closeable {
     fatal(s"${getClass.getSimpleName}: $op requires SparkBackend")
 
   def shouldCacheQueryInfo: Boolean = true
-
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T])
-    : CompiledFunction[T]
 
   def lowerDistributedSort(
     ctx: ExecuteContext,
@@ -192,24 +188,4 @@ abstract class Backend extends Closeable {
     }
 
   def execute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)]
-}
-
-trait BackendWithCodeCache {
-  private[this] val codeCache: Cache[CodeCacheKey, CompiledFunction[_]] = new Cache(50)
-
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T])
-    : CompiledFunction[T] = {
-    codeCache.get(k) match {
-      case Some(v) => v.asInstanceOf[CompiledFunction[T]]
-      case None =>
-        val compiledFunction = f
-        codeCache += ((k, compiledFunction))
-        compiledFunction
-    }
-  }
-}
-
-trait BackendWithNoCodeCache {
-  def lookupOrCompileCachedFunction[T](k: CodeCacheKey)(f: => CompiledFunction[T])
-    : CompiledFunction[T] = f
 }
