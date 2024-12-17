@@ -73,7 +73,7 @@ object Deps {
   }
 }
 
-trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule { outer =>
+trait HailScalaModule extends ScalafmtModule with ScalafixModule { outer =>
   override def scalaVersion: T[String] = build.env.scalaVersion()
 
   override def javacOptions: T[Seq[String]] = Seq(
@@ -107,7 +107,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   override def bspCompileClasspath: T[Agg[UnresolvedPath]] =
     super.bspCompileClasspath() ++ resources().map(p => UnresolvedPath.ResolvedPath(p.path))
 
-  trait HailTests extends SbtTests with TestNg with ScalafmtModule with ScalafixModule {
+  trait HailScalaTests extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
     override def forkArgs: T[Seq[String]] = Seq("-Xss4m", "-Xmx4096M")
 
     override def ivyDeps: T[Agg[Dep]] =
@@ -125,7 +125,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   }
 }
 
-object `package` extends RootModule with HailScalaModule { outer =>
+object `package` extends RootModule with SbtModule with HailScalaModule { outer =>
 
   override def millSourcePath: Path = super.millSourcePath / "modules"
 
@@ -263,11 +263,11 @@ object `package` extends RootModule with HailScalaModule { outer =>
       )
 
     override def sources: T[Seq[PathRef]] = Task.Sources {
-      Seq(PathRef(this.millSourcePath / os.up / "src" / env.debugOrRelease() / "java"))
+      Seq(PathRef(this.millSourcePath / "src" / env.debugOrRelease()))
     }
   }
 
-  object test extends HailTests {
+  object test extends SbtTests with HailScalaTests {
     override def resources: T[Seq[PathRef]] = outer.resources() ++ super.resources()
 
     override def assemblyRules: Seq[Rule] = outer.assemblyRules ++ Seq(
