@@ -832,7 +832,7 @@ steps:
       cd /io/repo/hail
 
       time tar czf test.tar.gz -C python test pytest.ini
-      time tar czf resources.tar.gz -C src/test resources
+      time tar czf resources.tar.gz -C modules/src/test resources
       time tar czf data.tar.gz -C python/hail/docs data
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
@@ -965,7 +965,7 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       python3 -m hailtop.aiotools.copy 'null' '[
-      {"from": "src/test/resources",
+      {"from": "modules/src/test/resources",
        "to":   "{{ global.test_storage_uri }}/{{ token }}/test/resources"},
       {"from": "python/hail/docs/data",
        "to":   "{{ global.test_storage_uri }}/{{ token }}/doctest/data"}
@@ -976,8 +976,8 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
     inputs:
-      - from: /repo/hail/src/test/resources
-        to: /io/repo/hail/src/test/resources
+      - from: /repo/hail/modules/src/test/resources
+        to: /io/repo/hail/modules/src/test/resources
       - from: /repo/hail/python/hail/docs/data
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
@@ -996,8 +996,8 @@ steps:
     script: |
       set -ex
       cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
+      mkdir -p modules/src/test
+      tar xzf resources.tar.gz -C modules/src/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-$HAIL_RUN_IMAGE_SPLIT_INDEX.xml
@@ -3636,8 +3636,8 @@ steps:
     script: |
       set -ex
       cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
+      mkdir -p modules/src/test
+      tar xzf resources.tar.gz -C modules/src/test
 
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
@@ -3696,8 +3696,8 @@ steps:
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
 
       cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
+      mkdir -p modules/src/test
+      tar xzf resources.tar.gz -C modules/src/test
       java -Xms7500M -Xmx7500M \
            -cp hail-test.jar:$SPARK_HOME/jars/* \
            org.testng.TestNG \
