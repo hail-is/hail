@@ -270,13 +270,13 @@ object Simplify {
     case CastRename(x, t) if x.typ == t => x
     case CastRename(CastRename(x, _), t) => CastRename(x, t)
 
-    case ApplyIR("indexArray", _, Seq(a, i @ I32(v)), _, errorID) if v >= 0 =>
+    case ApplyIR("indexArray", _, Seq(a, i @ I32(v)), _, errorID, _) if v >= 0 =>
       ArrayRef(a, i, errorID)
 
-    case ApplyIR("contains", _, Seq(CastToArray(x), element), _, _) if x.typ.isInstanceOf[TSet] =>
+    case ApplyIR("contains", _, Seq(CastToArray(x), element), _, _, _) if x.typ.isInstanceOf[TSet] =>
       invoke("contains", TBoolean, x, element)
 
-    case ApplyIR("contains", _, Seq(Literal(t, v), element), _, _) if t.isInstanceOf[TArray] =>
+    case ApplyIR("contains", _, Seq(Literal(t, v), element), _, _, _) if t.isInstanceOf[TArray] =>
       invoke(
         "contains",
         TBoolean,
@@ -284,7 +284,7 @@ object Simplify {
         element,
       )
 
-    case ApplyIR("contains", _, Seq(ToSet(x), element), _, _) if x.typ.isInstanceOf[TArray] =>
+    case ApplyIR("contains", _, Seq(ToSet(x), element), _, _, _) if x.typ.isInstanceOf[TArray] =>
       invoke("contains", TBoolean, x, element)
 
     case x: ApplyIR if x.inline || x.body.size < 10 => x.explicitNode
@@ -746,7 +746,7 @@ object Simplify {
     //           ArrayAgg(GetField(Ref(uid, rowsAndGlobal.typ), "rows"), "row", query)))
     //   }
 
-    case ApplyIR("annotate", _, Seq(s, MakeStruct(fields)), _, _) =>
+    case ApplyIR("annotate", _, Seq(s, MakeStruct(fields)), _, _, _) =>
       InsertFields(s, fields)
 
     // simplify Boolean equality

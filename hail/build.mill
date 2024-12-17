@@ -121,6 +121,7 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       "-Xlint",
       "-Ywarn-unused:_,-explicits,-implicits",
       "-Wconf:msg=legacy-binding:s",
+      "-feature",
     ) ++ (
       if (build.env.debugMode()) Seq()
       else Seq(
@@ -175,6 +176,10 @@ object hail extends HailModule { outer =>
     PathRef(millOuterCtx.millSourcePath / "prebuilt" / "lib"),
     buildInfo(),
   )
+
+  override def generatedSources: T[Seq[PathRef]] = Task {
+    Seq(`ir-gen`.generate())
+  }
 
   override def unmanagedClasspath: T[Agg[PathRef]] =
     Agg(shadedazure.assembly())
@@ -246,6 +251,19 @@ object hail extends HailModule { outer =>
       runClasspath().map(_.path).mkString(":"),
     )
     PathRef(T.dest)
+  }
+
+  object `ir-gen` extends HailModule {
+    def ivyDeps = Agg(
+      ivy"com.lihaoyi::mainargs:0.6.2",
+      ivy"com.lihaoyi::os-lib:0.10.7",
+      ivy"com.lihaoyi::sourcecode:0.4.2",
+    )
+
+    def generate: T[PathRef] = Task {
+      runner().run(Args("--path", T.dest).value)
+      PathRef(T.dest)
+    }
   }
 
   object memory extends JavaModule { // with CrossValue {
