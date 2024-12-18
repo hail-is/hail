@@ -27,7 +27,7 @@ import java.io.OutputStream
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
 
-sealed trait IR extends BaseIR {
+trait IR extends BaseIR {
   private var _typ: Type = null
 
   def typ: Type = {
@@ -72,12 +72,12 @@ sealed trait IR extends BaseIR {
   def unwrap: IR = _unwrap(this)
 }
 
-sealed trait TypedIR[T <: Type] extends IR {
+trait TypedIR[T <: Type] extends IR {
   override def typ: T = tcoerce[T](super.typ)
 }
 
 // Mark Refs and constants as IRs that are safe to duplicate
-sealed trait TrivialIR extends IR
+trait TrivialIR extends IR
 
 object Literal {
   def coerce(t: Type, x: Any): IR = {
@@ -146,48 +146,47 @@ class WrappedByteArrays(val ba: Array[Array[Byte]]) {
   }
 }
 
-final case class I32(x: Int) extends IR with TrivialIR
-final case class I64(x: Long) extends IR with TrivialIR
-final case class F32(x: Float) extends IR with TrivialIR
-final case class F64(x: Double) extends IR with TrivialIR
+//final case class I32(x: Int) extends IR with TrivialIR
+//final case class I64(x: Long) extends IR with TrivialIR
+//final case class F32(x: Float) extends IR with TrivialIR
+//final case class F64(x: Double) extends IR with TrivialIR
 
-final case class Str(x: String) extends IR with TrivialIR {
-  override def toString(): String = s"""Str("${StringEscapeUtils.escapeString(x)}")"""
-}
+//final case class Str(x: String) extends IR with TrivialIR {
+//  override def toString(): String = s"""Str("${StringEscapeUtils.escapeString(x)}")"""
+//}
 
-final case class True() extends IR with TrivialIR
-final case class False() extends IR with TrivialIR
-final case class Void() extends IR with TrivialIR
+//final case class True() extends IR with TrivialIR
+//final case class False() extends IR with TrivialIR
+//final case class Void() extends IR with TrivialIR
 
-object UUID4 {
-  def apply(): UUID4 = UUID4(genUID())
-}
+//object UUID4 {
+//  def apply(): UUID4 = UUID4(genUID())
+//}
+//
+//// WARNING! This node can only be used when trying to append a one-off,
+//// random string that will not be reused elsewhere in the pipeline.
+//// Any other uses will need to write and then read again; this node is
+//// non-deterministic and will not e.g. exhibit the correct semantics when
+//// self-joining on streams.
+//final case class UUID4(id: String) extends IR
 
-// WARNING! This node can only be used when trying to append a one-off,
-// random string that will not be reused elsewhere in the pipeline.
-// Any other uses will need to write and then read again; this node is
-// non-deterministic and will not e.g. exhibit the correct semantics when
-// self-joining on streams.
-final case class UUID4(id: String) extends IR
+//final case class Cast(v: IR, _typ: Type) extends IR
+//final case class CastRename(v: IR, _typ: Type) extends IR
 
-final case class Cast(v: IR, _typ: Type) extends IR
-final case class CastRename(v: IR, _typ: Type) extends IR
+//final case class NA(_typ: Type) extends IR with TrivialIR
+//final case class IsNA(value: IR) extends IR
 
-final case class NA(_typ: Type) extends IR with TrivialIR
-final case class IsNA(value: IR) extends IR
+//final case class Coalesce(values: Seq[IR]) extends IR {
+//  require(values.nonEmpty)
+//}
 
-final case class Coalesce(values: Seq[IR]) extends IR {
-  require(values.nonEmpty)
-}
+//final case class Consume(value: IR) extends IR
 
-final case class Consume(value: IR) extends IR
+//final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
-final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
-
-final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
-  override lazy val size: Int =
-    2 + cases.length
-}
+//final case class Switch(x: IR, default: IR, cases: IndexedSeq[IR]) extends IR {
+//  override lazy val size: Int = 2 + cases.length
+//}
 
 object AggLet {
   def apply(name: Name, value: IR, body: IR, isScan: Boolean): IR = {
