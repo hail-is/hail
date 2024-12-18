@@ -11,6 +11,7 @@ import mill.scalalib.Assembly._
 import mill.scalalib.TestModule.TestNg
 import mill.scalalib.scalafmt.ScalafmtModule
 import mill.util.Jvm
+import os.Path
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
@@ -125,6 +126,8 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
 }
 
 object `package` extends RootModule with HailScalaModule { outer =>
+
+  override def millSourcePath: Path = super.millSourcePath / "modules"
 
   object env extends Module {
     def scalaVersion: T[String] = Task.Input {
