@@ -14,7 +14,7 @@ import org.testng.annotations.Test
 trait Z2Z { def apply(z: Boolean): Boolean }
 
 class ASM4SSuite extends HailSuite {
-  private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
+  override val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   @Test def not(): Unit = {
     val notb = FunctionBuilder[Z2Z](

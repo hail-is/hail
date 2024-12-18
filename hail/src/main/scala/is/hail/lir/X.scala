@@ -1,6 +1,8 @@
 package is.hail.lir
 
-import is.hail.asm4s._
+import is.hail.asm4s.{
+  arrayInfo, ByteInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo,
+}
 import is.hail.utils._
 
 import scala.collection.mutable
