@@ -49,7 +49,7 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 # mill integration
 
-MILL := bash millw
+MILL := bash mill
 MILLOPTS ?=
 
 .PHONY: mill-clean
