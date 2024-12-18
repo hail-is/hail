@@ -46,6 +46,7 @@ from .utils import (
     is_transient_error,
     parse_docker_image_reference,
     partition,
+    path_str,
     periodically_call,
     periodically_call_with_dynamic_sleep,
     retry_all_errors,

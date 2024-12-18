@@ -12,7 +12,7 @@ from hailtop.aiocloud.aioazure.fs import AzureAsyncFS
 from hailtop.aiotools import AsyncFS
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.config import ConfigVariable, configuration_of
-from hailtop.utils import async_to_blocking, secret_alnum_string, url_scheme
+from hailtop.utils import async_to_blocking, path_str, secret_alnum_string, url_scheme
 
 from . import job
 from . import resource as _resource
@@ -424,14 +424,6 @@ class Batch:
         return jrf
 
     async def _new_input_resource_file(self, input_path, root=None):
-        if isinstance(input_path, str):
-            pass
-        elif isinstance(input_path, os.PathLike):
-            # Avoid os.fspath(), which causes some pathlikes to return a path to a downloaded copy instead.
-            input_path = str(input_path)
-        else:
-            raise BatchException(f"path value is neither string nor path-like. Found '{type(input_path)}' instead.")
-
         await self._backend.validate_file(input_path, self.requester_pays_project)
 
         # Take care not to include an Azure SAS token query string in the local name.
@@ -501,7 +493,7 @@ class Batch:
         return async_to_blocking(self._async_read_input(path))
 
     async def _async_read_input(self, path: Union[str, os.PathLike]) -> _resource.InputResourceFile:
-        return await self._new_input_resource_file(path)
+        return await self._new_input_resource_file(path_str(path))
 
     def read_input_group(self, **kwargs: Union[str, os.PathLike]) -> _resource.ResourceGroup:
         """Create a new resource group representing a mapping of identifier to
@@ -563,13 +555,14 @@ class Batch:
 
         root = secret_alnum_string(5)
         new_resources = {
-            name: async_to_blocking(self._new_input_resource_file(file, root)) for name, file in kwargs.items()
+            name: async_to_blocking(self._new_input_resource_file(path_str(file), root))
+            for name, file in kwargs.items()
         }
         rg = _resource.ResourceGroup(None, root, **new_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource: _resource.Resource, dest: str):
+    def write_output(self, resource: _resource.Resource, dest: Union[str, os.PathLike]):
         """
         Write resource file or resource file group to an output destination.
 
@@ -652,6 +645,8 @@ class Batch:
                 f"Hint: resources must be bound as a result "
                 f"using the PythonJob 'call' method"
             )
+
+        dest = path_str(dest)
 
         if isinstance(self._backend, LocalBackend):
             dest_scheme = url_scheme(dest)
