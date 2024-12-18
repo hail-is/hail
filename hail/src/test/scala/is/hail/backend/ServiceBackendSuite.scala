@@ -8,6 +8,7 @@ import is.hail.services._
 import is.hail.services.JobGroupStates.Success
 import is.hail.utils.{tokenUrlSafe, using}
 
+import scala.collection.mutable
 import scala.reflect.io.{Directory, Path}
 import scala.util.Random
 
@@ -102,6 +103,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
       jarSpec = GitRevision("123"),
       name = "name",
       theHailClassLoader = new HailClassLoader(getClass.getClassLoader),
+      references = mutable.Map.empty,
       batchClient = client,
       batchConfig = BatchConfig(batchId = Random.nextInt(), jobGroupId = Random.nextInt()),
       flags = flags,

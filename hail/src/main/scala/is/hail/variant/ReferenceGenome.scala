@@ -795,4 +795,19 @@ object ReferenceGenome {
 
   def getMapFromArray(arr: Array[ReferenceGenome]): Map[String, ReferenceGenome] =
     arr.map(rg => (rg.name, rg)).toMap
+
+  def addFatalOnCollision(
+    existing: mutable.Map[String, ReferenceGenome],
+    newReferences: IndexedSeq[ReferenceGenome],
+  ): Unit =
+    for (rg <- newReferences) {
+      if (existing.get(rg.name).exists(_ != rg))
+        fatal(
+          s"Cannot add reference genome '${rg.name}', a different reference with that name already exists. " ++
+            "Choose a reference name NOT in the following list:" ++
+            existing.keys.toFastSeq.sorted.mkString(start = "\n  ", sep = "\n  ", end = "")
+        )
+
+      existing += (rg.name -> rg)
+    }
 }

@@ -128,7 +128,7 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(backend.references)
+  def stateManager = HailStateManager(backend.references.toMap)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
