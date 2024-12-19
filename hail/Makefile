@@ -62,50 +62,50 @@ mill-clean:
 # be recomputed.
 FORCE:
 
-SHADOW_JAR := out/assembly.dest/out.jar
+SHADOW_JAR := out/hail/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
 $(SHADOW_JAR): FORCE
-	$(MILL) $(MILLOPTS) assembly
+	$(MILL) $(MILLOPTS) hail.assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
 
-NON_SHADOW_JAR := out/jar.dest/out.jar
+NON_SHADOW_JAR := out/hail/jar.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
-	$(MILL) $(MILLOPTS) jar
+	$(MILL) $(MILLOPTS) hail.jar
 
-SHADOW_TEST_JAR := out/test/assembly.dest/out.jar
+SHADOW_TEST_JAR := out/hail/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): FORCE
-	$(MILL) $(MILLOPTS) test.assembly
+	$(MILL) $(MILLOPTS) hail.test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
-EXTRA_CLASSPATH := out/writeRunClasspath.dest/runClasspath
+EXTRA_CLASSPATH := out/hail/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
-	$(MILL) $(MILLOPTS) writeRunClasspath
+	$(MILL) $(MILLOPTS) hail.writeRunClasspath
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test:
-	$(MILL) $(MILLOPTS) test testng.xml
+	$(MILL) $(MILLOPTS) hail.test testng.xml
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test:
-	$(MILL) $(MILLOPTS) test testng-services.xml
+	$(MILL) $(MILLOPTS) hail.test testng-services.xml
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
@@ -118,7 +118,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(MILL) $(MILLOPTS) test testng-fs.xml
+	$(MILL) $(MILLOPTS) hail.test testng-fs.xml
 
 # end mill integration
 
@@ -505,15 +505,15 @@ test: pytest jvm-test doctest
 
 .PHONY: native-lib native-lib-test native-lib-clean native-lib-prebuilt native-lib-reset-prebuilt
 native-lib:
-	$(MAKE) -C src/main/c
+	$(MAKE) -C c
 native-lib-test:
-	$(MAKE) -C src/main/c test
+	$(MAKE) -C c test
 native-lib-clean:
-	$(MAKE) -C src/main/c clean
+	$(MAKE) -C c clean
 native-lib-prebuilt:
-	$(MAKE) -C src/main/c prebuilt
+	$(MAKE) -C c prebuilt
 native-lib-reset-prebuilt:
-	$(MAKE) -C src/main/c reset-prebuilt
+	$(MAKE) -C c reset-prebuilt
 
 clean-libs:
 	rm -rf libs
