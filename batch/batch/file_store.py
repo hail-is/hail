@@ -4,7 +4,7 @@ from typing import Optional
 
 import pandas as pd
 
-from hailtop.aiotools.fs import AsyncFS
+from hailtop.aiotools.fs import AsyncFS, ReadableStream
 
 from .batch_format_version import BatchFormatVersion
 from .globals import BATCH_FORMAT_VERSION
@@ -44,13 +44,16 @@ class FileStore:
             return f'{self.batch_log_dir(batch_id)}/{job_id}/{task}/jvm_profile.html'
         return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/{task}/jvm_profile.html'
 
-    async def read_log_file(self, format_version, batch_id, job_id, attempt_id, task) -> bytes:
+    async def open_log_file(self, format_version, batch_id, job_id, attempt_id, task) -> ReadableStream:
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
-        return await self.fs.read(url)
+        return await self.fs.open(url)
 
-    async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data: bytes):
+    async def write_log_file(self, format_version, batch_id, job_id, attempt_id, task, data: ReadableStream):
         url = self.log_path(format_version, batch_id, job_id, attempt_id, task)
-        await self.fs.write(url, data)
+        log.info(f'Starting to write {url}')
+        async with await self.fs.create(url, retry_writes=False) as f:
+            while b := await data.read(8 * 1024**2):
+                await f.write(b)
 
     async def write_jvm_profile(self, format_version, batch_id, job_id, attempt_id, task, data):
         url = self.jvm_profile_path(format_version, batch_id, job_id, attempt_id, task)
