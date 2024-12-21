@@ -3,19 +3,18 @@ import logging
 import os
 import ssl
 from ssl import Purpose
-from typing import Dict
+from typing import Dict, Optional
 
 log = logging.getLogger('hailtop.tls')
-_server_ssl_context = None
-_client_ssl_context = None
 
 
 class NoSSLConfigFound(Exception):
     pass
 
 
-def _get_ssl_config() -> Dict[str, str]:
-    config_dir = os.environ.get('HAIL_SSL_CONFIG_DIR', '/ssl-config')
+def _get_ssl_config(config_dir: Optional[str] = None) -> Dict[str, str]:
+    if config_dir is None:
+        config_dir = os.environ.get('HAIL_SSL_CONFIG_DIR', '/ssl-config')
     config_file = f'{config_dir}/ssl-config.json'
     if os.path.isfile(config_file):
         log.info(f'ssl config file found at {config_file}')
@@ -37,36 +36,28 @@ def check_ssl_config(ssl_config: Dict[str, str]):
     log.info('using tls and verifying client and server certificates')
 
 
-def internal_server_ssl_context() -> ssl.SSLContext:
-    global _server_ssl_context
-    if _server_ssl_context is None:
-        ssl_config = _get_ssl_config()
-        _server_ssl_context = ssl.create_default_context(
-            purpose=Purpose.CLIENT_AUTH, cafile=ssl_config['incoming_trust']
-        )
-        _server_ssl_context.load_cert_chain(ssl_config['cert'], keyfile=ssl_config['key'], password=None)
-        _server_ssl_context.verify_mode = ssl.CERT_OPTIONAL
-        # FIXME: mTLS
-        # _server_ssl_context.verify_mode = ssl.CERT_REQURIED
-        _server_ssl_context.check_hostname = False  # clients have no hostnames
-    return _server_ssl_context
+def internal_server_ssl_context(config_dir: Optional[str] = None) -> ssl.SSLContext:
+    ssl_config = _get_ssl_config(config_dir)
+    server_ssl_context = ssl.create_default_context(purpose=Purpose.CLIENT_AUTH, cafile=ssl_config['incoming_trust'])
+    server_ssl_context.load_cert_chain(ssl_config['cert'], keyfile=ssl_config['key'], password=None)
+    server_ssl_context.verify_mode = ssl.CERT_OPTIONAL
+    # FIXME: mTLS
+    # server_ssl_context.verify_mode = ssl.CERT_REQURIED
+    server_ssl_context.check_hostname = False  # clients have no hostnames
+    return server_ssl_context
 
 
-def internal_client_ssl_context() -> ssl.SSLContext:
-    global _client_ssl_context
-    if _client_ssl_context is None:
-        ssl_config = _get_ssl_config()
-        _client_ssl_context = ssl.create_default_context(
-            purpose=Purpose.SERVER_AUTH, cafile=ssl_config['outgoing_trust']
-        )
-        # setting cafile in `create_default_context` ignores the system default
-        # certificates. We must explicitly request them again with
-        # load_default_certs.
-        _client_ssl_context.load_default_certs()
-        _client_ssl_context.load_cert_chain(ssl_config['cert'], keyfile=ssl_config['key'], password=None)
-        _client_ssl_context.verify_mode = ssl.CERT_REQUIRED
-        _client_ssl_context.check_hostname = True
-    return _client_ssl_context
+def internal_client_ssl_context(*, check_hostname: bool = True) -> ssl.SSLContext:
+    ssl_config = _get_ssl_config()
+    client_ssl_context = ssl.create_default_context(purpose=Purpose.SERVER_AUTH, cafile=ssl_config['outgoing_trust'])
+    # setting cafile in `create_default_context` ignores the system default
+    # certificates. We must explicitly request them again with
+    # load_default_certs.
+    client_ssl_context.load_default_certs()
+    client_ssl_context.load_cert_chain(ssl_config['cert'], keyfile=ssl_config['key'], password=None)
+    client_ssl_context.verify_mode = ssl.CERT_REQUIRED
+    client_ssl_context.check_hostname = check_hostname
+    return client_ssl_context
 
 
 def external_client_ssl_context() -> ssl.SSLContext:

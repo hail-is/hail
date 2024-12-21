@@ -6,8 +6,15 @@ FROM $BASE_IMAGE
 RUN curl -LO https://dl.k8s.io/release/v1.21.14/bin/linux/amd64/kubectl && \
     install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && \
     hail-apt-get-install openssl openjdk-11-jdk-headless && \
-    sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf && \
-    hail-pip-install pyyaml
+    sed -i 's/^RANDFILE/#RANDFILE/' /etc/ssl/openssl.cnf
 
-COPY config.yaml /
-COPY create_certs.py create_test_db_config.sh /
+COPY hail/python/hailtop/pinned-requirements.txt hailtop-requirements.txt
+RUN hail-pip-install -r hailtop-requirements.txt
+
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN hail-pip-install /hailtop
+
+COPY tls/config.yaml /
+COPY tls/create_certs.py tls/create_test_db_config.sh /
