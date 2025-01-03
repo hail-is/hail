@@ -672,10 +672,10 @@ class TableIRSuite extends HailSuite {
 
   // Catches a bug in the partitioner created by the importer.
   @Test def testTableJoinOfImport(): Unit = {
-    val mnr = MatrixNativeReader(fs, "src/test/resources/sample.vcf.mt")
+    val mnr = MatrixNativeReader(fs, getResource("/sample.vcf.mt"))
     val mt2 = MatrixRead(mnr.fullMatrixType, false, false, mnr)
     val t2 = MatrixRowsTable(mt2)
-    val mt = importVCF(ctx, "src/test/resources/sample.vcf")
+    val mt = importVCF(ctx, getResource("/sample.vcf"))
     var t: TableIR = MatrixRowsTable(mt)
     t = TableMapRows(
       t,
@@ -686,7 +686,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testNativeReaderWithOverlappingPartitions(): Unit = {
-    val path = "src/test/resources/sample.vcf-20-partitions-with-overlap.mt/rows"
+    val path = getResource("/sample.vcf-20-partitions-with-overlap.mt/rows")
     // i1 overlaps the first two partitions
     val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
 

@@ -92,6 +92,8 @@ class HailSuite extends TestNGSuite {
       throw new RuntimeException(s"method stopped spark context!")
   }
 
+  def getResource(path: String): String = getClass.getResource(path).getPath
+
   def withExecuteContext[T]()(f: ExecuteContext => T)(implicit E: Enclosing): T =
     hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext(f)
 
