@@ -2,6 +2,10 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.DeprecatedIRBuilder._
+import is.hail.expr.ir.defs.{
+  AggFilter, AggGroupBy, ApplyAggOp, ApplyBinaryPrimOp, Cast, GetField, I32, Ref, StreamAggScan,
+  StreamRange, TableAggregate, ToArray, ToStream,
+}
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.types.virtual._
 import is.hail.utils.{toRichIterable, FastSeq}

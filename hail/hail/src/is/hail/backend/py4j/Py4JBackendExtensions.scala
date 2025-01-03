@@ -4,11 +4,11 @@ import is.hail.HailFeatureFlags
 import is.hail.backend.{Backend, ExecuteContext, NonOwningTempFileManager, TempFileManager}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IR, IRParser,
-  IRParserEnvironment, Interpret, MatrixIR, MatrixNativeReader, MatrixRead, Name,
-  NativeReaderOptions, TableIR, TableLiteral, TableValue,
+  BaseIR, BindingEnv, BlockMatrixIR, IR, IRParser, IRParserEnvironment, Interpret, MatrixIR,
+  MatrixNativeReader, MatrixRead, Name, NativeReaderOptions, TableIR, TableLiteral, TableValue,
 }
 import is.hail.expr.ir.IRParser.parseType
+import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.linalg.RowMatrix
 import is.hail.types.physical.PStruct

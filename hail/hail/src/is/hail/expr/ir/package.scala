@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.asm4s._
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.rvd.RVDPartitioner
@@ -37,9 +38,9 @@ package object ir {
 
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
-  def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean): ir.IR =
-    bindIR(if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang, irPred)) { pred =>
-      ir.If(ir.IsNA(pred), ir.False(), pred)
+  def filterPredicateWithKeep(irPred: IR, keep: Boolean): IR =
+    bindIR(if (keep) irPred else ApplyUnaryPrimOp(Bang, irPred)) { pred =>
+      If(IsNA(pred), False(), pred)
     }
 
   def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =

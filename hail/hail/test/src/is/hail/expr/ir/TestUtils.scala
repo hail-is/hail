@@ -1,5 +1,9 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{
+  ApplyAggOp, ApplyScanOp, F64, I32, Literal, MakeArray, MakeStream, MakeStruct, MakeTuple, NA, Ref,
+  TableAggregate, TableCollect, ToDict, ToSet, ToStream,
+}
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import is.hail.variant.Call

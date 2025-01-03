@@ -4,6 +4,9 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.Extract
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.defs.{
+  ApplyIR, Begin, Let, RunAgg, RunAggScan, StreamAgg, StreamAggScan, StreamFor,
+}
 import is.hail.utils._
 
 final class IrMetadata() {

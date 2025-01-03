@@ -6,6 +6,7 @@ import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.EmitType
@@ -253,7 +254,7 @@ class Aggs(
       FastSeq(),
       FastSeq(classInfo[Region]),
       UnitInfo,
-      ir.DeserializeAggs(0, 0, spec, states),
+      DeserializeAggs(0, 0, spec, states),
     )
 
     val fsBc = ctx.fsBc;
@@ -274,7 +275,7 @@ class Aggs(
       FastSeq(),
       FastSeq(classInfo[Region]),
       UnitInfo,
-      ir.SerializeAggs(0, 0, spec, states),
+      SerializeAggs(0, 0, spec, states),
     )
 
     val fsBc = ctx.fsBc;
@@ -312,8 +313,8 @@ class Aggs(
       FastSeq(classInfo[Region]),
       UnitInfo,
       Begin(FastSeq(
-        ir.DeserializeAggs(0, 0, spec, states),
-        ir.DeserializeAggs(nAggs, 1, spec, states),
+        DeserializeAggs(0, 0, spec, states),
+        DeserializeAggs(nAggs, 1, spec, states),
         Begin(aggs.zipWithIndex.map { case (sig, i) => CombOp(i, i + nAggs, sig) }),
         SerializeAggs(0, 0, spec, states),
       )),

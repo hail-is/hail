@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs._
 import is.hail.io.fs.FS
 import is.hail.io.vcf.{LoadVCF, VCFHeaderInfo}
 import is.hail.types.physical.stypes._

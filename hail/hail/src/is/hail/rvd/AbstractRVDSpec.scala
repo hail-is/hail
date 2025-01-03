@@ -5,9 +5,10 @@ import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.compatibility
 import is.hail.expr.{ir, JSONAnnotationImpex}
 import is.hail.expr.ir.{
-  flatMapIR, IR, Literal, PartitionNativeReader, PartitionZippedIndexedNativeReader,
-  PartitionZippedNativeReader, ReadPartition, Ref, ToStream,
+  flatMapIR, IR, PartitionNativeReader, PartitionZippedIndexedNativeReader,
+  PartitionZippedNativeReader,
 }
+import is.hail.expr.ir.defs.{Literal, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io._
 import is.hail.io.fs.FS
@@ -190,9 +191,9 @@ object AbstractRVDSpec {
             )
           }
 
-        val contexts = ir.ToStream(ir.Literal(TArray(reader.contextType), contextsValues))
+        val contexts = ToStream(Literal(TArray(reader.contextType), contextsValues))
 
-        val body = (ctx: IR) => ir.ReadPartition(ctx, requestedType, reader)
+        val body = (ctx: IR) => ReadPartition(ctx, requestedType, reader)
 
         { (globals: IR) =>
           val ts = TableStage(
@@ -250,7 +251,7 @@ abstract class AbstractRVDSpec {
       val rSpec = typedCodecSpec
 
       val ctxType = TStruct("partitionIndex" -> TInt64, "partitionPath" -> TString)
-      val contexts = ir.ToStream(ir.Literal(
+      val contexts = ToStream(Literal(
         TArray(ctxType),
         absolutePartPaths(path).zipWithIndex.map {
           case (x, i) => Row(i.toLong, x)
@@ -258,7 +259,7 @@ abstract class AbstractRVDSpec {
       ))
 
       val body = (ctx: IR) =>
-        ir.ReadPartition(ctx, requestedType.rowType, ir.PartitionNativeReader(rSpec, uidFieldName))
+        ReadPartition(ctx, requestedType.rowType, PartitionNativeReader(rSpec, uidFieldName))
 
       (globals: IR) =>
         TableStage(
@@ -561,10 +562,10 @@ case class IndexedRVDSpec2(
           globals,
           newPartitioner,
           TableStageDependency.none,
-          contexts = ir.ToStream(ir.Literal(TArray(TArray(reader.contextType)), nestedContexts)),
+          contexts = ToStream(Literal(TArray(TArray(reader.contextType)), nestedContexts)),
           body = (ctxs: Ref) =>
             flatMapIR(ToStream(ctxs, true)) { ctx =>
-              ir.ReadPartition(ctx, requestedType.rowType, reader)
+              ReadPartition(ctx, requestedType.rowType, reader)
             },
         )
       }

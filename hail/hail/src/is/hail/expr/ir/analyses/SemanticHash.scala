@@ -2,6 +2,7 @@ package is.hail.expr.ir.analyses
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{MatrixRangeReader, _}
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToValueFunction}
 import is.hail.io.fs.FS
 import is.hail.io.vcf.MatrixVCFReader

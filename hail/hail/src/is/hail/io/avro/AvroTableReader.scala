@@ -2,6 +2,10 @@ package is.hail.io.avro
 
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs.{
+  ArrayZipBehavior, Cast, I32, Literal, MakeStruct, PartitionReader, ReadPartition, StreamIota,
+  ToStream,
+}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.VirtualTypeWithReq

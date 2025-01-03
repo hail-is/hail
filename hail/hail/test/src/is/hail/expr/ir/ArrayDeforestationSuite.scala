@@ -1,6 +1,9 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.expr.ir.defs.{
+  GetField, GetTupleElement, If, MakeStruct, MakeTuple, StreamRange, ToArray, ToStream,
+}
 import is.hail.utils._
 
 import org.apache.spark.sql.Row

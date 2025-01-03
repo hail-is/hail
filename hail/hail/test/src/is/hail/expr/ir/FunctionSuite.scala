@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.asm4s._
+import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, ErrorIDs, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._

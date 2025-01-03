@@ -8,6 +8,7 @@ import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix

@@ -2,8 +2,10 @@ package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.{
-  mapIR, Apply, Ascending, Descending, ErrorIDs, GetField, I32, Literal, LoweringAnalyses,
-  MakeStruct, Ref, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream,
+  mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
+}
+import is.hail.expr.ir.defs.{
+  Apply, ErrorIDs, GetField, I32, Literal, MakeStruct, Ref, SelectFields, ToArray, ToStream,
 }
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable

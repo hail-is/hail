@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.Ref
+
 object Env {
   type K = Name
 

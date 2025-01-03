@@ -1,8 +1,7 @@
 package is.hail.expr
 
-import is.hail.expr.ir.{
-  BaseIR, BlockMatrixRead, BlockMatrixWrite, MatrixRead, MatrixWrite, TableRead, TableWrite,
-}
+import is.hail.expr.ir.{BaseIR, BlockMatrixRead, MatrixRead, TableRead}
+import is.hail.expr.ir.defs.{BlockMatrixWrite, MatrixWrite, TableWrite}
 import is.hail.utils._
 
 case class ValidateState(writeFilePaths: Set[String])

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.defs._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.rvd.PartitionBoundOrdering
 import is.hail.types.tcoerce

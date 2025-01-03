@@ -3,6 +3,7 @@ package is.hail.expr.ir.analyses
 import is.hail.{HAIL_PRETTY_VERSION, HailSuite}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs._
 import is.hail.io.fs.{FS, FakeFS, FakeURL, FileListEntry}
 import is.hail.linalg.BlockMatrixMetadata
 import is.hail.rvd.AbstractRVDSpec

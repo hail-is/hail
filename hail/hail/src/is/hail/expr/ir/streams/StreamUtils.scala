@@ -3,9 +3,11 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{
-  EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Name, Ref,
-  RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor,
-  StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin,
+  EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IR, Name, StagedArrayBuilder,
+}
+import is.hail.expr.ir.defs.{
+  NDArrayMap, NDArrayMap2, Ref, RunAggScan, StreamFilter, StreamFlatMap, StreamFold, StreamFold2,
+  StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin,
 }
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct}

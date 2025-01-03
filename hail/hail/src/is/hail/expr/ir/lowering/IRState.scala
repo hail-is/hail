@@ -1,8 +1,7 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{
-  BaseIR, RelationalLet, RelationalRef, TableKeyBy, TableKeyByAndAggregate, TableOrderBy,
-}
+import is.hail.expr.ir.{BaseIR, TableKeyBy, TableKeyByAndAggregate, TableOrderBy}
+import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
 
 trait IRState {
 

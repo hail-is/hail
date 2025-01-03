@@ -1,5 +1,10 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{
+  AggArrayPerElement, AggExplode, AggFilter, AggFold, AggGroupBy, ApplyAggOp, ApplyScanOp, Block,
+  MatrixAggregate, RelationalLet, TableAggregate,
+}
+
 object UsesAggEnv {
   def apply(ir0: BaseIR, i: Int): Boolean = ir0 match {
     case Block(bindings, _) if i < bindings.length =>

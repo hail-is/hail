@@ -3,7 +3,8 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{Memory, Region}
 import is.hail.asm4s._
 import is.hail.expr.{Nat, NatVariable}
-import is.hail.expr.ir._
+import is.hail.expr.ir.{freshName, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.defs.{NDArrayMap, NDArrayMap2, Ref}
 import is.hail.linalg.{LAPACK, LinalgCodeUtils}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType

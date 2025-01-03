@@ -6,6 +6,7 @@ import is.hail.TestUtils._
 import is.hail.annotations.SafeNDArray
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner

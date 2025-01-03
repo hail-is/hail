@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs._
+
 case class ScopedDepth(eval: Int, agg: Int, scan: Int) {
   def incrementEval: ScopedDepth = ScopedDepth(eval + 1, agg, scan)
 
