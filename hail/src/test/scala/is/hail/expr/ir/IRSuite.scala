@@ -3716,23 +3716,23 @@ class IRSuite extends HailSuite {
           "index_bgen",
           TInt64,
           Array[Type](TLocus("GRCh37")),
-          Str("src/test/resources/example.8bits.bgen"),
-          Str("src/test/resources/example.8bits.bgen.idx2"),
+          Str(getTestResource("example.8bits.bgen")),
+          Str(getTestResource("example.8bits.bgen.idx2")),
           Literal(TDict(TString, TString), Map("01" -> "1")),
           False(),
           I32(1000000),
         ),
       )
 
-      val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
+      val tableRead = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
       val read =
-        MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
       val range = MatrixIR.range(3, 7, None)
-      val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
+      val vcf = is.hail.TestUtils.importVCF(ctx, getTestResource("sample.vcf"))
 
       val bgenReader = MatrixBGENReader(
         ctx,
-        FastSeq("src/test/resources/example.8bits.bgen"),
+        FastSeq(getTestResource("example.8bits.bgen")),
         None,
         Map.empty[String, String],
         None,
@@ -3839,7 +3839,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
     val read =
-      BlockMatrixRead(BlockMatrixNativeReader(fs, "src/test/resources/blockmatrix_example/0"))
+      BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
     val transpose = BlockMatrixBroadcast(read, FastSeq(1, 0), FastSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
     val slice = BlockMatrixSlice(read, FastSeq(FastSeq(0, 2, 1), FastSeq(0, 1, 1)))
@@ -4055,7 +4055,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
-    Array(VEP(fs, "src/test/resources/dummy_vep_config.json", false, 1, true)),
+    Array(VEP(fs, getTestResource("dummy_vep_config.json"), false, 1, true)),
     Array(WrappedMatrixToTableFunction(
       LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")),
       "foo",

@@ -90,7 +90,7 @@ class UtilsSuite extends HailSuite {
   @Test def testSortFileListEntry(): Unit = {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
-    val partFileNames = fs.glob("src/test/resources/part-*")
+    val partFileNames = fs.glob(getTestResource("part-*"))
       .sortBy(fileListEntry => getPartNumber(fileListEntry.getPath)).map(_.getPath.split(
         "/"
       ).last)
