@@ -145,4 +145,5 @@ __all__ = [
     'rich_progress_bar',
     'time_ns',
     'am_i_interactive',
+    'path_str',
 ]
