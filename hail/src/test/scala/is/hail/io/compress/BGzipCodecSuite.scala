@@ -53,10 +53,10 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
 }
 
 class BGzipCodecSuite extends HailSuite {
-  val uncompPath = "src/test/resources/sample.vcf"
+  val uncompPath = getTestResource("sample.vcf")
 
   // is actually a bgz file
-  val gzPath = "src/test/resources/sample.vcf.gz"
+  val gzPath = getTestResource("sample.vcf.gz")
 
   /* bgz.test.sample.vcf.bgz was created as follows:
    * - split sample.vcf into 60-line chunks: `split -l 60 sample.vcf sample.vcf.`
@@ -64,7 +64,7 @@ class BGzipCodecSuite extends HailSuite {
    * - bgzip compressed the chunks
    * - stripped the empty terminate block in chunks except ad and ag (the last)
    * - concatenated the chunks */
-  val compPath = "src/test/resources/bgz.test.sample.vcf.bgz"
+  val compPath = getTestResource("bgz.test.sample.vcf.bgz")
 
   def compareLines(lines2: IndexedSeq[String], lines: IndexedSeq[String]): Unit = {
     val n2 = lines2.length

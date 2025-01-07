@@ -11,7 +11,7 @@ import org.testng.asserts.SoftAssert
 class TabixSuite extends HailSuite {
   // use .gz for several tests and .bgz for another to test handling of both
   // extensions.
-  val vcfFile = "src/test/resources/trioDup.vcf"
+  val vcfFile = getTestResource("trioDup.vcf")
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
@@ -21,7 +21,7 @@ class TabixSuite extends HailSuite {
     hc // reference to initialize
 
   @Test def testLargeNumberOfSequences(): Unit = {
-    val tbx = new TabixReader(null, fs, Some("src/test/resources/large-tabix.tbi"))
+    val tbx = new TabixReader(null, fs, Some(getTestResource("large-tabix.tbi")))
     // known length of sequences
     assert(tbx.index.seqs.length == 3366)
   }
@@ -132,10 +132,10 @@ class TabixSuite extends HailSuite {
   }
 
   @Test def testLineIterator2(): Unit =
-    _testLineIterator2("src/test/resources/sample.vcf.bgz")
+    _testLineIterator2(getTestResource("sample.vcf.bgz"))
 
   @Test def testWriter(): Unit = {
-    val vcfFile = "src/test/resources/sample.vcf.bgz"
+    val vcfFile = getTestResource("sample.vcf.bgz")
     val path = ctx.createTmpPath("test-tabix-write", "bgz")
     fs.copy(vcfFile, path)
     TabixVCF(fs, vcfFile)
