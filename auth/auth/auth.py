@@ -6,6 +6,7 @@ import re
 import typing
 from contextlib import AsyncExitStack
 from typing import List, NoReturn, Optional
+from urllib.parse import urlparse
 
 import aiohttp_session
 import kubernetes_asyncio.client
@@ -37,6 +38,8 @@ from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
+
+from hail.python.hailtop.hailctl.dev.cli import deploy
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .exceptions import (
@@ -196,10 +199,11 @@ def validate_next_page_url(next_page):
     if not next_page:
         raise web.HTTPBadRequest('Invalid next page: empty')
     valid_next_services = ['batch', 'auth']
-    for service in valid_next_services:
-        if next_page.startswith(deploy_config.external_url(service, '')):
-            return
-    raise web.HTTPBadRequest(f'Invalid next page: {next_page}')
+    valid_next_domains = [urlparse(deploy_config.domain(s)).netloc for s in valid_next_services]
+    actual_next_page_domain = urlparse(next_page).netloc
+
+    if not actual_next_page_domain in valid_next_domains:
+        raise web.HTTPBadRequest(f'Invalid next page: {next_page}')
 
 
 @routes.get('/healthcheck')
