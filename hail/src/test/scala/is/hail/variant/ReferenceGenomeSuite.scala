@@ -141,9 +141,9 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testFasta(): Unit = {
-    val fastaFile = "src/test/resources/fake_reference.fasta"
-    val fastaFileGzip = "src/test/resources/fake_reference.fasta.gz"
-    val indexFile = "src/test/resources/fake_reference.fasta.fai"
+    val fastaFile = getTestResource("fake_reference.fasta")
+    val fastaFileGzip = getTestResource("fake_reference.fasta.gz")
+    val indexFile = getTestResource("fake_reference.fasta.fai")
 
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
 
