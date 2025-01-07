@@ -223,7 +223,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
         login_id = session['login_id']
         user = await user_from_login_id(db, login_id)
 
-        next_url = deploy_config.external_url('auth', '/user')
+        next_url = deploy_config.external_url('auth', deploy_config.external_url('auth', '/user'))
         next_page = session.pop('next', next_url)
         validate_next_page_url(next_page)
 
