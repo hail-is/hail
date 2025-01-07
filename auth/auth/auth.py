@@ -195,7 +195,7 @@ def cleanup_session(session):
 def validate_next_page_url(next_page):
     if not next_page:
         raise web.HTTPBadRequest('Invalid next page: empty')
-    valid_next_services = [ 'batch', 'auth' ]
+    valid_next_services = ['batch', 'auth']
     for service in valid_next_services:
         if next_page.startswith(deploy_config.external_url(service, '')):
             return
