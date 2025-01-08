@@ -195,13 +195,13 @@ def cleanup_session(session):
 
 def validate_next_page_url(next_page):
     if not next_page:
-        raise web.HTTPBadRequest('Invalid next page: empty')
+        raise web.HTTPBadRequest(text='Invalid next page: empty')
     valid_next_services = ['batch', 'auth']
     valid_next_domains = [urlparse(deploy_config.domain(s)).netloc for s in valid_next_services]
     actual_next_page_domain = urlparse(next_page).netloc
 
     if actual_next_page_domain not in valid_next_domains:
-        raise web.HTTPBadRequest(f'Invalid next page: {next_page}')
+        raise web.HTTPBadRequest(text=f'Invalid next page: {next_page}')
 
 
 @routes.get('/healthcheck')
