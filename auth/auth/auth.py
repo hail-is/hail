@@ -197,11 +197,14 @@ def validate_next_page_url(next_page):
     if not next_page:
         raise web.HTTPBadRequest(text='Invalid next page: empty')
     valid_next_services = ['batch', 'auth']
-    valid_next_domains = [urlparse(deploy_config.domain(s)).netloc for s in valid_next_services]
+    valid_next_urls = [deploy_config.external_url(s, '/') for s in valid_next_services]
+    valid_next_domains = [urlparse(url).netloc for url in valid_next_urls]
     actual_next_page_domain = urlparse(next_page).netloc
 
     if actual_next_page_domain not in valid_next_domains:
-        raise web.HTTPBadRequest(text=f'Invalid next page: {next_page}. Domain {actual_next_page_domain} not in {valid_next_domains} (calculated from {[deploy_config.domain(s) for s in valid_next_services]})')
+        raise web.HTTPBadRequest(text=f'Invalid next page: {next_page}. Domain {actual_next_page_domain} not in {valid_next_domains} (calculated from {[valid_next_urls]})')
+    else:
+        raise web.HTTPBadRequest(text=f'Valid next page: {next_page}. Domain {actual_next_page_domain} IS in {valid_next_domains} (calculated from {[valid_next_urls]})')
 
 
 @routes.get('/healthcheck')
