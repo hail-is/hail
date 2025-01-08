@@ -38,8 +38,6 @@ from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
-
-from hail.python.hailtop.hailctl.dev.cli import deploy
 from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from .exceptions import (
