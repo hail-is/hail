@@ -200,7 +200,7 @@ def validate_next_page_url(next_page):
     valid_next_domains = [urlparse(deploy_config.domain(s)).netloc for s in valid_next_services]
     actual_next_page_domain = urlparse(next_page).netloc
 
-    if not actual_next_page_domain in valid_next_domains:
+    if actual_next_page_domain not in valid_next_domains:
         raise web.HTTPBadRequest(f'Invalid next page: {next_page}')
 
 
