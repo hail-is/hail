@@ -14,11 +14,7 @@ info:
     url: 'https://hail.is/static/hail-logo-cropped-sm-opt.png'
     altText: Hail logo
   description: >
-    Hail is a ....
-    These services are for ....
-externalDocs:
-  description: "Find out how to create a GitHub repo for your OpenAPI definition."
-  url: 'https://github.com/Redocly/create-openapi-repo'
+    Hail batch is a service for running arbitrary jobs at scale.
 tags:
   - name: Public Server Information
     description: "Operations for retrieving basic public information from the service."
@@ -33,16 +29,7 @@ tags:
   - name: UI Support
 servers:
   - url: {{ base_url }}
-    description: "Current Batch service. No risk of CORS issues."
-  - url: https://batch.hail.is/
-    description: "GCP Production Batch service. Beware CORS issues in swagger / browsers."
-  - url: https://batch.azure.hail.is/
-    description: "Azure Production Batch service. Beware CORS issues in swagger / browsers."
-  - url: https://internal.hail.is/{devname}/batch/
-    description: "Developer Batch service. Beware CORS issues in swagger / browsers."
-    variables:
-      devname:
-        description: Developer environment name
+    description: "Current Batch service."
 paths:
   '/api/v1alpha/version':
     get:
