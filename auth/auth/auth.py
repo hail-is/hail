@@ -201,7 +201,7 @@ def validate_next_page_url(next_page):
     actual_next_page_domain = urlparse(next_page).netloc
 
     if actual_next_page_domain not in valid_next_domains:
-        raise web.HTTPBadRequest(text=f'Invalid next page: {next_page}. Domain {actual_next_page_domain} not in {valid_next_domains}')
+        raise web.HTTPBadRequest(text=f'Invalid next page: {next_page}. Domain {actual_next_page_domain} not in {valid_next_domains} (calculated from {[deploy_config.domain(s) for s in valid_next_services]})')
 
 
 @routes.get('/healthcheck')
