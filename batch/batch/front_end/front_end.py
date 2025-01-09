@@ -236,7 +236,7 @@ def deprecated(fun):
 async def get_healthcheck(_) -> web.Response:
     r = web.Response()
     r.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
-    return
+    return r
 
 
 @routes.get('/api/v1alpha/version')
