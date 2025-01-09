@@ -4,7 +4,7 @@ from .web_common import (
     sass_compile,
     set_message,
     setup_aiohttp_jinja2,
-    setup_common_static_routes
+    setup_common_static_routes,
 )
 
 __all__ = [
