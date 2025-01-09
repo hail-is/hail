@@ -202,8 +202,6 @@ def validate_next_page_url(next_page):
 
     if actual_next_page_domain not in valid_next_domains:
         raise web.HTTPBadRequest(text=f'Invalid next page: \'{next_page}\'. Domain \'{actual_next_page_domain}\' not in {valid_next_domains}')
-    else:
-        raise web.HTTPBadRequest(text='Yup that was good.')
 
 
 @routes.get('/healthcheck')
