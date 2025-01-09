@@ -232,7 +232,29 @@ def deprecated(fun):
     return wrapped
 
 
+def api_security_headers(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        return response
+
+    return wrapped
+
+
+def web_security_headers(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        response.headers['Content-Security-Policy'] = 'default-src \'self\'; frame-ancestors \'self\';'
+        return response
+
+    return wrapped
+
+
 @routes.get('/healthcheck')
+@api_security_headers
 async def get_healthcheck(_) -> web.Response:
     r = web.Response()
     r.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
@@ -240,17 +262,20 @@ async def get_healthcheck(_) -> web.Response:
 
 
 @routes.get('/api/v1alpha/version')
+@api_security_headers
 async def rest_get_version(_) -> web.Response:
     return web.Response(text=version())
 
 
 @routes.get('/api/v1alpha/cloud')
+@api_security_headers
 async def rest_cloud(_) -> web.Response:
     return web.Response(text=CLOUD)
 
 
 @routes.get('/api/v1alpha/supported_regions')
 @auth.authenticated_users_only()
+@api_security_headers
 async def rest_get_supported_regions(request: web.Request, _) -> web.Response:
     return json_response(list(request.app['regions'].keys()))
 
@@ -3017,6 +3042,7 @@ async def ui_get_billing_projects(request, userdata):
 
 @routes.get('/api/v1alpha/billing_projects')
 @auth.authenticated_users_only()
+@web_security_headers
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
 
