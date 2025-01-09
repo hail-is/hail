@@ -1214,15 +1214,15 @@ paths:
                   default: false
                   example: true
         requestBody:
-            content:
+          content:
             application/json:
                 schema:
                 type: object
         responses:
-            '200':
+          '200':
             description: "Successfully edited the billing limits."
             content:
-                application/json:
+              application/json:
                 schema:
                     type: object
   '/billing_projects':
@@ -1425,7 +1425,7 @@ paths:
     get:
       summary: "Swagger UI"
       description: "Render the swagger UI page, or (dev only) its supporting jinja context"
-      operationId: getOpenAPI
+      operationId: getSwaggerUi
       tags:
         - UI Support
       parameters:
