@@ -377,7 +377,7 @@ class MatrixIRSuite extends HailSuite {
   }
 
   @Test def testMatrixMultiWriteDifferentTypesRaisesError(): Unit = {
-    val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(ctx, getTestResource("sample.vcf"))
     val range = rangeMatrix(10, 2, None)
     val path1 = ctx.createTmpPath("test1")
     val path2 = ctx.createTmpPath("test2")

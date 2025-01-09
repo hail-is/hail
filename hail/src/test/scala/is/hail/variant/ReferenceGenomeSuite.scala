@@ -236,7 +236,7 @@ class ReferenceGenomeSuite extends HailSuite {
   @Test def testSerializeWithLiftoverOnFB(): Unit = {
     withExecuteContext() { ctx =>
       val grch37 = ctx.getReference(ReferenceGenome.GRCh37)
-      val liftoverFile = "src/test/resources/grch37_to_grch38_chr20.over.chain.gz"
+      val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
 
       grch37.addLiftover(ctx, liftoverFile, "GRCh38")
 
