@@ -23,12 +23,12 @@ CREATE TABLE `users` (
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB;
 
-CREATE TABLE `inactive` (
+CREATE TABLE `users_activity` (
 
 )
 
 CREATE EVENT `disable_inactive`
-    ON SCHEDULE EVERY 60 MINUTE
+    ON SCHEDULE EVERY 1 DAY
     ON COMPLETION PRESERVE
     DO
         UPDATE users
