@@ -3414,7 +3414,7 @@ async def swagger(request):
 
 @routes.get('/openapi.yaml')
 async def openapi(request):
-    page_context = {'base_path': deploy_config.base_path('batch')}
+    page_context = {'base_path': deploy_config.base_path('batch'), 'spec_version': version}
     return await render_template('batch', request, None, 'openapi.yaml', page_context)
 
 

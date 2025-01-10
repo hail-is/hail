@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  version: 0.2.133
+  version: {{ spec_version }}
   title: Hail Services
   # termsOfService: TBC
   contact:
