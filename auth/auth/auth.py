@@ -37,7 +37,14 @@ from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
-from web_common import api_security_headers, render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes, web_security_headers
+from web_common import (
+    api_security_headers,
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from .exceptions import (
     AuthUserError,

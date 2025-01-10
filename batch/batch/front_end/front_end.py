@@ -70,7 +70,14 @@ from hailtop.utils import (
     time_msecs,
     time_msecs_str,
 )
-from web_common import api_security_headers, web_security_headers, render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import (
+    api_security_headers,
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE

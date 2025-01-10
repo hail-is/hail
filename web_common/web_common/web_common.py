@@ -1,5 +1,6 @@
 import importlib
 import os
+from functools import wraps
 from typing import Any, Dict, Optional
 
 import aiohttp_jinja2
@@ -7,7 +8,6 @@ import aiohttp_session
 import jinja2
 import sass
 from aiohttp import web
-from functools import wraps
 
 from gear import UserData, new_csrf_token
 from hailtop.config import get_deploy_config

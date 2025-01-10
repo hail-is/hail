@@ -37,7 +37,14 @@ from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
-from web_common import api_security_headers, render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes, web_security_headers
+from web_common import (
+    api_security_headers,
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from .constants import AUTHORIZED_USERS, TEAMS
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
