@@ -1,13 +1,12 @@
 CREATE TABLE `users` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `state` VARCHAR(100) NOT NULL,
-  -- creating, active, deleting, deleted
+  -- creating, active, deleting, deleted, inactive
   `username` varchar(255) NOT NULL COLLATE utf8mb4_0900_as_cs,
   `login_id` varchar(255) DEFAULT NULL COLLATE utf8mb4_0900_as_cs,
   `display_name` varchar(255) DEFAULT NULL,
   `is_developer` tinyint(1) NOT NULL DEFAULT 0,
   `is_service_account` tinyint(1) NOT NULL DEFAULT 0,
-  `last_active` DATETIME NOT NULL,
   -- session
   `tokens_secret_name` varchar(255) DEFAULT NULL,
   -- identity
@@ -17,20 +16,24 @@ CREATE TABLE `users` (
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
   `trial_bp_name` varchar(300) DEFAULT NULL,
+  -- "last active" tracking
+  `last_active` TIMESTAMP NOT NULL DEFAULT NOW(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB;
 
+CREATE TABLE `inactive` (
+
+)
+
 CREATE EVENT `disable_inactive`
-    ON SCHEDULE EVERY 5 MINUTE
+    ON SCHEDULE EVERY 60 MINUTE
     ON COMPLETION PRESERVE
     DO
-        DELETE FROM users
-        WHERE (users.last_active IS NOT NULL) AND (DATEDIFF(day, NOW(), users.last_active) > 180);
-        -- placeholder: 180 days of inactivity
-        -- TBD: this is going to be more involved than just deleting users.
-        -- Updating last_active will be addressed elsewhere (e.g. when one submits a job).
+        UPDATE users
+        SET users.state = 'inactive'
+        WHERE (users.last_active IS NOT NULL) AND (DATEDIFF(CURRENT_DATE(), users.last_active) > 180);
 
 CREATE TABLE `sessions` (
   `session_id` VARCHAR(255) NOT NULL,
