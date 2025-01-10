@@ -5,6 +5,8 @@ from .web_common import (
     set_message,
     setup_aiohttp_jinja2,
     setup_common_static_routes,
+    api_security_headers,
+    web_security_headers,
 )
 
 __all__ = [
@@ -14,4 +16,6 @@ __all__ = [
     'set_message',
     'base_context',
     'render_template',
+    'api_security_headers',
+    'web_security_headers',
 ]

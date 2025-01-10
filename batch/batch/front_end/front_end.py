@@ -70,7 +70,7 @@ from hailtop.utils import (
     time_msecs,
     time_msecs_str,
 )
-from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import api_security_headers, web_security_headers, render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
 from ..batch_configuration import BATCH_STORAGE_URI, CLOUD, DEFAULT_NAMESPACE, SCOPE
@@ -232,25 +232,25 @@ def deprecated(fun):
     return wrapped
 
 
-def api_security_headers(fun):
-    @wraps(fun)
-    async def wrapped(request, *args, **kwargs):
-        response = await fun(request, *args, **kwargs)
-        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
-        return response
-
-    return wrapped
-
-
-def web_security_headers(fun):
-    @wraps(fun)
-    async def wrapped(request, *args, **kwargs):
-        response = await fun(request, *args, **kwargs)
-        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
-        response.headers['Content-Security-Policy'] = 'default-src \'self\' fonts.googleapis.com fonts.gstatic.com; script-src \'unsafe-eval\' cdn.jsdelivr.net; frame-ancestors \'self\';'
-        return response
-
-    return wrapped
+# def api_security_headers(fun):
+#     @wraps(fun)
+#     async def wrapped(request, *args, **kwargs):
+#         response = await fun(request, *args, **kwargs)
+#         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+#         return response
+#
+#     return wrapped
+#
+#
+# def web_security_headers(fun):
+#     @wraps(fun)
+#     async def wrapped(request, *args, **kwargs):
+#         response = await fun(request, *args, **kwargs)
+#         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+#         response.headers['Content-Security-Policy'] = 'default-src \'self\' fonts.googleapis.com fonts.gstatic.com; script-src \'unsafe-eval\' cdn.jsdelivr.net; frame-ancestors \'self\';'
+#         return response
+#
+#     return wrapped
 
 
 @routes.get('/healthcheck')

@@ -7,6 +7,7 @@ import aiohttp_session
 import jinja2
 import sass
 from aiohttp import web
+from functools import wraps
 
 from gear import UserData, new_csrf_token
 from hailtop.config import get_deploy_config
@@ -103,3 +104,23 @@ async def render_template(
     response = aiohttp_jinja2.render_template(file, request, context)
     response.set_cookie('_csrf', csrf_token, secure=True, httponly=True, samesite='strict')
     return response
+
+def api_security_headers(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        return response
+
+    return wrapped
+
+def web_security_headers(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        response.headers[
+            'Content-Security-Policy'] = 'default-src \'self\' fonts.googleapis.com fonts.gstatic.com; script-src \'unsafe-eval\' cdn.jsdelivr.net; frame-ancestors \'self\';'
+        return response
+
+    return wrapped
