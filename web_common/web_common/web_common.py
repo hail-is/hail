@@ -122,6 +122,19 @@ def web_security_headers(fun):
         response = await fun(request, *args, **kwargs)
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
         response.headers['Content-Security-Policy'] = (
+            'default-src \'self\' fonts.googleapis.com fonts.gstatic.com; script-src cdn.jsdelivr.net; frame-ancestors \'self\';'
+        )
+        return response
+
+    return wrapped
+
+
+def web_security_headers_unsafe_eval(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        response.headers['Content-Security-Policy'] = (
             'default-src \'self\' fonts.googleapis.com fonts.gstatic.com; script-src \'unsafe-eval\' cdn.jsdelivr.net; frame-ancestors \'self\';'
         )
         return response
