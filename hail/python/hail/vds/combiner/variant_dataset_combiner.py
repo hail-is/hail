@@ -144,11 +144,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     reference_genome : :class:`.ReferenceGenome`
         The reference genome to which all inputs (GVCFs and Variant Datasets) are aligned.
     branch_factor : :class:`int`
-        The number of Variant Datasets to combine at once.
+        The maximum number of input GVCFs or Variant Datasets combined into a single VDS.
     target_records : :class:`int`
         The target number of variants per partition.
     gvcf_batch_size : :class:`int`
-        The number of GVCFs to combine into a Variant Dataset at once.
+        The number of simultaneous GVCF merge tasks to combine into a single step of the combiner.
     contig_recoding : :class:`dict` mapping :class:`str` to :class:`str` or :obj:`None`
         This mapping is applied to GVCF contigs before importing them into Hail. This is used to
         handle GVCFs containing invalid contig names. For example, GRCh38 GVCFs which contain the
