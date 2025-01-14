@@ -877,7 +877,7 @@ WHERE (users.state = 'active' OR users.state = 'inactive') AND sessions.session_
     if len(users) != 1:
         return None
 
-    if users[0]['state'] == 'active' and len(users) == 1:
+    if users[0]['state'] == 'active':
         current_uid = users[0]['id']
         await db.execute_update(
             """
