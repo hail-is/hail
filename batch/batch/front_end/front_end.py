@@ -3413,6 +3413,18 @@ async def index(request: web.Request, _) -> NoReturn:
     raise web.HTTPFound(location=location)
 
 
+@routes.get('/swagger')
+async def swagger(request):
+    page_context = {'service': 'batch', 'base_path': deploy_config.base_path('batch')}
+    return await render_template('batch', request, None, 'swagger.html', page_context)
+
+
+@routes.get('/openapi.yaml')
+async def openapi(request):
+    page_context = {'base_path': deploy_config.base_path('batch'), 'spec_version': version()}
+    return await render_template('batch', request, None, 'openapi.yaml', page_context)
+
+
 async def cancel_batch_loop_body(app):
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
