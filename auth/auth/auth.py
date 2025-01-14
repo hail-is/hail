@@ -867,7 +867,7 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
 SELECT users.*
 FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
-WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
+WHERE (users.state = 'active' OR users.state = 'inactive') AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 """,
             session_id,
             'get_userinfo',
@@ -876,6 +876,18 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
 
     if len(users) != 1:
         return None
+
+    if users[0]['state'] == 'active' and len(users) == 1:
+        current_uid = users[0]['id']
+        await db.execute_update(
+            """
+UPDATE users
+SET last_active = NOW()
+WHERE id = %s;
+""",
+            current_uid,
+        )
+
     return typing.cast(UserData, users[0])
 
 
