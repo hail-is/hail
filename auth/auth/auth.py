@@ -38,7 +38,14 @@ from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
-from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import (
+    api_security_headers,
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from .exceptions import (
     AuthUserError,
@@ -207,6 +214,7 @@ def validate_next_page_url(next_page):
 
 
 @routes.get('/healthcheck')
+@api_security_headers
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
 
@@ -214,12 +222,14 @@ async def get_healthcheck(_) -> web.Response:
 @routes.get('')
 @routes.get('/')
 @auth.maybe_authenticated_user
+@web_security_headers
 async def get_index(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
 @auth.maybe_authenticated_user
+@web_security_headers
 async def creating_account(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     db = request.app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
@@ -258,6 +268,7 @@ async def creating_account(request: web.Request, userdata: Optional[UserData]) -
 
 
 @routes.get('/creating/wait')
+@web_security_headers
 async def creating_account_wait(request):
     session = await aiohttp_session.get_session(request)
     if 'pending' not in session:
@@ -298,6 +309,7 @@ async def _wait_websocket(request, login_id):
 
 
 @routes.get('/signup')
+@web_security_headers
 async def signup(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
     validate_next_page_url(next_page)
@@ -314,6 +326,7 @@ async def signup(request) -> NoReturn:
 
 
 @routes.get('/login')
+@web_security_headers
 async def login(request) -> NoReturn:
     next_page = request.query.get('next', deploy_config.external_url('auth', '/user'))
     validate_next_page_url(next_page)
@@ -330,6 +343,7 @@ async def login(request) -> NoReturn:
 
 
 @routes.get('/oauth2callback')
+@web_security_headers
 async def callback(request) -> web.Response:
     session = await aiohttp_session.get_session(request)
     if 'flow' not in session:
@@ -406,6 +420,7 @@ async def callback(request) -> web.Response:
 
 
 @routes.post('/api/v1alpha/users/{user}/create')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def create_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -438,6 +453,7 @@ async def create_user(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/user')
+@web_security_headers
 @auth.authenticated_users_only()
 async def user_page(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
@@ -453,6 +469,7 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 
 
 @routes.post('/copy-paste-token')
+@web_security_headers
 @auth.authenticated_users_only()
 async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.Response:
     session = await aiohttp_session.get_session(request)
@@ -464,6 +481,7 @@ async def get_copy_paste_token(request: web.Request, userdata: UserData) -> web.
 
 
 @routes.post('/api/v1alpha/copy-paste-token')
+@api_security_headers
 @auth.authenticated_users_only()
 async def get_copy_paste_token_api(request: web.Request, _) -> web.Response:
     session_id = await get_session_id(request)
@@ -473,6 +491,7 @@ async def get_copy_paste_token_api(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/logout')
+@web_security_headers
 @auth.maybe_authenticated_user
 async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn:
     if not userdata:
@@ -489,6 +508,7 @@ async def logout(request: web.Request, userdata: Optional[UserData]) -> NoReturn
 
 
 @routes.get('/api/v1alpha/login')
+@api_security_headers
 async def rest_login(request: web.Request) -> web.Response:
     callback_port = request.query['callback_port']
     callback_uri = f'http://127.0.0.1:{callback_port}/oauth2callback'
@@ -504,12 +524,14 @@ async def rest_login(request: web.Request) -> web.Response:
 
 
 @routes.get('/api/v1alpha/oauth2-client')
+@api_security_headers
 async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
     idp = IdentityProvider.GOOGLE if CLOUD == 'gcp' else IdentityProvider.MICROSOFT
     return json_response({'idp': idp.value, 'oauth2_client': request.app[AppKeys.HAILCTL_CLIENT_CONFIG]})
 
 
 @routes.get('/roles')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -519,6 +541,7 @@ async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/roles')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def post_create_role(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -540,6 +563,7 @@ VALUES (%s);
 
 
 @routes.get('/users')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_users(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -549,6 +573,7 @@ async def get_users(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/users')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def post_create_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -574,6 +599,7 @@ async def post_create_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/api/v1alpha/users')
+@api_security_headers
 @auth.authenticated_users_only()
 async def rest_get_users(request: web.Request, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 and userdata['username'] != 'ci':
@@ -589,6 +615,7 @@ FROM users;
 
 
 @routes.get('/api/v1alpha/users/{user}')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def rest_get_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -628,6 +655,7 @@ WHERE {' AND '.join(where_conditions)};
 
 
 @routes.post('/users/delete')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def delete_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -646,6 +674,7 @@ async def delete_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.delete('/api/v1alpha/users/{user}')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def rest_delete_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -660,6 +689,7 @@ async def rest_delete_user(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/api/v1alpha/oauth2callback')
+@api_security_headers
 async def rest_callback(request):
     flow_json = request.query.get('flow')
     if flow_json is None:
@@ -698,6 +728,7 @@ async def rest_callback(request):
 
 
 @routes.post('/api/v1alpha/copy-paste-login')
+@api_security_headers
 async def rest_copy_paste_login(request):
     copy_paste_token = request.query['copy_paste_token']
     db = request.app[AppKeys.DB]
@@ -724,6 +755,7 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/logout')
+@api_security_headers
 @auth.authenticated_users_only()
 async def rest_logout(request: web.Request, _) -> web.Response:
     session_id = await get_session_id(request)
@@ -800,12 +832,14 @@ WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.m
 
 
 @routes.get('/api/v1alpha/userinfo')
+@api_security_headers
 @auth.authenticated_users_only()
 async def userinfo(_, userdata: UserData) -> web.Response:
     return json_response(userdata)
 
 
 @routes.route('*', '/api/v1alpha/verify_dev_credentials', name='verify_dev')
+@api_security_headers
 @auth.authenticated_users_only()
 async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1:
@@ -814,6 +848,7 @@ async def verify_dev_credentials(_, userdata: UserData) -> web.Response:
 
 
 @routes.route('*', '/api/v1alpha/verify_dev_or_sa_credentials', name='verify_dev_or_sa')
+@api_security_headers
 @auth.authenticated_users_only()
 async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
