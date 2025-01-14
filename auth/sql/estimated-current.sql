@@ -29,7 +29,7 @@ CREATE EVENT `disable_inactive`
     DO
         UPDATE users
         SET users.state = 'inactive'
-        WHERE (users.state = 'active') AND (users.last_active IS NOT NULL) AND (DATEDIFF(CURRENT_DATE(), users.last_active) > 180);
+        WHERE (users.state = 'active') AND (users.last_active IS NOT NULL) AND (DATEDIFF(CURRENT_DATE(), users.last_active) > 60);
 
 CREATE TABLE `sessions` (
   `session_id` VARCHAR(255) NOT NULL,
