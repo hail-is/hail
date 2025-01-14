@@ -53,7 +53,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && sh mill __.checkFormat + __.fix --check
+	cd hail && sh mill --no-server __.checkFormat + __.fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
