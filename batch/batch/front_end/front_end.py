@@ -3053,7 +3053,7 @@ async def ui_get_billing(request, userdata):
 
 @routes.get('/billing_projects')
 @auth.authenticated_developers_only()
-@web_security_headers
+@web_security_headers(unsafe_eval = True)
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
