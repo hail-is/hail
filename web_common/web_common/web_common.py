@@ -129,10 +129,14 @@ def web_security_header_generator(fun, unsafe_eval: bool):
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+
+        default_src = 'default-src \'self\';'
+        style_src = 'style-src \'self\' \'unsafe-inline\' fonts.googleapis.com fonts.gstatic.com;'
         unsafe_eval_maybe = '\'unsafe-eval\'' if unsafe_eval else ''
-        response.headers['Content-Security-Policy'] = (
-            f'default-src \'self\'; font-src \'self\' fonts.googleapis.com fonts.gstatic.com; style-src \'self\' \'unsafe-inline\'; script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly; frame-ancestors \'self\';'
-        )
+        script_src = f'script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly;'
+        frame_ancestors = 'frame-ancestors \'self\';'
+
+        response.headers['Content-Security-Policy'] = f'{default_src} {style_src} {script_src} {frame_ancestors}'
         return response
 
     return wrapped
