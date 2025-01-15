@@ -2345,6 +2345,9 @@ steps:
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
         online: true
+      - name: add-users-last-active
+        script: /io/sql/add-users-last-active.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
