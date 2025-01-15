@@ -77,6 +77,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_unsafe_eval,
 )
 
 from ..batch import batch_record_to_dict, cancel_job_group_in_db, job_group_record_to_dict, job_record_to_dict
@@ -3052,7 +3053,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@web_security_headers
+@web_security_headers_unsafe_eval
 @auth.authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):

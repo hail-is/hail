@@ -7,6 +7,7 @@ from .web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_unsafe_eval,
 )
 
 __all__ = [
@@ -18,4 +19,5 @@ __all__ = [
     'render_template',
     'api_security_headers',
     'web_security_headers',
+    'web_security_headers_unsafe_eval',
 ]
