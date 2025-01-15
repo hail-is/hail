@@ -12,7 +12,7 @@ source $HAIL/devbin/functions.sh
 copy_images() {
     make -C $HAIL/docker/third-party copy
 
-    make -C $HAIL/hail python/hail/hail_pip_version
+    make -C $HAIL/hail python/hail/version.py
     make -C $HAIL/docker/hailgenetics mirror-dockerhub-images
 }
 
@@ -49,7 +49,7 @@ generate_ssl_certs() {
 deploy_unmanaged() {
     export NAMESPACE=default
 
-    make -C $HAIL/hail python/hailtop/hail_version
+    make -C $HAIL/hail python/hailtop/version.py
 
     copy_images
     generate_ssl_certs

@@ -14,7 +14,7 @@ HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetic
 CI_IMAGES = ci-utils hail-buildkit base hail-run
 PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
-HAILTOP_VERSION := hail/python/hailtop/hail_version
+HAILTOP_VERSION := hail/python/hailtop/version.py
 SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files hail/python/hailtop gear web_common)
 
 EMPTY :=
@@ -110,7 +110,7 @@ generate-pip-lockfiles:
 	./generate-pip-lockfile.sh ci
 
 $(HAILTOP_VERSION):
-	$(MAKE) -C hail python/hailtop/hail_version
+	$(MAKE) -C hail python-version-info
 
 
 %-image: IMAGE_NAME = $(patsubst %-image,%,$@):$(TOKEN)

@@ -15,6 +15,7 @@ import hail
 from hail.expr import construct_expr
 from hail.ir import JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
+from hail.version import __version__
 
 from ..hail_logging import Logger
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
@@ -197,15 +198,13 @@ class Py4JBackend(Backend):
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
         install_exception_handler()
-        from hail.context import version
 
-        py_version = version()
         jar_version = self._jhc.version()
-        if jar_version != py_version:
+        if jar_version != __version__:
             raise RuntimeError(
                 f"Hail version mismatch between JAR and Python library\n"
                 f"  JAR:    {jar_version}\n"
-                f"  Python: {py_version}"
+                f"  Python: {__version__}"
             )
 
     def jvm(self):
