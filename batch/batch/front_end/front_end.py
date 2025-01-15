@@ -2223,7 +2223,7 @@ async def delete_batch(request: web.Request, _, batch_id: int) -> web.Response:
 
 
 @routes.get('/batches/{batch_id}')
-@web_security_headers
+@web_security_headers_unsafe_eval
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_batch(request, userdata, batch_id):
@@ -2706,7 +2706,7 @@ async def ui_get_jvm_profile(request: web.Request, _, batch_id: int) -> web.Resp
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@web_security_headers
+@web_security_headers_unsafe_eval
 @billing_project_users_only()
 @catch_ui_error_in_dev
 async def ui_get_job(request, userdata, batch_id):
@@ -3005,7 +3005,7 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@web_security_headers
+@web_security_headers_unsafe_eval
 @auth.authenticated_users_only()
 @catch_ui_error_in_dev
 async def ui_get_billing(request, userdata):
