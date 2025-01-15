@@ -132,11 +132,14 @@ def web_security_header_generator(fun, unsafe_eval: bool):
 
         default_src = 'default-src \'self\';'
         style_src = 'style-src \'self\' \'unsafe-inline\' fonts.googleapis.com fonts.gstatic.com;'
+        font_src = 'font-src \'self\' fonts.gstatic.com;'
         unsafe_eval_maybe = '\'unsafe-eval\'' if unsafe_eval else ''
         script_src = f'script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly;'
         frame_ancestors = 'frame-ancestors \'self\';'
 
-        response.headers['Content-Security-Policy'] = f'{default_src} {style_src} {script_src} {frame_ancestors}'
+        response.headers['Content-Security-Policy'] = (
+            f'{default_src} {font_src} {style_src} {script_src} {frame_ancestors}'
+        )
         return response
 
     return wrapped
