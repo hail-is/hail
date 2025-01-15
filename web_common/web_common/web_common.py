@@ -116,18 +116,23 @@ def api_security_headers(fun):
     return wrapped
 
 
-def web_security_headers(unsafe_eval: bool = False):
-    def decorator(fun):
-        @wraps(fun)
-        async def wrapped(request, *args, **kwargs):
-            response = await fun(request, *args, **kwargs)
-            response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
-            unsafe_eval_maybe = '\'unsafe-eval\'' if unsafe_eval else ''
-            response.headers['Content-Security-Policy'] = (
-                f'default-src \'self\'; font-src \'self\' fonts.googleapis.com fonts.gstatic.com; style-src \'self\' \'unsafe-inline\'; script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly; frame-ancestors \'self\';'
-            )
-            return response
+def web_security_headers(fun):
+    return web_security_header_generator(fun, False)
 
-        return wrapped
 
-    return decorator
+def web_security_headers_unsafe_eval(fun):
+    return web_security_header_generator(fun, True)
+
+
+def web_security_header_generator(fun, unsafe_eval: bool):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        unsafe_eval_maybe = '\'unsafe-eval\'' if unsafe_eval else ''
+        response.headers['Content-Security-Policy'] = (
+            f'default-src \'self\'; font-src \'self\' fonts.googleapis.com fonts.gstatic.com; style-src \'self\' \'unsafe-inline\'; script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly; frame-ancestors \'self\';'
+        )
+        return response
+
+    return wrapped
