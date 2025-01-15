@@ -3052,7 +3052,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@web_security_headers(unsafe_eval=True)
+@web_security_headers()
 @auth.authenticated_developers_only()
 @catch_ui_error_in_dev
 async def ui_get_billing_projects(request, userdata):
