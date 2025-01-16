@@ -64,14 +64,8 @@ class AccessLogger(AbstractAccessLogger):
         }
 
         userdata_maybe = request.get('userdata', {})
-        if 'username' in userdata_maybe:
-            extra['username'] = userdata_maybe['username']
-        if 'login_id' in userdata_maybe:
-            extra['login_id'] = userdata_maybe['login_id']
-        if 'is_developer' in userdata_maybe:
-            extra['is_developer'] = userdata_maybe['is_developer']
-        if 'hail_identity' in userdata_maybe:
-            extra['hail_identity'] = userdata_maybe['hail_identity']
+        userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity']
+        extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
 
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} ' f'done in {time}s: {response.status}',
