@@ -1681,7 +1681,14 @@ class BatchDriverAccessLogger(AccessLogger):
             if path_expr.fullmatch(request.path) and method == request.method:
                 return
 
-        super().log(request, response, time)
+        self.logger.info(
+            f'{request.remote} '
+            f'"{request.method} {request.path} '
+            f'done in {time}s: {response.status}'
+            f'userdata: {request.userdata}'
+        )
+
+        # super().log(request, response, time)
 
 
 async def on_startup(app):
