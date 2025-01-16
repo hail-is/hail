@@ -73,7 +73,6 @@ class AccessLogger(AbstractAccessLogger):
         if 'hail_identity' in userdata_maybe:
             extra['hail_identity'] = userdata_maybe['hail_identity']
 
-
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} ' f'done in {time}s: {response.status}',
             extra={**extra, **request.get('batch_telemetry', {})},
