@@ -65,5 +65,5 @@ class AccessLogger(AbstractAccessLogger):
 
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} ' f'done in {time}s: {response.status}',
-            extra={**extra, **request.get('batch_telemetry', {})},
+            extra={**extra, **request.get('batch_telemetry', {}), **request.get('userdata', {})},
         )
