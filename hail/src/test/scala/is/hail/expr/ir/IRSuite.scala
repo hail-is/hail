@@ -3261,8 +3261,8 @@ class IRSuite extends HailSuite {
         "index_bgen",
         TInt64,
         Array[Type](TLocus("GRCh37")),
-        Str("src/test/resources/example.8bits.bgen"),
-        Str("src/test/resources/example.8bits.bgen.idx2"),
+        Str(getTestResource("example.8bits.bgen")),
+        Str(getTestResource("example.8bits.bgen.idx2")),
         Literal(TDict(TString, TString), Map("01" -> "1")),
         False(),
         I32(1000000),
@@ -3312,11 +3312,11 @@ class IRSuite extends HailSuite {
     val table = TableRange(100, 10)
 
     val mt = MatrixIR.range(20, 2, Some(3))
-    val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(ctx, getTestResource("sample.vcf"))
 
     val bgenReader = MatrixBGENReader(
       ctx,
-      FastSeq("src/test/resources/example.8bits.bgen"),
+      FastSeq(getTestResource("example.8bits.bgen")),
       None,
       Map.empty[String, String],
       None,
@@ -3326,7 +3326,7 @@ class IRSuite extends HailSuite {
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix =
-      BlockMatrixRead(BlockMatrixNativeReader(fs, "src/test/resources/blockmatrix_example/0"))
+      BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
     val blockMatrixWriter = BlockMatrixNativeWriter("/path/to/file.bm", false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter("/path/to/prefix", false)
     val nd = MakeNDArray(
@@ -3601,9 +3601,9 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
+      val read = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
       val mtRead =
-        MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
       val b = True()
 
       val xs: Array[TableIR] = Array(

@@ -236,8 +236,8 @@ class BGzipCodecSuite extends HailSuite {
     // offsets into the uncompressed file
     val uncompBlockStarts = Array[Int](0, 326400, 652800, 913920)
 
-    val uncompPath = "src/test/resources/sample.vcf"
-    val compPath = "src/test/resources/sample.vcf.gz"
+    val uncompPath = getTestResource("sample.vcf")
+    val compPath = getTestResource("sample.vcf.gz")
 
     using(fs.openNoCompression(uncompPath)) { uncompIS =>
       using(new BGzipInputStream(fs.openNoCompression(compPath))) { decompIS =>

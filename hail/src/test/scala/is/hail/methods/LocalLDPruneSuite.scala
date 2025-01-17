@@ -111,7 +111,7 @@ class LocalLDPruneSuite extends HailSuite {
   val nCores = 4
 
   lazy val mt = Interpret(
-    TestUtils.importVCF(ctx, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10)),
+    TestUtils.importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
     ctx,
     false,
   ).toMatrixValue(Array("s"))
@@ -250,7 +250,7 @@ class LocalLDPruneSuite extends HailSuite {
     val actualR2 = new MultiArray2(
       7,
       7,
-      fs.readLines("src/test/resources/ldprune_corrtest.txt")(_.flatMap(_.map { line =>
+      fs.readLines(getTestResource("ldprune_corrtest.txt"))(_.flatMap(_.map { line =>
         line.trim.split("\t").map(r2 => if (r2 == "NA") None else Some(r2.toDouble))
       }.value).toArray),
     )
