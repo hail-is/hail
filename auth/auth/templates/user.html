@@ -3,7 +3,7 @@
 {% block title %}User{% endblock %}
 {% block content %}
 <div id="profile" class="vcentered space-y-2">
-  {% if logged_in %}
+  {% if userdata %}
   <h1 class='text-4xl mb-4'>{{ userdata['username'] }}</h1>
   <form action="{{ auth_base_url }}/logout" method="POST">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
