@@ -22,9 +22,10 @@
     {{ submit_button('Get a copy-paste login token') }}
   </form>
   {% else %}
-  <a class="header-link" href="{{ auth_base_url }}/login">
-    Login
-  </a>
+  <form action="{{ auth_base_url }}/login{{ next_page_param }}" method="POST">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    {{ submit_button('Log out') }}
+  </form>
   {% endif %}
   <p>
     <b>Notice:</b> The Hail system records your email address and IP address. Your email address
