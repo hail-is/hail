@@ -3,6 +3,7 @@
 {% block title %}User{% endblock %}
 {% block content %}
 <div id="profile" class="vcentered space-y-2">
+  {% if logged_in %}
   <h1 class='text-4xl mb-4'>{{ userdata['username'] }}</h1>
   <form action="{{ auth_base_url }}/logout" method="POST">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
@@ -20,11 +21,19 @@
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
     {{ submit_button('Get a copy-paste login token') }}
   </form>
+  {% else %}
+  <a class="header-link" href="{{ auth_base_url }}/login">
+    Login
+  </a>
+  {% endif %}
   <p>
     <b>Notice:</b> The Hail system records your email address and IP address. Your email address
     is recorded so that we can authenticate you. Your IP address is tracked as part of our
     surveillance of all traffic to and from the Hail system. This broad surveillance enables the
     protection of the Hail system from malicious actors.
+  </p>
+  <p>
+    By logging in and continuing to use the system, you agree to these terms of service.
   </p>
 </div>
 {% endblock %}
