@@ -454,7 +454,7 @@ async def create_user(request: web.Request, _) -> web.Response:
 
 @routes.get('/user')
 @web_security_headers
-@auth.maybe_authenticated_user()
+@auth.maybe_authenticated_user
 async def user_page(request: web.Request, userdata: UserData) -> web.Response:
     return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
 
