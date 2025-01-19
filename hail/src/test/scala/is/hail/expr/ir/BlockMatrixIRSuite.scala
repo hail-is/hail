@@ -251,6 +251,18 @@ class BlockMatrixIRSuite extends HailSuite {
     )
   }
 
+  @Test def foo(): Unit = {
+    var bm: BlockMatrixIR = BlockMatrixRead(BlockMatrixNativeReader(fs, "tmp.bm"))
+    bm = BlockMatrixAgg(bm, FastSeq(0))
+    assertEvalsTo(
+      BlockMatrixWrite(
+        bm,
+        BlockMatrixNativeWriter("tmp2.bm", true, true, false),
+      ),
+      (),
+    )
+  }
+
   @Test def readWriteBlockMatrix(): Unit = {
     val original = getTestResource("blockmatrix_example/0")
     val expected = BlockMatrix.read(ctx.fs, original).toBreezeMatrix()
