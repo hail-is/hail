@@ -69,7 +69,10 @@ package object services {
           ) || e.getMessage.contains("Unexpected end of file")) =>
         true
       case e: HttpResponseException
-          if e.getStatusCode() == 400 =>
+          if e.getStatusCode() == 400 && e.getMessage != null && (
+            e.getMessage.contains("Invalid grant: account not found") ||
+              e.getMessage.contains("{\"error\":\"unhandled_canonical_code_14\"}")
+          ) =>
         true
       case e: IOException
           if e.getMessage != null && e.getMessage.contains("Connection reset by peer") =>
@@ -181,6 +184,16 @@ package object services {
     }
   }
 
+  def isCPGMysteryError(_e: Throwable): Boolean = {
+    val e = is.hail.shadedazure.reactor.core.Exceptions.unwrap(_e)
+    e match {
+      case e: HttpResponseException
+          if e.getStatusCode() == 400 =>
+        true
+      case _ => false
+    }
+  }
+
   def retryTransientErrors[T](f: => T, reset: Option[() => Unit] = None): T = {
     var tries = 0
     while (true) {
@@ -196,6 +209,15 @@ package object services {
                 s"${5 - tries} more times. Do not be alarmed. (next delay: " +
                 s"$delay). The most recent error was $e."
             )
+          } else if (tries <= 10 && isCPGMysteryError(e)) {
+            val e2 = is.hail.shadedazure.reactor.core.Exceptions.unwrap(e)
+            val msg = e2.getMessage
+            val retrying = if (tries <= 9) " Retrying." else ""
+            if (msg != null) {
+              log.warn(s"Encountered CPG mystery 400 error: $e2 with message $msg.$retrying")
+            } else {
+              log.warn(s"Encountered CPG mystery 400 error: $e2 without message.$retrying")
+            }
           } else if (!isTransientError(e)) {
             throw e
           } else if (tries % 10 == 0) {
