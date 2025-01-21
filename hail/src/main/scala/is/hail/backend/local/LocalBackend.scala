@@ -4,8 +4,9 @@ import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend._
+import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
-import is.hail.expr.ir.{IRParser, _}
+import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
@@ -17,11 +18,12 @@ import is.hail.types.virtual.{BlockMatrixType, TVoid}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import java.io.PrintWriter
 
+import com.fasterxml.jackson.core.StreamReadConstraints
 import com.google.common.util.concurrent.MoreExecutors
 import org.apache.hadoop
 import sourcecode.Enclosing
@@ -35,6 +37,18 @@ class LocalTaskContext(val partitionId: Int, val stageId: Int) extends HailTaskC
 object LocalBackend {
   private var theLocalBackend: LocalBackend = _
 
+  // From https://github.com/hail-is/hail/issues/14580 :
+  //   IR can get quite big, especially as it can contain an arbitrary
+  //   amount of encoded literals from the user's python session. This
+  //   was a (controversial) restriction imposed by Jackson and should be lifted.
+  //
+  // We remove this restriction at the earliest point possible for each backend/
+  // This can't be unified since each backend has its own entry-point from python
+  // and its own specific initialisation code.
+  StreamReadConstraints.overrideDefaultStreamReadConstraints(
+    StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
+  )
+
   def apply(
     tmpdir: String,
     logFile: String = "hail.log",
@@ -47,8 +61,11 @@ object LocalBackend {
     if (!skipLoggingConfiguration)
       HailContext.configureLogging(logFile, quiet, append)
 
-    theLocalBackend = new LocalBackend(tmpdir)
-    theLocalBackend.addDefaultReferences()
+    theLocalBackend = new LocalBackend(
+      tmpdir,
+      mutable.Map(ReferenceGenome.builtinReferences().toSeq: _*),
+    )
+
     theLocalBackend
   }
 
@@ -64,18 +81,15 @@ object LocalBackend {
   }
 }
 
-class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache {
+class LocalBackend(
+  val tmpdir: String,
+  override val references: mutable.Map[String, ReferenceGenome],
+) extends Backend with BackendWithCodeCache with Py4JBackendExtensions {
 
-  private[this] val flags = HailFeatureFlags.fromEnv()
+  override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
+  override def longLifeTempFileManager: TempFileManager = null
+
   private[this] val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
-
-  def getFlag(name: String): String = flags.get(name)
-
-  def setFlag(name: String, value: String) = flags.set(name, value)
-
-  // called from python
-  val availableFlags: java.util.ArrayList[String] =
-    flags.available
 
   // flags can be set after construction from python
   def fs: FS = RouterFS.buildRoutes(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
@@ -188,81 +202,6 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
       val res = _jvmLowerAndExecute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       res
-    }
-
-  def executeLiteral(irStr: String): Int =
-    withExecuteContext { ctx =>
-      val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
-      assert(ir.typ.isRealizable)
-      execute(ctx, ir) match {
-        case Left(_) => throw new HailException("Can't create literal")
-        case Right((pt, addr)) =>
-          val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
-          addJavaIR(field)
-      }
-    }
-
-  def pyAddReference(jsonConfig: String): Unit = addReference(ReferenceGenome.fromJSON(jsonConfig))
-  def pyRemoveReference(name: String): Unit = removeReference(name)
-
-  def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    withExecuteContext(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
-
-  def pyRemoveLiftover(name: String, destRGName: String) =
-    references(name).removeLiftover(destRGName)
-
-  def pyFromFASTAFile(
-    name: String,
-    fastaFile: String,
-    indexFile: String,
-    xContigs: java.util.List[String],
-    yContigs: java.util.List[String],
-    mtContigs: java.util.List[String],
-    parInput: java.util.List[String],
-  ): String =
-    withExecuteContext { ctx =>
-      val rg = ReferenceGenome.fromFASTAFile(
-        ctx,
-        name,
-        fastaFile,
-        indexFile,
-        xContigs.asScala.toArray,
-        yContigs.asScala.toArray,
-        mtContigs.asScala.toArray,
-        parInput.asScala.toArray,
-      )
-      rg.toJSONString
-    }
-
-  def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    withExecuteContext(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
-
-  def pyRemoveSequence(name: String) = references(name).removeSequence()
-
-  def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
-    withExecuteContext { ctx =>
-      IRParser.parse_value_ir(
-        s,
-        IRParserEnvironment(ctx, persistedIR.toMap),
-        BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
-          Name(n) -> IRParser.parseType(t)
-        }.toSeq: _*),
-      )
-    }
-
-  def parse_table_ir(s: String): TableIR =
-    withExecuteContext { ctx =>
-      IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-    }
-
-  def parse_matrix_ir(s: String): MatrixIR =
-    withExecuteContext { ctx =>
-      IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
-    }
-
-  def parse_blockmatrix_ir(s: String): BlockMatrixIR =
-    withExecuteContext { ctx =>
-      IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
     }
 
   override def lowerDistributedSort(

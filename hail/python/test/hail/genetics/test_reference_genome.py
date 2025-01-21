@@ -194,7 +194,7 @@ def test_read_custom_reference_genome():
     # loading different reference genome with same name should fail
     # (different `test_rg_o` definition)
     with pytest.raises(FatalError):
-        hl.read_matrix_table(resource('custom_references_2.t')).count()
+        hl.read_table(resource('custom_references_2.t')).count()
 
     assert hl.read_matrix_table(resource('custom_references.mt')).count_rows() == 14
     assert_rg_loaded_correctly('test_rg_1')

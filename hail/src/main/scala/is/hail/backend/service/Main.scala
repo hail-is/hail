@@ -10,7 +10,7 @@ object Main {
   /* This constraint should be overridden as early as possible. See:
    * - https://github.com/hail-is/hail/issues/14580
    * - https://github.com/hail-is/hail/issues/14749
-   * - The note on this setting in is.hail.backend.Backend */
+   * - The note on this setting in is.hail.backend.Backend companion objects */
   StreamReadConstraints.overrideDefaultStreamReadConstraints(
     StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
   )

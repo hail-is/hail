@@ -99,9 +99,9 @@ class StagedMinHeapSuite extends HailSuite with StagedCoercionInstances {
     }.check()
 
   def withReferenceGenome[A](rg: ReferenceGenome)(f: => A): A = {
-    ctx.backend.addReference(rg)
+    ctx.backend.references += (rg.name -> rg)
     try f
-    finally ctx.backend.removeReference(rg.name)
+    finally ctx.backend.references.remove(rg.name)
   }
 
   def sort(xs: IndexedSeq[Int]): IndexedSeq[Int] =
