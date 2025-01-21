@@ -1,6 +1,8 @@
 *~
 *.o
 .*.crc
+*.out
+!**/resources/*.out
 .gradle/
 .idea/
 .vscode/
