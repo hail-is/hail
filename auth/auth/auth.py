@@ -203,7 +203,7 @@ def cleanup_session(session):
 def validate_next_page_url(next_page):
     if not next_page:
         raise web.HTTPBadRequest(text='Invalid next page: empty')
-    valid_next_services = ['batch', 'auth']
+    valid_next_services = ['batch', 'auth', 'ci', 'monitoring']
     valid_next_domains = [urlparse(deploy_config.external_url(s, '/')).netloc for s in valid_next_services]
     actual_next_page_domain = urlparse(next_page).netloc
 
