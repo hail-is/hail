@@ -1,91 +1,102 @@
 package is.hail.linalg
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.check._
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen._
-import is.hail.check.Prop._
 import is.hail.expr.ir.{CompileAndEvaluate, TableLiteral}
 import is.hail.expr.ir.defs.{GetField, TableCollect}
 import is.hail.linalg.BlockMatrix.ops._
+import is.hail.scalacheck._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
 
-import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
+import breeze.linalg.{*, diag, DenseMatrix, DenseVector => BDV}
 import org.apache.spark.sql.Row
+import org.scalacheck._
+import org.scalacheck.Arbitrary._
+import org.scalacheck.Gen.{size, _}
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class BlockMatrixSuite extends HailSuite {
+class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
+
+  val interestingPosInt: Gen[Int] =
+    oneOf(
+      oneOf(1, 2, Int.MaxValue - 1, Int.MaxValue),
+      choose(1, 100),
+      posNum[Int],
+    )
+
+  val nonExtremeDouble: Gen[Double] =
+    oneOf(
+      oneOf(1e30, -1.0, -1e-30, 0.0, 1e-30, 1.0, 1e30),
+      choose(-100.0, 100.0),
+      choose(-1e150, 1e150),
+    )
+
+  def blockMatrixGen(
+    blockSize: Gen[Int] = defaultBlockSize,
+    dims: Gen[(Int, Int)] = defaultDims,
+    element: Gen[Double] = arbitrary[Double],
+  ): Gen[BlockMatrix] =
+    for {
+      (nRows, nCols) <- dims
+      arrays <- containerOfN[Seq, Array[Double]](nRows, containerOfN[Array, Double](nCols, element))
+      blockSize <- blockSize
+      m = toBM(arrays, blockSize)
+    } yield m
+
+  val squareBlockMatrixGen: Gen[BlockMatrix] =
+    blockMatrixGen(
+      blockSize = interestingPosInt.map(math.sqrt(_).toInt),
+      dims = for {
+        size <- size
+        l <- interestingPosInt
+        s = math.sqrt(math.min(l, math.max(size, 1))).toInt
+      } yield (s, s),
+      element = arbitrary[Double],
+    )
+
+  val twoMultipliableBlockMatrices: Gen[(BlockMatrix, BlockMatrix)] =
+    for {
+      Array(nRows, innerDim, nCols) <- genNonEmptyNCubeOfVolumeAtMostSize(3)
+      blockSize <- interestingPosInt
+      if blockSize > 3 // 1 or 2 cause large numbers of partitions, leading to slow tests
+      l <- blockMatrixGen(const(blockSize), const(nRows -> innerDim), nonExtremeDouble)
+      r <- blockMatrixGen(const(blockSize), const(innerDim -> nCols), nonExtremeDouble)
+    } yield (l, r)
+
+  implicit val arbBlockMatrix: Arbitrary[BlockMatrix] =
+    Arbitrary(blockMatrixGen())
+
+  private val defaultBlockSize = choose(1, 1 << 6)
+  private val defaultDims = genNonEmptySquareOfAreaAtMostSize
 
   // row major
-  def toLM(nRows: Int, nCols: Int, data: Array[Double]): BDM[Double] =
-    new BDM(nRows, nCols, data, 0, nCols, isTranspose = true)
+  def toLM(nRows: Int, nCols: Int, data: Array[Double]): DenseMatrix[Double] =
+    new DenseMatrix(nRows, nCols, data, 0, nCols, isTranspose = true)
 
   def toBM(nRows: Int, nCols: Int, data: Array[Double]): BlockMatrix =
-    toBM(new BDM(nRows, nCols, data, 0, nRows, true))
+    toBM(new DenseMatrix(nRows, nCols, data, 0, nRows, true))
 
   def toBM(rows: Seq[Array[Double]]): BlockMatrix =
     toBM(rows, BlockMatrix.defaultBlockSize)
 
   def toBM(rows: Seq[Array[Double]], blockSize: Int): BlockMatrix = {
     val n = rows.length
-    val m = if (n == 0) 0 else rows(0).length
-
-    BlockMatrix.fromBreezeMatrix(new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
+    val m = if (rows.isEmpty) 0 else rows.head.length
+    BlockMatrix.fromBreezeMatrix(new DenseMatrix[Double](m, n, rows.flatten.toArray).t, blockSize)
   }
 
-  def toBM(lm: BDM[Double]): BlockMatrix =
+  def toBM(lm: DenseMatrix[Double]): BlockMatrix =
     toBM(lm, BlockMatrix.defaultBlockSize)
 
-  def toBM(lm: BDM[Double], blockSize: Int): BlockMatrix =
+  def toBM(lm: DenseMatrix[Double], blockSize: Int): BlockMatrix =
     BlockMatrix.fromBreezeMatrix(lm, blockSize)
-
-  private val defaultBlockSize = choose(1, 1 << 6)
-  private val defaultDims = nonEmptySquareOfAreaAtMostSize
-  private val defaultElement = arbitrary[Double]
-
-  def blockMatrixGen(
-    blockSize: Gen[Int] = defaultBlockSize,
-    dims: Gen[(Int, Int)] = defaultDims,
-    element: Gen[Double] = defaultElement,
-  ): Gen[BlockMatrix] = for {
-    blockSize <- blockSize
-    (nRows, nCols) <- dims
-    arrays <- buildableOfN[Seq](nRows, buildableOfN[Array](nCols, element))
-    m = toBM(arrays, blockSize)
-  } yield m
-
-  def squareBlockMatrixGen(
-    element: Gen[Double] = defaultElement
-  ): Gen[BlockMatrix] = blockMatrixGen(
-    blockSize = interestingPosInt.map(math.sqrt(_).toInt),
-    dims = for {
-      size <- size
-      l <- interestingPosInt
-      s = math.sqrt(math.min(l, size)).toInt
-    } yield (s, s),
-    element = element,
-  )
-
-  def twoMultipliableBlockMatrices(element: Gen[Double] = defaultElement)
-    : Gen[(BlockMatrix, BlockMatrix)] = for {
-    Array(nRows, innerDim, nCols) <- nonEmptyNCubeOfVolumeAtMostSize(3)
-    blockSize <-
-      interestingPosInt.filter(
-        _ > 3
-      ) // 1 or 2 cause large numbers of partitions, leading to slow tests
-    l <- blockMatrixGen(const(blockSize), const(nRows -> innerDim), element)
-    r <- blockMatrixGen(const(blockSize), const(innerDim -> nCols), element)
-  } yield (l, r)
-
-  implicit val arbitraryBlockMatrix =
-    Arbitrary(blockMatrixGen())
 
   private val defaultRelTolerance = 1e-14
 
   private def sameDoubleMatrixNaNEqualsNaN(
-    x: BDM[Double],
-    y: BDM[Double],
+    x: DenseMatrix[Double],
+    y: DenseMatrix[Double],
     relTolerance: Double = defaultRelTolerance,
   ): Boolean =
     findDoubleMatrixMismatchNaNEqualsNaN(x, y, relTolerance) match {
@@ -94,8 +105,8 @@ class BlockMatrixSuite extends HailSuite {
     }
 
   private def findDoubleMatrixMismatchNaNEqualsNaN(
-    x: BDM[Double],
-    y: BDM[Double],
+    x: DenseMatrix[Double],
+    y: DenseMatrix[Double],
     relTolerance: Double = defaultRelTolerance,
   ): Option[(Int, Int)] = {
     assert(
@@ -174,55 +185,52 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def randomMultiplyByLocalMatrix(): Unit =
-    forAll(twoMultipliableDenseMatrices[Double]()) { case (ll, lr) =>
+    forAll(genMultipliableDenseMatrices) { case (ll, lr) =>
       val l = toBM(ll)
       sameDoubleMatrixNaNEqualsNaN(ll * lr, l.dot(lr).toBreezeMatrix())
-    }.check()
+    }
 
   @Test
   def multiplySameAsBreeze(): Unit = {
-    def randomLm(n: Int, m: Int) = denseMatrix[Double](n, m)
-
-    forAll(randomLm(4, 4), randomLm(4, 4)) { (ll, lr) =>
+    forAll(genDenseMatrix(4, 4), genDenseMatrix(4, 4)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
       sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
-    }.check()
+    }
 
-    forAll(randomLm(9, 9), randomLm(9, 9)) { (ll, lr) =>
+    forAll(genDenseMatrix(9, 9), genDenseMatrix(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
       sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
-    }.check()
+    }
 
-    forAll(randomLm(9, 9), randomLm(9, 9)) { (ll, lr) =>
+    forAll(genDenseMatrix(9, 9), genDenseMatrix(9, 9)) { (ll, lr) =>
       val l = toBM(ll, 2)
       val r = toBM(lr, 2)
 
       sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
-    }.check()
+    }
 
-    forAll(randomLm(2, 10), randomLm(10, 2)) { (ll, lr) =>
+    forAll(genDenseMatrix(2, 10), genDenseMatrix(10, 2)) { (ll, lr) =>
       val l = toBM(ll, 3)
       val r = toBM(lr, 3)
 
       sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
-    }.check()
+    }
 
-    forAll(twoMultipliableDenseMatrices[Double](), interestingPosInt) {
-      case ((ll, lr), blockSize) =>
-        val l = toBM(ll, blockSize)
-        val r = toBM(lr, blockSize)
+    forAll(genMultipliableDenseMatrices, interestingPosInt) { case ((ll, lr), blockSize) =>
+      val l = toBM(ll, blockSize)
+      val r = toBM(lr, blockSize)
 
-        sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
-    }.check()
+      sameDoubleMatrixNaNEqualsNaN(l.dot(r).toBreezeMatrix(), ll * lr)
+    }
   }
 
   @Test
   def multiplySameAsBreezeRandomized(): Unit = {
-    forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) {
+    forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         val actual = l.dot(r).toBreezeMatrix()
         val expected = l.toBreezeMatrix() * r.toBreezeMatrix()
@@ -238,7 +246,7 @@ class BlockMatrixSuite extends HailSuite {
           case None =>
             true
         }
-    }.check()
+    }
   }
 
   @Test
@@ -272,17 +280,17 @@ class BlockMatrixSuite extends HailSuite {
   def rowwiseMultiplicationRandom(): Unit = {
     val g = for {
       l <- blockMatrixGen()
-      v <- buildableOfN[Array](l.nCols.toInt, arbitrary[Double])
+      v <- containerOfN[Array, Double](l.nCols.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
       val actual = l.rowVectorMul(v).toBreezeMatrix()
       val repeatedR = (0 until l.nRows.toInt).flatMap(_ => v).toArray
-      val repeatedRMatrix = new BDM(v.length, l.nRows.toInt, repeatedR).t
+      val repeatedRMatrix = new DenseMatrix(v.length, l.nRows.toInt, repeatedR).t
       val expected = l.toBreezeMatrix() *:* repeatedRMatrix
 
       sameDoubleMatrixNaNEqualsNaN(actual, expected)
-    }.check()
+    }
   }
 
   @Test
@@ -316,13 +324,13 @@ class BlockMatrixSuite extends HailSuite {
   def colwiseMultiplicationRandom(): Unit = {
     val g = for {
       l <- blockMatrixGen()
-      v <- buildableOfN[Array](l.nRows.toInt, arbitrary[Double])
+      v <- containerOfN[Array, Double](l.nRows.toInt, arbitrary[Double])
     } yield (l, v)
 
     forAll(g) { case (l: BlockMatrix, v: Array[Double]) =>
       val actual = l.colVectorMul(v).toBreezeMatrix()
       val repeatedR = (0 until l.nCols.toInt).flatMap(_ => v).toArray
-      val repeatedRMatrix = new BDM(v.length, l.nCols.toInt, repeatedR)
+      val repeatedRMatrix = new DenseMatrix(v.length, l.nCols.toInt, repeatedR)
       val expected = l.toBreezeMatrix() *:* repeatedRMatrix
 
       if (sameDoubleMatrixNaNEqualsNaN(actual, expected))
@@ -331,7 +339,7 @@ class BlockMatrixSuite extends HailSuite {
         println(s"${l.toBreezeMatrix().toArray.toSeq}\n*\n${v.toSeq}")
         false
       }
-    }.check()
+    }
   }
 
   @Test
@@ -408,7 +416,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def diagonalTestRandomized(): Unit = {
-    forAll(squareBlockMatrixGen()) { (m: BlockMatrix) =>
+    forAll(squareBlockMatrixGen) { (m: BlockMatrix) =>
       val lm = m.toBreezeMatrix()
       val diagonalLength = math.min(lm.rows, lm.cols)
       val diagonal = Array.tabulate(diagonalLength)(i => lm(i, i))
@@ -420,17 +428,17 @@ class BlockMatrixSuite extends HailSuite {
         println(s"${m.diagonal().toSeq} != ${diagonal.toSeq}")
         false
       }
-    }.check()
+    }
   }
 
   @Test
   def fromLocalTest(): Unit = {
-    forAll(denseMatrix[Double]().flatMap { m =>
+    forAll(arbitrary[DenseMatrix[Double]].flatMap { m =>
       Gen.zip(Gen.const(m), Gen.choose(math.sqrt(m.rows).toInt, m.rows + 16))
     }) { case (lm, blockSize) =>
       assert(lm === BlockMatrix.fromBreezeMatrix(lm, blockSize).toBreezeMatrix())
       true
-    }.check()
+    }
   }
 
   @Test
@@ -485,7 +493,7 @@ class BlockMatrixSuite extends HailSuite {
         BlockMatrix.read(fs, fname).toBreezeMatrix(),
       ))
       true
-    }.check()
+    }
   }
 
   @Test
@@ -496,7 +504,7 @@ class BlockMatrixSuite extends HailSuite {
       assert(transposed.cols == m.nRows)
       assert(transposed === m.T.toBreezeMatrix())
       true
-    }.check()
+    }
   }
 
   @Test
@@ -509,12 +517,12 @@ class BlockMatrixSuite extends HailSuite {
       assert(sameDoubleMatrixNaNEqualsNaN(mtt.toBreezeMatrix(), m.toBreezeMatrix()))
       assert(sameDoubleMatrixNaNEqualsNaN(mt.dot(mtt).toBreezeMatrix(), mt.dot(m).toBreezeMatrix()))
       true
-    }.check()
+    }
   }
 
   @Test
   def cachedOpsOK(): Unit = {
-    forAll(twoMultipliableBlockMatrices(nonExtremeDouble)) {
+    forAll(twoMultipliableBlockMatrices) {
       case (l: BlockMatrix, r: BlockMatrix) =>
         l.cache()
         r.cache()
@@ -535,7 +543,7 @@ class BlockMatrixSuite extends HailSuite {
         }
 
         true
-    }.check()
+    }
   }
 
   @Test
@@ -553,7 +561,7 @@ class BlockMatrixSuite extends HailSuite {
       }
 
       true
-    }.check()
+    }
   }
 
   @Test
@@ -718,7 +726,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def filterCols(): Unit = {
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
@@ -742,7 +750,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def filterColsTranspose(): Unit = {
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
     val lmt = lm.t
 
     for { blockSize <- Seq(2, 3) } {
@@ -764,7 +772,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def filterRows(): Unit = {
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(2, 3) } {
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
@@ -785,7 +793,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def filterSymmetric(): Unit = {
-    val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
@@ -809,7 +817,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def filter(): Unit = {
-    val lm = new BDM[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](9, 10, (0 until 90).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
       val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize)
@@ -836,7 +844,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def writeLocalAsBlockTest(): Unit = {
-    val lm = new BDM[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](10, 10, (0 until 100).map(_.toDouble).toArray)
 
     for { blockSize <- Seq(1, 2, 3, 5, 10, 11) } {
       val fname = ctx.createTmpPath("test")
@@ -877,7 +885,7 @@ class BlockMatrixSuite extends HailSuite {
   @Test
   def testEntriesTable(): Unit = {
     val data = (0 until 90).map(_.toDouble).toArray
-    val lm = new BDM[Double](9, 10, data)
+    val lm = new DenseMatrix[Double](9, 10, data)
     val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
     val expectedSignature = TStruct("i" -> TInt64, "j" -> TInt64, "entry" -> TFloat64)
 
@@ -895,7 +903,7 @@ class BlockMatrixSuite extends HailSuite {
   @Test
   def testEntriesTableWhenKeepingOnlySomeBlocks(): Unit = {
     val data = (0 until 50).map(_.toDouble).toArray
-    val lm = new BDM[Double](5, 10, data)
+    val lm = new DenseMatrix[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
     val rows = CompileAndEvaluate[IndexedSeq[Row]](
@@ -919,11 +927,11 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def testPowSqrt(): Unit = {
-    val lm = new BDM[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
+    val lm = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 4.0, 9.0, 16.0, 25.0))
     val bm = BlockMatrix.fromBreezeMatrix(lm, blockSize = 2)
-    val expected = new BDM[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
+    val expected = new DenseMatrix[Double](2, 3, Array(0.0, 1.0, 2.0, 3.0, 4.0, 5.0))
 
-    TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), BDM.fill(2, 3)(1.0))
+    TestUtils.assertMatrixEqualityDouble(bm.pow(0.0).toBreezeMatrix(), DenseMatrix.fill(2, 3)(1.0))
     TestUtils.assertMatrixEqualityDouble(bm.pow(0.5).toBreezeMatrix(), expected)
     TestUtils.assertMatrixEqualityDouble(bm.sqrt().toBreezeMatrix(), expected)
   }
@@ -933,7 +941,7 @@ class BlockMatrixSuite extends HailSuite {
 
   @Test
   def testSparseFilterEdges(): Unit = {
-    val lm = new BDM[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](12, 12, (0 to 143).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 5)
 
     val onlyEight = bm.filterBlocks(Array(8)) // Bottom right corner block
@@ -945,12 +953,12 @@ class BlockMatrixSuite extends HailSuite {
       143).map(_.toDouble))
     assert(onlyEightColEleven.toArray sameElements Array(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 142,
       143).map(_.toDouble))
-    assert(onlyEightCornerFour == new BDM[Double](2, 2, Array(130.0, 131.0, 142.0, 143.0)))
+    assert(onlyEightCornerFour == new DenseMatrix[Double](2, 2, Array(130.0, 131.0, 142.0, 143.0)))
   }
 
   @Test
   def testSparseTransposeMaybeBlocks(): Unit = {
-    val lm = new BDM[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
+    val lm = new DenseMatrix[Double](9, 12, (0 to 107).map(_.toDouble).toArray)
     val bm = toBM(lm, blockSize = 3)
     val sparse = bm.filterBand(0, 0, true)
     assert(sparse.transpose().gp.partitionIndexToBlockIndex.get.toIndexedSeq == IndexedSeq(
@@ -1045,9 +1053,9 @@ class BlockMatrixSuite extends HailSuite {
       Array(0, 1, 2, 3),
     )
 
-    val lm_zero = BDM.zeros[Double](2, 2)
+    val lm_zero = DenseMatrix.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): BDM[Double] = {
+    def filterBlocks(keep: Array[Int]): DenseMatrix[Double] = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
@@ -1098,9 +1106,9 @@ class BlockMatrixSuite extends HailSuite {
       Array(0, 1, 2, 3),
     )
 
-    val lm_zero = BDM.zeros[Double](2, 2)
+    val lm_zero = DenseMatrix.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): BDM[Double] = {
+    def filterBlocks(keep: Array[Int]): DenseMatrix[Double] = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)
@@ -1252,9 +1260,9 @@ class BlockMatrixSuite extends HailSuite {
       Array(0, 1, 2, 3),
     )
 
-    val lm_zero = BDM.zeros[Double](2, 2)
+    val lm_zero = DenseMatrix.zeros[Double](2, 2)
 
-    def filterBlocks(keep: Array[Int]): BDM[Double] = {
+    def filterBlocks(keep: Array[Int]): DenseMatrix[Double] = {
       val flm = lm.copy
       (0 to 3).diff(keep).foreach { i =>
         val r = 2 * (i % 2)

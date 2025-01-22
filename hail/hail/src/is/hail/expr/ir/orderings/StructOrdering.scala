@@ -51,7 +51,7 @@ object StructOrdering {
       val lhs = x.asBaseStruct
       val rhs = y.asBaseStruct
       val Lout = CodeLabel()
-      val lt = cb.newLocal("lt", true)
+      val lt = cb.newLocal("lt", false)
 
       var i = 0
       while (i < t1.size) {
