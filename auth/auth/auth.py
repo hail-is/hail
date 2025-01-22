@@ -456,12 +456,9 @@ async def create_user(request: web.Request, _) -> web.Response:
 @web_security_headers
 @auth.maybe_authenticated_user
 async def user_page(request: web.Request, userdata: UserData) -> web.Response:
-    maybe_next = request.query.get('next')
-    next_page_param = f'?next={maybe_next}' if maybe_next else ''
+    context_dict = {'cloud': CLOUD, **({'next_page': request.query['next']} if 'next' in request.query else {})}
 
-    return await render_template(
-        'auth', request, userdata, 'user.html', {'cloud': CLOUD, 'next_page_param': next_page_param}
-    )
+    return await render_template('auth', request, userdata, 'user.html', context_dict)
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):

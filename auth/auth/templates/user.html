@@ -22,8 +22,11 @@
     {{ submit_button('Get a copy-paste login token') }}
   </form>
   {% else %}
-  <form action="{{ auth_base_url }}/login{{ next_page_param }}" method="GET">
+  <form action="{{ auth_base_url }}/login" method="GET">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    {% if next_page %}
+    <input type="hidden" name="next" value="{{ next_page }}" />
+    {% endif %}
     {{ submit_button('Log in') }}
   </form>
   {% endif %}
