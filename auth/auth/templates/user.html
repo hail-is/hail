@@ -22,6 +22,19 @@
     {{ submit_button('Get a copy-paste login token') }}
   </form>
   {% else %}
+  <h1 class='text-4xl mb-4'>Log in to continue</h1>
+  {% if next_page %}
+  <p>You must sign up or log in to continue to {{ next_page }}</p>
+  {% else %}
+    <p>You must sign up or log in to continue</p>
+  {% end %}
+  <form action="{{ auth_base_url }}/signup" method="GET">
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+    {% if next_page %}
+    <input type="hidden" name="next" value="{{ next_page }}" />
+    {% endif %}
+    {{ submit_button('Sign up') }}
+  </form>
   <form action="{{ auth_base_url }}/login" method="GET">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
     {% if next_page %}
@@ -31,13 +44,13 @@
   </form>
   {% endif %}
   <p>
-    <b>Notice:</b> The Hail system records your email address and IP address. Your email address
+    The Hail system records your email address and IP address. Your email address
     is recorded so that we can authenticate you. Your IP address is tracked as part of our
     surveillance of all traffic to and from the Hail system. This broad surveillance enables the
     protection of the Hail system from malicious actors.
   </p>
   <p>
-    By logging in and continuing to use the system, you agree to these terms of service.
+    <b>Notice:</b> By signing up or logging in and continuing to use the system, you agree to these terms of service.
   </p>
 </div>
 {% endblock %}
