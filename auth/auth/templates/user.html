@@ -28,7 +28,7 @@
   {% else %}
     <p>You must sign up or log in to continue</p>
   {% endif %}
-  <div style="display: flex; flex-direction: row;">
+  <div style="display: inline-flex; flex-direction: row;">
     <form action="{{ auth_base_url }}/signup" method="GET" style="padding-right: 1rem; display: inline-flex;">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
       {% if next_page %}
@@ -44,20 +44,6 @@
       {{ submit_button('Log in') }}
     </form>
   </div>
-  <form action="{{ auth_base_url }}/signup" method="GET" style="padding-right: 1rem; display: inline-flex;">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-      {% if next_page %}
-      <input type="hidden" name="next" value="{{ next_page }}" />
-      {% endif %}
-      {{ submit_button('Sign up') }}
-    </form>
-    <form action="{{ auth_base_url }}/login" method="GET" style="padding-right: 1rem; display: inline-flex;">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-      {% if next_page %}
-      <input type="hidden" name="next" value="{{ next_page }}" />
-      {% endif %}
-      {{ submit_button('Log in') }}
-    </form>
   {% endif %}
   <p>
     The Hail system records your email address and IP address. Your email address
