@@ -3028,6 +3028,7 @@ class Worker:
         while True:
             try:
                 requested_n_cores = self._waiting_for_jvm_with_n_cores.get_nowait()
+                log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}')
                 await self._jvmpools_by_cores[requested_n_cores].create_jvm()
             except asyncio.QueueEmpty:
                 next_unfull_jvmpool = None
@@ -3049,12 +3050,19 @@ class Worker:
         if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
             raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
 
+        log.info(f'Worker.borrow_jvm {n_cores=}')
         jvmpool = self._jvmpools_by_cores[n_cores]
         try:
-            return jvmpool.borrow_jvm_nowait()
+            jj = jvmpool.borrow_jvm_nowait()
+            log.info(f'Borrowed {jj} without waiting')
+            return jj
         except asyncio.QueueEmpty:
+            log.info(f'QueueEmpty hence waiting to borrow: putting {n_cores} on queue')
             self._waiting_for_jvm_with_n_cores.put_nowait(n_cores)
-            return await jvmpool.borrow_jvm()
+            log.info('Done put_nowait, awating JVMPool.borrow_jvm')
+            jj = await jvmpool.borrow_jvm()
+            log.info(f'Borrowed {jj} after a wait')
+            return jj
 
     def return_jvm(self, jvm: JVM):
         jvm.reset()
