@@ -882,7 +882,7 @@ WHERE (users.state = 'active' OR users.state = 'inactive') AND sessions.session_
         await db.execute_update(
             """
 UPDATE users
-SET last_active = NOW()
+SET last_activated = NOW()
 WHERE id = %s;
 """,
             current_uid,
