@@ -3,7 +3,6 @@ package is.hail.methods
 import is.hail.{HailSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.{Gen, Properties}
-import is.hail.check.Prop._
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
 import is.hail.variant._

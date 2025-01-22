@@ -1,8 +1,6 @@
 package is.hail.utils
 
-import is.hail.check.Arbitrary._
 import is.hail.check.Gen
-import is.hail.check.Prop._
 
 import scala.collection.mutable
 
