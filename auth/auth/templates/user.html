@@ -27,7 +27,7 @@
   <p>You must sign up or log in to continue to {{ next_page }}</p>
   {% else %}
     <p>You must sign up or log in to continue</p>
-  {% end %}
+  {% endif %}
   <form action="{{ auth_base_url }}/signup" method="GET">
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
     {% if next_page %}
