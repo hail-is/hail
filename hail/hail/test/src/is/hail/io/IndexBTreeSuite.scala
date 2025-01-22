@@ -1,8 +1,6 @@
 package is.hail.io
 
 import is.hail.HailSuite
-import is.hail.check.Gen._
-import is.hail.check.Prop._
 import is.hail.check.Properties
 
 import org.testng.annotations.Test
