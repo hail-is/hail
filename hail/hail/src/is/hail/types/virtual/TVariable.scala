@@ -1,8 +1,7 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 import is.hail.types.Box
 
 import scala.collection.mutable
@@ -69,8 +68,6 @@ final case class TVariable(name: String, cond: String = null) extends Type {
     assert(b.isDefined)
     t
   }
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
