@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.HailSuite
 import is.hail.backend.HailStateManager
-import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.ir.IRParser

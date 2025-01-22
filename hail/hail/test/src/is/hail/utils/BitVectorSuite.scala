@@ -1,8 +1,5 @@
 package is.hail.utils
 
-import is.hail.check._
-import is.hail.check.Prop._
-
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 

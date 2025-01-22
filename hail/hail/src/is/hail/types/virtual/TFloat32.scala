@@ -2,8 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
 import is.hail.utils._
 
 case object TFloat32 extends TNumeric {
@@ -18,9 +16,6 @@ case object TFloat32 extends TNumeric {
 
   override def str(a: Annotation): String =
     if (a == null) "NA" else "%.5e".format(a.asInstanceOf[Float])
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
-    arbitrary[Double].map(_.toFloat)
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =

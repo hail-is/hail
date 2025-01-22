@@ -2,7 +2,6 @@ package is.hail.variant
 
 import is.hail.TestUtils
 import is.hail.check.Gen
-import is.hail.check.Prop._
 import is.hail.testUtils.Variant
 import is.hail.utils._
 

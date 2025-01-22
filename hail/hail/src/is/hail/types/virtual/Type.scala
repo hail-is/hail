@@ -2,12 +2,10 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
 import is.hail.utils
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
 import org.apache.spark.sql.types.DataType
 import org.json4s.{CustomSerializer, JValue}
@@ -19,96 +17,6 @@ class TypeSerializer extends CustomSerializer[Type](_ =>
         { case t: Type => JString(t.parsableString()) },
       )
     )
-
-object Type {
-  def genScalar(): Gen[Type] =
-    Gen.oneOf(TBoolean, TInt32, TInt64, TFloat32,
-      TFloat64, TString, TCall)
-
-  def genComplexType(): Gen[Type] = {
-    val rgDependents = ReferenceGenome.hailReferences.toArray.map(TLocus(_))
-    val others = Array(TCall)
-    Gen.oneOfSeq(rgDependents ++ others)
-  }
-
-  def genFields(genFieldType: Gen[Type]): Gen[Array[Field]] = {
-    Gen.buildableOf[Array](
-      Gen.zip(Gen.identifier, genFieldType)
-    )
-      .filter(fields => fields.map(_._1).areDistinct())
-      .map(fields =>
-        fields
-          .iterator
-          .zipWithIndex
-          .map { case ((k, t), i) => Field(k, t, i) }
-          .toArray
-      )
-  }
-
-  def preGenStruct(genFieldType: Gen[Type]): Gen[TStruct] =
-    for (fields <- genFields(genFieldType)) yield TStruct(fields)
-
-  def preGenTuple(genFieldType: Gen[Type]): Gen[TTuple] =
-    for (fields <- genFields(genFieldType)) yield TTuple(fields.map(_.typ): _*)
-
-  private val defaultRequiredGenRatio = 0.2
-  def genStruct: Gen[TStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(c => preGenStruct(genArb))
-
-  def genSized(size: Int, genTStruct: Gen[TStruct]): Gen[Type] =
-    if (size < 1)
-      Gen.const(TStruct.empty)
-    else if (size < 2)
-      genScalar()
-    else {
-      Gen.frequency(
-        (4, genScalar()),
-        (1, genComplexType()),
-        (
-          1,
-          genArb.map {
-            TArray(_)
-          },
-        ),
-        (
-          1,
-          genArb.map {
-            TSet(_)
-          },
-        ),
-        (
-          1,
-          genArb.map {
-            TInterval(_)
-          },
-        ),
-        (1, preGenTuple(genArb)),
-        (1, Gen.zip(genRequired, genArb).map { case (k, v) => TDict(k, v) }),
-        (1, genTStruct.resize(size)),
-      )
-    }
-
-  def preGenArb(genStruct: Gen[TStruct] = genStruct): Gen[Type] =
-    Gen.sized(genSized(_, genStruct))
-
-  def genArb: Gen[Type] = preGenArb()
-
-  val genOptional: Gen[Type] = preGenArb()
-
-  val genRequired: Gen[Type] = preGenArb()
-
-  def genWithValue(sm: HailStateManager): Gen[(Type, Annotation)] = for {
-    s <- Gen.size
-    // prefer smaller type and bigger values
-    fraction <- Gen.choose(0.1, 0.3)
-    x = (fraction * s).toInt
-    y = s - x
-    t <- Type.genStruct.resize(x)
-    v <- t.genValue(sm).resize(y)
-  } yield (t, v)
-
-  implicit def arbType: Arbitrary[Type] =
-    Arbitrary(genArb)
-}
 
 abstract class Type extends VType with Serializable {
 
@@ -176,11 +84,6 @@ abstract class Type extends VType with Serializable {
 
   override def toJSON: JValue =
     JString(toString)
-
-  def genNonmissingValue(sm: HailStateManager): Gen[Annotation]
-
-  def genValue(sm: HailStateManager): Gen[Annotation] =
-    Gen.nextCoin(0.05).flatMap(isEmpty => if (isEmpty) Gen.const(null) else genNonmissingValue(sm))
 
   def isRealizable: Boolean = children.forall(_.isRealizable)
 

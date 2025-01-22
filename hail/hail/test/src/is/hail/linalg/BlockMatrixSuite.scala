@@ -10,8 +10,11 @@ import is.hail.expr.ir.defs.{GetField, TableCollect}
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
-
 import breeze.linalg.{*, diag, DenseMatrix => BDM, DenseVector => BDV}
+import is.hail.check.Arbitrary.arbitrary
+import is.hail.check.Gen._
+import is.hail.check.Prop.forAll
+import is.hail.check.{Arbitrary, Gen}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

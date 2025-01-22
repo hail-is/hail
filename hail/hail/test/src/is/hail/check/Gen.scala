@@ -537,36 +537,26 @@ object Gen {
 
   def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen((p: Parameters) => f(p.size)(p))
 
-  def applyGen[T, S](gf: Gen[(T) => S], gx: Gen[T]): Gen[S] = Gen { p =>
+  def applyGen[T, S](gf: Gen[T => S], gx: Gen[T]): Gen[S] = Gen { p =>
     val f = gf(p)
     val x = gx(p)
     f(x)
   }
 }
 
-class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
-
-  def apply(p: Parameters): T = gen(p)
+class Gen[+T](val apply: Parameters => T) extends AnyVal {
 
   def sample(): T = apply(Parameters.default)
 
-  def map[U](f: (T) => U): Gen[U] = Gen(p => f(apply(p)))
+  def map[U](f: T => U): Gen[U] = Gen(p => f(apply(p)))
 
-  def flatMap[U](f: (T) => Gen[U]): Gen[U] = Gen(p => f(apply(p))(p))
+  def flatMap[U](f: T => Gen[U]): Gen[U] = Gen(p => f(apply(p))(p))
 
   def resize(newSize: Int): Gen[T] = Gen((p: Parameters) => apply(p.copy(size = newSize)))
+  
+  def withFilter(f: T => Boolean): Gen[T] =
+    Gen((p: Parameters) => Stream.continually(apply(p)).takeWhile(f).head)
 
-  // FIXME should be non-strict
-  def withFilter(f: (T) => Boolean): Gen[T] = Gen { (p: Parameters) =>
-    var x = apply(p)
-    var i = 0
-    while (!f(x)) {
-      assert(i < 100)
-      x = apply(p)
-      i += 1
-    }
-    x
-  }
-
-  def filter(f: (T) => Boolean): Gen[T] = withFilter(f)
+  def filter(f: T => Boolean): Gen[T] = 
+    withFilter(f)
 }
