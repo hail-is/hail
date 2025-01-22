@@ -221,15 +221,15 @@ async def get_healthcheck(_) -> web.Response:
 
 @routes.get('')
 @routes.get('/')
-@auth.maybe_authenticated_user
 @web_security_headers
+@auth.maybe_authenticated_user
 async def get_index(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     return await render_template('auth', request, userdata, 'index.html', {})
 
 
 @routes.get('/creating')
-@auth.maybe_authenticated_user
 @web_security_headers
+@auth.maybe_authenticated_user
 async def creating_account(request: web.Request, userdata: Optional[UserData]) -> web.Response:
     db = request.app[AppKeys.DB]
     session = await aiohttp_session.get_session(request)
