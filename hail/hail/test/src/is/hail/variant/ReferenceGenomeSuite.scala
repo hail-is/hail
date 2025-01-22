@@ -2,14 +2,15 @@ package is.hail.variant
 
 import is.hail.{HailSuite, TestUtils}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.check.Prop._
-import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
-import is.hail.types.virtual.TLocus
+import is.hail.scalacheck.{genLocus, genNullable}
+import is.hail.types.virtual.{TInterval, TLocus}
 import is.hail.utils._
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
+import org.scalacheck.Prop.forAll
+import org.scalacheck.Properties
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
@@ -161,42 +162,46 @@ class ReferenceGenomeSuite extends HailSuite {
     )
 
     object Spec extends Properties("Fasta Random") {
-      property("cache gives same base as from file") = forAll(Locus.gen(rg)) { l =>
-        val contig = l.contig
-        val pos = l.position
-        val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
-        val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
-        assert(expected == expectedGz, "wat: fasta files don't have the same data")
-        fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
-      }
-
-      val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
-      property("interval test") = forAll(Interval.gen(ordering, Locus.gen(rg))) { i =>
-        val start = i.start.asInstanceOf[Locus]
-        val end = i.end.asInstanceOf[Locus]
-
-        def getHtsjdkIntervalSequence: String = {
-          val sb = new StringBuilder
-          var pos = start
-          while (ordering.lteq(pos, end) && pos != null) {
-            val endPos = if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
-            sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
-            pos =
-              if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
-                null
-              else
-                Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
-          }
-          sb.result()
+      property("cache gives same base as from file") =
+        forAll(genLocus(rg)) { l =>
+          val contig = l.contig
+          val pos = l.position
+          val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
+          val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
+          assert(expected == expectedGz, "wat: fasta files don't have the same data")
+          fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
         }
 
-        fr.lookup(
-          Interval(start, end, includesStart = true, includesEnd = true)
-        ) == getHtsjdkIntervalSequence
-      }
+      val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
+      property("interval test") =
+        forAll(genNullable(ctx, TInterval(TLocus(rg.name))).suchThat(_ != null)) {
+          case i: Interval =>
+            val start = i.start.asInstanceOf[Locus]
+            val end = i.end.asInstanceOf[Locus]
+
+            def getHtsjdkIntervalSequence: String = {
+              val sb = new StringBuilder
+              var pos = start
+              while (ordering.lteq(pos, end) && pos != null) {
+                val endPos =
+                  if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
+                sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
+                pos =
+                  if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
+                    null
+                  else
+                    Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
+              }
+              sb.result()
+            }
+
+            fr.lookup(
+              Interval(start, end, includesStart = true, includesEnd = true)
+            ) == getHtsjdkIntervalSequence
+        }
     }
 
-    Spec.check()
+    Spec
 
     assert(fr.lookup("a", 25, 0, 5) == "A")
     assert(fr.lookup("b", 1, 5, 0) == "T")

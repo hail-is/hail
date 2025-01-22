@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray}
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 import is.hail.expr.{Nat, NatBase}
 
 object TNDArray {
@@ -110,8 +109,6 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     case nd: NDArray => nd.forall(e => elementType.typeCheck(e))
     case _ => false
   }
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
