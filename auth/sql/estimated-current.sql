@@ -16,8 +16,8 @@ CREATE TABLE `users` (
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
   `trial_bp_name` varchar(300) DEFAULT NULL,
-  -- "last active" tracking
-  `last_activated` DATETIME NOT NULL DEFAULT NOW(),
+  -- "last activated" tracking
+  `last_activated` DATETIME NOT NULL DEFAULT UTC_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`)
