@@ -1,15 +1,16 @@
 package is.hail.variant
 
 import is.hail.TestUtils
-import is.hail.check.Gen
-import is.hail.check.Prop._
+import is.hail.scalacheck.partition
 import is.hail.testUtils.Variant
 import is.hail.utils._
 
+import org.scalacheck.Gen
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class GenotypeSuite extends TestNGSuite {
+class GenotypeSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
 
   val v = Variant("1", 1, "A", "T")
 
@@ -18,28 +19,25 @@ class GenotypeSuite extends TestNGSuite {
       val (j, k) = if (x < y) (x, y) else (y, x)
       val gt = AllelePair(j, k)
       Genotype.allelePair(Genotype.diploidGtIndex(gt)) == gt
-    }.check()
+    }
 
-  def triangleNumberOf(i: Int) = (i * i + i) / 2
+  def triangleNumberOf(i: Int): Int =
+    (i * i + i) / 2
 
   @Test def gtIndexGtPairIsId(): Unit =
-    forAll(Gen.choose(0, 10000)) { (idx) =>
-      Genotype.diploidGtIndex(Genotype.allelePair(idx)) == idx
-    }.check()
+    forAll(Gen.choose(0, 10000))(idx => Genotype.diploidGtIndex(Genotype.allelePair(idx)) == idx)
 
   @Test def gtPairAndGtPairSqrtEqual(): Unit =
-    forAll(Gen.choose(0, 10000)) { (idx) =>
-      Genotype.allelePair(idx) == Genotype.allelePairSqrt(idx)
-    }.check()
+    forAll(Gen.choose(0, 10000))(idx => Genotype.allelePair(idx) == Genotype.allelePairSqrt(idx))
 
   @Test def testGtFromLinear(): Unit = {
-    val gen = for {
-      nGenotype <- Gen.choose(2, 5).map(triangleNumberOf)
-      dosageGen = Gen.partition(nGenotype, 32768)
-      result <- dosageGen
-    } yield result
+    val gen =
+      for {
+        nGenotype <- Gen.choose(2, 5).map(triangleNumberOf)
+        result <- partition(nGenotype, 32768)
+      } yield result
 
-    val p = forAll(gen) { gp =>
+    forAll(gen) { gp =>
       val gt = Option(uniqueMaxIndex(gp))
       assert(gp.sum == 32768)
       val dMax = gp.max
@@ -53,7 +51,6 @@ class GenotypeSuite extends TestNGSuite {
 
       check1 && check2
     }
-    p.check()
   }
 
   @Test def testPlToDosage(): Unit = {

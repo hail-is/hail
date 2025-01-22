@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
@@ -94,18 +93,6 @@ abstract class TBaseStruct extends Type {
   }
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = {
-    if (types.isEmpty) {
-      Gen.const(Annotation.empty)
-    } else
-      Gen.size.flatMap(fuel =>
-        if (types.length > fuel)
-          Gen.uniformSequence(types.map(t => Gen.const(null))).map(a => Annotation(a: _*))
-        else
-          Gen.uniformSequence(types.map(t => t.genValue(sm))).map(a => Annotation(a: _*))
-      )
-  }
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =

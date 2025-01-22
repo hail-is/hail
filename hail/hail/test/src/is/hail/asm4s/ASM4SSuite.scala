@@ -2,18 +2,19 @@ package is.hail.asm4s
 
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
-import is.hail.check.{Gen, Prop}
 import is.hail.utils.FastSeq
 
 import scala.language.postfixOps
 
 import java.io.PrintWriter
 
-import org.testng.annotations.Test
+import org.scalacheck.Gen.choose
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
+import org.testng.annotations.{DataProvider, Test}
 
 trait Z2Z { def apply(z: Boolean): Boolean }
 
-class ASM4SSuite extends HailSuite {
+class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   override val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   @Test def not(): Unit = {
@@ -185,128 +186,90 @@ class ASM4SSuite extends HailSuite {
     assert(f() == 10)
   }
 
-  def fibonacciReference(i: Int): Int = i match {
-    case 0 => 0
-    case 1 => 1
-    case n => fibonacciReference(n - 1) + fibonacciReference(n - 2)
+  def fib(_n: Int): Int = {
+    var n = _n
+
+    var a = 1
+    var b = 0
+
+    while (n > 0) {
+      val tmp = a
+      a = b + tmp
+      b = tmp
+      n = n - 1
+    }
+
+    b
   }
 
   @Test def fibonacci(): Unit = {
-    val fb = FunctionBuilder[Int, Int]("Fib")
+    val Fib = FunctionBuilder[Int, Int]("Fib")
+    Fib.emitWithBuilder[Int] { cb =>
+      val n = Fib.getArg[Int](1)
 
-    val i = fb.getArg[Int](1)
-    fb.emitWithBuilder[Int] { cb =>
-      val n = cb.newLocal[Int]("n")
-      cb.if_(
-        i < 3,
-        cb.assign(n, 1), {
-          val vn_1 = cb.newLocal[Int]("vn_1")
-          val vn_2 = cb.newLocal[Int]("vn_2")
-          cb.assign(vn_1, 1)
-          cb.assign(vn_2, 1)
-          cb.while_(
-            i > 3, {
-              val temp = fb.newLocal[Int]()
-              cb.assign(temp, vn_2 + vn_1)
-              cb.assign(vn_1, temp)
-              cb.assign(i, i - 1)
-            },
-          )
-          cb.assign(n, vn_2 + vn_1)
+      val a = cb.newLocal[Int]("a", 1)
+      val b = cb.newLocal[Int]("b", 0)
+
+      cb.while_(
+        n > 0, {
+          val tmp = cb.memoize(a, "tmp")
+          cb.assign(a, tmp + b)
+          cb.assign(b, tmp)
+          cb.assign(n, n - 1)
         },
       )
-      n
+
+      b
     }
-    val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
-    Prop.forAll(Gen.choose(0, 100))(i => fibonacciReference(i) == f(i))
+    val f = Fib.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+
+    forAll(choose(0, 100))(i => fib(i) == f(i))
   }
 
-  @Test def nanAlwaysComparesFalse(): Unit = {
-    Prop.forAll { (x: Double) =>
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Double.NaN < x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Double.NaN <= x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Double.NaN > x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Double.NaN >= x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(new CodeDouble(Double.NaN).ceq(x))
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(new CodeDouble(Double.NaN).cne(x))
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(f())
-      }
+  // type inference helper
+  private[this] def refl[A](a: (Code[A], Code[A]) => Code[Boolean]) =
+    a
 
-      true
-    }.check()
-  }
+  @DataProvider(name = "DoubleComparisonOperator")
+  def doubleComparisonOperator(): Array[(Code[Double], Code[Double]) => Code[Boolean]] =
+    Array(
+      refl(_ < _),
+      refl(_ <= _),
+      refl(_ >= _),
+      refl(_ > _),
+      refl(_ ceq _),
+      refl(_ cne _),
+    )
 
-  @Test def nanFloatAlwaysComparesFalse(): Unit = {
-    Prop.forAll { (x: Float) =>
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Float.NaN < x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Float.NaN <= x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Float.NaN > x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(Float.NaN >= x)
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(new CodeFloat(Float.NaN).ceq(x))
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(!f())
-      }
-      {
-        val fb = FunctionBuilder[Boolean]("F")
-        fb.emit(new CodeFloat(Float.NaN).cne(x))
-        val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-        assert(f())
-      }
+  @Test(dataProvider = "DoubleComparisonOperator")
+  def nanDoubleAlwaysComparesFalse(op: (Code[Double], Code[Double]) => Code[Boolean]): Unit =
+    forAll { (x: Double) =>
+      val F = FunctionBuilder[Double, Double, Boolean]("CMP")
+      F.emit(op(F.getArg[Double](1), F.getArg[Double](2)))
+      val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+      !cmp(Double.NaN, x)
+    }
 
-      true
-    }.check()
-  }
+  @DataProvider(name = "FloatComparisonOperator")
+  def floatComparisonOperator(): Array[(Code[Float], Code[Float]) => Code[Boolean]] =
+    Array(
+      refl(_ < _),
+      refl(_ <= _),
+      refl(_ >= _),
+      refl(_ > _),
+      refl(_ ceq _),
+      refl(_ cne _),
+    )
+
+  @Test(dataProvider = "FloatComparisonOperator")
+  def nanFloatAlwaysComparesFalse(op: (Code[Float], Code[Float]) => Code[Boolean]): Unit =
+    forAll { (x: Float) =>
+      val F = FunctionBuilder[Float, Float, Boolean]("CMP")
+      F.emit(op(F.getArg[Float](1), F.getArg[Float](2)))
+      val cmp = F.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
+      !cmp(Float.NaN, x)
+    }
 
   @Test def defineOpsAsMethods(): Unit = {
     val fb = FunctionBuilder[Int, Int, Int, Int]("F")
@@ -503,7 +466,7 @@ class ASM4SSuite extends HailSuite {
     }
 
     val abs = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll((x: Int) => abs(x) == x.abs).check()
+    forAll((x: Int) => abs(x) == x.abs)
   }
 
   @Test def testWhile(): Unit = {
@@ -526,8 +489,7 @@ class ASM4SSuite extends HailSuite {
     }
 
     val add = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10))((x, y) => add(x, y) == x + y)
-      .check()
+    forAll(choose(-10, 10), choose(-10, 10))((x, y) => add(x, y) == x + y)
   }
 
   @Test def testFor(): Unit = {
@@ -549,8 +511,7 @@ class ASM4SSuite extends HailSuite {
     }
 
     val add = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10))((x, y) => add(x, y) == x + y)
-      .check()
+    forAll(choose(-10, 10), choose(-10, 10))((x, y) => add(x, y) == x + y)
   }
 
 }

@@ -1,7 +1,6 @@
 package is.hail
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.check.Gen
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
 
@@ -324,8 +323,6 @@ package object utils
   def flushDouble(a: Double): Double =
     if (math.abs(a) < java.lang.Double.MIN_NORMAL) 0.0 else a
 
-  def genBase: Gen[Char] = Gen.oneOf('A', 'C', 'T', 'G')
-
   def getPartNumber(fname: String): Int = {
     val partRegex = """.*/?part-(\d+).*""".r
 
@@ -345,11 +342,6 @@ package object utils
       a
     }
   }
-
-  // ignore size; atomic, like String
-  def genDNAString: Gen[String] = Gen.stringOf(genBase)
-    .resize(12)
-    .filter(s => !s.isEmpty)
 
   def prettyIdentifier(str: String): String =
     if (str.matches("""[_a-zA-Z]\w*"""))
