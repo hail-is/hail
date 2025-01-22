@@ -17,19 +17,11 @@ CREATE TABLE `users` (
   `namespace_name` varchar(255) DEFAULT NULL,
   `trial_bp_name` varchar(300) DEFAULT NULL,
   -- "last active" tracking
-  `last_active` DATETIME NOT NULL DEFAULT NOW(),
+  `last_activated` DATETIME NOT NULL DEFAULT NOW(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`)
 ) ENGINE=InnoDB;
-
-CREATE EVENT `disable_inactive`
-    ON SCHEDULE EVERY 1 DAY
-    ON COMPLETION PRESERVE
-    DO
-        UPDATE users
-        SET users.state = 'inactive'
-        WHERE (users.state = 'active') AND (users.last_active IS NOT NULL) AND (DATEDIFF(CURRENT_DATE(), users.last_active) > 60);
 
 CREATE TABLE `sessions` (
   `session_id` VARCHAR(255) NOT NULL,
