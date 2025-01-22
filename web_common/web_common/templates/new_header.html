@@ -62,13 +62,9 @@
       <b class='font-semibold'>{{ userdata["username"] }}</b>
     </a>
     {% else %}
-    <a href="{{ auth_base_url }}/signup">
-      Sign Up
-    </a>
-    <span>|</span>
-    <a href="{{ auth_base_url }}/login">
-      Login
-    </a>
+  <a class="header-link" href="{{ auth_base_url }}/user">
+    Click here to sign up or log in
+  </a>
     {% endif %}
   </div>
 </div>
