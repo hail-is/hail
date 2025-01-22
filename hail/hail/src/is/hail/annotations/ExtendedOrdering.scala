@@ -372,6 +372,12 @@ abstract class ExtendedOrdering extends Serializable {
     }
   }
 
+  def max(x: T, y: T): T =
+    if (gt(x, y)) x else y
+
+  def min(x: T, y: T): T =
+    if (lt(x, y)) x else y
+
   // reverses the sense of the non-null comparison only
   def reverse: ExtendedOrdering = new ExtendedOrdering {
     val missingEqual = outer.missingEqual

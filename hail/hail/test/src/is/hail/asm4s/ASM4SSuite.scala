@@ -2,18 +2,19 @@ package is.hail.asm4s
 
 import is.hail.HailSuite
 import is.hail.asm4s.Code._
-import is.hail.check.{Gen, Prop}
 import is.hail.utils.FastSeq
 
 import scala.language.postfixOps
 
 import java.io.PrintWriter
 
+import org.scalacheck.Gen.choose
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
 trait Z2Z { def apply(z: Boolean): Boolean }
 
-class ASM4SSuite extends HailSuite {
+class ASM4SSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   override val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
   @Test def not(): Unit = {
@@ -219,11 +220,11 @@ class ASM4SSuite extends HailSuite {
     }
     val f = fb.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
 
-    Prop.forAll(Gen.choose(0, 100))(i => fibonacciReference(i) == f(i))
+    forAll(choose(0, 100))(i => fibonacciReference(i) == f(i))
   }
 
   @Test def nanAlwaysComparesFalse(): Unit = {
-    Prop.forAll { (x: Double) =>
+    forAll { (x: Double) =>
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Double.NaN < x)
@@ -262,11 +263,11 @@ class ASM4SSuite extends HailSuite {
       }
 
       true
-    }.check()
+    }
   }
 
   @Test def nanFloatAlwaysComparesFalse(): Unit = {
-    Prop.forAll { (x: Float) =>
+    forAll { (x: Float) =>
       {
         val fb = FunctionBuilder[Boolean]("F")
         fb.emit(Float.NaN < x)
@@ -305,7 +306,7 @@ class ASM4SSuite extends HailSuite {
       }
 
       true
-    }.check()
+    }
   }
 
   @Test def defineOpsAsMethods(): Unit = {
@@ -503,7 +504,7 @@ class ASM4SSuite extends HailSuite {
     }
 
     val abs = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll((x: Int) => abs(x) == x.abs).check()
+    forAll((x: Int) => abs(x) == x.abs)
   }
 
   @Test def testWhile(): Unit = {
@@ -526,8 +527,7 @@ class ASM4SSuite extends HailSuite {
     }
 
     val add = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10))((x, y) => add(x, y) == x + y)
-      .check()
+    forAll(choose(-10, 10), choose(-10, 10))((x, y) => add(x, y) == x + y)
   }
 
   @Test def testFor(): Unit = {
@@ -549,8 +549,7 @@ class ASM4SSuite extends HailSuite {
     }
 
     val add = Main.result(ctx.shouldWriteIRFiles())(theHailClassLoader)
-    Prop.forAll(Gen.choose(-10, 10), Gen.choose(-10, 10))((x, y) => add(x, y) == x + y)
-      .check()
+    forAll(choose(-10, 10), choose(-10, 10))((x, y) => add(x, y) == x + y)
   }
 
 }

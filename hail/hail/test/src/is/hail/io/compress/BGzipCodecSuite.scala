@@ -2,9 +2,8 @@ package is.hail.io.compress
 
 import is.hail.HailSuite
 import is.hail.TestUtils._
-import is.hail.check.Gen
-import is.hail.check.Prop.forAll
 import is.hail.expr.ir.GenericLines
+import is.hail.scalacheck.ApplicativeGenOps
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
@@ -15,6 +14,8 @@ import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.{hadoop => hd}
 import org.apache.commons.io.IOUtils
 import org.apache.spark.sql.Row
+import org.scalacheck.Gen._
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
 class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
@@ -52,7 +53,7 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   }
 }
 
-class BGzipCodecSuite extends HailSuite {
+class BGzipCodecSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   val uncompPath = getTestResource("sample.vcf")
 
   // is actually a bgz file
@@ -134,20 +135,17 @@ class BGzipCodecSuite extends HailSuite {
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
 
     val g = for {
-      n <- Gen.oneOfGen(
-        Gen.choose(0, 10),
-        Gen.choose(0, 100),
-      )
-      rawSplits <- Gen.buildableOfN[Array](
+      n <- oneOf(choose(0, 10), choose(0, 100))
+      rawSplits <- containerOfN[Array, Long](
         n,
-        Gen.oneOfGen(
-          Gen.choose(0L, compLength),
-          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1), Gen.oneOfSeq(compSplits)),
+        oneOf(
+          choose(0L, compLength),
+          oneOf[Long => Long](identity(_: Long), (_: Long) - 1, (_: Long) + 1) ap oneOf(compSplits),
         ),
       )
     } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
-    val p = forAll(g) { splits =>
+    forAll(g) { splits =>
       val contexts = (0 until (splits.length - 1))
         .map { i =>
           val end = makeVirtualOffset(splits(i + 1), 0)
@@ -157,7 +155,6 @@ class BGzipCodecSuite extends HailSuite {
       compareLines(lines2, lines)
       true
     }
-    p.check()
   }
 
   @Test def test(): Unit = {
@@ -189,21 +186,21 @@ class BGzipCodecSuite extends HailSuite {
       112477, 112505, 124593,
       136405, 144293, 157375, 169172, 175174, 186973, 195325)
 
-    val g = for {
-      n <- Gen.oneOfGen(
-        Gen.choose(0, 10),
-        Gen.choose(0, 100),
-      )
-      rawSplits <- Gen.buildableOfN[Array](
-        n,
-        Gen.oneOfGen(
-          Gen.choose(0L, compLength),
-          Gen.applyGen(Gen.oneOf[(Long) => Long](identity, _ - 1, _ + 1), Gen.oneOfSeq(compSplits)),
-        ),
-      )
-    } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
+    val g =
+      for {
+        n <- oneOf(choose(0, 10), choose(0, 100))
+        rawSplits <- containerOfN[Array, Long](
+          n,
+          oneOf(
+            choose(0L, compLength),
+            oneOf[Long => Long](identity(_: Long), (_: Long) - 1, (_: Long) + 1) ap oneOf(
+              compSplits
+            ),
+          ),
+        )
+      } yield (Array(0L, compLength) ++ rawSplits).distinct.sorted
 
-    val p = forAll(g) { splits =>
+    forAll(g) { splits =>
       val jobConf = new hd.conf.Configuration(sc.hadoopConfiguration)
       jobConf.set("bgz.test.splits", splits.mkString(","))
       val rdd = sc.newAPIHadoopFile[hd.io.LongWritable, hd.io.Text, TestFileInputFormat](
@@ -217,7 +214,6 @@ class BGzipCodecSuite extends HailSuite {
       val rddLines = rdd.map(_._2.toString).collectOrdered()
       rddLines.sameElements(lines)
     }
-    p.check()
   }
 
   @Test def testVirtualSeek(): Unit = {
