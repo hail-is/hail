@@ -1,12 +1,12 @@
 package is.hail.linalg
 
-import is.hail.check.{Gen, Prop}
-import is.hail.check.Arbitrary.arbitrary
-
+import org.scalacheck.Arbitrary.arbitrary
+import org.scalacheck.Gen.containerOf
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class RowPartitionerSuite extends TestNGSuite {
+class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
   @Test
   def testGetPartition(): Unit = {
     val partitionStarts = Array[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
@@ -34,16 +34,11 @@ class RowPartitionerSuite extends TestNGSuite {
 
     val moreKeys = Array(Long.MinValue, -1000L, -1L, 0L, 1L, 1000L, Long.MaxValue)
 
-    val g = for {
-      a0 <- Gen.buildableOf[Array](arbitrary[Long])
-      a = a0.sorted
-    } yield {
+    forAll(containerOf[Array, Long](arbitrary[Long]).map(_.sorted)) { a =>
       val len = a.length
-      for { key <- a ++ moreKeys }
+      for (key <- a ++ moreKeys)
         if (key > a(0) && key < a(len - 1))
           assert(RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key))
-      true
     }
-    Prop.forAll(g).check()
   }
 }
