@@ -30,8 +30,8 @@
   {% endif %}
   <table>
     <tr>
-      <td>
-        <form action="{{ auth_base_url }}/signup" method="GET" style="padding-right: 1rem; display: inline;">
+      <td style="width: 100px">
+        <form action="{{ auth_base_url }}/signup" method="GET">
           <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
           {% if next_page %}
           <input type="hidden" name="next" value="{{ next_page }}" />
@@ -39,14 +39,14 @@
           {{ submit_button('Sign up') }}
         </form>
       </td>
-      <td>
-        <form action="{{ auth_base_url }}/login" method="GET" style="padding-right: 1rem; display: inline;">
-      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-      {% if next_page %}
-      <input type="hidden" name="next" value="{{ next_page }}" />
-      {% endif %}
-      {{ submit_button('Log in') }}
-    </form>
+      <td style="width: 100px">
+        <form action="{{ auth_base_url }}/login" method="GET">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+          {% if next_page %}
+          <input type="hidden" name="next" value="{{ next_page }}" />
+          {% endif %}
+          {{ submit_button('Log in') }}
+        </form>
       </td>
     </tr>
   </table>
