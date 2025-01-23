@@ -1562,6 +1562,8 @@ steps:
     name: check_hail
     image:
       valueFrom: hail_linting_image.image
+    resources:
+      memory: 8G
     script: |
       set -ex
       cd /io/repo
