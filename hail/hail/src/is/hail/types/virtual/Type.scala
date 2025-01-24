@@ -208,12 +208,6 @@ abstract class Type extends VType with Serializable {
     ord
   }
 
-  def jsonReader: JSONReader[Annotation] =
-    (a: JValue) => JSONAnnotationImpex.importAnnotation(a, this)
-
-  def jsonWriter: JSONWriter[Annotation] =
-    (pk: Annotation) => JSONAnnotationImpex.exportAnnotation(pk, this)
-
   def _typeCheck(a: Any): Boolean
 
   final def typeCheck(a: Any): Boolean = a == null || _typeCheck(a)
