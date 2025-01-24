@@ -65,6 +65,7 @@ class Authenticator(abc.ABC):
                     if redirect or (redirect is None and '/api/' not in request.path):
                         raise login_redirect(request)
                     raise web.HTTPUnauthorized()
+                request['userdata'] = userdata
                 return await fun(request, userdata)
 
             return wrapped
