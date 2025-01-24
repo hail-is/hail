@@ -5,10 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.expr.{Nat, NatBase}
 
-import scala.reflect.{classTag, ClassTag}
-
-import org.apache.spark.sql.Row
-
 object TNDArray {
   def matMulNDims(l: Int, r: Int): Int = {
     (l, r) match {
@@ -109,8 +105,6 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   }
 
   override def subst(): TNDArray = TNDArray(elementType.subst(), nDimsBase.subst())
-
-  override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
   def _typeCheck(a: Annotation): Boolean = a match {
     case nd: NDArray => nd.forall(e => elementType.typeCheck(e))

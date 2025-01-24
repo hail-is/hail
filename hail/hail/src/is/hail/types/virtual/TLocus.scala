@@ -6,8 +6,6 @@ import is.hail.check._
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.reflect.{classTag, ClassTag}
-
 object TLocus {
   val representation: TStruct =
     TStruct(
@@ -38,8 +36,6 @@ case class TLocus(rgName: String) extends Type {
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     Locus.gen(sm.referenceGenomes(rgName))
-
-  override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering =
     sm.referenceGenomes(rgName).extendedLocusOrdering

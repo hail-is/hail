@@ -6,8 +6,6 @@ import is.hail.check.Gen
 import is.hail.expr.ir.IRParser
 import is.hail.utils._
 
-import scala.reflect.ClassTag
-
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
@@ -126,8 +124,6 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   }
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
-
-  override def scalaClassTag: ClassTag[AnyRef] = ???
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = ???
 

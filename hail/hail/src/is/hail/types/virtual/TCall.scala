@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.variant.Call
 
-import scala.reflect.{ClassTag, _}
-
 case object TCall extends Type {
   def _toPretty = "Call"
 
@@ -18,8 +16,6 @@ case object TCall extends Type {
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = Call.genNonmissingValue
-
-  override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   override def str(a: Annotation): String =
     if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])

@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 
-import scala.reflect.{ClassTag, _}
-
 case object TBinary extends Type {
   def _toPretty = "Binary"
 
@@ -14,8 +12,6 @@ case object TBinary extends Type {
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     Gen.buildableOf(arbitrary[Byte])
-
-  override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
   def mkOrdering(sm: HailStateManager, _missingEqual: Boolean = true): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(new ExtendedOrdering {
