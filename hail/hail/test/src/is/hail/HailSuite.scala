@@ -71,7 +71,7 @@ class HailSuite extends TestNGSuite {
 
   var pool: RegionPool = _
 
-  def getTestResource(localPath: String): String = s"src/test/resources/$localPath"
+  def getTestResource(localPath: String): String = s"hail/test/resources/$localPath"
 
   @BeforeMethod
   def setupContext(context: ITestContext): Unit = {

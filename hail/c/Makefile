@@ -21,7 +21,7 @@ endif
 # Change this setting to update the version of libsimdpp
 LIBSIMDPP := libsimdpp-2.1
 
-CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
+CATCH_HEADER_LOCATION := ../hail/resources/include/catch.hpp
 
 # before libsimdpp and catch.hpp are downloaded, clang -MG -MM will generate
 # unresolved dependencies
@@ -72,9 +72,9 @@ endif
 # Append to any inherited flags which survived filtering
 CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Wextra
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
-CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
+CXXFLAGS += -I../hail/resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
-PREBUILT := ../../../prebuilt
+PREBUILT := ../prebuilt
 
 ifeq ($(UNAME_S),Linux)
   LIBFLAGS += -rdynamic -shared
@@ -268,7 +268,7 @@ clean:
 # files, will cause recompilation of dynamic-generated C++ rather than getting
 # an erroneous cache hit on outdated DLL files.
 
-ALL_HEADER_FILES := $(shell find ../resources/include -name "*.h")
+ALL_HEADER_FILES := $(shell find ../hail/resources/include -name "*.h")
 ALL_HEADER_CKSUM := $(shell $(CXX) --version >.cxx.vsn ; cat .cxx.vsn $(ALL_HEADER_FILES) | cksum | cut -d " " -f 1)
 
 $(BUILD_X86_64)/NativeModule.o: NativeModule.cpp

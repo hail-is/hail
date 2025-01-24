@@ -73,7 +73,35 @@ object Deps {
   }
 }
 
-trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule { outer =>
+object env extends Module {
+  def scalaVersion: T[String] = Task.Input {
+    val v = T.ctx().env.getOrElse("SCALA_VERSION", "2.12.20")
+    if (!v.startsWith("2.12"))
+      Result.Failure("Hail currently supports only Scala 2.12")
+    else
+      v
+  }
+
+  def javaVersion: T[String] = Task.Input {
+    System.getProperty("java.version")
+  }
+
+  def sparkVersion: T[String] = Task.Input {
+    Result.Success(T.ctx().env.getOrElse("SPARK_VERSION", "3.5.0"))
+  }
+
+  def debugMode: T[Boolean] = Task.Input {
+    val isDebug = !T.ctx().env.contains("HAIL_RELEASE_MODE")
+    T.log.info(s"Building in ${if (isDebug) "debug" else "release"} mode")
+    isDebug
+  }
+
+  def debugOrRelease: Task[String] = Task.Anon {
+    if (debugMode()) "debug" else "release"
+  }
+}
+
+trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { outer =>
   override def scalaVersion: T[String] = build.env.scalaVersion()
 
   override def javacOptions: T[Seq[String]] = Seq(
@@ -107,7 +135,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   override def bspCompileClasspath: T[Agg[UnresolvedPath]] =
     super.bspCompileClasspath() ++ resources().map(p => UnresolvedPath.ResolvedPath(p.path))
 
-  trait HailTests extends SbtTests with TestNg with ScalafmtModule with ScalafixModule {
+  trait HailTests extends ScalaTests with TestNg with ScalafmtModule with ScalafixModule {
     override def forkArgs: T[Seq[String]] = Seq("-Xss4m", "-Xmx4096M")
 
     override def ivyDeps: T[Agg[Dep]] =
@@ -125,35 +153,7 @@ trait HailScalaModule extends SbtModule with ScalafmtModule with ScalafixModule 
   }
 }
 
-object `package` extends RootModule with HailScalaModule { outer =>
-
-  object env extends Module {
-    def scalaVersion: T[String] = Task.Input {
-      val v = T.ctx().env.getOrElse("SCALA_VERSION", "2.12.20")
-      if (!v.startsWith("2.12"))
-        Result.Failure("Hail currently supports only Scala 2.12")
-      else
-        v
-    }
-
-    def javaVersion: T[String] = Task.Input {
-      System.getProperty("java.version")
-    }
-
-    def sparkVersion: T[String] = Task.Input {
-      Result.Success(T.ctx().env.getOrElse("SPARK_VERSION", "3.5.0"))
-    }
-
-    def debugMode: T[Boolean] = Task.Input {
-      val isDebug = !T.ctx().env.contains("HAIL_RELEASE_MODE")
-      T.log.info(s"Building in ${if (isDebug) "debug" else "release"} mode")
-      isDebug
-    }
-
-    def debugOrRelease: Task[String] = Task.Anon {
-      if (debugMode()) "debug" else "release"
-    }
-  }
+object hail extends HailModule { outer =>
 
   def buildInfo: T[PathRef] = T {
     val revision = VcsVersion.vcsState().currentRevision
@@ -171,9 +171,8 @@ object `package` extends RootModule with HailScalaModule { outer =>
 
   override def moduleDeps: Seq[JavaModule] = Seq(memory)
 
-  override def resources: T[Seq[PathRef]] = Seq(
-    PathRef(millSourcePath / "src" / "main" / "resources"),
-    PathRef(millSourcePath / "prebuilt" / "lib"),
+  override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
+    PathRef(millOuterCtx.millSourcePath / "prebuilt" / "lib"),
     buildInfo(),
   )
 
@@ -262,7 +261,7 @@ object `package` extends RootModule with HailScalaModule { outer =>
       )
 
     override def sources: T[Seq[PathRef]] = Task.Sources {
-      Seq(PathRef(this.millSourcePath / os.up / "src" / env.debugOrRelease() / "java"))
+      Seq(PathRef(this.millSourcePath / env.debugOrRelease() / "src"))
     }
   }
 
