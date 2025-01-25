@@ -83,6 +83,7 @@ from ..instance_config import InstanceConfig
 from ..publicly_available_images import publicly_available_images
 from ..resource_usage import ResourceUsageMonitor
 from ..semaphore import FIFOWeightedSemaphore
+from ..utils import authorization_token
 from ..worker.worker_api import CloudDisk, CloudWorkerAPI, ContainerRegistryCredentials
 from .jvm_entryway_protocol import EndOfStream, read_bool, read_int, read_str, write_int, write_str
 
@@ -3013,6 +3014,7 @@ class Worker:
         self.file_store = FileStore(self.fs, BATCH_LOGS_STORAGE_URI, INSTANCE_ID)
 
         self.instance_token = os.environ['ACTIVATION_TOKEN']
+        self.batch_identity_uid = None
 
         self.cloudfuse_mount_manager = ReadOnlyCloudfuseManager()
 
@@ -3258,8 +3260,18 @@ class Worker:
         body = {'name': NAME}
         return json_response(body)
 
+    @web.middleware
+    async def batch_and_batch_driver_only(self, request: web.Request, handler):
+        assert CLOUD_WORKER_API
+        assert self.batch_identity_uid
+        token = authorization_token(request)
+        if token and await CLOUD_WORKER_API.identity_uid(token) == self.batch_identity_uid:
+            return await handler(request)
+        raise web.HTTPForbidden()
+
     async def run(self):
-        app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+        assert CLOUD_WORKER_API
+        app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE, middlewares=[self.batch_and_batch_driver_only])
         app.add_routes([
             web.post('/api/v1alpha/kill', self.kill),
             web.post('/api/v1alpha/batches/jobs/create', self.create_job),
@@ -3454,6 +3466,7 @@ class Worker:
             headers=await self.headers(),
         )
         self.instance_token = resp_json['token']
+        self.batch_identity_uid = resp_json['batch_identity_uid']
         self.active = True
         self.last_updated = time_msecs()
         log.info('activated')
@@ -3517,7 +3530,7 @@ async def async_main():
         if os.environ.get('HAIL_TERRA'):
             CLOUD_WORKER_API = TerraAzureWorkerAPI.from_env()
         else:
-            CLOUD_WORKER_API = AzureWorkerAPI.from_env()
+            CLOUD_WORKER_API = await AzureWorkerAPI.from_env()
 
     assert CLOUD_WORKER_API
     instance_config = CLOUD_WORKER_API.instance_config_from_config_dict(INSTANCE_CONFIG)
