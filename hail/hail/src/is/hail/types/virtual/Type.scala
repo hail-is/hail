@@ -9,8 +9,6 @@ import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import scala.reflect.ClassTag
-
 import org.apache.spark.sql.types.DataType
 import org.json4s.{CustomSerializer, JValue}
 import org.json4s.JsonAST.JString
@@ -194,8 +192,6 @@ abstract class Type extends VType with Serializable {
     tolerance: Double = utils.defaultTolerance,
     absolute: Boolean = false,
   ): Boolean = a1 == a2
-
-  def scalaClassTag: ClassTag[_ <: AnyRef]
 
   def canCompare(other: Type): Boolean = this == other
 

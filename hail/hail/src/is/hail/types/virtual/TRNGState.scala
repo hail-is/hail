@@ -16,8 +16,6 @@ case object TRNGState extends Type {
   def mkOrdering(sm: HailStateManager, missingEqual: Boolean)
     : is.hail.annotations.ExtendedOrdering = ???
 
-  def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = ???
-
   override def isIsomorphicTo(t: Type): Boolean =
     this == t
 }

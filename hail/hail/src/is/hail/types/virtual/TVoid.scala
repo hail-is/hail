@@ -14,9 +14,6 @@ case object TVoid extends Type {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
-  override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] =
-    throw new UnsupportedOperationException("No ClassTag for Void")
-
   override def _typeCheck(a: Any): Boolean = a.isInstanceOf[Unit]
 
   override def isRealizable = false

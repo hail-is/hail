@@ -4,8 +4,6 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 
-import scala.reflect.{classTag, ClassTag}
-
 import org.json4s.jackson.JsonMethods
 
 final case class TStream(elementType: Type) extends TIterable {
@@ -45,8 +43,6 @@ final case class TStream(elementType: Type) extends TIterable {
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
-
-  override def scalaClassTag: ClassTag[Iterator[AnyRef]] = classTag[Iterator[AnyRef]]
 
   override def isIsomorphicTo(t: Type): Boolean =
     t match {

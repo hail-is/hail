@@ -4,8 +4,6 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 
-import scala.reflect.{classTag, ClassTag}
-
 import org.json4s.jackson.JsonMethods
 
 final case class TSet(elementType: Type) extends TContainer {
@@ -50,8 +48,6 @@ final case class TSet(elementType: Type) extends TContainer {
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     Gen.buildableOf[Set](elementType.genValue(sm))
-
-  override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     assert(elementType == subtype.asInstanceOf[TSet].elementType)

@@ -6,8 +6,6 @@ import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.utils._
 
-import scala.reflect.{ClassTag, _}
-
 case object TFloat64 extends TNumeric {
   override def _toPretty = "Float64"
 
@@ -37,8 +35,6 @@ case object TFloat64 extends TNumeric {
 
       f1 == f2 || withinTol || (f1.isNaN && f2.isNaN)
     })
-
-  override def scalaClassTag: ClassTag[java.lang.Double] = classTag[java.lang.Double]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Double]], missingEqual)

@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.utils.{FastSeq, Interval}
 
-import scala.reflect.{classTag, ClassTag}
-
 case class TInterval(pointType: Type) extends Type {
 
   override def children = FastSeq(pointType)
@@ -32,8 +30,6 @@ case class TInterval(pointType: Type) extends Type {
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
     Interval.gen(pointType.ordering(sm), pointType.genValue(sm))
-
-  override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     Interval.ordering(pointType.ordering(sm), startPrimary = true, missingEqual)
