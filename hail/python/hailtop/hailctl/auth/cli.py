@@ -15,10 +15,26 @@ app = typer.Typer(
 )
 
 
+def tos_agreement():
+    print('You must agree to the Terms of Service before continuing. Review them at https://hail.is.')
+    response = input('Do you agree to the Terms of Service? Y/n: ').strip().lower()
+    while True:
+        if response in {'y', 'n'}:
+            break
+        response = input('Please enter a valid input. Do you agree to the Terms of Service? Y/n: ').strip().lower()
+    if response != 'y':
+        print("You must agree to the Terms of Service to log in.")
+        sys.exit(1)
+    if response == 'y':
+        print("Terms accepted. Logging in...")
+
+
 @app.command()
 def login():
     """Obtain Hail credentials."""
     from .login import async_login  # pylint: disable=import-outside-toplevel
+
+    tos_agreement()
 
     asyncio.run(async_login())
 
