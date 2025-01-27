@@ -24,9 +24,10 @@ def tos_agreement():
         response = input('Please enter a valid input. Do you agree to the Terms of Service? Y/n: ').strip().lower()
     if response != 'y':
         print("You must agree to the Terms of Service to log in.")
-        sys.exit(1)
+        return False
     if response == 'y':
         print("Terms accepted. Logging in...")
+        return True
 
 
 @app.command()
@@ -34,9 +35,12 @@ def login():
     """Obtain Hail credentials."""
     from .login import async_login  # pylint: disable=import-outside-toplevel
 
-    tos_agreement()
-
-    asyncio.run(async_login())
+    agreement = tos_agreement()
+    if agreement:
+        asyncio.run(async_login())
+    else:
+        print("Could not authenticate, Terms of Service rejected.")
+        sys.exit(1)
 
 
 @app.command()
