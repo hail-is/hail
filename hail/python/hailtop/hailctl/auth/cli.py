@@ -37,9 +37,9 @@ def tos_agreement():
     if response != 'y':
         print("You must agree to the Terms of Service to log in.")
         return False
-    else:
-        print("Terms accepted. Logging in...")
-        return True
+
+    print("Terms accepted. Logging in...")
+    return True
 
 
 @app.command()
