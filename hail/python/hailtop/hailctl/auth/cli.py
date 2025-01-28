@@ -16,8 +16,20 @@ app = typer.Typer(
 
 
 def tos_agreement():
-    print('You must agree to the Terms of Service before continuing. Review them at https://hail.is.')
-    response = input('Do you agree to the Terms of Service? Y/n: ').strip().lower()
+    tos_statement = """
+    The Hail system records your email address and IP address.
+    Your email address is recorded so that we can authenticate you.
+    Your IP address is tracked as part of our surveillance of all traffic to and from the Hail system.
+    This broad surveillance enables the protection of the Hail system from malicious actors.
+    """
+    agree_statement = """
+    Notice: By signing up or logging in and continuing to use the system, you agree to these terms of service.
+    Do you agree to these terms? Y/n:
+    """
+
+    print(tos_statement)
+    response = input(agree_statement).strip().lower()
+
     while True:
         if response in {'y', 'n'}:
             break
@@ -25,7 +37,7 @@ def tos_agreement():
     if response != 'y':
         print("You must agree to the Terms of Service to log in.")
         return False
-    if response == 'y':
+    else:
         print("Terms accepted. Logging in...")
         return True
 
