@@ -2,7 +2,7 @@ package is.hail.io
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
-import is.hail.expr.ir.{I64, MakeStruct, ReadPartition, Str, ToArray}
+import is.hail.expr.ir.defs.{I64, MakeStruct, ReadPartition, Str, ToArray}
 import is.hail.io.avro.AvroPartitionReader
 import is.hail.utils.{fatal, using, FastSeq}
 

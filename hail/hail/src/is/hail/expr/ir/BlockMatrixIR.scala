@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations.NDArray
 import is.hail.backend.{BackendContext, ExecuteContext}
 import is.hail.expr.Nat
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS

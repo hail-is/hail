@@ -5,7 +5,13 @@ import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir._
+import is.hail.expr.ir.{
+  bindIR, freshName, rangeIR, BindingEnv, BlockMatrixIR, Compilable, Env, Forall, IR, Interpret,
+  Pretty, TypeCheck,
+}
+import is.hail.expr.ir.defs.{
+  BlockMatrixCollect, Cast, MakeTuple, NDArrayRef, Ref, StreamMap, ToArray,
+}
 import is.hail.io.fs.FS
 import is.hail.types.virtual._
 import is.hail.utils._

@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.TestUtils.eval
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir
+import is.hail.expr.ir.defs.{Literal, ToArray, ToStream}
 import is.hail.types.virtual.{TArray, TBoolean, TSet, TString}
 import is.hail.utils._
 
@@ -20,7 +20,7 @@ class MemoryLeakSuite extends HailSuite {
       ExecuteContext.scoped { ctx =>
         eval(
           ToArray(
-            mapIR(ToStream(queries))(r => ir.invoke("contains", TBoolean, lit, r))
+            mapIR(ToStream(queries))(r => invoke("contains", TBoolean, lit, r))
           ),
           Env.empty,
           FastSeq(),

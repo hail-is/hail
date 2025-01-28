@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.{BackendUtils, ExecuteContext, HailTaskContext}
+import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}

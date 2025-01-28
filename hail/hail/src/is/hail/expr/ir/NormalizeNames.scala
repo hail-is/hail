@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.NormalizeNames.needsRenaming
+import is.hail.expr.ir.defs._
 import is.hail.types.virtual.Type
 import is.hail.utils.StackSafe._
 

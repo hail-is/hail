@@ -2,6 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs.{ErrorIDs, If, NA}
 import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._

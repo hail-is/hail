@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.TestUtils.IRCall
+import is.hail.expr.ir.defs.{False, I32, Str, True}
 import is.hail.types.virtual.{TArray, TBoolean, TCall, TInt32}
 import is.hail.variant._
 

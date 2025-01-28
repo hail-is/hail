@@ -6,8 +6,9 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, ExtendedOrdering, SafeNDArray}
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
-import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.defs._
+import is.hail.expr.ir.defs.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.functions._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.bgen.MatrixBGENReader

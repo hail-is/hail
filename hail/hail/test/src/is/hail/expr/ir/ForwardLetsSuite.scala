@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.TestUtils._
 import is.hail.expr.Nat
+import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils._
 

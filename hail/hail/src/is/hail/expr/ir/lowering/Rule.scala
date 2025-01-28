@@ -1,6 +1,10 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir._
+import is.hail.expr.ir.{
+  BaseIR, BlockMatrixIR, Compilable, Emittable, IR, MatrixIR, RelationalLetBlockMatrix,
+  RelationalLetMatrixTable, RelationalLetTable, TableIR,
+}
+import is.hail.expr.ir.defs.{ApplyIR, RelationalLet, RelationalRef}
 
 trait Rule {
   def allows(ir: BaseIR): Boolean

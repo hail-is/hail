@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext, TaskFinalizer}
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{
   BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction,
 }

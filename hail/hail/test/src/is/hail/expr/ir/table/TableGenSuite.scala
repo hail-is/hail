@@ -5,6 +5,10 @@ import is.hail.TestUtils.loweredExecute
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils.IRAggCollect
+import is.hail.expr.ir.defs.{
+  ApplyBinaryPrimOp, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange,
+  TableAggregate, TableGetGlobals,
+}
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._

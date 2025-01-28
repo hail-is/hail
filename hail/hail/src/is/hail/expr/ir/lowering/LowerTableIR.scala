@@ -3,7 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
-import is.hail.expr.ir.ArrayZipBehavior.AssertSameLength
+import is.hail.expr.ir.defs._
+import is.hail.expr.ir.defs.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.methods.{ForceCountTable, LocalLDPrune, NPartitionsTable, TableFilterPartitions}

@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{Block, If, Switch, TailLoop}
+
 object InTailPosition {
   def apply(x: IR, i: Int): Boolean = x match {
     case Block(bindings, _) => i == bindings.length

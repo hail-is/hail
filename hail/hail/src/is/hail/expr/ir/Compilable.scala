@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs._
+
 object InterpretableButNotCompilable {
   def apply(x: IR): Boolean = x match {
     case _: LiftMeOut => true

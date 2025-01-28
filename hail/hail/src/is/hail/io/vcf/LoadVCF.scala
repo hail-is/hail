@@ -7,9 +7,9 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{
   CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines,
-  GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader,
-  MatrixReader, PartitionReader,
+  GenericTableValue, IEmitCode, IR, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixReader,
 }
+import is.hail.expr.ir.defs.{Literal, PartitionReader}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{VCFAttributes, VCFMetadata}

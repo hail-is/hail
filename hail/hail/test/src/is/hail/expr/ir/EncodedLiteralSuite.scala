@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.expr.ir.defs.WrappedByteArrays
 
 import org.testng.annotations.Test
 

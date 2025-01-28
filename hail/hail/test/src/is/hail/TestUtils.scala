@@ -3,7 +3,11 @@ package is.hail
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir._
+import is.hail.expr.ir.{
+  freshName, streamAggIR, BindingEnv, Compile, Env, IR, Interpret, MapIR, MatrixIR, MatrixRead,
+  Name, SingleCodeEmitParamType, Subst,
+}
+import is.hail.expr.ir.defs.{GetField, GetTupleElement, In, MakeTuple, Ref, ToStream}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}

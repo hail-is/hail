@@ -4,6 +4,7 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.Pretty.prettyBooleanLiteral
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.virtual.{MatrixType, TArray, TInterval, TStream, TableType, Type}
 import is.hail.utils.{space => _, _}

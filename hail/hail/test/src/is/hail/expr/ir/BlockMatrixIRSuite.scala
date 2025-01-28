@@ -3,6 +3,10 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.expr.Nat
+import is.hail.expr.ir.defs.{
+  Apply, ApplyBinaryPrimOp, ApplyUnaryPrimOp, BlockMatrixWrite, ErrorIDs, F64, Literal, MakeArray,
+  ReadValue, Ref, Str, UUID4, WriteValue,
+}
 import is.hail.io.TypedCodecSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.types.encoded.{EBlockMatrixNDArray, EFloat64Required}

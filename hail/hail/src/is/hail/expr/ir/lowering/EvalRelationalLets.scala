@@ -2,9 +2,9 @@ package is.hail.expr.ir.lowering
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
-  BaseIR, CompileAndEvaluate, IR, Name, RelationalLet, RelationalLetMatrixTable, RelationalLetTable,
-  RelationalRef,
+  BaseIR, CompileAndEvaluate, IR, Name, RelationalLetMatrixTable, RelationalLetTable,
 }
+import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
 
 object EvalRelationalLets {
   // need to run the rest of lowerings to eval.

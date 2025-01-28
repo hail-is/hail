@@ -5,10 +5,10 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
   EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR,
-  IRParserEnvironment, Literal, LowerMatrixIR, MakeStruct, MatrixHybridReader, MatrixReader,
-  PartitionNativeIntervalReader, PartitionReader, ReadPartition, Ref, TableNativeReader,
-  TableReader, ToStream,
+  IRParserEnvironment, LowerMatrixIR, MatrixHybridReader, MatrixReader,
+  PartitionNativeIntervalReader, TableNativeReader, TableReader,
 }
+import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._

@@ -6,6 +6,10 @@ import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.defs.{
+  ApplySeeded, GetField, I32, InsertFields, MakeTuple, MatrixMultiWrite, MatrixWrite, RNGSplit,
+  RNGStateLiteral, Ref, TableCollect,
+}
 import is.hail.types.virtual._
 import is.hail.utils._
 

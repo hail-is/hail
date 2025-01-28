@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
+import is.hail.expr.ir.defs._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
 import is.hail.types._

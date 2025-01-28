@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySeeded, ApplySpecial}
 import is.hail.io.bgen.BGENFunctions
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{EmitType, SType, SValue}

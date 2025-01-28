@@ -5,7 +5,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.ir.agg._
+import is.hail.expr.ir.agg.{AppendOnlyBTree, BTreeKey}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
 import is.hail.types.physical._
