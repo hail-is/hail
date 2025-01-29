@@ -61,8 +61,13 @@ def copy_paste_login(copy_paste_token: str):
     from hailtop.auth import copy_paste_login  # pylint: disable=import-outside-toplevel
     from hailtop.config import get_deploy_config  # pylint: disable=import-outside-toplevel
 
-    username = copy_paste_login(copy_paste_token)
-    print(f'Logged into {get_deploy_config().base_url("auth")} as {username}.')
+    agreement = tos_agreement()
+    if agreement:
+        username = copy_paste_login(copy_paste_token)
+        print(f'Logged into {get_deploy_config().base_url("auth")} as {username}.')
+    else:
+        print("Could not authenticate, Terms of Service rejected.")
+        sys.exit(1)
 
 
 @app.command()
