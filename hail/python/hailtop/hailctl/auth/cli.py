@@ -15,12 +15,44 @@ app = typer.Typer(
 )
 
 
+def tos_agreement():
+    tos_statement = """
+    The Hail system records your email address and IP address.
+    Your email address is recorded so that we can authenticate you.
+    Your IP address is tracked as part of our surveillance of all traffic to and from the Hail system.
+    This broad surveillance enables the protection of the Hail system from malicious actors.
+    """
+    agree_statement = """
+    Notice: By signing up or logging in and continuing to use the system, you agree to these terms of service.
+    Do you agree to these terms? Y/n:
+    """
+
+    print(tos_statement)
+    response = input(agree_statement).strip().lower()
+
+    while True:
+        if response in {'y', 'n'}:
+            break
+        response = input('Please enter a valid input. Do you agree to the Terms of Service? Y/n: ').strip().lower()
+    if response != 'y':
+        print("You must agree to the Terms of Service to log in.")
+        return False
+
+    print("Terms accepted. Logging in...")
+    return True
+
+
 @app.command()
 def login():
     """Obtain Hail credentials."""
     from .login import async_login  # pylint: disable=import-outside-toplevel
 
-    asyncio.run(async_login())
+    agreement = tos_agreement()
+    if agreement:
+        asyncio.run(async_login())
+    else:
+        print("Could not authenticate, Terms of Service rejected.")
+        sys.exit(1)
 
 
 @app.command()
