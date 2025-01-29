@@ -1,7 +1,6 @@
 import importlib.resources
 from pathlib import Path
 from sys import version_info
-from typing import Optional
 
 if version_info < (3, 9):
     raise EnvironmentError(f'Hail requires Python 3.9 or later, found {version_info.major}.{version_info.minor}')
@@ -90,7 +89,6 @@ from .context import (
     spark_context,
     stop,
     tmp_dir,
-    version,
 )
 from .expr import *  # noqa: F403
 from .expr import aggregators
@@ -98,11 +96,20 @@ from .genetics import *  # noqa: F403
 from .matrixtable import GroupedMatrixTable, MatrixTable
 from .methods import *  # noqa: F403
 from .table import GroupedTable, Table, asc, desc
+from .version import __pip_version__, __revision__, __version__
 
 agg = aggregators
 scan = aggregators.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
+
+def version() -> str:
+    return __version__
+
+
 __all__ = [
+    '__pip_version__',
+    '__revision__',
+    '__version__',
     'init',
     'init_local',
     'init_batch',
@@ -171,10 +178,6 @@ del builtins
 
 ir.register_functions()
 ir.register_aggregators()
-
-__pip_version__ = __resource_str('hail_pip_version').strip()
-__version__: Optional[str] = None  # set by hail.version()
-__revision__: Optional[str] = None  # set by hail.revision()
 
 import warnings
 

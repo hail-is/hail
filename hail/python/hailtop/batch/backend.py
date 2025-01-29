@@ -16,7 +16,7 @@ import orjson
 from rich.progress import track
 
 import hailtop.batch_client.client as bc
-from hailtop import pip_version
+from hailtop import __pip_version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
@@ -34,7 +34,7 @@ from .exceptions import BatchException
 from .globals import DEFAULT_SHELL
 from .job import PythonJob
 
-HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{pip_version()}')
+HAIL_GENETICS_HAILTOP_IMAGE = os.environ.get('HAIL_GENETICS_HAILTOP_IMAGE', f'hailgenetics/hailtop:{__pip_version__}')
 HAIL_GENETICS_HAIL_IMAGE = (
     os.environ.get('HAIL_GENETICS_HAIL_IMAGE') or hailgenetics_hail_image_for_current_python_version()
 )

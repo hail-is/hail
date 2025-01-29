@@ -10,13 +10,14 @@ from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, Ty
 import orjson
 
 import hailtop.aiotools.fs as afs
-from hail.context import TemporaryDirectory, TemporaryFilename, revision, tmp_dir, version
+from hail.context import TemporaryDirectory, TemporaryFilename, tmp_dir
 from hail.experimental import read_expression, write_expression
 from hail.expr.expressions.base_expression import Expression
 from hail.expr.types import HailType
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 from hail.utils import FatalError
+from hail.version import __revision__, __version__
 from hailtop import yamlx
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
@@ -201,7 +202,7 @@ class ServiceBackend(Backend):
 
         name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
         batch_attributes: Dict[str, str] = {
-            'hail-version': version(),
+            'hail-version': __version__,
         }
         if name_prefix:
             batch_attributes['name'] = name_prefix
@@ -325,7 +326,7 @@ class ServiceBackend(Backend):
 
     @property
     def jar_spec(self) -> dict:
-        return {'type': 'git_revision', 'value': revision()}
+        return {'type': 'git_revision', 'value': __revision__}
 
     @property
     def logger(self):

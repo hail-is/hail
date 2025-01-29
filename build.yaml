@@ -22,16 +22,9 @@ steps:
       cd repo
       {{ code.checkout_script }}
       make -C hail python-version-info HAIL_RELEASE_MODE=1 MILLOPTS=--no-server
-      git rev-parse HEAD > git_version
     outputs:
       - from: /io/repo/
         to: /repo
-      - from: /io/repo/hail/python/hail/hail_version
-        to: /hail_version
-      - from: /io/repo/hail/python/hail/hail_pip_version
-        to: /hail_pip_version
-      - from: /io/repo/git_version
-        to: /git_version
     dependsOn:
       - git_make_bash_image
   - kind: createNamespace
@@ -279,8 +272,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
     dependsOn:
@@ -354,8 +345,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -623,8 +612,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -650,8 +637,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -673,8 +658,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail_version
     dependsOn:
       - merge_code
       - hail_ubuntu_image
@@ -692,8 +675,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -743,10 +724,8 @@ steps:
       time retry make wheel
 
       # Check wheel size is small enough for pypi (< 200 MiB)
-      HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
-      WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
-      du -h $WHEEL_PATH
-      $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
+      BYTES=$(du build/deploy/dist/hail-*-py3-none-any.whl | awk '{print $1}')
+      (( BYTES < 209715200 )) || exit 1
     inputs:
       - from: /repo
         to: /io/repo
@@ -941,16 +920,12 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
       - from: /jvm-entryway.jar
         to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
-      - from: /hail_version
-        to: /io/repo/hail_version
     dependsOn:
       - merge_code
       - hail_ubuntu_image
@@ -1354,15 +1329,13 @@ steps:
       mv python/hail/docs/_build/html www/docs/0.2
       mv python/hailtop/batch/docs/_build/html www/docs/batch
 
-      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
+      HAIL_CACHE_VERSION=$(cat env/HAIL_VERSION)
       find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
 
       tar czf /io/www.tar.gz www
     inputs:
-      - from: /repo/hail/python
-        to: /io/hail/python
-      - from: /hail_version
-        to: /io/repo/hail/python/hail/hail_version
+      - from: /repo/hail
+        to: /io/hail
       - from: /repo/website/website
         to: /io/website/website
       - from: /derived/release/hail/build/deploy/dist
@@ -1594,7 +1567,7 @@ steps:
       # dev deploy elides the hail-is remote, add it and retrieve the tags
       git remote add hail-is https://github.com/hail-is/hail.git
 
-      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export HAIL_PIP_VERSION=$(cat hail/env/HAIL_PIP_VERSION)
 
       if git ls-remote --exit-code --tags hail-is $HAIL_PIP_VERSION
       then
@@ -1627,8 +1600,6 @@ steps:
         to: /io/repo
       - from: /www.tar.gz
         to: /io/www.tar.gz
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
     outputs:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
@@ -2437,7 +2408,7 @@ steps:
       {% else %}
       HAIL_QUERY_JAR_URL={{ global.test_storage_uri }}/{{ default_ns.name }}
       {% endif %}
-      HAIL_QUERY_JAR_URL=${HAIL_QUERY_JAR_URL}/jars/$(cat /io/git_version).jar
+      HAIL_QUERY_JAR_URL=${HAIL_QUERY_JAR_URL}/jars/$(cat /io/REVISION).jar
 
       python3 -m hailtop.aiotools.copy 'null' '[{"from": "/io/hail.jar", "to": "'${HAIL_QUERY_JAR_URL}'"}]'
     secrets:
@@ -2448,8 +2419,8 @@ steps:
     inputs:
       - from: /derived/release/hail/out/hail/assembly.dest/out.jar
         to: /io/hail.jar
-      - from: /git_version
-        to: /io/git_version
+      - from: /repo/hail/env/REVISION
+        to: /io/REVISION
     dependsOn:
       - default_ns
       - deploy_batch
@@ -2842,7 +2813,6 @@ steps:
       cp -R /io/repo/hail/python ./hail/
       cp /io/repo/hail/Makefile ./hail/
       cp /io/repo/hail/env_var.mk ./hail/
-      cp /io/repo/hail/version.mk ./hail/
       cp -R /io/repo/web_common ./
       cp /io/repo/hail/python/setup-hailtop.py ./hail/python/
 
@@ -3278,7 +3248,7 @@ steps:
       gcloud config set project hail-vdc
       gcloud config set dataproc/region us-central1
 
-      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
       then
           echo "tag $HAIL_PIP_VERSION already exists"
           exit 0
@@ -3293,8 +3263,6 @@ steps:
       - merge_code
       - build_hail_jar_and_wheel
     inputs:
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
       - from: /derived/release/hail/build/deploy/dist
@@ -3324,7 +3292,7 @@ steps:
       gcloud config set project hail-vdc
       gcloud config set dataproc/region us-central1
 
-      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      if git ls-remote --exit-code --tags origin $(cat hail/env/HAIL_PIP_VERSION)
       then
           echo "tag $HAIL_PIP_VERSION already exists"
           exit 0
@@ -3339,8 +3307,6 @@ steps:
       - merge_code
       - build_hail_jar_and_wheel
     inputs:
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
       - from: /derived/release/hail/build/deploy/dist
@@ -3377,7 +3343,7 @@ steps:
       export GIT_ASKPASS=/io/git-askpass
 
       cd /io/repo/hail
-      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
 
       if git ls-remote --exit-code --tags origin $HAIL_PIP_VERSION
       then
@@ -3393,9 +3359,9 @@ steps:
 
       echo Setting arguments and invoking release.sh.
 
-      HAIL_VERSION=$(cat /io/hail_version) \
+      HAIL_VERSION=$(cat env/HAIL_VERSION) \
       WHEEL="build/deploy/dist/hail-${HAIL_PIP_VERSION}-py3-none-any.whl" \
-      GIT_VERSION=$(cat /io/git_version) \
+      GIT_VERSION=$(cat env/REVISION) \
       REMOTE=origin \
       GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
       HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
@@ -3410,12 +3376,6 @@ steps:
 
       echo '1' > /io/release-hail-flag
     inputs:
-      - from: /hail_version
-        to: /io/hail_version
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
-      - from: /git_version
-        to: /io/git_version
       - from: /repo
         to: /io/repo
       - from: /derived/release/hail/out/hail/assembly.dest/out.jar
@@ -3480,8 +3440,6 @@ steps:
       - ci_utils_image
       - release
     inputs:
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
       - from: /release-hail-flag
         to: /io/release-hail-flag
       - from: /repo
@@ -3504,18 +3462,16 @@ steps:
           exit 0
       fi
 
-      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
-      export GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
-      cd /io
-
       printf 'Authorization: token ' > github-oauth
-      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >> /io/github-oauth
       printf '#!/bin/bash\necho ' > git-askpass
-      cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
-      chmod 755 git-askpass
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >> /io/git-askpass
+      chmod 755 /io/git-askpass
       export GIT_ASKPASS=/io/git-askpass
 
       cd /io/repo/hail
+      export HAIL_PIP_VERSION=$(cat env/HAIL_PIP_VERSION)
+      export GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
       bash scripts/make-terra-prs.sh
   - kind: runImage
     name: mirror_hailgenetics_images
@@ -3539,12 +3495,12 @@ steps:
       set -x
 
       cd /io/docker/hailgenetics
-      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export HAIL_PIP_VERSION=$(cat /io/HAIL_PIP_VERSION)
       export DOCKER_PREFIX={{ global.docker_prefix }}
       bash mirror_images.sh
     inputs:
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
+      - from: /repo/hail/env/HAIL_PIP_VERSION
+        to: /io/HAIL_PIP_VERSION
       - from: /repo/docker/hailgenetics/mirror_images.sh
         to: /io/docker/hailgenetics/mirror_images.sh
       - from: /repo/docker/copy_image.sh
@@ -3571,8 +3527,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail/python/hailtop/hail_version
       - from: /repo/gear
         to: /io/repo/gear
       - from: /repo/web_common
@@ -3745,8 +3699,6 @@ steps:
         to: /io/repo/hail/python
       - from: /repo/hail/scripts/benchmark_in_batch.py
         to: /io/repo/hail/scripts/benchmark_in_batch.py
-      - from: /hail_version
-        to: /io/hail_version
       - from: /release-hail-flag
         to: /io/release-hail-flag
     script: |
@@ -3762,7 +3714,7 @@ steps:
       pushd /io/repo/hail
 
       BUCKET=hail-benchmarks-2
-      HAIL_VERSION=$(cat /io/hail_version)
+      HAIL_VERSION=$(cat env/HAIL_VERSION)
       RESULTS_PREFIX="gs://${BUCKET}/{{ scope }}/${HAIL_VERSION}"
 
       export HAIL_BATCH_REGIONS={{ global.gcp_region }}
