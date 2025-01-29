@@ -66,7 +66,9 @@ class Authenticator(abc.ABC):
                         raise login_redirect(request)
                     raise web.HTTPUnauthorized()
                 elif userdata['state'] == 'inactive':
-                    raise web.HTTPUnauthorized()
+                    raise web.HTTPUnauthorized(
+                        text="Account is inactive. Please contact a Hail administrator to reactivate."
+                    )
                 request['userdata'] = userdata
                 return await fun(request, userdata)
 
