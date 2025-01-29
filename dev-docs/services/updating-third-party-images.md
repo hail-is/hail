@@ -1,0 +1,33 @@
+# Updating third party images
+
+This document describes how to update third party images.
+
+## Prerequisites
+
+### Install skopeo
+
+Not absolutely necessary but installing skopeo will make this go a lot smoother - and won't run into docker
+"no space left on device" issues.
+
+```bash
+$ brew install skopeo
+```
+
+### Set the `kubectl` Context
+
+Why do we need kubectl? Because this allows config.mk to access the global-config secret's .data.docker_prefix field. 
+
+See [Setting the `kubectl` Context](setting_the_kubectl_context.md).
+
+### Connect or fetch credentials to the container registry
+
+Why? Because we need to push the third party images into the container registry.
+
+See [Connecting Docker to Container Registry Credentials](connecting_docker_to_container_registry_creds.md).
+
+ 
+## Run the following command to update the image:
+
+```bash
+$ NAMESPACE=default make -C  docker/third-party copy
+```
