@@ -454,9 +454,11 @@ async def create_user(request: web.Request, _) -> web.Response:
 
 @routes.get('/user')
 @web_security_headers
-@auth.authenticated_users_only()
-async def user_page(request: web.Request, userdata: UserData) -> web.Response:
-    return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
+@auth.maybe_authenticated_user
+async def user_page(request: web.Request, userdata: Optional[UserData]) -> web.Response:
+    context_dict = {'cloud': CLOUD, **({'next_page': request.query['next']} if 'next' in request.query else {})}
+
+    return await render_template('auth', request, userdata, 'user.html', context_dict)
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):

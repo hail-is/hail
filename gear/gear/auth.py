@@ -172,7 +172,7 @@ async def get_session_id(request: web.Request) -> Optional[str]:
 
 
 def login_redirect(request) -> web.HTTPFound:
-    login_url = deploy_config.external_url('auth', '/login')
+    login_url = deploy_config.external_url('auth', '/user')
 
     # request.url is a yarl.URL
     request_url = request.url
