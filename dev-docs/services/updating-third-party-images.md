@@ -1,6 +1,6 @@
 # Updating third party images
 
-This document describes how to update third party images.
+This process updates third party images in cloud artifact registries after changes in [docker/third-party/images.txt](../../docker/third-party/images.txt) .
 
 ## Prerequisites
 
