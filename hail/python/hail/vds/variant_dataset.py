@@ -228,7 +228,11 @@ class VariantDataset:
         self.validate(check_data=False)
 
     def write(self, path, **kwargs):
-        """Write to `path`."""
+        """Write to `path`.
+
+        Any optional parameter from :meth:`.MatrixTable.write` can be passed as
+        a keyword paramter to this method.
+        """
 
         # NOTE: Populate LEN and drop END from reference data to align with VCF 4.5.
         # Furthermore, since LEN values are smaller and more likely to be close

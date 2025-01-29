@@ -293,6 +293,39 @@ class Tests(unittest.TestCase):
         )
         assert mt._same(expected_split_mt)
 
+    def test_sparse_split_haploid(self):
+        line = {
+            'locus': hl.Locus(contig='Y', position=10_000),
+            'alleles': ['A', 'C', 'T'],
+            'entries': [{'LGT': hl.Call([1]), 'LA': [0, 2], 'LPL': [100, 0]}],
+        }
+        ht = hl.Table.parallelize([line], key=['locus', 'alleles'])
+        ht = ht.annotate_globals(cols=[hl.Struct(s='S1')])
+        mt = ht._unlocalize_entries('entries', 'cols', ['s'])
+        mt = hl.experimental.sparse_split_multi(mt)
+        expected = [
+            hl.Struct(
+                locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
+                alleles=['A', 'C'],
+                a_index=1,
+                was_split=True,
+                s='S1',
+                GT=hl.Call(alleles=[0], phased=False),
+                PL=None,
+            ),
+            hl.Struct(
+                locus=hl.Locus(contig='Y', position=10000, reference_genome='GRCh37'),
+                alleles=['A', 'T'],
+                a_index=2,
+                was_split=True,
+                s='S1',
+                GT=hl.Call(alleles=[1], phased=False),
+                PL=[100, 0],
+            ),
+        ]
+        result = mt.entries().collect()
+        assert expected == result
+
     def test_define_function(self):
         f1 = hl.experimental.define_function(lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f1(1, 3)), 24)

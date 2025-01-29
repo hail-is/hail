@@ -1,6 +1,8 @@
 *~
 *.o
 .*.crc
+*.out
+!**/resources/*.out
 .gradle/
 .idea/
 .vscode/
@@ -24,7 +26,6 @@ hs_err_pid*.log
 *hail/python/hailtop/pipeline/docs/output*
 .mypy_cache/
 node_modules
-*.out
 GPATH
 GRTAGS
 GTAGS

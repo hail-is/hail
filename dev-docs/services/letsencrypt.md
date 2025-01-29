@@ -34,6 +34,21 @@ gcpsetcluster <PROJECT>
 azsetcluster <RESOURCE_GROUP>
 ```
 
+### Connect or fetch credentials to the container registry
+
+In GCP, something like:
+```
+gcloud auth login
+gcloud auth configure-docker us-central1-docker.pkg.dev # Depending on where GAR is hosted
+```
+
+
+In Azure, something like:
+```
+az login
+az acr login --name haildev # the container registry name is findable in the azure console
+```
+
 ### Rotating One Cluster's Certificates
 
 After setting the `kubectl` context to the appropriate cluster, clean the
