@@ -4,6 +4,7 @@ import pytest
 
 import hail as hl
 from hail.utils import new_temp_file
+from hail.vds import VariantDataset
 from hail.vds.combiner.combine import defined_entry_fields
 
 from ..helpers import qobtest, resource, test_timeout
@@ -813,6 +814,9 @@ def test_combiner_max_len():
 @test_timeout(4 * 60, local=6 * 60)
 def test_split_sparse_roundtrip():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    # this doesn't actually roundtrip because 1kg_chr22_5_samples was generated before
+    # we added GT to reference_data, to_merged_sparse_mt adds a reference GT
+    vds.reference_data = vds.reference_data.annotate_entries(LGT=hl.call(0, 0))
     smt = hl.vds.to_merged_sparse_mt(vds)
     smt = hl.experimental.sparse_split_multi(smt)
     vds2 = hl.vds.VariantDataset.from_merged_representation(
@@ -824,6 +828,35 @@ def test_split_sparse_roundtrip():
         vds2.variant_data.select_entries(*vds_split.variant_data.entry).select_globals()._same(vds_split.variant_data)
     )
     assert vds2.reference_data._same(vds_split.reference_data.drop('ref_allele'))
+
+
+def test_split_alters_ref_gt():
+    vds_base = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+
+    # no lgt or gt
+    vds_split = hl.vds.split_multi(vds_base)
+    assert 'GT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+
+    # lgt only
+    vds = VariantDataset(vds_base.reference_data.annotate_entries(LGT=hl.call(0, 0)), vds_base.variant_data)
+    vds_split = hl.vds.split_multi(vds)
+    assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+
+    # gt only
+    vds = VariantDataset(vds_base.reference_data.annotate_entries(GT=hl.call(0, 0)), vds_base.variant_data)
+    vds_split = hl.vds.split_multi(vds)
+    assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
+
+    # both lgt and gt
+    vds = VariantDataset(
+        vds_base.reference_data.annotate_entries(LGT=hl.call(0, 0), GT=hl.call(0, 0)), vds_base.variant_data
+    )
+    vds_split = hl.vds.split_multi(vds)
+    assert 'GT' in vds_split.reference_data.entry, vds_split.reference_data.entry
+    assert 'LGT' not in vds_split.reference_data.entry, vds_split.reference_data.entry
 
 
 def test_ref_block_max_len_patch():
@@ -862,11 +895,12 @@ def test_ref_block_does_not_densify_to_next_contig():
     ref = vds.reference_data
     var = vds.variant_data.filter_entries(False)
     # max out all chr1 refblocks, and truncate all chr2 refblocks so that nothing in chr2 should be densified
+    chr1_end = hl.parse_locus_interval('chr1', reference_genome=ref.locus.dtype.reference_genome).end.position
     ref = ref.annotate_entries(
-        END=hl.if_else(
+        LEN=hl.if_else(
             ref.locus.contig == 'chr1',
-            hl.parse_locus_interval('chr1', reference_genome=ref.locus.dtype.reference_genome).end.position,
-            ref.locus.position,
+            chr1_end - ref.locus.position + 1,
+            1,
         )
     )
     vds = hl.vds.VariantDataset(reference_data=ref, variant_data=var)
@@ -887,3 +921,44 @@ def test_haploid_lpl_import():
     lpl = vd.aggregate_entries(hl.agg.collect(vd.LPL))
     lpl = lpl[0]
     assert lpl == [10, 0]
+
+
+def test_basic_impex():
+    orig_vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_chr22_5_samples.vds'))
+    path = new_temp_file(extension='vcf.bgz')
+    hl.vds.export_vcf(orig_vds, path)
+
+    metadata = hl.get_vcf_metadata(path)
+    format_md = metadata['format']
+
+    assert 'GT' in format_md, format_md
+    assert 'LGT' not in format_md, format_md
+    assert 'LAA' in format_md, format_md
+    assert 'LA' not in format_md, format_md
+    assert 'gvcf_info' not in format_md, format_md
+    # LPGT is in orig_vds, so we can check for PGT existing and LPGT not existing in the exported
+    # metadata
+    assert 'PGT' in format_md, format_md
+    assert 'LPGT' not in format_md, format_md
+
+    new_vds = hl.vds.import_vcf(path, reference_genome=orig_vds.variant_data.locus.dtype.reference_genome)
+
+    assert (
+        VariantDataset.ref_block_max_length_field in new_vds.reference_data.globals
+    ), 'failed to parse ref_block_max_length line from header'
+    orig_rbml = hl.eval(orig_vds.reference_data[VariantDataset.ref_block_max_length_field])
+    new_rbml = hl.eval(new_vds.reference_data[VariantDataset.ref_block_max_length_field])
+    assert orig_rbml == new_rbml
+
+    assert orig_vds.variant_data.count() == new_vds.variant_data.count()
+    assert orig_vds.variant_data.aggregate_entries(hl.agg.count()) == new_vds.variant_data.aggregate_entries(
+        hl.agg.count()
+    )
+
+    assert orig_vds.reference_data.count() == new_vds.reference_data.count()
+    assert orig_vds.reference_data.aggregate_entries(hl.agg.count()) == new_vds.reference_data.aggregate_entries(
+        hl.agg.count()
+    )
+
+    new_vds.variant_data._force_count_rows()
+    new_vds.reference_data._force_count_rows()

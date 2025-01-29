@@ -973,7 +973,7 @@ class MatrixToTableApply(TableIR):
                 'struct{n:array<int32>,sum_x:array<float64>,y_transpose_x:array<array<float64>>,beta:array<array<float64>>,standard_error:array<array<float64>>,t_stat:array<array<float64>>,p_value:array<array<float64>>}'
             )
             return hl.ttable(
-                child_typ.global_type,
+                tstruct(),
                 (
                     child_typ.row_key_type._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})._concat(
                         chained_schema
@@ -987,7 +987,7 @@ class MatrixToTableApply(TableIR):
                 'struct{n:int32,sum_x:float64,y_transpose_x:array<float64>,beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>}'
             )
             return hl.ttable(
-                child_typ.global_type,
+                tstruct(),
                 (
                     child_typ.row_key_type._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})._concat(
                         chained_schema
@@ -999,7 +999,7 @@ class MatrixToTableApply(TableIR):
             pass_through = self.config['passThrough']
             logreg_type = hl.tstruct(logistic_regression=hl.tarray(regression_test_type(self.config['test'])))
             return hl.ttable(
-                child_typ.global_type,
+                tstruct(),
                 (
                     child_typ.row_key_type._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})._concat(
                         logreg_type
@@ -1011,7 +1011,7 @@ class MatrixToTableApply(TableIR):
             pass_through = self.config['passThrough']
             poisreg_type = regression_test_type(self.config['test'])
             return hl.ttable(
-                child_typ.global_type,
+                tstruct(),
                 (
                     child_typ.row_key_type._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})._concat(
                         poisreg_type
@@ -1215,4 +1215,4 @@ class JavaTable(TableIR):
         if Env._hc:
             backend = Env.backend()
             assert isinstance(backend, Py4JBackend)
-            backend._jbackend.removeJavaIR(self._id)
+            backend._jbackend.pyRemoveJavaIR(self._id)

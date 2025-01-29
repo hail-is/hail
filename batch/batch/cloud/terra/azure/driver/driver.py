@@ -482,6 +482,7 @@ ON DUPLICATE KEY UPDATE region = region;
             *create_pools_coros,
         )
 
+        assert isinstance(jpim, JobPrivateInstanceManager)
         return TerraAzureDriver(
             db,
             machine_name_prefix,

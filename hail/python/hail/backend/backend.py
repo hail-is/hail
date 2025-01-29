@@ -186,7 +186,7 @@ class Backend(abc.ABC):
         return (value, timings) if timed else value
 
     @abc.abstractmethod
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, str]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
         pass
 
     def _render_ir(self, ir):
@@ -196,7 +196,7 @@ class Backend(abc.ABC):
     def value_type(self, ir):
         payload = IRTypePayload(ir=self._render_ir(ir))
         type_bytes, _ = self._rpc(ActionTag.VALUE_TYPE, payload)
-        return dtype(type_bytes.decode('utf-8'))
+        return dtype(orjson.loads(type_bytes))
 
     def table_type(self, tir):
         payload = IRTypePayload(ir=self._render_ir(tir))

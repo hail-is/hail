@@ -20,7 +20,7 @@ from hail.typecheck import anytype, nullable, numeric, oneof, typecheck
 from hail.utils import FatalError
 from hail.utils.java import Env, info, warning
 from hail.utils.misc import divide_null, guess_cloud_spark_provider, new_temp_file
-from hailtop import pip_version, yamlx
+from hailtop import __pip_version__, yamlx
 from hailtop.config import get_deploy_config
 from hailtop.utils import async_to_blocking
 
@@ -36,10 +36,10 @@ log = logging.getLogger('methods.qc')
 
 
 HAIL_GENETICS_VEP_GRCH37_85_IMAGE = os.environ.get(
-    'HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep-grch37-85:{pip_version()}'
+    'HAIL_GENETICS_VEP_GRCH37_85_IMAGE', f'hailgenetics/vep-grch37-85:{__pip_version__}'
 )
 HAIL_GENETICS_VEP_GRCH38_95_IMAGE = os.environ.get(
-    'HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep-grch38-95:{pip_version()}'
+    'HAIL_GENETICS_VEP_GRCH38_95_IMAGE', f'hailgenetics/vep-grch38-95:{__pip_version__}'
 )
 
 

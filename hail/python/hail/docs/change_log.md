@@ -52,6 +52,22 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.133
+
+Released 2024-09-25
+
+### New Features
+
+- (hail#14619) Teach `hailctl dataproc submit` to use the `--project` argument as an argument to `gcloud dataproc` rather than the submitted script.
+
+### Bug Fixes
+
+- (hail#14673) Fix typo in Interpret rule for `TableAggregate`.
+- (hail#14697) Set `QUAL="."` to missing rather than htsjdk's sentinel value.
+- (hail#14292) Prevent GCS cold storage check from throwing an error when reading from a public access bucket.
+- (hail#14651) Remove jackson string length restriction for all backends.
+- (hail#14653) Add `--public-ip-address` argument to `gcloud dataproc start` command built by `hailctl dataproc start`, fixing creation of dataproc 2.2 clusters.
+
 ## Version 0.2.132
 
 Released 2024-07-08

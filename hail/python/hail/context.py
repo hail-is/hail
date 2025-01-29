@@ -15,12 +15,12 @@ from hail.genetics.reference_genome import ReferenceGenome, reference_genome_typ
 from hail.typecheck import dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck, typecheck_method
 from hail.utils import get_env_or_default
 from hail.utils.java import BackendType, Env, choose_backend, warning
+from hail.version import __version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from hailtop.fs.fs import FS
 from hailtop.hail_event_loop import hail_event_loop
 from hailtop.utils import secret_alnum_string
 
-from . import __resource_str
 from .backend.backend import local_jar_information
 from .builtin_references import BUILTIN_REFERENCES
 
@@ -43,11 +43,10 @@ def _get_local_tmpdir(local_tmpdir):
 
 def _get_log(log):
     if log is None:
-        py_version = version()
         log_dir = os.environ.get('HAIL_LOG_DIR')
         if log_dir is None:
             log_dir = os.getcwd()
-        log = hail.utils.timestamp_path(os.path.join(log_dir, 'hail'), suffix=f'-{py_version}.log')
+        log = hail.utils.timestamp_path(os.path.join(log_dir, 'hail'), suffix=f'-{__version__}.log')
     return log
 
 
@@ -104,16 +103,15 @@ class HailContext(object):
         self._default_ref: Optional[ReferenceGenome] = None
 
         if not quiet:
-            py_version = version()
             sys.stderr.write(
                 'Welcome to\n'
                 '     __  __     <>__\n'
                 '    / /_/ /__  __/ /\n'
                 '   / __  / _ `/ / /\n'
-                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(py_version)
+                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(__version__)
             )
 
-            if py_version.startswith('devel'):
+            if __version__.startswith('devel'):
                 sys.stderr.write(
                     'NOTE: This is a beta version. Interfaces may change\n'
                     '  during the beta period. We recommend pulling\n'
@@ -573,7 +571,7 @@ async def init_batch(
 
     log = _get_log(log)
     if tmpdir is None:
-        tmpdir = backend.remote_tmpdir + 'tmp/hail/' + secret_alnum_string()
+        tmpdir = os.path.join(backend.remote_tmpdir, 'tmp/hail', secret_alnum_string())
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
     HailContext.create(log, quiet, append, tmpdir, local_tmpdir, default_reference, global_seed, backend)
@@ -633,35 +631,8 @@ def init_local(
         connect_logger(backend._utils_package_object, 'localhost', 12888)
 
 
-def version() -> str:
-    """Get the installed Hail version.
-
-    Returns
-    -------
-    str
-    """
-    if hail.__version__ is None:
-        hail.__version__ = __resource_str('hail_version').strip()
-
-    return hail.__version__
-
-
-def revision() -> str:
-    """Get the installed Hail git revision.
-
-    Returns
-    -------
-    str
-    """
-    if hail.__revision__ is None:
-        hail.__revision__ = __resource_str('hail_revision').strip()
-
-    return hail.__revision__
-
-
 def _hail_cite_url():
-    v = version()
-    [tag, sha_prefix] = v.split("-")
+    [tag, sha_prefix] = __version__.split("-")
     if not local_jar_information().development_mode:
         # pip installed
         return f"https://github.com/hail-is/hail/releases/tag/{tag}"
@@ -688,7 +659,7 @@ def citation(*, bibtex=False):
             f"  howpublished = {{\\url{{{_hail_cite_url()}}}}}"
             f"}}"
         )
-    return f"Hail Team. Hail {version()}. {_hail_cite_url()}."
+    return f"Hail Team. Hail {__version__}. {_hail_cite_url()}."
 
 
 def cite_hail():
@@ -965,4 +936,4 @@ def debug_info():
     spark_conf = None
     if isinstance(Env.backend(), SparkBackend):
         spark_conf = spark_context()._conf.getAll()
-    return {'spark_conf': spark_conf, 'local_jar_information': local_jar_information(), 'version': version()}
+    return {'spark_conf': spark_conf, 'local_jar_information': local_jar_information(), 'version': __version__}

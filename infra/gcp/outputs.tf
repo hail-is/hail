@@ -1,3 +1,3 @@
-output "k8s_server_ip" {
-  value = google_container_cluster.vdc.endpoint
+output "gateway_ip" {
+  value = google_compute_address.gateway.address
 }

@@ -35,7 +35,7 @@ def version():
     """Print version information and exit."""
     import hailtop  # pylint: disable=import-outside-toplevel
 
-    print(hailtop.version())
+    print(hailtop.__version__)
 
 
 @app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})

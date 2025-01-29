@@ -7,5 +7,5 @@ publish-python-dill:
 
 mirror-dockerhub-images:
 	DOCKER_PREFIX=$(DOCKER_PREFIX) \
-	HAIL_PIP_VERSION=$(shell cat ../../hail/python/hail/hail_pip_version) \
+	HAIL_PIP_VERSION=$(shell cat ../../hail/env/HAIL_PIP_VERSION) \
 	./mirror_images.sh

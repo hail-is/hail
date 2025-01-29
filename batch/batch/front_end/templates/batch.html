@@ -119,17 +119,31 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
         </tbody>
       </table>
     </div>
-    {% if last_job_id is not none %}
+
     <div class='pt-2 flex w-full justify-end'>
-      <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
-        {% if q is not none %}
-        <input type="hidden" name="q" value="{{ q }}" />
-        {% endif %}
-        <input type="hidden" name="last_job_id" value="{{ last_job_id }}" />
-        {{ submit_button('Next page') }}
-      </form>
+      {% if batch['jobs'] and batch['jobs'][0]['job_id'] is not none and batch['jobs'][0]['job_id'] > 1 %}
+        <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
+          {% if q is not none %}
+          <input type="hidden" name="q" value="{{ q }}" />
+          {% endif %}
+          {% if batch['jobs'][0]['job_id'] < 52 %}
+          <input type="hidden" name="last_job_id" value="0" />
+          {% else %}
+          <input type="hidden" name="last_job_id" value="{{ batch['jobs'][0]['job_id'] - 51 }}" />
+          {% endif %}
+          {{ submit_button('Previous page') }}
+        </form>
+      {% endif %}
+      {% if last_job_id is not none %}
+        <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
+          {% if q is not none %}
+          <input type="hidden" name="q" value="{{ q }}" />
+          {% endif %}
+          <input type="hidden" name="last_job_id" value="{{ last_job_id }}" />
+          {{ submit_button('Next page') }}
+        </form>
+      {% endif %}
     </div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}

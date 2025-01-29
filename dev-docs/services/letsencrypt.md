@@ -4,10 +4,34 @@ Hail uses Let's Encrypt certificates for the gateway pod.
 
 ## Refreshing Certificates
 
+Certificates must be updated once per cluster.
+
+### Setting the `kubectl` Context
+
+Why? 
+
+1. We will be using the letsencrypt image to create a job instance in kubernetes.  
+2. We will be restarting the gateway pods.
+
+See [Setting the `kubectl` Context](setting_the_kubectl_context.md).
+
+### Connect or fetch credentials to the container registry
+
+See [Connecting Docker to Container Registry Credentials](connecting_docker_to_container_registry_creds.md).
+
+### Rotating One Cluster's Certificates
+
+After setting the `kubectl` context to the appropriate cluster, clean the
+`letsencrypt-image` and `pushed-private-letsencrypt-image` files left by make.
+
+```
+make clean-image-targets
+```
+
 Update the `letsencrypt-config` secret:
 
 ```
-make -C letsencrypt run
+NAMESPACE=default make -C letsencrypt run
 ```
 
 Restart your gateway pods without downtime. When the restart they load the new certificate:

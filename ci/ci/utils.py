@@ -2,6 +2,7 @@ import datetime
 import secrets
 import string
 import urllib.parse
+from enum import Enum
 from typing import List, Optional
 
 from gear import Database
@@ -122,3 +123,24 @@ def gcp_logging_queries(namespace: str, start_time: str, end_time: Optional[str]
             project, ['auth', 'auth-driver'], namespace, start_time, end_time, ['ERROR', 'WARNING']
         ),
     }
+
+
+class GithubStatus(Enum):
+    SUCCESS = 'success'
+    PENDING = 'pending'
+    FAILURE = 'failure'
+
+
+def github_status(state: str) -> GithubStatus:
+    """
+    Converts a state for a commit status (https://docs.github.com/en/graphql/reference/enums#statusstate)
+    or a conclusion for a check (https://docs.github.com/en/graphql/reference/enums#checkconclusionstate)
+    from the GraphQL API to a GithubStatus.
+    """
+    if state in {"PENDING", "EXPECTED", "ACTION_REQUIRED", "STALE"}:
+        return GithubStatus.PENDING
+    if state in {"FAILURE", "ERROR", "TIMED_OUT", "CANCELLED", "STARTUP_FAILURE", "SKIPPED"}:
+        return GithubStatus.FAILURE
+    if state in {"SUCCESS", "NEUTRAL"}:
+        return GithubStatus.SUCCESS
+    raise ValueError(f"Unexpected value for GithubStatus: {state}")

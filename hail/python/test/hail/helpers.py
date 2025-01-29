@@ -36,7 +36,7 @@ def hl_stop_for_test():
 
 _test_dir = os.environ.get(
     'HAIL_TEST_RESOURCES_DIR',
-    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(hl.__file__))), 'src/test/resources'),
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(hl.__file__))), 'hail/test/resources'),
 )
 _doctest_dir = os.environ.get('HAIL_DOCTEST_DATA_DIR', 'hail/docs/data')
 

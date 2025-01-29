@@ -89,11 +89,6 @@ def local_to_global(array, local_alleles, n_alleles, fill_value, number):
 
     if number == 'G':
         return _func("local_to_global_g", array.dtype, array, local_alleles, n_alleles, fill_value)
-    elif number == 'R':
-        omit_first = False
-    elif number == 'A':
-        omit_first = True
-    else:
-        raise ValueError(f'unrecognized number {number}')
 
-    return _func("local_to_global_a_r", array.dtype, array, local_alleles, n_alleles, fill_value, hl.bool(omit_first))
+    omit_first = hl.bool(number == 'A')
+    return _func("local_to_global_a_r", array.dtype, array, local_alleles, n_alleles, fill_value, omit_first)

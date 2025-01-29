@@ -1122,9 +1122,11 @@ class Timings:
         d: Dict[str, int] = {}
         self.timings[name] = d
         d['start_time'] = time_msecs()
-        yield
-        d['finish_time'] = time_msecs()
-        d['duration'] = d['finish_time'] - d['start_time']
+        try:
+            yield
+        finally:
+            d['finish_time'] = time_msecs()
+            d['duration'] = d['finish_time'] - d['start_time']
 
     def to_dict(self):
         return self.timings

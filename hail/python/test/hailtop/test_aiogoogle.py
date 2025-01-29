@@ -167,6 +167,7 @@ async def test_weird_urls(gs_filesystem):
     assert await fs.read(base + '???') == b'contents of ???'
 
 
+@pytest.mark.parametrize('gs_filesystem', ['gs'], indirect=True)
 async def test_rewrite(gs_filesystem):
     _, fs, base = gs_filesystem
 

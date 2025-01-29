@@ -4,7 +4,7 @@ import socket
 import socketserver
 import sys
 from threading import Thread
-from typing import Mapping, Set, Tuple
+from typing import Mapping, Optional, Set, Tuple
 
 import orjson
 import py4j
@@ -15,6 +15,7 @@ import hail
 from hail.expr import construct_expr
 from hail.ir import JavaIR
 from hail.utils.java import Env, FatalError, scala_package_object
+from hail.version import __version__
 
 from ..hail_logging import Logger
 from .backend import ActionTag, Backend, fatal_error_from_java_error_triplet
@@ -156,6 +157,18 @@ action_routes = {
 }
 
 
+def parse_timings(str: Optional[str]) -> Optional[dict]:
+    def parse(node):
+        return {
+            'name': node[0],
+            'total_time': node[1],
+            'self_time': node[2],
+            'children': [parse(c) for c in node[3]],
+        }
+
+    return None if str is None else parse(orjson.loads(str))
+
+
 class Py4JBackend(Backend):
     @abc.abstractmethod
     def __init__(self, jvm: JVMView, jbackend: JavaObject, jhc: JavaObject):
@@ -175,7 +188,7 @@ class Py4JBackend(Backend):
         self._jbackend = jbackend
         self._jhc = jhc
 
-        self._backend_server = self._hail_package.backend.BackendServer.apply(self._jbackend)
+        self._backend_server = self._hail_package.backend.BackendServer(self._jbackend)
         self._backend_server_port: int = self._backend_server.port()
         self._backend_server.start()
         self._requests_session = requests.Session()
@@ -185,15 +198,13 @@ class Py4JBackend(Backend):
         # This has to go after creating the SparkSession. Unclear why.
         # Maybe it does its own patch?
         install_exception_handler()
-        from hail.context import version
 
-        py_version = version()
         jar_version = self._jhc.version()
-        if jar_version != py_version:
+        if jar_version != __version__:
             raise RuntimeError(
                 f"Hail version mismatch between JAR and Python library\n"
                 f"  JAR:    {jar_version}\n"
-                f"  Python: {py_version}"
+                f"  Python: {__version__}"
             )
 
     def jvm(self):
@@ -211,7 +222,7 @@ class Py4JBackend(Backend):
             self._logger = Log4jLogger(self._utils_package_object)
         return self._logger
 
-    def _rpc(self, action, payload) -> Tuple[bytes, str]:
+    def _rpc(self, action, payload) -> Tuple[bytes, Optional[dict]]:
         data = orjson.dumps(payload)
         path = action_routes[action]
         port = self._backend_server_port
@@ -221,21 +232,21 @@ class Py4JBackend(Backend):
             raise fatal_error_from_java_error_triplet(
                 error_json['short'], error_json['expanded'], error_json['error_id']
             )
-        return resp.content, resp.headers.get('X-Hail-Timings', '')
+        return resp.content, parse_timings(resp.headers.get('X-Hail-Timings', None))
 
     def persist_expression(self, expr):
         t = expr.dtype
-        return construct_expr(JavaIR(t, self._jbackend.executeLiteral(self._render_ir(expr._ir))), t)
+        return construct_expr(JavaIR(t, self._jbackend.pyExecuteLiteral(self._render_ir(expr._ir))), t)
 
     def _is_registered_ir_function_name(self, name: str) -> bool:
         return name in self._registered_ir_function_names
 
     def set_flags(self, **flags: Mapping[str, str]):
-        available = self._jbackend.availableFlags()
+        available = self._jbackend.pyAvailableFlags()
         invalid = []
         for flag, value in flags.items():
             if flag in available:
-                self._jbackend.setFlag(flag, value)
+                self._jbackend.pySetFlag(flag, value)
             else:
                 invalid.append(flag)
         if len(invalid) != 0:
@@ -244,7 +255,7 @@ class Py4JBackend(Backend):
             )
 
     def get_flags(self, *flags) -> Mapping[str, str]:
-        return {flag: self._jbackend.getFlag(flag) for flag in flags}
+        return {flag: self._jbackend.pyGetFlag(flag) for flag in flags}
 
     def _add_reference_to_scala_backend(self, rg):
         self._jbackend.pyAddReference(orjson.dumps(rg._config).decode('utf-8'))
@@ -263,9 +274,6 @@ class Py4JBackend(Backend):
 
     def remove_liftover(self, name, dest_reference_genome):
         self._jbackend.pyRemoveLiftover(name, dest_reference_genome)
-
-    def index_bgen(self, files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci):
-        self._jbackend.pyIndexBgen(files, index_file_map, referenceGenomeName, contig_recoding, skip_invalid_loci)
 
     def _parse_value_ir(self, code, ref_map={}):
         return self._jbackend.parse_value_ir(
@@ -297,7 +305,8 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
-        self._backend_server.stop()
+        self._backend_server.close()
+        self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
         self._registered_ir_function_names = set()

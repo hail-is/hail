@@ -1335,7 +1335,8 @@ class ToDict(IR):
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.a.compute_type(env, agg_env, deep_typecheck)
-        return tdict(self.a.typ['key'], self.a.typ['value'])
+        key, value = self.a.typ.element_type
+        return tdict(key, value)
 
 
 @typecheck(s=IR)
@@ -2191,6 +2192,12 @@ class StreamJoinRightDistinct(IR):
 
     def _eq(self, other):
         return other.l_name == self.l_name and other.r_name == self.r_name and other.join_type == self.join_type
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.left.compute_type(env, agg_env, deep_typecheck)
+        self.right.compute_type(env, agg_env, deep_typecheck)
+        self.join.compute_type(_env_bind(env, self.bindings(2)), agg_env, deep_typecheck)
+        return tstream(self.join.typ)
 
     @property
     def bound_variables(self):
@@ -3873,7 +3880,7 @@ class JavaIRSharedReference:
         if Env._hc:
             backend = Env.backend()
             assert isinstance(backend, Py4JBackend)
-            backend._jbackend.removeJavaIR(self._id)
+            backend._jbackend.pyRemoveJavaIR(self._id)
 
 
 class JavaIR(IR):

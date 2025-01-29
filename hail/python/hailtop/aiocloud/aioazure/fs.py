@@ -223,7 +223,7 @@ class AzureReadableStream(ReadableStream):
             self._chunk_it = None
             self._eof = True
 
-        return data
+        return bytes(data)
 
     async def readexactly(self, n: int) -> bytes:
         assert not self._closed and n >= 0

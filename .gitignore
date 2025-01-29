@@ -1,6 +1,8 @@
 *~
 *.o
 .*.crc
+*.out
+!**/resources/*.out
 .gradle/
 .idea/
 .vscode/
@@ -24,7 +26,6 @@ hs_err_pid*.log
 *hail/python/hailtop/pipeline/docs/output*
 .mypy_cache/
 node_modules
-*.out
 GPATH
 GRTAGS
 GTAGS
@@ -32,7 +33,6 @@ hail/python/hail/docs/experimental/hail.experimental.DB.rst
 hail/python/hailtop/batch/docs/api/
 hail/upload-qob-jar
 hail/upload-qob-test-resources
-**/hail_version
 web_common/web_common/static/css/
 docs.tar.gz
 website/website/static/css/

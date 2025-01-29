@@ -2883,13 +2883,13 @@ def import_vcf(
 
     >>> ds = hl.import_vcf('data/missing-values-in-array-fields.vcf', array_elements_required=False)
     >>> ds.show(n_rows=1, n_cols=1, include_row_fields=True)
-    +---------------+------------+------+-----------+----------+--------------+
-    | locus         | alleles    | rsid |      qual | filters  | info.A       |
-    +---------------+------------+------+-----------+----------+--------------+
-    | locus<GRCh37> | array<str> | str  |   float64 | set<str> | array<int32> |
-    +---------------+------------+------+-----------+----------+--------------+
-    | 1:123456      | ["A","C"]  | NA   | -1.00e+01 | NA       | [1,NA]       |
-    +---------------+------------+------+-----------+----------+--------------+
+    +---------------+------------+------+---------+----------+--------------+
+    | locus         | alleles    | rsid |    qual | filters  | info.A       |
+    +---------------+------------+------+---------+----------+--------------+
+    | locus<GRCh37> | array<str> | str  | float64 | set<str> | array<int32> |
+    +---------------+------------+------+---------+----------+--------------+
+    | 1:123456      | ["A","C"]  | NA   |      NA | NA       | [1,NA]       |
+    +---------------+------------+------+---------+----------+--------------+
     <BLANKLINE>
     +------------------+----------------+----------------+--------------+
     | info.B           | info.C         | info.D         | 'SAMPLE1'.GT |
@@ -2986,8 +2986,8 @@ def import_vcf(
     Parameters
     ----------
     path : :class:`str` or :obj:`list` of :obj:`str`
-        One or more paths to VCF files to read. Each path may or may not include glob expressions
-        like ``*``, ``?``, or ``[abc123]``.
+        One or more paths to VCF files to read. Each path may include glob expressions like ``*``,
+        ``?``, or ``[abc123]``, which, if present, will be expanded.
     force : :obj:`bool`
         If ``True``, load **.vcf.gz** files serially. No downstream operations
         can be parallelized, so this mode is strongly discouraged.
