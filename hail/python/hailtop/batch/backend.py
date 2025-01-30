@@ -11,6 +11,7 @@ import warnings
 import webbrowser
 from shlex import quote as shq
 from typing import Any, ClassVar, Dict, Generic, List, Optional, TypeVar, Union
+from urllib.parse import urlparse
 
 import orjson
 from rich.progress import track
@@ -18,6 +19,7 @@ from rich.progress import track
 import hailtop.batch_client.client as bc
 from hailtop import __pip_version__
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration
+from hailtop.aiotools.copy import copy_from_dict
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES, hailgenetics_hail_image_for_current_python_version
@@ -741,8 +743,17 @@ class ServiceBackend(Backend[bc.Batch]):
 
         bash_flags = 'set -e' + ('x' if verbose else '')
 
+        local_input_file_transfers = []
+
         def copy_input(r):
+            nonlocal local_input_file_transfers
+
             if isinstance(r, resource.InputResourceFile):
+                scheme = urlparse(r._input_path).scheme
+                if scheme in ('', 'file'):
+                    dest = r._get_path(batch_remote_tmpdir + '/' + uuid.uuid4().hex[:8])
+                    local_input_file_transfers.append({'from': r._input_path, 'to': dest})
+                    return [(dest, r._get_path(local_tmpdir))]
                 return [(r._input_path, r._get_path(local_tmpdir))]
             assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return [(r._get_path(batch_remote_tmpdir), r._get_path(local_tmpdir))]
@@ -919,6 +930,8 @@ class ServiceBackend(Backend[bc.Batch]):
 
         if verbose:
             print(f'Built DAG with {n_jobs_submitted} jobs in {round(time.time() - build_dag_start, 3)} seconds.')
+
+        await copy_from_dict(files=local_input_file_transfers)
 
         submit_batch_start = time.time()
         await async_batch.submit(disable_progress_bar=disable_progress_bar)

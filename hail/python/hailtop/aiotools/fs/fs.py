@@ -247,6 +247,9 @@ class AsyncFSURL(abc.ABC):
     def __str__(self) -> str:
         pass
 
+    def __truediv__(self, part: str) -> 'AsyncFSURL':
+        return self.with_new_path_components(part)
+
 
 class AsyncFS(abc.ABC):
     FILE = "file"
