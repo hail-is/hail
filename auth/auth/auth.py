@@ -151,6 +151,12 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
     return None
 
 
+def validate_username(username):
+    regex = re.compile(r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$')
+    if not regex.match(username):
+        raise InvalidUsername(username)
+
+
 async def insert_new_user(
     db: Database,
     username: str,
@@ -183,6 +189,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             ),
         )
 
+    validate_username(username)
     await _insert()
     return True
 
