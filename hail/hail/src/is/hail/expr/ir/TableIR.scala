@@ -943,6 +943,7 @@ case class PartitionNativeIntervalReader(
   lazy val partitioner = rowsSpec.partitioner(sm)
 
   lazy val contextType: Type = RVDPartitioner.intervalIRRepresentation(partitioner.kType)
+  require(partitioner.kType.size > 0)
 
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 
@@ -1492,6 +1493,61 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
         }
       }
     }
+  }
+}
+
+private[this] class PartitionEntriesNativeIntervalReader(
+  sm: HailStateManager,
+  entriesPath: String,
+  entriesSpec: AbstractTableSpec,
+  uidFieldName: String,
+  rowsTableSpec: AbstractTableSpec,
+) extends PartitionNativeIntervalReader(sm, entriesPath, entriesSpec, uidFieldName) {
+  override lazy val partitioner = rowsTableSpec.rowsSpec.partitioner(sm)
+}
+
+case class PartitionZippedNativeIntervalReader(
+  sm: HailStateManager,
+  mtPath: String,
+  mtSpec: AbstractMatrixTableSpec,
+  uidFieldName: String,
+) extends PartitionReader {
+  require(mtSpec.indexed)
+
+  // XXX: rows and entries paths are hardcoded, see MatrixTableSpec
+  private lazy val rowsReader =
+    PartitionNativeIntervalReader(sm, mtPath + "/rows", mtSpec.rowsSpec, "__dummy")
+
+  private lazy val entriesReader =
+    new PartitionEntriesNativeIntervalReader(
+      sm,
+      mtPath + "/entries",
+      mtSpec.entriesSpec,
+      uidFieldName,
+      rowsReader.tableSpec,
+    )
+
+  private lazy val zippedReader = PartitionZippedNativeReader(rowsReader, entriesReader)
+
+  def contextType = rowsReader.contextType
+  def fullRowType = zippedReader.fullRowType
+  def rowRequiredness(requestedType: TStruct): RStruct = zippedReader.rowRequiredness(requestedType)
+  def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+
+  def emitStream(
+    ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    mb: EmitMethodBuilder[_],
+    codeContext: EmitCode,
+    requestedType: TStruct,
+  ): IEmitCode = {
+    val zipContextType: TBaseStruct = tcoerce(zippedReader.contextType)
+    val valueContext = cb.memoize(codeContext)
+    val contexts: IndexedSeq[EmitCode] = FastSeq(valueContext, valueContext)
+    val st = SStackStruct(zipContextType, contexts.map(_.emitType))
+    val context = EmitCode.present(mb, st.fromEmitCodes(cb, contexts))
+
+    zippedReader.emitStream(ctx, cb, mb, context, requestedType)
   }
 }
 
