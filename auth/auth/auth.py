@@ -128,7 +128,7 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
-    if not username or not all(c for c in username if c.isalnum()):
+    if not username or not (username.isalnum() and username.islower()):
         raise InvalidUsername(username)
 
     existing_users = await users_with_username_or_login_id(tx, username, login_id)
@@ -151,12 +151,14 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
     return None
 
 
-def validate_username(username):
-    log.info(f'validating username {username}')
+def validate_credentials_secret_name_input(secret_name: Optional[str]):
+    if secret_name is None:
+        return
+
     regex = re.compile(r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$')
-    if not regex.match(username):
+    if not regex.match(secret_name):
         raise AuthUserError(
-            f'invalid username {username}, must match RFC1123 (lowercase alphanumeric plus "." and "-", start and end with alphanumeric)',
+            f'invalid credentials_secret_name {secret_name}. Must match RFC1123 (lowercase alphanumeric plus "." and "-", start and end with alphanumeric)',
             'error',
         )
 
@@ -193,7 +195,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             ),
         )
 
-    validate_username(username)
+    validate_credentials_secret_name_input(hail_credentials_secret_name)
     await _insert()
     return True
 
