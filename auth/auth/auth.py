@@ -155,10 +155,10 @@ def validate_username(username):
     log.info(f'validating username {username}')
     regex = re.compile(r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$')
     if not regex.match(username):
-        log.error(f'invalid username {username}')
-        raise InvalidUsername(username)
-    else:
-        log.info(f'valid username {username}')
+        raise AuthUserError(
+            f'invalid username {username}, must match RFC1123 (lowercase alphanumeric plus "." and "-", start and end with alphanumeric)',
+            'error',
+        )
 
 
 async def insert_new_user(
