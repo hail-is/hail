@@ -1,5 +1,6 @@
 import math
 import random
+import string
 import unittest
 
 import numpy as np
@@ -4536,6 +4537,18 @@ def test_reservoir_sampling():
             sample_size,
             abs(mean - sample_mean) / expected_stdev,
         )
+
+
+def test_struct_expr_rename_order():
+    keys = set(''.join(random.choice(string.ascii_letters) for _ in range(8)) for _ in range(10))
+    values = {k: random.randrange(30) for k in keys}
+    to_rename = set(x for i, x in enumerate(keys) if i % 2 == 1)
+    mapping = {old: ''.join(random.choice(string.ascii_letters) for _ in range(7)) for old in to_rename}
+    struct_expr = hl.struct(**values)
+    renamed_expr = struct_expr.rename(mapping)
+    common_left = struct_expr.drop(*to_rename)
+    common_right = renamed_expr.drop(*mapping.values())
+    assert common_left.dtype == common_right.dtype
 
 
 def test_local_agg():
