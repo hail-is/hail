@@ -18,6 +18,7 @@ def read_vds(
     _assert_reference_type=None,
     _assert_variant_type=None,
     _warn_no_ref_block_max_length=True,
+    _drop_end=False,
 ) -> 'VariantDataset':
     """Read in a :class:`.VariantDataset` written with :meth:`.VariantDataset.write`.
 
@@ -39,6 +40,14 @@ def read_vds(
         assert len(intervals) > 0
         reference_data = hl.read_matrix_table(VariantDataset._reference_path(path), _intervals=intervals)
         variant_data = hl.read_matrix_table(VariantDataset._variants_path(path), _intervals=intervals)
+
+    # if LEN is missing, add it, _add_len is a no-op if LEN is already present
+    reference_data = VariantDataset._add_len(reference_data)
+    if _drop_end:
+        if 'END' in reference_data.entry:
+            reference_data = reference_data.drop('END')
+    else:  # if END is missing, add it, _add_end is a no-op if END is already present
+        reference_data = VariantDataset._add_end(reference_data)
 
     vds = VariantDataset(reference_data, variant_data)
     if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
@@ -88,9 +97,8 @@ def store_ref_block_max_length(vds_path):
         warning(f"VDS at {vds_path} already contains a global annotation with the max reference block length")
         return
     rd = vds.reference_data
-    rd = rd.annotate_rows(__start_pos=rd.locus.position)
     fs = hl.current_backend().fs
-    ref_block_max_len = rd.aggregate_entries(hl.agg.max(rd.END - rd.__start_pos + 1))
+    ref_block_max_len = rd.aggregate_entries(hl.agg.max(rd.LEN))
     with fs.open(os.path.join(vds_path, extra_ref_globals_file), 'w') as f:
         json.dump({VariantDataset.ref_block_max_length_field: ref_block_max_len}, f)
 
@@ -122,28 +130,37 @@ class VariantDataset:
         return os.path.join(base, 'variant_data')
 
     @staticmethod
-    def from_merged_representation(mt, *, ref_block_fields=(), infer_ref_block_fields: bool = True, is_split=False):
+    def from_merged_representation(
+        mt, *, ref_block_indicator_field='END', ref_block_fields=(), infer_ref_block_fields: bool = True, is_split=False
+    ):
         """Create a VariantDataset from a sparse MatrixTable containing variant and reference data."""
 
-        if 'END' not in mt.entry:
-            raise ValueError("VariantDataset.from_merged_representation: expect field 'END' in matrix table entry")
+        if ref_block_indicator_field not in ('END', 'LEN'):
+            raise ValueError(
+                f'Invalid `ref_block_indicator_field` `{ref_block_indicator_field}` one of `LEN` or `END` expected'
+            )
+
+        if ref_block_indicator_field not in mt.entry:
+            raise ValueError(
+                f'VariantDataset.from_merged_representation: expect field `{ref_block_indicator_field}` in matrix table entry'
+            )
 
         if 'LA' not in mt.entry and not is_split:
             raise ValueError(
-                "VariantDataset.from_merged_representation: expect field 'LA' in matrix table entry."
-                "\n  If this dataset is already split into biallelics, use `is_split=True` to permit a conversion"
-                " with no LA field."
+                'VariantDataset.from_merged_representation: expect field `LA` in matrix table entry.'
+                '\n  If this dataset is already split into biallelics, use `is_split=True` to permit a conversion'
+                ' with no `LA` field.'
             )
 
         if 'GT' not in mt.entry and 'LGT' not in mt.entry:
             raise ValueError(
-                "VariantDataset.from_merged_representation: expect field 'LGT' or 'GT' in matrix table entry"
+                'VariantDataset.from_merged_representation: expect field `LGT` or `GT` in matrix table entry'
             )
 
         n_rows_to_use = 100
         info(f"inferring reference block fields from missingness patterns in first {n_rows_to_use} rows")
         used_ref_block_fields = set(ref_block_fields)
-        used_ref_block_fields.add('END')
+        used_ref_block_fields.add(ref_block_indicator_field)
 
         if infer_ref_block_fields:
             mt_head = mt.head(n_rows=n_rows_to_use)
@@ -151,7 +168,8 @@ class VariantDataset:
                 list(mt_head.entry),
                 mt_head.aggregate_entries(
                     hl.agg.filter(
-                        hl.is_defined(mt_head.END), tuple(hl.agg.any(hl.is_defined(mt_head[x])) for x in mt_head.entry)
+                        hl.is_defined(mt_head[ref_block_indicator_field]),
+                        tuple(hl.agg.any(hl.is_defined(mt_head[x])) for x in mt_head.entry),
                     )
                 ),
             ):
@@ -160,9 +178,7 @@ class VariantDataset:
 
         gt_field = 'LGT' if 'LGT' in mt.entry else 'GT'
 
-        # remove LGT/GT and LA fields, which are trivial for reference blocks and do not need to be represented
-        if gt_field in used_ref_block_fields:
-            used_ref_block_fields.remove(gt_field)
+        # remove the LA field, which is trivial for reference blocks and does not need to be represented
         if 'LA' in used_ref_block_fields:
             used_ref_block_fields.remove('LA')
 
@@ -173,11 +189,11 @@ class VariantDataset:
 
         rmt = mt.filter_entries(
             hl.case()
-            .when(hl.is_missing(mt.END), False)
-            .when(hl.is_defined(mt.END) & mt[gt_field].is_hom_ref(), True)
+            .when(hl.is_missing(mt[ref_block_indicator_field]), False)
+            .when(hl.is_defined(mt[ref_block_indicator_field]) & mt[gt_field].is_hom_ref(), True)
             .or_error(
                 hl.str(
-                    'cannot create VDS from merged representation -' ' found END field with non-reference genotype at '
+                    f'cannot create VDS from merged representation - found {ref_block_indicator_field} field with non-reference genotype at '
                 )
                 + hl.str(mt.locus)
                 + hl.str(' / ')
@@ -188,11 +204,19 @@ class VariantDataset:
         rmt = rmt.filter_rows(hl.agg.count() > 0)
 
         rmt = rmt.key_rows_by('locus').select_rows().select_cols()
+        if ref_block_indicator_field == 'END':
+            rmt = VariantDataset._add_len(rmt)
+        else:  # ref_block_indicator_field is 'LEN'
+            rmt = VariantDataset._add_end(rmt)
 
         if is_split:
             rmt = rmt.distinct_by_row()
 
-        vmt = mt.filter_entries(hl.is_missing(mt.END)).drop('END')._key_rows_by_assert_sorted('locus', 'alleles')
+        vmt = (
+            mt.filter_entries(hl.is_missing(mt[ref_block_indicator_field]))
+            .drop(ref_block_indicator_field)
+            ._key_rows_by_assert_sorted('locus', 'alleles')
+        )
         vmt = vmt.filter_rows(hl.agg.count() > 0)
 
         return VariantDataset(rmt, vmt)
@@ -205,7 +229,19 @@ class VariantDataset:
 
     def write(self, path, **kwargs):
         """Write to `path`."""
-        self.reference_data.write(VariantDataset._reference_path(path), **kwargs)
+
+        # NOTE: Populate LEN and drop END from reference data to align with VCF 4.5.
+        # Furthermore, since LEN values are smaller and more likely to be close
+        # or the same as neighboring values, we expect that after small integer
+        # compression and general purpose data compression that reference data should
+        # be smaller using LEN over END
+        rd = self.reference_data
+        if 'LEN' not in rd.entry:
+            rd = VariantDataset._add_len(rd)
+        if 'END' in rd.entry:
+            rd = rd.drop('END')
+
+        rd.write(VariantDataset._reference_path(path), **kwargs)
         self.variant_data.write(VariantDataset._variants_path(path), **kwargs)
 
     def checkpoint(self, path, **kwargs) -> 'VariantDataset':
@@ -266,8 +302,14 @@ class VariantDataset:
         if not isinstance(vd_col_key, hl.tstruct) or len(vd_col_key) != 1 or vd_col_key.types[0] != hl.tstr:
             error(f"expect variant data to have a single col key of type string, found {vd_col_key}")
 
-        if 'END' not in rd.entry or rd.END.dtype != hl.tint32:
-            error("expect field 'END' in entry of reference data with type int32")
+        end_exists = 'END' in rd.entry
+        len_exists = 'LEN' in rd.entry
+        if not (end_exists or len_exists):
+            error("expect at least one of 'END' or 'LEN' in entry of reference data")
+        if end_exists and rd.END.dtype != hl.tint32:
+            error("'END' field in entry of reference data must have type tint32")
+        if len_exists and rd.LEN.dtype != hl.tint32:
+            error("'LEN' field in entry of reference data must have type tint32")
 
         if check_data:
             # check cols
@@ -325,6 +367,22 @@ class VariantDataset:
 
     def _same(self, other: 'VariantDataset'):
         return self.reference_data._same(other.reference_data) and self.variant_data._same(other.variant_data)
+
+    @staticmethod
+    def _add_len(rd):
+        if 'LEN' in rd.entry:
+            return rd
+        if 'END' in rd.entry:
+            return rd.annotate_entries(LEN=rd.END - rd.locus.position + 1)
+        raise ValueError('Need `END` to compute `LEN` in reference data')
+
+    @staticmethod
+    def _add_end(rd):
+        if 'END' in rd.entry:
+            return rd
+        if 'LEN' in rd.entry:
+            return rd.annotate_entries(END=rd.LEN + rd.locus.position - 1)
+        raise ValueError('Need `LEN` to compute `END` in reference data')
 
     def union_rows(*vdses):
         """Combine many VDSes with the same samples but disjoint variants.

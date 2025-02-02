@@ -25,49 +25,44 @@ case object SemanticHash extends Logging {
     MurmurHash3.hash32x86(bytes, 0, bytes.length, x)
 
   def apply(ctx: ExecuteContext)(root: BaseIR): Option[Type] =
-    ctx.timer.time("SemanticHash") {
+    ctx.time {
 
       // Running the algorithm on the name-normalised IR
       // removes sensitivity to compiler-generated names
-      val nameNormalizedIR = ctx.timer.time("NormalizeNames") {
-        NormalizeNames(ctx, root, allowFreeVariables = true)
-      }
+      val nameNormalizedIR = NormalizeNames(ctx, root, allowFreeVariables = true)
 
-      val semhash = ctx.timer.time("Hash") {
-        def go: Option[Int] = {
-          var hash: Type =
-            MurmurHash3.DEFAULT_SEED
+      def go: Option[Int] = {
+        var hash: Type =
+          MurmurHash3.DEFAULT_SEED
 
-          // Include an encoding of a node's position in the parent's child array
-          // to differentiate between IR trees that look identical when flattened
-          for ((ir, index) <- levelOrder(nameNormalizedIR)) {
-            try {
-              val bytes = encode(ctx.fs, ir, index)
-              hash = extend(hash, bytes)
-            } catch {
-              case error @ (_: UnsupportedOperationException | _: FileNotFoundException) =>
-                log.info(error)
-                return None
+        // Include an encoding of a node's position in the parent's child array
+        // to differentiate between IR trees that look identical when flattened
+        for ((ir, index) <- levelOrder(nameNormalizedIR)) {
+          try {
+            val bytes = encode(ctx.fs, ir, index)
+            hash = extend(hash, bytes)
+          } catch {
+            case error @ (_: UnsupportedOperationException | _: FileNotFoundException) =>
+              log.info(error)
+              return None
 
-              case NonFatal(error) =>
-                log.warn(
-                  """AN INTERNAL COMPILER ERROR OCCURRED.
-                    |PLEASE REPORT THIS TO THE HAIL TEAM USING THE LINK BELOW,
-                    |INCLUDING THE STACK TRACE AT THE END OF THIS MESSAGE.
-                    |https://github.com/hail-is/hail/issues/new/choose
-                    |""".stripMargin,
-                  error,
-                )
-                return None
-            }
+            case NonFatal(error) =>
+              log.warn(
+                """AN INTERNAL COMPILER ERROR OCCURRED.
+                  |PLEASE REPORT THIS TO THE HAIL TEAM USING THE LINK BELOW,
+                  |INCLUDING THE STACK TRACE AT THE END OF THIS MESSAGE.
+                  |https://github.com/hail-is/hail/issues/new/choose
+                  |""".stripMargin,
+                error,
+              )
+              return None
           }
-
-          Some(hash)
         }
 
-        go
+        Some(hash)
       }
 
+      val semhash = go
       log.info(s"IR Semantic Hash: $semhash")
       semhash
     }

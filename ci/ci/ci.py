@@ -37,7 +37,14 @@ from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.utils import collect_aiter, humanize_timedelta_msecs, periodically_call, retry_transient_errors
-from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import (
+    api_security_headers,
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from .constants import AUTHORIZED_USERS, TEAMS
 from .environment import CLOUD, DEFAULT_NAMESPACE, DOMAIN, STORAGE_URI
@@ -135,6 +142,7 @@ async def watched_branch_config(app: web.Application, wb: WatchedBranch, index: 
 
 @routes.get('')
 @routes.get('/')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def index(request: web.Request, userdata: UserData) -> web.Response:
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
@@ -170,6 +178,7 @@ def filter_jobs(jobs):
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
     wb, pr = wb_and_pr_from_request(request)
@@ -185,7 +194,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
             status = await batch.last_known_status()
             jobs = await collect_aiter(batch.jobs())
             for j in jobs:
-                j['duration'] = humanize_timedelta_msecs(j['duration'])
+                j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
             page_context['batch'] = status
             page_context.update(filter_jobs(jobs))
             artifacts_uri = f'{STORAGE_URI}/build/{batch.attributes["token"]}'
@@ -248,6 +257,7 @@ async def retry_pr(wb: WatchedBranch, pr: PR, request: web.Request):
 
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
+@web_security_headers
 @auth.authenticated_developers_only(redirect=False)
 async def post_retry_pr(request: web.Request, _) -> NoReturn:
     wb, pr = wb_and_pr_from_request(request)
@@ -257,6 +267,7 @@ async def post_retry_pr(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/batches')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_batches(request: web.Request, userdata: UserData):
     batch_client = request.app[AppKeys.BATCH_CLIENT]
@@ -267,6 +278,7 @@ async def get_batches(request: web.Request, userdata: UserData):
 
 
 @routes.get('/batches/{batch_id}')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_batch(request: web.Request, userdata: UserData):
     batch_id = int(request.match_info['batch_id'])
@@ -275,7 +287,7 @@ async def get_batch(request: web.Request, userdata: UserData):
     status = await b.last_known_status()
     jobs = await collect_aiter(b.jobs())
     for j in jobs:
-        j['duration'] = humanize_timedelta_msecs(j['duration'])
+        j['duration'] = humanize_timedelta_msecs(j['duration'])  # type: ignore
     wb = get_maybe_wb_for_batch(b)
     page_context = {'batch': status, 'wb': wb}
     page_context.update(filter_jobs(jobs))
@@ -317,6 +329,7 @@ def pr_requires_action(gh_username: str, pr_config: PRConfig) -> bool:
 
 
 @routes.get('/me')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_user(request: web.Request, userdata: UserData) -> web.Response:
     for authorized_user in AUTHORIZED_USERS:
@@ -350,6 +363,7 @@ async def get_user(request: web.Request, userdata: UserData) -> web.Response:
 
 
 @routes.post('/authorize_source_sha')
+@web_security_headers
 @auth.authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -364,6 +378,7 @@ async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/healthcheck')
+@web_security_headers
 async def healthcheck(_) -> web.Response:
     return web.Response(status=200)
 
@@ -418,6 +433,7 @@ async def github_callback_handler(request: web.Request):
 
 
 @routes.post('/github_callback')
+@api_security_headers
 async def github_callback(request: web.Request):
     await asyncio.shield(github_callback_handler(request))
     return web.Response(status=200)
@@ -457,6 +473,7 @@ async def batch_callback_handler(request: web.Request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def deploy_status(request: web.Request, _) -> web.Response:
     batch_client = request.app[AppKeys.BATCH_CLIENT]
@@ -492,6 +509,7 @@ async def deploy_status(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/update')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def post_update(request: web.Request, _) -> web.Response:
     log.info('developer triggered update')
@@ -509,6 +527,7 @@ async def post_update(request: web.Request, _) -> web.Response:
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def dev_deploy_branch(request: web.Request, userdata: UserData) -> web.Response:
     app = request.app
@@ -616,12 +635,14 @@ async def prod_deploy(request, userdata):
 
 
 @routes.post('/api/v1alpha/batch_callback')
+@api_security_headers
 async def batch_callback(request: web.Request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
 
 
 @routes.post('/freeze_merge_deploy')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def freeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -644,6 +665,7 @@ UPDATE globals SET frozen_merge_deploy = 1;
 
 
 @routes.post('/unfreeze_merge_deploy')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def unfreeze_deploys(request: web.Request, _) -> NoReturn:
     app = request.app
@@ -666,6 +688,7 @@ UPDATE globals SET frozen_merge_deploy = 0;
 
 
 @routes.get('/namespaces')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_active_namespaces(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
@@ -687,6 +710,7 @@ GROUP BY active_namespaces.namespace""")
 
 
 @routes.post('/namespaces/{namespace}/services/add')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def add_namespaced_service(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
@@ -715,6 +739,7 @@ WHERE namespace = %s AND service = %s
 
 
 @routes.post('/namespaces/{namespace}/services/{service}/edit')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def update_namespaced_service(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
@@ -734,6 +759,7 @@ async def update_namespaced_service(request: web.Request, _) -> NoReturn:
 
 
 @routes.post('/namespaces/add')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def add_namespace(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
@@ -758,6 +784,7 @@ async def add_namespace(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/envoy-config/{proxy}')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def get_envoy_configs(request: web.Request, _) -> web.Response:
     proxy = request.match_info['proxy']

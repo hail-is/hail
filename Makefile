@@ -53,7 +53,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && sh millw __.checkFormat + __.fix --check
+	cd hail && sh mill --no-server __.checkFormat + __.fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
@@ -212,6 +212,10 @@ $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
 	docker tag $(shell cat $*-image) $(DOCKER_PREFIX)/$(shell cat $*-image)
 	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
 	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@
+
+.PHONY: clean-image-targets
+clean-image-targets:
+	rm -f *-image
 
 .PHONY: local-mysql
 local-mysql:

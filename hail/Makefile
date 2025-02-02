@@ -49,11 +49,12 @@ CLOUD_HAIL_DOCTEST_DATA_DIR = $(CLOUD_HAIL_TEST_RESOURCES_PREFIX)/doctest/data/
 
 # mill integration
 
-mill := bash millw
+MILL := bash mill
+MILLOPTS ?=
 
 .PHONY: mill-clean
 mill-clean:
-	$(mill) clean
+	$(MILL) $(MILLOPTS) clean
 
 # Any target depending on this will always be recomputed. We use this for any target that
 # runs mill, so that mill is always invoked and can decide if the target needs to be updated.
@@ -66,7 +67,7 @@ ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
 endif
 $(SHADOW_JAR): FORCE
-	$(mill) assembly
+	$(MILL) $(MILLOPTS) assembly
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
@@ -76,35 +77,35 @@ ifdef HAIL_COMPILE_NATIVES
 $(NON_SHADOW_JAR): native-lib-prebuilt
 endif
 $(NON_SHADOW_JAR): FORCE
-	$(mill) jar
+	$(MILL) $(MILLOPTS) jar
 
 SHADOW_TEST_JAR := out/test/assembly.dest/out.jar
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): FORCE
-	$(mill) test.assembly
+	$(MILL) $(MILLOPTS) test.assembly
 
 .PHONY: shadowTestJar
 shadowTestJar: $(SHADOW_TEST_JAR)
 
 EXTRA_CLASSPATH := out/writeRunClasspath.dest/runClasspath
 $(EXTRA_CLASSPATH): FORCE
-	$(mill) writeRunClasspath
+	$(MILL) $(MILLOPTS) writeRunClasspath
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES
 jvm-test: native-lib-prebuilt
 endif
 jvm-test:
-	$(mill) test testng.xml
+	$(MILL) $(MILLOPTS) test testng.xml
 
 .PHONY: services-jvm-test
 ifdef HAIL_COMPILE_NATIVES
 services-jvm-test: native-lib-prebuilt
 endif
 services-jvm-test:
-	$(mill) test testng-services.xml
+	$(MILL) $(MILLOPTS) test testng-services.xml
 
 .PHONY: fs-jvm-test
 ifdef HAIL_COMPILE_NATIVES
@@ -117,7 +118,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(mill) test testng-fs.xml
+	$(MILL) $(MILLOPTS) test testng-fs.xml
 
 # end mill integration
 
@@ -265,10 +266,10 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS) $(PY_FILES) $(PYTHON_JAR)
 	cp ../README.md build/deploy/
 	rsync -r \
 	    --exclude '.eggs/' \
+	    --exclude '.mypy_cache/' \
 	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
-	    --exclude 'benchmark_hail/' \
-	    --exclude '.mypy_cache/' \
+	    --exclude 'benchmark/' \
 	    --exclude 'docs/' \
 	    --exclude 'dist/' \
 	    --exclude 'test/' \

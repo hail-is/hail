@@ -1,7 +1,11 @@
 package is.hail.backend
 
+import is.hail.expr.ir.{IRParser, IRParserEnvironment}
 import is.hail.utils._
 
+import scala.util.control.NonFatal
+
+import java.io.Closeable
 import java.net.InetSocketAddress
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
@@ -9,6 +13,7 @@ import java.util.concurrent._
 import com.sun.net.httpserver.{HttpExchange, HttpHandler, HttpServer}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.JsonMethods.compact
 
 case class IRTypePayload(ir: String)
 case class LoadReferencesFromDatasetPayload(path: String)
@@ -27,11 +32,7 @@ case class ParseVCFMetadataPayload(path: String)
 case class ImportFamPayload(path: String, quant_pheno: Boolean, delimiter: String, missing: String)
 case class ExecutePayload(ir: String, stream_codec: String, timed: Boolean)
 
-object BackendServer {
-  def apply(backend: Backend) = new BackendServer(backend)
-}
-
-class BackendServer(backend: Backend) {
+class BackendServer(backend: Backend) extends Closeable {
   // 0 => let the OS pick an available port
   private[this] val httpServer = HttpServer.create(new InetSocketAddress(0), 10)
   private[this] val handler = new BackendHttpHandler(backend)
@@ -73,7 +74,7 @@ class BackendServer(backend: Backend) {
   def start(): Unit =
     thread.start()
 
-  def stop(): Unit =
+  override def close(): Unit =
     httpServer.stop(10)
 }
 
@@ -84,20 +85,34 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
     try {
       val body = using(exchange.getRequestBody)(JsonMethods.parse(_))
       if (exchange.getRequestURI.getPath == "/execute") {
-        val config = body.extract[ExecutePayload]
-        backend.execute(config.ir, config.timed) { (ctx, res, timings) =>
-          exchange.getResponseHeaders().add("X-Hail-Timings", timings)
+        val ExecutePayload(irStr, streamCodec, timed) = body.extract[ExecutePayload]
+        backend.withExecuteContext { ctx =>
+          val (res, timings) = ExecutionTimer.time { timer =>
+            ctx.local(timer = timer) { ctx =>
+              val irData = IRParser.parse_value_ir(
+                irStr,
+                IRParserEnvironment(ctx, irMap = backend.persistedIR.toMap),
+              )
+              backend.execute(ctx, irData)
+            }
+          }
+
+          if (timed) {
+            exchange.getResponseHeaders.add("X-Hail-Timings", compact(timings.toJSON))
+          }
+
           res match {
             case Left(_) => exchange.sendResponseHeaders(200, -1L)
             case Right((t, off)) =>
               exchange.sendResponseHeaders(200, 0L) // 0 => an arbitrarily long response body
-              using(exchange.getResponseBody()) { os =>
-                backend.encodeToOutputStream(ctx, t, off, config.stream_codec, os)
+              using(exchange.getResponseBody) { os =>
+                Backend.encodeToOutputStream(ctx, t, off, streamCodec, os)
               }
           }
         }
         return
       }
+
       val response: Array[Byte] = exchange.getRequestURI.getPath match {
         case "/value/type" => backend.valueType(body.extract[IRTypePayload].ir)
         case "/table/type" => backend.tableType(body.extract[IRTypePayload].ir)
@@ -126,7 +141,7 @@ class BackendHttpHandler(backend: Backend) extends HttpHandler {
       exchange.sendResponseHeaders(200, response.length)
       using(exchange.getResponseBody())(_.write(response))
     } catch {
-      case t: Throwable =>
+      case NonFatal(t) =>
         val (shortMessage, expandedMessage, errorId) = handleForPython(t)
         val errorJson = JObject(
           "short" -> JString(shortMessage),

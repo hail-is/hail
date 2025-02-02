@@ -360,7 +360,7 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testSimplifyReadFilterIntervals(): Unit = {
-    val src = "src/test/resources/sample-indexed-0.2.52.mt"
+    val src = getTestResource("sample-indexed-0.2.52.mt")
 
     val mnr = MatrixNativeReader(fs, src, None)
     val mr = MatrixRead(mnr.fullMatrixType, false, false, mnr)

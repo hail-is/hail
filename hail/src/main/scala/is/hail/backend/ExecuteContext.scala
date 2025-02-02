@@ -14,38 +14,48 @@ import scala.collection.mutable
 import java.io._
 import java.security.SecureRandom
 
-trait TempFileManager {
-  def own(path: String): Unit
+import sourcecode.Enclosing
 
-  def cleanup(): Unit
+trait TempFileManager extends AutoCloseable {
+  def newTmpPath(tmpdir: String, prefix: String, extension: String = null): String
 }
 
 class OwningTempFileManager(fs: FS) extends TempFileManager {
   private[this] val tmpPaths = mutable.ArrayBuffer[String]()
 
-  def own(path: String): Unit = tmpPaths += path
+  override def newTmpPath(tmpdir: String, prefix: String, extension: String): String = {
+    val tmp = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
+    tmpPaths += tmp
+    tmp
+  }
 
-  override def cleanup(): Unit = {
+  override def close(): Unit = {
     for (p <- tmpPaths)
       fs.delete(p, recursive = true)
     tmpPaths.clear()
   }
 }
 
-class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
-  def own(path: String): Unit = owner.own(path)
+class NonOwningTempFileManager private (owner: TempFileManager) extends TempFileManager {
+  override def newTmpPath(tmpdir: String, prefix: String, extension: String): String =
+    owner.newTmpPath(tmpdir, prefix, extension)
 
-  override def cleanup(): Unit = ()
+  override def close(): Unit = ()
+}
+
+object NonOwningTempFileManager {
+  def apply(owner: TempFileManager): TempFileManager =
+    owner match {
+      case _: NonOwningTempFileManager => owner
+      case _ => new NonOwningTempFileManager(owner)
+    }
 }
 
 object ExecuteContext {
-  def scoped[T]()(f: ExecuteContext => T): T = {
-    val (result, _) = ExecutionTimer.time("ExecuteContext.scoped") { timer =>
-      HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(
-        timer,
-        selfContainedExecution = false,
-      )(f)
-    }
+  def scoped[T](f: ExecuteContext => T)(implicit E: Enclosing): T = {
+    val result = HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(
+      selfContainedExecution = false
+    )(f)
     result
   }
 
@@ -59,35 +69,26 @@ object ExecuteContext {
     theHailClassLoader: HailClassLoader,
     flags: HailFeatureFlags,
     backendContext: BackendContext,
+    irMetadata: IrMetadata,
   )(
     f: ExecuteContext => T
   ): T = {
     RegionPool.scoped { pool =>
-      using(new ExecuteContext(
-        tmpdir,
-        localTmpdir,
-        backend,
-        fs,
-        Region(pool = pool),
-        timer,
-        tempFileManager,
-        theHailClassLoader,
-        flags,
-        backendContext,
-        IrMetadata(None),
-      ))(f(_))
-    }
-  }
-
-  def scopedNewRegion[T](ctx: ExecuteContext)(f: ExecuteContext => T): T = {
-    val rp = ctx.r.pool
-
-    rp.scopedRegion { r =>
-      val oldR = ctx.r
-      ctx.r = r
-      val t = f(ctx)
-      ctx.r = oldR
-      t
+      pool.scopedRegion { region =>
+        using(new ExecuteContext(
+          tmpdir,
+          localTmpdir,
+          backend,
+          fs,
+          region,
+          timer,
+          tempFileManager,
+          theHailClassLoader,
+          flags,
+          backendContext,
+          irMetadata,
+        ))(f(_))
+      }
     }
   }
 
@@ -107,13 +108,13 @@ class ExecuteContext(
   val localTmpdir: String,
   val backend: Backend,
   val fs: FS,
-  var r: Region,
+  val r: Region,
   val timer: ExecutionTimer,
   _tempFileManager: TempFileManager,
   val theHailClassLoader: HailClassLoader,
   val flags: HailFeatureFlags,
   val backendContext: BackendContext,
-  var irMetadata: IrMetadata,
+  val irMetadata: IrMetadata,
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -127,34 +128,29 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(backend.references)
+  def stateManager = HailStateManager(backend.references.toMap)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
 
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
-  private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
-
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
   val taskContext: HailTaskContext = new LocalTaskContext(0, 0)
 
-  def scopedExecution[T](f: (HailClassLoader, FS, HailTaskContext, Region) => T): T =
-    using(new LocalTaskContext(0, 0))(f(theHailClassLoader, fs, _, r))
+  def scopedExecution[T](
+    f: (HailClassLoader, FS, HailTaskContext, Region) => T
+  )(implicit E: Enclosing
+  ): T =
+    using(new LocalTaskContext(0, 0)) { tc =>
+      time {
+        f(theHailClassLoader, fs, tc, r)
+      }
+    }
 
-  def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String = {
-    val path =
-      ExecuteContext.createTmpPathNoCleanup(if (local) localTmpdir else tmpdir, prefix, extension)
-    tempFileManager.own(path)
-    path
-  }
-
-  def ownCloseable(c: Closeable): Unit =
-    cleanupFunctions += c.close
-
-  def ownCleanup(cleanupFunction: () => Unit): Unit =
-    cleanupFunctions += cleanupFunction
+  def createTmpPath(prefix: String, extension: String = null, local: Boolean = false): String =
+    tempFileManager.newTmpPath(if (local) localTmpdir else tmpdir, prefix, extension)
 
   def getFlag(name: String): String = flags.get(name)
 
@@ -167,23 +163,39 @@ class ExecuteContext(
   def shouldLogIR(): Boolean = !shouldNotLogIR()
 
   def close(): Unit = {
-    tempFileManager.cleanup()
+    tempFileManager.close()
     taskContext.close()
-
-    var exception: Exception = null
-    for (cleanupFunction <- cleanupFunctions) {
-      try
-        cleanupFunction()
-      catch {
-        case exc: Exception =>
-          if (exception == null) {
-            exception = new RuntimeException("ExecuteContext could not cleanup all resources")
-          }
-          exception.addSuppressed(exc)
-      }
-    }
-    if (exception != null) {
-      throw exception
-    }
   }
+
+  def time[A](block: => A)(implicit E: Enclosing): A =
+    timer.time(E.value)(block)
+
+  def local[A](
+    tmpdir: String = this.tmpdir,
+    localTmpdir: String = this.localTmpdir,
+    backend: Backend = this.backend,
+    fs: FS = this.fs,
+    r: Region = this.r,
+    timer: ExecutionTimer = this.timer,
+    tempFileManager: TempFileManager = NonOwningTempFileManager(this.tempFileManager),
+    theHailClassLoader: HailClassLoader = this.theHailClassLoader,
+    flags: HailFeatureFlags = this.flags,
+    backendContext: BackendContext = this.backendContext,
+    irMetadata: IrMetadata = this.irMetadata,
+  )(
+    f: ExecuteContext => A
+  ): A =
+    using(new ExecuteContext(
+      tmpdir,
+      localTmpdir,
+      backend,
+      fs,
+      r,
+      timer,
+      tempFileManager,
+      theHailClassLoader,
+      flags,
+      backendContext,
+      irMetadata,
+    ))(f)
 }

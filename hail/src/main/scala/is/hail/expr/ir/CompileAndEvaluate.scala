@@ -13,7 +13,7 @@ import org.apache.spark.sql.Row
 
 object CompileAndEvaluate {
   def apply[T](ctx: ExecuteContext, ir0: IR, optimize: Boolean = true): T = {
-    ctx.timer.time("CompileAndEvaluate") {
+    ctx.time {
       _apply(ctx, ir0, optimize) match {
         case Left(()) => ().asInstanceOf[T]
         case Right((t, off)) => SafeRow(t, off).getAs[T](0)
@@ -41,46 +41,47 @@ object CompileAndEvaluate {
     ctx: ExecuteContext,
     ir0: IR,
     optimize: Boolean = true,
-  ): Either[Unit, (PTuple, Long)] = {
-    val ir = LoweringPipeline.relationalLowerer(optimize).apply(ctx, ir0).asInstanceOf[IR]
+  ): Either[Unit, (PTuple, Long)] =
+    ctx.time {
+      val ir = LoweringPipeline.relationalLowerer(optimize)(ctx, ir0).asInstanceOf[IR]
 
-    if (ir.typ == TVoid) {
-      val (_, f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionUnit](
-        ctx,
-        FastSeq(),
-        FastSeq(classInfo[Region]),
-        UnitInfo,
-        ir,
-        print = None,
-        optimize = optimize,
-      ))
+      ir.typ match {
+        case TVoid =>
+          val (_, f) = Compile[AsmFunction1RegionUnit](
+            ctx,
+            FastSeq(),
+            FastSeq(classInfo[Region]),
+            UnitInfo,
+            ir,
+            print = None,
+            optimize = optimize,
+          )
 
-      ctx.scopedExecution { (hcl, fs, htc, r) =>
-        val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(hcl, fs, htc, r))
-        ctx.timer.time("RunCompiledVoidFunction")(fRunnable(r))
+          val unit: Unit = ctx.scopedExecution { (hcl, fs, htc, r) =>
+            val execute = f(hcl, fs, htc, r)
+            ctx.time(execute(r))
+          }
+
+          Left(unit)
+
+        case _ =>
+          val (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) =
+            Compile[AsmFunction1RegionLong](
+              ctx,
+              FastSeq(),
+              FastSeq(classInfo[Region]),
+              LongInfo,
+              MakeTuple.ordered(FastSeq(ir)),
+              print = None,
+              optimize = optimize,
+            )
+
+          val res = ctx.scopedExecution { (hcl, fs, htc, r) =>
+            val execute = f(hcl, fs, htc, r)
+            ctx.time(execute(r))
+          }
+
+          Right((resType, res))
       }
-      return Left(())
     }
-
-    val (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) =
-      ctx.timer.time("Compile")(Compile[AsmFunction1RegionLong](
-        ctx,
-        FastSeq(),
-        FastSeq(classInfo[Region]),
-        LongInfo,
-        MakeTuple.ordered(FastSeq(ir)),
-        print = None,
-        optimize = optimize,
-      ))
-
-    val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(
-      ctx.theHailClassLoader,
-      ctx.fs,
-      ctx.taskContext,
-      ctx.r,
-    ))
-    val resultAddress = ctx.timer.time("RunCompiledFunction")(fRunnable(ctx.r))
-
-    Right((resType, resultAddress))
-  }
 }

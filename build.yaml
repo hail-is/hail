@@ -21,7 +21,7 @@ steps:
       mkdir -p repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python-version-info
+      make -C hail python-version-info HAIL_RELEASE_MODE=1 MILLOPTS=--no-server
       git rev-parse HEAD > git_version
     outputs:
       - from: /io/repo/
@@ -719,25 +719,39 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
-      time retry make shadowJar wheel HAIL_RELEASE_MODE=1
+
+      export MILLOPTS='--no-server' HAIL_RELEASE_MODE=1
+      time retry sh mill --no-server --version
+
+      # We've encountered the following sporadic error in CI between `mill`
+      # finishing assembling the jar and `Make` copying the jar:
+      #
+      # cp -f out/assembly.dest/out.jar python/hail/backend/hail-all-spark.jar
+      # cp: cannot stat 'out/assembly.dest/out.jar': No such file or directory
+      #
+      # This was likely from running mill in server mode; mill main exits before
+      # the jar has finished being written.
+      time retry make shadowJar
+      if [ ! -f out/assembly.dest/out.jar ]; then
+          echo 'no out.jar found after mill assembly returned. going to sleep'
+          sleep 5
+      fi
+
+      time retry make wheel
 
       # Check wheel size is small enough for pypi (< 200 MiB)
       HAIL_PIP_VERSION=$(cat python/hail/hail_pip_version)
       WHEEL_PATH="build/deploy/dist/hail-$HAIL_PIP_VERSION-py3-none-any.whl"
       du -h $WHEEL_PATH
       $(python3 -c "import os; exit(1) if (os.path.getsize('$WHEEL_PATH')) > (200 * 1024 * 1024) else exit(0)")
-
-      mkdir /io/wheel
-      mv build/deploy/dist/hail-*-py3-none-any.whl /io/wheel/
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/assembly.dest/out.jar
-        to: /hail.jar
-      - from: /io/wheel
-        to: /wheel
+      - from: /io/repo/hail/out
+        to: /derived/release/hail/out/
+      - from: /io/repo/hail/build/deploy/dist
+        to: /derived/release/hail/build/deploy/dist
     dependsOn:
       - base_image
       - merge_code
@@ -751,23 +765,31 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
-      time retry make jars wheel
-      mkdir /io/debug-wheel
-      mv build/deploy/dist/hail-*-py3-none-any.whl /io/debug-wheel/
+
+      export MILLOPTS='--no-server'
+      time retry sh mill --no-server --version
+
+      # See `build_hail_jar_and_wheel`
+      time retry make shadowJar
+      if [ ! -f out/assembly.dest/out.jar ]; then
+          echo 'no out.jar found after mill assembly returned. going to sleep'
+          sleep 5
+      fi
+
+      time retry make wheel
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/test/assembly.dest/out.jar
-        to: /hail-debug-test.jar
-      - from: /io/debug-wheel
-        to: /debug-wheel
+      - from: /io/repo/hail/out
+        to: /derived/debug/hail/out
+      - from: /io/repo/hail/build/deploy/dist
+        to: /derived/debug/hail/build/deploy/dist
     dependsOn:
       - base_image
       - merge_code
   - kind: runImage
-    name: build_hail_test_artifacts
+    name: build_debug_hail_test_jar
     image:
       valueFrom: base_image.image
     resources:
@@ -776,10 +798,37 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
-      time retry make shadowTestJar
 
-      time tar czf test.tar.gz -C python test
+      export MILLOPTS='--no-server'
+      time retry sh mill --no-server --version
+
+      # See `build_hail_jar_and_wheel`
+      time retry make shadowTestJar
+      if [ ! -f out/test/assembly.dest/out.jar ]; then
+          echo 'no out.jar found after mill assembly returned. going to sleep'
+          sleep 5
+      fi
+    inputs:
+      - from: /repo
+        to: /io/repo
+      - from: /derived/debug/hail/out
+        to: /io/repo/hail/out
+    outputs:
+      - from: /io/repo/hail/out
+        to: /derived/debug/hail/out
+    dependsOn:
+      - base_image
+      - merge_code
+      - build_hail_debug_jar_and_wheel
+  - kind: runImage
+    name: build_hail_test_artifacts
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      cd /io/repo/hail
+
+      time tar czf test.tar.gz -C python test pytest.ini
       time tar czf resources.tar.gz -C src/test resources
       time tar czf data.tar.gz -C python/hail/docs data
       time TESTNG_SPLITS=5 python3 generate_splits.py
@@ -788,8 +837,6 @@ steps:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/repo/hail/out/test/assembly.dest/out.jar
-        to: /hail-test.jar
       - from: /io/repo/hail/test.tar.gz
         to: /test.tar.gz
       - from: /io/repo/hail/resources.tar.gz
@@ -811,17 +858,23 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry sh millw --version
-      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1
-      time retry make wheel
 
-      mkdir /io/azure-wheel
-      mv build/deploy/dist/hail-*-py3-none-any.whl /io/azure-wheel/
+      export SPARK_VERSION="3.0.2" SCALA_VERSION="2.12.13" HAIL_RELEASE_MODE=1 MILLOPTS='--no-server'
+      time retry sh mill --no-server --version
+
+      # See `build_hail_jar_and_wheel`
+      time retry make shadowJar
+      if [ ! -f out/assembly.dest/out.jar ]; then
+          echo 'no out.jar found after mill assembly returned. going to sleep'
+          sleep 5
+      fi
+
+      time retry make wheel
     inputs:
       - from: /repo
         to: /io/repo
     outputs:
-      - from: /io/azure-wheel
+      - from: /io/repo/hail/build/deploy/dist
         to: /azure-wheel
     dependsOn:
       - base_image
@@ -891,8 +944,6 @@ steps:
         to: /io/repo/gear
       - from: /repo/web_common
         to: /io/repo/web_common
-      - from: /repo/letsencrypt/subdomains.txt
-        to: /repo/letsencrypt/subdomains.txt
       - from: /jvm-entryway.jar
         to: /io/repo/batch/jvm-entryway/build/libs/jvm-entryway.jar
       - from: /hail_version
@@ -950,7 +1001,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /hail-debug-test.jar
+      - from: /derived/debug/hail/out/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
         to: /io/splits.tar.gz
@@ -966,7 +1017,7 @@ steps:
       - default_ns
       - hail_run_image
       - create_test_gsa_keys
-      - build_hail_debug_jar_and_wheel
+      - build_debug_hail_test_jar
       - build_hail_test_artifacts
   - kind: runImage
     name: test_hail_python
@@ -1011,7 +1062,7 @@ steps:
               --timeout=120 \
               test
     inputs:
-      - from: /debug-wheel
+      - from: /derived/debug/hail/build/deploy/dist
         to: /io/debug-wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
@@ -1133,7 +1184,7 @@ steps:
               --timeout=120 \
               test
     inputs:
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
@@ -1202,7 +1253,7 @@ steps:
               test
     timeout: 1800
     inputs:
-      - from: /debug-wheel
+      - from: /derived/debug/hail/build/deploy/dist
         to: /io/debug-wheel
       - from: /test.tar.gz
         to: /io/test.tar.gz
@@ -1264,7 +1315,7 @@ steps:
     inputs:
       - from: /repo/hail/python/hail/docs
         to: /io/docs
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
     dependsOn:
       - build_hail_jar_and_wheel
@@ -1311,7 +1362,7 @@ steps:
         to: /io/repo/hail/python/hail/hail_version
       - from: /repo/website/website
         to: /io/website/website
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
     outputs:
       - from: /io/www.tar.gz
@@ -1336,7 +1387,7 @@ steps:
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/repo/wheel
     dependsOn:
       - merge_code
@@ -1358,7 +1409,7 @@ steps:
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/repo/wheel
     dependsOn:
       - merge_code
@@ -1380,7 +1431,7 @@ steps:
         to: /io/repo/docker/hailgenetics/hail
       - from: /repo/hail/python/pinned-requirements.txt
         to: /io/repo/hail/python/pinned-requirements.txt
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/repo/wheel
     dependsOn:
       - merge_code
@@ -1508,6 +1559,8 @@ steps:
     name: check_hail
     image:
       valueFrom: hail_linting_image.image
+    resources:
+      memory: 8G
     script: |
       set -ex
       cd /io/repo
@@ -2293,6 +2346,9 @@ steps:
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
         online: true
+      - name: jobs-add-n-max-attempts
+        script: /io/sql/jobs-add-n-max-attempts.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2389,7 +2445,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /hail.jar
+      - from: /derived/release/hail/out/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -2448,7 +2504,7 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
       - from: /repo/hail/python/pytest.ini
         to: /io/repo/hail/python/pytest.ini
@@ -2522,7 +2578,7 @@ steps:
               test
     timeout: 5400
     inputs:
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
       - from: /repo/hail/python/pytest.ini
         to: /io/repo/hail/python/pytest.ini
@@ -2573,7 +2629,7 @@ steps:
               --durations=50 \
               /io/test_requester_pays_parsing.py
     inputs:
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
       - from: /repo/hail/scripts/test_requester_pays_parsing.py
         to: /io/test_requester_pays_parsing.py
@@ -3227,17 +3283,20 @@ steps:
       fi
 
       cd hail
-      time retry sh millw --version
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1
+      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1 \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
       - default_ns
       - merge_code
+      - build_hail_jar_and_wheel
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
     secrets:
       - name: test-dataproc-service-account-key
         namespace:
@@ -3270,17 +3329,18 @@ steps:
       fi
 
       cd hail
-      time retry sh millw --version
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1
+      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1 \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
       - default_ns
       - merge_code
+      - build_hail_jar_and_wheel
     inputs:
-      - from: /hail_pip_version
-        to: /io/hail_pip_version
       - from: /repo
         to: /io/repo
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
     scopes:
       - deploy
       - dev
@@ -3318,9 +3378,9 @@ steps:
       fi
 
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
-      # use `assume-old` to prevent `mill` from rebuilding the "SHADOW_JAR"
-      make upload-artifacts DEPLOY_REMOTE=origin \
-        --assume-old=out/assembly.dest/out.jar
+      # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
+      make upload-artifacts HAIL_RELEASE_MODE=1 DEPLOY_REMOTE=origin \
+        -o out/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
@@ -3349,7 +3409,7 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
-      - from: /hail.jar
+      - from: /derived/release/hail/out/assembly.dest/out.jar
         to: /io/repo/hail/out/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
@@ -3447,6 +3507,52 @@ steps:
       - hailgenetics_hailtop_image
     clouds:
       - gcp
+  - kind: runImage
+    name: make_terra_prs
+    image:
+      valueFrom: ci_utils_image.image
+    dependsOn:
+      - default_ns
+      - ci_utils_image
+      - release
+    inputs:
+      - from: /hail_pip_version
+        to: /io/hail_pip_version
+      - from: /release-hail-flag
+        to: /io/release-hail-flag
+      - from: /repo
+        to: /io/repo
+    secrets:
+      - name: hail-ci-0-1-github-oauth-token
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /hail-ci-0-1-github-oauth-token
+    clouds:
+      - gcp
+    scopes:
+      - deploy
+      - dev
+    script: |
+      set -ex
+      if [[ $(< /io/release-hail-flag) != '1' ]]
+      then
+          echo 'Skipping making terra update prs (no new release published)'
+          exit 0
+      fi
+
+      export HAIL_PIP_VERSION=$(cat /io/hail_pip_version)
+      export GITHUB_OAUTH_HEADER_FILE=/io/github-oauth
+      cd /io
+
+      printf 'Authorization: token ' > github-oauth
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+      printf '#!/bin/bash\necho ' > git-askpass
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
+      chmod 755 git-askpass
+      export GIT_ASKPASS=/io/git-askpass
+
+      cd /io/repo/hail
+      bash scripts/make-terra-prs.sh
   - kind: runImage
     name: mirror_hailgenetics_images
     image: quay.io/skopeo/stable:v1.13.2
@@ -3596,7 +3702,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /hail-test.jar
+      - from: /derived/debug/hail/out/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
@@ -3611,8 +3717,8 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_image
+      - build_debug_hail_test_jar
       - build_hail_test_artifacts
-      - build_hail_jar_and_wheel
       - upload_test_resources_to_blob_storage
   - kind: runImage
     name: test_hail_services_java
@@ -3638,7 +3744,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /hail-test.jar
+      - from: /derived/debug/hail/out/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
@@ -3653,7 +3759,9 @@ steps:
       - create_certs
       - create_accounts
       - hail_run_image
+      - build_debug_hail_test_jar
       - build_hail_test_artifacts
+      - upload_query_jar
       - deploy_batch
   - kind: runImage
     name: start_hail_benchmark
@@ -3665,13 +3773,6 @@ steps:
     dependsOn:
       - default_ns
       - hail_dev_image
-      - test_hail_java
-      - test_hail_python_local_backend
-      - test_hail_python_service_backend_gcp
-      - test_hail_python_service_backend_azure
-      - test_hail_scala_fs
-      - test_hail_services_java
-      - test_hail_spark_conf_requester_pays_parsing
       - release
     image:
       valueFrom: hail_dev_image.image
@@ -3854,19 +3955,10 @@ steps:
       - cancel_all_running_test_batches
   - kind: runImage
     name: delete_azure_batch_instances
-    image: mcr.microsoft.com/azure-cli
+    image: mcr.microsoft.com/azure-cli:azurelinux3.0
     alwaysRun: true
     script: |
       set -e -o pipefail
-      cat <<EOF | tee /etc/yum.repos.d/kubernetes.repo
-      [kubernetes]
-      name=Kubernetes
-      baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
-      enabled=1
-      gpgcheck=1
-      gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
-      EOF
-      yum install -y kubectl jq
       AZURE_USERNAME=$(jq -r '.appId' /batch-gsa-key/key.json)
       AZURE_PASSWORD=$(jq -r '.password' /batch-gsa-key/key.json)
       AZURE_TENANT_ID=$(jq -r '.tenant' /batch-gsa-key/key.json)

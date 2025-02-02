@@ -1,5 +1,6 @@
 package is.hail
 
+import is.hail.services.requests.ClientResponseException
 import is.hail.shadedazure.com.azure.storage.common.implementation.Constants
 import is.hail.utils._
 

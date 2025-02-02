@@ -18,6 +18,7 @@ import org.apache.spark.sql.Row
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
+import sourcecode.Enclosing
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -43,7 +44,7 @@ object HailSuite {
 
   lazy val hc: HailContext = {
     val hc = withSparkBackend()
-    hc.sparkBackend("HailSuite.hc").setFlag("lower", "1")
+    hc.sparkBackend("HailSuite.hc").flags.set("lower", "1")
     hc.checkRVDKeys = true
     hc
   }
@@ -70,6 +71,8 @@ class HailSuite extends TestNGSuite {
 
   var pool: RegionPool = _
 
+  def getTestResource(localPath: String): String = s"src/test/resources/$localPath"
+
   @BeforeMethod
   def setupContext(context: ITestContext): Unit = {
     assert(timer == null)
@@ -91,10 +94,8 @@ class HailSuite extends TestNGSuite {
       throw new RuntimeException(s"method stopped spark context!")
   }
 
-  def withExecuteContext[T]()(f: ExecuteContext => T): T =
-    ExecutionTimer.logTime("HailSuite.withExecuteContext") { timer =>
-      hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext(timer)(f)
-    }
+  def withExecuteContext[T]()(f: ExecuteContext => T)(implicit E: Enclosing): T =
+    hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext(f)
 
   def assertEvalsTo(
     x: IR,
@@ -110,7 +111,7 @@ class HailSuite extends TestNGSuite {
     val t = x.typ
     assert(t == TVoid || t.typeCheck(expected), s"$t, $expected")
 
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
         if (HailContext.backend.isInstanceOf[SparkBackend])
           execStrats
@@ -255,7 +256,7 @@ class HailSuite extends TestNGSuite {
     expected: DenseMatrix[Double],
   )(implicit execStrats: Set[ExecStrategy]
   ): Unit = {
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       val filteredExecStrats: Set[ExecStrategy] =
         if (HailContext.backend.isInstanceOf[SparkBackend]) execStrats
         else {

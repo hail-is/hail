@@ -65,7 +65,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testCountRead(): Unit = {
     implicit val execStrats = ExecStrategy.lowering
-    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     assertEvalsTo(TableCount(tir), 120L)
   }
 
@@ -672,10 +672,10 @@ class TableIRSuite extends HailSuite {
 
   // Catches a bug in the partitioner created by the importer.
   @Test def testTableJoinOfImport(): Unit = {
-    val mnr = MatrixNativeReader(fs, "src/test/resources/sample.vcf.mt")
+    val mnr = MatrixNativeReader(fs, getTestResource("sample.vcf.mt"))
     val mt2 = MatrixRead(mnr.fullMatrixType, false, false, mnr)
     val t2 = MatrixRowsTable(mt2)
-    val mt = importVCF(ctx, "src/test/resources/sample.vcf")
+    val mt = importVCF(ctx, getTestResource("sample.vcf"))
     var t: TableIR = MatrixRowsTable(mt)
     t = TableMapRows(
       t,
@@ -686,7 +686,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testNativeReaderWithOverlappingPartitions(): Unit = {
-    val path = "src/test/resources/sample.vcf-20-partitions-with-overlap.mt/rows"
+    val path = getTestResource("sample.vcf-20-partitions-with-overlap.mt/rows")
     // i1 overlaps the first two partitions
     val i1 = Interval(Row(Locus("20", 10200000)), Row(Locus("20", 10500000)), true, true)
 
@@ -1081,7 +1081,7 @@ class TableIRSuite extends HailSuite {
 
   @Test def testTableAggregateByKey(): Unit = {
     implicit val execStrats = ExecStrategy.allRelational
-    var tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    var tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     tir = TableKeyBy(tir, FastSeq("x", "y"), true)
     tir = TableAggregateByKey(
       tir,
@@ -1107,7 +1107,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableDistinct(): Unit = {
-    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     val keyedByX = TableKeyBy(tir, FastSeq("x"), true)
     val distinctByX = TableDistinct(keyedByX)
     assertEvalsTo(TableCount(distinctByX), 8L)
@@ -1285,7 +1285,7 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testTableKeyByAndAggregate(): Unit = {
-    val tir: TableIR = TableRead.native(fs, "src/test/resources/three_key.ht")
+    val tir: TableIR = TableRead.native(fs, getTestResource("three_key.ht"))
     val unkeyed = TableKeyBy(tir, IndexedSeq[String]())
     val rowRef = Ref(TableIR.rowName, unkeyed.typ.rowType)
     val aggSignature = AggSignature(Sum(), FastSeq(), FastSeq(TInt64))
@@ -1472,10 +1472,10 @@ class TableIRSuite extends HailSuite {
     /* This test is important because it tests that we can handle lowering with a
      * TableNativeZippedReader when elements of the original key get pruned away (so I copy key to
      * only be "locus" instead of "locus", "alleles") */
-    val rowsPath = "src/test/resources/sample.vcf.mt/rows"
-    val entriesPath = "src/test/resources/sample.vcf.mt/entries"
+    val rowsPath = getTestResource("sample.vcf.mt/rows")
+    val entriesPath = getTestResource("sample.vcf.mt/entries")
 
-    val mnr = MatrixNativeReader(fs, "src/test/resources/sample.vcf.mt")
+    val mnr = MatrixNativeReader(fs, getTestResource("sample.vcf.mt"))
     val mnrSpec = mnr.getSpec()
 
     val reader =
@@ -1490,7 +1490,7 @@ class TableIRSuite extends HailSuite {
         ApplyAggOp(Collect())(GetField(Ref(TableIR.rowName, tableType.rowType), "rsid"))
       )),
     )
-    val optimized = Optimize(irToLower, "foo", ctx)
+    val optimized = Optimize(ctx, irToLower)
     val analyses = LoweringAnalyses.apply(optimized, ctx)
     LowerTableIR(optimized, DArrayLowering.All, ctx, analyses)
   }

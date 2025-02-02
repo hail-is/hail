@@ -3880,7 +3880,7 @@ class JavaIRSharedReference:
         if Env._hc:
             backend = Env.backend()
             assert isinstance(backend, Py4JBackend)
-            backend._jbackend.removeJavaIR(self._id)
+            backend._jbackend.pyRemoveJavaIR(self._id)
 
 
 class JavaIR(IR):

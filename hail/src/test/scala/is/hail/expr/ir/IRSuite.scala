@@ -3261,8 +3261,8 @@ class IRSuite extends HailSuite {
         "index_bgen",
         TInt64,
         Array[Type](TLocus("GRCh37")),
-        Str("src/test/resources/example.8bits.bgen"),
-        Str("src/test/resources/example.8bits.bgen.idx2"),
+        Str(getTestResource("example.8bits.bgen")),
+        Str(getTestResource("example.8bits.bgen.idx2")),
         Literal(TDict(TString, TString), Map("01" -> "1")),
         False(),
         I32(1000000),
@@ -3312,11 +3312,11 @@ class IRSuite extends HailSuite {
     val table = TableRange(100, 10)
 
     val mt = MatrixIR.range(20, 2, Some(3))
-    val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(ctx, getTestResource("sample.vcf"))
 
     val bgenReader = MatrixBGENReader(
       ctx,
-      FastSeq("src/test/resources/example.8bits.bgen"),
+      FastSeq(getTestResource("example.8bits.bgen")),
       None,
       Map.empty[String, String],
       None,
@@ -3326,7 +3326,7 @@ class IRSuite extends HailSuite {
     val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix =
-      BlockMatrixRead(BlockMatrixNativeReader(fs, "src/test/resources/blockmatrix_example/0"))
+      BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
     val blockMatrixWriter = BlockMatrixNativeWriter("/path/to/file.bm", false, false, false)
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter("/path/to/prefix", false)
     val nd = MakeNDArray(
@@ -3601,9 +3601,9 @@ class IRSuite extends HailSuite {
     try {
       val fs = ctx.fs
 
-      val read = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
+      val read = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
       val mtRead =
-        MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
       val b = True()
 
       val xs: Array[TableIR] = Array(
@@ -3716,23 +3716,23 @@ class IRSuite extends HailSuite {
           "index_bgen",
           TInt64,
           Array[Type](TLocus("GRCh37")),
-          Str("src/test/resources/example.8bits.bgen"),
-          Str("src/test/resources/example.8bits.bgen.idx2"),
+          Str(getTestResource("example.8bits.bgen")),
+          Str(getTestResource("example.8bits.bgen.idx2")),
           Literal(TDict(TString, TString), Map("01" -> "1")),
           False(),
           I32(1000000),
         ),
       )
 
-      val tableRead = TableIR.read(fs, "src/test/resources/backward_compatability/1.1.0/table/0.ht")
+      val tableRead = TableIR.read(fs, getTestResource("backward_compatability/1.1.0/table/0.ht"))
       val read =
-        MatrixIR.read(fs, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        MatrixIR.read(fs, getTestResource("backward_compatability/1.0.0/matrix_table/0.hmt"))
       val range = MatrixIR.range(3, 7, None)
-      val vcf = is.hail.TestUtils.importVCF(ctx, "src/test/resources/sample.vcf")
+      val vcf = is.hail.TestUtils.importVCF(ctx, getTestResource("sample.vcf"))
 
       val bgenReader = MatrixBGENReader(
         ctx,
-        FastSeq("src/test/resources/example.8bits.bgen"),
+        FastSeq(getTestResource("example.8bits.bgen")),
         None,
         Map.empty[String, String],
         None,
@@ -3839,7 +3839,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
     val read =
-      BlockMatrixRead(BlockMatrixNativeReader(fs, "src/test/resources/blockmatrix_example/0"))
+      BlockMatrixRead(BlockMatrixNativeReader(fs, getTestResource("blockmatrix_example/0")))
     val transpose = BlockMatrixBroadcast(read, FastSeq(1, 0), FastSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
     val slice = BlockMatrixSlice(read, FastSeq(FastSeq(0, 2, 1), FastSeq(0, 1, 1)))
@@ -3921,7 +3921,7 @@ class IRSuite extends HailSuite {
   @Test def testCachedIR(): Unit = {
     val cached = Literal(TSet(TInt32), Set(1))
     val s = s"(JavaIR 1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
+    val x2 = ExecuteContext.scoped { ctx =>
       IRParser.parse_value_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
@@ -3930,7 +3930,7 @@ class IRSuite extends HailSuite {
   @Test def testCachedTableIR(): Unit = {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable 1)"
-    val x2 = ExecuteContext.scoped() { ctx =>
+    val x2 = ExecuteContext.scoped { ctx =>
       IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = Map(1 -> cached)))
     }
     assert(x2 eq cached)
@@ -4055,7 +4055,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
-    Array(VEP(fs, "src/test/resources/dummy_vep_config.json", false, 1, true)),
+    Array(VEP(fs, getTestResource("dummy_vep_config.json"), false, 1, true)),
     Array(WrappedMatrixToTableFunction(
       LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")),
       "foo",
@@ -4153,9 +4153,8 @@ class IRSuite extends HailSuite {
         |       (MakeStruct (locus  (Apply end Locus(GRCh37) (Ref __uid_3)))) (True) (False))))
         |""".stripMargin,
     )
-    val v = ExecutionTimer.logTime("IRSuite.regressionTestUnifyBug") { timer =>
-      backend.execute(timer, ir, optimize = true)
-    }
+    val v = backend.execute(ctx, ir)
+
     assert(
       ir.typ.ordering(ctx.stateManager).equiv(
         FastSeq(
@@ -4217,12 +4216,12 @@ class IRSuite extends HailSuite {
 
     var memUsed = 0L
 
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       eval(ndSum, Env.empty, FastSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx)
       memUsed = ctx.r.pool.getHighestTotalUsage
     }
 
-    ExecuteContext.scoped() { ctx =>
+    ExecuteContext.scoped { ctx =>
       eval(ndSum, Env.empty, FastSeq(100 -> TInt32, startingArg -> ndType), None, None, true, ctx)
       assert(memUsed == ctx.r.pool.getHighestTotalUsage)
     }

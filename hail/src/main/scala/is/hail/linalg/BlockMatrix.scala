@@ -27,7 +27,7 @@ import breeze.stats.distributions.RandBasis
 import org.apache.commons.lang3.StringUtils
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
-import org.apache.spark.mllib.linalg.distributed._
+import org.apache.spark.mllib.linalg.distributed.{GridPartitioner => _, _}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.json4s._

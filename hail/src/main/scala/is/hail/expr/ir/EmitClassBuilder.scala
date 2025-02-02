@@ -914,79 +914,80 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
   }
 
   def resultWithIndex(print: Option[PrintWriter] = None)
-    : (HailClassLoader, FS, HailTaskContext, Region) => C = {
-    makeRNGs()
-    makeAddPartitionRegion()
-    makeAddHailClassLoader()
-    makeAddFS()
-    makeAddTaskContext()
+    : (HailClassLoader, FS, HailTaskContext, Region) => C =
+    ctx.time {
+      makeRNGs()
+      makeAddPartitionRegion()
+      makeAddHailClassLoader()
+      makeAddFS()
+      makeAddTaskContext()
 
-    val hasLiterals: Boolean = emodb.hasLiterals
-    val hasReferences: Boolean = emodb.hasReferences
-    if (hasReferences)
-      makeAddReferenceGenomes()
+      val hasLiterals: Boolean = emodb.hasLiterals
+      val hasReferences: Boolean = emodb.hasReferences
+      if (hasReferences)
+        makeAddReferenceGenomes()
 
-    val objects = makeAddObjects()
+      val objects = makeAddObjects()
 
-    val literalsBc = if (hasLiterals)
-      ctx.backend.broadcast(encodeLiterals())
-    else
-      // if there are no literals, there might not be a HailContext
-      null
+      val literalsBc = if (hasLiterals)
+        ctx.backend.broadcast(encodeLiterals())
+      else
+        // if there are no literals, there might not be a HailContext
+        null
 
-    val references: Array[ReferenceGenome] = if (hasReferences)
-      emodb.referenceGenomes().toArray
-    else
-      null
+      val references: Array[ReferenceGenome] = if (hasReferences)
+        emodb.referenceGenomes().toArray
+      else
+        null
 
-    val nSerializedAggs = _nSerialized
+      val nSerializedAggs = _nSerialized
 
-    val useBackend = _backendField != null
-    val backend = if (useBackend) new BackendUtils(_mods.result()) else null
+      val useBackend = _backendField != null
+      val backend = if (useBackend) new BackendUtils(_mods.result()) else null
 
-    assert(
-      TaskContext.get() == null,
-      "FunctionBuilder emission should happen on master, but happened on worker",
-    )
+      assert(
+        TaskContext.get() == null,
+        "FunctionBuilder emission should happen on master, but happened on worker",
+      )
 
-    val n = cb.className.replace("/", ".")
-    val classesBytes = modb.classesBytes(ctx.shouldWriteIRFiles(), print)
+      val n = cb.className.replace("/", ".")
+      val classesBytes = modb.classesBytes(ctx.shouldWriteIRFiles(), print)
 
-    new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
-      @transient @volatile private var theClass: Class[_] = null
+      new ((HailClassLoader, FS, HailTaskContext, Region) => C) with java.io.Serializable {
+        @transient @volatile private var theClass: Class[_] = null
 
-      def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region): C = {
-        if (theClass == null) {
-          this.synchronized {
-            if (theClass == null) {
-              classesBytes.load(hcl)
-              theClass = loadClass(hcl, n)
+        def apply(hcl: HailClassLoader, fs: FS, htc: HailTaskContext, region: Region): C = {
+          if (theClass == null) {
+            this.synchronized {
+              if (theClass == null) {
+                classesBytes.load(hcl)
+                theClass = loadClass(hcl, n)
+              }
             }
           }
-        }
-        val idx = htc.partitionId()
+          val idx = htc.partitionId()
 
-        val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
-        f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
-        f.asInstanceOf[FunctionWithFS].addFS(fs)
-        f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
-        f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
-        f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
-        if (useBackend)
-          f.asInstanceOf[FunctionWithBackend].setBackend(backend)
-        if (objects != null)
-          f.asInstanceOf[FunctionWithObjects].setObjects(objects)
-        if (hasLiterals)
-          f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
-        if (hasReferences)
-          f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
-        if (nSerializedAggs != 0)
-          f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
-        f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
-        f
+          val f = theClass.getDeclaredConstructor().newInstance().asInstanceOf[C]
+          f.asInstanceOf[FunctionWithHailClassLoader].addHailClassLoader(hcl)
+          f.asInstanceOf[FunctionWithFS].addFS(fs)
+          f.asInstanceOf[FunctionWithTaskContext].addTaskContext(htc)
+          f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
+          f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
+          if (useBackend)
+            f.asInstanceOf[FunctionWithBackend].setBackend(backend)
+          if (objects != null)
+            f.asInstanceOf[FunctionWithObjects].setObjects(objects)
+          if (hasLiterals)
+            f.asInstanceOf[FunctionWithLiterals].addAndDecodeLiterals(literalsBc.value)
+          if (hasReferences)
+            f.asInstanceOf[FunctionWithReferences].addReferenceGenomes(references)
+          if (nSerializedAggs != 0)
+            f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
+          f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
+          f
+        }
       }
     }
-  }
 
   private[this] val methodMemo: mutable.Map[Any, EmitMethodBuilder[C]] = mutable.Map()
 

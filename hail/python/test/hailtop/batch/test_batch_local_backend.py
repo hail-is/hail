@@ -1,6 +1,8 @@
 import os
 import subprocess as sp
 import tempfile
+from random import choice, randint
+from string import whitespace
 from typing import AsyncIterator
 
 import pytest
@@ -177,6 +179,18 @@ def test_single_job_bad_command(batch):
     j.command("foo")  # this should fail!
     with pytest.raises(sp.CalledProcessError):
         b.run()
+
+
+@pytest.fixture
+def randwhitespace():
+    return ''.join(choice(whitespace) for _ in range(randint(0, 9)))
+
+
+@pytest.mark.parametrize('randwhitespace', range(20), indirect=True)
+def test_single_job_empty_command(batch, randwhitespace):
+    j = batch.new_job()
+    with pytest.warns(match='Ignoring empty command'):
+        j.command(randwhitespace)
 
 
 def test_declare_resource_group(batch):

@@ -186,7 +186,7 @@ class Backend(abc.ABC):
         return (value, timings) if timed else value
 
     @abc.abstractmethod
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, str]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
         pass
 
     def _render_ir(self, ir):

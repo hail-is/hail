@@ -866,6 +866,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 input_files=inputs if len(inputs) > 0 else None,
                 output_files=outputs if len(outputs) > 0 else None,
                 always_run=job._always_run,
+                n_max_attempts=job._n_max_attempts,
                 timeout=job._timeout,
                 cloudfuse=job._cloudfuse if len(job._cloudfuse) > 0 else None,
                 env=env,

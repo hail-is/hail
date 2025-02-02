@@ -1,6 +1,6 @@
 package is.hail.backend.service
 
-import is.hail.{HAIL_REVISION, HailContext}
+import is.hail.{HAIL_REVISION, HailContext, HailFeatureFlags}
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
@@ -14,6 +14,7 @@ import scala.util.control.NonFatal
 
 import java.io._
 import java.nio.charset._
+import java.nio.file.Path
 import java.util
 import java.util.{concurrent => javaConcurrent}
 
@@ -113,9 +114,7 @@ object Worker {
     val n = argv(6).toInt
     val timer = new WorkerTimer()
 
-    val deployConfig = DeployConfig.fromConfigFile(
-      s"$scratchDir/secrets/deploy-config/deploy-config.json"
-    )
+    val deployConfig = DeployConfig.fromConfigFile("/deploy-config/deploy-config.json")
     DeployConfig.set(deployConfig)
     sys.env.get("HAIL_SSL_CONFIG_DIR").foreach(tls.setSSLConfigFromDir)
 
@@ -125,7 +124,12 @@ object Worker {
     timer.start(s"Job $i/$n")
 
     timer.start("readInputs")
-    val fs = FS.buildRoutes(Some(s"$scratchDir/secrets/gsa-key/key.json"), None, sys.env)
+    val fs = RouterFS.buildRoutes(
+      CloudStorageFSConfig.fromFlagsAndEnv(
+        Some(Path.of(scratchDir, "secrets/gsa-key/key.json")),
+        HailFeatureFlags.fromEnv(),
+      )
+    )
 
     def open(x: String): SeekableDataInputStream =
       fs.openNoCompression(x)
@@ -162,19 +166,19 @@ object Worker {
 
     timer.end("readInputs")
     timer.start("executeFunction")
-
     if (HailContext.isInitialized) {
       HailContext.get.backend = new ServiceBackend(
         null,
         null,
         new HailClassLoader(getClass().getClassLoader()),
         null,
-        None,
-        None,
         null,
         null,
         null,
         null,
+        null,
+        null,
+        scratchDir,
       )
     } else {
       HailContext(
@@ -184,12 +188,13 @@ object Worker {
           null,
           new HailClassLoader(getClass().getClassLoader()),
           null,
-          None,
-          None,
           null,
           null,
           null,
           null,
+          null,
+          null,
+          scratchDir,
         )
       )
     }

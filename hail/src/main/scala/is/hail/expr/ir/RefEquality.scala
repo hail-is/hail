@@ -10,7 +10,7 @@ object RefEquality {
 
 class RefEquality[+T <: AnyRef](val t: T) {
   override def equals(obj: scala.Any): Boolean = obj match {
-    case r: RefEquality[T] => t.eq(r.t)
+    case r: RefEquality[_] => t.eq(r.t)
     case _ => false
   }
 

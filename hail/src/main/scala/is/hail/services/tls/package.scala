@@ -6,7 +6,6 @@ import java.io.{File, FileInputStream}
 import java.security.KeyStore
 
 import javax.net.ssl.{KeyManagerFactory, SSLContext, TrustManagerFactory}
-import org.apache.log4j.{LogManager, Logger}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.JsonAST.JString
 import org.json4s.jackson.JsonMethods
@@ -30,8 +29,7 @@ case class SSLConfig(
   key_store: String,
 )
 
-package object tls {
-  lazy val log: Logger = LogManager.getLogger("is.hail.tls")
+package object tls extends Logging {
 
   private[this] def sslConfigFromDir(configDir: String): SSLConfig = {
     val configFile = s"$configDir/ssl-config.json"
