@@ -28,7 +28,7 @@ class DuplicateUsername(AuthUserError):
 
 class InvalidUsername(AuthUserError):
     def __init__(self, username):
-        super().__init__(f"Invalid username '{username}'. Must be a non-empty alphanumeric string.", 'error')
+        super().__init__(f"Invalid username '{username}'. Must be a non-empty lowercase alphanumeric string.", 'error')
 
 
 class InvalidType(AuthUserError):
