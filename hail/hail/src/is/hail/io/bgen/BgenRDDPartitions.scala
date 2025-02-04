@@ -77,8 +77,8 @@ object BgenRDDPartitions extends Logging {
 
     val nonEmptyFilesAfterFilter = sortedFiles.filter(_.nVariants > 0)
 
-    val (leafSpec, intSpec) = BgenSettings.indexCodecSpecs(files.head.indexVersion, rg)
-    val getKeysFromFile = StagedBGENReader.queryIndexByPosition(ctx, leafSpec, intSpec)
+    val indexSpec = BgenSettings.getIndexSpec(files.head.indexVersion, rg)
+    val getKeysFromFile = StagedBGENReader.queryIndexByPosition(ctx, indexSpec)
 
     nonEmptyFilesAfterFilter.zipWithIndex.map { case (file, fileIndex) =>
       val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants).toInt
