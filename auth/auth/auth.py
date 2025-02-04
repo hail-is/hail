@@ -713,6 +713,59 @@ async def rest_delete_user(request: web.Request, _) -> web.Response:
     return web.json_response()
 
 
+async def _activate_user(db: Database, username: str, id: Optional[str]):
+    where_conditions = ['state = "inactive"', 'username = %s']
+    where_args = [username]
+
+    if id is not None:
+        where_conditions.append('id = %s')
+        where_args.append(id)
+
+    n_rows = await db.execute_update(
+        f"""
+UPDATE users
+SET state = 'active', last_activated = NOW()
+WHERE {' AND '.join(where_conditions)};
+""",
+        where_args,
+    )
+
+    if n_rows == 0:
+        raise UnknownUser(username)
+
+
+@routes.post('/users/activate')
+@auth.authenticated_developers_only()
+async def activate_user(request: web.Request, _) -> NoReturn:
+    session = await aiohttp_session.get_session(request)
+    db = request.app[AppKeys.DB]
+    post = await request.post()
+    id = str(post['id'])
+    username = str(post['username'])
+
+    try:
+        await _activate_user(db, username, id)
+        set_message(session, f'Reactivated user {id} {username}.', 'info')
+    except UnknownUser:
+        set_message(session, f'Reactivation failed, no such user {id} {username}.', 'error')
+
+    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
+
+
+@routes.delete('/api/v1alpha/users/{user}')
+@auth.authenticated_developers_only()
+async def rest_activate_user(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    username = request.match_info['user']
+
+    try:
+        await _activate_user(db, username, None)
+    except UnknownUser as e:
+        raise e.http_response()
+
+    return web.json_response()
+
+
 @routes.get('/api/v1alpha/oauth2callback')
 @api_security_headers
 async def rest_callback(request):
