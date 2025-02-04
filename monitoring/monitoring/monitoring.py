@@ -34,7 +34,14 @@ from hailtop.utils import (
     time_msecs,
     url_basename,
 )
-from web_common import render_template, set_message, setup_aiohttp_jinja2, setup_common_static_routes
+from web_common import (
+    api_security_headers,
+    render_template,
+    set_message,
+    setup_aiohttp_jinja2,
+    setup_common_static_routes,
+    web_security_headers,
+)
 
 from .configuration import HAIL_USE_FULL_QUERY
 
@@ -142,6 +149,7 @@ async def _billing(request: web.Request):
 
 
 @routes.get('/api/v1alpha/billing')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def get_billing(request: web.Request, _) -> web.Response:
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)
@@ -155,6 +163,7 @@ async def get_billing(request: web.Request, _) -> web.Response:
 
 
 @routes.get('/billing')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def billing(request: web.Request, userdata) -> web.Response:  # pylint: disable=unused-argument
     cost_by_service, compute_cost_breakdown, cost_by_sku_label, time_period_query = await _billing(request)

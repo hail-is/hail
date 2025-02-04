@@ -29,7 +29,6 @@ async def submit(name, image_name, files, output, script, arguments):
     quiet = output != 'text'
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
-    remote_tmpdir = remote_tmpdir.rstrip('/')
 
     tmpdir_path_prefix = secret_alnum_string()
 

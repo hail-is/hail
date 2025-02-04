@@ -63,6 +63,10 @@ class AccessLogger(AbstractAccessLogger):
             'x_real_ip': request.headers.get("X-Real-IP"),
         }
 
+        userdata_maybe = request.get('userdata', {})
+        userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity']
+        extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
+
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} ' f'done in {time}s: {response.status}',
             extra={**extra, **request.get('batch_telemetry', {})},

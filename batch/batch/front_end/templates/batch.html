@@ -121,7 +121,7 @@ batch_state_indicator, job_state_indicator, danger_button, submit_button, link
     </div>
 
     <div class='pt-2 flex w-full justify-end'>
-      {% if batch['jobs'][0]['job_id'] is not none and batch['jobs'][0]['job_id'] > 1 %}
+      {% if batch['jobs'] and batch['jobs'][0]['job_id'] is not none and batch['jobs'][0]['job_id'] > 1 %}
         <form method="GET" action="{{ base_path }}/batches/{{ batch['id'] }}">
           {% if q is not none %}
           <input type="hidden" name="q" value="{{ q }}" />

@@ -1,4 +1,5 @@
 import functools
+import random
 import re
 import unittest
 from test.hail.helpers import resource, skip_unless_spark_backend, skip_when_service_backend
@@ -774,3 +775,12 @@ def test_locus_interval_encoding():
     _assert_encoding_roundtrip(start)
     _assert_encoding_roundtrip(end)
     _assert_encoding_roundtrip(interval)
+
+
+def test_very_large_ir_deserializes():
+    # see: https://github.com/hail-is/hail/issues/14580
+    #      https://github.com/hail-is/hail/issues/14650
+    large_list = [random.getrandbits(63) for _ in range(5_000_000)]
+    large_lit = hl.literal(large_list, hl.tarray(hl.tint64))
+    round_trip = hl.eval(large_lit)
+    assert large_list == round_trip

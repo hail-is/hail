@@ -1,5 +1,6 @@
 import importlib
 import os
+from functools import wraps
 from typing import Any, Dict, Optional
 
 import aiohttp_jinja2
@@ -103,3 +104,42 @@ async def render_template(
     response = aiohttp_jinja2.render_template(file, request, context)
     response.set_cookie('_csrf', csrf_token, secure=True, httponly=True, samesite='strict')
     return response
+
+
+def api_security_headers(fun):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+        return response
+
+    return wrapped
+
+
+def web_security_headers(fun):
+    return web_security_header_generator(fun, False)
+
+
+def web_security_headers_unsafe_eval(fun):
+    return web_security_header_generator(fun, True)
+
+
+def web_security_header_generator(fun, unsafe_eval: bool):
+    @wraps(fun)
+    async def wrapped(request, *args, **kwargs):
+        response = await fun(request, *args, **kwargs)
+        response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
+
+        default_src = 'default-src \'self\';'
+        style_src = 'style-src \'self\' \'unsafe-inline\' fonts.googleapis.com fonts.gstatic.com;'
+        font_src = 'font-src \'self\' fonts.gstatic.com;'
+        unsafe_eval_maybe = '\'unsafe-eval\'' if unsafe_eval else ''
+        script_src = f'script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly;'
+        frame_ancestors = 'frame-ancestors \'self\';'
+
+        response.headers['Content-Security-Policy'] = (
+            f'{default_src} {font_src} {style_src} {script_src} {frame_ancestors}'
+        )
+        return response
+
+    return wrapped
