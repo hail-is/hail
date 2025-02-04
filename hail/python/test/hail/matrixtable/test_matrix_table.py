@@ -2405,14 +2405,14 @@ def test_query_matrix_table():
         hl.query_matrix_table(f, hl.interval(27, 66), 'e'),
         hl.query_matrix_table(f, hl.interval(276, 33333), 'e'),
         hl.query_matrix_table(f, hl.interval(-22276, -5), 'e'),
-        hl.query_matrix_table(f, hl.interval(hl.struct(idx=27), hl.struct(idx=66)), 'e'),
+        hl.query_matrix_table(f, hl.interval(hl.struct(row_idx=27), hl.struct(row_idx=66)), 'e'),
         hl.query_matrix_table(f, hl.interval(40, 80, includes_end=True), 'e'),
     ]
 
     col_idxs = [n for n in range(n_cols) if n % 10 == 0]
 
     def ea_for(n):
-        return [n * m for m in col_idxs]
+        return [hl.Struct(n=n * m) for m in col_idxs]
 
     expected = [
         [hl.Struct(row_idx=50, s='50', e=ea_for(50))],
@@ -2422,25 +2422,25 @@ def test_query_matrix_table():
         [],
         [],
         [
-            hl.Struct(idx=30, s='30', e=ea_for(30)),
-            hl.Struct(idx=40, s='40', e=ea_for(40)),
-            hl.Struct(idx=50, s='50', e=ea_for(50)),
-            hl.Struct(idx=60, s='60', e=ea_for(60)),
+            hl.Struct(row_idx=30, s='30', e=ea_for(30)),
+            hl.Struct(row_idx=40, s='40', e=ea_for(40)),
+            hl.Struct(row_idx=50, s='50', e=ea_for(50)),
+            hl.Struct(row_idx=60, s='60', e=ea_for(60)),
         ],
         [],
         [],
         [
-            hl.Struct(idx=30, s='30', e=ea_for(30)),
-            hl.Struct(idx=40, s='40', e=ea_for(40)),
-            hl.Struct(idx=50, s='50', e=ea_for(50)),
-            hl.Struct(idx=60, s='60', e=ea_for(60)),
+            hl.Struct(row_idx=30, s='30', e=ea_for(30)),
+            hl.Struct(row_idx=40, s='40', e=ea_for(40)),
+            hl.Struct(row_idx=50, s='50', e=ea_for(50)),
+            hl.Struct(row_idx=60, s='60', e=ea_for(60)),
         ],
         [
-            hl.Struct(idx=40, s='40', e=ea_for(40)),
-            hl.Struct(idx=50, s='50', e=ea_for(50)),
-            hl.Struct(idx=60, s='60', e=ea_for(60)),
-            hl.Struct(idx=70, s='70', e=ea_for(70)),
-            hl.Struct(idx=80, s='80', e=ea_for(80)),
+            hl.Struct(row_idx=40, s='40', e=ea_for(40)),
+            hl.Struct(row_idx=50, s='50', e=ea_for(50)),
+            hl.Struct(row_idx=60, s='60', e=ea_for(60)),
+            hl.Struct(row_idx=70, s='70', e=ea_for(70)),
+            hl.Struct(row_idx=80, s='80', e=ea_for(80)),
         ],
     ]
 
@@ -2455,4 +2455,66 @@ def test_query_matrix_table():
     with pytest.raises(ValueError, match='query_matrix_table: cannot query with empty row key'):
         hl.query_matrix_table(f, hl.struct())
     with pytest.raises(ValueError, match='query_matrix_table: queried with 2 row key field'):
-        hl.query_matrix_table(f, hl.struct(idx=5, foo='s'))
+        hl.query_matrix_table(f, hl.struct(row_idx=5, foo='s'))
+
+
+def test_query_matrix_table_compound_key():
+    n_cols = 100
+    f = new_temp_file(extension='mt')
+    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=n_cols, n_partitions=10)
+    mt = mt.filter_rows(mt.row_idx % 10 == 0)
+    mt = mt.filter_cols(mt.col_idx % 10 == 0)
+    mt = mt.annotate_rows(idx2=mt.row_idx % 20, s=hl.str(mt.row_idx))
+    mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
+    mt.key_rows_by('row_idx', 'idx2').write(f)
+
+    queries = [
+        hl.query_matrix_table(f, 50, 'e'),
+        hl.query_matrix_table(f, hl.struct(row_idx=50), 'e'),
+        hl.query_matrix_table(f, hl.interval(hl.struct(row_idx=50, idx2=11), hl.struct(row_idx=60, idx2=-1)), 'e'),
+    ]
+
+    col_idxs = [n for n in range(n_cols) if n % 10 == 0]
+
+    def ea_for(n):
+        return [hl.Struct(n=n * m) for m in col_idxs]
+
+    expected = [
+        [hl.Struct(row_idx=50, idx2=10, s='50', e=ea_for(50))],
+        [hl.Struct(row_idx=50, idx2=10, s='50', e=ea_for(50))],
+        [],
+    ]
+
+    assert hl.eval(queries) == expected
+
+
+@test_timeout(batch=5 * 60)
+def test_query_matrix_table_interval_key():
+    n_cols = 100
+    f = new_temp_file(extension='mt')
+    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=n_cols, n_partitions=10)
+    mt = mt.filter_rows(mt.row_idx % 10 == 0)
+    mt = mt.filter_cols(mt.col_idx % 10 == 0)
+    mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
+    mt = mt.key_rows_by(interval=hl.interval(mt.row_idx, mt.row_idx + 50))
+    mt.write(f)
+
+    queries = [
+        hl.query_matrix_table(f, hl.interval(20, 70), 'e'),
+        hl.query_matrix_table(f, hl.interval(20, 0), 'e'),
+        hl.query_matrix_table(f, hl.struct(interval=hl.interval(20, 0)), 'e'),
+        hl.query_matrix_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71)), 'e'),
+    ]
+
+    col_idxs = [n for n in range(n_cols) if n % 10 == 0]
+
+    def ea_for(n):
+        return [hl.Struct(n=n * m) for m in col_idxs]
+
+    expected = [
+        [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))],
+        [],
+        [],
+        [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))],
+    ]
+    assert hl.eval(queries) == expected
