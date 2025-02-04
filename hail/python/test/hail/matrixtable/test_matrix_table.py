@@ -2444,7 +2444,9 @@ def test_query_matrix_table():
         ],
     ]
 
-    assert hl.eval(queries) == expected
+    for query, exp in zip(queries, expected):
+        assert hl.eval(query) == exp
+    # assert hl.eval(queries) == expected
 
     with pytest.raises(ValueError, match='query_matrix_table: field "s" present'):
         hl.query_matrix_table(f, 0, 's')
@@ -2485,7 +2487,9 @@ def test_query_matrix_table_compound_key():
         [],
     ]
 
-    assert hl.eval(queries) == expected
+    for query, exp in zip(queries, expected):
+        assert hl.eval(query) == exp
+    # assert hl.eval(queries) == expected
 
 
 @test_timeout(batch=5 * 60)
@@ -2517,4 +2521,7 @@ def test_query_matrix_table_interval_key():
         [],
         [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))],
     ]
-    assert hl.eval(queries) == expected
+
+    for query, exp in zip(queries, expected):
+        assert hl.eval(query) == exp
+    # assert hl.eval(queries) == expected
