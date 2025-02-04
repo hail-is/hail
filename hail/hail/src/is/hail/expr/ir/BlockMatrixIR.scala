@@ -1,8 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations.NDArray
-import is.hail.backend.{BackendContext, ExecuteContext}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{BMSContexts, BlockMatrixStage2, LowererUnsupportedOperation}
@@ -107,7 +106,7 @@ object BlockMatrixReader {
   def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader =
     (jv \ "name").extract[String] match {
       case "BlockMatrixNativeReader" => BlockMatrixNativeReader.fromJValue(ctx.fs, jv)
-      case "BlockMatrixPersistReader" => BlockMatrixPersistReader.fromJValue(ctx.backendContext, jv)
+      case "BlockMatrixPersistReader" => BlockMatrixPersistReader.fromJValue(ctx, jv)
       case _ => jv.extract[BlockMatrixReader]
     }
 }
@@ -275,12 +274,12 @@ case class BlockMatrixBinaryReader(path: String, shape: IndexedSeq[Long], blockS
 case class BlockMatrixNativePersistParameters(id: String)
 
 object BlockMatrixPersistReader {
-  def fromJValue(ctx: BackendContext, jv: JValue): BlockMatrixPersistReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixPersistReader = {
     implicit val formats: Formats = BlockMatrixReader.formats
     val params = jv.extract[BlockMatrixNativePersistParameters]
     BlockMatrixPersistReader(
       params.id,
-      HailContext.backend.getPersistedBlockMatrixType(ctx, params.id),
+      BlockMatrixType.fromBlockMatrix(ctx.BlockMatrixCache(params.id)),
     )
   }
 }
@@ -288,9 +287,7 @@ object BlockMatrixPersistReader {
 case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends BlockMatrixReader {
   def pathsUsed: Seq[String] = FastSeq()
   lazy val fullType: BlockMatrixType = typ
-
-  def apply(ctx: ExecuteContext): BlockMatrix =
-    HailContext.backend.getPersistedBlockMatrix(ctx.backendContext, id)
+  def apply(ctx: ExecuteContext): BlockMatrix = ctx.BlockMatrixCache(id)
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense: Boolean)

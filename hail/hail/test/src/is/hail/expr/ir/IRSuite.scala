@@ -24,6 +24,7 @@ import is.hail.types.virtual.TIterable.elementType
 import is.hail.utils.{FastSeq, _}
 import is.hail.variant.{Call2, Locus}
 
+import scala.collection.mutable
 import scala.language.implicitConversions
 
 import org.apache.spark.sql.Row
@@ -3907,16 +3908,26 @@ class IRSuite extends HailSuite {
     assert(x2 == x)
   }
 
-  def testBlockMatrixIRParserPersist(): Unit = {
-    val bm = BlockMatrix.fill(1, 1, 0.0, 5)
-    backend.persist(ctx.backendContext, "x", bm, "MEMORY_ONLY")
-    val persist =
-      BlockMatrixRead(BlockMatrixPersistReader("x", BlockMatrixType.fromBlockMatrix(bm)))
+  @Test def testBlockMatrixIRParserPersist(): Unit = {
+    val cache = mutable.Map.empty[String, BlockMatrix]
+    val bm = BlockMatrixRandom(0, gaussian = true, shape = Array(5L, 6L), blockSize = 3)
+    try {
+      backend.withExecuteContext { ctx =>
+        ctx.local(blockMatrixCache = cache) { ctx =>
+          backend.execute(ctx, BlockMatrixWrite(bm, BlockMatrixPersistWriter("x", "MEMORY_ONLY")))
+        }
+      }
+      backend.withExecuteContext { ctx =>
+        ctx.local(blockMatrixCache = cache) { ctx =>
+          val persist = BlockMatrixRead(BlockMatrixPersistReader("x", bm.typ))
 
-    val s = Pretty.sexprStyle(persist, elideLiterals = false)
-    val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
-    assert(x2 == persist)
-    backend.unpersist(ctx.backendContext, "x")
+          val s = Pretty.sexprStyle(persist, elideLiterals = false)
+          val x2 = IRParser.parse_blockmatrix_ir(ctx, s)
+          assert(x2 == persist)
+        }
+      }
+    } finally
+      cache.values.foreach(_.unpersist())
   }
 
   @Test def testCachedIR(): Unit = {
