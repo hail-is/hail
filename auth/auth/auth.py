@@ -735,6 +735,7 @@ WHERE {' AND '.join(where_conditions)};
 
 
 @routes.post('/users/activate')
+@web_security_headers
 @auth.authenticated_developers_only()
 async def activate_user(request: web.Request, _) -> NoReturn:
     session = await aiohttp_session.get_session(request)
@@ -753,6 +754,7 @@ async def activate_user(request: web.Request, _) -> NoReturn:
 
 
 @routes.delete('/api/v1alpha/users/{user}')
+@api_security_headers
 @auth.authenticated_developers_only()
 async def rest_activate_user(request: web.Request, _) -> web.Response:
     db = request.app[AppKeys.DB]
