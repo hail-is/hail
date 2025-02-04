@@ -2064,8 +2064,7 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
 
         if len(named_exprs) == 0:
             return selected_expr
-        else:
-            return selected_expr.annotate(**named_exprs)
+        return selected_expr.annotate(**named_exprs)
 
     @typecheck_method(mapping=dictof(str, str))
     def rename(self, mapping):
@@ -2110,7 +2109,8 @@ class StructExpression(Mapping[Union[str, int], Expression], Expression):
             new_to_old[new] = old
 
         return self.select(
-            *list(set(self._fields) - set(mapping)), **{new: self._get_field(old) for old, new in mapping.items()}
+            *[field for field in self._fields if field not in mapping],
+            **{new: self._get_field(old) for old, new in mapping.items()},
         )
 
     @typecheck_method(fields=str)
