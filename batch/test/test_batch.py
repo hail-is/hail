@@ -82,12 +82,6 @@ def test_job_running_logs(client: BatchClient):
     b.wait()
 
 
-def test_broken():
-    a = 5 * 5 / 25
-    b = 5 / 5 * 25
-    assert a == b, "this test is deliberately broken"
-
-
 def test_exit_code_duration(client: BatchClient):
     b = create_batch(client)
     j = b.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
