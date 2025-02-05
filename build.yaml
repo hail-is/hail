@@ -2733,6 +2733,38 @@ steps:
       - hail_ubuntu_image
       - gpu_image
   - kind: runImage
+    name: test_auth
+    numSplits: 1
+    image:
+      valueFrom: auth_image.image
+    script: |
+      set -ex
+
+      hail-pip-install -r /io/dev-requirements.txt
+
+      python3 -m pytest \
+              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              --log-cli-level=INFO \
+              -s \
+              -r A \
+              -vv \
+              --instafail \
+              --durations=50 \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              -k "not test_scale and not test_invariants" \
+              --timeout=360 \
+              /io/test/
+    inputs:
+      - from: /repo/auth/test
+        to: /io/test
+      - from: /repo/hail/python/dev/pinned-requirements.txt
+        to: /io/dev-requirements.txt
+    port: 5000
+    timeout: 1500
+    dependsOn:
+      - auth_image
+  - kind: runImage
     name: delete_test_billing_projects
     resources:
       memory: standard
