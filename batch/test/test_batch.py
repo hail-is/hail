@@ -82,7 +82,7 @@ def test_job_running_logs(client: BatchClient):
     b.wait()
 
 
-def test_broken(client: BatchClient):
+def test_broken():
     a = 5 * 5 / 25
     b = 5 / 5 * 25
     assert a == b, "this test is deliberately broken"
