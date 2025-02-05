@@ -2645,7 +2645,7 @@ def test_query_table_errors(query_table_table):
 
 
 @pytest.mark.parametrize(
-    "query,expected",
+    "query, expected",
     [
         (50, [hl.Struct(idx=50, s='50')]),
         (hl.struct(idx=50), [hl.Struct(idx=50, s='50')]),
