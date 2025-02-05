@@ -2385,143 +2385,134 @@ def test_struct_of_arrays_encoding():
         assert mt._same(std_mt)
 
 
-def test_query_matrix_table():
-    n_cols = 100
-    f = new_temp_file(extension='mt')
-    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=n_cols, n_partitions=10)
+@pytest.fixture(scope='module')
+def query_mt_mt():
+    path = new_temp_file(extension='mt')
+    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=100, n_partitions=10)
     mt = mt.filter_rows(mt.row_idx % 10 == 0)
     mt = mt.filter_cols(mt.col_idx % 10 == 0)
     mt = mt.annotate_rows(s=hl.str(mt.row_idx))
     mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
-    mt.write(f)
+    mt.write(path)
+    return path
 
-    queries = [
-        hl.query_matrix_table(f, 50, 'e'),
-        hl.query_matrix_table(f, hl.struct(idx=50), 'e'),
-        hl.query_matrix_table(f, 55, 'e'),
-        hl.query_matrix_table(f, 5, 'e'),
-        hl.query_matrix_table(f, -1, 'e'),
-        hl.query_matrix_table(f, 205, 'e'),
-        hl.query_matrix_table(f, hl.interval(27, 66), 'e'),
-        hl.query_matrix_table(f, hl.interval(276, 33333), 'e'),
-        hl.query_matrix_table(f, hl.interval(-22276, -5), 'e'),
-        hl.query_matrix_table(f, hl.interval(hl.struct(row_idx=27), hl.struct(row_idx=66)), 'e'),
-        hl.query_matrix_table(f, hl.interval(40, 80, includes_end=True), 'e'),
-    ]
 
-    col_idxs = [n for n in range(n_cols) if n % 10 == 0]
-
-    def ea_for(n):
-        return [hl.Struct(n=n * m) for m in col_idxs]
-
-    expected = [
-        [hl.Struct(row_idx=50, s='50', e=ea_for(50))],
-        [hl.Struct(row_idx=50, s='50', e=ea_for(50))],
-        [],
-        [],
-        [],
-        [],
-        [
-            hl.Struct(row_idx=30, s='30', e=ea_for(30)),
-            hl.Struct(row_idx=40, s='40', e=ea_for(40)),
-            hl.Struct(row_idx=50, s='50', e=ea_for(50)),
-            hl.Struct(row_idx=60, s='60', e=ea_for(60)),
-        ],
-        [],
-        [],
-        [
-            hl.Struct(row_idx=30, s='30', e=ea_for(30)),
-            hl.Struct(row_idx=40, s='40', e=ea_for(40)),
-            hl.Struct(row_idx=50, s='50', e=ea_for(50)),
-            hl.Struct(row_idx=60, s='60', e=ea_for(60)),
-        ],
-        [
-            hl.Struct(row_idx=40, s='40', e=ea_for(40)),
-            hl.Struct(row_idx=50, s='50', e=ea_for(50)),
-            hl.Struct(row_idx=60, s='60', e=ea_for(60)),
-            hl.Struct(row_idx=70, s='70', e=ea_for(70)),
-            hl.Struct(row_idx=80, s='80', e=ea_for(80)),
-        ],
-    ]
-
-    assert len(expected) == len(queries)  # sanity assertion
-    for query, exp in zip(queries, expected):
-        assert hl.eval(query) == exp
-
+def test_query_matrix_table_errors(query_mt_mt):
     with pytest.raises(ValueError, match='query_matrix_table: field "s" is present'):
-        hl.query_matrix_table(f, 0, 's')
+        hl.query_matrix_table(query_mt_mt, 0, 's')
     with pytest.raises(ValueError, match='query_matrix_table: mismatch at row key field'):
-        hl.query_matrix_table(f, hl.interval('1', '2'))
+        hl.query_matrix_table(query_mt_mt, hl.interval('1', '2'))
     with pytest.raises(ValueError, match='query_matrix_table: row key mismatch: cannot query'):
-        hl.query_matrix_table(f, '1')
+        hl.query_matrix_table(query_mt_mt, '1')
     with pytest.raises(ValueError, match='query_matrix_table: cannot query with empty row key'):
-        hl.query_matrix_table(f, hl.struct())
+        hl.query_matrix_table(query_mt_mt, hl.struct())
     with pytest.raises(ValueError, match='query_matrix_table: queried with 2 row key field'):
-        hl.query_matrix_table(f, hl.struct(row_idx=5, foo='s'))
+        hl.query_matrix_table(query_mt_mt, hl.struct(row_idx=5, foo='s'))
 
 
-def test_query_matrix_table_compound_key():
-    n_cols = 100
-    f = new_temp_file(extension='mt')
-    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=n_cols, n_partitions=10)
+def query_matrix_table_test_parameters():
+    def ea_for(n):
+        return [hl.Struct(n=n * m) for m in range(0, 100, 10)]
+
+    return [
+        (50, [hl.Struct(row_idx=50, s='50', e=ea_for(50))]),
+        (hl.struct(idx=50), [hl.Struct(row_idx=50, s='50', e=ea_for(50))]),
+        (55, []),
+        (5, []),
+        (-1, []),
+        (205, []),
+        (
+            hl.interval(27, 66),
+            [
+                hl.Struct(row_idx=30, s='30', e=ea_for(30)),
+                hl.Struct(row_idx=40, s='40', e=ea_for(40)),
+                hl.Struct(row_idx=50, s='50', e=ea_for(50)),
+                hl.Struct(row_idx=60, s='60', e=ea_for(60)),
+            ],
+        ),
+        (hl.interval(276, 33333), []),
+        (hl.interval(-22276, -5), []),
+        (
+            hl.interval(hl.struct(row_idx=27), hl.struct(row_idx=66)),
+            [
+                hl.Struct(row_idx=30, s='30', e=ea_for(30)),
+                hl.Struct(row_idx=40, s='40', e=ea_for(40)),
+                hl.Struct(row_idx=50, s='50', e=ea_for(50)),
+                hl.Struct(row_idx=60, s='60', e=ea_for(60)),
+            ],
+        ),
+        (
+            hl.interval(40, 80, includes_end=True),
+            [
+                hl.Struct(row_idx=40, s='40', e=ea_for(40)),
+                hl.Struct(row_idx=50, s='50', e=ea_for(50)),
+                hl.Struct(row_idx=60, s='60', e=ea_for(60)),
+                hl.Struct(row_idx=70, s='70', e=ea_for(70)),
+                hl.Struct(row_idx=80, s='80', e=ea_for(80)),
+            ],
+        ),
+    ]
+
+
+@pytest.mark.parametrize("query,expected", query_matrix_table_test_parameters())
+def test_query_matrix_table(query_mt_mt, query, expected):
+    assert hl.eval(hl.query_matrix_table(query_mt_mt, query, 'e')) == expected
+
+
+@pytest.fixture(scope='module')
+def query_mt_compound_key_mt():
+    path = new_temp_file(extension='mt')
+    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=100, n_partitions=10)
     mt = mt.filter_rows(mt.row_idx % 10 == 0)
     mt = mt.filter_cols(mt.col_idx % 10 == 0)
     mt = mt.annotate_rows(idx2=mt.row_idx % 20, s=hl.str(mt.row_idx))
     mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
-    mt.key_rows_by('row_idx', 'idx2').write(f)
+    mt.key_rows_by('row_idx', 'idx2').write(path)
+    return path
 
-    queries = [
-        hl.query_matrix_table(f, 50, 'e'),
-        hl.query_matrix_table(f, hl.struct(row_idx=50), 'e'),
-        hl.query_matrix_table(f, hl.interval(hl.struct(row_idx=50, idx2=11), hl.struct(row_idx=60, idx2=-1)), 'e'),
-    ]
 
-    col_idxs = [n for n in range(n_cols) if n % 10 == 0]
-
+def query_matrix_table_compound_key_parameters():
     def ea_for(n):
-        return [hl.Struct(n=n * m) for m in col_idxs]
+        return [hl.Struct(n=n * m) for m in range(0, 100, 10)]
 
-    expected = [
-        [hl.Struct(row_idx=50, idx2=10, s='50', e=ea_for(50))],
-        [hl.Struct(row_idx=50, idx2=10, s='50', e=ea_for(50))],
-        [],
+    return [
+        (50, [hl.Struct(row_idx=50, idx2=10, s='50', e=ea_for(50))]),
+        (hl.struct(row_idx=50), [hl.Struct(row_idx=50, idx2=10, s='50', e=ea_for(50))]),
+        (hl.interval(hl.struct(row_idx=50, idx2=11), hl.struct(row_idx=60, idx2=-1)), []),
     ]
 
-    assert len(expected) == len(queries)  # sanity assertion
-    for query, exp in zip(queries, expected):
-        assert hl.eval(query) == exp
+
+@pytest.mark.parametrize("query,expected", query_matrix_table_compound_key_parameters())
+def test_query_matrix_table_compound_key(query_mt_compound_key_mt, query, expected):
+    assert hl.eval(hl.query_matrix_table(query_mt_compound_key_mt, query, 'e')) == expected
 
 
-@test_timeout(batch=5 * 60)
-def test_query_matrix_table_interval_key():
-    n_cols = 100
-    f = new_temp_file(extension='mt')
-    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=n_cols, n_partitions=10)
+@pytest.fixture(scope='module')
+def query_mt_interval_key_mt():
+    path = new_temp_file(extension='mt')
+    mt = hl.utils.range_matrix_table(n_rows=200, n_cols=100, n_partitions=10)
     mt = mt.filter_rows(mt.row_idx % 10 == 0)
     mt = mt.filter_cols(mt.col_idx % 10 == 0)
     mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
     mt = mt.key_rows_by(interval=hl.interval(mt.row_idx, mt.row_idx + 50))
-    mt.write(f)
+    return path
 
-    queries = [
-        hl.query_matrix_table(f, hl.interval(20, 70), 'e'),
-        hl.query_matrix_table(f, hl.interval(20, 0), 'e'),
-        hl.query_matrix_table(f, hl.struct(interval=hl.interval(20, 0)), 'e'),
-        hl.query_matrix_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71)), 'e'),
-    ]
 
-    col_idxs = [n for n in range(n_cols) if n % 10 == 0]
-
+def query_matrix_table_interval_key_parameters():
     def ea_for(n):
-        return [hl.Struct(n=n * m) for m in col_idxs]
+        return [hl.Struct(n=n * m) for m in range(0, 100, 10)]
 
-    expected = [
-        [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))],
-        [],
-        [],
-        [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))],
+    return [
+        (hl.interval(20, 70), [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))]),
+        (hl.interval(20, 0), []),
+        (hl.struct(interval=hl.interval(20, 0)), []),
+        (
+            hl.interval(hl.interval(15, 10), hl.interval(20, 71)),
+            [hl.Struct(row_idx=20, interval=hl.Interval(20, 70), e=ea_for(20))],
+        ),
     ]
 
-    assert len(expected) == len(queries)  # sanity assertion
-    for query, exp in zip(queries, expected):
-        assert hl.eval(query) == exp
+
+@pytest.mark.parametrize("query,expected", query_matrix_table_interval_key_parameters())
+def test_query_matrix_table_interval_key(query_mt_interval_key_mt, query, expected):
+    assert hl.eval(hl.query_matrix_table(query_mt_interval_key_mt, query, 'e')) == expected
