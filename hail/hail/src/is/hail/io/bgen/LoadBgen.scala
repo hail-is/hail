@@ -212,11 +212,11 @@ object LoadBgen {
       }
       val metadata = IndexReader.readMetadata(fs, indexFilePath, keyType, annotationType)
       val indexVersion = SemanticVersion(metadata.fileVersion)
-      val (leafSpec, internalSpec) = BgenSettings.indexCodecSpecs(indexVersion, rg)
+      val indexSpec = BgenSettings.getIndexSpec(indexVersion, rg)
 
       val getKeys = cacheByRG.getOrElseUpdate(
         rg,
-        StagedBGENReader.queryIndexByPosition(ctx, leafSpec, internalSpec),
+        StagedBGENReader.queryIndexByPosition(ctx, indexSpec),
       )
 
       val attributes = metadata.attributes
@@ -690,8 +690,8 @@ case class BgenPartitionReaderWithVariantFilter(
     val contigRecoding = mb.genFieldThisRef[Map[String, String]]("bgen_contig_recoding")
 
     val indexNKeys = mb.genFieldThisRef[Long]("index_nkeys")
-    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(fileMetadata.head.indexVersion, rg)
-    val index = new StagedIndexReader(mb, leafCodec, intCodec)
+    val indexSpec = BgenSettings.getIndexSpec(fileMetadata.head.indexVersion, rg)
+    val index = new StagedIndexReader(mb, indexSpec)
 
     val currVariantIndex = mb.genFieldThisRef[Long]("currVariantIndex")
     val stopVariantIndex = mb.genFieldThisRef[Long]("stopVariantIndex")
@@ -742,10 +742,9 @@ case class BgenPartitionReaderWithVariantFilter(
               cb.define(Lstart)
               cb.if_(
                 currVariantIndex < stopVariantIndex, {
-                  val addr = index.queryIndex(cb, vs.elementRegion, currVariantIndex)
-                    .loadField(cb, "offset")
-                    .getOrAssert(cb).asLong.value
-                  cb += cbfis.invoke[Long, Unit]("seek", addr)
+                  val leaf = index.queryIndex(cb, vs.elementRegion, currVariantIndex)
+                  val addr = index.offsetAnnotation(cb, leaf)
+                  cb += cbfis.invoke[Long, Unit]("seek", addr.asLong.value)
 
                   val reqTypeNoUID = if (requestedType.hasField(uidFieldName))
                     requestedType.deleteKey(uidFieldName)
@@ -867,8 +866,8 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
 
     val currVariantIndex = mb.genFieldThisRef[Long]("bgen_currIdx")
     val endVariantIndex = mb.genFieldThisRef[Long]("bgen_endIdx")
-    val (leafCodec, intCodec) = BgenSettings.indexCodecSpecs(fileMetadata.head.indexVersion, rg)
-    val index = new StagedIndexReader(mb, leafCodec, intCodec)
+    val indexSpec = BgenSettings.getIndexSpec(fileMetadata.head.indexVersion, rg)
+    val index = new StagedIndexReader(mb, indexSpec)
 
     var out: EmitSettable = null // filled in later
 
@@ -920,10 +919,9 @@ case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option
           cb.define(Lstart)
           cb.if_(currVariantIndex ceq endVariantIndex, cb.goto(LendOfStream))
 
-          val addr = index.queryIndex(cb, eltRegion, currVariantIndex)
-            .loadField(cb, "offset")
-            .getOrAssert(cb).asLong.value
-          cb += cbfis.invoke[Long, Unit]("seek", addr)
+          val leaf = index.queryIndex(cb, eltRegion, currVariantIndex)
+          val addr = index.offsetAnnotation(cb, leaf)
+          cb += cbfis.invoke[Long, Unit]("seek", addr.asLong.value)
 
           val reqTypeNoUID = if (requestedType.hasField(uidFieldName))
             requestedType.deleteKey(uidFieldName)

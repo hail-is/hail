@@ -974,7 +974,7 @@ case class PartitionNativeIntervalReader(
     else
       concreteSType
 
-    val index = new StagedIndexReader(cb.emb, indexSpec.leafCodec, indexSpec.internalNodeCodec)
+    val index = new StagedIndexReader(cb.emb, indexSpec)
 
     context.toI(cb).map(cb) { case _ctx: SIntervalValue =>
       val ctx = cb.memoizeField(_ctx, "ctx").asInterval
@@ -1147,15 +1147,9 @@ case class PartitionNativeIntervalReader(
                       cb.assign(stopIdxInPartition, endIdx)
                       cb.if_(
                         endIdx > startIdx, {
-                          val firstOffset = indexResult.loadField(cb, 2)
-                            .getOrAssert(cb)
-                            .asBaseStruct
-                            .loadField(cb, "offset")
-                            .getOrAssert(cb)
-                            .asInt64
-                            .value
-
-                          cb += ib.seek(firstOffset)
+                          val leafNode = indexResult.loadField(cb, 2).getOrAssert(cb).asBaseStruct
+                          val firstOffset = index.offsetAnnotation(cb, leafNode)
+                          cb += ib.seek(firstOffset.asInt64.value)
                         },
                       )
                     }, {
@@ -1188,11 +1182,9 @@ case class PartitionNativeIntervalReader(
                       cb.assign(stopIdxInPartition, index.nKeys(cb))
                       cb.if_(
                         currIdxInPartition < stopIdxInPartition, {
-                          val firstOffset =
-                            indexResult.loadField(cb, 1).getOrAssert(cb).asBaseStruct
-                              .loadField(cb, "offset").getOrAssert(cb).asInt64.value
-
-                          cb += ib.seek(firstOffset)
+                          val leafNode = indexResult.loadField(cb, 1).getOrAssert(cb).asBaseStruct
+                          val firstOffset = index.offsetAnnotation(cb, leafNode)
+                          cb += ib.seek(firstOffset.asInt64.value)
                         },
                       )
                     }, {
@@ -1289,7 +1281,7 @@ case class PartitionNativeReaderIndexed(
       )
     else
       concreteSType
-    val index = new StagedIndexReader(cb.emb, indexSpec.leafCodec, indexSpec.internalNodeCodec)
+    val index = new StagedIndexReader(cb.emb, indexSpec)
 
     context.toI(cb).map(cb) { case ctxStruct: SBaseStructValue =>
       val partIdx =
@@ -1345,15 +1337,9 @@ case class PartitionNativeReaderIndexed(
           )
           cb.if_(
             endIndex > startIndex, {
-              val firstOffset = indexResult.loadField(cb, 2)
-                .getOrAssert(cb)
-                .asBaseStruct
-                .loadField(cb, "offset")
-                .getOrAssert(cb)
-                .asInt64
-                .value
-
-              cb += ib.seek(firstOffset)
+              val leafNode = indexResult.loadField(cb, 2).getOrAssert(cb).asBaseStruct
+              val firstOffset = index.offsetAnnotation(cb, leafNode)
+              cb += ib.seek(firstOffset.asInt64.value)
             },
           )
           index.close(cb)
@@ -1583,11 +1569,7 @@ case class PartitionZippedIndexedNativeReader(
 
     val insertUID: Boolean = requestedType.hasField(uidFieldName)
 
-    val leftOffsetFieldIndex = indexSpecLeft.offsetFieldIndex
-    val rightOffsetFieldIndex = indexSpecRight.offsetFieldIndex
-
-    val index =
-      new StagedIndexReader(cb.emb, indexSpecLeft.leafCodec, indexSpecLeft.internalNodeCodec)
+    val index = new StagedIndexReader(cb.emb, indexSpecLeft)
 
     context.toI(cb).map(cb) { case _ctxStruct: SBaseStructValue =>
       val ctxStruct = cb.memoizeField(_ctxStruct, "ctxStruct").asBaseStruct
@@ -1673,34 +1655,10 @@ case class PartitionZippedIndexedNativeReader(
                 .getOrAssert(cb)
                 .asBaseStruct
 
-              val leftSeekAddr = leftOffsetFieldIndex match {
-                case Some(offsetIdx) =>
-                  leafNode
-                    .loadField(cb, "annotation")
-                    .getOrAssert(cb)
-                    .asBaseStruct
-                    .loadField(cb, offsetIdx)
-                    .getOrAssert(cb)
-                case None =>
-                  leafNode
-                    .loadField(cb, "offset")
-                    .getOrAssert(cb)
-              }
+              val leftSeekAddr = index.offsetAnnotation(cb, leafNode)
               cb += leftBuffer.seek(leftSeekAddr.asInt64.value)
 
-              val rightSeekAddr = rightOffsetFieldIndex match {
-                case Some(offsetIdx) =>
-                  leafNode
-                    .loadField(cb, "annotation")
-                    .getOrAssert(cb)
-                    .asBaseStruct
-                    .loadField(cb, offsetIdx)
-                    .getOrAssert(cb)
-                case None =>
-                  leafNode
-                    .loadField(cb, "offset")
-                    .getOrAssert(cb)
-              }
+              val rightSeekAddr = index.offsetAnnotation(cb, leafNode, altSpec = indexSpecRight)
               cb += rightBuffer.seek(rightSeekAddr.asInt64.value)
             },
           )

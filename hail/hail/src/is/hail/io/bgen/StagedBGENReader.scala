@@ -13,6 +13,7 @@ import is.hail.io._
 import is.hail.io.fs.SeekableDataInputStream
 import is.hail.io.index.{StagedIndexReader, StagedIndexWriter}
 import is.hail.lir
+import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.{RStruct, TypeWithRequiredness}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SingleCodeType
@@ -561,8 +562,7 @@ object StagedBGENReader {
 
   def queryIndexByPosition(
     ctx: ExecuteContext,
-    leafSpec: AbstractTypedCodecSpec,
-    internalSpec: AbstractTypedCodecSpec,
+    indexSpec: AbstractIndexSpec,
   ): (String, Array[Long]) => Array[AnyRef] = {
     val fb = EmitFunctionBuilder[String, Array[Long], Array[AnyRef]](ctx, "bgen_query_index")
 
@@ -570,7 +570,7 @@ object StagedBGENReader {
       val mb = fb.apply_method
       val path = mb.getCodeParam[String](1)
       val indices = mb.getCodeParam[Array[Long]](2)
-      val index = new StagedIndexReader(mb, leafSpec, internalSpec)
+      val index = new StagedIndexReader(mb, indexSpec)
       index.initialize(cb, path)
 
       val len = cb.memoize(indices.length())

@@ -11,6 +11,7 @@ import is.hail.expr.ir.functions.IntervalFunctions.{
 }
 import is.hail.io.AbstractTypedCodecSpec
 import is.hail.io.fs.FS
+import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.physical.{PCanonicalArray, PCanonicalBaseStruct}
 import is.hail.types.physical.stypes.{SSettable, SValue}
 import is.hail.types.physical.stypes.concrete._
@@ -30,9 +31,11 @@ case class VariableMetadata(
 
 class StagedIndexReader(
   emb: EmitMethodBuilder[_],
-  leafCodec: AbstractTypedCodecSpec,
-  internalCodec: AbstractTypedCodecSpec,
+  spec: AbstractIndexSpec,
 ) {
+  private[this] def leafCodec: AbstractTypedCodecSpec = spec.leafCodec
+  private[this] def internalCodec: AbstractTypedCodecSpec = spec.internalNodeCodec
+
   private[this] val cache: Settable[LongToRegionValueCache] =
     emb.genFieldThisRef[LongToRegionValueCache]("index_cache")
 
@@ -643,5 +646,23 @@ class StagedIndexReader(
       region,
       absIndex,
     ).asBaseStruct
+  }
+
+  def offsetAnnotation(
+    cb: EmitCodeBuilder,
+    leafNode: SBaseStructValue,
+    altSpec: AbstractIndexSpec = spec,
+  ): SValue = altSpec.offsetFieldIndex match {
+    case Some(idx) =>
+      leafNode
+        .loadField(cb, "annotation")
+        .getOrAssert(cb)
+        .asBaseStruct
+        .loadField(cb, idx)
+        .getOrAssert(cb)
+    case None =>
+      leafNode
+        .loadField(cb, "offset")
+        .getOrAssert(cb)
   }
 }
