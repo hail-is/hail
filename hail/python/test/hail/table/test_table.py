@@ -2634,13 +2634,13 @@ def query_table_table():
 
 
 def test_query_table_errors(query_table_table):
-    with pytest.raises(ValueError, match='query_table: key mismatch'):
+    with pytest.raises(ValueError, match='key mismatch: cannot use'):
         hl.query_table(query_table_table, hl.interval('1', '2'))
-    with pytest.raises(ValueError, match='query_table: key mismatch: cannot query'):
+    with pytest.raises(ValueError, match='key mismatch: cannot use'):
         hl.query_table(query_table_table, '1')
-    with pytest.raises(ValueError, match='query_table: cannot query with empty key'):
+    with pytest.raises(ValueError, match='query point value cannot be an empty struct'):
         hl.query_table(query_table_table, hl.struct())
-    with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
+    with pytest.raises(ValueError, match='query point type has 2 field'):
         hl.query_table(query_table_table, hl.struct(idx=5, foo='s'))
 
 
