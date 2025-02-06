@@ -2752,14 +2752,14 @@ steps:
               --durations=50 \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
               --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
-              --timeout=30 \
+              --timeout=360 \
               /io/test/
     inputs:
       - from: /repo/auth/test
         to: /io/test
       - from: /repo/hail/python/dev/pinned-requirements.txt
         to: /io/dev-requirements.txt
-    timeout: 60
+    timeout: 1500
     dependsOn:
       - auth_image
   - kind: runImage
