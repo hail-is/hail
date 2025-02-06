@@ -2,7 +2,6 @@ package is.hail.variant
 
 import is.hail.{HailSuite, TestUtils}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
