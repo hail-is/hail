@@ -1377,7 +1377,7 @@ object RVD {
         )
     }
 
-    val sc = SparkBackend.sparkContext("writeRowsSplitFiles")
+    val sc = SparkBackend.sparkContext
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
     val fsBc = fs.broadcast
