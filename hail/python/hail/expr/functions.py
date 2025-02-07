@@ -6997,7 +6997,7 @@ def __validate_and_coerce_endpoint(point, key_typ):
             f'({", ".join(builtins.str(x) for x in key_typ.values())}) '
         )
 
-    if not ts:
+    if len(ts) == 0:
         raise ValueError("query point value cannot be an empty struct")
 
     for i, qt, kt in builtins.zip(builtins.range(len(ts)), ts.values(), key_typ.values()):
