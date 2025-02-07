@@ -47,6 +47,7 @@ from web_common import (
     web_security_headers,
 )
 
+from .auth_utils import validate_credentials_secret_name_input
 from .exceptions import (
     AuthUserError,
     DuplicateLoginID,
@@ -149,18 +150,6 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         return existing_user
 
     return None
-
-
-def validate_credentials_secret_name_input(secret_name: Optional[str]):
-    if secret_name is None:
-        return
-
-    regex = re.compile(r'^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$')
-    if not regex.match(secret_name):
-        raise AuthUserError(
-            f'invalid credentials_secret_name {secret_name}. Must match RFC1123 (lowercase alphanumeric plus "." and "-", start and end with alphanumeric)',
-            'error',
-        )
 
 
 async def insert_new_user(
