@@ -2398,16 +2398,16 @@ def query_mt_mt():
 
 
 def test_query_matrix_table_errors(query_mt_mt):
-    with pytest.raises(ValueError, match='query_matrix_table: field "s" is present'):
+    with pytest.raises(ValueError, match='field "s" is present'):
         hl.query_matrix_table(query_mt_mt, 0, 's')
-    with pytest.raises(ValueError, match='query_matrix_table: mismatch at row key field'):
-        hl.query_matrix_table(query_mt_mt, hl.interval('1', '2'))
-    with pytest.raises(ValueError, match='query_matrix_table: row key mismatch: cannot query'):
-        hl.query_matrix_table(query_mt_mt, '1')
-    with pytest.raises(ValueError, match='query_matrix_table: cannot query with empty row key'):
-        hl.query_matrix_table(query_mt_mt, hl.struct())
-    with pytest.raises(ValueError, match='query_matrix_table: queried with 2 row key field'):
-        hl.query_matrix_table(query_mt_mt, hl.struct(row_idx=5, foo='s'))
+    with pytest.raises(ValueError, match='key mismatch: cannot use'):
+        hl.query_table(query_mt_mt, hl.interval('1', '2'))
+    with pytest.raises(ValueError, match='key mismatch: cannot use'):
+        hl.query_table(query_mt_mt, '1')
+    with pytest.raises(ValueError, match='query point value cannot be an empty struct'):
+        hl.query_table(query_mt_mt, hl.struct())
+    with pytest.raises(ValueError, match='query point type has 2 field'):
+        hl.query_table(query_mt_mt, hl.struct(idx=5, foo='s'))
 
 
 def query_matrix_table_test_parameters():
