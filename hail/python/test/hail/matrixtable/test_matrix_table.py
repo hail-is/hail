@@ -2467,7 +2467,8 @@ def query_mt_compound_key_mt():
     mt = mt.filter_cols(mt.col_idx % 10 == 0)
     mt = mt.annotate_rows(idx2=mt.row_idx % 20, s=hl.str(mt.row_idx))
     mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
-    mt.key_rows_by('row_idx', 'idx2').write(path)
+    mt = mt.key_rows_by('row_idx', 'idx2')
+    mt.write(path)
     return path
 
 
@@ -2495,6 +2496,7 @@ def query_mt_interval_key_mt():
     mt = mt.filter_cols(mt.col_idx % 10 == 0)
     mt = mt.annotate_entries(n=mt.row_idx * mt.col_idx)
     mt = mt.key_rows_by(interval=hl.interval(mt.row_idx, mt.row_idx + 50))
+    mt.write(path)
     return path
 
 
