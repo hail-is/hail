@@ -7073,7 +7073,7 @@ def query_table(path, point_or_interval):
 
 
 @typecheck(path=builtins.str, point_or_interval=expr_any, entries_name=builtins.str)
-def query_matrix_table(path, point_or_interval, entries_name='entries_array'):
+def query_matrix_table_rows(path, point_or_interval, entries_name='entries_array'):
     """Query row records from a matrix table corresponding to a given point or
     range of row keys. The entry fields are localized as an array of structs as
     in :meth:`.MatrixTable.localize_entries`.

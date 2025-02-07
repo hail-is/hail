@@ -2397,20 +2397,20 @@ def query_mt_mt():
     return path
 
 
-def test_query_matrix_table_errors(query_mt_mt):
+def test_query_matrix_table_rows_errors(query_mt_mt):
     with pytest.raises(ValueError, match='field "s" is present'):
-        hl.query_matrix_table(query_mt_mt, 0, 's')
+        hl.query_matrix_table_rows(query_mt_mt, 0, 's')
     with pytest.raises(ValueError, match='key mismatch: cannot use'):
-        hl.query_table(query_mt_mt, hl.interval('1', '2'))
+        hl.query_matrix_table_rows(query_mt_mt, hl.interval('1', '2'))
     with pytest.raises(ValueError, match='key mismatch: cannot use'):
-        hl.query_table(query_mt_mt, '1')
+        hl.query_matrix_table_rows(query_mt_mt, '1')
     with pytest.raises(ValueError, match='query point value cannot be an empty struct'):
-        hl.query_table(query_mt_mt, hl.struct())
+        hl.query_matrix_table_rows(query_mt_mt, hl.struct())
     with pytest.raises(ValueError, match='query point type has 2 field'):
-        hl.query_table(query_mt_mt, hl.struct(idx=5, foo='s'))
+        hl.query_matrix_table_rows(query_mt_mt, hl.struct(idx=5, foo='s'))
 
 
-def query_matrix_table_test_parameters():
+def query_matrix_table_rows_test_parameters():
     def ea_for(n):
         return [hl.Struct(n=n * m) for m in range(0, 100, 10)]
 
@@ -2454,9 +2454,9 @@ def query_matrix_table_test_parameters():
     ]
 
 
-@pytest.mark.parametrize("query,expected", query_matrix_table_test_parameters())
-def test_query_matrix_table(query_mt_mt, query, expected):
-    assert hl.eval(hl.query_matrix_table(query_mt_mt, query, 'e')) == expected
+@pytest.mark.parametrize("query,expected", query_matrix_table_rows_test_parameters())
+def test_query_matrix_table_rows(query_mt_mt, query, expected):
+    assert hl.eval(hl.query_matrix_table_rows(query_mt_mt, query, 'e')) == expected
 
 
 @pytest.fixture(scope='module')
@@ -2471,7 +2471,7 @@ def query_mt_compound_key_mt():
     return path
 
 
-def query_matrix_table_compound_key_parameters():
+def query_matrix_table_rows_compound_key_parameters():
     def ea_for(n):
         return [hl.Struct(n=n * m) for m in range(0, 100, 10)]
 
@@ -2482,9 +2482,9 @@ def query_matrix_table_compound_key_parameters():
     ]
 
 
-@pytest.mark.parametrize("query,expected", query_matrix_table_compound_key_parameters())
-def test_query_matrix_table_compound_key(query_mt_compound_key_mt, query, expected):
-    assert hl.eval(hl.query_matrix_table(query_mt_compound_key_mt, query, 'e')) == expected
+@pytest.mark.parametrize("query,expected", query_matrix_table_rows_compound_key_parameters())
+def test_query_matrix_table_rows_compound_key(query_mt_compound_key_mt, query, expected):
+    assert hl.eval(hl.query_matrix_table_rows(query_mt_compound_key_mt, query, 'e')) == expected
 
 
 @pytest.fixture(scope='module')
@@ -2498,7 +2498,7 @@ def query_mt_interval_key_mt():
     return path
 
 
-def query_matrix_table_interval_key_parameters():
+def query_matrix_table_rows_interval_key_parameters():
     def ea_for(n):
         return [hl.Struct(n=n * m) for m in range(0, 100, 10)]
 
@@ -2513,6 +2513,6 @@ def query_matrix_table_interval_key_parameters():
     ]
 
 
-@pytest.mark.parametrize("query,expected", query_matrix_table_interval_key_parameters())
-def test_query_matrix_table_interval_key(query_mt_interval_key_mt, query, expected):
-    assert hl.eval(hl.query_matrix_table(query_mt_interval_key_mt, query, 'e')) == expected
+@pytest.mark.parametrize("query,expected", query_matrix_table_rows_interval_key_parameters())
+def test_query_matrix_table_rows_interval_key(query_mt_interval_key_mt, query, expected):
+    assert hl.eval(hl.query_matrix_table_rows(query_mt_interval_key_mt, query, 'e')) == expected
