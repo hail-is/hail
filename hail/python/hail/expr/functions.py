@@ -7107,7 +7107,7 @@ def query_matrix_table_rows(path, point_or_interval, entries_name='entries_array
         raise ValueError(
             f'field "{entries_name}" is present in matrix table row fields, use a different `entries_name`'
         )
-    entries_table = hl.read_table(os.path.join(path, '/entries'))
+    entries_table = hl.read_table(os.path.join(path, 'entries'))
     [entry_id] = list(entries_table.row)
 
     full_row_type = tstruct(**matrix_table.row.dtype, **entries_table.row.dtype)
