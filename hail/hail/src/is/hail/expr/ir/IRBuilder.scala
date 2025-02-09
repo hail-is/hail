@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{Let, Ref, TrivialIR}
 import is.hail.utils.BoxedArrayBuilder
 
 object IRBuilder {

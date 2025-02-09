@@ -2,6 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.expr.ir.PruneDeadFields
 import is.hail.io._
+import is.hail.rvd.AbstractIndexSpec
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -26,8 +27,7 @@ object BgenSettings {
       BufferSpec.lz4HCCompressionLEB
     }
 
-  def indexCodecSpecs(indexVersion: SemanticVersion, rg: Option[String])
-    : (AbstractTypedCodecSpec, AbstractTypedCodecSpec) = {
+  def getIndexSpec(indexVersion: SemanticVersion, rg: Option[String]): AbstractIndexSpec = {
     val bufferSpec = specFromVersion(indexVersion)
 
     val keyVType = indexKeyType(rg)
@@ -114,10 +114,13 @@ object BgenSettings {
       )
     ))
 
-    (
-      TypedCodecSpec(leafEType, leafVType, bufferSpec),
-      (TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)),
-    )
+    new AbstractIndexSpec {
+      def relPath = fatal("relPath called for bgen index spec")
+      val leafCodec = TypedCodecSpec(leafEType, leafVType, bufferSpec)
+      val internalNodeCodec = TypedCodecSpec(internalNodeEType, internalNodeVType, bufferSpec)
+      val keyType = keyVType
+      val annotationType = annotationVType
+    }
   }
 }
 

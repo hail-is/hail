@@ -47,6 +47,7 @@ from web_common import (
     web_security_headers,
 )
 
+from .auth_utils import validate_credentials_secret_name_input
 from .exceptions import (
     AuthUserError,
     DuplicateLoginID,
@@ -128,7 +129,7 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
-    if not username or not all(c for c in username if c.isalnum()):
+    if not username or not (username.isalnum() and username.islower()):
         raise InvalidUsername(username)
 
     existing_users = await users_with_username_or_login_id(tx, username, login_id)
@@ -183,6 +184,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
             ),
         )
 
+    validate_credentials_secret_name_input(hail_credentials_secret_name)
     await _insert()
     return True
 
@@ -454,9 +456,11 @@ async def create_user(request: web.Request, _) -> web.Response:
 
 @routes.get('/user')
 @web_security_headers
-@auth.authenticated_users_only()
-async def user_page(request: web.Request, userdata: UserData) -> web.Response:
-    return await render_template('auth', request, userdata, 'user.html', {'cloud': CLOUD})
+@auth.maybe_authenticated_user
+async def user_page(request: web.Request, userdata: Optional[UserData]) -> web.Response:
+    context_dict = {'cloud': CLOUD, **({'next_page': request.query['next']} if 'next' in request.query else {})}
+
+    return await render_template('auth', request, userdata, 'user.html', context_dict)
 
 
 async def create_copy_paste_token(db, session_id, max_age_secs=300):

@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs.{I64, If, Literal, ToStream}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 

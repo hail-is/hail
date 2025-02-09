@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{BaseRef, Recur, Ref, RelationalRef}
+
 import scala.collection.mutable
 
 case class UsesAndDefs(

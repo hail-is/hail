@@ -8,46 +8,16 @@ Certificates must be updated once per cluster.
 
 ### Setting the `kubectl` Context
 
-The hail project itself maintains two kubernetes clusters, one in GCP and one in
-Azure.
+Why? 
 
-If you have authenticated with `kubectl` to the appropriate cluster and `docker`
-for the corresponding container registry, then you should only need to set the
-current `kubectl` context by running:
+1. We will be using the letsencrypt image to create a job instance in kubernetes.  
+2. We will be restarting the gateway pods.
 
-```
-kubectl config use-context <CONTEXT NAME>
-```
-
-The contexts can be listed with:
-```
-kubectl config get-contexts
-```
-
-If you are not authenticated, then you can run the following functions from
-[`devbin/functions.sh`](/devbin/functions.sh):
-
-```
-# for GCP
-gcpsetcluster <PROJECT>
-# for Azure
-azsetcluster <RESOURCE_GROUP>
-```
+See [Setting the `kubectl` Context](setting_the_kubectl_context.md).
 
 ### Connect or fetch credentials to the container registry
 
-In GCP, something like:
-```
-gcloud auth login
-gcloud auth configure-docker us-central1-docker.pkg.dev # Depending on where GAR is hosted
-```
-
-
-In Azure, something like:
-```
-az login
-az acr login --name haildev # the container registry name is findable in the azure console
-```
+See [Connecting Docker to Container Registry Credentials](connecting_docker_to_container_registry_creds.md).
 
 ### Rotating One Cluster's Certificates
 

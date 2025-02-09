@@ -1,8 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.agg.CallStatsState
+import is.hail.expr.ir.defs._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
 import is.hail.types._
@@ -102,7 +104,7 @@ class RequirednessSuite extends HailSuite {
   def pinterval(point: PType, r: Boolean): PInterval = PCanonicalInterval(point, r)
 
   @DataProvider(name = "valueIR")
-  def valueIR(): Array[Array[Any]] = withExecuteContext() { ctx =>
+  def valueIR(): Array[Array[Any]] = ExecuteContext.scoped { ctx =>
     val nodes = new BoxedArrayBuilder[Array[Any]](50)
 
     val allRequired = Array(

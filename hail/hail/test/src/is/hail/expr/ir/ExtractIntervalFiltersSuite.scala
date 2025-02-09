@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.expr.ir.defs._
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval, IntervalEndpoint}
@@ -35,7 +36,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
 
   def wrappedIntervalEndpoint(x: Any, sign: Int) = IntervalEndpoint(Row(x), sign)
 
-  def grch38: ReferenceGenome = ctx.getReference(ReferenceGenome.GRCh38)
+  def grch38: ReferenceGenome = ctx.references(ReferenceGenome.GRCh38)
 
   def lt(l: IR, r: IR): IR = ApplyComparisonOp(LT(l.typ), l, r)
   def gt(l: IR, r: IR): IR = ApplyComparisonOp(GT(l.typ), l, r)

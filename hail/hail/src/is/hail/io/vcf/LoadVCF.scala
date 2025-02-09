@@ -7,9 +7,9 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{
   CloseableIterator, EmitCode, EmitCodeBuilder, EmitMethodBuilder, GenericLine, GenericLines,
-  GenericTableValue, IEmitCode, IR, IRParser, Literal, LowerMatrixIR, MatrixHybridReader,
-  MatrixReader, PartitionReader,
+  GenericTableValue, IEmitCode, IR, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixReader,
 }
+import is.hail.expr.ir.defs.{Literal, PartitionReader}
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{VCFAttributes, VCFMetadata}
@@ -1779,7 +1779,7 @@ object MatrixVCFReader {
     val backend = ctx.backend
     val fs = ctx.fs
 
-    val referenceGenome = params.rg.map(ctx.getReference)
+    val referenceGenome = params.rg.map(ctx.references)
 
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
@@ -2011,7 +2011,7 @@ class MatrixVCFReader(
     val fs = ctx.fs
     val sm = ctx.stateManager
 
-    val rgBc = referenceGenome.map(_.broadcast)
+    val rgBc = referenceGenome.map(ctx.backend.broadcast)
     val localArrayElementsRequired = params.arrayElementsRequired
     val localContigRecoding = params.contigRecoding
     val localSkipInvalidLoci = params.skipInvalidLoci

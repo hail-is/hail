@@ -1,19 +1,19 @@
 package is.hail.backend.service
 
-import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, IRSize, LoweringAnalyses, MakeTuple, SortField, TableIR, TableReader,
-  TypeCheck,
+  Compile, IR, IRParser, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
 import is.hail.io.fs._
-import is.hail.linalg.BlockMatrix
+import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.services.{BatchClient, JobGroupRequest, _}
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Running, Success}
 import is.hail.types._
@@ -93,7 +93,16 @@ object ServiceBackend {
       rpcConfig.custom_references.map(ReferenceGenome.fromJSON),
     )
 
-    val backend = new ServiceBackend(
+    rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
+      liftoversForSource.foreach { case (destGenome, chainFile) =>
+        references(sourceGenome).addLiftover(references(destGenome), LiftOver(fs, chainFile))
+      }
+    }
+    rpcConfig.sequences.foreach { case (rg, seq) =>
+      references(rg).addSequence(IndexedFastaSequenceFile(fs, seq.fasta, seq.index))
+    }
+
+    new ServiceBackend(
       JarUrl(jarLocation),
       name,
       theHailClassLoader,
@@ -106,19 +115,6 @@ object ServiceBackend {
       backendContext,
       scratchDir,
     )
-
-    backend.withExecuteContext { ctx =>
-      rpcConfig.liftovers.foreach { case (sourceGenome, liftoversForSource) =>
-        liftoversForSource.foreach { case (destGenome, chainFile) =>
-          references(sourceGenome).addLiftover(ctx, chainFile, destGenome)
-        }
-      }
-      rpcConfig.sequences.foreach { case (rg, seq) =>
-        references(rg).addSequence(ctx, seq.fasta, seq.index)
-      }
-    }
-
-    backend
   }
 }
 
@@ -126,7 +122,7 @@ class ServiceBackend(
   val jarSpec: JarSpec,
   var name: String,
   val theHailClassLoader: HailClassLoader,
-  override val references: mutable.Map[String, ReferenceGenome],
+  val references: mutable.Map[String, ReferenceGenome],
   val batchClient: BatchClient,
   val batchConfig: BatchConfig,
   val flags: HailFeatureFlags,
@@ -212,6 +208,7 @@ class ServiceBackend(
           batch_id = batchConfig.batchId,
           absolute_parent_id = batchConfig.jobGroupId,
           token = token,
+          cancel_after_n_failures = Some(1),
           attributes = Map("name" -> stageIdentifier),
           jobs = jobs,
         )
@@ -291,12 +288,17 @@ class ServiceBackend(
 
     log.info(s"parallelizeAndComputeWithIndex: $token: reading results")
     val startTime = System.nanoTime()
-    var r @ (err, results) = runAllKeepFirstError(new CancellingExecutorService(executor)) {
+    var r @ (err, results) = runAll[Option, Array[Byte]](executor) {
+      /* A missing file means the job was cancelled because another job failed. Assumes that if any
+       * job was cancelled, then at least one job failed. We want to ignore the missing file
+       * exceptions and return one of the actual failure exceptions. */
+      case (opt, _: FileNotFoundException) => opt
+      case (opt, e) => opt.orElse(Some(e))
+    }(None) {
       (partIdxs, parts.indices).zipped.map { (partIdx, jobIndex) =>
         (() => readResult(root, jobIndex), partIdx)
       }
     }
-
     if (jobGroup.state != Success && err.isEmpty) {
       assert(jobGroup.state != Running)
       val error =
@@ -378,15 +380,6 @@ class ServiceBackend(
   ): TableReader =
     LowerDistributedSort.distributedSort(ctx, inputStage, sortFields, rt, nPartitions)
 
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
-    : Unit = ???
-
-  def unpersist(backendContext: BackendContext, id: String): Unit = ???
-
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
-
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
-
   def tableToTableStage(ctx: ExecuteContext, inputIR: TableIR, analyses: LoweringAnalyses)
     : TableStage =
     LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
@@ -397,6 +390,7 @@ class ServiceBackend(
         tmpdir,
         "file:///tmp",
         this,
+        references.toMap,
         fs,
         timer,
         null,
@@ -404,6 +398,7 @@ class ServiceBackend(
         flags,
         serviceBackendContext,
         new IrMetadata(),
+        ImmutableMap.empty,
       )(f)
     }
 

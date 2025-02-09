@@ -3,9 +3,8 @@ package is.hail.io.avro
 import is.hail.annotations.Region
 import is.hail.asm4s.{Field => _, _}
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{
-  EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode, PartitionReader,
-}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
+import is.hail.expr.ir.defs.PartitionReader
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.types.{RField, RStruct, TypeWithRequiredness}
 import is.hail.types.physical.{PCanonicalTuple, PInt64Required}

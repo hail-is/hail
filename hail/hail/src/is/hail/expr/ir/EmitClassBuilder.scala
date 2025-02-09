@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.backend.{BackendUtils, ExecuteContext, HailTaskContext}
+import is.hail.expr.ir.defs.EncodedLiteral
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
@@ -71,7 +72,7 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   }
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] =
-    rgContainers.keys.map(ctx.getReference(_)).toIndexedSeq.sortBy(_.name)
+    rgContainers.keys.map(ctx.references(_)).toIndexedSeq.sortBy(_.name)
 
   def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] =
     rgContainers.toFastSeq.sortBy(_._1).map(_._2)

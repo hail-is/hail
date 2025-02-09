@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{MatrixAggregate, TableAggregate}
 import is.hail.types.virtual.Type
 
 object MapIR {

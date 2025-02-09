@@ -5,6 +5,10 @@ import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
+import is.hail.expr.ir.defs.{
+  ApplyComparisonOp, ApplySpecial, ArraySort, ErrorIDs, GetField, I32, In, IsNA, Literal,
+  MakeStream, NA, ToArray, ToDict, ToSet, ToStream, True,
+}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType

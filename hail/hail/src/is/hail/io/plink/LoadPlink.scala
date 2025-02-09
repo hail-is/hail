@@ -5,6 +5,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs.Literal
 import is.hail.expr.ir.lowering.TableStage
 import is.hail.io.fs.{FS, Seekable}
 import is.hail.io.vcf.LoadVCF
@@ -186,7 +187,7 @@ object MatrixPLINKReader {
     implicit val formats: Formats = DefaultFormats
     val params = jv.extract[MatrixPLINKReaderParameters]
 
-    val referenceGenome = params.rg.map(ctx.getReference)
+    val referenceGenome = params.rg.map(ctx.references)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
     val locusType = TLocus.schemaFromRG(params.rg)

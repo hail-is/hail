@@ -2,6 +2,9 @@ package is.hail.expr.ir.analyses
 
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
+import is.hail.expr.ir.defs.{
+  In, Ref, StreamFold, StreamFold2, StreamFor, StreamLen, TailLoop, ToArray, ToDict, ToSet,
+}
 
 object ComputeMethodSplits {
   def apply(ctx: ExecuteContext, ir: IR, controlFlowPreventsSplit: Memo[Unit]): Memo[Unit] = {

@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.agg.AggStateSig
+import is.hail.expr.ir.defs.In
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.EmitStream
 import is.hail.io.fs.FS

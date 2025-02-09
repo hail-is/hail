@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs._
 import is.hail.types.virtual.TNDArray
 
 object Interpretable {

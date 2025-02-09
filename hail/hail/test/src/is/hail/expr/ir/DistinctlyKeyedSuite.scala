@@ -1,6 +1,10 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.expr.ir.defs.{
+  ApplyComparisonOp, GetField, I32, If, InsertFields, MakeStruct, Ref, StreamRange, TableCollect,
+  TableWrite, ToArray,
+}
 import is.hail.types.virtual.TInt32
 import is.hail.utils.FastSeq
 

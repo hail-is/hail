@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.PruneDeadFields.TypeState
+import is.hail.expr.ir.defs._
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._

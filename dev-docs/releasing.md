@@ -34,9 +34,6 @@ hail-ci-bpk3h bucket. The necessary files are listed under "Sources: " in the "I
 "release" build step. They should look something like:
 
     Sources:
-      gs://hail-ci-bpk3h/build/9cabeeb4ba047d1722e6f8da0383ab97/hail_version: 1 files, 21 Bytes
-      gs://hail-ci-bpk3h/build/9cabeeb4ba047d1722e6f8da0383ab97/hail_pip_version: 1 files, 8 Bytes
-      gs://hail-ci-bpk3h/build/9cabeeb4ba047d1722e6f8da0383ab97/git_version: 1 files, 41 Bytes
       gs://hail-ci-bpk3h/build/9cabeeb4ba047d1722e6f8da0383ab97/repo: 6272 files, 205.1 MB
       gs://hail-ci-bpk3h/build/9cabeeb4ba047d1722e6f8da0383ab97/azure-wheel: 1 files, 144.5 MB
       gs://hail-ci-bpk3h/build/9cabeeb4ba047d1722e6f8da0383ab97/www.tar.gz: 1 files, 43.5 MB
@@ -47,14 +44,12 @@ Download all these files except the repo (which you do not need, because you che
     mkdir $BUILD_TOKEN
 	RELEASE_ARTIFACTS_DIR=$(realpath $BUILD_TOKEN)
     gcloud storage cp -r \
-      gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_version \
-      gs://hail-ci-bpk3h/build/$BUILD_TOKEN/hail_pip_version \
-      gs://hail-ci-bpk3h/build/$BUILD_TOKEN/git_version \
+      gs://hail-ci-bpk3h/build/$BUILD_TOKEN/repo/hail/env \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/azure-wheel \
       gs://hail-ci-bpk3h/build/$BUILD_TOKEN/www.tar.gz \
-      $BUILD_TOKEN
+      $RELEASE_ARTIFACTS_DIR
 
-Note that the `-r` is necessary because some of these things like `azure-wheel` are folders.
+Note that the `-r` is necessary because some of these things like `env` and `azure-wheel` are folders.
 
 Next we need to authenticate with DockerHub. Download the secret and authenticate skopeo with
 it. `download-secret` is a function stored in `devbin/functions.sh`.
@@ -88,9 +83,9 @@ Ensure you have returned to the `hail` sub-folder of the Hail git repository.
 Now we can construct a `release.sh` invocation. Find the invocation in the "command" part of the
 "Job Specification" table. It should look like:
 
-    bash scripts/release.sh $(cat /io/hail_pip_version) \
-                            $(cat /io/hail_version) \
-                            $(cat /io/git_version) \
+    bash scripts/release.sh $(cat $RELEASE_ARTIFACTS_DIR/HAIL_PIP_VERSION) \
+                            $(cat $RELEASE_ARTIFACTS_DIR/HAIL_VERSION) \
+                            $(cat $RELEASE_ARTIFACTS_DIR/REVISION) \
                             origin \
                             /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
                             /io/github-oauth \
@@ -112,9 +107,9 @@ We need to make two replacements:
 It should look something like this:
 
     bash scripts/release.sh \
-        $(cat $RELEASE_ARTIFACTS_DIR/hail_pip_version) \
-        $(cat $RELEASE_ARTIFACTS_DIR/hail_version) \
-        $(cat $RELEASE_ARTIFACTS_DIR/git_version) \
+        $(cat $RELEASE_ARTIFACTS_DIR/HAIL_PIP_VERSION) \
+        $(cat $RELEASE_ARTIFACTS_DIR/HAIL_VERSION) \
+        $(cat $RELEASE_ARTIFACTS_DIR/REVISION) \
         origin \
         /PATH/TO/DOWNLOADED/HAIL-COMMON/WHEEL/hail-0.2.XXX-py3-none-any.whl \
         $RELEASE_ARTIFACTS_DIR/github-oauth \

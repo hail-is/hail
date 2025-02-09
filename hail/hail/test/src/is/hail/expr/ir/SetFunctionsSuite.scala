@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.defs.{I32, NA, ToSet, ToStream}
 import is.hail.types.virtual._
 
 import org.testng.annotations.Test

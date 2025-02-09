@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{EncodedLiteral, F32, F64, False, I32, I64, Literal, NA, Str, True}
 import is.hail.types.virtual._
 
 object CanEmit {

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer

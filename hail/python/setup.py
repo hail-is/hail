@@ -1,14 +1,22 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import os
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
 
 from setuptools import find_packages, setup
 
-with open('hail/hail_pip_version') as f:
-    hail_pip_version = f.read().strip()
-
 with open("README.md", "r") as fh:
     long_description = fh.read()
+
+
+def load_module(name, path):
+    spec = spec_from_file_location(name, path)
+    mod = module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
 
 dependencies = []
 with open('requirements.txt', 'r') as f:
@@ -46,7 +54,7 @@ add_dependencies('requirements.txt')
 
 setup(
     name="hail",
-    version=hail_pip_version,
+    version=load_module('version', 'hail/version.py').__pip_version__,
     author="Hail Team",
     author_email="hail@broadinstitute.org",
     description="Scalable library for exploring and analyzing genomic data.",
@@ -61,10 +69,10 @@ setup(
     packages=find_packages('.'),
     package_dir={'hail': 'hail', 'hailtop': 'hailtop'},
     package_data={
-        'hail': ['hail_pip_version', 'hail_version', 'hail_revision', 'experimental/datasets.json'],
+        'hail': ['experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
-        'hailtop': ['hail_version', 'py.typed'],
-        'hailtop.hailctl': ['hail_version', 'deploy.yaml'],
+        'hailtop': ['py.typed'],
+        'hailtop.hailctl': ['deploy.yaml'],
     },
     classifiers=[
         "Programming Language :: Python :: 3",

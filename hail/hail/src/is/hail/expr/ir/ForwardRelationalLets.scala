@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
+
 import scala.collection.mutable
 
 object ForwardRelationalLets {

@@ -47,7 +47,7 @@ from gear.clients import get_cloud_async_fs
 from gear.database import CallError
 from gear.profiling import install_profiler_if_requested
 from gear.time_limited_max_size_cache import TimeLimitedMaxSizeCache
-from hailtop import aiotools, dictfix, httpx, uvloopx, version
+from hailtop import __version__, aiotools, dictfix, httpx, uvloopx
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.globals import MAX_JOB_GROUPS_DEPTH, ROOT_JOB_GROUP_ID
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
@@ -251,7 +251,7 @@ async def get_healthcheck(_) -> web.Response:
 @routes.get('/api/v1alpha/version')
 @api_security_headers
 async def rest_get_version(_) -> web.Response:
-    return web.Response(text=version())
+    return web.Response(text=__version__)
 
 
 @routes.get('/api/v1alpha/cloud')
@@ -3774,7 +3774,7 @@ async def swagger(request):
 @routes.get('/openapi.yaml')
 @web_security_headers
 async def openapi(request):
-    page_context = {'base_path': deploy_config.base_path('batch'), 'spec_version': version()}
+    page_context = {'base_path': deploy_config.base_path('batch'), 'spec_version': __version__}
     return await render_template('batch', request, None, 'openapi.yaml', page_context)
 
 

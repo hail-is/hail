@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVDPartitioner, RVDType}

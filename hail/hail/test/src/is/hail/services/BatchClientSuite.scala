@@ -2,6 +2,7 @@ package is.hail.services
 
 import is.hail.HAIL_REVISION
 import is.hail.backend.service.Main
+import is.hail.services.JobGroupStates.Failure
 import is.hail.utils._
 
 import java.lang.reflect.Method
@@ -45,6 +46,38 @@ class BatchClientSuite extends TestNGSuite {
   @AfterClass
   def closeClient(): Unit =
     client.close()
+
+  @Test
+  def testCancelAfterNFailures(): Unit = {
+    val jobGroupId = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        cancel_after_n_failures = Some(1),
+        token = tokenUrlSafe,
+        jobs = FastSeq(
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:22.04",
+              command = Array("/bin/bash", "-c", "sleep 5m"),
+            ),
+            resources = Some(JobResources(preemptible = true)),
+          ),
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:22.04",
+              command = Array("/bin/bash", "-c", "exit 1"),
+            ),
+          ),
+        ),
+      )
+    )
+    val result = client.waitForJobGroup(batchId, jobGroupId)
+    assert(result.state == Failure)
+    assert(result.n_cancelled == 1)
+  }
 
   @Test
   def testNewJobGroup(): Unit =

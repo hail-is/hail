@@ -5,6 +5,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.TableAnnotationImpex
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer

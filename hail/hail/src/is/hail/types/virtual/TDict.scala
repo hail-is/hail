@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.utils._
 
-import scala.reflect.{classTag, ClassTag}
-
 import org.json4s.jackson.JsonMethods
 
 final case class TDict(keyType: Type, valueType: Type) extends TContainer {
@@ -73,8 +71,6 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
             valueType.valuesSimilar(v1, v2, tolerance, absolute)
           }
         })
-
-  override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.mapOrdering(elementType.ordering(sm), missingEqual)

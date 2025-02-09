@@ -28,16 +28,9 @@ steps:
       cd repo
       {{ code.checkout_script }}
       make -C hail python-version-info
-      git rev-parse HEAD > git_version
     outputs:
       - from: /io/repo/
         to: /repo
-      - from: /io/repo/hail/python/hail/hail_version
-        to: /hail_version
-      - from: /io/repo/hail/python/hail/hail_pip_version
-        to: /hail_pip_version
-      - from: /io/repo/git_version
-        to: /git_version
     dependsOn:
       - git_make_bash_image
   - kind: buildImage2
@@ -142,8 +135,6 @@ steps:
         to: /io/repo/hail/python/MANIFEST.in
       - from: /repo/hail/python/hailtop
         to: /io/repo/hail/python/hailtop
-      - from: /hail_version
-        to: /io/repo/hail_version
       - from: /repo/gear
         to: /io/repo/gear
   - kind: buildImage2

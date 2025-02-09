@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs._
+
 object Copy {
   def apply(x: IR, newChildren: IndexedSeq[BaseIR]): IR = {
     x match {

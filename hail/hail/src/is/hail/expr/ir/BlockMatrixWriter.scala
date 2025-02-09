@@ -1,10 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
+import is.hail.expr.ir.defs.{MetadataWriter, Str, UUID4, WriteMetadata, WriteValue}
 import is.hail.expr.ir.lowering.{BlockMatrixStage2, LowererUnsupportedOperation}
 import is.hail.io.{StreamBufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
@@ -190,7 +190,7 @@ case class BlockMatrixPersistWriter(id: String, storageLevel: String) extends Bl
   def pathOpt: Option[String] = None
 
   def apply(ctx: ExecuteContext, bm: BlockMatrix): Unit =
-    HailContext.backend.persist(ctx.backendContext, id, bm, storageLevel)
+    ctx.BlockMatrixCache += id -> bm.persist(storageLevel)
 
   def loweredTyp: Type = TVoid
 }

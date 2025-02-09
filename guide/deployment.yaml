@@ -104,7 +104,7 @@ spec:
           - containerPort: 8000
             protocol: TCP
        - name: envoy
-         image: "{{ global.docker_prefix }}/envoyproxy/envoy:v1.22.3"
+         image: "{{ global.docker_prefix }}/envoyproxy/envoy:v1.33.0"
          command:
            - /usr/local/bin/envoy
            - --config-path

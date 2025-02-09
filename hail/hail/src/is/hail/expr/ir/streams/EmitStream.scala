@@ -5,6 +5,7 @@ import is.hail.annotations.Region.REGULAR
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.agg.{AggStateSig, DictState, PhysicalAggSig, StateTuple}
+import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.IntervalFunctions
 import is.hail.expr.ir.functions.IntervalFunctions.{
   pointGTIntervalEndpoint, pointLTIntervalEndpoint,

@@ -1,11 +1,11 @@
 package is.hail.variant
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.backend.HailStateManager
+import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
+import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.types.virtual.TLocus
 import is.hail.utils._
 
@@ -16,7 +16,7 @@ class ReferenceGenomeSuite extends HailSuite {
 
   def hasReference(name: String) = ctx.stateManager.referenceGenomes.contains(name)
 
-  def getReference(name: String) = ctx.getReference(name)
+  def getReference(name: String) = ctx.references(name)
 
   @Test def testGRCh37(): Unit = {
     assert(hasReference(ReferenceGenome.GRCh37))
@@ -222,8 +222,8 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testSerializeOnFB(): Unit = {
-    withExecuteContext() { ctx =>
-      val grch38 = ctx.getReference(ReferenceGenome.GRCh38)
+    ExecuteContext.scoped { ctx =>
+      val grch38 = ctx.references(ReferenceGenome.GRCh38)
       val fb = EmitFunctionBuilder[String, Boolean](ctx, "serialize_rg")
       val rgfield = fb.getReferenceGenome(grch38.name)
       fb.emit(rgfield.invoke[String, Boolean]("isValidContig", fb.getCodeParam[String](1)))
@@ -234,11 +234,11 @@ class ReferenceGenomeSuite extends HailSuite {
   }
 
   @Test def testSerializeWithLiftoverOnFB(): Unit = {
-    withExecuteContext() { ctx =>
-      val grch37 = ctx.getReference(ReferenceGenome.GRCh37)
+    ExecuteContext.scoped { ctx =>
+      val grch37 = ctx.references(ReferenceGenome.GRCh37)
       val liftoverFile = getTestResource("grch37_to_grch38_chr20.over.chain.gz")
 
-      grch37.addLiftover(ctx, liftoverFile, "GRCh38")
+      grch37.addLiftover(ctx.references("GRCh38"), LiftOver(ctx.fs, liftoverFile))
 
       val fb =
         EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)](ctx, "serialize_with_liftover")

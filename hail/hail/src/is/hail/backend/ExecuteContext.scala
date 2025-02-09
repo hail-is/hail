@@ -6,6 +6,7 @@ import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
+import is.hail.linalg.BlockMatrix
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
@@ -63,6 +64,7 @@ object ExecuteContext {
     tmpdir: String,
     localTmpdir: String,
     backend: Backend,
+    references: Map[String, ReferenceGenome],
     fs: FS,
     timer: ExecutionTimer,
     tempFileManager: TempFileManager,
@@ -70,6 +72,7 @@ object ExecuteContext {
     flags: HailFeatureFlags,
     backendContext: BackendContext,
     irMetadata: IrMetadata,
+    blockMatrixCache: mutable.Map[String, BlockMatrix],
   )(
     f: ExecuteContext => T
   ): T = {
@@ -79,6 +82,7 @@ object ExecuteContext {
           tmpdir,
           localTmpdir,
           backend,
+          references,
           fs,
           region,
           timer,
@@ -87,6 +91,7 @@ object ExecuteContext {
           flags,
           backendContext,
           irMetadata,
+          blockMatrixCache,
         ))(f(_))
       }
     }
@@ -107,6 +112,7 @@ class ExecuteContext(
   val tmpdir: String,
   val localTmpdir: String,
   val backend: Backend,
+  val references: Map[String, ReferenceGenome],
   val fs: FS,
   val r: Region,
   val timer: ExecutionTimer,
@@ -115,6 +121,7 @@ class ExecuteContext(
   val flags: HailFeatureFlags,
   val backendContext: BackendContext,
   val irMetadata: IrMetadata,
+  val BlockMatrixCache: mutable.Map[String, BlockMatrix],
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -128,7 +135,7 @@ class ExecuteContext(
         )
     }
 
-  def stateManager = HailStateManager(backend.references.toMap)
+  val stateManager = HailStateManager(references)
 
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
@@ -154,8 +161,6 @@ class ExecuteContext(
 
   def getFlag(name: String): String = flags.get(name)
 
-  def getReference(name: String): ReferenceGenome = backend.references(name)
-
   def shouldWriteIRFiles(): Boolean = getFlag("write_ir_files") != null
 
   def shouldNotLogIR(): Boolean = flags.get("no_ir_logging") != null
@@ -174,6 +179,7 @@ class ExecuteContext(
     tmpdir: String = this.tmpdir,
     localTmpdir: String = this.localTmpdir,
     backend: Backend = this.backend,
+    references: Map[String, ReferenceGenome] = this.references,
     fs: FS = this.fs,
     r: Region = this.r,
     timer: ExecutionTimer = this.timer,
@@ -182,6 +188,7 @@ class ExecuteContext(
     flags: HailFeatureFlags = this.flags,
     backendContext: BackendContext = this.backendContext,
     irMetadata: IrMetadata = this.irMetadata,
+    blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
   )(
     f: ExecuteContext => A
   ): A =
@@ -189,6 +196,7 @@ class ExecuteContext(
       tmpdir,
       localTmpdir,
       backend,
+      references,
       fs,
       r,
       timer,
@@ -197,5 +205,6 @@ class ExecuteContext(
       flags,
       backendContext,
       irMetadata,
+      blockMatrixCache,
     ))(f)
 }

@@ -176,7 +176,7 @@ spec:
            periodSeconds: 30
            timeoutSeconds: 30
        - name: envoy
-         image: "{{ docker_prefix }}/envoyproxy/envoy:v1.22.3"
+         image: "{{ docker_prefix }}/envoyproxy/envoy:v1.33.0"
          command:
            - /usr/local/bin/envoy
            - --config-path

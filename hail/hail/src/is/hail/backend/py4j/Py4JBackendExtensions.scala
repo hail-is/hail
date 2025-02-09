@@ -4,18 +4,20 @@ import is.hail.HailFeatureFlags
 import is.hail.backend.{Backend, ExecuteContext, NonOwningTempFileManager, TempFileManager}
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir.{
-  BaseIR, BindingEnv, BlockMatrixIR, EncodedLiteral, GetFieldByIdx, IR, IRParser,
-  IRParserEnvironment, Interpret, MatrixIR, MatrixNativeReader, MatrixRead, Name,
-  NativeReaderOptions, TableIR, TableLiteral, TableValue,
+  BaseIR, BindingEnv, BlockMatrixIR, IR, IRParser, IRParserEnvironment, Interpret, MatrixIR,
+  MatrixNativeReader, MatrixRead, Name, NativeReaderOptions, TableIR, TableLiteral, TableValue,
 }
 import is.hail.expr.ir.IRParser.parseType
+import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
 import is.hail.expr.ir.functions.IRFunctionRegistry
+import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.RowMatrix
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.utils.{defaultJSONFormats, log, toRichIterable, FastSeq, HailException, Interval}
 import is.hail.variant.ReferenceGenome
 
+import scala.collection.mutable
 import scala.jdk.CollectionConverters.{
   asScalaBufferConverter, mapAsScalaMapConverter, seqAsJavaListConverter,
 }
@@ -29,7 +31,10 @@ import org.json4s.Formats
 import org.json4s.jackson.{JsonMethods, Serialization}
 import sourcecode.Enclosing
 
-trait Py4JBackendExtensions { this: Backend =>
+trait Py4JBackendExtensions {
+  def backend: Backend
+  def references: mutable.Map[String, ReferenceGenome]
+  def persistedIR: mutable.Map[Int, BaseIR]
   def flags: HailFeatureFlags
   def longLifeTempFileManager: TempFileManager
 
@@ -59,7 +64,9 @@ trait Py4JBackendExtensions { this: Backend =>
     persistedIR.remove(id)
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
-    withExecuteContext(ctx => references(name).addSequence(ctx, fastaFile, indexFile))
+    backend.withExecuteContext { ctx =>
+      references(name).addSequence(IndexedFastaSequenceFile(ctx.fs, fastaFile, indexFile))
+    }
 
   def pyRemoveSequence(name: String): Unit =
     references(name).removeSequence()
@@ -74,7 +81,7 @@ trait Py4JBackendExtensions { this: Backend =>
     partitionSize: java.lang.Integer,
     entries: String,
   ): Unit =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       val rm = RowMatrix.readBlockMatrix(ctx.fs, pathIn, partitionSize)
       entries match {
         case "full" =>
@@ -112,7 +119,7 @@ trait Py4JBackendExtensions { this: Backend =>
     returnType: String,
     bodyStr: String,
   ): Unit = {
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       IRFunctionRegistry.registerIR(
         ctx,
         name,
@@ -126,10 +133,10 @@ trait Py4JBackendExtensions { this: Backend =>
   }
 
   def pyExecuteLiteral(irStr: String): Int =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       val ir = IRParser.parse_value_ir(irStr, IRParserEnvironment(ctx, persistedIR.toMap))
       assert(ir.typ.isRealizable)
-      execute(ctx, ir) match {
+      backend.execute(ctx, ir) match {
         case Left(_) => throw new HailException("Can't create literal")
         case Right((pt, addr)) =>
           val field = GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
@@ -158,13 +165,13 @@ trait Py4JBackendExtensions { this: Backend =>
   }
 
   def pyToDF(s: String): DataFrame =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       val tir = IRParser.parse_table_ir(s, IRParserEnvironment(ctx, irMap = persistedIR.toMap))
       Interpret(tir, ctx).toDF()
     }
 
   def pyReadMultipleMatrixTables(jsonQuery: String): util.List[MatrixIR] =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       log.info("pyReadMultipleMatrixTables: got query")
       val kvs = JsonMethods.parse(jsonQuery) match {
         case json4s.JObject(values) => values.toMap
@@ -193,10 +200,12 @@ trait Py4JBackendExtensions { this: Backend =>
     addReference(ReferenceGenome.fromJSON(jsonConfig))
 
   def pyRemoveReference(name: String): Unit =
-    references.remove(name)
+    removeReference(name)
 
   def pyAddLiftover(name: String, chainFile: String, destRGName: String): Unit =
-    withExecuteContext(ctx => references(name).addLiftover(ctx, chainFile, destRGName))
+    backend.withExecuteContext { ctx =>
+      references(name).addLiftover(references(destRGName), LiftOver(ctx.fs, chainFile))
+    }
 
   def pyRemoveLiftover(name: String, destRGName: String): Unit =
     references(name).removeLiftover(destRGName)
@@ -204,8 +213,11 @@ trait Py4JBackendExtensions { this: Backend =>
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
 
+  private[this] def removeReference(name: String): Unit =
+    references -= name
+
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       IRParser.parse_value_ir(
         s,
         IRParserEnvironment(ctx, irMap = persistedIR.toMap),
@@ -231,7 +243,7 @@ trait Py4JBackendExtensions { this: Backend =>
     }
 
   def loadReferencesFromDataset(path: String): Array[Byte] =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
       ReferenceGenome.addFatalOnCollision(references, rgs)
 
@@ -245,7 +257,7 @@ trait Py4JBackendExtensions { this: Backend =>
     f: ExecuteContext => T
   )(implicit E: Enclosing
   ): T =
-    withExecuteContext { ctx =>
+    backend.withExecuteContext { ctx =>
       val tempFileManager = longLifeTempFileManager
       if (selfContainedExecution && tempFileManager != null) f(ctx)
       else ctx.local(tempFileManager = NonOwningTempFileManager(tempFileManager))(f)

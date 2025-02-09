@@ -2,8 +2,10 @@ package is.hail.expr.ir.lowering
 
 import is.hail.{ExecStrategy, HailSuite, TestUtils}
 import is.hail.expr.ir.{
-  mapIR, Apply, Ascending, Descending, ErrorIDs, GetField, I32, Literal, LoweringAnalyses,
-  MakeStruct, Ref, SelectFields, SortField, TableIR, TableMapRows, TableRange, ToArray, ToStream,
+  mapIR, Ascending, Descending, LoweringAnalyses, SortField, TableIR, TableMapRows, TableRange,
+}
+import is.hail.expr.ir.defs.{
+  Apply, ErrorIDs, GetField, I32, Literal, MakeStruct, Ref, SelectFields, ToArray, ToStream,
 }
 import is.hail.expr.ir.lowering.LowerDistributedSort.samplePartition
 import is.hail.types.RTable
@@ -60,10 +62,8 @@ class LowerDistributedSortSuite extends HailSuite {
   }
 
   // Only does ascending for now
-  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit = {
-    val originalShuffleCutoff = backend.flags.get("shuffle_cutoff_to_local_sort")
-    try {
-      backend.flags.set("shuffle_cutoff_to_local_sort", "40")
+  def testDistributedSortHelper(myTable: TableIR, sortFields: IndexedSeq[SortField]): Unit =
+    ctx.local(flags = ctx.flags + ("shuffle_cutoff_to_local_sort" -> "40")) { ctx =>
       val analyses: LoweringAnalyses = LoweringAnalyses.apply(myTable, ctx)
       val rt = analyses.requirednessAnalysis.lookup(myTable).asInstanceOf[RTable]
       val stage = LowerTableIR.applyTable(myTable, DArrayLowering.All, ctx, analyses)
@@ -103,9 +103,7 @@ class LowerDistributedSortSuite extends HailSuite {
         ans
       }
       assert(res == scalaSorted)
-    } finally
-      backend.flags.set("shuffle_cutoff_to_local_sort", originalShuffleCutoff)
-  }
+    }
 
   @Test def testDistributedSort(): Unit = {
     val tableRange = TableRange(100, 10)

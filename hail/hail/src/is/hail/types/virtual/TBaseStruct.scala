@@ -5,8 +5,6 @@ import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 import is.hail.utils._
 
-import scala.reflect.{classTag, ClassTag}
-
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
@@ -118,5 +116,4 @@ abstract class TBaseStruct extends Type {
             t.valuesSimilar(x1, x2, tolerance, absolute)
         })
 
-  override def scalaClassTag: ClassTag[Row] = classTag[Row]
 }

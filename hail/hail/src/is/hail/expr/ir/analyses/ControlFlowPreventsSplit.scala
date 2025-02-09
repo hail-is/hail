@@ -1,6 +1,7 @@
 package is.hail.expr.ir.analyses
 
-import is.hail.expr.ir.{BaseIR, Memo, Recur, Ref, TailLoop, UsesAndDefs, VisitIR}
+import is.hail.expr.ir.{BaseIR, Memo, UsesAndDefs, VisitIR}
+import is.hail.expr.ir.defs.{Recur, Ref, TailLoop}
 import is.hail.types.virtual.TStream
 
 object ControlFlowPreventsSplit {

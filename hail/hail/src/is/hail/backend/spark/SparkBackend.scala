@@ -8,6 +8,7 @@ import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -345,25 +346,13 @@ class SparkBackend(
     new HadoopFS(new SerializableHadoopConfiguration(conf))
   }
 
+  override def backend: Backend = this
   override val flags: HailFeatureFlags = HailFeatureFlags.fromEnv()
 
   override val longLifeTempFileManager: TempFileManager =
     new OwningTempFileManager(fs)
 
-  val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
-
-  def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String)
-    : Unit = bmCache.persistBlockMatrix(id, value, storageLevel)
-
-  def unpersist(backendContext: BackendContext, id: String): Unit = unpersist(id)
-
-  def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix =
-    bmCache.getPersistedBlockMatrix(id)
-
-  def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType =
-    bmCache.getPersistedBlockMatrixType(id)
-
-  def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
+  private[this] val bmCache = mutable.Map.empty[String, BlockMatrix]
 
   def createExecuteContextForTests(
     timer: ExecutionTimer,
@@ -374,6 +363,7 @@ class SparkBackend(
       tmpdir,
       localTmpdir,
       this,
+      references.toMap,
       fs,
       region,
       timer,
@@ -385,6 +375,7 @@ class SparkBackend(
           ExecutionCache.forTesting
       },
       new IrMetadata(),
+      ImmutableMap.empty,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
@@ -393,6 +384,7 @@ class SparkBackend(
         tmpdir,
         localTmpdir,
         this,
+        references.toMap,
         fs,
         timer,
         null,
@@ -403,6 +395,7 @@ class SparkBackend(
             ExecutionCache.fromFlags(flags, fs, tmpdir)
         },
         new IrMetadata(),
+        bmCache,
       )(f)
     }
 
@@ -467,8 +460,8 @@ class SparkBackend(
   override def asSpark(op: String): SparkBackend = this
 
   def close(): Unit = {
-    SparkBackend.stop()
     longLifeTempFileManager.close()
+    SparkBackend.stop()
   }
 
   def startProgressBar(): Unit =

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
+import is.hail.expr.ir.defs.Str
 import is.hail.types.virtual.TInt32
 
 import org.testng.annotations.Test

@@ -5,7 +5,13 @@ import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir._
+import is.hail.expr.ir.{
+  bindIR, freshName, rangeIR, BindingEnv, BlockMatrixIR, Compilable, Env, Forall, IR, Interpret,
+  Pretty, TypeCheck,
+}
+import is.hail.expr.ir.defs.{
+  BlockMatrixCollect, Cast, MakeTuple, NDArrayRef, Ref, StreamMap, ToArray,
+}
 import is.hail.io.fs.FS
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -18,7 +24,6 @@ import org.apache.spark.sql.Row
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
-import sourcecode.Enclosing
 
 object HailSuite {
   val theHailClassLoader = TestUtils.theHailClassLoader
@@ -93,9 +98,6 @@ class HailSuite extends TestNGSuite {
     if (backend.sc.isStopped)
       throw new RuntimeException(s"method stopped spark context!")
   }
-
-  def withExecuteContext[T]()(f: ExecuteContext => T)(implicit E: Enclosing): T =
-    hc.sparkBackend("HailSuite.withExecuteContext").withExecuteContext(f)
 
   def assertEvalsTo(
     x: IR,

@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir
-import is.hail.expr.ir.In
+import is.hail.expr.ir.defs.In
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.virtual.{TBoolean, TInt32, TStruct}
 

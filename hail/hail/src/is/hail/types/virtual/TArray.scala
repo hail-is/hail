@@ -4,8 +4,6 @@ import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
 import is.hail.check.Gen
 
-import scala.reflect.{classTag, ClassTag}
-
 import org.json4s.jackson.JsonMethods
 
 final case class TArray(elementType: Type) extends TContainer {
@@ -50,8 +48,6 @@ final case class TArray(elementType: Type) extends TContainer {
 
   def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.iterableOrdering(elementType.ordering(sm), missingEqual)
-
-  override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     if (this == subtype)

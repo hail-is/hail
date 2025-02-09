@@ -17,7 +17,9 @@ import java.nio.file.Path
 
 import org.apache.http.entity.ByteArrayEntity
 import org.apache.http.entity.ContentType.APPLICATION_JSON
-import org.json4s.{CustomSerializer, DefaultFormats, Extraction, Formats, JInt, JObject, JString}
+import org.json4s.{
+  CustomSerializer, DefaultFormats, Extraction, Formats, JInt, JNull, JObject, JString,
+}
 import org.json4s.JsonAST.{JArray, JBool}
 import org.json4s.jackson.JsonMethods
 
@@ -32,6 +34,7 @@ case class JobGroupRequest(
   batch_id: Int,
   absolute_parent_id: Int,
   token: String,
+  cancel_after_n_failures: Option[Int] = None,
   attributes: Map[String, String] = Map.empty,
   jobs: IndexedSeq[JobRequest] = FastSeq(),
 )
@@ -55,9 +58,9 @@ case class JarUrl(url: String) extends JarSpec
 
 case class JobResources(
   preemptible: Boolean,
-  cpu: Option[String],
-  memory: Option[String],
-  storage: Option[String],
+  cpu: Option[String] = None,
+  memory: Option[String] = None,
+  storage: Option[String] = None,
 )
 
 case class CloudfuseConfig(
@@ -325,6 +328,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         JObject(
           "job_group_id" -> JInt(1), // job group id relative to the update
           "absolute_parent_id" -> JInt(jobGroup.absolute_parent_id),
+          "cancel_after_n_failures" -> jobGroup.cancel_after_n_failures.map(JInt(_)).getOrElse(
+            JNull
+          ),
           "attributes" -> Extraction.decompose(jobGroup.attributes),
         )
       )),

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.defs.{WritePartition, WriteValue}
 import is.hail.types.virtual.TVoid
 
 object IsPure {

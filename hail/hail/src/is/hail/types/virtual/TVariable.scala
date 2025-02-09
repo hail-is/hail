@@ -6,7 +6,6 @@ import is.hail.check.Gen
 import is.hail.types.Box
 
 import scala.collection.mutable
-import scala.reflect.ClassTag
 
 object TVariable {
   val condMap: Map[String, (Type) => Boolean] = Map(
@@ -72,9 +71,6 @@ final case class TVariable(name: String, cond: String = null) extends Type {
   }
 
   override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = ???
-
-  override def scalaClassTag: ClassTag[AnyRef] =
-    throw new RuntimeException("TVariable is not realizable")
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 
