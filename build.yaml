@@ -732,7 +732,7 @@ steps:
       # This was likely from running mill in server mode; mill main exits before
       # the jar has finished being written.
       time retry make shadowJar
-      if [ ! -f out/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -771,7 +771,7 @@ steps:
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -804,7 +804,7 @@ steps:
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowTestJar
-      if [ ! -f out/test/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/test/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -829,7 +829,7 @@ steps:
       cd /io/repo/hail
 
       time tar czf test.tar.gz -C python test pytest.ini
-      time tar czf resources.tar.gz -C src/test resources
+      time tar czf resources.tar.gz -C hail/test resources
       time tar czf data.tar.gz -C python/hail/docs data
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
@@ -864,7 +864,7 @@ steps:
 
       # See `build_hail_jar_and_wheel`
       time retry make shadowJar
-      if [ ! -f out/assembly.dest/out.jar ]; then
+      if [ ! -f out/hail/assembly.dest/out.jar ]; then
           echo 'no out.jar found after mill assembly returned. going to sleep'
           sleep 5
       fi
@@ -962,7 +962,7 @@ steps:
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       python3 -m hailtop.aiotools.copy 'null' '[
-      {"from": "src/test/resources",
+      {"from": "hail/test/resources",
        "to":   "{{ global.test_storage_uri }}/{{ token }}/test/resources"},
       {"from": "python/hail/docs/data",
        "to":   "{{ global.test_storage_uri }}/{{ token }}/doctest/data"}
@@ -973,8 +973,8 @@ steps:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
     inputs:
-      - from: /repo/hail/src/test/resources
-        to: /io/repo/hail/src/test/resources
+      - from: /repo/hail/hail/test/resources
+        to: /io/repo/hail/hail/test/resources
       - from: /repo/hail/python/hail/docs/data
         to: /io/repo/hail/python/hail/docs/data
     dependsOn:
@@ -993,15 +993,15 @@ steps:
     script: |
       set -ex
       cd /io
-      mkdir -p src/test
-      tar xzf resources.tar.gz -C src/test
+      mkdir -p hail/test
+      tar xzf resources.tar.gz -C hail/test
       tar xzf splits.tar.gz
       export HAIL_TEST_SKIP_R=1
       java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-$HAIL_RUN_IMAGE_SPLIT_INDEX.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /splits.tar.gz
         to: /io/splits.tar.gz
@@ -2445,7 +2445,7 @@ steps:
           valueFrom: default_ns.name
         mountPath: /batch-gsa-key
     inputs:
-      - from: /derived/release/hail/out/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
         to: /io/hail.jar
       - from: /git_version
         to: /io/git_version
@@ -3380,7 +3380,7 @@ steps:
       # #14452 - must build wheel with release `hailtop/hailctl/deploy.yaml`
       # use `-o` to prevent `mill` from rebuilding the "SHADOW_JAR"
       make upload-artifacts HAIL_RELEASE_MODE=1 DEPLOY_REMOTE=origin \
-        -o out/assembly.dest/out.jar
+        -o out/hail/assembly.dest/out.jar
 
       echo Setting arguments and invoking release.sh.
 
@@ -3409,8 +3409,8 @@ steps:
         to: /io/git_version
       - from: /repo
         to: /io/repo
-      - from: /derived/release/hail/out/assembly.dest/out.jar
-        to: /io/repo/hail/out/assembly.dest/out.jar
+      - from: /derived/release/hail/out/hail/assembly.dest/out.jar
+        to: /io/repo/hail/out/hail/assembly.dest/out.jar
       - from: /azure-wheel
         to: /io/azure-wheel
       - from: /www.tar.gz
@@ -3702,7 +3702,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-fs.xml
         to: /io/testng-fs.xml
@@ -3744,7 +3744,7 @@ steps:
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
-      - from: /derived/debug/hail/out/test/assembly.dest/out.jar
+      - from: /derived/debug/hail/out/hail/test/assembly.dest/out.jar
         to: /io/hail-test.jar
       - from: /repo/hail/testng-services.xml
         to: /io/testng-services.xml
