@@ -7096,7 +7096,7 @@ def query_matrix_table_rows(path, point_or_interval, entries_name='entries_array
         Point or interval to query.
     entries_name : :class:`str`
         Identifier to use for the localized entries array. Must not conflict
-        with any row field identifiers.
+        with any row field identifiers. Defaults to ``entries_array``.
 
     Returns
     -------

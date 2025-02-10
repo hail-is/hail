@@ -1496,16 +1496,6 @@ case class PartitionZippedNativeReader(left: PartitionReader, right: PartitionRe
   }
 }
 
-private[this] class PartitionEntriesNativeIntervalReader(
-  sm: HailStateManager,
-  entriesPath: String,
-  entriesSpec: AbstractTableSpec,
-  uidFieldName: String,
-  rowsTableSpec: AbstractTableSpec,
-) extends PartitionNativeIntervalReader(sm, entriesPath, entriesSpec, uidFieldName) {
-  override lazy val partitioner = rowsTableSpec.rowsSpec.partitioner(sm)
-}
-
 case class PartitionZippedNativeIntervalReader(
   sm: HailStateManager,
   mtPath: String,
@@ -1513,6 +1503,16 @@ case class PartitionZippedNativeIntervalReader(
   uidFieldName: String,
 ) extends PartitionReader {
   require(mtSpec.indexed)
+
+  private[this] class PartitionEntriesNativeIntervalReader(
+    sm: HailStateManager,
+    entriesPath: String,
+    entriesSpec: AbstractTableSpec,
+    uidFieldName: String,
+    rowsTableSpec: AbstractTableSpec,
+  ) extends PartitionNativeIntervalReader(sm, entriesPath, entriesSpec, uidFieldName) {
+    override lazy val partitioner = rowsTableSpec.rowsSpec.partitioner(sm)
+  }
 
   // XXX: rows and entries paths are hardcoded, see MatrixTableSpec
   private lazy val rowsReader =
