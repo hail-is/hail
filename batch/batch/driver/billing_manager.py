@@ -116,8 +116,7 @@ class CloudBillingManager(abc.ABC):
                         f'version {current_product_version}: {current_sku} vs {latest_sku}; '
                         f'did the sku change without a product change?'
                     )
-
-                if have_latest_version and not have_latest_rate:
+                elif have_latest_version and not have_latest_rate:
                     log.error(
                         f'product {product} does not have the latest rate in the database for '
                         f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '
