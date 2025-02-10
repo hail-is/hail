@@ -123,7 +123,7 @@ def web_security_headers(fun):
 
 
 def web_security_headers_unpkg(fun):
-    return web_security_header_generator(fun, extra_script='\'unpkg.com\'', extra_style='unpkg.com')
+    return web_security_header_generator(fun, extra_script='unpkg.com', extra_style='unpkg.com')
 
 
 def web_security_headers_unsafe_eval(fun):
