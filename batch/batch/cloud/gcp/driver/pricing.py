@@ -188,6 +188,8 @@ def instance_family_from_sku(sku: dict) -> Optional[str]:
 
 def accelerator_from_sku(sku) -> Optional[str]:
     description = sku['description']
+    if 'DWS Defined Duration' in description:
+        return None
     if description.startswith("Nvidia L4 GPU"):
         return 'l4'
     if description.startswith("Nvidia Tesla A100 GPU"):
