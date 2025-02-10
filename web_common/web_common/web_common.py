@@ -122,15 +122,17 @@ def web_security_headers(fun):
     return web_security_header_generator(fun)
 
 
-def web_security_headers_unpkg(fun):
-    return web_security_header_generator(fun, extra_script='unpkg.com', extra_style='unpkg.com')
+def web_security_headers_swagger(fun):
+    return web_security_header_generator(
+        fun, extra_script='unpkg.com', extra_style='unpkg.com', extra_img='validator.swagger.io'
+    )
 
 
 def web_security_headers_unsafe_eval(fun):
     return web_security_header_generator(fun, extra_script='\'unsafe-eval\'')
 
 
-def web_security_header_generator(fun, extra_script: str = '', extra_style: str = ''):
+def web_security_header_generator(fun, extra_script: str = '', extra_style: str = '', extra_img: str = ''):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
@@ -140,10 +142,11 @@ def web_security_header_generator(fun, extra_script: str = '', extra_style: str 
         style_src = f'style-src \'self\' \'unsafe-inline\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
         font_src = 'font-src \'self\' fonts.gstatic.com;'
         script_src = f'script-src \'self\' \'unsafe-inline\' {extra_script} cdn.jsdelivr.net cdn.plot.ly;'
+        img_src = f'img-src \'self\' {extra_img};'
         frame_ancestors = 'frame-ancestors \'self\';'
 
         response.headers['Content-Security-Policy'] = (
-            f'{default_src} {font_src} {style_src} {script_src} {frame_ancestors}'
+            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors}'
         )
         return response
 

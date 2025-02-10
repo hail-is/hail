@@ -77,7 +77,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
-    web_security_headers_unpkg,
+    web_security_headers_swagger,
     web_security_headers_unsafe_eval,
 )
 
@@ -3482,7 +3482,7 @@ async def index(request: web.Request, _) -> NoReturn:
 
 
 @routes.get('/swagger')
-@web_security_headers_unpkg
+@web_security_headers_swagger
 async def swagger(request):
     page_context = {'service': 'batch', 'base_path': deploy_config.base_path('batch')}
     return await render_template('batch', request, None, 'swagger.html', page_context)
