@@ -7,7 +7,11 @@ from hailtop.auth import session_id_encode_to_str
 from .database import Database
 
 # Default value: 86400 seconds (1 day)
-MAX_AGE_SECS = os.environ.get("SESSION_MAX_AGE_SECS", 86400)
+MAX_AGE_SECS = os.environ.get("SESSION_MAX_AGE_SECS", "86400")
+try:
+    MAX_AGE_SECS = int(MAX_AGE_SECS)
+except:
+    raise ValueError("Unable to interpret SESSION_MAX_AGE_SECS as an integer.")
 
 
 async def insert_user(db, spec):
