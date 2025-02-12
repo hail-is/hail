@@ -12,7 +12,7 @@ from typing_extensions import Self
 import hailtop.batch_client.client as bc
 from hailtop.batch.resource import PythonResult, Resource, ResourceFile, ResourceGroup, ResourceType
 
-from . import backend, batch  # pylint: disable=cyclic-import
+from . import backend, batch, job_group  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 
 
@@ -63,6 +63,7 @@ class Job:
     def __init__(
         self,
         batch: 'batch.Batch',
+        job_group: 'job_group.JobGroup',
         token: str,
         *,
         name: Optional[str] = None,
@@ -70,6 +71,8 @@ class Job:
         shell: Optional[str] = None,
     ):
         self._batch = batch
+        self._job_group = job_group
+
         self._shell = shell
         self._token = token
 
@@ -727,13 +730,14 @@ class BashJob(Job):
     def __init__(
         self,
         batch: 'batch.Batch',
+        job_group: 'job_group.JobGroup',
         token: str,
         *,
         name: Optional[str] = None,
         attributes: Optional[Dict[str, str]] = None,
         shell: Optional[str] = None,
     ):
-        super().__init__(batch, token, name=name, attributes=attributes, shell=shell)
+        super().__init__(batch, job_group, token, name=name, attributes=attributes, shell=shell)
         self._command: List[str] = []
 
     def declare_resource_group(self, **mappings: Dict[str, Any]) -> 'BashJob':
@@ -981,12 +985,13 @@ class PythonJob(Job):
     def __init__(
         self,
         batch: 'batch.Batch',
+        job_group: 'job_group.JobGroup',
         token: str,
         *,
         name: Optional[str] = None,
         attributes: Optional[Dict[str, str]] = None,
     ):
-        super().__init__(batch, token, name=name, attributes=attributes, shell=None)
+        super().__init__(batch, job_group, token, name=name, attributes=attributes, shell=None)
         self._resources: Dict[str, Resource] = {}
         self._resources_inverse: Dict[Resource, str] = {}
         self._function_calls: List[Tuple[PythonResult, int, Tuple[UnpreparedArg, ...], Dict[str, UnpreparedArg]]] = []
