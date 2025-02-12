@@ -99,7 +99,7 @@ class CloudBillingManager(abc.ABC):
                 if any(update[0] == product for update in product_version_updates):
                     log.error(
                         f'resource {resource_name} is being added again under sku {latest_sku} at rate of'
-                        f' {latest_resource_rate}, but the resource is already part of the update set'
+                        f' {latest_resource_rate}, but the resource name is already part of the update set. Ignoring'
                     )
                 else:
                     resource_updates.append((resource_name, latest_resource_rate))
