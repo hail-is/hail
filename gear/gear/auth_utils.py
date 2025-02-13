@@ -10,8 +10,8 @@ from .database import Database
 MAX_AGE_SECS = os.environ.get("SESSION_MAX_AGE_SECS", "86400")
 try:
     MAX_AGE_SECS = int(MAX_AGE_SECS)
-except:
-    raise ValueError("Unable to interpret SESSION_MAX_AGE_SECS as an integer.")
+except Exception as exc:
+    raise ValueError("Unable to interpret SESSION_MAX_AGE_SECS as an integer.") from exc
 
 
 async def insert_user(db, spec):
