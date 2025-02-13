@@ -65,7 +65,7 @@ class Authenticator(abc.ABC):
                     if redirect or (redirect is None and '/api/' not in request.path):
                         raise login_redirect(request)
                     raise web.HTTPUnauthorized()
-                elif userdata['state'] == 'inactive':
+                if userdata['state'] == 'inactive':
                     raise web.HTTPUnauthorized(
                         text="Account is inactive. Please contact a Hail administrator to reactivate."
                     )
