@@ -45,13 +45,13 @@ package object ir {
 
   def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
     IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
-      case Some(f) => f(typeArgs, args, errorID)
+      case Some(f) => f(args, errorID)
       case None => fatal(
           s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt"
         )
     }
 
-  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR =
+  def invoke(name: String, rt: Type, typeArgs: Seq[Type], args: IR*): IR =
     invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =

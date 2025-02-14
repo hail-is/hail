@@ -4,7 +4,6 @@ import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
-import is.hail.expr.ir.defs.ApplyIR
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.StreamProducer
@@ -63,13 +62,6 @@ sealed trait IR extends BaseIR {
     case x: IR => x.size
     case _ => 0
   }.sum
-
-  private[this] def _unwrap: IR => IR = {
-    case node: ApplyIR => MapIR(_unwrap)(node.explicitNode)
-    case node => MapIR(_unwrap)(node)
-  }
-
-  def unwrap: IR = _unwrap(this)
 }
 
 package defs {
@@ -1063,12 +1055,30 @@ package defs {
     returnType: Type,
     errorID: Int,
   ) extends IR {
-    var conversion: (Seq[Type], Seq[IR], Int) => IR = _
-    var inline: Boolean = _
+    private var fetchedFromRegistry: Boolean = false
 
-    private lazy val refs = args.map(a => Ref(freshName(), a.typ)).toArray
-    lazy val body: IR = conversion(typeArgs, refs, errorID).deepCopy()
-    lazy val refIdx: Map[Name, Int] = refs.map(_.name).zipWithIndex.toMap
+    private def fetchFromRegistry(): Unit = {
+      val ((_, _, _, inline), impl) =
+        IRFunctionRegistry.lookupIR(function, typeArgs, args.map(_.typ)).get
+      _body = impl(typeArgs, refs, errorID).deepCopy()
+      _inline = inline
+      fetchedFromRegistry = true
+    }
+
+    private var _body: IR = _
+    private var _inline: Boolean = _
+
+    def inline: Boolean = {
+      if (!fetchedFromRegistry) fetchFromRegistry()
+      _inline
+    }
+
+    def body: IR = {
+      if (!fetchedFromRegistry) fetchFromRegistry()
+      _body
+    }
+
+    lazy val refs: IndexedSeq[Ref] = args.map(a => Ref(freshName(), a.typ)).toFastSeq
 
     lazy val explicitNode: IR = {
       val ir = Let(refs.map(_.name).zip(args), body)

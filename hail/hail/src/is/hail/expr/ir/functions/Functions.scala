@@ -34,6 +34,7 @@ object IRFunctionRegistry {
 
   type IRFunctionSignature = (Seq[Type], Seq[Type], Type, Boolean)
   type IRFunctionImplementation = (Seq[Type], Seq[IR], Int) => IR
+  type ConcreteIRFunctionImplementation = (Seq[IR], Int) => IR
 
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] =
     new mutable.HashMap()
@@ -149,7 +150,6 @@ object IRFunctionRegistry {
 
   def lookupIR(
     name: String,
-    returnType: Type,
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type],
   ): Option[(IRFunctionSignature, IRFunctionImplementation)] = {
@@ -178,7 +178,7 @@ object IRFunctionRegistry {
       }
 
   def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type])
-    : Option[IRFunctionImplementation] =
+    : Option[ConcreteIRFunctionImplementation] =
     lookupUnseeded(name, returnType, Array.empty[Type], arguments)
 
   def lookupUnseeded(
@@ -186,24 +186,20 @@ object IRFunctionRegistry {
     returnType: Type,
     typeParameters: Seq[Type],
     arguments: Seq[Type],
-  ): Option[IRFunctionImplementation] = {
-    val validIR: Option[IRFunctionImplementation] =
-      lookupIR(name, returnType, typeParameters, arguments).map {
-        case ((_, _, _, inline), conversion) => (typeParametersPassed, args, errorID) =>
-            val x = ApplyIR(name, typeParametersPassed, args, returnType, errorID)
-            x.conversion = conversion
-            x.inline = inline
-            x
+  ): Option[ConcreteIRFunctionImplementation] = {
+    val validIR: Option[ConcreteIRFunctionImplementation] =
+      lookupIR(name, typeParameters, arguments).map { _ => (args, errorID) =>
+        ApplyIR(name, typeParameters, args, returnType, errorID)
       }
 
     val validMethods = lookupFunction(name, returnType, typeParameters, arguments)
       .map { f =>
-        { (irValueParametersTypes: Seq[Type], irArguments: Seq[IR], errorID: Int) =>
+        { (irArguments: Seq[IR], errorID: Int) =>
           f match {
             case _: UnseededMissingnessObliviousJVMFunction =>
-              Apply(name, irValueParametersTypes, irArguments, f.returnType.subst(), errorID)
+              Apply(name, typeParameters, irArguments, returnType, errorID)
             case _: UnseededMissingnessAwareJVMFunction =>
-              ApplySpecial(name, irValueParametersTypes, irArguments, f.returnType.subst(), errorID)
+              ApplySpecial(name, typeParameters, irArguments, returnType, errorID)
           }
         }
       }
