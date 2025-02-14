@@ -382,6 +382,15 @@ install-editable: $(FAST_PYTHON_JAR) $(FAST_PYTHON_JAR_EXTRA_CLASSPATH)
 	hailctl config set query/backend spark
 	touch install-editable
 
+install-wout-jar: $(if ($(CURRENT_INSTALL),),,$(CURRENT_INSTALL)/hail/__init__.py)
+install-wout-jar: python/setup.py
+install-wout-jar: python/requirements.txt
+install-wout-jar: python/README.md
+install-wout-jar: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+	-$(PIP) uninstall -y hail
+	cd python && $(PIP) install .
+	touch install-wout-jar
+
 .PHONY: install-for-qob
 install-for-qob: upload-qob-jar install-editable
 	! [ -z $(NAMESPACE) ]  # call this like: make install-for-qob NAMESPACE=default
