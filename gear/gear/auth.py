@@ -75,7 +75,12 @@ class Authenticator(abc.ABC):
     def maybe_authenticated_user(self, fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
         @wraps(fun)
         async def wrapped(request: web.Request) -> web.StreamResponse:
-            return await fun(request, await self._fetch_userdata(request))
+            try:
+                userdata = await self._fetch_userdata(request)
+            except Exception as e:
+                log.warning('error fetching userdata', exc_info=e)
+                userdata = None
+            return await fun(request, userdata)
 
         return wrapped
 
