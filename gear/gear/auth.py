@@ -155,8 +155,7 @@ async def impersonate_user(session_id: str, client_session: httpx.ClientSession,
     try:
         return await retry_transient_errors(client_session.get_read_json, url, headers=headers)
     except aiohttp.ClientResponseError as err:
-        if err.status in (401, 403):
-            # Unauthorized or forbidden => no valid user to impersonate
+        if err.status == 401:
             return None
         raise
 
