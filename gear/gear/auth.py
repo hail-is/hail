@@ -75,7 +75,14 @@ class Authenticator(abc.ABC):
     def maybe_authenticated_user(self, fun: MaybeAuthenticatedAIOHTTPHandler) -> AIOHTTPHandler:
         @wraps(fun)
         async def wrapped(request: web.Request) -> web.StreamResponse:
-            return await fun(request, await self._fetch_userdata(request))
+            try:
+                userdata = await self._fetch_userdata(request)
+            except web.HTTPUnauthorized:
+                # Authorization problem against maybe_authenticated endpoint. This is most likely an expired session.
+                # Expired sessions are fine, and we need to allow access to endpoints for re-authentication.
+                # Therefore: treat this situation the same as 'no user / unauthenticated' and zero out userdata
+                userdata = None
+            return await fun(request, userdata)
 
         return wrapped
 
