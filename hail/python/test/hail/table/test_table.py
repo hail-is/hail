@@ -2624,99 +2624,113 @@ def test_order_by_desc():
     assert t._force_count() == 10_000
 
 
-def test_query_table():
-    f = new_temp_file(extension='ht')
+@pytest.fixture(scope="module")
+def query_table_table():
+    path = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
-    ht.annotate(s=hl.str(ht.idx)).write(f)
-
-    queries = [
-        hl.query_table(f, 50),
-        hl.query_table(f, hl.struct(idx=50)),
-        hl.query_table(f, 55),
-        hl.query_table(f, 5),
-        hl.query_table(f, -1),
-        hl.query_table(f, 205),
-        hl.query_table(f, hl.interval(27, 66)),
-        hl.query_table(f, hl.interval(276, 33333)),
-        hl.query_table(f, hl.interval(-22276, -5)),
-        hl.query_table(f, hl.interval(hl.struct(idx=27), hl.struct(idx=66))),
-        hl.query_table(f, hl.interval(40, 80, includes_end=True)),
-    ]
-
-    expected = [
-        [hl.Struct(idx=50, s='50')],
-        [hl.Struct(idx=50, s='50')],
-        [],
-        [],
-        [],
-        [],
-        [hl.Struct(idx=30, s='30'), hl.Struct(idx=40, s='40'), hl.Struct(idx=50, s='50'), hl.Struct(idx=60, s='60')],
-        [],
-        [],
-        [hl.Struct(idx=30, s='30'), hl.Struct(idx=40, s='40'), hl.Struct(idx=50, s='50'), hl.Struct(idx=60, s='60')],
-        [
-            hl.Struct(idx=40, s='40'),
-            hl.Struct(idx=50, s='50'),
-            hl.Struct(idx=60, s='60'),
-            hl.Struct(idx=70, s='70'),
-            hl.Struct(idx=80, s='80'),
-        ],
-    ]
-
-    assert hl.eval(queries) == expected
-
-    with pytest.raises(ValueError, match='query_table: key mismatch'):
-        hl.query_table(f, hl.interval('1', '2'))
-    with pytest.raises(ValueError, match='query_table: key mismatch: cannot query'):
-        hl.query_table(f, '1')
-    with pytest.raises(ValueError, match='query_table: cannot query with empty key'):
-        hl.query_table(f, hl.struct())
-    with pytest.raises(ValueError, match='query_table: queried with 2 key field'):
-        hl.query_table(f, hl.struct(idx=5, foo='s'))
+    ht.annotate(s=hl.str(ht.idx)).write(path)
+    return path
 
 
-def test_query_table_compound_key():
-    f = new_temp_file(extension='ht')
+def test_query_table_errors(query_table_table):
+    with pytest.raises(ValueError, match='key mismatch: cannot use'):
+        hl.query_table(query_table_table, hl.interval('1', '2'))
+    with pytest.raises(ValueError, match='key mismatch: cannot use'):
+        hl.query_table(query_table_table, '1')
+    with pytest.raises(ValueError, match='query point value cannot be an empty struct'):
+        hl.query_table(query_table_table, hl.struct())
+    with pytest.raises(ValueError, match='query point type has 2 field'):
+        hl.query_table(query_table_table, hl.struct(idx=5, foo='s'))
 
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        (50, [hl.Struct(idx=50, s='50')]),
+        (hl.struct(idx=50), [hl.Struct(idx=50, s='50')]),
+        (55, []),
+        (5, []),
+        (-1, []),
+        (205, []),
+        (
+            hl.interval(27, 66),
+            [
+                hl.Struct(idx=30, s='30'),
+                hl.Struct(idx=40, s='40'),
+                hl.Struct(idx=50, s='50'),
+                hl.Struct(idx=60, s='60'),
+            ],
+        ),
+        (hl.interval(276, 33333), []),
+        (hl.interval(-22276, -5), []),
+        (
+            hl.interval(hl.struct(idx=27), hl.struct(idx=66)),
+            [
+                hl.Struct(idx=30, s='30'),
+                hl.Struct(idx=40, s='40'),
+                hl.Struct(idx=50, s='50'),
+                hl.Struct(idx=60, s='60'),
+            ],
+        ),
+        (
+            hl.interval(40, 80, includes_end=True),
+            [
+                hl.Struct(idx=40, s='40'),
+                hl.Struct(idx=50, s='50'),
+                hl.Struct(idx=60, s='60'),
+                hl.Struct(idx=70, s='70'),
+                hl.Struct(idx=80, s='80'),
+            ],
+        ),
+    ],
+)
+def test_query_table(query_table_table, query, expected):
+    assert hl.eval(hl.query_table(query_table_table, query)) == expected
+
+
+@pytest.fixture(scope="module")
+def compound_key_table():
+    path = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
-    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(f)
-
-    queries = [
-        hl.query_table(f, 50),
-        hl.query_table(f, hl.struct(idx=50)),
-        hl.query_table(f, hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1))),
-    ]
-
-    expected = [[hl.Struct(idx=50, idx2=10, s='50')], [hl.Struct(idx=50, idx2=10, s='50')], []]
-    assert hl.eval(queries) == expected
+    ht.annotate(idx2=ht.idx % 20, s=hl.str(ht.idx)).key_by('idx', 'idx2').write(path)
+    return path
 
 
-@test_timeout(batch=5 * 60)
-def test_query_table_interval_key():
-    f = new_temp_file(extension='ht')
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        (50, [hl.Struct(idx=50, idx2=10, s='50')]),
+        (hl.struct(idx=50), [hl.Struct(idx=50, idx2=10, s='50')]),
+        (hl.interval(hl.struct(idx=50, idx2=11), hl.struct(idx=60, idx2=-1)), []),
+    ],
+)
+def test_query_table_compound_key(compound_key_table, query, expected):
+    assert hl.eval(hl.query_table(compound_key_table, query)) == expected
 
+
+@pytest.fixture(scope="module")
+def interval_key_table():
+    path = new_temp_file(extension='ht')
     ht = hl.utils.range_table(200, 10)
     ht = ht.filter(ht.idx % 10 == 0)
-
     ht = ht.key_by(interval=hl.interval(ht.idx, ht.idx + 50))
-    ht.write(f)
+    ht.write(path)
+    return path
 
-    queries = [
-        hl.query_table(f, hl.interval(20, 70)),
-        hl.query_table(f, hl.interval(20, 0)),
-        hl.query_table(f, hl.struct(interval=hl.interval(20, 0))),
-        hl.query_table(f, hl.interval(hl.interval(15, 10), hl.interval(20, 71))),
-    ]
 
-    expected = [
-        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
-        [],
-        [],
-        [hl.Struct(idx=20, interval=hl.Interval(20, 70))],
-    ]
-    assert hl.eval(queries) == expected
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        (hl.interval(20, 70), [hl.Struct(idx=20, interval=hl.Interval(20, 70))]),
+        (hl.interval(20, 0), []),
+        (hl.struct(interval=hl.interval(20, 0)), []),
+        (hl.interval(hl.interval(15, 10), hl.interval(20, 71)), [hl.Struct(idx=20, interval=hl.Interval(20, 70))]),
+    ],
+)
+def test_query_table_interval_key(interval_key_table, query, expected):
+    assert hl.eval(hl.query_table(interval_key_table, query)) == expected
 
 
 @test_timeout(600)  # with sufficient available cores should take <=60s
