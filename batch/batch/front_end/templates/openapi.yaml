@@ -1193,38 +1193,38 @@ paths:
                 type: object
   '/billing_limits/{billing_project}/edit':
     post:
-        summary: "Edit billing limits and return rendered result HTML, or (dev only) its supporting jinja context"
-        description: "Edit the billing limits of a billing project."
-        operationId: editBillingLimitsUI
-        tags:
-            - Billing Projects
-        parameters:
-            - name: billing_project
-              in: path
-              description: "The ID of the billing project."
-              required: true
-              schema:
-                  type: string
-            - name: x-hail-return-jinja-context
-              in: header
-              description: "Do not render, and instead return the jinja context json."
-              required: false
-              schema:
-                  type: boolean
-                  default: false
-                  example: true
-        requestBody:
+      summary: "Edit billing limits and return rendered result HTML, or (dev only) its supporting jinja context"
+      description: "Edit the billing limits of a billing project."
+      operationId: editBillingLimitsUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+              type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+            type: object
+      responses:
+        '200':
+          description: "Successfully edited the billing limits."
           content:
             application/json:
-                schema:
+              schema:
                 type: object
-        responses:
-          '200':
-            description: "Successfully edited the billing limits."
-            content:
-              application/json:
-                schema:
-                    type: object
   '/billing_projects':
     get:
       summary: "Billing projects page (UI)"
