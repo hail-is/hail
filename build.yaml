@@ -416,6 +416,9 @@ steps:
         script: /io/sql/change-username-collation.sql
       - name: add-hail-identity-uid
         script: /io/sql/add-hail-identity-uid.sql
+      - name: add-users-last-active
+        script: /io/sql/add-users-last-active.sql
+        online: true
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2346,9 +2349,6 @@ steps:
         online: true
       - name: fix-mark-job-complete-deadlocks
         script: /io/sql/fix-mark-job-complete-deadlocks.sql
-        online: true
-      - name: add-users-last-active
-        script: /io/sql/add-users-last-active.sql
         online: true
       - name: jobs-add-n-max-attempts
         script: /io/sql/jobs-add-n-max-attempts.sql
