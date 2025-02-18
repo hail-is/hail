@@ -829,7 +829,7 @@ object Interpret {
         val message_ = interpret(message).asInstanceOf[String]
         info(message_)
         interpret(result)
-      case ir @ ApplyIR(_, _, _, _, _) =>
+      case ir @ ApplyIR(_, _, _, _, _, _) =>
         interpret(ir.explicitNode, env, args)
       case ApplySpecial("lor", _, Seq(left_, right_), _, _) =>
         val left = interpret(left_)
@@ -862,14 +862,7 @@ object Interpret {
           val (rt, f) = functionMemo.getOrElseUpdate(
             ir, {
               val in = Ref(freshName(), argTuple.virtualType)
-              val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (_, i) =>
-                GetTupleElement(in, i)
-              }.toFastSeq
-              val newChildren = ir match {
-                case _: ApplySeeded => wrappedArgs :+ NA(TRNGState)
-                case _ => wrappedArgs
-              }
-              val wrappedIR = Copy(ir, newChildren)
+              val wrappedIR = ir.mapChildrenWithIndex { case (_, i) => GetTupleElement(in, i) }
 
               val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](
                 ctx,

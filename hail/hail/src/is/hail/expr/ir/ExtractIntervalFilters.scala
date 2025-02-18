@@ -841,7 +841,7 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         .restrict(keySet)
     case (IsNA(_), Seq(b: BoolValue)) => b.isNA.restrict(keySet)
     // collection contains
-    case (ApplyIR("contains", _, _, _, _), Seq(ConstantValue(collectionVal), queryVal))
+    case (ApplyIR("contains", _, _, _, _, _), Seq(ConstantValue(collectionVal), queryVal))
         if literalSizeOkay(collectionVal) =>
       if (collectionVal == null) {
         BoolValue.allNA(keySet)
