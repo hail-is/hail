@@ -6,6 +6,7 @@ import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir
 import is.hail.expr.ir._
+import is.hail.expr.ir.compile.CompileWithAggregators
 import is.hail.expr.ir.defs._
 import is.hail.io.BufferSpec
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
@@ -248,7 +249,7 @@ class Aggs(
 
   def deserialize(ctx: ExecuteContext, spec: BufferSpec)
     : ((HailClassLoader, HailTaskContext, Region, Array[Byte]) => Long) = {
-    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](
+    val (_, f) = CompileWithAggregators[AsmFunction1RegionUnit](
       ctx,
       states,
       FastSeq(),
@@ -269,7 +270,7 @@ class Aggs(
 
   def serialize(ctx: ExecuteContext, spec: BufferSpec)
     : (HailClassLoader, HailTaskContext, Region, Long) => Array[Byte] = {
-    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](
+    val (_, f) = CompileWithAggregators[AsmFunction1RegionUnit](
       ctx,
       states,
       FastSeq(),
@@ -306,7 +307,7 @@ class Aggs(
     : (() => (RegionPool, HailClassLoader, HailTaskContext)) => (
       (Array[Byte], Array[Byte]) => Array[Byte],
     ) = {
-    val (_, f) = ir.CompileWithAggregators[AsmFunction1RegionUnit](
+    val (_, f) = CompileWithAggregators[AsmFunction1RegionUnit](
       ctx,
       states ++ states,
       FastSeq(),

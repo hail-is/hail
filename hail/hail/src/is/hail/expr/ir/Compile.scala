@@ -14,10 +14,11 @@ import is.hail.types.physical.stypes.{
   PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType,
 }
 import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SStream}
-import is.hail.types.virtual.Type
 import is.hail.utils._
 
 import java.io.PrintWriter
+
+import sourcecode.Enclosing
 
 case class CodeCacheKey(
   aggSigs: IndexedSeq[AggStateSig],
@@ -33,8 +34,9 @@ case class CompiledFunction[T](
     (typ, f)
 }
 
-object Compile {
-  def apply[F: TypeInfo](
+object compile {
+
+  def Compile[F: TypeInfo](
     ctx: ExecuteContext,
     params: IndexedSeq[(Name, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
@@ -43,60 +45,18 @@ object Compile {
     optimize: Boolean = true,
     print: Option[PrintWriter] = None,
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) =
-    ctx.time {
-      val normalizedBody = NormalizeNames(ctx, body, allowFreeVariables = true)
-      val k =
-        CodeCacheKey(FastSeq[AggStateSig](), params.map { case (n, pt) => (n, pt) }, normalizedBody)
-      (ctx.backend.lookupOrCompileCachedFunction[F](k) {
+    Impl[F, AnyVal](
+      ctx,
+      params,
+      None,
+      expectedCodeParamTypes,
+      expectedCodeReturnType,
+      body,
+      optimize,
+      print,
+    )
 
-        var ir = body
-        ir = Subst(
-          ir,
-          BindingEnv(params
-            .zipWithIndex
-            .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }),
-        )
-        ir =
-          LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing(ctx)
-
-        TypeCheck(ctx, ir, BindingEnv.empty)
-
-        val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
-
-        val fb = EmitFunctionBuilder[F](
-          ctx,
-          "Compiled",
-          CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-            pt
-          },
-          returnParam,
-          Some("Emit.scala"),
-        )
-
-        /* { def visit(x: IR): Unit = { println(f"${ System.identityHashCode(x) }%08x ${
-         * x.getClass.getSimpleName } ${ x.pType }") Children(x).foreach { case c: IR => visit(c) }
-         * }
-         *
-         * visit(ir) } */
-
-        assert(
-          fb.mb.parameterTypeInfo == expectedCodeParamTypes,
-          s"expected $expectedCodeParamTypes, got ${fb.mb.parameterTypeInfo}",
-        )
-        assert(
-          fb.mb.returnTypeInfo == expectedCodeReturnType,
-          s"expected $expectedCodeReturnType, got ${fb.mb.returnTypeInfo}",
-        )
-
-        val emitContext = EmitContext.analyze(ctx, ir)
-        val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
-        CompiledFunction(rt, fb.resultWithIndex(print))
-      }).tuple
-    }
-}
-
-object CompileWithAggregators {
-  def apply[F: TypeInfo](
+  def CompileWithAggregators[F: TypeInfo](
     ctx: ExecuteContext,
     aggSigs: Array[AggStateSig],
     params: IndexedSeq[(Name, EmitParamType)],
@@ -104,60 +64,74 @@ object CompileWithAggregators {
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
+    print: Option[PrintWriter] = None,
   ): (
     Option[SingleCodeType],
-    (HailClassLoader, FS, HailTaskContext, Region) => (F with FunctionWithAggRegion),
+    (HailClassLoader, FS, HailTaskContext, Region) => F with FunctionWithAggRegion,
   ) =
+    Impl[F, FunctionWithAggRegion](
+      ctx,
+      params,
+      Some(aggSigs),
+      expectedCodeParamTypes,
+      expectedCodeReturnType,
+      body,
+      optimize,
+      print,
+    )
+
+  private[this] def Impl[F: TypeInfo, Mixin](
+    ctx: ExecuteContext,
+    params: IndexedSeq[(Name, EmitParamType)],
+    aggSigs: Option[Array[AggStateSig]],
+    expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
+    expectedCodeReturnType: TypeInfo[_],
+    body: IR,
+    optimize: Boolean,
+    print: Option[PrintWriter],
+  )(implicit
+    E: Enclosing,
+    N: sourcecode.Name,
+  ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F with Mixin) =
     ctx.time {
-      val normalizedBody =
-        NormalizeNames(ctx, body, allowFreeVariables = true)
-      val k = CodeCacheKey(aggSigs, params.map { case (n, pt) => (n, pt) }, normalizedBody)
-      (ctx.backend.lookupOrCompileCachedFunction[F with FunctionWithAggRegion](k) {
+      val normalizedBody = NormalizeNames(ctx, body, allowFreeVariables = true)
+      ctx.CodeCache.getOrElseUpdate(
+        CodeCacheKey(aggSigs.getOrElse(Array.empty).toFastSeq, params, normalizedBody), {
+          var ir = Subst(
+            body,
+            BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
+          )
+          ir = LoweringPipeline.compileLowerer(optimize)(ctx, ir).asInstanceOf[IR].noSharing(ctx)
+          TypeCheck(ctx, ir)
 
-        var ir = body
-        ir = Subst(
-          ir,
-          BindingEnv(params
-            .zipWithIndex
-            .foldLeft(Env.empty[IR]) { case (e, ((n, t), i)) => e.bind(n, In(i, t)) }),
-        )
-        ir =
-          LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing(ctx)
+          val fb = EmitFunctionBuilder[F](
+            ctx,
+            N.value,
+            CodeParamType(typeInfo[Region]) +: params.map(_._2),
+            CodeParamType(SingleCodeType.typeInfoFromType(ir.typ)),
+            Some("Emit.scala"),
+          )
 
-        TypeCheck(
-          ctx,
-          ir,
-          BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })),
-        )
+          /* { def visit(x: IR): Unit = { println(f"${ System.identityHashCode(x) }%08x ${
+           * x.getClass.getSimpleName } ${ x.pType }") Children(x).foreach { case c: IR => visit(c)
+           * } }
+           *
+           * visit(ir) } */
 
-        val fb = EmitFunctionBuilder[F](
-          ctx,
-          "CompiledWithAggs",
-          CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
-          SingleCodeType.typeInfoFromType(ir.typ),
-          Some("Emit.scala"),
-        )
+          assert(
+            fb.mb.parameterTypeInfo == expectedCodeParamTypes,
+            s"expected $expectedCodeParamTypes, got ${fb.mb.parameterTypeInfo}",
+          )
+          assert(
+            fb.mb.returnTypeInfo == expectedCodeReturnType,
+            s"expected $expectedCodeReturnType, got ${fb.mb.returnTypeInfo}",
+          )
 
-        /* { def visit(x: IR): Unit = { println(f"${ System.identityHashCode(x) }%08x ${
-         * x.getClass.getSimpleName } ${ x.pType }") Children(x).foreach { case c: IR => visit(c) }
-         * }
-         *
-         * visit(ir) } */
-
-        val emitContext = EmitContext.analyze(ctx, ir)
-        val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
-
-        val f = fb.resultWithIndex()
-        CompiledFunction(
-          rt,
-          f.asInstanceOf[(
-            HailClassLoader,
-            FS,
-            HailTaskContext,
-            Region,
-          ) => (F with FunctionWithAggRegion)],
-        )
-      }).tuple
+          val emitContext = EmitContext.analyze(ctx, ir)
+          val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, aggSigs)
+          CompiledFunction(rt, fb.resultWithIndex(print))
+        },
+      ).asInstanceOf[CompiledFunction[F with Mixin]].tuple
     }
 }
 

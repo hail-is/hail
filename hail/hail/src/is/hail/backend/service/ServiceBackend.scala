@@ -6,9 +6,10 @@ import is.hail.asm4s._
 import is.hail.backend._
 import is.hail.expr.Validate
 import is.hail.expr.ir.{
-  Compile, IR, IRParser, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
+  IR, IRParser, IRSize, LoweringAnalyses, SortField, TableIR, TableReader, TypeCheck,
 }
 import is.hail.expr.ir.analyses.SemanticHash
+import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.MakeTuple
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.lowering._
@@ -51,7 +52,6 @@ class ServiceBackendContext(
 ) extends BackendContext with Serializable {}
 
 object ServiceBackend {
-  private val log = Logger.getLogger(getClass.getName())
 
   def apply(
     jarLocation: String,
@@ -130,8 +130,7 @@ class ServiceBackend(
   val fs: FS,
   val serviceBackendContext: ServiceBackendContext,
   val scratchDir: String,
-) extends Backend with BackendWithNoCodeCache {
-  import ServiceBackend.log
+) extends Backend with Logging {
 
   private[this] var stageCount = 0
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 1000
@@ -399,6 +398,7 @@ class ServiceBackend(
         serviceBackendContext,
         new IrMetadata(),
         ImmutableMap.empty,
+        mutable.Map.empty,
       )(f)
     }
 

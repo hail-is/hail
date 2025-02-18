@@ -4,6 +4,7 @@ import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
+import is.hail.expr.ir.{CodeCacheKey, CompiledFunction}
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
 import is.hail.linalg.BlockMatrix
@@ -73,6 +74,7 @@ object ExecuteContext {
     backendContext: BackendContext,
     irMetadata: IrMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix],
+    codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
   )(
     f: ExecuteContext => T
   ): T = {
@@ -92,6 +94,7 @@ object ExecuteContext {
           backendContext,
           irMetadata,
           blockMatrixCache,
+          codeCache,
         ))(f(_))
       }
     }
@@ -122,6 +125,7 @@ class ExecuteContext(
   val backendContext: BackendContext,
   val irMetadata: IrMetadata,
   val BlockMatrixCache: mutable.Map[String, BlockMatrix],
+  val CodeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -189,6 +193,7 @@ class ExecuteContext(
     backendContext: BackendContext = this.backendContext,
     irMetadata: IrMetadata = this.irMetadata,
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
+    codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]] = this.CodeCache,
   )(
     f: ExecuteContext => A
   ): A =
@@ -206,5 +211,6 @@ class ExecuteContext(
       backendContext,
       irMetadata,
       blockMatrixCache,
+      codeCache,
     ))(f)
 }
