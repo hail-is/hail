@@ -724,7 +724,7 @@ async def _activate_user(db: Database, username: str, id: Optional[str]):
     n_rows = await db.execute_update(
         f"""
 UPDATE users
-SET state = 'active', last_activated = NOW()
+SET state = 'active', last_activated = CURRENT_TIMESTAMP(3)
 WHERE {' AND '.join(where_conditions)};
 """,
         where_args,
@@ -937,7 +937,7 @@ WHERE (users.state = 'active' OR users.state = 'inactive') AND sessions.session_
         await db.execute_update(
             """
 UPDATE users
-SET last_activated = UTC_TIMESTAMP(3)
+SET last_activated = CURRENT_TIMESTAMP(3)
 WHERE id = %s;
 """,
             current_uid,
