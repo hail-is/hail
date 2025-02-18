@@ -2,6 +2,7 @@ import builtins
 import functools
 import itertools
 import operator
+import os.path
 from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
 import numpy as np
@@ -7069,6 +7070,69 @@ def query_table(path, point_or_interval):
         indices=partition_interval._indices,
         aggregations=partition_interval._aggregations,
     )
+
+
+@typecheck(path=builtins.str, point_or_interval=expr_any, entries_name=builtins.str)
+def query_matrix_table_rows(path, point_or_interval, entries_name='entries_array'):
+    """Query row records from a matrix table corresponding to a given point or
+    range of row keys. The entry fields are localized as an array of structs as
+    in :meth:`.MatrixTable.localize_entries`.
+
+    Notes
+    -----
+    This function does not dispatch to a distributed runtime; it can be used inside
+    already-distributed queries such as in :meth:`.Table.annotate`.
+
+    Warning
+    -------
+    This function contains no safeguards against reading large amounts of data
+    using a single thread.
+
+    Parameters
+    ----------
+    path : :class:`str`
+        Table path.
+    point_or_interval
+        Point or interval to query.
+    entries_name : :class:`str`
+        Identifier to use for the localized entries array. Must not conflict
+        with any row field identifiers. Defaults to ``entries_array``.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    matrix_table = hl.read_matrix_table(path)
+    if entries_name in matrix_table.row:
+        raise ValueError(
+            f'field "{entries_name}" is present in matrix table row fields, use a different `entries_name`'
+        )
+    entries_table = hl.read_table(os.path.join(path, 'entries'))
+    [entry_id] = list(entries_table.row)
+
+    full_row_type = tstruct(**matrix_table.row.dtype, **entries_table.row.dtype)
+    key_typ = matrix_table.row_key.dtype
+
+    if point_or_interval.dtype != key_typ[0] and isinstance(point_or_interval.dtype, hl.tinterval):
+        partition_interval = hl.interval(
+            start=__validate_and_coerce_endpoint(point_or_interval.start, key_typ),
+            end=__validate_and_coerce_endpoint(point_or_interval.end, key_typ),
+            includes_start=point_or_interval.includes_start,
+            includes_end=point_or_interval.includes_end,
+        )
+    else:
+        point = __validate_and_coerce_endpoint(point_or_interval, key_typ)
+        partition_interval = hl.interval(start=point, end=point, includes_start=True, includes_end=True)
+    read_part_ir = ir.ReadPartition(
+        partition_interval._ir, reader=ir.PartitionZippedNativeIntervalReader(path, full_row_type)
+    )
+    stream_expr = construct_expr(
+        read_part_ir,
+        type=hl.tstream(full_row_type),
+        indices=partition_interval._indices,
+        aggregations=partition_interval._aggregations,
+    )
+    return stream_expr.map(lambda item: item.rename({entry_id: entries_name})).to_array()
 
 
 @typecheck(msg=expr_str, result=expr_any)
