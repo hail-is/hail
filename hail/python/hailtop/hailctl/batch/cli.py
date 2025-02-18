@@ -1,15 +1,16 @@
 import asyncio
-import json
 from enum import Enum
 from typing import Annotated as Ann
 from typing import Any, Dict, List, Optional, cast
 
+import orjson
 import typer
 from typer import Argument as Arg
 from typer import Option as Opt
 
+from hailtop import __pip_version__
+
 from . import billing, list_batches
-from . import submit as _submit
 from .batch_cli_utils import (
     ExtendedOutputFormat,
     ExtendedOutputFormatOption,
@@ -131,7 +132,7 @@ def wait(
         quiet = quiet or output != StructuredFormatPlusText.TEXT
         out = batch.wait(disable_progress_bar=quiet)
         if output == StructuredFormatPlusText.JSON:
-            print(json.dumps(out))
+            print(orjson.dumps(out).decode('utf-8'))
         else:
             print(out)
 
@@ -155,31 +156,120 @@ def job(batch_id: int, job_id: int, output: StructuredFormatOption = StructuredF
             print(f"Job with ID {job_id} on batch {batch_id} not found")
 
 
-@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
-def submit(
-    ctx: typer.Context,
-    script: str,
-    arguments: Ann[
-        Optional[List[str]], Arg(help='You should use -- if you want to pass option-like arguments through.')
-    ] = None,
-    files: Ann[
-        Optional[List[str]], Opt(help='Files or directories to add to the working directory of the job.')
-    ] = None,
-    name: Ann[str, Opt(help='The name of the batch.')] = '',
-    image_name: Ann[Optional[str], Opt(help='Name of Docker image for the job (default: hailgenetics/hail)')] = None,
-    output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
-):
-    """Submit a batch with a single job that runs SCRIPT with the arguments ARGUMENTS.
-
-    If you wish to pass option-like arguments you should use "--". For example:
-
-
-
-    $ hailctl batch submit --image-name docker.io/image my_script.py -- some-argument --animal dog
-    """
-    asyncio.run(_submit.submit(name, image_name, files or [], output, script, [*(arguments or []), *ctx.args]))
-
-
 @app.command('init', help='Initialize a Hail Batch environment.')
 def initialize(verbose: Ann[bool, Opt('--verbose', '-v', help='Print gcloud commands being executed')] = False):
     asyncio.run(async_basic_initialize(verbose=verbose))
+
+
+@app.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
+def submit(
+    ctx: typer.Context,
+    script: Ann[str, Arg(help='File to execute', show_default=False)],
+    name: Ann[str, Opt(help='The name of the batch.')] = '',
+    image: Ann[
+        Optional[str],
+        Opt(help='Name of Docker image for the job', show_default=f'hailgenetics/hail:{__pip_version__}'),
+    ] = None,
+    arguments: Ann[
+        Optional[List[str]],
+        Arg(help='You should use -- if you want to pass option-like arguments through.'),
+    ] = None,
+    files: Ann[
+        Optional[List[str]],
+        Opt(help='Extra files or folders to add to the working directory of the job.'),
+    ] = None,
+    output: StructuredFormatPlusTextOption = StructuredFormatPlusText.TEXT,
+    wait: Ann[bool, Opt(help='Wait for the batch to complete.')] = False,
+):
+    """Submit a batch with a single job that runs SCRIPT, optionally with ARGUMENTS.
+
+    Use '--' to pass additional arguments and switches to SCRIPT:
+
+    $ hailctl batch submit [OPTIONS] SCRIPT [-- ARGUMENTS]
+
+
+
+    Specify a docker image to use for the job:
+
+    $ hailctl batch submit SCRIPT --image docker.io/image
+
+
+
+    Specify the name of the batch to submit:
+
+    $ hailctl batch submit SCRIPT --name my-batch
+
+
+
+    Add additional files to your job using the --files SRC[:DST] option as follows:
+
+
+
+    Copy a local file or folder into the working directory of the job:
+
+    $ hailctl batch submit SCRIPT --files a-file-or-folder
+
+
+
+    Copy the local working directory to the working directory of the job:
+
+    $ hailctl batch submit --files .
+
+    $ hailctl batch submit --files .:.
+
+
+
+    Copy a local file or folder DRC to an absolute path or a path relative to the job's working directory:
+
+    $ hailctl batch submit SCRIPT --files src:dst
+
+
+
+    Copy a local file or folder to DST, using environment variables in the SRC path
+
+    $ hailctl batch submit SCRIPT --files "${HOME}/foo":dst
+
+
+
+    Copy the result of globbing a local folder SRC with PATTERN into DST on the worker:
+
+    $ hailctl batch submit SCRIPT --files src/[pattern]:dst
+
+
+
+    Notes
+
+    -----
+
+    SCRIPTs ending in '.py' will be invoked with `python3`, or as an executable otherwise.
+
+
+
+    Relative DST paths are relative to the worker's working directory
+
+
+
+    If DST does not exist, SRC will be copied to DST, otherwise
+
+    If DST is a file, DST will be overwritten by SRC if SRC is a file, otherwise
+
+    If DST is a folder, SRC will be copied into DST as DST/$(basename SRC), otherwise
+
+    An error will be raised.
+
+
+
+    Environment variables are permitted in SRC paths only
+
+
+
+    Recursive glob patterns are not supported
+    """
+    from .submit import HailctlBatchSubmitError  # pylint: disable=import-outside-toplevel
+    from .submit import submit as _submit  # pylint: disable=import-outside-toplevel
+
+    try:
+        asyncio.run(_submit(name, image, files or [], output, script, [*(arguments or []), *ctx.args], wait))
+    except HailctlBatchSubmitError as err:
+        print(err.message)
+        raise typer.Exit(err.exit_code)
