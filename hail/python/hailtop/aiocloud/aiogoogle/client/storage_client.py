@@ -3,6 +3,7 @@ import datetime
 import logging
 import os
 import urllib.parse
+import warnings
 from contextlib import AsyncExitStack
 from types import TracebackType
 from typing import Any, AsyncIterator, Callable, Coroutine, Dict, List, MutableMapping, Optional, Set, Tuple, Type, cast
@@ -52,19 +53,31 @@ class PageIterator:
         return self
 
     async def __anext__(self):
+        import hailtop.httpx  # pylint: disable=import-outside-toplevel,cyclic-import
+
         if self._page is None:
             assert 'pageToken' not in self._request_params
-            self._page = await retry_transient_errors(
-                self._client.get, self._path, params=self._request_params, **self._request_kwargs
-            )
+            try:
+                self._page = await retry_transient_errors(
+                    self._client.get, self._path, params=self._request_params, **self._request_kwargs
+                )
+            except hailtop.httpx.ClientResponseError as e:
+                if e.status == 403 and 'does not have storage.objects.list access' in e.message:
+                    warnings.warn(f'ignoring error {e.status}: {e.message}')
+                    raise NotADirectoryError
             return self._page
 
         next_page_token = self._page.get('nextPageToken')
         if next_page_token is not None:
             self._request_params['pageToken'] = next_page_token
-            self._page = await retry_transient_errors(
-                self._client.get, self._path, params=self._request_params, **self._request_kwargs
-            )
+            try:
+                self._page = await retry_transient_errors(
+                    self._client.get, self._path, params=self._request_params, **self._request_kwargs
+                )
+            except hailtop.httpx.ClientResponseError as e:
+                if e.status == 403 and 'does not have storage.objects.list access' in e.message:
+                    warnings.warn(f'ignoring error {e.status}: {e.message}')
+                    raise NotADirectoryError
             return self._page
 
         raise StopAsyncIteration
