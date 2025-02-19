@@ -13,7 +13,6 @@ import hailtop.batch_client.client as bc
 from hailtop.batch.resource import PythonResult, Resource, ResourceFile, ResourceGroup, ResourceType
 
 from . import backend, batch  # pylint: disable=cyclic-import
-from .cloud.gcp.resource_utils import GPUConfig
 from .exceptions import BatchException
 
 
@@ -78,7 +77,6 @@ class Job:
         self.attributes = attributes
 
         self._cpu: Optional[str] = None
-        self._gpu: Optional[str] = None
         self._memory: Optional[str] = None
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
@@ -86,7 +84,6 @@ class Job:
         self._n_max_attempts: int = 20
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
-        self._machine_family: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._cloudfuse: List[Tuple[str, str, bool]] = []
         self._always_copy_output: bool = False
@@ -323,14 +320,6 @@ class Job:
         """
 
         self._cpu = opt_str(cores)
-        return self
-
-    def gpu(self, num_gpus, gpu_type) -> Self:
-        # machine_family = self._machine_family
-        # PLACEHOLDER FOR CHECKS TO MAKE SURE YOU'RE
-        # ACTUALLY ADDING A VALID GPU TO A COMPATIBLE
-        # MACHINE, CURRENT MACHINE DOESN'T HAVE A GPU, ETC.
-        self._gpu = opt_str(GPUConfig(num_gpus, gpu_type))
         return self
 
     def always_run(self, always_run: bool = True) -> Self:
