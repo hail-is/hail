@@ -160,15 +160,12 @@ object GenSupport {
   val plinkSafeChars = (0 to 127).map(_.toChar)
     .filter(c => c.isLetterOrDigit)
 
-
   private def sampleBetaBinomial(rng: RandomDataGenerator, n: Int, alpha: Double, beta: Double)
     : Int =
     rng.nextBinomial(n, rng.nextBeta(alpha, beta))
 
   def nextBetaBinomial(n: Int, alpha: Double, beta: Double): Gen[Int] =
-    Gen.apply { (p, s) =>
-      sampleBetaBinomial(p.rng, n, alpha, beta)
-    }
+    Gen.apply((p, s) => sampleBetaBinomial(p.rng, n, alpha, beta))
 
   def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
     Gen { (p: Parameters) =>

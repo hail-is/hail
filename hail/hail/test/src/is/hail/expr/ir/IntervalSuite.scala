@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils._
 import is.hail.expr.ir.defs.{
   ErrorIDs, False, GetTupleElement, I32, If, Literal, MakeTuple, NA, True,
 }
