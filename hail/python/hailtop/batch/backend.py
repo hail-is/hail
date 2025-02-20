@@ -712,10 +712,17 @@ class ServiceBackend(Backend[bc.Batch]):
 
         for job_group in batch._job_groups:
             if job_group._async_job_group is None:
-                job_group._async_job_group = async_batch.create_job_group(
-                    attributes=copy.deepcopy(job_group.attributes),
-                    cancel_after_n_failures=job_group.cancel_after_n_failures
-                )
+                parent_job_group = job_group._parent_job_group
+                if parent_job_group is None:
+                    job_group._async_job_group = async_batch.create_job_group(
+                        attributes=copy.deepcopy(job_group.attributes),
+                        cancel_after_n_failures=job_group.cancel_after_n_failures
+                    )
+                else:
+                    job_group._async_job_group = parent_job_group._async_job_group.create_job_group(
+                        attributes=copy.deepcopy(job_group.attributes),
+                        cancel_after_n_failures=job_group.cancel_after_n_failures
+                    )
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
