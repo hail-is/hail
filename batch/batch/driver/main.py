@@ -98,6 +98,12 @@ warnings.filterwarnings(
     module='aiomysql.*',
 )
 
+USER_TIMEOUT_DAYS = os.environ.get("INACTIVE_USER_TIMEOUT_DAYS", "60")
+try:
+    USER_TIMEOUT_DAYS = int(USER_TIMEOUT_DAYS)
+except Exception as exc:
+    raise ValueError("Unable to interpret INACTIVE_USER_TIMEOUT_DAYS as an integer.") from exc
+
 
 def instance_name_from_request(request):
     instance_name = request.headers.get('X-Hail-Instance-Name')
@@ -1643,12 +1649,15 @@ async def scheduling_cancelling_bump(app):
     app['cancel_running_state_changed'].set()
 
 
-async def update_inactive_users(db: Database):
-    await db.execute_update("""
+async def update_inactive_users(db: Database, user_timeout_days: int):
+    await db.execute_update(
+        """
 UPDATE users
 SET users.state = 'inactive'
-WHERE (users.state = 'active') AND (users.last_activated IS NOT NULL) AND (DATEDIFF(CURRENT_DATE(), users.last_activated) > 60);
-""")
+WHERE (users.state = 'active') AND (users.last_activated IS NOT NULL) AND (DATEDIFF(CURRENT_DATE(), users.last_activated) > %s);
+""",
+        (user_timeout_days,),
+    )
 
 
 Resource = namedtuple('Resource', ['resource_id', 'deduped_resource_id'])
@@ -1762,7 +1771,9 @@ SELECT instance_id, frozen FROM globals;
     task_manager.ensure_future(periodically_call(60, compact_agg_billing_project_users_by_date_table, app, db))
     task_manager.ensure_future(periodically_call(60, delete_committed_job_groups_inst_coll_staging_records, db))
     task_manager.ensure_future(periodically_call(60, delete_prev_cancelled_job_group_cancellable_resources_records, db))
-    task_manager.ensure_future(periodically_call(86400, update_inactive_users, db))  # 86400 seconds = 1 day
+    task_manager.ensure_future(
+        periodically_call(86400, update_inactive_users, db, USER_TIMEOUT_DAYS)
+    )  # 86400 seconds = 1 day
 
 
 async def on_cleanup(app):
