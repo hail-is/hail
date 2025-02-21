@@ -53,11 +53,9 @@
     </form>
   </div>
   <div class='w-full'>
-    <h1 class='text-2xl font-light mb-4'>Invalidate User Sessions</h1>
+    <h1 class='text-2xl font-light mb-4'>Invalidate All User Sessions</h1>
     <form action="{{ base_path }}/users/invalidate_all_sessions" method="POST">
       <div class='flex-col space-y-2'>
-        <p>Invalidating all user sessions will log out all users and force them to log back in to use the UI.</p>
-        <p>It will not impact jobs or batches which are already running.</p>
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
         <div class='flex justify-end'>
           {{ danger_button('Invalidate all user sessions') }}
