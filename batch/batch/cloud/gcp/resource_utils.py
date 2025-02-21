@@ -179,7 +179,7 @@ MACHINE_TYPE_TO_PARTS = {
         machine_family='n1',
         worker_type='highcpu',
     ),
-    'n1-highcpu-64-nvidia-tesla-nvidia-tesla-t4-1': MachineTypeParts(
+    'n1-highcpu-64-nvidia-tesla-t4-1': MachineTypeParts(
         cores=64,
         memory=mib_to_bytes(924 * 64),
         gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
