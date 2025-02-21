@@ -11,7 +11,7 @@
 {% endmacro %}
 
 {% block content %}
-<div class='w-full flex flex-col md:flex-row md:space-x-16 justify-between'>
+<div class='w-full md:w-2/5 flex flex-col md:flex-row md:space-x-16 justify-between'>
   <div>
     <h1 class='text-2xl font-light mb-4'>Create User</h1>
     <form action="{{ base_path }}/users" method="POST">
@@ -52,7 +52,7 @@
       </div>
     </form>
   </div>
-  <div class='w-full'>
+  <div>
     <h1 class='text-2xl font-light mb-4'>Invalidate All User Sessions</h1>
     <form action="{{ base_path }}/users/invalidate_all_sessions" method="POST">
       <div class='flex-col space-y-2'>
