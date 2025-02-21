@@ -91,6 +91,11 @@ class Authenticator(abc.ABC):
             @self.authenticated_users_only(redirect)
             @wraps(fun)
             async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
+                if not userdata:
+                    # Only web routes should redirect by default
+                    if redirect or (redirect is None and '/api/' not in request.path):
+                        raise login_redirect(request)
+                    raise web.HTTPUnauthorized()
                 if userdata['is_developer'] == 1:
                     return await fun(request, userdata, *args, **kwargs)
                 raise web.HTTPUnauthorized()
