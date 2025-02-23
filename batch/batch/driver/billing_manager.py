@@ -96,11 +96,17 @@ class CloudBillingManager(abc.ABC):
 
             if is_new_product:
                 resource_name = product_version_to_resource(product, latest_product_version)
-                resource_updates.append((resource_name, latest_resource_rate))
-                product_version_updates.append((product, latest_product_version, latest_sku))
-                log.info(
-                    f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate} and sku {latest_sku}'
-                )
+                if any(update[0] == product for update in product_version_updates):
+                    log.error(
+                        f'resource {resource_name} is being added again under sku {latest_sku} at rate of'
+                        f' {latest_resource_rate}, but the resource name is already part of the update set. Ignoring'
+                    )
+                else:
+                    resource_updates.append((resource_name, latest_resource_rate))
+                    product_version_updates.append((product, latest_product_version, latest_sku))
+                    log.info(
+                        f'adding new resource {resource_name} {latest_product_version} with rate change of {latest_resource_rate} and sku {latest_sku}'
+                    )
             else:
                 assert current_product_version
                 current_resource_name = product_version_to_resource(product, current_product_version)
@@ -116,8 +122,7 @@ class CloudBillingManager(abc.ABC):
                         f'version {current_product_version}: {current_sku} vs {latest_sku}; '
                         f'did the sku change without a product change?'
                     )
-
-                if have_latest_version and not have_latest_rate:
+                elif have_latest_version and not have_latest_rate:
                     log.error(
                         f'product {product} does not have the latest rate in the database for '
                         f'version {current_product_version}: {current_resource_rate} vs {latest_resource_rate}; '

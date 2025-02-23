@@ -117,28 +117,36 @@ def api_security_headers(fun):
 
 
 def web_security_headers(fun):
-    return web_security_header_generator(fun, False)
+    # Although this looks like a boring passthrough, we're explicitly not changing the optional parameters that
+    # would otherwise make the fun-wrapping via annotations behave funky.
+    return web_security_header_generator(fun)
+
+
+def web_security_headers_swagger(fun):
+    return web_security_header_generator(
+        fun, extra_script='unpkg.com', extra_style='unpkg.com', extra_img='validator.swagger.io'
+    )
 
 
 def web_security_headers_unsafe_eval(fun):
-    return web_security_header_generator(fun, True)
+    return web_security_header_generator(fun, extra_script='\'unsafe-eval\'')
 
 
-def web_security_header_generator(fun, unsafe_eval: bool):
+def web_security_header_generator(fun, extra_script: str = '', extra_style: str = '', extra_img: str = ''):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         response = await fun(request, *args, **kwargs)
         response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains;'
 
         default_src = 'default-src \'self\';'
-        style_src = 'style-src \'self\' \'unsafe-inline\' fonts.googleapis.com fonts.gstatic.com;'
+        style_src = f'style-src \'self\' \'unsafe-inline\' {extra_style} fonts.googleapis.com fonts.gstatic.com;'
         font_src = 'font-src \'self\' fonts.gstatic.com;'
-        unsafe_eval_maybe = '\'unsafe-eval\'' if unsafe_eval else ''
-        script_src = f'script-src \'self\' \'unsafe-inline\' {unsafe_eval_maybe} cdn.jsdelivr.net cdn.plot.ly;'
+        script_src = f'script-src \'self\' \'unsafe-inline\' {extra_script} cdn.jsdelivr.net cdn.plot.ly;'
+        img_src = f'img-src \'self\' {extra_img};'
         frame_ancestors = 'frame-ancestors \'self\';'
 
         response.headers['Content-Security-Policy'] = (
-            f'{default_src} {font_src} {style_src} {script_src} {frame_ancestors}'
+            f'{default_src} {font_src} {style_src} {script_src} {img_src} {frame_ancestors}'
         )
         return response
 
