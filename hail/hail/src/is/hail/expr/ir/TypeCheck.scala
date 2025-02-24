@@ -345,7 +345,7 @@ object TypeCheck {
         assert(key.forall(structType.hasField))
       case x @ StreamMap(a, _, body) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(x.elementTyp == body.typ)
+        assert(x.typ.elementType == body.typ)
       case x @ StreamZip(as, names, body, _, _) =>
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
@@ -546,7 +546,7 @@ object TypeCheck {
         assert(msg.typ == TString)
       case Trap(_) =>
       case ConsoleLog(msg, _) => assert(msg.typ == TString)
-      case ApplyIR(_, _, _, _, _) =>
+      case ApplyIR(_, _, _, _, _, _) =>
       case x: AbstractApplyNode[_] =>
         assert(x.implementation.unify(x.typeArgs, x.args.map(_.typ), x.returnType))
       case MatrixWrite(_, _) =>
