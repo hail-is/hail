@@ -5,8 +5,8 @@ import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{
   EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR,
-  IRParserEnvironment, LowerMatrixIR, MatrixHybridReader, MatrixReader,
-  PartitionNativeIntervalReader, TableNativeReader, TableReader,
+  LowerMatrixIR, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, TableNativeReader,
+  TableReader,
 }
 import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
@@ -361,8 +361,8 @@ object MatrixBGENReader {
     )
   }
 
-  def fromJValue(env: IRParserEnvironment, jv: JValue): MatrixBGENReader =
-    MatrixBGENReader(env.ctx, MatrixBGENReaderParameters.fromJValue(jv))
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixBGENReader =
+    MatrixBGENReader(ctx, MatrixBGENReaderParameters.fromJValue(jv))
 
   def apply(
     ctx: ExecuteContext,

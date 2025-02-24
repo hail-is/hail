@@ -78,11 +78,7 @@ object IRFunctionRegistry {
     val typeParameters = typeParamStrs.map(IRParser.parseType).toFastSeq
     val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastSeq
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
-    val body = IRParser.parse_value_ir(
-      bodyStr,
-      IRParserEnvironment(ctx, Map()),
-      refMap,
-    )
+    val body = IRParser.parse_value_ir(ctx, bodyStr, refMap)
 
     userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
     addIR(
