@@ -779,9 +779,9 @@ async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
 async def invalidate_all_sessions(request: web.Request, _) -> NoReturn:
     db = request.app[AppKeys.DB]
     await _invalidate_all_sessions(db)
-    # Redirect to the users page. The session of the user calling this will have just been deleted, so this will
+    # Redirect to the user page. The session of the user calling this will have just been deleted, so this will
     # allow the user to log back in.
-    raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    raise web.HTTPFound(deploy_config.external_url('auth', '/user'))
 
 
 @routes.post('/api/v1alpha/logout')
