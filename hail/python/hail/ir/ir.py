@@ -3510,6 +3510,37 @@ class PartitionNativeIntervalReader(PartitionReader):
         return tstruct(**self.table_row_type, **{self.uid_field: ttuple(tint64, tint64)})
 
 
+class PartitionZippedNativeIntervalReader(PartitionReader):
+    def __init__(self, path, full_row_type, uid_field=None):
+        self.path = path
+        self.full_row_type = full_row_type
+        self.uid_field = uid_field
+
+    def with_uid_field(self, uid_field):
+        return PartitionZippedNativeIntervalReader(path=self.path, uid_field=uid_field)
+
+    def render(self):
+        return escape_str(
+            json.dumps({
+                "name": "PartitionZippedNativeIntervalReader",
+                "path": self.path,
+                "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
+            })
+        )
+
+    def _eq(self, other):
+        return (
+            isinstance(other, PartitionZippedNativeIntervalReader)
+            and self.path == other.path
+            and self.uid_field == other.uid_field
+        )
+
+    def row_type(self):
+        if self.uid_field is None:
+            return self.full_row_type
+        return tstruct(**self.full_row_type, **{self.uid_field: ttuple(tint64, tint64)})
+
+
 class ReadPartition(IR):
     @typecheck_method(context=IR, reader=PartitionReader)
     def __init__(self, context, reader):
