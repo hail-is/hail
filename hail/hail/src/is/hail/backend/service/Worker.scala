@@ -98,6 +98,14 @@ object Worker {
     out.write(bytes)
   }
 
+  def writeException(out: DataOutputStream, e: Throwable): Unit = {
+    val (shortMessage, expandedMessage, errorId) = handleForPython(e)
+    out.writeBoolean(false)
+    writeString(out, shortMessage)
+    writeString(out, expandedMessage)
+    out.writeInt(errorId)
+  }
+
   def main(argv: Array[String]): Unit = {
     val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
@@ -219,12 +227,7 @@ object Worker {
             dos.writeBoolean(true)
             dos.write(bytes)
           case Left(throwableWhileExecutingUserCode) =>
-            val (shortMessage, expandedMessage, errorId) =
-              handleForPython(throwableWhileExecutingUserCode)
-            dos.writeBoolean(false)
-            writeString(dos, shortMessage)
-            writeString(dos, expandedMessage)
-            dos.writeInt(errorId)
+            writeException(dos, throwableWhileExecutingUserCode)
         }
       }
     }
