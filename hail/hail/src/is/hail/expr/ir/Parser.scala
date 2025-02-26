@@ -798,7 +798,7 @@ object IRParser {
 
   def apply_like(
     env: IRParserEnvironment,
-    cons: (String, Seq[Type], Seq[IR], Type, Int) => IR,
+    cons: (String, Seq[Type], IndexedSeq[IR], Type, Int) => IR,
   )(
     it: TokenIterator
   ): StackFrame[IR] = {
@@ -1397,7 +1397,7 @@ object IRParser {
           args <- ir_value_children(env)(it)
         } yield ApplySeeded(function, args, rngState, staticUID, rt)
       case "ApplyIR" =>
-        apply_like(env, ApplyIR)(it)
+        apply_like(env, ApplyIR.apply)(it)
       case "ApplySpecial" =>
         apply_like(env, ApplySpecial)(it)
       case "Apply" =>
