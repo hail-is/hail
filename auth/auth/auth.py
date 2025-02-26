@@ -660,7 +660,7 @@ WHERE {' AND '.join(where_conditions)};
 
 async def _invalidate_all_sessions(db: Database):
     await db.just_execute(
-        'DELETE s FROM sessions s ' 'JOIN users u ON s.user_id = u.id ' 'WHERE u.is_service_account = FALSE;'
+        'DELETE s FROM sessions s JOIN users u ON s.user_id = u.id WHERE u.is_service_account = FALSE;'
     )
 
 
