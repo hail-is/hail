@@ -33,11 +33,11 @@ abstract class BaseIR {
   // New sentinel values can be obtained by `nextFlag` on `IRMetadata`.
   var mark: Int = 0
 
-  def isAlphaEquiv(ctx: ExecuteContext, other: BaseIR): Boolean =
-    /* FIXME: rewrite to not rebuild the irs, by maintaining an env mapping left names to right
-     * names */
-    NormalizeNames(ctx, this, allowFreeVariables = true) ==
-      NormalizeNames(ctx, other, allowFreeVariables = true)
+  def isAlphaEquiv(ctx: ExecuteContext, other: BaseIR): Boolean = {
+    // FIXME: rewrite to not rebuild the irs by maintaining an env mapping left to right names
+    val normalize: (ExecuteContext, BaseIR) => BaseIR = NormalizeNames(allowFreeVariables = true)
+    normalize(ctx, this) == normalize(ctx, other)
+  }
 
   def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): BaseIR = {
     val newChildren = childrenSeq.view.zipWithIndex.map(f.tupled).toArray
