@@ -1,17 +1,16 @@
-package is.hail.check
+package is.hail.check.old
 
-import is.hail.check.Arbitrary.arbitrary
+import breeze.linalg.DenseMatrix
+import breeze.storage.Zero
 import is.hail.utils.roundWithConstantSum
+import org.apache.commons.math3.random._
+import org.scalacheck.Gen
 
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
 import scala.language.higherKinds
 import scala.math.Numeric.Implicits._
 import scala.reflect.ClassTag
-
-import breeze.linalg.DenseMatrix
-import breeze.storage.Zero
-import org.apache.commons.math3.random._
 
 object Parameters {
   val default = Parameters(new RandomDataGenerator(), 1000, 10)
@@ -25,7 +24,7 @@ case class Parameters(rng: RandomDataGenerator, size: Int, count: Int) {
   }
 }
 
-object Gen {
+object GenSupport {
 
   val nonExtremeDouble: Gen[Double] = oneOfGen(
     oneOf(1e30, -1.0, -1e-30, 0.0, 1e-30, 1.0, 1e30),
@@ -118,8 +117,8 @@ object Gen {
   }
 
   def partition(parts: Int, sum: Int): Gen[Array[Int]] =
-    Gen { p =>
-      partition(p.rng, sum, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
+    Gen.parameterized { p =>
+      partition(p, sum, parts, (rng: RandomDataGenerator, avail: Int) => rng.nextInt(0, avail))
     }
 
   def partition(parts: Int, sum: Long): Gen[Array[Long]] =
@@ -161,64 +160,15 @@ object Gen {
   val plinkSafeChars = (0 to 127).map(_.toChar)
     .filter(c => c.isLetterOrDigit)
 
-  def apply[T](gen: (Parameters) => T): Gen[T] = new Gen[T](gen)
-
-  def const[T](x: T): Gen[T] = Gen((p: Parameters) => x)
-
-  def coin(p: Double = 0.5): Gen[Boolean] = {
-    require(0.0 < p)
-    require(p < 1.0)
-    choose(0.0, 1.0).map(_ <= p)
-  }
-
-  def oneOfSeq[T](xs: Seq[T]): Gen[T] = {
-    assert(xs.nonEmpty)
-    Gen((p: Parameters) => xs(p.rng.getRandomGenerator.nextInt(xs.length)))
-  }
-
-  def oneOfGen[T](gs: Gen[T]*): Gen[T] = {
-    assert(gs.nonEmpty)
-    Gen((p: Parameters) => gs(p.rng.getRandomGenerator.nextInt(gs.length))(p))
-  }
-
-  def oneOf[T](xs: T*): Gen[T] = oneOfSeq(xs)
-
-  def choose(min: Int, max: Int): Gen[Int] = {
-    assert(max >= min)
-    Gen((p: Parameters) => p.rng.nextInt(min, max))
-  }
-
-  def choose(min: Long, max: Long): Gen[Long] = {
-    assert(max >= min)
-    Gen((p: Parameters) => p.rng.nextLong(min, max))
-  }
-
-  def choose(min: Float, max: Float): Gen[Float] = Gen { (p: Parameters) =>
-    p.rng.nextUniform(min, max, true).toFloat
-  }
-
-  def choose(min: Double, max: Double): Gen[Double] = Gen { (p: Parameters) =>
-    p.rng.nextUniform(min, max, true)
-  }
-
-  def gaussian(mu: Double, sigma: Double): Gen[Double] = Gen { (p: Parameters) =>
-    p.rng.nextGaussian(mu, sigma)
-  }
-
-  def nextBeta(alpha: Double, beta: Double): Gen[Double] = Gen { (p: Parameters) =>
-    p.rng.nextBeta(alpha, beta)
-  }
-
-  def nextCoin(p: Double) =
-    choose(0.0, 1.0).map(_ < p)
 
   private def sampleBetaBinomial(rng: RandomDataGenerator, n: Int, alpha: Double, beta: Double)
     : Int =
     rng.nextBinomial(n, rng.nextBeta(alpha, beta))
 
-  def nextBetaBinomial(n: Int, alpha: Double, beta: Double): Gen[Int] = Gen { p =>
-    sampleBetaBinomial(p.rng, n, alpha, beta)
-  }
+  def nextBetaBinomial(n: Int, alpha: Double, beta: Double): Gen[Int] =
+    Gen.apply { (p, s) =>
+      sampleBetaBinomial(p.rng, n, alpha, beta)
+    }
 
   def shuffle[T](is: IndexedSeq[T]): Gen[IndexedSeq[T]] = {
     Gen { (p: Parameters) =>
@@ -431,21 +381,6 @@ object Gen {
   def distinctBuildableOfAtLeast[C[_]] =
     distinctBuildableOfAtLeastInstance.asInstanceOf[DistinctBuildableOfAtLeast[C]]
 
-  sealed trait BuildableOfN[C[_]] {
-    def apply[T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
-      Gen { (p: Parameters) =>
-        val part = partitionDirichlet(p.rng, p.size, n)
-        val b = cbf()
-        for (i <- 0 until n)
-          b += g(p.copy(size = part(i)))
-        b.result()
-      }
-  }
-
-  private object buildableOfNInstance extends BuildableOfN[Nothing]
-
-  def buildableOfN[C[_]] = buildableOfNInstance.asInstanceOf[BuildableOfN[C]]
-
   sealed trait DistinctBuildableOfN[C[_]] {
     def apply[T](n: Int, g: Gen[T])(implicit cbf: CanBuildFrom[Nothing, T, C[T]]): Gen[C[T]] =
       Gen { (p: Parameters) =>
@@ -472,23 +407,17 @@ object Gen {
     is(rng.getRandomGenerator.nextInt(is.length))
   }
 
-  def identifier: Gen[String] =
-    identifierGen(identifierLeadingChars, identifierChars)
-
   def plinkSafeIdentifier: Gen[String] =
     identifierGen(plinkSafeStartOfIdentifierChars, plinkSafeChars)
 
   private def identifierGen(
     leadingCharacter: IndexedSeq[Char],
     trailingCharacters: IndexedSeq[Char],
-  ): Gen[String] = Gen { p =>
-    val s = 1 + p.rng.getRandomGenerator.nextInt(11)
-    val b = new StringBuilder()
-    b += randomOneOf(p.rng, leadingCharacter)
-    for (_ <- 1 until s)
-      b += randomOneOf(p.rng, trailingCharacters)
-    b.result()
-  }
+  ): Gen[String] =
+    for {
+      head <- sc.Gen.oneOf(leadingCharacter)
+      tail <- sc.Gen.someOf(trailingCharacters)
+    } yield (head + tail).mkString()
 
   def option[T](g: Gen[T], someFraction: Double = 0.8): Gen[Option[T]] = Gen { (p: Parameters) =>
     if (p.rng.getRandomGenerator.nextDouble < someFraction)
@@ -537,36 +466,9 @@ object Gen {
 
   def sized[T](f: (Int) => Gen[T]): Gen[T] = Gen((p: Parameters) => f(p.size)(p))
 
-  def applyGen[T, S](gf: Gen[(T) => S], gx: Gen[T]): Gen[S] = Gen { p =>
+  def applyGen[T, S](gf: Gen[T => S], gx: Gen[T]): Gen[S] = Gen { p =>
     val f = gf(p)
     val x = gx(p)
     f(x)
   }
-}
-
-class Gen[+T](val gen: (Parameters) => T) extends AnyVal {
-
-  def apply(p: Parameters): T = gen(p)
-
-  def sample(): T = apply(Parameters.default)
-
-  def map[U](f: (T) => U): Gen[U] = Gen(p => f(apply(p)))
-
-  def flatMap[U](f: (T) => Gen[U]): Gen[U] = Gen(p => f(apply(p))(p))
-
-  def resize(newSize: Int): Gen[T] = Gen((p: Parameters) => apply(p.copy(size = newSize)))
-
-  // FIXME should be non-strict
-  def withFilter(f: (T) => Boolean): Gen[T] = Gen { (p: Parameters) =>
-    var x = apply(p)
-    var i = 0
-    while (!f(x)) {
-      assert(i < 100)
-      x = apply(p)
-      i += 1
-    }
-    x
-  }
-
-  def filter(f: (T) => Boolean): Gen[T] = withFilter(f)
 }

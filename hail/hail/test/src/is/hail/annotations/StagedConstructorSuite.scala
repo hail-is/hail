@@ -2,7 +2,6 @@ package is.hail.annotations
 
 import is.hail.HailSuite
 import is.hail.asm4s._
-import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
@@ -10,11 +9,12 @@ import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt32Value
 import is.hail.types.virtual._
 import is.hail.utils._
-
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
+import org.scalacheck.Arbitrary.arbitrary
 
-class StagedConstructorSuite extends HailSuite {
+class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   val showRVInfo = true
 
@@ -482,12 +482,13 @@ class StagedConstructorSuite extends HailSuite {
   }
 
   @Test def testDeepCopy(): Unit = {
-    val g = Type.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
-      .filter { case (_, a) => a != null }
-      .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
+    val g = for {
+      tstruct <- arbitrary[TStruct]
+      struct <- genVal(tstruct)
+      if struct != null
+    } yield (PType.canonical(tstruct), struct)
 
-    val p = Prop.forAll(g) { case (t, a) =>
+    forAll(g) { case (t, a) =>
       assert(t.virtualType.typeCheck(a))
       val copy = pool.scopedRegion { region =>
         val copyOff = pool.scopedRegion { srcRegion =>
@@ -514,7 +515,6 @@ class StagedConstructorSuite extends HailSuite {
       }
       copy == a
     }
-    p.check()
   }
 
   @Test def testUnstagedCopy(): Unit = {
