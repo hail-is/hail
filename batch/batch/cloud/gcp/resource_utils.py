@@ -56,7 +56,7 @@ MACHINE_TYPE_TO_PARTS = {
     'n1-standard-4+t4+1': MachineTypeParts(
         cores=4,
         memory=gib_to_bytes(15),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
+        gpu_config=None,  # GPUConfig(num_gpus=1, gpu_type='t4'),
         machine_family='n1',
         worker_type='standard',
     ),
