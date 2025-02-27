@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from shlex import quote as shq
-from typing import Dict
+from typing import Dict, Optional
 
 from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
@@ -39,7 +39,14 @@ def create_vm_config(
     job_private: bool,
     project: str,
     instance_config: InstanceConfig,
+    acceleratorCount: Optional[int] = None,
+    acceleratorType: Optional[str] = None,
 ) -> dict:
+    parts = machine_type.split('+')
+    if len(parts) == 3:
+        machine_type, acceleratorType, count = parts
+        acceleratorCount = int(count)
+
     parts = gcp_machine_type_to_parts(machine_type)
     assert parts
     cores = parts.cores
@@ -93,7 +100,7 @@ def create_vm_config(
 
         return result
 
-    return {
+    config = {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
@@ -379,3 +386,11 @@ journalctl -u docker.service > dockerd.log
         },
         'tags': {'items': ["batch2-agent"]},
     }
+    if acceleratorCount is not None and acceleratorType is not None:
+        config['guestAccelerators'] = [
+            {
+                'acceleratorCount': acceleratorCount,
+                'acceleratorType': f'projects/{project}/zones/{zone}/acceleratorTypes/{acceleratorType}',
+            }
+        ]
+    return config
