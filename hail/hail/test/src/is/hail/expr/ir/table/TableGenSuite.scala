@@ -1,14 +1,13 @@
 package is.hail.expr.ir.table
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.TestUtils.loweredExecute
-import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.TestUtils.IRAggCollect
 import is.hail.expr.ir.defs.{
   ApplyBinaryPrimOp, ErrorIDs, GetField, MakeStream, MakeStruct, Ref, Str, StreamRange,
   TableAggregate, TableGetGlobals,
 }
+import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
@@ -99,7 +98,7 @@ class TableGenSuite extends HailSuite {
 
   @Test(groups = Array("lowering"))
   def testLowering(): Unit = {
-    val table = TestUtils.collect(mkTableGen())
+    val table = collect(mkTableGen())
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     assertEvalsTo(lowered, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
   }
@@ -107,13 +106,13 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("lowering"))
   def testNumberOfContextsMatchesPartitions(): Unit = {
     val errorId = 42
-    val table = TestUtils.collect(mkTableGen(
+    val table = collect(mkTableGen(
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
       errorId = Some(errorId),
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[HailException] {
-      ExecuteContext.scoped(ctx => loweredExecute(ctx, lowered, Env.empty, FastSeq(), None))
+      loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
     }
     ex.errorId shouldBe errorId
     ex.getMessage should include("partitioner contains 0 partitions, got 2 contexts.")
@@ -122,7 +121,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("lowering"))
   def testRowsAreCorrectlyKeyed(): Unit = {
     val errorId = 56
-    val table = TestUtils.collect(mkTableGen(
+    val table = collect(mkTableGen(
       partitioner = Some(new RVDPartitioner(
         ctx.stateManager,
         TStruct("a" -> TInt32),
@@ -135,7 +134,7 @@ class TableGenSuite extends HailSuite {
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     val ex = intercept[SparkException] {
-      ExecuteContext.scoped(ctx => loweredExecute(ctx, lowered, Env.empty, FastSeq(), None))
+      loweredExecute(ctx, lowered, Env.empty, FastSeq(), None)
     }.getCause.asInstanceOf[HailException]
 
     ex.errorId shouldBe errorId
