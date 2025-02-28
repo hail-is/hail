@@ -658,6 +658,12 @@ WHERE {' AND '.join(where_conditions)};
         raise UnknownUser(username)
 
 
+async def _invalidate_all_sessions(db: Database):
+    await db.just_execute(
+        'DELETE s FROM sessions s JOIN users u ON s.user_id = u.id WHERE u.is_service_account = FALSE;'
+    )
+
+
 @routes.post('/users/delete')
 @web_security_headers
 @auth.authenticated_developers_only()
@@ -756,6 +762,26 @@ WHERE copy_paste_tokens.id = %s
 
     session = await maybe_pop_token()
     return json_response({'token': session['session_id'], 'username': session['username']})
+
+
+@routes.post('/api/v1alpha/invalidate_all_sessions')
+@api_security_headers
+@auth.authenticated_developers_only()
+async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    await _invalidate_all_sessions(db)
+    return web.Response(status=200)
+
+
+@routes.post('/users/invalidate_all_sessions')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def invalidate_all_sessions(request: web.Request, _) -> NoReturn:
+    db = request.app[AppKeys.DB]
+    await _invalidate_all_sessions(db)
+    # Redirect to the user page. The session of the user calling this will have just been deleted, so this will
+    # allow the user to log back in.
+    raise web.HTTPFound(deploy_config.external_url('auth', '/user'))
 
 
 @routes.post('/api/v1alpha/logout')
