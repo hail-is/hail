@@ -93,6 +93,7 @@ class LocalBackend(
 
   private[this] val theHailClassLoader = new HailClassLoader(getClass.getClassLoader)
   private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
+  private[this] val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
 
   // flags can be set after construction from python
   def fs: FS = RouterFS.buildRoutes(CloudStorageFSConfig.fromFlagsAndEnv(None, flags))
@@ -117,6 +118,7 @@ class LocalBackend(
         new IrMetadata(),
         ImmutableMap.empty,
         codeCache,
+        persistedIR,
       )(f)
     }
 
