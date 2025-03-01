@@ -1027,6 +1027,7 @@ steps:
       export HAIL_DOCTEST_DATA_DIR=$(realpath ./data)
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
+      
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
               --log-cli-level=INFO \
@@ -1037,6 +1038,7 @@ steps:
               --durations=50 \
               --ignore=test/hailtop/batch/ \
               --ignore=test/hailtop/inter_cloud \
+              --ignore=test/hailtop/hailctl/batch \
               --timeout=120 \
               test
     inputs:
@@ -3025,7 +3027,8 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=360 \
-              /io/test/hailtop/batch/
+              /io/test/hailtop/batch/ /io/test/hailtop/hailctl/batch
+
     inputs:
       - from: /repo/hail/python/pytest.ini
         to: /io/pytest.ini
@@ -3077,7 +3080,7 @@ steps:
       mkdir -p foo
       echo "bar" > foo/baz.txt
 
-      cat >simple_hail.py <<EOF
+      cat > simple_hail.py << EOF
       import hail as hl
 
       with open('foo/baz.txt') as f:
@@ -3090,14 +3093,12 @@ steps:
       BATCH_ID=$(hailctl batch submit simple_hail.py --name=test-hailctl-batch-submit --files=foo -o json | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
 
-      cat >hail_with_args.py <<EOF
+      cat > hail_with_args.py << EOF
       import hail as hl
       import sys
 
@@ -3108,34 +3109,30 @@ steps:
       assert hl.utils.range_table(int(sys.argv[1]))._force_count() == 100
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json hail_with_args.py 100 | jq '.id')
+      BATCH_ID=$(hailctl batch submit hail_with_args.py --name=test-hailctl-batch-submit --files=foo -o json -- 100 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
 
-      cat >file.sh <<EOF
+      cat > file.sh << 'EOF'
       set -ex
 
-      cat foo
+      cat foo/baz.txt
       echo "Hello World!"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file.sh | jq '.id')
+      BATCH_ID=$(hailctl batch submit file.sh --name=test-hailctl-batch-submit --files=foo -o json --image busybox:latest | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
 
-      cat >file-with-args.sh <<EOF
+      cat > file-with-args.sh << EOF
       set -ex
 
       [[ $# -eq 2 ]]
@@ -3144,12 +3141,10 @@ steps:
       echo "Hello World! $1 $2"
       EOF
 
-      BATCH_ID=$(hailctl batch submit --name=test-hailctl-batch-submit --files=foo -o json file-with-args.sh abc 123 | jq '.id')
+      BATCH_ID=$(hailctl batch submit file-with-args.sh --name=test-hailctl-batch-submit --files=foo -o json --image ubuntu:latest -- abc 123 | jq '.id')
       STATUS=$(hailctl batch wait -o json $BATCH_ID)
       STATE=$(echo $STATUS | jq -jr '.state')
-      if [ "$STATE" == "success" ]; then
-          exit 0;
-      else
+      if [ "$STATE" != "success" ]; then
           echo $STATUS;
           exit 1;
       fi
@@ -4008,8 +4003,6 @@ steps:
     dependsOn:
       - ci_utils_image
       - default_ns
-    scopes:
-      - deploy
   - kind: runImage
     name: test_gcp_ar_cleanup_policies
     resources:
