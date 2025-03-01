@@ -386,7 +386,7 @@ async def unschedule_job(app, record):
         scheduler_state_changed.notify()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
-    url = f'http://{instance.ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
+    url = f'{instance.base_url}/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
 
     async def make_request():
         if instance.state in ('inactive', 'deleted'):
@@ -580,7 +580,7 @@ async def schedule_job(app, record, instance):
 
     try:
         await client_session.post(
-            f'http://{instance.ip_address}:5000/api/v1alpha/batches/jobs/create',
+            f'{instance.base_url}/api/v1alpha/batches/jobs/create',
             json=body,
             timeout=aiohttp.ClientTimeout(total=2),
         )
