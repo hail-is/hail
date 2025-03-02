@@ -40,7 +40,7 @@ class BatchClientSuite extends TestNGSuite {
         attributes = Map("name" -> m.getName),
         jobs = FastSeq(),
       )
-    )
+    )._1
   }
 
   @AfterClass
@@ -49,7 +49,7 @@ class BatchClientSuite extends TestNGSuite {
 
   @Test
   def testCancelAfterNFailures(): Unit = {
-    val jobGroupId = client.newJobGroup(
+    val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
         absolute_parent_id = parentJobGroupId,
@@ -80,10 +80,43 @@ class BatchClientSuite extends TestNGSuite {
   }
 
   @Test
+  def testGetJobGroupJobsByState(): Unit = {
+    val (jobGroupId, _) = client.newJobGroup(
+      req = JobGroupRequest(
+        batch_id = batchId,
+        absolute_parent_id = parentJobGroupId,
+        token = tokenUrlSafe,
+        jobs = FastSeq(
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:22.04",
+              command = Array("/bin/bash", "-c", "exit 0"),
+            ),
+          ),
+          JobRequest(
+            always_run = false,
+            process = BashJob(
+              image = "ubuntu:22.04",
+              command = Array("/bin/bash", "-c", "exit 1"),
+            ),
+          ),
+        ),
+      )
+    )
+    client.waitForJobGroup(batchId, jobGroupId)
+    for (state <- Array(JobStates.Failed, JobStates.Success))
+      for (jobs <- client.getJobGroupJobs(batchId, jobGroupId, Some(state))) {
+        assert(jobs.length == 1)
+        assert(jobs(0).state == state)
+      }
+  }
+
+  @Test
   def testNewJobGroup(): Unit =
     // The query driver submits a job group per stage with one job per partition
     for (i <- 1 to 2) {
-      val jobGroupId = client.newJobGroup(
+      val (jobGroupId, _) = client.newJobGroup(
         req = JobGroupRequest(
           batch_id = batchId,
           absolute_parent_id = parentJobGroupId,
@@ -107,7 +140,7 @@ class BatchClientSuite extends TestNGSuite {
 
   @Test
   def testJvmJob(): Unit = {
-    val jobGroupId = client.newJobGroup(
+    val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
         absolute_parent_id = parentJobGroupId,
