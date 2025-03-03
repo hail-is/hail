@@ -2,7 +2,6 @@ package is.hail.annotations
 
 import is.hail.HailSuite
 import is.hail.backend.ExecuteContext
-import is.hail.check._
 import is.hail.io._
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types.physical._

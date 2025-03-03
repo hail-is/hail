@@ -1,9 +1,7 @@
 package is.hail.variant
 
 import is.hail.annotations.Annotation
-import is.hail.check.Gen
 import is.hail.types.virtual.{TArray, TCall, TInt32, TStruct}
-import is.hail.utils._
 
 import org.apache.spark.sql.Row
 
@@ -240,96 +238,4 @@ object Genotype {
     else
       diploidGtIndex(i, j)
 
-  def genExtremeNonmissing(nAlleles: Int): Gen[Annotation] = {
-    val m = Int.MaxValue / (nAlleles + 1)
-    val nGenotypes = triangle(nAlleles)
-    val gg = for {
-      c: Option[Call] <- Gen.option(Call.genUnphasedDiploid(nAlleles))
-      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles, Gen.choose(0, m)))
-      dp <- Gen.option(Gen.choose(0, m))
-      gq <- Gen.option(Gen.choose(0, 10000))
-      pl <- Gen.oneOfGen(
-        Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, m))),
-        Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 100))),
-      )
-    } yield {
-      c.foreach(c => pl.foreach(pla => pla(Call.unphasedDiploidGtIndex(c)) = 0))
-      pl.foreach { pla =>
-        val m = pla.min
-        var i = 0
-        while (i < pla.length) {
-          pla(i) -= m
-          i += 1
-        }
-      }
-      val g = Annotation(
-        c.orNull,
-        ad.map(a => a: IndexedSeq[Int]).orNull,
-        dp.map(_ + ad.map(_.sum).getOrElse(0)).orNull,
-        gq.orNull,
-        pl.map(a => a: IndexedSeq[Int]).orNull,
-      )
-      g
-    }
-    gg
-  }
-
-  def genExtreme(nAlleles: Int): Gen[Annotation] =
-    Gen.frequency(
-      (100, genExtremeNonmissing(nAlleles)),
-      (1, Gen.const(null)),
-    )
-
-  def genRealisticNonmissing(nAlleles: Int): Gen[Annotation] = {
-    val nGenotypes = triangle(nAlleles)
-    val gg = for {
-      callRate <- Gen.choose(0d, 1d)
-      alleleFrequencies <-
-        Gen.buildableOfN[Array](nAlleles, Gen.choose(1e-6, 1d)) // avoid divison by 0
-          .map { rawWeights =>
-            val sum = rawWeights.sum
-            rawWeights.map(_ / sum)
-          }
-      c <- Gen.option(
-        Gen.zip(Gen.chooseWithWeights(alleleFrequencies), Gen.chooseWithWeights(alleleFrequencies))
-          .map { case (gti, gtj) => Call2(gti, gtj) },
-        callRate,
-      )
-      ad <- Gen.option(Gen.buildableOfN[Array](nAlleles, Gen.choose(0, 50)))
-      dp <- Gen.choose(0, 30).map(d => ad.map(o => o.sum + d))
-      pl <- Gen.option(Gen.buildableOfN[Array](nGenotypes, Gen.choose(0, 1000)).map { arr =>
-        c match {
-          case Some(x) =>
-            arr(Call.unphasedDiploidGtIndex(x)) = 0
-            arr
-          case None =>
-            val min = arr.min
-            arr.map(_ - min)
-        }
-      })
-      gq <- Gen.choose(-30, 30).map(i => pl.map(pls => math.max(0, gqFromPL(pls) + i)))
-    } yield Annotation(c.orNull, ad.map(a => a: IndexedSeq[Int]).orNull, dp.orNull, gq.orNull, pl.map(a => a: IndexedSeq[Int]).orNull)
-    gg
-  }
-
-  def genRealistic(nAlleles: Int): Gen[Annotation] =
-    Gen.frequency(
-      (100, genRealisticNonmissing(nAlleles)),
-      (1, Gen.const(null)),
-    )
-
-  def genGenericCallAndProbabilitiesGenotype(nAlleles: Int): Gen[Annotation] = {
-    val nGenotypes = triangle(nAlleles)
-    val gg = for (gp <- Gen.option(Gen.partition(nGenotypes, 32768))) yield {
-      val c = gp.flatMap(a => Option(uniqueMaxIndex(a))).map(Call2.fromUnphasedDiploidGtIndex(_))
-      Row(
-        c.orNull,
-        gp.map(gpx => gpx.map(p => p.toDouble / 32768): IndexedSeq[Double]).orNull,
-      )
-    }
-    Gen.frequency(
-      (100, gg),
-      (1, Gen.const(null)),
-    )
-  }
 }

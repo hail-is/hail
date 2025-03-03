@@ -1,6 +1,5 @@
 package is.hail.variant
 
-import is.hail.check.Gen
 import is.hail.expr.Parser
 import is.hail.utils._
 
@@ -467,54 +466,5 @@ object Call extends Serializable {
         }
       }
     }
-  }
-
-  def check(c: Call, nAlleles: Int): Unit = {
-    (ploidy(c): @switch) match {
-      case 0 =>
-      case 1 =>
-        val a = alleleByIndex(c, 0)
-        assert(a >= 0 && a < nAlleles)
-      case 2 =>
-        val nGenotypes = triangle(nAlleles)
-        val udtn =
-          if (isPhased(c)) {
-            val p = allelePair(c)
-            unphasedDiploidGtIndex(Call2(AllelePair.j(p), AllelePair.k(p)))
-          } else
-            unphasedDiploidGtIndex(c)
-        assert(
-          udtn < nGenotypes,
-          s"Invalid call found '${c.toString}' for number of alleles equal to '$nAlleles'.",
-        )
-      case _ =>
-        alleles(c).foreach(a => assert(a >= 0 && a < nAlleles))
-    }
-  }
-
-  def gen(
-    nAlleles: Int,
-    ploidyGen: Gen[Int] = Gen.choose(0, 2),
-    phasedGen: Gen[Boolean] = Gen.nextCoin(0.5),
-  ): Gen[Call] = for {
-    ploidy <- ploidyGen
-    phased <- phasedGen
-    alleles <- Gen.buildableOfN[Array](ploidy, Gen.choose(0, nAlleles - 1))
-  } yield {
-    val c = CallN(alleles, phased)
-    check(c, nAlleles)
-    c
-  }
-
-  def genUnphasedDiploid(nAlleles: Int): Gen[Call] = gen(nAlleles, Gen.const(2), Gen.const(false))
-
-  def genPhasedDiploid(nAlleles: Int): Gen[Call] = gen(nAlleles, Gen.const(2), Gen.const(true))
-
-  def genNonmissingValue: Gen[Call] = for {
-    nAlleles <- Gen.choose(2, 5)
-    c <- gen(nAlleles)
-  } yield {
-    check(c, nAlleles)
-    c
   }
 }
