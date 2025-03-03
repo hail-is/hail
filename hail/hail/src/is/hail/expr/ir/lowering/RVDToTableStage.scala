@@ -126,9 +126,7 @@ object TableStageToRVD {
       partition = { ctx: Ref => _ts.partition(GetField(ctx, "context")) },
     )
 
-    val sparkContext = ctx.backend
-      .asSpark("TableStageToRVD")
-      .sc
+    val sparkContext = ctx.backend.asSpark.sc
 
     val globalsAndBroadcastVals =
       Let(

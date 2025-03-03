@@ -20,7 +20,8 @@ import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks with ArbitraryInstances {
+class StagedMinHeapSuite
+    extends HailSuite with ScalaCheckDrivenPropertyChecks with ArbitraryInstances {
 
   implicit object StagedIntCoercions extends StagedCoercions[Int] {
     override def ti: TypeInfo[Int] = implicitly
@@ -34,9 +35,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks w
   }
 
   @Test def testSorting(): Unit =
-    forAll { (xs: IndexedSeq[Int]) =>
-        sort(xs) == xs.sorted
-    }
+    forAll((xs: IndexedSeq[Int]) => sort(xs) == xs.sorted)
 
   @Test def testHeapProperty(): Unit =
     forAll { (xs: IndexedSeq[Int]) =>

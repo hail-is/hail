@@ -27,7 +27,7 @@ trait GenTypeInstances {
   implicit def arbType: Arbitrary[Type] = ???
 
   def genTStruct: Gen[Type] =
-    resultOf(TStruct(_:_ *))
+    resultOf(TStruct(_: _*))
 }
 
 trait GenInstances {

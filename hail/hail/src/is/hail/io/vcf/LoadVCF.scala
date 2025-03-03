@@ -1685,7 +1685,7 @@ class PartitionedVCFRDD(
   file: String,
   @(transient @param) reverseContigMapping: Map[String, String],
   @(transient @param) _partitions: Array[Partition],
-) extends RDD[WithContext[String]](SparkBackend.sparkContext("PartitionedVCFRDD"), Seq()) {
+) extends RDD[WithContext[String]](SparkBackend.sparkContext, Seq()) {
 
   val contigRemappingBc =
     if (reverseContigMapping.size != 0) sparkContext.broadcast(reverseContigMapping) else null
@@ -1806,7 +1806,7 @@ object MatrixVCFReader {
 
         val fsConfigBC = backend.broadcast(fs.getConfiguration())
         val (failureOpt, _) = backend.parallelizeAndComputeWithIndex(
-          ctx.backendContext,
+          ctx.backend.backendContext(ctx),
           fs,
           files.tail.map(_.getBytes),
           "load_vcf_parse_header",
