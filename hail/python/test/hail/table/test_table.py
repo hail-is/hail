@@ -2689,6 +2689,16 @@ def test_query_table(query_table_table, query, expected):
     assert hl.eval(hl.query_table(query_table_table, query)) == expected
 
 
+def test_query_table_randomness(query_table_table):
+    i1 = hl.interval(27, 45)
+    i2 = hl.interval(45, 80, includes_end=True)
+    rows = hl.query_matrix_table_rows(query_table_table, i1, 'e').extend(
+        hl.query_matrix_table_rows(query_table_table, i2, 'e')
+    )
+    x = hl.eval(rows.aggregate(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count())))
+    assert len(x.r) == x.n
+
+
 @pytest.fixture(scope="module")
 def compound_key_table():
     path = new_temp_file(extension='ht')
