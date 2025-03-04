@@ -2692,7 +2692,7 @@ def test_query_table(query_table_table, query, expected):
 def test_query_table_randomness(query_table_table):
     i1 = hl.interval(27, 45)
     i2 = hl.interval(45, 80, includes_end=True)
-    rows = hl.query_table(query_table_table, i1, 'e').extend(hl.query_table(query_table_table, i2, 'e'))
+    rows = hl.query_table(query_table_table, i1).extend(hl.query_table(query_table_table, i2))
     x = hl.eval(rows.aggregate(lambda _: hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count())))
     assert len(x.r) == x.n
 
