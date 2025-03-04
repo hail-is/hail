@@ -136,8 +136,6 @@ class ServiceBackend(
   private[this] val MAX_AVAILABLE_GCS_CONNECTIONS = 1000
   private[this] val executor = Executors.newFixedThreadPool(MAX_AVAILABLE_GCS_CONNECTIONS)
 
-  override def shouldCacheQueryInfo: Boolean = false
-
   def defaultParallelism: Int = 4
 
   def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {
@@ -432,7 +430,8 @@ class ServiceBackend(
         serviceBackendContext,
         new IrMetadata(),
         ImmutableMap.empty,
-        mutable.Map.empty,
+        ImmutableMap.empty,
+        ImmutableMap.empty,
         ImmutableMap.empty,
       )(f)
     }
