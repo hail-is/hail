@@ -60,6 +60,7 @@ Released 2025-02-25
 
 - (hail#14675) VDS now uses a `LEN` field for reference block size, rather than the old `END` field, in order to align with VCF version 4.5. Reading a VDS will automatically make sure that both `LEN` and `END` are present to not break existing code. Writing a VDS with drop the now superfluous `END` field.
 - (hail#14743) Add `vds.export_vcf` and `vds.import_vcf` methods to import and export SVCR VCFs.
+- (hail#14806) Add `hail.query_matrix_table_rows`, a matrix table analogue to `hail.query_table`.
 
 ### Bug Fixes
 
