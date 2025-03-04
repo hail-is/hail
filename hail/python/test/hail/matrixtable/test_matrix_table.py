@@ -2463,7 +2463,7 @@ def test_query_matrix_table_rows_randomness(query_mt_mt):
     i1 = hl.interval(27, 45)
     i2 = hl.interval(45, 80, includes_end=True)
     rows = hl.query_matrix_table_rows(query_mt_mt, i1, 'e').extend(hl.query_matrix_table_rows(query_mt_mt, i2, 'e'))
-    x = hl.eval(rows.aggregate(hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count())))
+    x = hl.eval(rows.aggregate(lambda _: hl.struct(r=hl.agg.collect_as_set(hl.rand_int64()), n=hl.agg.count())))
     assert len(x.r) == x.n
 
 
