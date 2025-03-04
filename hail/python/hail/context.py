@@ -180,6 +180,7 @@ class HailContext(object):
     driver_memory=nullable(str),
     worker_cores=nullable(oneof(str, int)),
     worker_memory=nullable(str),
+    batch_id=nullable(int),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
     regions=nullable(sequenceof(str)),
     gcs_bucket_allow_list=nullable(dictof(str, sequenceof(str))),
@@ -209,6 +210,7 @@ def init(
     driver_memory=None,
     worker_cores=None,
     worker_memory=None,
+    batch_id=None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
     regions: Optional[List[str]] = None,
     gcs_bucket_allow_list: Optional[Dict[str, List[str]]] = None,
@@ -322,6 +324,8 @@ def init(
     worker_memory : :class:`str`, optional
         Batch backend only. Memory tier to use for the worker processes. May be standard or
         highmem. Default is standard.
+    batch_id: :class:`int`, optional
+        Batch backend only. An existing batch id to add jobs to.
     gcs_requester_pays_configuration : either :class:`str` or :class:`tuple` of :class:`str` and :class:`list` of :class:`str`, optional
         If a string is provided, configure the Google Cloud Storage file system to bill usage to the
         project identified by that string. If a tuple is provided, configure the Google Cloud
@@ -379,6 +383,7 @@ def init(
                 driver_memory=driver_memory,
                 worker_cores=worker_cores,
                 worker_memory=worker_memory,
+                batch_id=batch_id,
                 name_prefix=app_name,
                 gcs_requester_pays_configuration=gcs_requester_pays_configuration,
                 regions=regions,
@@ -523,6 +528,7 @@ def init_spark(
     driver_memory=nullable(str),
     worker_cores=nullable(oneof(str, int)),
     worker_memory=nullable(str),
+    batch_id=nullable(int),
     name_prefix=nullable(str),
     token=nullable(str),
     gcs_requester_pays_configuration=nullable(oneof(str, sized_tupleof(str, sequenceof(str)))),
@@ -545,6 +551,7 @@ async def init_batch(
     driver_memory: Optional[str] = None,
     worker_cores: Optional[Union[str, int]] = None,
     worker_memory: Optional[str] = None,
+    batch_id: Optional[int] = None,
     name_prefix: Optional[str] = None,
     token: Optional[str] = None,
     gcs_requester_pays_configuration: Optional[GCSRequesterPaysConfiguration] = None,
@@ -562,6 +569,7 @@ async def init_batch(
         driver_memory=driver_memory,
         worker_cores=worker_cores,
         worker_memory=worker_memory,
+        batch_id=batch_id,
         name_prefix=name_prefix,
         credentials_token=token,
         regions=regions,

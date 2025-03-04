@@ -171,6 +171,7 @@ class ServiceBackend(Backend):
         driver_memory: Optional[str] = None,
         worker_cores: Optional[Union[int, str]] = None,
         worker_memory: Optional[str] = None,
+        batch_id: Optional[int] = None,
         name_prefix: Optional[str] = None,
         credentials_token: Optional[str] = None,
         regions: Optional[List[str]] = None,
@@ -197,7 +198,7 @@ class ServiceBackend(Backend):
         if batch_client is None:
             batch_client = await BatchClient.create(billing_project, _token=credentials_token)
             async_exit_stack.push_async_callback(batch_client.close)
-        batch_attributes: Dict[str, str] = dict()
+
         remote_tmpdir = get_remote_tmpdir('ServiceBackend', remote_tmpdir=remote_tmpdir)
 
         name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
@@ -244,6 +245,11 @@ class ServiceBackend(Backend):
                 flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
                 flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
 
+        if batch_id is not None:
+            batch = await batch_client.get_batch(batch_id)
+        else:
+            batch = None
+
         sb = ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
@@ -256,6 +262,7 @@ class ServiceBackend(Backend):
             driver_memory=driver_memory,
             worker_cores=worker_cores,
             worker_memory=worker_memory,
+            batch=batch,
             regions=regions,
             async_exit_stack=async_exit_stack,
         )
@@ -276,6 +283,7 @@ class ServiceBackend(Backend):
         driver_memory: Optional[str],
         worker_cores: Optional[Union[int, str]],
         worker_memory: Optional[str],
+        batch: Optional[Batch],
         regions: List[str],
         async_exit_stack: AsyncExitStack,
     ):
@@ -297,7 +305,7 @@ class ServiceBackend(Backend):
         self.worker_memory = worker_memory
         self.regions = regions
 
-        self._batch: Batch = self._create_batch()
+        self._batch: Batch = self._create_batch() if batch is None else batch
         self._async_exit_stack = async_exit_stack
 
     def _create_batch(self) -> Batch:
