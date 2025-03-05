@@ -11,8 +11,8 @@
 {% endmacro %}
 
 {% block content %}
-<div class='w-full md:w-2/5 flex flex-col md:flex-row md:space-x-16 justify-between'>
-  <div>
+<div class='w-full md:w-4/5 flex flex-col md:flex-row md:space-x-8 justify-between mb-8'>
+  <div class='flex-1'>
     <h1 class='text-2xl font-light mb-4'>Create User</h1>
     <form action="{{ base_path }}/users" method="POST">
       <div class='flex-col space-y-2'>
@@ -33,7 +33,7 @@
       </div>
     </form>
   </div>
-  <div>
+  <div class='flex-1'>
     <h1 class='text-2xl font-light mb-4'>Delete User</h1>
     <form action="{{ base_path }}/users/delete" method="POST">
       <div class='flex-col space-y-2'>
@@ -52,7 +52,7 @@
       </div>
     </form>
   </div>
-  <div>
+  <div class='flex-1'>
     <h1 class='text-2xl font-light mb-4'>Invalidate All User Sessions</h1>
     <form action="{{ base_path }}/users/invalidate_all_sessions" method="POST">
       <div class='flex-col space-y-2'>
