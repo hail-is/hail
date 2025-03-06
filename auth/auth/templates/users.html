@@ -11,43 +11,59 @@
 {% endmacro %}
 
 {% block content %}
-<div class='w-full md:w-2/5 flex flex-col md:flex-row md:space-x-16 justify-between'>
-  <div>
+<div class='w-full md:w-3/5 flex flex-col md:flex-row md:space-x-8 mb-8'>
+  <div class='w-full md:w-2/5'>
     <h1 class='text-2xl font-light mb-4'>Create User</h1>
     <form action="{{ base_path }}/users" method="POST">
       <div class='flex-col space-y-2'>
-        <div class='flex justify-between space-x-4'>
-          <span>Username</span>
-          <input class='border rounded-sm p-1 text-sm' required name="username" />
+        <div class='flex items-center space-x-4'>
+          <span class='w-32'>Username</span>
+          <input class='border rounded-sm p-1 text-sm w-48' required name="username" />
         </div>
-        <div class='flex justify-between space-x-4'>
-          <span>Login ID</span>
-          <input class='border rounded-sm p-1 text-sm' name="login_id" />
+        <div class='flex items-center space-x-4'>
+          <span class='w-32'>Login ID</span>
+          <input class='border rounded-sm p-1 text-sm w-48' name="login_id" />
         </div>
-        <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
-        <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
+        <div class='space-y-1'>
+          <div><input type="checkbox" name="is_developer" value="1" /> Developer</div>
+          <div><input type="checkbox" name="is_service_account" value="1" /> Service Account</div>
+        </div>
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-        <div class='flex justify-end'>
+        <div class='mt-4'>
           {{ submit_button('Create') }}
         </div>
       </div>
     </form>
   </div>
-  <div>
+  <div class='w-full md:w-2/5'>
     <h1 class='text-2xl font-light mb-4'>Delete User</h1>
     <form action="{{ base_path }}/users/delete" method="POST">
       <div class='flex-col space-y-2'>
-        <div class='flex justify-between space-x-4'>
-          <span>User ID</span>
-          <input class='border rounded-sm p-1 text-sm' required name="id" />
+        <div class='flex items-center space-x-4'>
+          <span class='w-32'>User ID</span>
+          <input class='border rounded-sm p-1 text-sm w-48' required name="id" />
         </div>
-        <div class='flex justify-between space-x-4'>
-          <span>Username</span>
-          <input class='border rounded-sm p-1 text-sm' required name="username" />
+        <div class='flex items-center space-x-4'>
+          <span class='w-32'>Username</span>
+          <input class='border rounded-sm p-1 text-sm w-48' required name="username" />
         </div>
         <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-        <div class='flex justify-end'>
+        <div class='mt-4'>
           {{ danger_button('Delete') }}
+        </div>
+      </div>
+    </form>
+  </div>
+  <div class='w-full md:w-1/5'>
+    <h1 class='text-2xl font-light mb-4'>Invalidate All User Sessions</h1>
+    <form action="{{ base_path }}/users/invalidate_all_sessions" method="POST">
+      <div class='flex-col space-y-4'>
+        <p class='text-sm text-amber-700'>
+          This will force all users to log back in to access the system. Any running jobs or batch submissions will continue to work normally.
+        </p>
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+        <div>
+          {{ danger_button('Invalidate all user sessions') }}
         </div>
       </div>
     </form>
