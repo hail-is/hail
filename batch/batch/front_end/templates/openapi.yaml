@@ -1217,7 +1217,7 @@ paths:
         content:
           application/json:
             schema:
-            type: object
+              type: object
       responses:
         '200':
           description: "Successfully edited the billing limits."
