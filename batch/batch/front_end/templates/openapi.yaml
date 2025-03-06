@@ -28,7 +28,7 @@ tags:
     description: "Operations for billing projects."
   - name: UI Support
 servers:
-  - url: "{{ base_url }}"
+  - url: {{ base_url }}
     description: "Current Batch service."
 paths:
   '/api/v1alpha/version':

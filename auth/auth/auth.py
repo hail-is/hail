@@ -33,7 +33,7 @@ from gear import (
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
-from hailtop import httpx, uvloopx
+from hailtop import __version__, httpx, uvloopx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
@@ -45,6 +45,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_swagger,
 )
 
 from .auth_utils import validate_credentials_secret_name_input
@@ -219,6 +220,20 @@ def validate_next_page_url(next_page):
 @api_security_headers
 async def get_healthcheck(_) -> web.Response:
     return web.Response()
+
+
+@routes.get('/swagger')
+@web_security_headers_swagger
+async def swagger(request):
+    page_context = {'service': 'auth', 'base_path': deploy_config.base_path('auth')}
+    return await render_template('auth', request, None, 'swagger.html', page_context)
+
+
+@routes.get('/openapi.yaml')
+@web_security_headers
+async def openapi(request):
+    page_context = {'base_path': deploy_config.base_path('auth'), 'spec_version': __version__}
+    return await render_template('auth', request, None, 'openapi.yaml', page_context)
 
 
 @routes.get('')
