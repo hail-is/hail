@@ -376,8 +376,8 @@ async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
 
 @routes.get('/healthcheck')
 @web_security_headers
-async def healthcheck(request):  # pylint: disable=unused-argument
-    return web.Response()
+async def healthcheck(_) -> web.Response:
+    return web.Response(status=200)
 
 
 @routes.get('/swagger')

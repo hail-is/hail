@@ -33,18 +33,16 @@ servers:
 paths:
   '/api/v1alpha/version':
     get:
-      summary: "Version"
-      description: "Get the version of the API."
-      operationId: getVersion
-      tags:
-        - Public Server Information
+      summary: Get version
+      description: Get the current version of the batch service
+      tags: [System]
       responses:
         '200':
-          description: "Successfully retrieved the version of the API."
+          description: Version retrieved successfully
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/VersionResponse'
+                type: string
   '/healthcheck':
     get:
       summary: "Healthcheck"
@@ -57,18 +55,17 @@ paths:
           description: "Successfully checked the health of the API."
   '/api/v1alpha/cloud':
     get:
-      summary: "Cloud"
-      description: "Get the cloud provider supported by this batch instance."
-      operationId: getCloudProvider
-      tags:
-        - Public Server Information
+      summary: Get cloud provider
+      description: Get the current cloud provider (gcp or azure)
+      tags: [System]
       responses:
         '200':
-          description: "Successfully retrieved the cloud provider supported."
+          description: Cloud provider retrieved successfully
           content:
-            application/json:
+            text/plain:
               schema:
-                $ref: '#/components/schemas/CloudProviderResponse'
+                type: string
+                enum: [gcp, azure]
   '/api/v1alpha/supported_regions':
     get:
       summary: "Supported Regions"
@@ -670,18 +667,43 @@ paths:
                 $ref: '#/components/schemas/ResourceUsageResponse'
   '/api/v2alpha/batches':
     get:
-      summary: "List batches"
-      description: "List batches."
-      operationId: getBatchesv2alpha
-      tags:
-        - Batches API v2Alpha
+      summary: List batches (v2)
+      description: Get a list of batches using v2 query format
+      tags: [Batches]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: q
+          in: query
+          description: Query string in v2 format
+          schema:
+            type: string
+            example: "user = alice"
+        - name: last_batch_id
+          in: query
+          description: Last batch ID for pagination
+          schema:
+            type: integer
       responses:
         '200':
-          description: "Successfully retrieved the batches."
+          description: List of batches retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BatchV2ListResponse'
+                type: object
+                properties:
+                  batches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Batch'
+                  last_batch_id:
+                    type: integer
+                    nullable: true
+                    description: ID of the last batch in the response, for pagination
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
   '/api/v2alpha/batches/{batch_id}/jobs':
     get:
       summary: "List jobs in a batch"
@@ -767,31 +789,32 @@ paths:
                 $ref: '#/components/schemas/BillingProjectResponse'
   '/api/v1alpha/billing_projects/{billing_project}/create':
     post:
-      summary: "Create a billing project"
-      description: "Create a billing project."
-      operationId: createBillingProject
-      tags:
-        - Billing Projects
+      summary: Create billing project
+      description: Create a new billing project
+      tags: [Billing]
+      security:
+        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
-          description: "The name of the billing project."
           required: true
           schema:
             type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateBillingProjectRequest'
+          description: Billing project identifier
       responses:
         '200':
-          description: "Successfully created the billing project."
+          description: Billing project created successfully
           content:
             application/json:
               schema:
-                type: object
+                type: string
+                description: Created billing project identifier
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '409':
+          description: Billing project already exists
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
     post:
       summary: "Add a user to a billing project"
@@ -890,52 +913,76 @@ paths:
                 $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/billing_projects/{billing_project}/delete':
     post:
-      summary: "Delete billing project"
-      description: "Delete a billing project."
-      operationId: deleteBillingProject
-      tags:
-        - Billing Projects
+      summary: Delete billing project
+      description: Delete an existing billing project
+      tags: [Billing]
+      security:
+        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
-          description: "The ID of the billing project."
           required: true
           schema:
             type: string
+          description: Billing project identifier
       responses:
         '200':
-          description: "Successfully deleted the billing project."
+          description: Billing project deleted successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/SuccessResponse'
+                type: string
+                description: Deleted billing project identifier
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: Billing project not found
   '/api/v1alpha/billing_limits/{billing_project}/edit':
     post:
-      summary: "Edit billing limits"
-      description: "Edit the billing limits of a billing project."
-      operationId: editBillingLimits
-      tags:
-        - Billing Projects
+      summary: Edit billing limits
+      description: Edit billing limits for a billing project
+      tags: [Billing]
+      security:
+        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
-          description: "The ID of the billing project."
           required: true
           schema:
             type: string
+          description: Billing project identifier
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BillingLimitRequest'
+              type: object
+              properties:
+                limit:
+                  type: number
+                  description: New billing limit
       responses:
         '200':
-          description: "Successfully edited the billing limits."
+          description: Billing limit updated successfully
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  billing_project:
+                    type: string
+                    description: Billing project identifier
+                  limit:
+                    type: number
+                    description: Updated billing limit
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: Billing project not found
   '/batches':
     get:
       summary: "Batches page (UI)"
@@ -1205,38 +1252,48 @@ paths:
                 type: object
   '/billing_limits/{billing_project}/edit':
     post:
-      summary: "Edit billing limits and return rendered result HTML, or (dev only) its supporting jinja context"
-      description: "Edit the billing limits of a billing project."
-      operationId: editBillingLimitsUI
-      tags:
-        - Billing Projects
+      summary: Edit billing limits
+      description: Edit billing limits for a billing project
+      tags: [Billing]
+      security:
+        - developerAuth: []
       parameters:
         - name: billing_project
           in: path
-          description: "The ID of the billing project."
           required: true
           schema:
-              type: string
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
-          schema:
-            type: boolean
-            default: false
-            example: true
+            type: string
+          description: Billing project identifier
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-            type: object
+              type: object
+              properties:
+                limit:
+                  type: number
+                  description: New billing limit
       responses:
         '200':
-          description: "Successfully edited the billing limits."
+          description: Billing limit updated successfully
           content:
             application/json:
               schema:
                 type: object
+                properties:
+                  billing_project:
+                    type: string
+                    description: Billing project identifier
+                  limit:
+                    type: number
+                    description: Updated billing limit
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: Billing project not found
   '/billing_projects':
     get:
       summary: "Billing projects page (UI)"
@@ -1262,32 +1319,32 @@ paths:
                 type: object
   '/billing_projects/create':
     post:
-      summary: "Create billing project element (UI)"
-      description: "Create a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
-      operationId: createBillingProjectUI
-      tags:
-        - Billing Projects
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
+      summary: Create billing project
+      description: Create a new billing project
+      tags: [Billing]
+      security:
+        - developerAuth: []
       parameters:
-        - name: x-hail-return-jinja-context
-          in: header
-          description: "Do not render, and instead return the jinja context json."
-          required: false
+        - name: billing_project
+          in: path
+          required: true
           schema:
-            type: boolean
-            default: false
-            example: true
+            type: string
+          description: Billing project identifier
       responses:
         '200':
-          description: "Successfully created the billing project."
+          description: Billing project created successfully
           content:
             application/json:
               schema:
-                type: object
+                type: string
+                description: Created billing project identifier
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '409':
+          description: Billing project already exists
   '/billing_projects/{billing_project}/users/add':
     post:
       summary: "Add user to billing project element (UI)"

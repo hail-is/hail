@@ -275,26 +275,28 @@ paths:
   /api/v1alpha/verify_dev_credentials:
     get:
       summary: Verify developer credentials
-      tags: [Developer Operations]
+      description: Verify that the authenticated user has developer credentials
+      tags: [Authentication]
       security:
         - developerAuth: []
       responses:
         '200':
-          description: Valid developer credentials
+          description: User has valid developer credentials
         '401':
-          description: Invalid or missing credentials
+          description: Unauthorized or not a developer
 
   /api/v1alpha/verify_dev_or_sa_credentials:
     get:
       summary: Verify developer or service account credentials
-      tags: [Developer Operations]
+      description: Verify that the authenticated user has developer or service account credentials
+      tags: [Authentication]
       security:
         - developerAuth: []
       responses:
         '200':
-          description: Valid developer or service account credentials
+          description: User has valid developer or service account credentials
         '401':
-          description: Invalid or missing credentials
+          description: Unauthorized or not a developer/service account
 
   /swagger:
     get:
@@ -320,4 +322,76 @@ paths:
           content:
             text/yaml:
               schema:
-                type: string 
+                type: string
+
+  /api/v1alpha/oauth2-client:
+    get:
+      summary: Get OAuth2 client configuration
+      description: Retrieve OAuth2 client configuration for hailctl
+      tags: [Authentication]
+      responses:
+        '200':
+          description: OAuth2 client configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  idp:
+                    type: string
+                    description: Identity provider (google or microsoft)
+                  oauth2_client:
+                    type: object
+                    description: OAuth2 client configuration details
+
+  /api/v1alpha/users/{user}:
+    get:
+      summary: Get user details
+      description: Retrieve details for a specific user
+      tags: [Users]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username to retrieve details for
+      responses:
+        '200':
+          description: User details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: User ID
+                  username:
+                    type: string
+                    description: Username
+                  login_id:
+                    type: string
+                    nullable: true
+                    description: Login identifier
+                  state:
+                    type: string
+                    description: User state
+                  is_developer:
+                    type: integer
+                    description: Whether user is a developer
+                  is_service_account:
+                    type: integer
+                    description: Whether user is a service account
+                  hail_identity:
+                    type: string
+                    nullable: true
+                    description: Hail identity ID
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: User not found 

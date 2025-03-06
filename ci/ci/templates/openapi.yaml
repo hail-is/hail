@@ -317,15 +317,145 @@ paths:
           schema:
             type: string
             enum: [gateway, internal-gateway]
+          description: Proxy type
       responses:
         '200':
           description: Envoy configuration retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EnvoyConfig'
+                type: object
+                properties:
+                  cds:
+                    type: object
+                    description: Cluster Discovery Service configuration
+                  rds:
+                    type: object
+                    description: Route Discovery Service configuration
         '400':
           description: Invalid proxy specified
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /freeze_merge_deploy:
+    post:
+      summary: Freeze merges and deploys
+      description: Freeze all merges and deployments
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: Successfully froze merges and deploys
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /unfreeze_merge_deploy:
+    post:
+      summary: Unfreeze merges and deploys
+      description: Unfreeze all merges and deployments
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: Successfully unfroze merges and deploys
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /namespaces:
+    get:
+      summary: List namespaces
+      description: Get a list of active namespaces and their services
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: List of namespaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NamespaceInfo'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /namespaces/{namespace}/services/add:
+    post:
+      summary: Add service to namespace
+      description: Add a new service to a namespace
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Namespace identifier
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                service:
+                  type: string
+                  description: Service name to add
+      responses:
+        '200':
+          description: Service added successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /namespaces/{namespace}/services/{service}/edit:
+    post:
+      summary: Edit service in namespace
+      description: Edit service configuration in a namespace
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Namespace identifier
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Service name
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                rate_limit:
+                  type: integer
+                  nullable: true
+                  description: Rate limit in requests per second
+      responses:
+        '200':
+          description: Service updated successfully
         '401':
           description: Unauthorized
         '403':
