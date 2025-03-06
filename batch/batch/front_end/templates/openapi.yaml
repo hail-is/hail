@@ -42,8 +42,9 @@ paths:
         '200':
           description: "Successfully retrieved the version of the API."
           content:
-            string:
-              example: "0.2.133"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
   '/healthcheck':
     get:
       summary: "Healthcheck"
@@ -65,8 +66,9 @@ paths:
         '200':
           description: "Successfully retrieved the cloud provider supported."
           content:
-            string:
-              example: "gcp"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CloudProviderResponse'
   '/api/v1alpha/supported_regions':
     get:
       summary: "Supported Regions"
@@ -78,8 +80,9 @@ paths:
         '200':
           description: "Successfully retrieved the regions list."
           content:
-            string:
-              example: "TODO"
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportedRegionsResponse'
   '/api/v1alpha/batches':
     get:
       summary: "List batches"
@@ -187,7 +190,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/BatchUpdateResponse'
   '/api/v1alpha/batches/{batch_id}/updates/{update_id}/job-groups/create':
     post:
       summary: "Create a job group"
@@ -220,7 +223,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/CreateJobGroupResponse'
   '/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create':
     post:
       summary: "Create a job"
@@ -308,7 +311,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/batches/{batch_id}/cancel':
     patch:
       summary: "Cancel batch"
@@ -329,7 +332,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/cancel':
     patch:
       summary: "Cancel job group"
@@ -356,7 +359,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/batches/{batch_id}/close':
     patch:
       summary: "Close batch"
@@ -378,7 +381,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/batches/{batch_id}':
     get:
       summary: "Get a batch"
@@ -468,7 +471,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobGroupDetailResponse'
   '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
     get:
       summary: "Get all jobs in a job group"
@@ -495,7 +498,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobListResponse'
   '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/job-groups':
     get:
       summary: "Get all job groups in a job group"
@@ -522,7 +525,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobGroupListResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}':
     get:
       summary: "Get a job in a batch"
@@ -604,7 +607,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobLogResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}':
     get:
       summary: "Get job log by container"
@@ -637,7 +640,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/ContainerLogResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resources_usage':
     get:
       summary: "Get job resource usage"
@@ -678,7 +681,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/BatchV2ListResponse'
   '/api/v2alpha/batches/{batch_id}/jobs':
     get:
       summary: "List jobs in a batch"
@@ -699,7 +702,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobV2ListResponse'
   '/api/v2alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
     get:
       summary: "List jobs in a job group"
@@ -726,7 +729,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobV2ListResponse'
   '/api/v1alpha/billing_projects':
     get:
       summary: "List billing projects"
@@ -815,7 +818,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove':
     post:
       summary: "Remove a user from a billing project"
@@ -842,7 +845,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/billing_projects/{billing_project}/close':
     post:
       summary: "Close billing project"
@@ -863,7 +866,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/billing_projects/{billing_project}/reopen':
     post:
       summary: "Reopen billing project"
@@ -884,7 +887,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/billing_projects/{billing_project}/delete':
     post:
       summary: "Delete billing project"
@@ -905,7 +908,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/SuccessResponse'
   '/api/v1alpha/billing_limits/{billing_project}/edit':
     post:
       summary: "Edit billing limits"
@@ -1910,3 +1913,234 @@ components:
               usage:
                 type: number
           description: "Storage usage over time"
+
+    BatchUpdateResponse:
+      type: object
+      properties:
+        update_id:
+          type: integer
+          description: "ID of the created update"
+        token:
+          type: string
+          description: "Token associated with the update"
+
+    JobLogResponse:
+      type: object
+      properties:
+        main:
+          type: string
+          description: "Log output from the main container"
+          nullable: true
+        input:
+          type: string
+          description: "Log output from the input container"
+          nullable: true
+        setup:
+          type: string
+          description: "Log output from the setup container"
+          nullable: true
+        output:
+          type: string
+          description: "Log output from the output container"
+          nullable: true
+
+    ContainerLogResponse:
+      type: object
+      properties:
+        log:
+          type: string
+          description: "Log output from the specified container"
+
+    BatchV2Response:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: "The batch ID"
+        user:
+          type: string
+          description: "The user who created the batch"
+        billing_project:
+          type: string
+          description: "The billing project associated with the batch"
+        token:
+          type: string
+          description: "Token for batch identification"
+        state:
+          type: string
+          enum: ["open", "complete", "cancelled", "failure", "running"]
+          description: "Current state of the batch"
+        complete:
+          type: boolean
+          description: "Whether the batch is complete"
+        n_jobs:
+          type: integer
+          description: "Total number of jobs in the batch"
+        cost:
+          type: number
+          description: "Total cost of the batch"
+          nullable: true
+        time_created:
+          type: string
+          format: date-time
+          description: "When the batch was created"
+        time_completed:
+          type: string
+          format: date-time
+          description: "When the batch completed"
+          nullable: true
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the batch"
+          additionalProperties:
+            type: string
+
+    BatchV2ListResponse:
+      type: object
+      properties:
+        batches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchV2Response'
+        last_batch_id:
+          type: integer
+          description: "ID of the last batch in the list for pagination"
+          nullable: true
+
+    JobV2Response:
+      type: object
+      properties:
+        batch_id:
+          type: integer
+          description: "ID of the batch this job belongs to"
+        job_id:
+          type: integer
+          description: "The job ID"
+        state:
+          type: string
+          enum: ["pending", "running", "succeeded", "failed", "cancelled"]
+          description: "Current state of the job"
+        exit_code:
+          type: integer
+          description: "Exit code of the job"
+          nullable: true
+        duration:
+          type: number
+          description: "Duration of the job in seconds"
+          nullable: true
+        cost:
+          type: number
+          description: "Cost of the job"
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+          description: "When the job started"
+          nullable: true
+        end_time:
+          type: string
+          format: date-time
+          description: "When the job ended"
+          nullable: true
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the job"
+          additionalProperties:
+            type: string
+        spec:
+          $ref: '#/components/schemas/CreateJobRequest'
+
+    JobV2ListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobV2Response'
+        last_job_id:
+          type: integer
+          description: "ID of the last job in the list for pagination"
+          nullable: true
+
+    VersionResponse:
+      type: string
+      description: "Version of the service"
+      example: "0.2.133"
+
+    CloudProviderResponse:
+      type: string
+      description: "Cloud provider supported by this batch instance"
+      enum: ["gcp", "azure", "aws"]
+      example: "gcp"
+
+    SupportedRegionsResponse:
+      type: array
+      description: "List of supported regions"
+      items:
+        type: string
+        description: "Region identifier"
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: "Whether the operation was successful"
+          example: true
+
+    JobGroupDetailResponse:
+      type: object
+      properties:
+        batch_id:
+          type: integer
+          description: "ID of the batch this job group belongs to"
+        job_group_id:
+          type: integer
+          description: "The job group ID"
+        parent_job_group_id:
+          type: integer
+          description: "ID of the parent job group"
+          nullable: true
+        state:
+          type: string
+          enum: ["running", "complete", "cancelled"]
+          description: "Current state of the job group"
+        complete:
+          type: boolean
+          description: "Whether the job group is complete"
+        n_jobs:
+          type: integer
+          description: "Total number of jobs in the group"
+        n_completed:
+          type: integer
+          description: "Number of completed jobs"
+        n_succeeded:
+          type: integer
+          description: "Number of succeeded jobs"
+        n_failed:
+          type: integer
+          description: "Number of failed jobs"
+        n_cancelled:
+          type: integer
+          description: "Number of cancelled jobs"
+        time_created:
+          type: string
+          format: date-time
+          description: "When the job group was created"
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the job group"
+          additionalProperties:
+            type: string
+        children:
+          type: array
+          description: "List of child job groups"
+          items:
+            $ref: '#/components/schemas/JobGroupResponse'
+
+    CreateJobGroupResponse:
+      type: object
+      properties:
+        job_group_id:
+          type: integer
+          description: "ID of the created job group"
