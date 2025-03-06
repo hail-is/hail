@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: "3.1.0"
 info:
   version: {{ spec_version }}
   title: Hail Services
@@ -28,7 +28,7 @@ tags:
     description: "Operations for billing projects."
   - name: UI Support
 servers:
-  - url: {{ base_url }}
+  - url: "{{ base_url }}"
     description: "Current Batch service."
 paths:
   '/api/v1alpha/version':
@@ -93,7 +93,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/BatchListResponse'
   '/api/v1alpha/batches/create':
     post:
       summary: "Create a batch"
@@ -399,7 +399,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/BatchResponse'
   '/api/v1alpha/batches/{batch_id}/jobs':
     get:
       summary: "Get all jobs in a batch"
@@ -420,7 +420,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobListResponse'
   '/api/v1alpha/batches/{batch_id}/job-groups':
     get:
       summary: "Get all job groups in a batch"
@@ -441,7 +441,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobGroupListResponse'
   '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}':
     get:
       summary: "Get a job group in a batch"
@@ -549,7 +549,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts':
     get:
       summary: "Get all attempts in a job"
@@ -576,7 +576,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/JobAttemptsResponse'
   '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log':
     get:
       summary: "Get job log"
@@ -664,7 +664,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/ResourceUsageResponse'
   '/api/v2alpha/batches':
     get:
       summary: "List batches"
@@ -740,7 +740,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/BillingProjectListResponse'
   '/api/v1alpha/billing_projects/{billing_project}':
     get:
       summary: "Get a billing project"
@@ -761,7 +761,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
+                $ref: '#/components/schemas/BillingProjectResponse'
   '/api/v1alpha/billing_projects/{billing_project}/create':
     post:
       summary: "Create a billing project"
@@ -1639,3 +1639,274 @@ components:
           description: "List of job groups"
           items:
             $ref: '#/components/schemas/JobGroupSpec'
+
+    BatchResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: "The batch ID"
+        user:
+          type: string
+          description: "The user who created the batch"
+        billing_project:
+          type: string
+          description: "The billing project associated with the batch"
+        token:
+          type: string
+          description: "Token for batch identification"
+        state:
+          type: string
+          enum: ["open", "complete", "cancelled", "failure", "running"]
+          description: "Current state of the batch"
+        complete:
+          type: boolean
+          description: "Whether the batch is complete"
+        closed:
+          type: boolean
+          description: "Whether the batch is closed"
+        n_jobs:
+          type: integer
+          description: "Total number of jobs in the batch"
+        n_completed:
+          type: integer
+          description: "Number of completed jobs"
+        n_succeeded:
+          type: integer
+          description: "Number of succeeded jobs"
+        n_failed:
+          type: integer
+          description: "Number of failed jobs"
+        n_cancelled:
+          type: integer
+          description: "Number of cancelled jobs"
+        time_created:
+          type: string
+          format: date-time
+          description: "When the batch was created"
+        time_completed:
+          type: string
+          format: date-time
+          description: "When the batch completed"
+          nullable: true
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the batch"
+          additionalProperties:
+            type: string
+
+    JobResponse:
+      type: object
+      properties:
+        batch_id:
+          type: integer
+          description: "ID of the batch this job belongs to"
+        job_id:
+          type: integer
+          description: "The job ID"
+        state:
+          type: string
+          enum: ["pending", "running", "succeeded", "failed", "cancelled"]
+          description: "Current state of the job"
+        exit_code:
+          type: integer
+          description: "Exit code of the job"
+          nullable: true
+        duration:
+          type: number
+          description: "Duration of the job in seconds"
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+          description: "When the job started"
+          nullable: true
+        end_time:
+          type: string
+          format: date-time
+          description: "When the job ended"
+          nullable: true
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the job"
+          additionalProperties:
+            type: string
+        spec:
+          $ref: '#/components/schemas/CreateJobRequest'
+
+    JobGroupResponse:
+      type: object
+      properties:
+        batch_id:
+          type: integer
+          description: "ID of the batch this job group belongs to"
+        job_group_id:
+          type: integer
+          description: "The job group ID"
+        state:
+          type: string
+          enum: ["running", "complete", "cancelled"]
+          description: "Current state of the job group"
+        complete:
+          type: boolean
+          description: "Whether the job group is complete"
+        n_jobs:
+          type: integer
+          description: "Total number of jobs in the group"
+        n_completed:
+          type: integer
+          description: "Number of completed jobs"
+        n_succeeded:
+          type: integer
+          description: "Number of succeeded jobs"
+        n_failed:
+          type: integer
+          description: "Number of failed jobs"
+        n_cancelled:
+          type: integer
+          description: "Number of cancelled jobs"
+        time_created:
+          type: string
+          format: date-time
+          description: "When the job group was created"
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the job group"
+          additionalProperties:
+            type: string
+
+    BatchListResponse:
+      type: object
+      properties:
+        batches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BatchResponse'
+        last_batch_id:
+          type: integer
+          description: "ID of the last batch in the list for pagination"
+          nullable: true
+
+    JobListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobResponse'
+        last_job_id:
+          type: integer
+          description: "ID of the last job in the list for pagination"
+          nullable: true
+
+    JobGroupListResponse:
+      type: object
+      properties:
+        job_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobGroupResponse'
+        last_job_group_id:
+          type: integer
+          description: "ID of the last job group in the list for pagination"
+          nullable: true
+
+    BillingProjectResponse:
+      type: object
+      properties:
+        name:
+          type: string
+          description: "Name of the billing project"
+        status:
+          type: string
+          enum: ["open", "closed"]
+          description: "Status of the billing project"
+        users:
+          type: array
+          items:
+            type: string
+          description: "List of users with access to this billing project"
+        limit:
+          type: number
+          description: "Billing limit in dollars"
+          nullable: true
+
+    BillingProjectListResponse:
+      type: object
+      properties:
+        billing_projects:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingProjectResponse'
+
+    JobAttemptResponse:
+      type: object
+      properties:
+        attempt_id:
+          type: string
+          description: "ID of the attempt"
+        instance_name:
+          type: string
+          description: "Name of the instance that ran the attempt"
+        start_time:
+          type: string
+          format: date-time
+          description: "When the attempt started"
+        end_time:
+          type: string
+          format: date-time
+          description: "When the attempt ended"
+          nullable: true
+        reason:
+          type: string
+          description: "Reason for the attempt status"
+          nullable: true
+        status:
+          type: string
+          enum: ["pending", "running", "succeeded", "failed", "error"]
+          description: "Status of the attempt"
+
+    JobAttemptsResponse:
+      type: object
+      properties:
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobAttemptResponse'
+
+    ResourceUsageResponse:
+      type: object
+      properties:
+        cpu_usage:
+          type: array
+          items:
+            type: object
+            properties:
+              time:
+                type: string
+                format: date-time
+              usage:
+                type: number
+          description: "CPU usage over time"
+        memory_usage:
+          type: array
+          items:
+            type: object
+            properties:
+              time:
+                type: string
+                format: date-time
+              usage:
+                type: number
+          description: "Memory usage over time"
+        storage_usage:
+          type: array
+          items:
+            type: object
+            properties:
+              time:
+                type: string
+                format: date-time
+              usage:
+                type: number
+          description: "Storage usage over time"
