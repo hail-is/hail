@@ -102,10 +102,11 @@ paths:
       tags:
         - Batches API v1Alpha
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CreateBatchRequest'
       responses:
         '200':
           description: "Successfully created the batch."
@@ -121,10 +122,11 @@ paths:
       tags:
         - Batches API v1Alpha
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CreateBatchFastRequest'
       responses:
         '200':
           description: "Successfully created the batch fast."
@@ -147,10 +149,11 @@ paths:
           schema:
             type: number
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/BatchFastUpdateRequest'
       responses:
         '200':
           description: "Successfully updated the batch fast."
@@ -173,10 +176,11 @@ paths:
           schema:
             type: number
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/BatchUpdateRequest'
       responses:
         '200':
           description: "Successfully created the batch update."
@@ -205,10 +209,11 @@ paths:
           schema:
             type: number
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/JobGroupSpec'
       responses:
         '200':
           description: "Successfully created the job group update."
@@ -237,10 +242,11 @@ paths:
           schema:
             type: number
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CreateJobRequest'
       responses:
         '200':
           description: "Successfully created the job update."
@@ -264,10 +270,11 @@ paths:
           schema:
             type: number
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CreateJobRequest'
       responses:
         '200':
           description: "Successfully created the job."
@@ -770,10 +777,11 @@ paths:
           schema:
             type: string
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CreateBillingProjectRequest'
       responses:
         '200':
           description: "Successfully created the billing project."
@@ -913,10 +921,11 @@ paths:
           schema:
             type: string
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/BillingLimitRequest'
       responses:
         '200':
           description: "Successfully edited the billing limits."
@@ -1445,5 +1454,188 @@ paths:
               schema:
                 type: object
 
-#components:
-  # TODO: Add response types
+components:
+  schemas:
+    BillingLimitRequest:
+      type: object
+      required:
+        - limit
+      properties:
+        limit:
+          type: number
+          description: "The billing limit value in dollars. Use null to remove the limit."
+          nullable: true
+          example: 1000.50
+
+    CreateBatchRequest:
+      type: object
+      required:
+        - billing_project
+        - attributes
+      properties:
+        billing_project:
+          type: string
+          description: "The billing project to charge for this batch"
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the batch"
+          additionalProperties:
+            type: string
+        callback:
+          type: string
+          description: "Optional callback URL to notify when batch completes"
+        token:
+          type: string
+          description: "Optional token for batch identification"
+        cancel_after_n_failures:
+          type: integer
+          description: "Optional number of failures after which to cancel the batch"
+          minimum: 1
+
+    CreateJobRequest:
+      type: object
+      required:
+        - job_spec
+      properties:
+        job_spec:
+          type: object
+          required:
+            - command
+          properties:
+            command:
+              type: array
+              items:
+                type: string
+              description: "Command to execute"
+            env:
+              type: object
+              additionalProperties:
+                type: string
+              description: "Environment variables"
+            port:
+              type: integer
+              description: "Port to expose"
+            resources:
+              type: object
+              properties:
+                cpu:
+                  type: string
+                memory:
+                  type: string
+                storage:
+                  type: string
+            service_account:
+              type: object
+              properties:
+                namespace:
+                  type: string
+                name:
+                  type: string
+            timeout:
+              type: integer
+              description: "Job timeout in seconds"
+            attributes:
+              type: object
+              additionalProperties:
+                type: string
+              description: "Job attributes"
+            callback:
+              type: string
+              description: "Callback URL"
+
+    CreateBillingProjectRequest:
+      type: object
+      properties:
+        budget:
+          type: number
+          description: "Initial budget for the billing project"
+
+    BatchUpdateRequest:
+      type: object
+      required:
+        - update_token
+      properties:
+        update_token:
+          type: string
+          description: "Token to identify this update"
+        job_specs:
+          type: array
+          description: "List of job specifications to add"
+          items:
+            $ref: '#/components/schemas/CreateJobRequest'
+        job_groups:
+          type: array
+          description: "List of job groups to add"
+          items:
+            $ref: '#/components/schemas/JobGroupSpec'
+
+    JobGroupSpec:
+      type: object
+      required:
+        - attributes
+      properties:
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the job group"
+          additionalProperties:
+            type: string
+        cancel_after_n_failures:
+          type: integer
+          description: "Optional number of failures after which to cancel the job group"
+          minimum: 1
+        callback:
+          type: string
+          description: "Optional callback URL to notify when job group completes"
+
+    BatchFastUpdateRequest:
+      type: object
+      required:
+        - job_specs
+      properties:
+        job_specs:
+          type: array
+          description: "List of job specifications to add"
+          items:
+            $ref: '#/components/schemas/CreateJobRequest'
+        job_groups:
+          type: array
+          description: "List of job groups to add"
+          items:
+            $ref: '#/components/schemas/JobGroupSpec'
+
+    CreateBatchFastRequest:
+      type: object
+      required:
+        - billing_project
+        - token
+        - attributes
+        - job_specs
+      properties:
+        billing_project:
+          type: string
+          description: "The billing project to charge for this batch"
+        token:
+          type: string
+          description: "Token for batch identification"
+        attributes:
+          type: object
+          description: "Key-value pairs of attributes for the batch"
+          additionalProperties:
+            type: string
+        callback:
+          type: string
+          description: "Optional callback URL to notify when batch completes"
+        cancel_after_n_failures:
+          type: integer
+          description: "Optional number of failures after which to cancel the batch"
+          minimum: 1
+        job_specs:
+          type: array
+          description: "List of job specifications"
+          items:
+            $ref: '#/components/schemas/CreateJobRequest'
+        job_groups:
+          type: array
+          description: "List of job groups"
+          items:
+            $ref: '#/components/schemas/JobGroupSpec'
