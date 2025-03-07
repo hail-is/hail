@@ -100,6 +100,13 @@ jobs:
           ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
           && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
 
+          jq --arg img "${{ matrix.image }}" '
+            .runs[0].results |= map(
+              .message.text = ("Image: " + $img + "\n" + .message.text)
+            )
+          ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
+          && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
+
       - name: Generate safe artifact name
         id: safe-name
         run: |
