@@ -94,10 +94,10 @@ jobs:
           name: trivy-scan-${{ matrix.image }}
           path: trivy-results/
           
-      - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results/scan.sarif
-          category: trivy-container-scan
-          ref: ${{ github.event.inputs.branch }}
-          commit: ${{ github.event.inputs.commit_hash }} 
+      # - name: Upload SARIF to GitHub Security
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: trivy-results/scan.sarif
+      #     category: trivy-container-scan
+      #     ref: ${{ github.event.inputs.branch }}
+      #     commit: ${{ github.event.inputs.commit_hash }} 
