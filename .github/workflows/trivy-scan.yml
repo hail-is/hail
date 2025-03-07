@@ -100,12 +100,18 @@ jobs:
           ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
           && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
 
+      - name: Generate safe artifact name
+        id: safe-name
+        run: |
+          SAFE_NAME=$(echo "${{ matrix.image }}" | tr ':/' '__')
+          echo "name=trivy-scan-${SAFE_NAME}" >> $GITHUB_OUTPUT
+
       - name: Upload scan results
         uses: actions/upload-artifact@v4
         with:
-          name: trivy-scan-${{ matrix.image }}
+          name: trivy-scan-${{ steps.safe-name.outputs.name }}
           path: trivy-results/
-          
+
       # - name: Upload SARIF to GitHub Security
       #   uses: github/codeql-action/upload-sarif@v3
       #   with:
