@@ -109,7 +109,19 @@ jobs:
               --format sarif \
               --output "trivy-results/${image//\//_}-scan.sarif" \
               "$image"
-              
+
+            # Update the SARIF file to include image name in properties
+            jq --arg img "$image" '
+              .runs[].results[] |= (
+                if .properties then
+                  .properties += {"image": $img}
+                else
+                  . += {"properties": {"image": $img}}
+                end
+              )
+            ' "trivy-results/${image//\//_}-scan.sarif" > "trivy-results/${image//\//_}-scan.tmp.sarif" \
+            && mv "trivy-results/${image//\//_}-scan.tmp.sarif" "trivy-results/${image//\//_}-scan.sarif"
+
             # Also generate human-readable report for reference
             trivy image \
               --format table \
