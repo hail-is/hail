@@ -15,9 +15,14 @@ on:
         description: 'Commit hash to upload results against'
         required: true
         type: string
-  pull_request:
-    branches:
-      - main
+      google_project_id:
+        description: 'Google Cloud Project ID. Must be configured with Workload Identity Federation to accept auth from this repository ID.'
+        required: true
+        type: string
+      google_service_account:
+        description: 'Google Cloud service account name. Must be configured with Workload Identity Federation in the project.'
+        required: true
+        type: string
 
 jobs:
   scan:
@@ -35,7 +40,8 @@ jobs:
       - name: Set up Google Cloud Auth
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GOOGLE_GAR_CREDENTIALS }}
+          workload_identity_provider: "projects/${{ github.event.inputs.google_project_id }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          service_account: "${{ github.event.inputs.google_service_account }}"
           
       - name: Configure Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
@@ -43,89 +49,92 @@ jobs:
       - name: Configure Docker for GAR
         run: |
           gcloud auth configure-docker
+
+      - name: Verify authentication
+        run: gcloud auth list
+
+      # - name: Install Trivy
+      #   env:
+      #     TRIVY_VERSION: "0.49.1"
+      #     # This is the official SHA256 checksum for Trivy 0.49.1 Linux AMD64 binary
+      #     TRIVY_SHA256: "4459e5c3f8e2de56c351e7b7b8a9f8d9e6a6a84e0e5d5f4f5f13c1c4f5e2f6f5"
+      #   run: |
+      #     # Download the specific version of Trivy
+      #     wget -q https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
           
-      - name: Install Trivy
-        env:
-          TRIVY_VERSION: "0.49.1"
-          # This is the official SHA256 checksum for Trivy 0.49.1 Linux AMD64 binary
-          TRIVY_SHA256: "4459e5c3f8e2de56c351e7b7b8a9f8d9e6a6a84e0e5d5f4f5f13c1c4f5e2f6f5"
-        run: |
-          # Download the specific version of Trivy
-          wget -q https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+      #     # Download the checksums file and GPG signature
+      #     wget -q https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt
+      #     wget -q https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt.sig
           
-          # Download the checksums file and GPG signature
-          wget -q https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt
-          wget -q https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_checksums.txt.sig
+      #     # Import Aqua Security's GPG key
+      #     gpg --keyserver keyserver.ubuntu.com --recv-keys 3B3EAB0F4544A588
           
-          # Import Aqua Security's GPG key
-          gpg --keyserver keyserver.ubuntu.com --recv-keys 3B3EAB0F4544A588
+      #     # Verify the signature of the checksums file
+      #     gpg --verify trivy_${TRIVY_VERSION}_checksums.txt.sig trivy_${TRIVY_VERSION}_checksums.txt
           
-          # Verify the signature of the checksums file
-          gpg --verify trivy_${TRIVY_VERSION}_checksums.txt.sig trivy_${TRIVY_VERSION}_checksums.txt
+      #     # Verify the checksum of the downloaded binary
+      #     sha256sum --check --ignore-missing <(grep Linux-64bit.tar.gz trivy_${TRIVY_VERSION}_checksums.txt)
           
-          # Verify the checksum of the downloaded binary
-          sha256sum --check --ignore-missing <(grep Linux-64bit.tar.gz trivy_${TRIVY_VERSION}_checksums.txt)
+      #     # Extract Trivy binary
+      #     tar -xzf trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
           
-          # Extract Trivy binary
-          tar -xzf trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz
+      #     # Install to /usr/local/bin
+      #     sudo install -m 755 trivy /usr/local/bin/trivy
           
-          # Install to /usr/local/bin
-          sudo install -m 755 trivy /usr/local/bin/trivy
+      #     # Clean up downloaded files
+      #     rm -f trivy trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy_${TRIVY_VERSION}_checksums.txt trivy_${TRIVY_VERSION}_checksums.txt.sig
           
-          # Clean up downloaded files
-          rm -f trivy trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz trivy_${TRIVY_VERSION}_checksums.txt trivy_${TRIVY_VERSION}_checksums.txt.sig
+      #     # Verify installation
+      #     trivy --version
           
-          # Verify installation
-          trivy --version
+      # - name: Run Trivy scan
+      #   run: |
+      #     # Split the comma-separated list of images
+      #     IFS=',' read -ra IMAGES <<< "${{ github.event.inputs.images }}"
           
-      - name: Run Trivy scan
-        run: |
-          # Split the comma-separated list of images
-          IFS=',' read -ra IMAGES <<< "${{ github.event.inputs.images }}"
+      #     # Create output directory
+      #     mkdir -p trivy-results
           
-          # Create output directory
-          mkdir -p trivy-results
-          
-          # Scan each image and generate SARIF report
-          for image in "${IMAGES[@]}"; do
-            # Trim whitespace
-            image=$(echo "$image" | xargs)
+      #     # Scan each image and generate SARIF report
+      #     for image in "${IMAGES[@]}"; do
+      #       # Trim whitespace
+      #       image=$(echo "$image" | xargs)
             
-            echo "Scanning image: $image"
+      #       echo "Scanning image: $image"
             
-            # Generate SARIF format report
-            trivy image \
-              --format sarif \
-              --output "trivy-results/${image//\//_}-scan.sarif" \
-              "$image"
+      #       # Generate SARIF format report
+      #       trivy image \
+      #         --format sarif \
+      #         --output "trivy-results/${image//\//_}-scan.sarif" \
+      #         "$image"
               
-            # Also generate human-readable report for reference
-            trivy image \
-              --format table \
-              --output "trivy-results/${image//\//_}-scan.txt" \
-              "$image"
-          done
+      #       # Also generate human-readable report for reference
+      #       trivy image \
+      #         --format table \
+      #         --output "trivy-results/${image//\//_}-scan.txt" \
+      #         "$image"
+      #     done
           
-          # Combine all SARIF files into one
-          echo '{"version":"2.1.0","runs":[]}' > trivy-results/combined.sarif
-          for sarif_file in trivy-results/*-scan.sarif; do
-            if [ "$sarif_file" != "trivy-results/combined.sarif" ]; then
-              # Extract the "runs" array from each file and merge it into combined.sarif
-              jq -s '.[0].runs += .[1].runs | .[0]' trivy-results/combined.sarif "$sarif_file" > trivy-results/temp.sarif
-              mv trivy-results/temp.sarif trivy-results/combined.sarif
-            fi
-          done
+      #     # Combine all SARIF files into one
+      #     echo '{"version":"2.1.0","runs":[]}' > trivy-results/combined.sarif
+      #     for sarif_file in trivy-results/*-scan.sarif; do
+      #       if [ "$sarif_file" != "trivy-results/combined.sarif" ]; then
+      #         # Extract the "runs" array from each file and merge it into combined.sarif
+      #         jq -s '.[0].runs += .[1].runs | .[0]' trivy-results/combined.sarif "$sarif_file" > trivy-results/temp.sarif
+      #         mv trivy-results/temp.sarif trivy-results/combined.sarif
+      #       fi
+      #     done
           
-      - name: Upload scan results as artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-scan-results
-          path: trivy-results/
+      # - name: Upload scan results as artifacts
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: trivy-scan-results
+      #     path: trivy-results/
           
-      - name: Upload SARIF results to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results/combined.sarif
-          category: trivy-container-scan
-          ref: ${{ github.event.inputs.branch }}
-          commit: ${{ github.event.inputs.commit_hash }} 
+      # - name: Upload SARIF results to GitHub Security
+      #   uses: github/codeql-action/upload-sarif@v3
+      #   with:
+      #     sarif_file: trivy-results/combined.sarif
+      #     category: trivy-container-scan
+      #     ref: ${{ github.event.inputs.branch }}
+      #     commit: ${{ github.event.inputs.commit_hash }} 
