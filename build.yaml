@@ -721,7 +721,7 @@ steps:
           sleep 5
       fi
 
-      time retry make wheel
+      time retry make DEV_CLARIFIER=hail-ci-build wheel
 
       # Check wheel size is small enough for pypi (< 200 MiB)
       BYTES=$(du build/deploy/dist/hail-*-py3-none-any.whl | awk '{print $1}')
@@ -737,6 +737,40 @@ steps:
     dependsOn:
       - base_image
       - merge_code
+  - kind: runImage
+    name: upload_temporary_hailctl_artifacts
+    image:
+      valueFrom: ci_utils_image.image
+    resources:
+      memory: standard
+      cpu: '1'
+    script: |
+      set -ex
+      cd /io/repo/hail
+
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      make HAIL_RELEASE_MODE=1 DEV_CLARIFIER=hail-ci-build upload-artifacts \
+          -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
+    dependsOn:
+      - ci_utils_image
+      - default_ns
+      - merge_code
+      - build_hail_jar_and_wheel
+    inputs:
+      - from: /repo
+        to: /io/repo
+      - from: /derived/release/hail/build/deploy/dist
+        to: /io/repo/hail/build/deploy/dist
+    secrets:
+      - name: test-dataproc-service-account-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-dataproc-service-account-key
+    scopes:
+      - deploy
+      - dev
+    clouds:
+      - gcp
   - kind: runImage
     name: build_hail_debug_jar_and_wheel
     image:
@@ -3285,13 +3319,13 @@ steps:
       fi
 
       cd hail
-      make test-dataproc-37 DEV_CLARIFIER=ci_test_dataproc-37 HAIL_RELEASE_MODE=1 \
+      make test-dataproc-37 HAIL_RELEASE_MODE=1 \
           -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
       - default_ns
       - merge_code
-      - build_hail_jar_and_wheel
+      - upload_temporary_hailctl_artifacts
     inputs:
       - from: /repo
         to: /io/repo
@@ -3329,13 +3363,13 @@ steps:
       fi
 
       cd hail
-      make test-dataproc-38 DEV_CLARIFIER=ci_test_dataproc-38 HAIL_RELEASE_MODE=1 \
+      make test-dataproc-38 HAIL_RELEASE_MODE=1 \
           -o $(ls build/deploy/dist/hail-*-py3-none-any.whl)
     dependsOn:
       - ci_utils_image
       - default_ns
       - merge_code
-      - build_hail_jar_and_wheel
+      - upload_temporary_hailctl_artifacts
     inputs:
       - from: /repo
         to: /io/repo

@@ -405,11 +405,11 @@ install-on-cluster: $(WHEEL) check-pip-lockfile
 install-hailctl: install upload-artifacts
 
 .PHONY: test-dataproc-37
-test-dataproc-37: install-hailctl
+test-dataproc-37: install
 	bash scripts/test-dataproc.sh "GRCh37"
 
 .PHONY: test-dataproc-38
-test-dataproc-38: install-hailctl
+test-dataproc-38: install
 	bash scripts/test-dataproc.sh "GRCh38"
 
 # install skopeo
