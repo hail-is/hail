@@ -138,7 +138,7 @@ jobs:
       - name: Combine SARIF files
         run: |
           echo "Downloaded artifacts:"
-          ls -la all-artifacts
+          ls -lar all-artifacts
 
           # Use first file as base
           BASE_FILE=$(find all-artifacts -name "*.sarif" | head -n 1)
