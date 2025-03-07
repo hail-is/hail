@@ -117,5 +117,5 @@ jobs:
         with:
           sarif_file: trivy-results/scan.sarif
           category: trivy-container-scan
-          ref: ${{ github.event.inputs.branch }}
-          commit: ${{ github.event.inputs.commit_hash }} 
+          ref: refs/heads/${{ github.event.inputs.branch }}
+          sha: ${{ github.event.inputs.commit_hash }}
