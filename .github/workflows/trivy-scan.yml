@@ -1,5 +1,10 @@
 name: Trivy Security Scan
 
+permissions:
+  security-events: write
+  id-token: write
+  contents: read
+
 on:
   workflow_dispatch:
     inputs:
