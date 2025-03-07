@@ -5,7 +5,7 @@ This GitHub Action workflow allows you to run Trivy security scans on Docker ima
 ## Prerequisites
 
 1. A Google Cloud Service Account with permissions to access your Google Artifact Registry
-2. The service account key stored as a GitHub secret named `GOOGLE_CREDENTIALS`
+2. Workload identity federation must be configured. See below.
 3. Repository must have GitHub Advanced Security enabled to view security alerts
 
 ## Configuration

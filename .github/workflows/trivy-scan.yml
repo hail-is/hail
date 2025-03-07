@@ -16,7 +16,7 @@ on:
         required: true
         type: string
       google_project_id:
-        description: 'Google Cloud Project ID. Must be configured with Workload Identity Federation to accept auth from this repository ID.'
+        description: 'Google Cloud Project ID. Must be configured with Workload Identity Federation to accept auth from this repository ID. Discover by running `gcloud projects describe <project> --format="value(projectNumber)"`'
         required: true
         type: string
       google_service_account:
@@ -26,17 +26,12 @@ on:
 
 jobs:
   scan:
-    name: Security Scan
+    name: Trivy Security Scan
     runs-on: ubuntu-latest
     permissions:
       security-events: write
       
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.commit_hash }}
-          
       - name: Set up Google Cloud Auth
         uses: google-github-actions/auth@v2
         with:
