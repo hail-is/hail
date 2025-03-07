@@ -30,14 +30,26 @@ on:
         type: string
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          # Convert comma-separated list to JSON array
+          images=$(echo '${{ github.event.inputs.images }}' | jq -R -s -c 'split(",")|map(select(length>0)|trim)')
+          echo "matrix=${images}" >> $GITHUB_OUTPUT
+
   scan:
+    needs: prepare
     name: Trivy Security Scan
     runs-on: ubuntu-latest
     permissions:
       security-events: write
     strategy:
       matrix:
-        image: ${{ fromJson(format('[{0}]', join(fromJson(format('"{0}"', github.event.inputs.images)), ','))) }}
+        image: ${{ fromJson(needs.prepare.outputs.matrix) }}
       
     steps:
       - name: Set up Google Cloud Auth
