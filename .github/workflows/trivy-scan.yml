@@ -127,11 +127,11 @@ jobs:
             fi
           done
           
-      # - name: Upload scan results as artifacts
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: trivy-scan-results
-      #     path: trivy-results/
+      - name: Upload scan results as artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-results
+          path: trivy-results/
           
       # - name: Upload SARIF results to GitHub Security
       #   uses: github/codeql-action/upload-sarif@v3
