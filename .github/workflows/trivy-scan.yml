@@ -101,26 +101,25 @@ jobs:
           ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
           && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
 
-      - name: Save SARIF as output
-        id: sarif
-        run: |
-          SARIF_CONTENT=$(cat trivy-results/scan.sarif)
-          echo "content=${SARIF_CONTENT}" >> $GITHUB_OUTPUT
-
       - name: Generate safe artifact name
         id: safe-name
         run: |
           SAFE_NAME=$(echo "${{ matrix.image }}" | tr ':/' '__')
-          echo "name=trivy-scan-${SAFE_NAME}" >> $GITHUB_OUTPUT
+          echo "name=${SAFE_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Upload scan results
+
+      - name: Upload sarif scan results
         uses: actions/upload-artifact@v4
         with:
-          name: trivy-scan-${{ steps.safe-name.outputs.name }}
-          path: trivy-results/
+          name: trivy-scan-${{ steps.safe-name.outputs.name }}.sarif
+          path: trivy-results/scan.sarif
 
-    outputs:
-      sarif: ${{ steps.sarif.outputs.content }}
+
+      - name: Upload human readable results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-${{ steps.safe-name.outputs.name }}.txt
+          path: trivy-results/scan.txt
 
   upload-combined:
     needs: scan
@@ -131,27 +130,31 @@ jobs:
       - name: Create results directory
         run: mkdir -p combined-results
 
+      - name: Download all SARIF results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
       - name: Combine SARIF files
         run: |
-          # Get all SARIF outputs from the matrix jobs
-          sarif_files=()
-          for sarif in ${{ toJSON(needs.scan.outputs.sarif) }}; do
-            echo "$sarif" > "combined-results/temp_${i}.sarif"
-            sarif_files+=("combined-results/temp_${i}.sarif")
-            i=$((i+1))
-          done
+          # Use first file as base
+          BASE_FILE=$(find all-artifacts -name "*.sarif" | head -n 1)
+          echo "Using $BASE_FILE as base file"
+          cp "$BASE_FILE" combined-results/combined.sarif
 
-          # Use first file as base and combine the rest
-          cp "${sarif_files[0]}" combined-results/combined.sarif
-          for sarif_file in "${sarif_files[@]:1}"; do
-            jq -s '
-              if length > 1 then
-                .[0].runs += .[1].runs | .[0]
-              else
-                .[0]
-              end
-            ' combined-results/combined.sarif "$sarif_file" > combined-results/temp.sarif
-            mv combined-results/temp.sarif combined-results/combined.sarif
+          # Combine the rest
+          for sarif_file in all-artifacts/*.sarif; do
+            if [ "$sarif_file" != "$BASE_FILE" ]; then
+              echo "Combining $sarif_file"
+              jq -s '
+                if length > 1 then
+                  .[0].runs += .[1].runs | .[0]
+                else
+                  .[0]
+                end
+              ' combined-results/combined.sarif "$sarif_file" > combined-results/temp.sarif
+              mv combined-results/temp.sarif combined-results/combined.sarif
+            fi
           done
 
       - name: Upload combined results artifact
@@ -167,3 +170,4 @@ jobs:
           category: trivy-container-scan
           ref: refs/heads/${{ github.event.inputs.branch }}
           sha: ${{ github.event.inputs.commit_hash }}
+
