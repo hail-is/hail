@@ -20,14 +20,15 @@ on:
         description: 'Commit hash to upload results against'
         required: true
         type: string
-      google_project_id:
-        description: 'Google Cloud Project ID. Must be configured with Workload Identity Federation to accept auth from this repository ID. Discover by running `gcloud projects describe <project> --format="value(projectNumber)"`'
-        required: true
-        type: string
-      google_service_account:
-        description: 'Google Cloud service account name. Must be configured with Workload Identity Federation in the project.'
-        required: true
-        type: string
+      # TODO: Add back in when we authenticate with Google Cloud Workload Identity Federation
+      # google_project_id:
+      #   description: 'Google Cloud Project ID. Must be configured with Workload Identity Federation to accept auth from this repository ID. Discover by running `gcloud projects describe <project> --format="value(projectNumber)"`'
+      #   required: true
+      #   type: string
+      # google_service_account:
+      #   description: 'Google Cloud service account name. Must be configured with Workload Identity Federation in the project.'
+      #   required: true
+      #   type: string
 
 jobs:
   prepare:
@@ -57,6 +58,7 @@ jobs:
         with:
           # Use secret instead of workload identity federation:
           credentials_json: ${{ secrets.GOOGLE_GAR_CREDENTIALS }}
+          # TODO: Add back in when we authenticate with Google Cloud Workload Identity Federation:
           # workload_identity_provider: "projects/${{ github.event.inputs.google_project_id }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
           # service_account: "${{ github.event.inputs.google_service_account }}"
           
@@ -89,18 +91,10 @@ jobs:
 
       - name: Add image information to SARIF
         run: |
-          jq --arg img "${{ matrix.image }}" '
-            .runs[].results[] |= (
-              if .properties then
-                .properties += {"image": $img}
-              else
-                . += {"properties": {"image": $img}}
-              end
-            )
-          ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
-          && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
+          # Remove version from image name so that we can track issues across versions
+          IMAGE_NAME=$(echo "${{ matrix.image }}" | cut -d ':' -f 1)
 
-          jq --arg img "${{ matrix.image }}" '
+          jq --arg img "${IMAGE_NAME}" '
             .runs[0].results |= map(
               .message.text = ("Image: " + $img + "\n" + .message.text)
             )
