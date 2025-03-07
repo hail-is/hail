@@ -40,8 +40,10 @@ jobs:
       - name: Set up Google Cloud Auth
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: "projects/${{ github.event.inputs.google_project_id }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
-          service_account: "${{ github.event.inputs.google_service_account }}"
+          # Use secret instead of workload identity federation:
+          credentials_json: ${{ secrets.GOOGLE_GAR_CREDENTIALS }}
+          # workload_identity_provider: "projects/${{ github.event.inputs.google_project_id }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          # service_account: "${{ github.event.inputs.google_service_account }}"
           
       - name: Configure Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
