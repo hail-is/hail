@@ -101,6 +101,12 @@ jobs:
           ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
           && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
 
+      - name: Save SARIF as output
+        id: sarif
+        run: |
+          SARIF_CONTENT=$(cat trivy-results/scan.sarif)
+          echo "content=${SARIF_CONTENT}" >> $GITHUB_OUTPUT
+
       - name: Generate safe artifact name
         id: safe-name
         run: |
@@ -113,10 +119,51 @@ jobs:
           name: trivy-scan-${{ steps.safe-name.outputs.name }}
           path: trivy-results/
 
-      - name: Upload SARIF to GitHub Security
+    outputs:
+      sarif: ${{ steps.sarif.outputs.content }}
+
+  upload-combined:
+    needs: scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Create results directory
+        run: mkdir -p combined-results
+
+      - name: Combine SARIF files
+        run: |
+          # Get all SARIF outputs from the matrix jobs
+          sarif_files=()
+          for sarif in ${{ toJSON(needs.scan.outputs.sarif) }}; do
+            echo "$sarif" > "combined-results/temp_${i}.sarif"
+            sarif_files+=("combined-results/temp_${i}.sarif")
+            i=$((i+1))
+          done
+
+          # Use first file as base and combine the rest
+          cp "${sarif_files[0]}" combined-results/combined.sarif
+          for sarif_file in "${sarif_files[@]:1}"; do
+            jq -s '
+              if length > 1 then
+                .[0].runs += .[1].runs | .[0]
+              else
+                .[0]
+              end
+            ' combined-results/combined.sarif "$sarif_file" > combined-results/temp.sarif
+            mv combined-results/temp.sarif combined-results/combined.sarif
+          done
+
+      - name: Upload combined results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-combined-results
+          path: combined-results/combined.sarif
+
+      - name: Upload combined SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results/scan.sarif
+          sarif_file: combined-results/combined.sarif
           category: trivy-container-scan
           ref: refs/heads/${{ github.event.inputs.branch }}
           sha: ${{ github.event.inputs.commit_hash }}
