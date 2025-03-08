@@ -2,7 +2,7 @@ name: Trivy Security Scan
 
 permissions:
   security-events: write
-  id-token: write
+  # id-token: write # TODO: Add back in when we authenticate with Google Cloud Workload Identity Federation
   contents: read
 
 on:
@@ -173,4 +173,3 @@ jobs:
           category: trivy-container-scan
           ref: refs/heads/${{ github.event.inputs.branch }}
           sha: ${{ github.event.inputs.commit_hash }}
-
