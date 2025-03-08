@@ -141,12 +141,12 @@ jobs:
           ls -laR all-artifacts
 
           # Use first file as base
-          BASE_FILE=$(find all-artifacts -name "*.sarif" | head -n 1)
+          BASE_FILE=$(find all-artifacts -name "*.sarif" -type f | head -n 1)
           echo "Using $BASE_FILE as base file"
           cp "$BASE_FILE" combined-results/combined.sarif
 
           # Combine the rest
-          for sarif_file in all-artifacts/*.sarif; do
+          for sarif_file in $(find all-artifacts -name "*.sarif" -type f); do
             if [ "$sarif_file" != "$BASE_FILE" ]; then
               echo "Combining $sarif_file"
               jq -s '
