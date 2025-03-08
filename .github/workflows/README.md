@@ -5,20 +5,21 @@ This GitHub Action workflow allows you to run Trivy security scans on Docker ima
 ## Prerequisites
 
 1. A Google Cloud Service Account with permissions to access your Google Artifact Registry
-2. Workload identity federation must be configured. See below.
+2. An access token set up in the repository under actions / secrets / GOOGLE_GAR_CREDENTIALS
 3. Repository must have GitHub Advanced Security enabled to view security alerts
 
 ## Configuration
 
 ### GitHub Secrets Required
 
-- `GOOGLE_CREDENTIALS`: The JSON key file for a Google Cloud service account with access to your Artifact Registry
+- `GOOGLE_GAR_CREDENTIALS`: The JSON key file for a Google Cloud service account with access to your Artifact Registry
 - `GITHUB_TOKEN`: Automatically provided by GitHub, used for uploading scan results
 
 ### Required Permissions
 
 The workflow requires the following permissions:
 - `security-events: write`: To upload security scan results
+- `contents: read`: For reading back action artifacts
 
 ## Usage
 
@@ -68,8 +69,9 @@ The workflow produces the following outputs:
    - Alerts are associated with the specified branch and commit
 
 2. **Scan Results Artifacts**: 
-   - SARIF format reports: `trivy-results/<image-name>-scan.sarif`
-   - Human-readable reports: `trivy-results/<image-name>-scan.txt`
+   - SARIF format report per image: `trivy-scan-<image-name>.sarif`
+   - Human-readable reports per image: `trivy-scan-<image-name>.txt`
+   - Combined SARIF format results file: `trivy-combined-results`
 
 ## Accessing Results
 
