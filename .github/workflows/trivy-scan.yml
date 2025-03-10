@@ -39,7 +39,7 @@ jobs:
       - id: set-matrix
         name: Set matrix
         env:
-          BRANCH: ${{ github.event.inputs.branch }}
+          BRANCH: ${{ github.event.inputs.images }}
         run: |
           # Convert comma-separated list to JSON array
           images=$(echo "$BRANCH" | jq -R -s -c 'split(",")|map(select(length>0)|gsub("\\n";""))')
