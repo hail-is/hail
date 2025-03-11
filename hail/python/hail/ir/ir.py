@@ -2319,10 +2319,68 @@ class StreamAgg(IR):
             return {}
 
     def renderable_bindings(self, i, default_value=None):
-        if i == 1:
-            return {BaseIR.agg_capability: default_value}
-        else:
+        return {BaseIR.agg_capability: default_value} if i == 1 else {}
+
+    def renderable_new_block(self, i: int) -> bool:
+        return i == 1
+
+
+class StreamAggScan(IR):
+    @typecheck_method(a=IR, value_name=str, body=IR)
+    def __init__(self, a, value_name, body):
+        uses_agg_randomness = body.uses_agg_randomness(is_scan=False)
+        a = a.handle_randomness(uses_agg_randomness)
+        if uses_agg_randomness:
+            tup, uid, elt = unpack_uid(a.typ)
+            body = AggLet(value_name, elt, body, is_scan=True)
+            body = with_split_rng_state(body, uid, is_scan=True)
+            value_name = tup
+
+        super().__init__(a, body)
+        self.a = a
+        self.value_name = value_name
+        self.body = body
+
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        return StreamAggScan(a, self.value_name, body)
+
+    def head_str(self):
+        return escape_id(self.value_name)
+
+    def _eq(self, other):
+        return self.value_name == other.value_name
+
+    @property
+    def bound_variables(self):
+        return {self.value_name} | super().bound_variables
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(env, _env_bind(env, self.bindings(1)), deep_typecheck)
+        return tstream(self.body.typ)
+
+    @property
+    def free_vars(self):
+        fv = (self.body.free_scan_vars.difference({self.value_name})).union(self.a.free_vars)
+        return fv
+
+    def renderable_child_context_without_bindings(self, i: int, parent_context):
+        if i == 0:
+            return parent_context
+        eval_c, _, _ = parent_context
+        return eval_c, None, eval_c
+
+    def renderable_bindings(self, i, default_value=None):
+        if i != 1:
             return {}
+        return self.renderable_scan_bindings(i, default_value) | {BaseIR.agg_capability: default_value}
+
+    def renderable_scan_bindings(self, i, default_value=None):
+        if i != 1:
+            return {}
+        value = self.a.typ.element_type if default_value is None else default_value
+        return {self.value_name: value}
 
     def renderable_new_block(self, i: int) -> bool:
         return i == 1
