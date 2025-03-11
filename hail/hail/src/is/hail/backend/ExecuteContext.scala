@@ -5,6 +5,7 @@ import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s.HailClassLoader
 import is.hail.backend.local.LocalTaskContext
 import is.hail.expr.ir.{BaseIR, CodeCacheKey, CompiledFunction}
+import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.lowering.IrMetadata
 import is.hail.io.fs.FS
 import is.hail.linalg.BlockMatrix
@@ -76,6 +77,7 @@ object ExecuteContext {
     blockMatrixCache: mutable.Map[String, BlockMatrix],
     codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
     irCache: mutable.Map[Int, BaseIR],
+    coercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
   )(
     f: ExecuteContext => T
   ): T = {
@@ -97,6 +99,7 @@ object ExecuteContext {
           blockMatrixCache,
           codeCache,
           irCache,
+          coercerCache,
         ))(f(_))
       }
     }
@@ -129,6 +132,7 @@ class ExecuteContext(
   val BlockMatrixCache: mutable.Map[String, BlockMatrix],
   val CodeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]],
   val PersistedIrCache: mutable.Map[Int, BaseIR],
+  val PersistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer],
 ) extends Closeable {
 
   val rngNonce: Long =
@@ -198,6 +202,7 @@ class ExecuteContext(
     blockMatrixCache: mutable.Map[String, BlockMatrix] = this.BlockMatrixCache,
     codeCache: mutable.Map[CodeCacheKey, CompiledFunction[_]] = this.CodeCache,
     persistedIrCache: mutable.Map[Int, BaseIR] = this.PersistedIrCache,
+    persistedCoercerCache: mutable.Map[Any, LoweredTableReaderCoercer] = this.PersistedCoercerCache,
   )(
     f: ExecuteContext => A
   ): A =
@@ -217,5 +222,6 @@ class ExecuteContext(
       blockMatrixCache,
       codeCache,
       persistedIrCache,
+      persistedCoercerCache,
     ))(f)
 }
