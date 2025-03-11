@@ -2261,8 +2261,9 @@ class StreamFor(IR):
 class StreamAgg(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
-        a = a.handle_randomness(body.uses_agg_randomness)
-        if body.uses_agg_randomness:
+        uses_agg_randomness = body.uses_agg_randomness(is_scan=False)
+        a = a.handle_randomness(uses_agg_randomness)
+        if uses_agg_randomness:
             tup, uid, elt = unpack_uid(a.typ)
             body = AggLet(value_name, elt, body, is_scan=False)
             body = with_split_rng_state(body, uid, is_scan=False)
