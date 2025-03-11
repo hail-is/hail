@@ -72,9 +72,6 @@ jobs:
         run: |
           gcloud auth configure-docker
 
-      - name: Verify authentication
-        run: gcloud auth list
-
       - name: Create results directory
         run: mkdir -p trivy-results
           
@@ -162,12 +159,6 @@ jobs:
               mv combined-results/temp.sarif combined-results/combined.sarif
             fi
           done
-
-      - name: Upload combined results artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-combined-results
-          path: combined-results/combined.sarif
 
       - name: Upload combined SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
