@@ -5,6 +5,8 @@ set -e
 cd "$(dirname "$0")"
 source ../devbin/functions.sh
 
+NAMESPACE="grohlice"
+
 if [ -z "${NAMESPACE}" ]; then
     echo "Must specify a NAMESPACE environment variable"
     exit 1;
