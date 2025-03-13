@@ -2341,6 +2341,23 @@ class StreamAggScan(IR):
         self.value_name = value_name
         self.body = body
 
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            a = self.a.handle_randomness(False)
+            return StreamAggScan(a=a, value_name=self.value_name, body=self.body)
+
+        # FIXME other case from streammap???
+
+        a = self.a.handle_randomness(True)
+
+        name, uid, elt = unpack_uid(a.typ)
+        new_body = Let(self.value_name, elt, self.body)
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        if create_uids:
+            new_body = pack_uid(uid, new_body)
+        return StreamAggScan(a=a, value_name=name, body=new_body)
+
     @typecheck_method(a=IR, body=IR)
     def copy(self, a, body):
         return StreamAggScan(a, self.value_name, body)
