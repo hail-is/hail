@@ -11,7 +11,7 @@ $(error "git rev-parse --short=12 HEAD" failed to produce output)
 endif
 
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 133
+HAIL_PATCH_VERSION := 134
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 
@@ -411,11 +411,11 @@ install-on-cluster: $(WHEEL) check-pip-lockfile
 install-hailctl: install upload-artifacts
 
 .PHONY: test-dataproc-37
-test-dataproc-37: install-hailctl
+test-dataproc-37: install
 	bash scripts/test-dataproc.sh "GRCh37"
 
 .PHONY: test-dataproc-38
-test-dataproc-38: install-hailctl
+test-dataproc-38: install
 	bash scripts/test-dataproc.sh "GRCh38"
 
 # install skopeo

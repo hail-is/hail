@@ -1186,6 +1186,7 @@ package defs {
             classOf[PartitionNativeReader],
             classOf[PartitionNativeReaderIndexed],
             classOf[PartitionNativeIntervalReader],
+            classOf[PartitionZippedNativeIntervalReader],
             classOf[PartitionZippedNativeReader],
             classOf[PartitionZippedIndexedNativeReader],
             classOf[BgenPartitionReader],
@@ -1211,6 +1212,15 @@ package defs {
           val path = (jv \ "path").extract[String]
           val spec = TableNativeReader.read(ctx.fs, path, None).spec
           PartitionNativeIntervalReader(
+            ctx.stateManager,
+            path,
+            spec,
+            (jv \ "uidFieldName").extract[String],
+          )
+        case "PartitionZippedNativeIntervalReader" =>
+          val path = (jv \ "path").extract[String]
+          val spec = RelationalSpec.read(ctx.fs, path).asInstanceOf[AbstractMatrixTableSpec]
+          PartitionZippedNativeIntervalReader(
             ctx.stateManager,
             path,
             spec,

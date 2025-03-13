@@ -52,6 +52,22 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.134
+
+Released 2025-02-25
+
+### New Features
+
+- (hail#14675) VDS now uses a `LEN` field for reference block size, rather than the old `END` field, in order to align with VCF version 4.5. Reading a VDS will automatically make sure that both `LEN` and `END` are present to not break existing code. Writing a VDS with drop the now superfluous `END` field.
+- (hail#14743) Add `vds.export_vcf` and `vds.import_vcf` methods to import and export SVCR VCFs.
+- (hail#14806) Add `hail.query_matrix_table_rows`, a matrix table analogue to `hail.query_table`.
+
+### Bug Fixes
+
+- (hail#14758) `sparse_split_multi` now correctly handles haploid genotypes.
+- (hail#14765) Fix index out of bounds error in `_cdf_combine`
+
+
 ## Version 0.2.133
 
 Released 2024-09-25
