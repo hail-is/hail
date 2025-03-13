@@ -124,7 +124,7 @@ kubectl create secret generic \
 ```
 export HAIL=$HOME/hail
 
-make -C $HAIL/hail python/hailtop/hail_version
+make -C $HAIL/hail python/hailtop/version.py
 
 PYTHONPATH=$HAIL/hail/python \
         python3 $HAIL/tls/create_certs.py \

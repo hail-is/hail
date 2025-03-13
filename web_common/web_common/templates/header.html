@@ -69,19 +69,9 @@
   <a href="{{ auth_base_url }}/user" class="header-link">
     <b>{{ userdata["username"] }}</b>
   </a>
-  |
-  <form action="{{ auth_base_url }}/logout" method="POST">
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-    <button class="button-header-link" type="submit">
-      Log out
-    </button>
-  </form>
   {% else %}
-  <a class="header-link" href="{{ auth_base_url }}/signup">
-    Sign Up
-  </a>
-  <a class="header-link" href="{{ auth_base_url }}/login">
-    Login
+  <a class="header-link" href="{{ auth_base_url }}/user">
+    Log in or sign up
   </a>
   {% endif %}
 </div>

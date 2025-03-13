@@ -79,12 +79,10 @@ def start(
     """
     Start an HDInsight cluster configured for Hail.
     """
-    from ... import pip_version  # pylint: disable=import-outside-toplevel
-
-    hail_version = pip_version()
+    from ... import __pip_version__  # pylint: disable=import-outside-toplevel
 
     def default_artifact(filename: str) -> str:
-        return f'https://raw.githubusercontent.com/hail-is/hail/{hail_version}/hail/python/hailtop/hailctl/hdinsight/resources/{filename}'
+        return f'https://raw.githubusercontent.com/hail-is/hail/{__pip_version__}/hail/python/hailtop/hailctl/hdinsight/resources/{filename}'
 
     hdinsight_start(
         cluster_name,
@@ -97,7 +95,7 @@ def start(
         install_hail_uri or default_artifact('install-hail.sh'),
         install_native_deps_uri or default_artifact('install-native-deps.sh'),
         wheel_uri
-        or f'https://storage.googleapis.com/hail-common/azure-hdinsight-wheels/hail-{hail_version}-py3-none-any.whl',
+        or f'https://storage.googleapis.com/hail-common/azure-hdinsight-wheels/hail-{__pip_version__}-py3-none-any.whl',
         vep,
         vep_loftee_uri,
         vep_homo_sapiens_uri,

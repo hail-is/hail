@@ -14,7 +14,7 @@ HAILGENETICS_IMAGES = $(foreach img,hail vep-grch37-85 vep-grch38-95,hailgenetic
 CI_IMAGES = ci-utils hail-buildkit base hail-run
 PRIVATE_REGISTRY_IMAGES = $(patsubst %, pushed-private-%-image, $(SPECIAL_IMAGES) $(SERVICES_PLUS_ADMIN_POD) $(CI_IMAGES) $(HAILGENETICS_IMAGES))
 
-HAILTOP_VERSION := hail/python/hailtop/hail_version
+HAILTOP_VERSION := hail/python/hailtop/version.py
 SERVICES_IMAGE_DEPS = hail-ubuntu-image $(HAILTOP_VERSION) $(shell git ls-files hail/python/hailtop gear web_common)
 
 EMPTY :=
@@ -53,7 +53,7 @@ pylint-hailtop:
 
 .PHONY: check-hail
 check-hail: check-hail-fast pylint-hailtop
-	cd hail && sh millw __.checkFormat + __.fix --check
+	cd hail && sh mill --no-server __.checkFormat + __.fix --check
 
 .PHONY: check-services
 check-services: $(CHECK_SERVICES_MODULES)
@@ -110,7 +110,7 @@ generate-pip-lockfiles:
 	./generate-pip-lockfile.sh ci
 
 $(HAILTOP_VERSION):
-	$(MAKE) -C hail python/hailtop/hail_version
+	$(MAKE) -C hail python-version-info
 
 
 %-image: IMAGE_NAME = $(patsubst %-image,%,$@):$(TOKEN)
@@ -212,6 +212,10 @@ $(PRIVATE_REGISTRY_IMAGES): pushed-private-%-image: %-image
 	docker tag $(shell cat $*-image) $(DOCKER_PREFIX)/$(shell cat $*-image)
 	docker push $(DOCKER_PREFIX)/$(shell cat $*-image)
 	echo $(DOCKER_PREFIX)/$(shell cat $*-image) > $@
+
+.PHONY: clean-image-targets
+clean-image-targets:
+	rm -f *-image
 
 .PHONY: local-mysql
 local-mysql:

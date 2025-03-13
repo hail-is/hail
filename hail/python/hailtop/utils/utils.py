@@ -1038,6 +1038,17 @@ def url_and_params(url: str) -> Tuple[str, Dict[str, str]]:
     return without_query, params
 
 
+def path_str(path: Union[str, os.PathLike]) -> str:
+    """Given a path/url as a string or PathLike, returns it as a string."""
+    if isinstance(path, str):
+        return path
+    elif isinstance(path, os.PathLike):
+        # Avoid os.fspath(), which causes some pathlikes to return a path to a downloaded copy instead.
+        return str(path)
+    else:
+        raise ValueError(f'path value is neither string nor path-like. Found {type(path)!r} instead.')
+
+
 RegistryProvider = Literal['google', 'azure', 'dockerhub']
 
 
@@ -1122,9 +1133,11 @@ class Timings:
         d: Dict[str, int] = {}
         self.timings[name] = d
         d['start_time'] = time_msecs()
-        yield
-        d['finish_time'] = time_msecs()
-        d['duration'] = d['finish_time'] - d['start_time']
+        try:
+            yield
+        finally:
+            d['finish_time'] = time_msecs()
+            d['duration'] = d['finish_time'] - d['start_time']
 
     def to_dict(self):
         return self.timings

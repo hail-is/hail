@@ -34,14 +34,15 @@ def to_dense_mt(vds: 'VariantDataset') -> 'MatrixTable':
     :class:`.MatrixTable`
         Dataset in dense MatrixTable representation.
     """
-    ref = vds.reference_data
-    # FIXME(chrisvittal) consider changing END semantics on VDS to make this better
-    # see https://github.com/hail-is/hail/issues/13183 for why this is here and more discussion
-    # we assume that END <= contig.length
-    ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position(), _locus_pos=ref.locus.position)
-    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + (ref.END - ref._locus_pos))
 
-    to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos', '_locus_pos'
+    # NOTE: There is a strong assumption that ref block LEN does not extend
+    # past the end of a contig. That is bad data and we won't correct for it.
+    # Garbage in, garbage out.
+    ref = vds.reference_data
+    ref = ref.annotate_rows(_locus_global_pos=ref.locus.global_position())
+    ref = ref.transmute_entries(_END_GLOBAL=ref._locus_global_pos + ref.LEN - 1)
+
+    to_drop = 'alleles', 'rsid', 'ref_allele', '_locus_global_pos'
     ref = ref.drop(*(x for x in to_drop if x in ref.row))
     var = vds.variant_data
     refl = ref.localize_entries('_ref_entries')
@@ -943,7 +944,7 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
                 f" recommended values are <0.05."
             )
         max_ref_block_base_pairs = rd.aggregate_entries(
-            hl.agg.approx_quantiles(rd.END - rd.locus.position + 1, 1 - ref_block_winsorize_fraction, k=200)
+            hl.agg.approx_quantiles(rd.LEN, 1 - ref_block_winsorize_fraction, k=200)
         )
 
     assert (
@@ -951,21 +952,23 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
     ), 'truncate_reference_blocks: "max_ref_block_base_pairs" must be between greater than zero'
     info(f"splitting VDS reference blocks at {max_ref_block_base_pairs} base pairs")
 
-    rd_under_limit = rd.filter_entries(rd.END - rd.locus.position < max_ref_block_base_pairs).localize_entries(
-        'fixed_blocks', 'cols'
-    )
+    rd_under_limit = rd.filter_entries(rd.LEN <= max_ref_block_base_pairs).localize_entries('fixed_blocks', 'cols')
 
-    rd_over_limit = rd.filter_entries(rd.END - rd.locus.position >= max_ref_block_base_pairs).key_cols_by(
-        col_idx=hl.scan.count()
-    )
+    rd_over_limit = rd.filter_entries(rd.LEN > max_ref_block_base_pairs).key_cols_by(col_idx=hl.scan.count())
     rd_over_limit = rd_over_limit.select_rows().select_cols().key_rows_by().key_cols_by()
     es = rd_over_limit.entries()
-    es = es.annotate(new_start=hl.range(es.locus.position, es.END + 1, max_ref_block_base_pairs))
+    es = es.annotate(new_start=hl.range(es.locus.position, es.locus.position + es.LEN, max_ref_block_base_pairs))
     es = es.explode('new_start')
     es = es.transmute(
         locus=hl.locus(es.locus.contig, es.new_start, reference_genome=es.locus.dtype.reference_genome),
-        END=hl.min(es.new_start + max_ref_block_base_pairs - 1, es.END),
+        LEN=hl.min(
+            es.locus.position + es.LEN - es.new_start,
+            max_ref_block_base_pairs,
+        ),
     )
+    # we've changed LEN so we need to make sure that END is correct
+    if 'END' in es.row:
+        es = es.annotate(END=es.LEN + es.locus.position - 1)
     es = es.key_by(es.locus).collect_by_key("new_blocks")
     es = es.transmute(moved_blocks_dict=hl.dict(es.new_blocks.map(lambda x: (x.col_idx, x.drop('col_idx')))))
 

@@ -40,8 +40,12 @@ class GCPBillingManager(CloudBillingManager):
         self.currency_code = 'USD'
 
     async def refresh_resources_from_retail_prices(self):
-        prices = [price async for price in fetch_prices(self.billing_client, self.regions, self.currency_code)]
-        await self._refresh_resources_from_retail_prices(prices)
+        # Don't break system start-up if price-refreshing fails:
+        try:
+            prices = [price async for price in fetch_prices(self.billing_client, self.regions, self.currency_code)]
+            await self._refresh_resources_from_retail_prices(prices)
+        except Exception as e:
+            log.error('Error refreshing resources from retail prices: %s', e)
 
     async def close(self):
         await self.billing_client.close()

@@ -27,6 +27,7 @@ fi
 UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20240701
 
 create_build_image_instance() {
+    echo "Deleting any preexisting $BUILDER instance. This is expected to print an ERROR if the image does not exist."
     gcloud -q compute --project ${PROJECT} instances delete \
         --zone=${ZONE} ${BUILDER} || true
 
@@ -51,6 +52,7 @@ create_build_image_instance() {
 }
 
 create_worker_image() {
+    echo "Deleting any preexisting $WORKER_IMAGE image. This is expected to print an ERROR if the image does not exist."
     gcloud -q compute images delete $WORKER_IMAGE \
         --project ${PROJECT} || true
 

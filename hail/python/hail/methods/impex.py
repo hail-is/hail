@@ -2986,8 +2986,8 @@ def import_vcf(
     Parameters
     ----------
     path : :class:`str` or :obj:`list` of :obj:`str`
-        One or more paths to VCF files to read. Each path may or may not include glob expressions
-        like ``*``, ``?``, or ``[abc123]``.
+        One or more paths to VCF files to read. Each path may include glob expressions like ``*``,
+        ``?``, or ``[abc123]``, which, if present, will be expanded.
     force : :obj:`bool`
         If ``True``, load **.vcf.gz** files serially. No downstream operations
         can be parallelized, so this mode is strongly discouraged.

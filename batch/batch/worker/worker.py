@@ -1303,7 +1303,7 @@ class Container:
                     'source': 'shm',
                     'destination': '/dev/shm',
                     'type': 'tmpfs',
-                    'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', 'size=67108864'],
+                    'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', f'size={self.memory_in_bytes//2}'],
                 },
                 {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
@@ -2106,7 +2106,7 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        await asyncio.wait([c.remove() for c in self.containers.values()])
+        await asyncio.wait([asyncio.create_task(c.remove()) for c in self.containers.values()])
 
     def status(self):
         status = super().status()

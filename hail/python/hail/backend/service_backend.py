@@ -10,13 +10,14 @@ from typing import Any, Awaitable, Dict, List, Mapping, Optional, Set, Tuple, Ty
 import orjson
 
 import hailtop.aiotools.fs as afs
-from hail.context import TemporaryDirectory, TemporaryFilename, revision, tmp_dir, version
+from hail.context import TemporaryDirectory, TemporaryFilename, tmp_dir
 from hail.experimental import read_expression, write_expression
 from hail.expr.expressions.base_expression import Expression
 from hail.expr.types import HailType
 from hail.ir import finalize_randomness
 from hail.ir.renderer import CSERenderer
 from hail.utils import FatalError
+from hail.version import __revision__, __version__
 from hailtop import yamlx
 from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_requester_pays_configuration
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
@@ -201,7 +202,7 @@ class ServiceBackend(Backend):
 
         name_prefix = configuration_of(ConfigVariable.QUERY_NAME_PREFIX, name_prefix, '')
         batch_attributes: Dict[str, str] = {
-            'hail-version': version(),
+            'hail-version': __version__,
         }
         if name_prefix:
             batch_attributes['name'] = name_prefix
@@ -325,7 +326,7 @@ class ServiceBackend(Backend):
 
     @property
     def jar_spec(self) -> dict:
-        return {'type': 'git_revision', 'value': revision()}
+        return {'type': 'git_revision', 'value': __revision__}
 
     @property
     def logger(self):
@@ -349,7 +350,7 @@ class ServiceBackend(Backend):
         progress: Optional[BatchProgressBar] = None,
         driver_cores: Optional[Union[int, str]] = None,
         driver_memory: Optional[str] = None,
-    ) -> Tuple[bytes, str]:
+    ) -> Tuple[bytes, Optional[dict]]:
         timings = Timings()
         async with TemporaryDirectory(ensure_exists=False) as iodir:
             with timings.step("write input"):
@@ -414,7 +415,7 @@ class ServiceBackend(Backend):
 
             with timings.step("read output"):
                 result_bytes = await retry_transient_errors(self._read_output, iodir + '/out', iodir + '/in')
-                return result_bytes, str(timings.to_dict())
+                return result_bytes, timings.to_dict()
 
     async def _read_output(self, output_uri: str, input_uri: str) -> bytes:
         try:
@@ -462,7 +463,7 @@ class ServiceBackend(Backend):
                 self._batch_was_submitted = False
             raise
 
-    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, str]:
+    def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
         return self._cancel_on_ctrl_c(self._async_rpc(action, payload))
 
     async def _async_rpc(self, action: ActionTag, payload: ActionPayload):

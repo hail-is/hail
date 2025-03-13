@@ -1,7 +1,9 @@
 This is a work in progress to use Terraform to manage our cloud
 infrastructure.
 
-Instructions:
+# Instructions:
+
+## Project Setup
 
 - You will need a GCP project.  Configure `gcloud` to point at your project:
 
@@ -33,17 +35,32 @@ Instructions:
 - Delete the default network if it exists. Enabling the networking
   API creates it.
 
-- Go to the Google Cloud console, API & Services, Credentials.
-  Configure the consent screen.  Add the scope:
-  https://www.googleapis.com/auth/userinfo.email.  Back in Credentials, create an OAuth
-  client ID.  Authorize the redirect URIs:
+- Determine a domain name for the deployment. We will use it now and register it with a DNS provider later.
 
-   - https://auth.<domain>/oauth2callback
-   - http://127.0.0.1/oauth2callback
+- Go to the Google Cloud console, API & Services.
+  - Configure the consent screen.
+    - You can probably leave most fields on the first page empty. Give it a sensible name and management email.
+    - Add the scope: `../auth/userinfo.email`.  
+  - Back in Credentials, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
+    - `https://auth.<domain>/oauth2callback`
+    - `http://127.0.0.1/oauth2callback`
+  - Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
+  - Create another OAuth client ID of type `Desktop app` 
+    - Download it as `/tmp/hailctl_client_secret.json`.
 
-  Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
+## Set up Terraform configuration
 
-- Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below, where `$GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
+- Create some useful environment variables:
+  - where `GITHUB_ORGANIZATION` corresponds to the GitHub organization used for your Hail Batch deployment (e.g. [`hail-is`](https://github.com/hail-is/hail)). This avoids collisions between configuration files from different Hail deployments.
+  - If multiple hail instances are using subdomains hosted from the same github organization/repository, you can use something like `hail-is/sandbox` to differentiate between them.
+
+```
+export HAIL=<hail checkout directory>
+export GITHUB_ORGANIZATION=<path to your working directory within $HAIL/infra/gcp>
+export GCP_PROJECT=<gcp project name>
+```
+
+- Create `infra/gcp/$GITHUB_ORGANIZATION/global.tfvars` based on the template below.
 
 
    ```
@@ -52,6 +69,8 @@ Instructions:
    organization_domain = "<domain>"
 
    # The GitHub organization hosting your Hail Batch repository, e.g. "hail-is".
+   # Matching the location of your project files within the infra/gcp directory.
+   # eg hail.is/sandbox
    github_organization = "<github-organization>"
 
    # batch_gcp_regions is a JSON array of string, the names of the gcp
@@ -67,14 +86,14 @@ Instructions:
 
    # The storage class for the batch logs bucket.  It should span the
    # batch regions and be compatible with the bucket location.
-   batch_logs_bucket_storage_class = "MULTI_REGIONAL"
+   batch_logs_bucket_storage_class = "STANDARD"
 
    # Similarly, bucket locations and storage classes are specified
    # for other services:
    hail_query_bucket_location = "<bucket-location>"
-   hail_query_bucket_storage_class = "MULTI_REGIONAL"
+   hail_query_bucket_storage_class = "STANDARD"
    hail_test_gcs_bucket_location = "<bucket-location>"
-   hail_test_gcs_bucket_storage_class = "MULTI_REGIONAL"
+   hail_test_gcs_bucket_storage_class = "STANDARD"
 
    gcp_region = "<gcp-region>"
 
@@ -86,7 +105,7 @@ Instructions:
 
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
-   use_artifact_registry = false
+   use_artifact_registry = true
    ```
 
 - You can optionally create a `/tmp/ci_config.json` file to enable CI triggered by GitHub
@@ -120,6 +139,8 @@ Instructions:
       ]
   }
   ```
+
+## Check Service Accounts into Repository
 
 - Install [sops](https://github.com/mozilla/sops).
 
@@ -160,12 +181,13 @@ Instructions:
 - Encrypt the above files and add them to the repository.
 
   ```sh
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/auth_oauth2_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/auth_oauth2_client_secret.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/hailctl_client_secret.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/hailctl_client_secret.enc.json
 
   # Optional
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/ci_config.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/ci_config.enc.json
 
-  sops --encrypt --gcp-kms projects/<gcp-project-id>/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/terraform_sa_key.enc.json
+  sops --encrypt --gcp-kms projects/$GCP_PROJECT/locations/global/keyRings/sops/cryptoKeys/sops-key /tmp/terraform_sa_key.json > $HAIL/infra/gcp/$GITHUB_ORGANIZATION/terraform_sa_key.enc.json
 
   git add $HAIL/infra/gcp/$GITHUB_ORGANIZATION/*
 
@@ -190,12 +212,38 @@ Instructions:
        >$HAIL/infra/gcp/$GITHUB_ORGANIZATION/zuliprc.enc
   ```
 
-- Install terraform.
+## Terraforming the Project
+
+- Preparation
+  - Install terraform.
+  - Switch directory to `$HAIL/infra/gcp`.
+  - Clear any existing terraform state:
+
+```
+rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
+```
 
 - Run `terraform init`.
 
 - Run `terraform apply -var-file=$GITHUB_ORGANIZATION/global.tfvars`.  At the
   time of writing, this takes ~15m.
+
+## Register the domain 
+
+   Register the predetermined `domain` with a DNS registry. 
+
+   The IP address to use will be available in GCP cloud console under `Network Services -> Load balancing`.
+   Click through to the external load balancer and find its IP address.
+
+   Add two records with the same IP address:
+    - `<domain>`
+    - `*.<domain>`
+
+## Deploy Hail to Kubernetes
+
+We can now deploy Hail to the kubernetes cluster that terraform created.
+
+### Set up kubectl
 
 - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
    to point at the vdc cluster:
@@ -204,19 +252,72 @@ Instructions:
    gcloud container clusters get-credentials --zone <gcp-zone> vdc
    ```
 
-   Register `domain` with a DNS registry with the `ip` field in the
-   Kubernetes global-config. This should point to the kubernetes
-   external load balancer.
+### Deploy with a cloud VM
 
+#### Creating a suitable cloud VM
 
-You can now install Hail:
+Using the Google cloud console, create a VM in Compute Engine:
 
-- Create a VM on the internal network, standard-8, 100GB PD-SSD,
-  Ubuntu 22.04 TLS, allow full access to all Cloud APIs, use the
-  Terraform service account.  10GB will run out of space.  We assume
-  the rest of the commands are run on the VM.  You will need to
-  connect to this instance with ssh.  You may want to add a suiteable
-  ssh forwarding rule to the default network.
+  - Use an easy to recognize name (eg `cjl-temp-hail-deployer`)
+  - Region / zone: use the same as the GKE cluster
+  - n1-standard-8
+  - OS and storage
+    - Ubuntu 22.04 LTS
+    - 100GB PD-SSD
+  - On the internal network
+  - Security
+    - Allow full access to all Cloud APIs 
+    - Run as the Terraform service account 
+
+Note: 10GB will run out of space.  
+  
+An example command to create a VM via the gcloud CLI is given below, but be careful to make sure the settings
+are correct for your deployment.
+
+```
+gcloud compute instances create bootstrap-vm \
+    --project=<PROJECT> \
+    --zone=us-central1-a \
+    --machine-type=n1-standard-8 \
+    --network-interface=network-tier=PREMIUM,stack-type=IPV4_ONLY,subnet=default \
+    --provisioning-model=STANDARD \
+    --service-account=<TERRAFORM-SERVICE-ACCOUNT> \
+    --scopes=https://www.googleapis.com/auth/cloud-platform \
+    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20240701,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+```
+
+#### Cloud VM commands
+
+We assume the rest of the commands are run on the VM. You will need to connect to this instance with ssh. 
+You can copy a `gcloud compute ssh` command to do this directly from the VM details page in the cloud console, 
+or construct it manually via the gcloud CLI. It will look something like:
+
+```
+gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
+```
+
+##### Prerequisites
+
+- If necessary, install `gke-gcloud-auth-plugin`: 
+
+  ```
+  # Check for necessity:
+  gke-gcloud-auth-plugin --version
+  ```
+  
+  - Follow the instructions [here](https://cloud.google.com/sdk/docs/install#deb) to install the Google Cloud SDK 
+    package source.
+  - Follow the `apt-get` instructions [here](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl#install_plugin)
+    to install the `gke-gcloud-auth-plugin`.
+
+- Install the `docker-buildx-plugin`:
+  - Follow the instructions [here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository) to set 
+    up the repository (ie step 1).
+  - Install the `docker-buildx-plugin`:
+    ```
+    sudo apt-get install docker-buildx-plugin
+    ```
+
 
 - Clone the Hail Github repository:
 
@@ -224,14 +325,20 @@ You can now install Hail:
   git clone https://github.com/hail-is/hail.git
   ```
 
+- If you are working from a branch, check out that branch now too.
+
 - In the $HAIL/infra directory, run
 
   ```
   ./install_bootstrap_dependencies.sh
   ```
 
-  At this point, log out and ssh back in (so that changes to group settings
-  for Docker can be applied). The following steps should be completed from
+- At this point, log out and ssh back in (so that changes to group settings
+  for Docker can be applied).
+
+---
+
+- The following steps should be completed from
   the $HAIL/infra/gcp directory, unless otherwise stated.
 
 - Run the following to authenticate docker and kubectl with the new artifact
@@ -247,6 +354,11 @@ You can now install Hail:
 
 - Deploy unmanaged resources by running
 
+> [!WARNING]
+> If using Google Artifact Registry, the kubernetes system user (called something like `<ID>-compute@developer.gserviceaccount.com`)
+> will need to be granted read permission on the registry:
+> `gcloud artifacts repositories add-iam-policy-binding hail --location=us-central1 --member=serviceAccount:<ID>-compute@developer.gserviceaccount.com --role="roles/artifactregistry.reader"`
+
   ```
   ./bootstrap.sh deploy_unmanaged
   ```
@@ -260,8 +372,12 @@ You can now install Hail:
 - Download the global-config to be used by `bootstrap.py`.
 
   ```
-  mkdir /global-config
-  kubectl -n default get secret global-config -o json | jq -r '.data | map_values(@base64d) | to_entries|map("echo -n \(.value) > /global-config/\(.key)") | .[]' | bash
+  sudo mkdir /global-config
+  source $HAIL/devbin/functions.sh
+  download-secret global-config
+  sudo cp contents/* /global-config/
+  cd -
+  sudo chmod +r /global-config/*
   ```
 
 - Bootstrap the cluster.
@@ -270,7 +386,7 @@ You can now install Hail:
   ./bootstrap.sh bootstrap $GITHUB_ORGANIZATION/hail:<BRANCH> deploy_batch
   ```
 
-- Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy`.
+- Deploy the gateway: run `make -C $HAIL/gateway envoy-xds-config deploy NAMESPACE=default`.
 
 - Create the initial (developer) user.
 
@@ -279,3 +395,18 @@ You can now install Hail:
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
+
+> [!NOTE]
+> Troubleshooting this step:
+> When I ran this step (perhaps because I had to log in and out of my cloud VM a couple of times), the
+> hailctl command was not properly authenticating and the create_initial_user step failed. To make it work, I had to:
+>   - Edit the $HAIL/build.yaml file
+>     - Under the 'create_initial_user' step, in the script section:
+>       - Add an additional environment line: `export HAIL_IDENTITY_PROVIDER_JSON='{"idp": "Google"}'`
+>       - Add some commands to create an additional domain-setting config file, right under the environment exports:
+>         - `mkdir ~/.hail`
+>         - `echo '{"location":"external","default_namespace":"default","domain":"<DOMAIN>"}'>~/.hail/deploy-config.json`
+
+## Remove the cloud VM
+
+- Once the deployment is complete, you can remove the cloud VM in the Google cloud console.

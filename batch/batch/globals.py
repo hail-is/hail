@@ -1,13 +1,4 @@
-states = {
-    'Pending',
-    'Ready',
-    'Creating',
-    'Running',
-    'Cancelled',
-    'Error',
-    'Failed',
-    'Success',
-}
+states = {'Pending', 'Ready', 'Creating', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
 
 complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
 

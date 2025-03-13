@@ -39,7 +39,7 @@ def start(
     import requests  # pylint: disable=import-outside-toplevel
     import requests.auth  # pylint: disable=import-outside-toplevel
 
-    from ... import pip_version  # pylint: disable=import-outside-toplevel
+    from ... import __pip_version__  # pylint: disable=import-outside-toplevel
     from ...utils import secret_alnum_string  # pylint: disable=import-outside-toplevel
 
     print(f'Starting the cluster {cluster_name}')
@@ -138,7 +138,7 @@ def start(
             sys.exit(1)
 
         if vep_config_uri is None:
-            vep_config_uri = f'https://raw.githubusercontent.com/hail-is/hail/{pip_version()}/hail/python/hailtop/hailctl/hdinsight/resources/vep-{vep}.json'
+            vep_config_uri = f'https://raw.githubusercontent.com/hail-is/hail/{__pip_version__}/hail/python/hailtop/hailctl/hdinsight/resources/vep-{vep}.json'
 
         if vep_loftee_uri is None or vep_homo_sapiens_uri is None:
             raise ValueError("Both `vep_loftee_uri` and `vep_homo_sapiens_uri` must be specified if `vep` is specified")

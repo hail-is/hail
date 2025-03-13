@@ -2,6 +2,7 @@ import builtins
 import functools
 import itertools
 import operator
+import os.path
 from typing import Any, Callable, Iterable, Optional, TypeVar, Union
 
 import numpy as np
@@ -6984,6 +6985,43 @@ def shuffle(a, seed: Optional[builtins.int] = None) -> ArrayExpression:
     return sorted(a, key=lambda _: hl.rand_unif(0.0, 1.0))
 
 
+def __validate_and_coerce_endpoint(point, key_typ):
+    """query validation for the points or endpoints of the query in query_table"""
+    len = builtins.len
+    key_names = list(key_typ)
+    if point.dtype == key_typ[0]:
+        point = hl.struct(**{key_names[0]: point})
+    ts = point.dtype
+    if not isinstance(ts, tstruct):
+        raise ValueError(
+            f'key mismatch: cannot use query point type {point.dtype} to query a table with key of '
+            f'({", ".join(builtins.str(x) for x in key_typ.values())}) '
+        )
+
+    if len(ts) == 0:
+        raise ValueError("query point value cannot be an empty struct")
+
+    for i, qt, kt in builtins.zip(builtins.range(len(ts)), ts.values(), key_typ.values()):
+        if kt != qt:
+            raise ValueError(
+                f'mismatch at key field {i} ({list(ts.keys())[i]!r}): query type is {qt}, key type is {qt}'
+            )
+
+    # this check is here because it is more useful to the user to check each
+    # type than it is to fail fast with a larger query struct than the table
+    # has key fields
+    if len(ts) > len(key_typ):
+        raise ValueError(f'query point type has {len(ts)} field(s), but key only has {len(key_typ)} field(s)')
+
+    point_size = len(point.dtype)
+    return hl.tuple([
+        hl.struct(**{
+            key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i])) for i in builtins.range(len(key_typ))
+        }),
+        hl.int32(point_size),
+    ])
+
+
 @typecheck(path=builtins.str, point_or_interval=expr_any)
 def query_table(path, point_or_interval):
     """Query records from a table corresponding to a given point or range of keys.
@@ -7013,54 +7051,18 @@ def query_table(path, point_or_interval):
     row_typ = table.row.dtype
 
     key_typ = table.key.dtype
-    key_names = list(key_typ)
-    len = builtins.len
-    if len(key_typ) == 0:
-        raise ValueError("query_table: cannot query unkeyed table")
-
-    def coerce_endpoint(point):
-        if point.dtype == key_typ[0]:
-            point = hl.struct(**{key_names[0]: point})
-        ts = point.dtype
-        if isinstance(ts, tstruct):
-            i = 0
-            while i < len(ts):
-                if i >= len(key_typ):
-                    raise ValueError(
-                        f"query_table: queried with {len(ts)} key field(s), but table only has {len(key_typ)} key field(s)"
-                    )
-                if key_typ[i] != ts[i]:
-                    raise ValueError(
-                        f"query_table: key mismatch at key field {i} ({list(ts.keys())[i]!r}): query type is {ts[i]}, table key type is {key_typ[i]}"
-                    )
-                i += 1
-
-            if i == 0:
-                raise ValueError("query_table: cannot query with empty key")
-
-            point_size = builtins.len(point.dtype)
-            return hl.tuple([
-                hl.struct(**{
-                    key_names[i]: (point[i] if i < point_size else hl.missing(key_typ[i]))
-                    for i in builtins.range(builtins.len(key_typ))
-                }),
-                hl.int32(point_size),
-            ])
-        else:
-            raise ValueError(
-                f"query_table: key mismatch: cannot query a table with key "
-                f"({', '.join(builtins.str(x) for x in key_typ.values())}) with query point type {point.dtype}"
-            )
+    if builtins.len(key_typ) == 0:
+        raise ValueError('cannot query unkeyed table')
 
     if point_or_interval.dtype != key_typ[0] and isinstance(point_or_interval.dtype, hl.tinterval):
         partition_interval = hl.interval(
-            start=coerce_endpoint(point_or_interval.start),
-            end=coerce_endpoint(point_or_interval.end),
+            start=__validate_and_coerce_endpoint(point_or_interval.start, key_typ),
+            end=__validate_and_coerce_endpoint(point_or_interval.end, key_typ),
             includes_start=point_or_interval.includes_start,
             includes_end=point_or_interval.includes_end,
         )
     else:
-        point = coerce_endpoint(point_or_interval)
+        point = __validate_and_coerce_endpoint(point_or_interval, key_typ)
         partition_interval = hl.interval(start=point, end=point, includes_start=True, includes_end=True)
     return construct_expr(
         ir.ToArray(ir.ReadPartition(partition_interval._ir, reader=ir.PartitionNativeIntervalReader(path, row_typ))),
@@ -7068,6 +7070,69 @@ def query_table(path, point_or_interval):
         indices=partition_interval._indices,
         aggregations=partition_interval._aggregations,
     )
+
+
+@typecheck(path=builtins.str, point_or_interval=expr_any, entries_name=builtins.str)
+def query_matrix_table_rows(path, point_or_interval, entries_name='entries_array'):
+    """Query row records from a matrix table corresponding to a given point or
+    range of row keys. The entry fields are localized as an array of structs as
+    in :meth:`.MatrixTable.localize_entries`.
+
+    Notes
+    -----
+    This function does not dispatch to a distributed runtime; it can be used inside
+    already-distributed queries such as in :meth:`.Table.annotate`.
+
+    Warning
+    -------
+    This function contains no safeguards against reading large amounts of data
+    using a single thread.
+
+    Parameters
+    ----------
+    path : :class:`str`
+        Table path.
+    point_or_interval
+        Point or interval to query.
+    entries_name : :class:`str`
+        Identifier to use for the localized entries array. Must not conflict
+        with any row field identifiers. Defaults to ``entries_array``.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    matrix_table = hl.read_matrix_table(path)
+    if entries_name in matrix_table.row:
+        raise ValueError(
+            f'field "{entries_name}" is present in matrix table row fields, use a different `entries_name`'
+        )
+    entries_table = hl.read_table(os.path.join(path, 'entries'))
+    [entry_id] = list(entries_table.row)
+
+    full_row_type = tstruct(**matrix_table.row.dtype, **entries_table.row.dtype)
+    key_typ = matrix_table.row_key.dtype
+
+    if point_or_interval.dtype != key_typ[0] and isinstance(point_or_interval.dtype, hl.tinterval):
+        partition_interval = hl.interval(
+            start=__validate_and_coerce_endpoint(point_or_interval.start, key_typ),
+            end=__validate_and_coerce_endpoint(point_or_interval.end, key_typ),
+            includes_start=point_or_interval.includes_start,
+            includes_end=point_or_interval.includes_end,
+        )
+    else:
+        point = __validate_and_coerce_endpoint(point_or_interval, key_typ)
+        partition_interval = hl.interval(start=point, end=point, includes_start=True, includes_end=True)
+    read_part_ir = ir.ReadPartition(
+        partition_interval._ir, reader=ir.PartitionZippedNativeIntervalReader(path, full_row_type)
+    )
+    stream_expr = construct_expr(
+        read_part_ir,
+        type=hl.tstream(full_row_type),
+        indices=partition_interval._indices,
+        aggregations=partition_interval._aggregations,
+    )
+    return stream_expr.map(lambda item: item.rename({entry_id: entries_name})).to_array()
 
 
 @typecheck(msg=expr_str, result=expr_any)

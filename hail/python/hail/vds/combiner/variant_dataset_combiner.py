@@ -144,11 +144,11 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
     reference_genome : :class:`.ReferenceGenome`
         The reference genome to which all inputs (GVCFs and Variant Datasets) are aligned.
     branch_factor : :class:`int`
-        The number of Variant Datasets to combine at once.
+        The maximum number of input GVCFs or Variant Datasets combined into a single VDS.
     target_records : :class:`int`
         The target number of variants per partition.
     gvcf_batch_size : :class:`int`
-        The number of GVCFs to combine into a Variant Dataset at once.
+        The number of simultaneous GVCF merge tasks to combine into a single step of the combiner.
     contig_recoding : :class:`dict` mapping :class:`str` to :class:`str` or :obj:`None`
         This mapping is applied to GVCF contigs before importing them into Hail. This is used to
         handle GVCFs containing invalid contig names. For example, GRCh38 GVCFs which contain the
@@ -467,6 +467,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             _assert_reference_type=self._dataset_type.reference_type,
             _assert_variant_type=self._dataset_type.variant_type,
             _warn_no_ref_block_max_length=False,
+            _drop_end=True,
         )
 
         interval_bin = floor(log(new_n_samples, self._branch_factor))
@@ -638,6 +639,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
                 _assert_reference_type=reference_type,
                 _assert_variant_type=variant_type,
                 _warn_no_ref_block_max_length=False,
+                _drop_end=True,
             )
             for path in inputs
         ]
@@ -793,9 +795,9 @@ def new_combiner(
     gvcf_type = None
     if vds_paths:
         # sync up gvcf_reference_entry_fields_to_keep and they reference entry types from the VDS
-        vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False)
+        vds = hl.vds.read_vds(vds_paths[0], _warn_no_ref_block_max_length=False, _drop_end=True)
         vds_ref_entry = set(
-            name[1:] if name in ('LGT', 'LPGT') else name for name in vds.reference_data.entry if name != 'END'
+            name[1:] if name in ('LGT', 'LPGT') else name for name in vds.reference_data.entry if name != 'LEN'
         )
         if gvcf_reference_entry_fields_to_keep is not None and vds_ref_entry != gvcf_reference_entry_fields_to_keep:
             warning(
@@ -839,6 +841,7 @@ def new_combiner(
             vds = transform_gvcf(
                 mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep
             )
+
     dataset_type = CombinerOutType(reference_type=vds.reference_data._type, variant_type=vds.variant_data._type)
 
     if save_path is None:

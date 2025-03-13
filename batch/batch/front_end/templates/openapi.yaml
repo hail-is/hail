@@ -1,0 +1,1449 @@
+openapi: 3.1.0
+info:
+  version: {{ spec_version }}
+  title: Hail Services
+  # termsOfService: TBC
+  contact:
+    name: Contact our support
+    email: hail-team@broadinstitute.org
+    url: https://www.hail.is/gethelp.html
+  license:
+    name: MIT Licence
+    url: https://github.com/hail-is/hail/blob/main/LICENSE
+  x-logo:
+    url: 'https://hail.is/static/hail-logo-cropped-sm-opt.png'
+    altText: Hail logo
+  description: >
+    Hail batch is a service for running arbitrary jobs at scale.
+tags:
+  - name: Public Server Information
+    description: "Operations for retrieving basic public information from the service."
+  - name: Authenticated Server Information
+    description: "Operations for retrieving information that require authentication."
+  - name: Batches API v1Alpha
+    description: "v1alpha batches API"
+  - name: Batches API v2Alpha
+    description: "v2alpha batches API"
+  - name: Billing Projects
+    description: "Operations for billing projects."
+  - name: UI Support
+servers:
+  - url: {{ base_url }}
+    description: "Current Batch service."
+paths:
+  '/api/v1alpha/version':
+    get:
+      summary: "Version"
+      description: "Get the version of the API."
+      operationId: getVersion
+      tags:
+        - Public Server Information
+      responses:
+        '200':
+          description: "Successfully retrieved the version of the API."
+          content:
+            string:
+              example: "0.2.133"
+  '/healthcheck':
+    get:
+      summary: "Healthcheck"
+      description: "Check the health of the API."
+      operationId: healthcheck
+      tags:
+        - Public Server Information
+      responses:
+        '200':
+          description: "Successfully checked the health of the API."
+  '/api/v1alpha/cloud':
+    get:
+      summary: "Cloud"
+      description: "Get the cloud provider supported by this batch instance."
+      operationId: getCloudProvider
+      tags:
+        - Public Server Information
+      responses:
+        '200':
+          description: "Successfully retrieved the cloud provider supported."
+          content:
+            string:
+              example: "gcp"
+  '/api/v1alpha/supported_regions':
+    get:
+      summary: "Supported Regions"
+      description: "Get the list of supported regions."
+      operationId: getSupportedRegions
+      tags:
+        - Authenticated Server Information
+      responses:
+        '200':
+          description: "Successfully retrieved the regions list."
+          content:
+            string:
+              example: "TODO"
+  '/api/v1alpha/batches':
+    get:
+      summary: "List batches"
+      description: "List batches."
+      operationId: getBatchesv1alpha
+      tags:
+        - Batches API v1Alpha
+      responses:
+        '200':
+          description: "Successfully retrieved the batches."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/create':
+    post:
+      summary: "Create a batch"
+      description: "Create a batch."
+      operationId: createBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/create-fast':
+    post:
+      summary: "Create a batch fast"
+      description: "Create a batch fast."
+      operationId: createBatchFastv1alpha
+      tags:
+        - Batches API v1Alpha
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the batch fast."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/update-fast':
+    post:
+      summary: "Perform a fast update to a batch"
+      description: "Perform a fast batch update without separate create / add content / commit steps"
+      operationId: updateBatchFastv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully updated the batch fast."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/create':
+    post:
+      summary: "Create a batch update"
+      description: "Create a batch update."
+      operationId: createBatchUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the batch update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/{update_id}/job-groups/create':
+    post:
+      summary: "Create a job group"
+      description: "Create a job group as part of an update operation."
+      operationId: createJobGroupUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: update_id
+          in: path
+          description: "The ID of the update."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the job group update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/{update_id}/jobs/create':
+    post:
+      summary: "Create a job"
+      description: "Create a job as part of an update operation."
+      operationId: createJobUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: update_id
+          in: path
+          description: "The ID of the update."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the job update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/create':
+    post:
+      summary: "Create a job"
+      description: "Create a job."
+      operationId: createJobv1alpha
+      deprecated: true
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/updates/{update_id}/commit':
+    post:
+      summary: "Commit update"
+      description: "Commit an update."
+      operationId: commitUpdatev1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: update_id
+          in: path
+          description: "The ID of the update."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully committed the update."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/cancel':
+    patch:
+      summary: "Cancel batch"
+      description: "Cancel a batch."
+      operationId: cancelBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully cancelled the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/cancel':
+    patch:
+      summary: "Cancel job group"
+      description: "Cancel a job group."
+      operationId: cancelJobGroupv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully cancelled the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/close':
+    patch:
+      summary: "Close batch"
+      description: "Close a batch."
+      operationId: closeBatchv1alpha
+      deprecated: true
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully closed the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}':
+    get:
+      summary: "Get a batch"
+      description: "Get a batch by ID."
+      operationId: getBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs':
+    get:
+      summary: "Get all jobs in a batch"
+      description: "Get all jobs in a batch by ID."
+      operationId: getJobsInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups':
+    get:
+      summary: "Get all job groups in a batch"
+      description: "Get all job groups in a batch by ID."
+      operationId: getJobGroupsInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job groups in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}':
+    get:
+      summary: "Get a job group in a batch"
+      description: "Get a job group in a batch by ID."
+      operationId: getJobGroupInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job group in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
+    get:
+      summary: "Get all jobs in a job group"
+      description: "Get all jobs in a job group by ID."
+      operationId: getJobsInJobGroupv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/job-groups/{job_group_id}/job-groups':
+    get:
+      summary: "Get all job groups in a job group"
+      description: "Get all job groups in a job group by ID."
+      operationId: getJobGroupsInJobGroupv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job groups in the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}':
+    get:
+      summary: "Get a job in a batch"
+      description: "Get a job in a batch by ID."
+      operationId: getJobInBatchv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the job in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts':
+    get:
+      summary: "Get all attempts in a job"
+      description: "Get all attempts in a job by ID."
+      operationId: getAttemptsInJobv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the attempts in the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log':
+    get:
+      summary: "Get job log"
+      description: "Get the log of a job by ID."
+      operationId: getLogInJobv1alpha
+      deprecated: true
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the log of the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}':
+    get:
+      summary: "Get job log by container"
+      description: "Get the log of a job from a specific container."
+      operationId: getLogInJobContainerV1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: container
+          in: path
+          description: "The name of the container."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully retrieved the log of the job in the container."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resources_usage':
+    get:
+      summary: "Get job resource usage"
+      description: "Get the resources usage of a job."
+      operationId: getResourcesUsageInJobv1alpha
+      tags:
+        - Batches API v1Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the resources usage of the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches':
+    get:
+      summary: "List batches"
+      description: "List batches."
+      operationId: getBatchesv2alpha
+      tags:
+        - Batches API v2Alpha
+      responses:
+        '200':
+          description: "Successfully retrieved the batches."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches/{batch_id}/jobs':
+    get:
+      summary: "List jobs in a batch"
+      description: "List jobs in a batch by batch ID."
+      operationId: getJobsInBatchv2alpha
+      tags:
+        - Batches API v2Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v2alpha/batches/{batch_id}/job-groups/{job_group_id}/jobs':
+    get:
+      summary: "List jobs in a job group"
+      description: "List jobs in a job group by job group ID."
+      operationId: getJobsInJobGroupv2alpha
+      tags:
+        - Batches API v2Alpha
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_group_id
+          in: path
+          description: "The ID of the job group."
+          required: true
+          schema:
+            type: number
+      responses:
+        '200':
+          description: "Successfully retrieved the jobs in the job group."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects':
+    get:
+      summary: "List billing projects"
+      description: "List billing projects."
+      operationId: getBillingProjects
+      tags:
+        - Billing Projects
+      responses:
+        '200':
+          description: "Successfully retrieved the billing projects."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}':
+    get:
+      summary: "Get a billing project"
+      description: "Get a billing project by ID."
+      operationId: getBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully retrieved the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/create':
+    post:
+      summary: "Create a billing project"
+      description: "Create a billing project."
+      operationId: createBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The name of the billing project."
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully created the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/users/{user}/add':
+    post:
+      summary: "Add a user to a billing project"
+      description: "Add a user to a billing project."
+      operationId: addUserToBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: path
+          description: "The username of the user."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully added the user to the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove':
+    post:
+      summary: "Remove a user from a billing project"
+      description: "Remove a user from a billing project."
+      operationId: removeUserFromBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: path
+          description: "The username of the user."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully removed the user from the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/close':
+    post:
+      summary: "Close billing project"
+      description: "Close a billing project."
+      operationId: closeBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully closed the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/reopen':
+    post:
+      summary: "Reopen billing project"
+      description: "Reopen a billing project."
+      operationId: reopenBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully reopened the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_projects/{billing_project}/delete':
+    post:
+      summary: "Delete billing project"
+      description: "Delete a billing project."
+      operationId: deleteBillingProject
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: "Successfully deleted the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/api/v1alpha/billing_limits/{billing_project}/edit':
+    post:
+      summary: "Edit billing limits"
+      description: "Edit the billing limits of a billing project."
+      operationId: editBillingLimits
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: "Successfully edited the billing limits."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches':
+    get:
+      summary: "Batches page (UI)"
+      description: "Render the batches page, or (dev only) its supporting jinja context"
+      operationId: getBatchesUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the batches."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}':
+    get:
+      summary: "Batch page (UI)"
+      description: "Render the batch page, or (dev only) its supporting jinja context"
+      operationId: getBatchUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/cancel':
+    post:
+      summary: "Cancel batch (UI)"
+      description: "Cancel a batch and render the result, or (dev only) its supporting jinja context"
+      operationId: cancelBatchUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+              type: boolean
+              default: false
+              example: true
+      responses:
+        '200':
+          description: "Successfully cancelled the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/delete':
+    post:
+      summary: "Delete batch (UI)"
+      description: "Delete a batch and render a result HTML, or (dev only) its supporting jinja context"
+      operationId: deleteBatchUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+              type: boolean
+              default: false
+              example: true
+      responses:
+        '200':
+          description: "Successfully deleted the batch."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/jobs/{job_id}':
+    get:
+      summary: "Job page (UI)"
+      description: "Render the job page, or (dev only) its supporting jinja context"
+      operationId: getJobUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the job."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/jobs/{job_id}/jvm_profile':
+    get:
+      summary: "Job JVM profile page (UI)"
+      description: "Render the job JVM profile page, or (dev only) its supporting jinja context"
+      operationId: getJobJVMProfileUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the job JVM profile."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/batches/{batch_id}/jobs/{job_id}/log/{container}':
+    get:
+      summary: "Job log page (UI)"
+      description: "Render the job log page, or (dev only) its supporting jinja context"
+      operationId: getJobLogUI
+      tags:
+        - UI Support
+      parameters:
+        - name: batch_id
+          in: path
+          description: "The ID of the batch."
+          required: true
+          schema:
+            type: number
+        - name: job_id
+          in: path
+          description: "The ID of the job."
+          required: true
+          schema:
+            type: number
+        - name: container
+          in: path
+          description: "The name of the container."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the job log."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing':
+    get:
+      summary: "Billing page (UI)"
+      description: "Render the billing page, or (dev only) its supporting jinja context"
+      operationId: getBillingUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_limits':
+    get:
+      summary: "Billing limits page (UI)"
+      description: "Render the billing limits page, or (dev only) its supporting jinja context"
+      operationId: getBillingLimitsUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing limits page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_limits/{billing_project}/edit':
+    post:
+      summary: "Edit billing limits and return rendered result HTML, or (dev only) its supporting jinja context"
+      description: "Edit the billing limits of a billing project."
+      operationId: editBillingLimitsUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+              type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      requestBody:
+        content:
+          application/json:
+            schema:
+            type: object
+      responses:
+        '200':
+          description: "Successfully edited the billing limits."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects':
+    get:
+      summary: "Billing projects page (UI)"
+      description: "Render the billing projects page, or (dev only) its supporting jinja context"
+      operationId: getBillingProjectsUI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the billing projects page."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/create':
+    post:
+      summary: "Create billing project element (UI)"
+      description: "Create a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: createBillingProjectUI
+      tags:
+        - Billing Projects
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully created the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/users/add':
+    post:
+      summary: "Add user to billing project element (UI)"
+      description: "Add a user to a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: addUserToBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully added the user to the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/users/{user}/remove':
+    post:
+      summary: "Remove user from billing project element (UI)"
+      description: "Remove a user from a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: removeUserFromBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: user
+          in: path
+          description: "The username of the user."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully removed the user from the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/close':
+    post:
+      summary: "Close billing project element (UI)"
+      description: "Close a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: closeBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully closed the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/billing_projects/{billing_project}/reopen':
+    post:
+      summary: "Reopen billing project element (UI)"
+      description: "Reopen a billing project and return rendered result HTML, or (dev only) its supporting jinja context"
+      operationId: reopenBillingProjectUI
+      tags:
+        - Billing Projects
+      parameters:
+        - name: billing_project
+          in: path
+          description: "The ID of the billing project."
+          required: true
+          schema:
+            type: string
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully reopened the billing project."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/openapi.yaml':
+    get:
+      summary: "OpenAPI spec"
+      description: "Render the OpenAPI spec, or (dev only) its supporting jinja context"
+      operationId: getOpenAPI
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the OpenAPI spec."
+          content:
+            application/json:
+              schema:
+                type: object
+  '/swagger':
+    get:
+      summary: "Swagger UI"
+      description: "Render the swagger UI page, or (dev only) its supporting jinja context"
+      operationId: getSwaggerUi
+      tags:
+        - UI Support
+      parameters:
+        - name: x-hail-return-jinja-context
+          in: header
+          description: "Do not render, and instead return the jinja context json."
+          required: false
+          schema:
+            type: boolean
+            default: false
+            example: true
+      responses:
+        '200':
+          description: "Successfully retrieved the Swagger UI"
+          content:
+            application/json:
+              schema:
+                type: object
+
+#components:
+  # TODO: Add response types

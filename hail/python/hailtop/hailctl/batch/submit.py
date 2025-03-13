@@ -5,7 +5,7 @@ from typing import Tuple
 
 import orjson
 
-from hailtop import pip_version
+from hailtop import __pip_version__
 
 FILE_REGEX = re.compile(r'(?P<src>[^:]+)(:(?P<dest>.+))?')
 
@@ -29,7 +29,6 @@ async def submit(name, image_name, files, output, script, arguments):
     quiet = output != 'text'
 
     remote_tmpdir = get_remote_tmpdir('hailctl batch submit')
-    remote_tmpdir = remote_tmpdir.rstrip('/')
 
     tmpdir_path_prefix = secret_alnum_string()
 
@@ -63,7 +62,7 @@ async def submit(name, image_name, files, output, script, arguments):
     backend = hb.ServiceBackend()
     b = hb.Batch(name=name, backend=backend)
     j = b.new_bash_job()
-    j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{pip_version()}'))
+    j.image(image_name or os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{__pip_version__}'))
 
     local_files_to_cloud_files = []
 

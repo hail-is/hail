@@ -95,6 +95,7 @@ ON DUPLICATE KEY UPDATE region = region;
             *create_pools_coros,
         )
 
+        assert isinstance(jpim, JobPrivateInstanceManager)
         driver = GCPDriver(
             db,
             machine_name_prefix,

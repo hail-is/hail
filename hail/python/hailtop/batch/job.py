@@ -81,6 +81,7 @@ class Job:
         self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
+        self._n_max_attempts: int = 20
         self._preemptible: Optional[bool] = None
         self._machine_type: Optional[str] = None
         self._pool_label: Optional[str] = None
@@ -348,6 +349,31 @@ class Job:
         Same job object set to always run.
         """
         self._always_run = always_run
+        return self
+
+    def n_max_attempts(self, n_max_attempts: int) -> Self:
+        """
+        Set the maximum number of attempts (including dead node detection and preemption events)
+
+        Examples
+        --------
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.n_max_attempts(5)
+        ...   .command(f'echo "hello"'))
+
+        Parameters
+        ----------
+        n_max_attempts:
+            Total number of attempts (including dead node detection and preemption events) before the job is
+            considered to be in 'error' state.
+
+        Returns
+        -------
+        Same job object set to always run.
+        """
+        self._n_max_attempts = n_max_attempts
         return self
 
     def spot(self, is_spot: bool) -> Self:
@@ -859,6 +885,11 @@ class BashJob(Job):
         -------
         Same job object with command appended.
         """
+
+        if command.strip() == '':
+            job_name = f'job {self.name!r}' if self.name else 'unnamed job'
+            warnings.warn(f'Ignoring empty command specified for {job_name}.')
+            return self
 
         command = self._interpolate_command(command)
         self._command.append(command)

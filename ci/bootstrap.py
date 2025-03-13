@@ -159,7 +159,7 @@ class LocalBatchBuilder:
             if input_ok:
                 mount_options = ['-v', f'{job_root}/io:/io']
 
-                env_options = []
+                env_options = ['-e', 'GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json']
                 if j._env:
                     for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
@@ -215,7 +215,12 @@ users:
                         mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
                         env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
 
-                    secrets = j._secrets
+                    secrets = j._secrets or []
+                    secrets.append({
+                        'name': 'ci-gsa-key',
+                        'namespace': 'default',
+                        'mount_path': '/gsa-key',
+                    })
                     if secrets:
                         k8s_secrets = await asyncio.gather(*[
                             k8s_cache.read_secret(secret['name'], secret['namespace']) for secret in secrets
