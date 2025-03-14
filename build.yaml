@@ -3500,7 +3500,7 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /wheel
+      - from: /derived/release/hail/build/deploy/dist
         to: /io/wheel
     scopes:
       - deploy
