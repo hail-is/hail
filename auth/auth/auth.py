@@ -129,7 +129,7 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
-    if not username or not (username.isalnum() and username.islower()):
+    if not username or not all(c for c in username if c.isalnum()):
         raise InvalidUsername(username)
 
     existing_users = await users_with_username_or_login_id(tx, username, login_id)
