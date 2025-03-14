@@ -650,6 +650,9 @@ async def run_until_done_or_deleted(
             raise StepInterruptedError
         assert step.done()
         return step.result()
+    except Exception as e:
+        log.error(e)
+        raise
     finally:
         for t in (step, deleted):
             if t.done():
@@ -875,6 +878,9 @@ class Container:
         assert self._run_fut
         try:
             await self._run_fut
+        except Exception as e:
+            log.error(e)
+            raise
         finally:
             self._run_fut = None
 
@@ -895,9 +901,15 @@ class Container:
             finally:
                 try:
                     await on_completion(*args, **kwargs)
+                except Exception as e:
+                    log.error(e)
+                    raise
                 finally:
                     try:
                         await self._kill()
+                    except Exception as e:
+                        log.error(e)
+                        raise
                     finally:
                         await self._cleanup()
 
@@ -926,6 +938,9 @@ class Container:
                             )
                             if not (e.returncode == 1 and not_extant_message in e.stderr):
                                 log.exception(f'while deleting container {self}', exc_info=True)
+                    except Exception as e:
+                        log.error(e)
+                        raise
                     finally:
                         try:
                             await send_signal_and_wait(self.process, 'SIGTERM', timeout=5)
@@ -938,6 +953,9 @@ class Container:
                                 log.exception(f'could not kill process for container {self}')
                         finally:
                             self.process = None
+            except Exception as e:
+                log.error(e)
+                raise
             finally:
                 if self._run_fut is not None and not self._run_fut.done():
                     self._run_fut.cancel()
@@ -973,9 +991,15 @@ class Container:
                 network_allocator.free(self.netns)
                 log.info(f'Freed the network namespace for {self}')
                 self.netns = None
+        except Exception as e:
+            log.error(e)
+            raise
         finally:
             try:
                 self.image.release()
+            except Exception as e:
+                log.error(e)
+                raise
             finally:
                 self._cleaned_up = True
 
@@ -984,6 +1008,9 @@ class Container:
         async with self._cleanup_lock:
             try:
                 await self._kill()
+            except Exception as e:
+                log.error(e)
+                raise
             finally:
                 await self._cleanup()
 
@@ -2042,6 +2069,9 @@ class DockerJob(Job):
                 with self.step('post-job finally block'):
                     try:
                         await self.cleanup()
+                    except Exception as e:
+                        log.error(e)
+                        raise
                     finally:
                         _, exc, _ = sys.exc_info()
                         # mark_complete moves ownership of `mjs_fut` into another task
@@ -2254,6 +2284,9 @@ class JVMJob(Job):
                                 assert written == len(b)
                         temporary_file.close()
                         os.rename(temporary_file.name, local_jar_location)
+                    except Exception as e:
+                        log.error(e)
+                        raise
                     finally:
                         temporary_file.close()  # close is idempotent
                         try:
@@ -2742,6 +2775,9 @@ class JVM:
                         assert b, f'expected true, got {b}'
                         writer.write(b'\0x01')
                         break
+                    except Exception as e:
+                        log.error(e)
+                        raise
                     finally:
                         writer.close()
                 except (FileNotFoundError, ConnectionRefusedError) as err:
@@ -3312,6 +3348,9 @@ class Worker:
                         f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} '
                         f'free worker data disk storage {self.data_disk_space_remaining}Gi'
                     )
+        except Exception as e:
+            log.error(e)
+            raise
         finally:
             self.active = False
             log.info('shutting down')
@@ -3550,6 +3589,9 @@ async def async_main():
             cleanup.push_async_callback(CLOUD_WORKER_API.close)
             cleanup.push_async_callback(worker.shutdown)
             await worker.run()
+    except Exception as e:
+        log.error(e)
+        raise
     finally:
         asyncio.get_event_loop().set_debug(True)
         other_tasks = [t for t in asyncio.all_tasks() if t != asyncio.current_task()]
