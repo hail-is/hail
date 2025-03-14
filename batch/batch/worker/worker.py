@@ -1126,7 +1126,7 @@ class Container:
             nvidia_runtime_hook = [
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
-                    "args": ["nvidia-container-runtime-hook", "prestart"],
+                    "args": ["nvidia-container-runtime-hook", "prestart", "-debug"],
                     "env": [
                         "LANG=C.UTF-8",
                         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin",
@@ -1135,6 +1135,15 @@ class Container:
                     ],
                 }
             ]
+        poststart_hook = [
+            {
+                "path": "/bin/bash",
+                "args": [
+                    "-c",
+                    "[ -f /var/log/nvidia-container-toolkit.log ] && cat var/log/nvidia-container-toolkit.log",
+                ],
+            }
+        ]
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
@@ -1158,7 +1167,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
-            "hooks": {"prestart -debug": nvidia_runtime_hook},
+            "hooks": {"prestart": nvidia_runtime_hook, "poststart": poststart_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
