@@ -889,6 +889,9 @@ class Container:
                 await self.create()
                 self.start()
                 await self.wait()
+            except Exception as e:
+                log.error(e)
+                raise
             finally:
                 try:
                     await on_completion(*args, **kwargs)
