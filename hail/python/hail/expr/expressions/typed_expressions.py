@@ -4833,6 +4833,21 @@ class StreamExpression(Expression):
     def aggregate(self, f):
         return hl.agg._aggregate_local_array(self, f)
 
+    @typecheck_method(f=func_spec(1, expr_any))
+    def _aggregate_scan(self, f):
+        elt = self.dtype.element_type
+        var = Env.get_uid(base='scan')
+        ref = construct_expr(ir.Ref(var, elt), elt, self._indices)
+        scan_expr = f(ref)
+
+        indices, _ = unify_all(self, scan_expr)
+        return construct_expr(
+            ir.StreamAggScan(self._ir, var, scan_expr._ir),
+            tstream(scan_expr.dtype),
+            Indices(indices.source, indices.axes),
+            self._aggregations,
+        )
+
     def to_array(self):
         return construct_expr(ir.toArray(self._ir), tarray(self.dtype.element_type), self._indices, self._aggregations)
 
