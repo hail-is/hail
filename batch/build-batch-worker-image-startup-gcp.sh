@@ -64,6 +64,7 @@ chmod +x NVIDIA-Linux-x86_64-535.183.01.run
 
 apt-get --yes install nvidia-container-toolkit
 nvidia-ctk runtime configure --runtime=docker
+sed -i 's/#debug/debug/g' /etc/nvidia-container-runtime/config.toml
 
 curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
 bash add-google-cloud-ops-agent-repo.sh --also-install --version=2.*.*
