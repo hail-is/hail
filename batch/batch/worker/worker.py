@@ -1158,7 +1158,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
-            "hooks": {"prestart": nvidia_runtime_hook},
+            "hooks": {"prestart -debug": nvidia_runtime_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
