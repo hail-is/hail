@@ -4403,7 +4403,7 @@ def test_stream_randomness():
 
     # test StreamAggScan
     a = hl._stream_range(10)
-    a = a._aggregate_scan(lambda x: hl.scan.sum(hl.rand_int32(100)))
+    a = a._aggregate_scan(lambda x: x + hl.rand_int64() + hl.scan.sum(x + hl.rand_int32(100)))
     assert_contains_node(a, ir.StreamAggScan)
     assert len(hl.eval(a.to_array())) == 10
 

@@ -2328,14 +2328,6 @@ class StreamAgg(IR):
 class StreamAggScan(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
-        uses_agg_randomness = body.uses_agg_randomness(is_scan=False)
-        a = a.handle_randomness(uses_agg_randomness)
-        if uses_agg_randomness:
-            tup, uid, elt = unpack_uid(a.typ)
-            body = AggLet(value_name, elt, body, is_scan=True)
-            body = with_split_rng_state(body, uid, is_scan=True)
-            value_name = tup
-
         super().__init__(a, body)
         self.a = a
         self.value_name = value_name
@@ -2347,6 +2339,18 @@ class StreamAggScan(IR):
             return StreamAggScan(a=a, value_name=self.value_name, body=self.body)
 
         # FIXME other case from streammap???
+        if isinstance(self.typ.element_type, tstream):
+            raise NotImplementedError('StreamAggScan nested streams are not implemented')
+
+        if not self.needs_randomness_handling and self.a.has_uids:
+            # There are occations when handle_randomness is called twice on a
+            # `StreamAggScan`: once with `create_uids=False` and the second time
+            # with `True`. In these cases, we only need to propagate the uid.
+            assert create_uids
+            assert self.body.uses_randomness
+            _, uid, _ = unpack_uid(self.a.typ, self.value_name)
+            new_body = pack_uid(uid, self.body)
+            return StreamAggScan(self.a, self.value_name, new_body)
 
         a = self.a.handle_randomness(True)
 
@@ -2381,6 +2385,10 @@ class StreamAggScan(IR):
     def free_vars(self):
         fv = (self.body.free_scan_vars.difference({self.value_name})).union(self.a.free_vars)
         return fv
+
+    @property
+    def free_scan_vars(self):
+        return set()
 
     def renderable_child_context_without_bindings(self, i: int, parent_context):
         if i == 0:
