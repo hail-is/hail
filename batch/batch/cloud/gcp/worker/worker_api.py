@@ -1,7 +1,9 @@
 import base64
 import os
+import ssl
 import tempfile
 from contextlib import AsyncExitStack
+from pathlib import Path
 from typing import Dict, List
 
 import orjson
@@ -10,6 +12,7 @@ from aiohttp import web
 from hailtop import httpx
 from hailtop.aiocloud import aiogoogle
 from hailtop.auth.auth import IdentityProvider
+from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import check_exec_output
 
 from ....worker.worker_api import CloudWorkerAPI, ContainerRegistryCredentials
@@ -83,6 +86,19 @@ class GCPWorkerAPI(CloudWorkerAPI):
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         key = orjson.loads(base64.b64decode(credentials['key.json']).decode())
         return create_app(aiogoogle.GoogleServiceAccountCredentials(key), self._metadata_server_client)
+
+    async def worker_ssl_context(self, namespace: str) -> ssl.SSLContext:
+        secret_manager_client = aiogoogle.GoogleSecretManagerClient(self.project, http_session=self._http_session)
+        async with secret_manager_client:
+            ssl_config_bytes = await secret_manager_client.get_latest_secret_version(
+                f'ssl-config-batch-worker-{namespace}'
+            )
+            ssl_config = {k: base64.b64decode(v.encode()) for k, v in orjson.loads(ssl_config_bytes).items()}
+            ssl_config_dir = Path('/ssl-config') / namespace
+            ssl_config_dir.mkdir(parents=True, exist_ok=True)
+            for file, contents in ssl_config.items():
+                (ssl_config_dir / file).write_bytes(contents)
+        return internal_server_ssl_context(str(ssl_config_dir))
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> GCPSlimInstanceConfig:
         return GCPSlimInstanceConfig.from_dict(config_dict)
