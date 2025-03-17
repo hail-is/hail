@@ -47,7 +47,7 @@ from web_common import (
     web_security_headers,
 )
 
-from .auth_utils import validate_credentials_secret_name_input
+from .auth_utils import is_valid_username, validate_credentials_secret_name_input
 from .exceptions import (
     AuthUserError,
     DuplicateLoginID,
@@ -989,32 +989,3 @@ def run():
         access_log_class=AuthAccessLogger,
         ssl_context=deploy_config.server_ssl_context(),
     )
-
-
-def is_valid_username(username: str) -> bool:
-    """Check if a username is valid.
-
-    Requirements:
-    1. Only alphanumeric characters and hyphens allowed
-    2. Hyphens cannot be at start or end
-    3. Hyphens cannot be adjacent to each other
-
-    Args:
-        username: The username to validate
-
-    Returns:
-        bool: True if username meets all requirements, False otherwise
-    """
-    if not username:  # Check for empty string
-        return False
-
-    # Check for hyphens at start or end
-    if username.startswith('-') or username.endswith('-'):
-        return False
-
-    # Check for adjacent hyphens
-    if '--' in username:
-        return False
-
-    # Check that all characters are alphanumeric or hyphen
-    return all(c.isalnum() or c == '-' for c in username)
