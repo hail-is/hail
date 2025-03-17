@@ -72,6 +72,8 @@ def test_is_valid_username_valid(input_username):
 @pytest.mark.parametrize(
     "input_username",
     [
+        None,
+        '',
         'ABC',
         'abc!',
         'a3a.3a',
