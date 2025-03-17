@@ -23,7 +23,7 @@ from hailtop.aiocloud.aiogoogle import GCSRequesterPaysConfiguration, get_gcs_re
 from hailtop.aiotools.fs.exceptions import UnexpectedEOFError
 from hailtop.aiotools.router_fs import RouterAsyncFS
 from hailtop.aiotools.validators import validate_file
-from hailtop.batch_client.aioclient import Batch, BatchClient
+from hailtop.batch_client.aioclient import Batch, BatchClient, JobGroup
 from hailtop.config import ConfigVariable, configuration_of, get_remote_tmpdir
 from hailtop.fs.fs import FS
 from hailtop.fs.router_fs import RouterFS
@@ -292,7 +292,7 @@ class ServiceBackend(Backend):
         self._sync_fs = sync_fs
         self._async_fs = async_fs
         self._batch_client = batch_client
-        self._batch_was_submitted: bool = False
+        self._job_group_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
         self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
@@ -306,6 +306,7 @@ class ServiceBackend(Backend):
         self.regions = regions
 
         self._batch: Batch = self._create_batch() if batch is None else batch
+        self._job_group: Optional[JobGroup] = None
         self._async_exit_stack = async_exit_stack
 
     def _create_batch(self) -> Batch:
@@ -386,6 +387,8 @@ class ServiceBackend(Backend):
                 if service_backend_config.storage != '0Gi':
                     resources['storage'] = service_backend_config.storage
 
+                self._job_group = self._batch.create_job_group(attributes={'name': name})
+
                 j = self._batch.create_jvm_job(
                     jar_spec=self.jar_spec,
                     argv=[
@@ -394,7 +397,7 @@ class ServiceBackend(Backend):
                         iodir + '/in',
                         iodir + '/out',
                     ],
-                    job_group=self._batch.create_job_group(attributes={'name': name}),
+                    job_group=self._job_group,
                     resources=resources,
                     attributes={'name': name + '_driver'},
                     regions=self.regions,
@@ -402,23 +405,21 @@ class ServiceBackend(Backend):
                     profile=self.flags['profile'] is not None,
                 )
                 await self._batch.submit(disable_progress_bar=True)
-                self._batch_was_submitted = True
+                self._job_group_was_submitted = True
 
             with timings.step("wait driver"):
                 try:
                     await asyncio.sleep(0.6)  # it is not possible for the batch to be finished in less than 600ms
-                    await self._batch.wait(
+                    await self._job_group.wait(
                         description=name,
                         disable_progress_bar=self.disable_progress_bar,
-                        progress=progress,
-                        starting_job=j.job_id,
+                        progress=progress
                     )
                 except KeyboardInterrupt:
                     raise
                 except Exception:
-                    await self._batch.cancel()
-                    self._batch = self._create_batch()
-                    self._batch_was_submitted = False
+                    await self._job_group.cancel()
+                    self._job_group_was_submitted = False
                     raise
 
             with timings.step("read output"):
@@ -464,11 +465,10 @@ class ServiceBackend(Backend):
         try:
             return async_to_blocking(coro)
         except KeyboardInterrupt:
-            if self._batch_was_submitted:
+            if self._job_group_was_submitted:
                 print("Received a keyboard interrupt, cancelling the batch...")
-                async_to_blocking(self._batch.cancel())
-                self._batch = self._create_batch()
-                self._batch_was_submitted = False
+                async_to_blocking(self._job_group.cancel())
+                self._job_group_was_submitted = False
             raise
 
     def _rpc(self, action: ActionTag, payload: ActionPayload) -> Tuple[bytes, Optional[dict]]:
