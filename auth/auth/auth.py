@@ -129,7 +129,7 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
-    if not username or not (username.isalnum() and username.islower()):
+    if not is_valid_username(username):
         raise InvalidUsername(username)
 
     existing_users = await users_with_username_or_login_id(tx, username, login_id)
@@ -989,3 +989,32 @@ def run():
         access_log_class=AuthAccessLogger,
         ssl_context=deploy_config.server_ssl_context(),
     )
+
+
+def is_valid_username(username: str) -> bool:
+    """Check if a username is valid.
+
+    Requirements:
+    1. Only alphanumeric characters and hyphens allowed
+    2. Hyphens cannot be at start or end
+    3. Hyphens cannot be adjacent to each other
+
+    Args:
+        username: The username to validate
+
+    Returns:
+        bool: True if username meets all requirements, False otherwise
+    """
+    if not username:  # Check for empty string
+        return False
+
+    # Check for hyphens at start or end
+    if username.startswith('-') or username.endswith('-'):
+        return False
+
+    # Check for adjacent hyphens
+    if '--' in username:
+        return False
+
+    # Check that all characters are alphanumeric or hyphen
+    return all(c.isalnum() or c == '-' for c in username)
