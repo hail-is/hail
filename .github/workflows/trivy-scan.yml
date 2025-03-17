@@ -57,7 +57,8 @@ jobs:
       
     steps:
       - name: Set up Google Cloud Auth
-        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # https://github.com/google-github-actions/auth/releases/tag/v2.1.8
+        # https://github.com/google-github-actions/auth/releases/tag/v2.1.8
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
         with:
           # Use secret instead of workload identity federation:
           credentials_json: ${{ secrets.GOOGLE_GAR_CREDENTIALS }}
@@ -66,7 +67,8 @@ jobs:
           # service_account: "${{ github.event.inputs.google_service_account }}"
           
       - name: Configure Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # https://github.com/google-github-actions/setup-gcloud/releases/tag/v2.1.4
+        # https://github.com/google-github-actions/setup-gcloud/releases/tag/v2.1.4
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a
           
       - name: Configure Docker for GAR
         run: |
@@ -76,14 +78,16 @@ jobs:
         run: mkdir -p trivy-results
           
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
+        # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
         with:
           image-ref: ${{ matrix.image }}
           format: 'sarif'
           output: 'trivy-results/scan.sarif'
 
       - name: Generate human-readable report
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
+        # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
         with:
           image-ref: ${{ matrix.image }}
           format: 'table'
