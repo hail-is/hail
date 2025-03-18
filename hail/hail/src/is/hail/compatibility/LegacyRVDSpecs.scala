@@ -1,27 +1,60 @@
 package is.hail.compatibility
 
-import is.hail.backend.HailStateManager
+import is.hail.backend.ExecuteContext
+import is.hail.compatibility.LegacyEncodedTypeParser.{parseLegacyRVDType, parseTypeAndEType}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io._
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec2, IndexedRVDSpec2, RVDPartitioner}
 import is.hail.types.encoded._
 import is.hail.types.virtual._
-import is.hail.utils.{FastSeq, Interval}
+import is.hail.utils.{FastSeq, Interval, Json4sFormat, Json4sReader, Json4sWriter}
+import org.json4s.Extraction.{decompose, extract}
+import org.json4s.{Formats, JObject, JString, JValue, ShortTypeHints, TypeHints}
+import is.hail.utils.json4s._
 
-import org.json4s.JValue
+object IndexSpec extends Json4sFormat[IndexSpec, JObject] {
+  override lazy val hints: TypeHints =
+    ShortTypeHints(classOf[IndexSpec] :: Nil, typeHintFieldName = "name")
+
+  override lazy val writer: Json4sWriter[IndexSpec, JObject] =
+    (s: IndexSpec) => {
+      implicit formats: Formats =>
+        JObject(
+          "name" -> JString(classOf[IndexSpec].getSimpleName),
+          "relPath" -> JString(s.relPath),
+          "keyType" -> JString(s.keyVType._toPretty),
+          "annotationType" -> JString(s.annotationVType._toPretty),
+          "offsetField" -> decompose(s.offsetField),
+        )
+    }
+
+  override lazy val reader: Json4sReader[IndexSpec, JObject] =
+    (ctx: ExecuteContext, v: JObject) => {
+      implicit formats: Formats =>
+        val (kVType, kEType) = parseTypeAndEType(ctx, (v \ "keyType").extract[String])
+        val (aVType, aEType) = parseTypeAndEType(ctx, (v \ "annotationType").extract[String])
+        IndexSpec(
+          relPath = extract(v \ "relPath"),
+          keyVType = kVType,
+          keyEType = kEType,
+          annotationVType = aVType,
+          annotationEType = aEType,
+          offsetField = extract(v \ "offsetField"),
+        )
+    }
+}
 
 case class IndexSpec private (
   relPath: String,
-  keyType: String,
-  annotationType: String,
+  keyVType: Type,
+  keyEType: EType,
+  annotationVType: Type,
+  annotationEType: EType,
   offsetField: Option[String],
 ) {
   val baseSpec = LEB128BufferSpec(
     BlockingBufferSpec(32 * 1024, LZ4BlockBufferSpec(32 * 1024, new StreamBlockBufferSpec))
   )
-
-  val (keyVType, keyEType) = LegacyEncodedTypeParser.parseTypeAndEType(keyType)
-  val (annotationVType, annotationEType) = LegacyEncodedTypeParser.parseTypeAndEType(annotationType)
 
   val leafEType = EBaseStruct(FastSeq(
     EField("first_idx", EInt64Required, 0),
@@ -103,6 +136,12 @@ case class PackCodecSpec private (child: BufferSpec)
 
 case class LegacyRVDType(rowType: TStruct, rowEType: EType, key: IndexedSeq[String]) {
   def keyType: TStruct = rowType.select(key)._1
+
+  private[this] def pretty(tycon: String): String =
+    f"$tycon{key:[${key.mkString("[", ",", "]")}],row:${rowType._toPretty}}"
+
+  def _toPretty: String = pretty("RVDType")
+  def _toOrderedPretty: String = pretty("OrderedRVDType")
 }
 
 trait ShimRVDSpec extends AbstractRVDSpec {
@@ -111,7 +150,7 @@ trait ShimRVDSpec extends AbstractRVDSpec {
 
   final def key: IndexedSeq[String] = shim.key
 
-  override def partitioner(sm: HailStateManager): RVDPartitioner = shim.partitioner(sm)
+  override def partitioner: RVDPartitioner = shim.partitioner
 
   override def typedCodecSpec: AbstractTypedCodecSpec = shim.typedCodecSpec
 
@@ -122,18 +161,47 @@ trait ShimRVDSpec extends AbstractRVDSpec {
   lazy val attrs: Map[String, String] = shim.attrs
 }
 
+object IndexedRVDSpec extends Json4sFormat[IndexedRVDSpec, JObject] {
+  override lazy val hints: TypeHints =
+    ShortTypeHints(classOf[IndexedRVDSpec] :: Nil, typeHintFieldName = "name")
+
+  override lazy val reader: Json4sReader[IndexedRVDSpec, JObject] =
+    (ctx: ExecuteContext, v: JObject) => {
+      implicit formats: Formats =>
+        IndexedRVDSpec(
+          rvdType = parseLegacyRVDType(ctx, (v \ "rvdType").extract[String]),
+          codecSpec = extract(v \ "codes"),
+          indexSpec = IndexSpec.reader(ctx, (v \ "indexSpec").extract[JObject]),
+          partFiles = (v \ "partFiles").extract[Array[String]],
+          jRangeBounds = v \ "jRangeBounds",
+        )
+    }
+
+  override lazy val writer: Json4sWriter[IndexedRVDSpec, JObject] =
+    (s: IndexedRVDSpec) => {
+      implicit formats: Formats =>
+        JObject(
+          "name" -> JString(classOf[IndexedRVDSpec].getSimpleName),
+          "rvdType" -> JString(s.rvdType._toPretty),
+          "codecSpec" -> decompose(s.codecSpec),
+          "indexSpec" -> IndexSpec.writer(s.indexSpec),
+          "partFiles" -> decompose(s.partFiles),
+          "jRangeBounds" -> s.jRangeBounds,
+        )
+    }
+}
+
 case class IndexedRVDSpec private (
-  rvdType: String,
+  rvdType: LegacyRVDType,
   codecSpec: PackCodecSpec,
   indexSpec: IndexSpec,
   override val partFiles: Array[String],
   jRangeBounds: JValue,
 ) extends ShimRVDSpec {
-  private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
 
   lazy val shim = IndexedRVDSpec2(
-    lRvdType.key,
-    TypedCodecSpec(lRvdType.rowEType.setRequired(true), lRvdType.rowType, codecSpec.child),
+    rvdType.key,
+    TypedCodecSpec(rvdType.rowEType.setRequired(true), rvdType.rowType, codecSpec.child),
     indexSpec.toIndexSpec2,
     partFiles,
     jRangeBounds,
@@ -141,15 +209,43 @@ case class IndexedRVDSpec private (
   )
 }
 
+object UnpartitionedRVDSpec extends Json4sFormat[UnpartitionedRVDSpec, JObject] {
+  override lazy val hints: TypeHints =
+    ShortTypeHints(classOf[UnpartitionedRVDSpec] :: Nil, typeHintFieldName = "name")
+
+  override lazy val reader: Json4sReader[UnpartitionedRVDSpec, JObject] =
+    (ctx: ExecuteContext, v: JObject) => {
+      implicit formats: Formats =>
+        val (rowType, rowEType) = parseTypeAndEType(ctx, (v \ "rowType").extract[String])
+        UnpartitionedRVDSpec(
+          rowVType = rowType,
+          rowEType = rowEType,
+          codecSpec = (v \ "codecSpec").extract[PackCodecSpec],
+          partFiles = (v \ "partFiles").extract[Array[String]],
+        )
+    }
+
+  override lazy val writer: Json4sWriter[UnpartitionedRVDSpec, JObject] =
+    (a: UnpartitionedRVDSpec) => {
+      implicit formats: Formats =>
+        JObject(
+          "name" -> JString(classOf[UnpartitionedRVDSpec].getSimpleName),
+          "rowType" -> JString(a.rowVType._toPretty),
+          "codecSpec" -> decompose(a.codecSpec),
+          "partFiles" -> decompose(a.partFiles),
+        )
+    }
+}
+
 case class UnpartitionedRVDSpec private (
-  rowType: String,
+  rowVType: Type,
+  rowEType: EType,
   codecSpec: PackCodecSpec,
   partFiles: Array[String],
 ) extends AbstractRVDSpec {
-  private val (rowVType: TStruct, rowEType) = LegacyEncodedTypeParser.parseTypeAndEType(rowType)
 
-  def partitioner(sm: HailStateManager): RVDPartitioner =
-    RVDPartitioner.unkeyed(sm, partFiles.length)
+  def partitioner: RVDPartitioner =
+    RVDPartitioner.unkeyed(partFiles.length)
 
   def key: IndexedSeq[String] = FastSeq()
 
@@ -159,21 +255,46 @@ case class UnpartitionedRVDSpec private (
   val attrs: Map[String, String] = Map.empty
 }
 
+object OrderedRVDSpec extends Json4sFormat[OrderedRVDSpec, JObject] {
+  override lazy val hints: TypeHints =
+    ShortTypeHints(classOf[OrderedRVDSpec] :: Nil, typeHintFieldName = "name")
+
+  override lazy val reader: Json4sReader[OrderedRVDSpec, JObject] =
+    (ctx: ExecuteContext, v: JObject) => {
+      implicit formats: Formats =>
+        OrderedRVDSpec(
+          rvdType = parseLegacyRVDType(ctx, (v \ "rvdType").extract[String]),
+          codecSpec = extract(v \ "codecSpec"),
+          partFiles = extract(v \ "partFiles"),
+          jRangeBounds = v \ "jRangeBounds",
+        )
+    }
+
+  override lazy val writer: Json4sWriter[OrderedRVDSpec, JObject] =
+    (a: OrderedRVDSpec) => {
+      implicit formats: Formats =>
+        JObject(
+          "name" -> JString(classOf[OrderedRVDSpec].getSimpleName),
+          "rvdType" -> JString(a.rvdType._toOrderedPretty),
+          "codecSpec" -> decompose(a.codecSpec),
+          "partFiles" -> decompose(a.partFiles),
+          "jRangeBounds" -> a.jRangeBounds,
+        )
+    }
+}
+
 case class OrderedRVDSpec private (
-  rvdType: String,
+  rvdType: LegacyRVDType,
   codecSpec: PackCodecSpec,
   partFiles: Array[String],
   jRangeBounds: JValue,
 ) extends AbstractRVDSpec {
-  private val lRvdType = LegacyEncodedTypeParser.parseLegacyRVDType(rvdType)
+  def key: IndexedSeq[String] = rvdType.key
 
-  def key: IndexedSeq[String] = lRvdType.key
-
-  def partitioner(sm: HailStateManager): RVDPartitioner = {
-    val rangeBoundsType = TArray(TInterval(lRvdType.keyType))
+  def partitioner: RVDPartitioner = {
+    val rangeBoundsType = TArray(TInterval(rvdType.keyType))
     new RVDPartitioner(
-      sm,
-      lRvdType.keyType,
+      rvdType.keyType,
       JSONAnnotationImpex.importAnnotation(
         jRangeBounds,
         rangeBoundsType,
@@ -183,7 +304,7 @@ case class OrderedRVDSpec private (
   }
 
   override def typedCodecSpec: AbstractTypedCodecSpec =
-    TypedCodecSpec(lRvdType.rowEType.setRequired(true), lRvdType.rowType, codecSpec.child)
+    TypedCodecSpec(rvdType.rowEType.setRequired(true), rvdType.rowType, codecSpec.child)
 
   val attrs: Map[String, String] = Map.empty
 }

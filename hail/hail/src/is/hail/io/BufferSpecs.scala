@@ -1,13 +1,13 @@
 package is.hail.io
 
 import is.hail.asm4s._
+import is.hail.backend.ExecuteContext
 import is.hail.compatibility.LZ4BlockBufferSpec
 import is.hail.io.compress.LZ4
 import is.hail.rvd.AbstractRVDSpec
 
 import java.io._
-
-import org.json4s.{JValue, ShortTypeHints}
+import org.json4s.{JValue, ShortTypeHints, TypeHints}
 import org.json4s.jackson.JsonMethods
 
 object BufferSpec {
@@ -50,32 +50,31 @@ object BufferSpec {
     Array(blockSpec, LEB128BufferSpec(blockSpec))
   }
 
-  def parse(s: String): BufferSpec = {
-    import AbstractRVDSpec.formats
-    JsonMethods.parse(s).extract[BufferSpec]
-  }
+  def parse(ctx: ExecuteContext, s: String): BufferSpec =
+    AbstractRVDSpec.withFormats(ctx) { implicit formats =>
+      JsonMethods.parse(s).extract[BufferSpec]
+    }
 
-  def parseOrDefault(
-    s: String,
-    default: BufferSpec = BufferSpec.default,
-  ): BufferSpec = if (s == null) default else parse(s)
+  def parseOrDefault(ctx: ExecuteContext, s: String, default: BufferSpec = BufferSpec.default): BufferSpec =
+    if (s == null) default else parse(ctx, s)
 
-  val shortTypeHints = ShortTypeHints(
-    List(
-      classOf[BlockBufferSpec],
-      classOf[LZ4BlockBufferSpec],
-      classOf[LZ4HCBlockBufferSpec],
-      classOf[LZ4FastBlockBufferSpec],
-      classOf[LZ4SizeBasedBlockBufferSpec],
-      classOf[ZstdBlockBufferSpec],
-      classOf[StreamBlockBufferSpec],
-      classOf[BufferSpec],
-      classOf[LEB128BufferSpec],
-      classOf[BlockingBufferSpec],
-      classOf[StreamBufferSpec],
-    ),
-    typeHintFieldName = "name",
-  )
+  val shortTypeHints: TypeHints =
+    ShortTypeHints(
+      List(
+        classOf[BlockBufferSpec],
+        classOf[LZ4BlockBufferSpec],
+        classOf[LZ4HCBlockBufferSpec],
+        classOf[LZ4FastBlockBufferSpec],
+        classOf[LZ4SizeBasedBlockBufferSpec],
+        classOf[ZstdBlockBufferSpec],
+        classOf[StreamBlockBufferSpec],
+        classOf[BufferSpec],
+        classOf[LEB128BufferSpec],
+        classOf[BlockingBufferSpec],
+        classOf[StreamBufferSpec],
+      ),
+      typeHintFieldName = "name",
+    )
 }
 
 trait BufferSpec extends Spec {

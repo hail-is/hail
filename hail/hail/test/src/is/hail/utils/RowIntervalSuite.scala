@@ -11,7 +11,7 @@ import org.testng.annotations.Test
 
 class RowIntervalSuite extends HailSuite {
   lazy val t = TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32)
-  lazy val pord = PartitionBoundOrdering(ctx, t)
+  lazy val pord = PartitionBoundOrdering(t)
 
   def assertContains(i: Interval, point: Row, shouldContain: Boolean = true): Unit = {
     val c = i.contains(pord, point)

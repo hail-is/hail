@@ -388,13 +388,10 @@ class SimplifySuite extends HailSuite {
     val exp1 = TableRead(
       tnr.fullType,
       false,
-      TableNativeReader(
-        fs,
-        TableNativeReaderParameters(
-          src + "/rows",
-          Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true)),
-        ),
-      ),
+      TableNativeReader(fs, TableNativeReaderParameters(
+        src + "/rows",
+        Some(NativeReaderOptions(intervals1, tnr.fullType.keyType, true)),
+      )),
     )
 
     assert(Simplify(ctx, tfi1) == exp1)
@@ -403,13 +400,10 @@ class SimplifySuite extends HailSuite {
     val exp2 = TableRead(
       tnr.fullType,
       false,
-      TableNativeReader(
-        fs,
-        TableNativeReaderParameters(
-          src + "/rows",
-          Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true)),
-        ),
-      ),
+      TableNativeReader(fs, TableNativeReaderParameters(
+        src + "/rows",
+        Some(NativeReaderOptions(intersection, tnr.fullType.keyType, true)),
+      )),
     )
 
     assert(Simplify(ctx, tfi2) == exp2)

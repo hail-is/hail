@@ -472,7 +472,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(ctx, litType)(baos, ctx.theHailClassLoader)
     this.emodb.ctx.r.pool.scopedRegion { region =>
-      val rvb = new RegionValueBuilder(ctx.stateManager, region)
+      val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
       rvb.startTuple()
       literals.foreach { case (typ, a, _, _) => rvb.addAnnotation(typ.t, a) }

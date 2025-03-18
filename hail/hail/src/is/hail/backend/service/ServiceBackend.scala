@@ -438,7 +438,7 @@ class ServiceBackend(
 
   override def loadReferencesFromDataset(path: String): Array[Byte] =
     withExecuteContext { ctx =>
-      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
+      val rgs = ReferenceGenome.fromHailDataset(ctx, path)
       ReferenceGenome.addFatalOnCollision(references, rgs)
       implicit val formats: Formats = defaultJSONFormats
       Serialization.write(rgs.map(_.toJSON).toFastSeq).getBytes(StandardCharsets.UTF_8)

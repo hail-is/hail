@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.backend.HailStateManager
 import is.hail.utils.{FastSeq, Interval}
 
 case class TInterval(pointType: Type) extends Type {
@@ -27,8 +26,8 @@ case class TInterval(pointType: Type) extends Type {
     pointType.typeCheck(i.start) && pointType.typeCheck(i.end)
   }
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    Interval.ordering(pointType.ordering(sm), startPrimary = true, missingEqual)
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    Interval.ordering(pointType.ordering, startPrimary = true, missingEqual)
 
   lazy val structRepresentation: TStruct =
     TStruct(

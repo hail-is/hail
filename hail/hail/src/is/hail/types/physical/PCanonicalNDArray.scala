@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
-import is.hail.backend.HailStateManager
+
 import is.hail.expr.ir.{
   CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, Param, ParamType, SCodeParam,
 }
@@ -82,8 +82,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val alignment: Long = representation.alignment
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    representation.unsafeOrdering(sm)
+  override def unsafeOrdering: UnsafeOrdering =
+    representation.unsafeOrdering
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] =
     shape.foldLeft(1L: Code[Long])(_ * _)
@@ -371,13 +371,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def _copyFromAddress(
-    sm: HailStateManager,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Long = {
+  protected def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(nDims == srcNDPType.nDims)
 
@@ -386,7 +380,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     }
 
     val newAddress = this.representation.allocate(region)
-    unstagedStoreAtAddress(sm, newAddress, region, srcPType, srcAddress, deepCopy)
+    unstagedStoreAtAddress(newAddress, region, srcPType, srcAddress, deepCopy)
     newAddress
   }
 
@@ -398,14 +392,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def setRequired(required: Boolean): PCanonicalNDArray =
     if (required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
-  def unstagedStoreAtAddress(
-    sm: HailStateManager,
-    destAddress: Long,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Unit = {
+  def unstagedStoreAtAddress(destAddress: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(nDims == srcNDPType.nDims)
 
@@ -433,13 +420,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       val srcShape = srcPType.asInstanceOf[PNDArray].unstagedLoadShapes(srcAddress)
       val srcStrides = srcPType.asInstanceOf[PNDArray].unstagedLoadStrides(srcAddress)
 
-      shapeType.unstagedStoreJavaObjectAtAddress(sm, destAddress, Row(srcShape: _*), region)
-      strideType.unstagedStoreJavaObjectAtAddress(
-        sm,
-        destAddress + shapeType.byteSize,
-        Row(srcStrides: _*),
-        region,
-      )
+      shapeType.unstagedStoreJavaObjectAtAddress(destAddress, Row(srcShape: _*), region)
+      strideType.unstagedStoreJavaObjectAtAddress(destAddress + shapeType.byteSize, Row(srcStrides: _*), region)
 
       val newDataPointer = this.allocateData(srcShape, region)
       Region.storeLong(this.representation.fieldOffset(destAddress, 2), newDataPointer)
@@ -450,14 +432,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
       SNDArray.unstagedForEachIndex(srcShape) { indices =>
         val srcElementAddress = srcNDPType.getElementAddress(indices, srcAddress)
-        this.elementType.unstagedStoreAtAddress(
-          sm,
-          currentAddressToWrite,
-          region,
-          srcNDPType.elementType,
-          srcElementAddress,
-          true,
-        )
+        this.elementType.unstagedStoreAtAddress(currentAddressToWrite, region, srcNDPType.elementType, srcElementAddress, true)
         currentAddressToWrite += elementType.byteSize
       }
     }
@@ -552,19 +527,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region)
     : Long = {
     val addr = this.representation.allocate(region)
-    this.unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
+    this.unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
   }
 
-  override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    annotation: Annotation,
-    region: Region,
-  ): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     val aNDArray = annotation.asInstanceOf[NDArray]
 
     var runningProduct = this.elementType.byteSize
@@ -576,17 +546,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val dataFirstElementAddress = this.allocateData(aNDArray.shape, region)
     var curElementAddress = dataFirstElementAddress
     aNDArray.getRowMajorElements().foreach { element =>
-      elementType.unstagedStoreJavaObjectAtAddress(sm, curElementAddress, element, region)
+      elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, element, region)
       curElementAddress += elementType.byteSize
     }
     val shapeRow = Row(aNDArray.shape: _*)
     val stridesRow = Row(stridesArray: _*)
-    this.representation.unstagedStoreJavaObjectAtAddress(
-      sm,
-      addr,
-      Row(shapeRow, stridesRow, dataFirstElementAddress),
-      region,
-    )
+    this.representation.unstagedStoreJavaObjectAtAddress(addr, Row(shapeRow, stridesRow, dataFirstElementAddress), region)
   }
 
   override def copiedType: PType = {

@@ -546,7 +546,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
 
     pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(sm, r)
-      val v1 = t2.unstagedStoreJavaObject(sm, value, r)
+      val v1 = t2.unstagedStoreJavaObject(value, r)
       assert(SafeRow.read(t2, v1) == value)
 
       rvb.clear()
@@ -583,7 +583,7 @@ class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChec
 
     val valueT2 = t2.types(0)
     pool.scopedRegion { r =>
-      val v1 = valueT2.unstagedStoreJavaObject(sm, value, r)
+      val v1 = valueT2.unstagedStoreJavaObject(value, r)
       assert(SafeRow.read(valueT2, v1) == value)
 
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
