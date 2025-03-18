@@ -179,7 +179,7 @@ trait Py4JBackendExtensions {
         case json4s.JString(s) => s
       }
 
-      val intervalPointType = parseType(kvs("intervalPointType").asInstanceOf[json4s.JString].s)
+      val intervalPointType = parseType(ctx,kvs("intervalPointType").asInstanceOf[json4s.JString].s)
       val intervalObjects =
         JSONAnnotationImpex.importAnnotation(kvs("intervals"), TArray(TInterval(intervalPointType)))
           .asInstanceOf[IndexedSeq[Interval]]
@@ -187,7 +187,7 @@ trait Py4JBackendExtensions {
       val opts = NativeReaderOptions(intervalObjects, intervalPointType)
       val matrixReaders: IndexedSeq[MatrixIR] = paths.map { p =>
         log.info(s"creating MatrixRead node for $p")
-        val mnr = MatrixNativeReader(ctx.fs, p, Some(opts))
+        val mnr = MatrixNativeReader(ctx, p, Some(opts))
         MatrixRead(mnr.fullMatrixTypeWithoutUIDs, false, false, mnr): MatrixIR
       }
       log.info("pyReadMultipleMatrixTables: returning N matrix tables")
@@ -220,7 +220,7 @@ trait Py4JBackendExtensions {
         ctx,
         s,
         BindingEnv.eval(refMap.asScala.toMap.map { case (n, t) =>
-          Name(n) -> IRParser.parseType(t)
+          Name(n) -> IRParser.parseType(ctx,t)
         }.toSeq: _*),
       )
     }
@@ -238,7 +238,7 @@ trait Py4JBackendExtensions {
 
   def loadReferencesFromDataset(path: String): Array[Byte] =
     backend.withExecuteContext { ctx =>
-      val rgs = ReferenceGenome.fromHailDataset(ctx.fs, path)
+      val rgs = ReferenceGenome.fromHailDataset(ctx, path)
       ReferenceGenome.addFatalOnCollision(references, rgs)
 
       implicit val formats: Formats = defaultJSONFormats

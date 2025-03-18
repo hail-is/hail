@@ -171,28 +171,25 @@ object RichContextRDDRegionValue {
   }
 
   def writeSplitSpecs(
-    fs: FS,
+    ctx: ExecuteContext,
     path: String,
     rowsCodecSpec: AbstractTypedCodecSpec,
     entriesCodecSpec: AbstractTypedCodecSpec,
     rowsIndexSpec: AbstractIndexSpec,
     entriesIndexSpec: AbstractIndexSpec,
-    t: RVDType,
-    rowsRVType: PStruct,
-    entriesRVType: PStruct,
     partFiles: Array[String],
     partitioner: RVDPartitioner,
   ): Unit = {
     val rowsSpec = MakeRVDSpec(rowsCodecSpec, partFiles, partitioner, rowsIndexSpec)
-    rowsSpec.write(fs, path + "/rows/rows")
+    rowsSpec.write(ctx, path + "/rows/rows")
 
     val entriesSpec = MakeRVDSpec(
       entriesCodecSpec,
       partFiles,
-      RVDPartitioner.unkeyed(partitioner.sm, partitioner.numPartitions),
+      RVDPartitioner.unkeyed(partitioner.numPartitions),
       entriesIndexSpec,
     )
-    entriesSpec.write(fs, path + "/entries/rows")
+    entriesSpec.write(ctx, path + "/entries/rows")
   }
 }
 

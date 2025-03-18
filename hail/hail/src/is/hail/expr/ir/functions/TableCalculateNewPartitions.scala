@@ -29,17 +29,11 @@ case class TableCalculateNewPartitions(
     if (rvd.typ.key.isEmpty)
       FastSeq()
     else {
-      val ki = RVD.getKeyInfo(ctx, rvd.typ, rvd.typ.key.length, RVD.getKeys(ctx, rvd.typ, rvd.crdd))
+      val ki = RVD.getKeyInfo(ctx, rvd.typ, rvd.typ.key.length, RVD.getKeys(rvd.typ, rvd.crdd))
       if (ki.isEmpty)
         FastSeq()
       else
-        RVD.calculateKeyRanges(
-          ctx,
-          rvd.typ,
-          ki,
-          nPartitions,
-          rvd.typ.key.length,
-        ).rangeBounds.toIndexedSeq
+        RVD.calculateKeyRanges(rvd.typ, ki, nPartitions, rvd.typ.key.length).rangeBounds.toIndexedSeq
     }
   }
 }

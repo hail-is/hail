@@ -31,17 +31,17 @@ import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.{Call, ReferenceGenome}
 
 import scala.language.existentials
-
 import java.io.{InputStream, OutputStream}
 import java.nio.file.{FileSystems, Path}
 import java.util.UUID
-
 import org.apache.spark.sql.Row
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+import org.json4s.{
+  DefaultFormats, Formats, ShortTypeHints,
+}
 import org.json4s.jackson.JsonMethods
 
 object MatrixWriter {
-  implicit val formats: Formats = new DefaultFormats() {
+  lazy val formats: Formats = new DefaultFormats {
     override val typeHints = ShortTypeHints(
       List(
         classOf[MatrixNativeWriter],
@@ -121,19 +121,19 @@ object MatrixNativeWriter {
     partitions: String = null,
     partitionsTypeStr: String = null,
   ): MatrixWriterComponents = {
-    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(ctx, codecSpecJSONStr)
     val tm = MatrixType.fromTableType(tablestage.tableType, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
     val lowered =
       if (partitions != null) {
-        val partitionsType = IRParser.parseType(partitionsTypeStr)
+        val partitionsType = IRParser.parseType(ctx, partitionsTypeStr)
         val jv = JsonMethods.parse(partitions)
         val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, partitionsType)
           .asInstanceOf[IndexedSeq[Interval]]
         tablestage.repartitionNoShuffle(
           ctx,
-          new RVDPartitioner(ctx.stateManager, tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds),
+          new RVDPartitioner(tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds),
         )
       } else tablestage
 
@@ -260,7 +260,7 @@ object MatrixNativeWriter {
         )
 
         val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows",
-          "entries/rows", "references", log = true)
+          "entries/rows", "references")
 
         val rowsIndexSpec = IndexSpec.defaultAnnotation(ctx, "../../index", tcoerce[PStruct](pKey))
         val entriesIndexSpec =
@@ -278,14 +278,14 @@ object MatrixNativeWriter {
                 MakeArray(GetField(writeEmpty, "filePath")),
                 RVDSpecWriter(
                   s"$path/globals/globals",
-                  RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                  RVDSpecMaker(emptySpec, RVDPartitioner.unkeyed(1)),
                 ),
               ),
               WriteMetadata(
                 MakeArray(GetField(writeGlobals, "filePath")),
                 RVDSpecWriter(
                   s"$path/globals/rows",
-                  RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                  RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
                 ),
               ),
               WriteMetadata(
@@ -301,7 +301,7 @@ object MatrixNativeWriter {
                 MakeArray(GetField(colInfo, "filePath")),
                 RVDSpecWriter(
                   s"$path/cols/rows",
-                  RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                  RVDSpecMaker(colSpec, RVDPartitioner.unkeyed(1)),
                 ),
               ),
               WriteMetadata(
@@ -327,7 +327,7 @@ object MatrixNativeWriter {
                         s"$path/entries/rows",
                         RVDSpecMaker(
                           entrySpec,
-                          RVDPartitioner.unkeyed(ctx.stateManager, lowered.numPartitions),
+                          RVDPartitioner.unkeyed(lowered.numPartitions),
                           entriesIndexSpec,
                         ),
                       ),
@@ -665,11 +665,9 @@ class MatrixSpecHelper(
   globalRelPath: String,
   colRelPath: String,
   entryRelPath: String,
-  refRelPath: String,
   typ: MatrixType,
-  log: Boolean,
 ) extends Serializable {
-  def write(fs: FS, nCols: Long, partCounts: Array[Long]): Unit = {
+  def write(ctx: ExecuteContext, nCols: Long, partCounts: Array[Long]): Unit = {
     val spec = MatrixTableSpecParameters(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
@@ -684,7 +682,7 @@ class MatrixSpecHelper(
       ),
     )
 
-    spec.write(fs, path)
+    spec.write(ctx, path)
 
     val nRows = partCounts.sum
     info(s"wrote matrix table with $nRows ${plural(nRows, "row")} " +
@@ -702,7 +700,6 @@ case class MatrixSpecWriter(
   colRelPath: String,
   entryRelPath: String,
   refRelPath: String,
-  log: Boolean,
 ) extends MetadataWriter {
   def annotationType: Type = TStruct("cols" -> TInt64, "rows" -> TArray(TInt64))
 
@@ -727,7 +724,7 @@ case class MatrixSpecWriter(
       },
     )
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath,
-      entryRelPath, refRelPath, typ, log))
+      entryRelPath, typ))
       .invoke[FS, Long, Array[Long], Unit](
         "write",
         cb.emb.getFS,
@@ -2409,7 +2406,7 @@ case class MatrixBlockMatrixWriter(
       }
 
     val rowIdxPartitioner =
-      new RVDPartitioner(ctx.stateManager, TStruct((perRowIdxId, TInt32)), inputRowIntervals)
+      new RVDPartitioner(TStruct((perRowIdxId, TInt32)), inputRowIntervals)
     val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
     // Now create a partitioner that makes appropriately sized blocks
@@ -2421,7 +2418,7 @@ case class MatrixBlockMatrixWriter(
     }
 
     val blockSizeGroupsPartitioner =
-      RVDPartitioner.generate(ctx.stateManager, TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
+      RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
     val rowsInBlockSizeGroups: TableStage =
       keyedByRowIdx.repartitionNoShuffle(ctx, blockSizeGroupsPartitioner)
 
@@ -2550,10 +2547,11 @@ case class MatrixNativeMultiWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
 ) {
-  val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
 
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit =
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = {
+    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(ctx, codecSpecJSONStr)
     MatrixValue.writeMultiple(ctx, mvs, paths, overwrite, stageLocally, bufferSpec)
+  }
 
   def lower(
     ctx: ExecuteContext,

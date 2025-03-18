@@ -6,9 +6,7 @@ import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.{AnonymousDependency, SparkTaskContext}
 import is.hail.expr.ir._
 import is.hail.expr.ir.compile.Compile
-import is.hail.expr.ir.defs.{
-  GetField, In, Let, MakeStruct, ReadPartition, Ref, StreamRange, ToArray,
-}
+import is.hail.expr.ir.defs.{GetField, In, Let, MakeStruct, ReadPartition, Ref, StreamRange, ToArray}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs.FS
 import is.hail.rvd.{RVD, RVDType}
@@ -20,10 +18,9 @@ import is.hail.types.virtual.{TStruct, TableType}
 import is.hail.utils.FastSeq
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import org.apache.spark.{Dependency, Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
-import org.json4s.JValue
+import org.json4s.{Formats, JValue}
 import org.json4s.JsonAST.JString
 
 case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader {
@@ -87,18 +84,17 @@ case class RVDTableReader(rvd: RVD, globals: IR, rt: RTable) extends TableReader
   def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
 
-  override def toJValue: JValue = JString("RVDTableReader")
-
-  def renderShort(): String = "RVDTableReader"
-
-  override def defaultRender(): String = "RVDTableReader"
-
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
-    RVDToTableStage(rvd, globals)
-      .upcast(ctx, requestedType)
+    RVDToTableStage(rvd, globals).upcast(ctx, requestedType)
+
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue = JString("RVDTableReader")
+      override def renderShort: String = "RVDTableReader"
+    }
 }
 
 object RVDToTableStage {
