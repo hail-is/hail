@@ -1,20 +1,23 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.Annotation
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
-
 import org.apache.spark.sql.Row
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.{CustomSerializer, JValue, Serializer}
 import org.json4s.JsonAST.{JArray, JObject, JString}
 
-class MatrixTypeSerializer extends CustomSerializer[MatrixType](format =>
+object MatrixTypeSerializer {
+  def apply(ctx: ExecuteContext): Serializer[MatrixType] =
+    new CustomSerializer[MatrixType](_ =>
       (
-        { case JString(s) => IRParser.parseMatrixType(s) },
+        { case JString(s) => IRParser.parseMatrixType(ctx, s)},
         { case mt: MatrixType => JString(mt.toString) },
       )
     )
+}
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
@@ -247,7 +250,7 @@ case class MatrixType(
 
   def referenceGenomeName: String = {
     val firstKeyField = rowKeyStruct.types(0)
-    firstKeyField.asInstanceOf[TLocus].rg
+    firstKeyField.asInstanceOf[TLocus].rg.name
   }
 
   override def toJSON: JValue =

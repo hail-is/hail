@@ -73,7 +73,7 @@ class TableGenSuite extends HailSuite {
   def testWithInvalidPartitionerKeyType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(partitioner =
-        Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
+        Some(RVDPartitioner.empty(TStruct("does-not-exist" -> TInt32)))
       ).typecheck()
     }
     ex.getMessage should include("partitioner")
@@ -83,7 +83,7 @@ class TableGenSuite extends HailSuite {
   def testWithTooLongPartitionerKeyType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(partitioner =
-        Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
+        Some(RVDPartitioner.empty(TStruct("does-not-exist" -> TInt32)))
       ).typecheck()
     }
     ex.getMessage should include("partitioner")
@@ -108,7 +108,7 @@ class TableGenSuite extends HailSuite {
   def testNumberOfContextsMatchesPartitions(): Unit = {
     val errorId = 42
     val table = TestUtils.collect(mkTableGen(
-      partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
+      partitioner = Some(RVDPartitioner.unkeyed(0)),
       errorId = Some(errorId),
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
@@ -123,14 +123,10 @@ class TableGenSuite extends HailSuite {
   def testRowsAreCorrectlyKeyed(): Unit = {
     val errorId = 56
     val table = TestUtils.collect(mkTableGen(
-      partitioner = Some(new RVDPartitioner(
-        ctx.stateManager,
-        TStruct("a" -> TInt32),
-        FastSeq(
-          Interval(Row(0), Row(0), true, false),
-          Interval(Row(1), Row(1), true, false),
-        ),
-      )),
+      partitioner = Some(new RVDPartitioner(TStruct("a" -> TInt32), FastSeq(
+        Interval(Row(0), Row(0), true, false),
+        Interval(Row(1), Row(1), true, false),
+      ))),
       errorId = Some(errorId),
     ))
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
@@ -187,7 +183,7 @@ class TableGenSuite extends HailSuite {
     tableGen(
       contexts.getOrElse(StreamRange(0, 2, 1)),
       globals.getOrElse(MakeStruct(IndexedSeq("g" -> 0))),
-      partitioner.getOrElse(RVDPartitioner.unkeyed(ctx.stateManager, 2)),
+      partitioner.getOrElse(RVDPartitioner.unkeyed(2)),
       errorId.getOrElse(ErrorIDs.NO_ERROR),
     )(
       body.getOrElse { (c, g) =>

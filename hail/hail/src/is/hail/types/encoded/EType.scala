@@ -20,14 +20,10 @@ import java.util.Map.Entry
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
-class ETypeSerializer extends CustomSerializer[EType](format =>
+object ETypeSerializer extends CustomSerializer[EType](_ =>
       (
-        {
-          case JString(s) => IRParser.parse[EType](s, EType.eTypeParser)
-        },
-        {
-          case t: EType => JString(t.parsableString())
-        },
+        { case JString(s) => IRParser.parse[EType](s, EType.eTypeParser) },
+        { case t: EType => JString(t.parsableString()) },
       )
     )
 

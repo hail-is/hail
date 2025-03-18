@@ -434,7 +434,7 @@ class Pretty(
         if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
         Pretty.prettyBooleanLiteral(dropCols),
         Pretty.prettyBooleanLiteral(dropRows),
-        if (elideLiterals) reader.renderShort()
+        if (elideLiterals) reader.pretty.renderShort
         else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"',
       )
     case MatrixWrite(_, writer) =>

@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
-import is.hail.backend.HailStateManager
+
 
 import org.json4s.jackson.JsonMethods
 
@@ -37,7 +37,7 @@ final case class TStream(elementType: Type) extends TIterable {
 
   override def isRealizable = false
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 
   override def isIsomorphicTo(t: Type): Boolean =

@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TInterval
 
@@ -11,9 +10,9 @@ abstract class PInterval extends PType {
 
   lazy val virtualType: TInterval = TInterval(pointType.virtualType)
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+  override lazy val unsafeOrdering: UnsafeOrdering =
     new UnsafeOrdering {
-      private val pOrd = pointType.unsafeOrdering(sm)
+      private val pOrd = pointType.unsafeOrdering
 
       def compare(o1: Long, o2: Long): Int = {
         val sdef1 = startDefined(o1)
@@ -43,9 +42,9 @@ abstract class PInterval extends PType {
       }
     }
 
-  def endPrimaryUnsafeOrdering(sm: HailStateManager): UnsafeOrdering =
+  lazy val endPrimaryUnsafeOrdering: UnsafeOrdering =
     new UnsafeOrdering {
-      private val pOrd = pointType.unsafeOrdering(sm)
+      private val pOrd = pointType.unsafeOrdering
 
       def compare(o1: Long, o2: Long): Int = {
         val edef1 = endDefined(o1)

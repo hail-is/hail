@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.backend.HailStateManager
+
 import is.hail.types.Box
 
 import scala.collection.mutable
@@ -69,7 +69,7 @@ final case class TVariable(name: String, cond: String = null) extends Type {
     t
   }
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
 
   override def isIsomorphicTo(t: Type): Boolean =
     false

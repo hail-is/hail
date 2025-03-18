@@ -181,7 +181,7 @@ class CodeSuite extends HailSuite {
       hash.value
     })
     val region = Region(pool = pool)
-    val arrayPointer = pArray.unstagedStoreJavaObject(ctx.stateManager, toHash, region)
+    val arrayPointer = pArray.unstagedStoreJavaObject(toHash, region)
     fb.result()(theHailClassLoader)(arrayPointer)
   }
 
@@ -196,7 +196,7 @@ class CodeSuite extends HailSuite {
       hash.value
     })
     val region = Region(pool = pool)
-    val structPointer = pStruct.unstagedStoreJavaObject(ctx.stateManager, toHash, region)
+    val structPointer = pStruct.unstagedStoreJavaObject(toHash, region)
     fb.result()(theHailClassLoader)(structPointer)
   }
 }

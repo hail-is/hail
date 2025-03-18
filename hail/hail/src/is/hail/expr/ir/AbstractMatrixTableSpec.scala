@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.backend.ExecuteContext
 import is.hail.io.fs.FS
 import is.hail.rvd._
 import is.hail.types.virtual.{MatrixType, MatrixTypeSerializer, TableType, TableTypeSerializer}
@@ -7,9 +8,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
-
 import java.io.{FileNotFoundException, OutputStreamWriter}
-
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
@@ -17,7 +16,7 @@ import org.json4s.jackson.JsonMethods.parse
 abstract class ComponentSpec
 
 object RelationalSpec {
-  implicit val formats: Formats =
+  private[this] lazy val formats: Formats =
     new DefaultFormats() {
       override val typeHints = ShortTypeHints(
         List(
@@ -31,9 +30,14 @@ object RelationalSpec {
         ),
         typeHintFieldName = "name",
       )
-    } +
-      new TableTypeSerializer +
-      new MatrixTypeSerializer
+    }
+
+  def withFormats[A](ctx: ExecuteContext)(f: Formats => A): A =
+    f {
+      formats +
+        TableTypeSerializer(ctx) +
+        MatrixTypeSerializer(ctx)
+    }
 
   def readMetadata(fs: FS, path: String): JValue = {
     val metadataFile = path + "/metadata.json.gz"
@@ -73,23 +77,24 @@ object RelationalSpec {
     jv
   }
 
-  def read(fs: FS, path: String): RelationalSpec = {
-    val jv = readMetadata(fs, path)
-
-    (jv \ "name").extract[String] match {
-      case "TableSpec" => TableSpec.fromJValue(fs, path, jv)
-      case "MatrixTableSpec" => MatrixTableSpec.fromJValue(fs, path, jv)
+  def read(ctx: ExecuteContext, path: String): RelationalSpec =
+    withFormats(ctx) { implicit formats =>
+      val jv = readMetadata(ctx.fs, path)
+      (jv \ "name").extract[String] match {
+        case "TableSpec" => TableSpec.fromJValue(ctx, path, jv)
+        case "MatrixTableSpec" => MatrixTableSpec.fromJValue(ctx, path, jv)
+      }
     }
-  }
 
-  def readReferences(fs: FS, path: String): Array[ReferenceGenome] =
-    readReferences(fs, path, readMetadata(fs, path))
+  def readReferences(ctx: ExecuteContext, path: String): Array[ReferenceGenome] =
+    readReferences(ctx, path, readMetadata(ctx.fs, path))
 
-  def readReferences(fs: FS, path: String, jv: JValue): Array[ReferenceGenome] = {
-    // FIXME this violates the abstraction of the serialization boundary
-    val referencesRelPath = (jv \ "references_rel_path").extract[String]
-    ReferenceGenome.readReferences(fs, path + "/" + referencesRelPath)
-  }
+  def readReferences(ctx: ExecuteContext, path: String, jv: JValue): Array[ReferenceGenome] =
+    withFormats(ctx) { implicit formats =>
+      // FIXME this violates the abstraction of the serialization boundary
+      val referencesRelPath = (jv \ "references_rel_path").extract[String]
+      ReferenceGenome.readReferences(ctx.fs, path + "/" + referencesRelPath)
+    }
 }
 
 abstract class RelationalSpec {
@@ -116,8 +121,6 @@ abstract class RelationalSpec {
   def indexed: Boolean
 
   def version: SemanticVersion = SemanticVersion(file_version)
-
-  def toJValue: JValue
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
@@ -125,10 +128,11 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
 
   private[this] val specCache = mutable.Map.empty[String, AbstractRVDSpec]
 
-  def rvdSpec(fs: FS, path: String): AbstractRVDSpec =
-    specCache.getOrElseUpdate(path, AbstractRVDSpec.read(fs, absolutePath(path)))
+  def rvdSpec(ctx: ExecuteContext, path: String): AbstractRVDSpec =
+    specCache.getOrElseUpdate(path, AbstractRVDSpec.read(ctx, absolutePath(path)))
 
-  def indexed(fs: FS, path: String): Boolean = rvdSpec(fs, path).indexed
+  def indexed(ctx: ExecuteContext, path: String): Boolean =
+    rvdSpec(ctx, path).indexed
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
@@ -158,7 +162,7 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
 }
 
 object MatrixTableSpec {
-  def fromJValue(fs: FS, path: String, jv: JValue): MatrixTableSpec = {
+  def fromJValue(ctx: ExecuteContext, path: String, jv: JValue): MatrixTableSpec = {
     implicit val formats: Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
@@ -170,20 +174,20 @@ object MatrixTableSpec {
           typeHintFieldName = "name",
         )
       } +
-        new MatrixTypeSerializer
+        MatrixTypeSerializer(ctx)
     val params = jv.extract[MatrixTableSpecParameters]
 
-    val globalsSpec = RelationalSpec.read(fs, path + "/globals").asInstanceOf[AbstractTableSpec]
+    val globalsSpec = RelationalSpec.read(ctx, path + "/globals").asInstanceOf[AbstractTableSpec]
 
-    val colsSpec = RelationalSpec.read(fs, path + "/cols").asInstanceOf[AbstractTableSpec]
+    val colsSpec = RelationalSpec.read(ctx, path + "/cols").asInstanceOf[AbstractTableSpec]
 
-    val rowsSpec = RelationalSpec.read(fs, path + "/rows").asInstanceOf[AbstractTableSpec]
+    val rowsSpec = RelationalSpec.read(ctx, path + "/rows").asInstanceOf[AbstractTableSpec]
 
     /* some legacy files written as MatrixTableSpec wrote the wrong type to the entries table
      * metadata */
-    var entriesSpec = RelationalSpec.read(fs, path + "/entries").asInstanceOf[TableSpec]
+    var entriesSpec = RelationalSpec.read(ctx, path + "/entries").asInstanceOf[TableSpec]
     entriesSpec = TableSpec(
-      fs,
+      ctx,
       path + "/entries",
       entriesSpec.params.copy(
         table_type =
@@ -203,11 +207,13 @@ case class MatrixTableSpecParameters(
   components: Map[String, ComponentSpec],
 ) {
 
-  def write(fs: FS, path: String): Unit =
-    using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
-      out.write(
-        JsonMethods.compact(decomposeWithName(this, "MatrixTableSpec")(RelationalSpec.formats))
-      )
+  def write(ctx: ExecuteContext, path: String): Unit =
+    RelationalSpec.withFormats(ctx) { implicit formats =>
+      using(new OutputStreamWriter(ctx.fs.create(path + "/metadata.json.gz"))) { out =>
+        out.write(
+          JsonMethods.compact(decomposeWithName(this, "MatrixTableSpec"))
+        )
+      }
     }
 
 }
@@ -229,8 +235,6 @@ class MatrixTableSpec(
 
   def components: Map[String, ComponentSpec] = params.components
 
-  def toJValue: JValue =
-    decomposeWithName(params, "MatrixTableSpec")(RelationalSpec.formats)
 }
 
 object FileFormat {

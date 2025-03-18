@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.{ExecuteContext}
 import is.hail.io.{BufferSpec, FileWriteMetadata}
 import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD}
@@ -25,7 +25,7 @@ case class MatrixValue(
   lazy val globals: BroadcastRow = {
     val prevGlobals = tv.globals
     val newT = prevGlobals.t.deleteField(LowerMatrixIR.colsFieldName)
-    val rvb = new RegionValueBuilder(HailStateManager(Map.empty), prevGlobals.value.region)
+    val rvb = new RegionValueBuilder(prevGlobals.value.region)
     rvb.start(newT)
     rvb.startStruct()
     rvb.addFields(
@@ -93,7 +93,6 @@ case class MatrixValue(
   }
 
   private def writeCols(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec): Long = {
-    val fs = ctx.fs
     val fileData = AbstractRVDSpec.writeSingle(
       ctx,
       path + "/rows",
@@ -114,15 +113,14 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts),
       ),
     )
-    colsSpec.write(fs, path)
+    colsSpec.write(ctx, path)
 
-    using(fs.create(path + "/_SUCCESS"))(out => ())
+    using(ctx.fs.create(path + "/_SUCCESS"))(out => ())
 
     fileData.map(_.bytesWritten).sum
   }
 
   private def writeGlobals(ctx: ExecuteContext, path: String, bufferSpec: BufferSpec): Long = {
-    val fs = ctx.fs
     val fileData = AbstractRVDSpec.writeSingle(
       ctx,
       path + "/rows",
@@ -151,9 +149,9 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts),
       ),
     )
-    globalsSpec.write(fs, path)
+    globalsSpec.write(ctx, path)
 
-    using(fs.create(path + "/_SUCCESS"))(out => ())
+    using(ctx.fs.create(path + "/_SUCCESS"))(out => ())
     fileData.map(_.bytesWritten).sum
   }
 
@@ -182,7 +180,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts),
       ),
     )
-    rowsSpec.write(fs, path + "/rows")
+    rowsSpec.write(ctx, path + "/rows")
 
     using(fs.create(path + "/rows/_SUCCESS"))(out => ())
 
@@ -197,7 +195,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts),
       ),
     )
-    entriesSpec.write(fs, path + "/entries")
+    entriesSpec.write(ctx, path + "/entries")
 
     using(fs.create(path + "/entries/_SUCCESS"))(out => ())
 
@@ -210,7 +208,7 @@ case class MatrixValue(
       ReferenceGenome.exportReferences(
         fs,
         refPath,
-        ReferenceGenome.getReferences(t).map(ctx.references(_)),
+        ReferenceGenome.getReferences(t),
       )
     }
 
@@ -227,7 +225,7 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts),
       ),
     )
-    spec.write(fs, path)
+    spec.write(ctx, path)
 
     writeNativeFileReadMe(fs, path)
 
@@ -356,7 +354,7 @@ object MatrixValue {
   ): MatrixValue = {
     val globalsType = typ.globalType.appendKey(LowerMatrixIR.colsFieldName, TArray(typ.colType))
     val globalsPType = PType.canonical(globalsType).asInstanceOf[PStruct]
-    val rvb = new RegionValueBuilder(ctx.stateManager, ctx.r)
+    val rvb = new RegionValueBuilder(ctx.r)
     rvb.start(globalsPType)
     rvb.startStruct()
     typ.globalType.fields.foreach(f => rvb.addAnnotation(f.typ, globals.get(f.index)))

@@ -211,7 +211,7 @@ object TestUtils {
         assert(resultType2.virtualType == resultType)
 
         ctx.r.pool.scopedRegion { region =>
-          val rvb = new RegionValueBuilder(ctx.stateManager, region)
+          val rvb = new RegionValueBuilder(region)
           rvb.start(argsPType)
           rvb.startTuple()
           var i = 0
@@ -250,7 +250,7 @@ object TestUtils {
         assert(resultType2.virtualType == resultType)
 
         ctx.r.pool.scopedRegion { region =>
-          val rvb = new RegionValueBuilder(ctx.stateManager, region)
+          val rvb = new RegionValueBuilder(region)
           rvb.start(argsPType)
           rvb.startTuple()
           var i = 0

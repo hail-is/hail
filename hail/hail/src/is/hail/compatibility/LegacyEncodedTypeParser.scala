@@ -1,5 +1,6 @@
 package is.hail.compatibility
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{IRParser, PunctuationToken, TokenIterator}
 import is.hail.expr.ir.IRParser._
 import is.hail.types.encoded._
@@ -8,7 +9,7 @@ import is.hail.utils.FastSeq
 
 object LegacyEncodedTypeParser {
 
-  def legacy_type_expr(it: TokenIterator): (Type, EType) = {
+  def legacy_type_expr(ctx: ExecuteContext, it: TokenIterator): (Type, EType) = {
     val req = it.head match {
       case x: PunctuationToken if x.value == "+" =>
         consumeToken(it)
@@ -19,7 +20,7 @@ object LegacyEncodedTypeParser {
     val (vType, eType) = identifier(it) match {
       case "Interval" =>
         punctuation(it, "[")
-        val (pointType, ePointType) = legacy_type_expr(it)
+        val (pointType, ePointType) = legacy_type_expr(ctx, it)
         punctuation(it, "]")
         (
           TInterval(pointType),
@@ -45,7 +46,7 @@ object LegacyEncodedTypeParser {
         val rg = identifier(it)
         punctuation(it, ")")
         (
-          TLocus(rg),
+          TLocus(ctx.references(rg)),
           EBaseStruct(
             FastSeq(
               EField("contig", EBinaryRequired, 0),
@@ -57,19 +58,19 @@ object LegacyEncodedTypeParser {
       case "Call" => (TCall, EInt32(req))
       case "Array" =>
         punctuation(it, "[")
-        val (elementType, elementEType) = legacy_type_expr(it)
+        val (elementType, elementEType) = legacy_type_expr(ctx, it)
         punctuation(it, "]")
         (TArray(elementType), EArray(elementEType, req))
       case "Set" =>
         punctuation(it, "[")
-        val (elementType, elementEType) = legacy_type_expr(it)
+        val (elementType, elementEType) = legacy_type_expr(ctx, it)
         punctuation(it, "]")
         (TSet(elementType), EArray(elementEType, req))
       case "Dict" =>
         punctuation(it, "[")
-        val (keyType, keyEType) = legacy_type_expr(it)
+        val (keyType, keyEType) = legacy_type_expr(ctx, it)
         punctuation(it, ",")
-        val (valueType, valueEType) = legacy_type_expr(it)
+        val (valueType, valueEType) = legacy_type_expr(ctx, it)
         punctuation(it, "]")
         (
           TDict(keyType, valueType),
@@ -86,7 +87,7 @@ object LegacyEncodedTypeParser {
         )
       case "Tuple" =>
         punctuation(it, "[")
-        val types = repsepUntil(it, legacy_type_expr, PunctuationToken(","), PunctuationToken("]"))
+        val types = repsepUntil(it, (it: TokenIterator) => legacy_type_expr(ctx, it), PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
         (
           TTuple(types.map(_._1): _*),
@@ -99,7 +100,7 @@ object LegacyEncodedTypeParser {
         punctuation(it, "{")
         val args = repsepUntil(
           it,
-          struct_field(legacy_type_expr),
+          struct_field((it: TokenIterator) => legacy_type_expr(ctx, it)),
           PunctuationToken(","),
           PunctuationToken("}"),
         )
@@ -113,7 +114,7 @@ object LegacyEncodedTypeParser {
     (vType, eType)
   }
 
-  def rvd_type_expr(it: TokenIterator): LegacyRVDType = {
+  def rvd_type_expr(ctx: ExecuteContext, it: TokenIterator): LegacyRVDType = {
     identifier(it) match {
       case "RVDType" | "OrderedRVDType" =>
         punctuation(it, "{")
@@ -126,13 +127,14 @@ object LegacyEncodedTypeParser {
         punctuation(it, ",")
         identifier(it, "row")
         punctuation(it, ":")
-        val (rowType: TStruct, rowEType) = legacy_type_expr(it)
+        val (rowType: TStruct, rowEType) = legacy_type_expr(ctx, it)
         LegacyRVDType(rowType, rowEType, partitionKey ++ restKey)
     }
   }
 
-  def parseTypeAndEType(str: String): (Type, EType) =
-    IRParser.parse(str, it => legacy_type_expr(it))
+  def parseTypeAndEType(ctx: ExecuteContext, str: String): (Type, EType) =
+    IRParser.parse(str, it => legacy_type_expr(ctx, it))
 
-  def parseLegacyRVDType(str: String): LegacyRVDType = IRParser.parse(str, it => rvd_type_expr(it))
+  def parseLegacyRVDType(ctx: ExecuteContext, str: String): LegacyRVDType =
+    IRParser.parse(str, it => rvd_type_expr(ctx, it))
 }

@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
-import is.hail.backend.HailStateManager
+
 
 import org.json4s.jackson.JsonMethods
 
@@ -35,8 +35,8 @@ final case class TSet(elementType: Type) extends TContainer {
     sb.append("]")
   }
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.setOrdering(elementType.ordering(sm), missingEqual)
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.setOrdering(elementType.ordering, missingEqual)
 
   override def _showStr(a: Annotation): String =
     a.asInstanceOf[Set[Annotation]]

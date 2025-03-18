@@ -918,11 +918,7 @@ class EmitStreamSuite extends HailSuite {
     )
 
     pool.scopedSmallRegion { r =>
-      val input = t.unstagedStoreJavaObject(
-        ctx.stateManager,
-        Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)),
-        r,
-      )
+      val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
       assert(
         SafeRow.read(pt, f(theHailClassLoader, ctx.fs, ctx.taskContext, r)(r, input)) == Row(null)

@@ -27,13 +27,7 @@ abstract class PhysicalTestUtils extends HailSuite {
 
     if (interpret) {
       try {
-        val copyOff = destType.copyFromAddress(
-          ctx.stateManager,
-          region,
-          sourceType,
-          srcAddress,
-          deepCopy = deepCopy,
-        )
+        val copyOff = destType.copyFromAddress(region, sourceType, srcAddress, deepCopy = deepCopy)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: $copy, Source value: $sourceValue")

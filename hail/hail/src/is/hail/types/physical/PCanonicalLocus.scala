@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
+
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{
@@ -19,28 +19,27 @@ object PCanonicalLocus {
     "position" -> PInt32(required = true),
   )
 
-  def schemaFromRG(rg: Option[String], required: Boolean = false): PType = rg match {
+  def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
     case Some(name) => PCanonicalLocus(name, required)
     case None => representation(required)
   }
 }
 
-final case class PCanonicalLocus(rgName: String, required: Boolean = false) extends PLocus {
+final case class PCanonicalLocus(override val rg: ReferenceGenome, required: Boolean = false)
+    extends PLocus {
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
   override def copiedType: PType = this
 
-  def rg: String = rgName
-
-  def _asIdent = s"locus_$rgName"
+  def _asIdent = s"locus_$rg"
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit =
-    sb.append(s"PCLocus($rgName)")
+    sb.append(s"PCLocus($rg)")
 
   def setRequired(required: Boolean): PCanonicalLocus =
-    if (required == this.required) this else PCanonicalLocus(this.rgName, required)
+    if (required == this.required) this else PCanonicalLocus(this.rg, required)
 
   val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
 
@@ -60,30 +59,26 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = {
-    val localRg = sm.referenceGenomes(rgName)
-    val binaryOrd = representation.fieldType("contig").unsafeOrdering(sm)
+  override lazy val unsafeOrdering: UnsafeOrdering = {
+    val binaryOrd = representation.fieldType("contig").unsafeOrdering
 
-    new UnsafeOrdering {
-      def compare(o1: Long, o2: Long): Int = {
-        val cOff1 = representation.loadField(o1, 0)
-        val cOff2 = representation.loadField(o2, 0)
+    (o1: Long, o2: Long) => {
+      val cOff1 = representation.loadField(o1, 0)
+      val cOff2 = representation.loadField(o2, 0)
 
-        if (binaryOrd.compare(cOff1, cOff2) == 0) {
-          val posOff1 = representation.loadField(o1, 1)
-          val posOff2 = representation.loadField(o2, 1)
-          java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
-        } else {
-          val contig1 = contigType.loadString(cOff1)
-          val contig2 = contigType.loadString(cOff2)
-          localRg.compare(contig1, contig2)
-        }
+      if (binaryOrd.compare(cOff1, cOff2) == 0) {
+        val posOff1 = representation.loadField(o1, 1)
+        val posOff2 = representation.loadField(o2, 1)
+        java.lang.Integer.compare(Region.loadInt(posOff1), Region.loadInt(posOff2))
+      } else {
+        val contig1 = contigType.loadString(cOff1)
+        val contig2 = contigType.loadString(cOff2)
+        rg.compare(contig1, contig2)
       }
     }
   }
 
   override def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -91,20 +86,13 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
     deepCopy: Boolean,
   ): Unit =
     srcPType match {
-      case pt: PCanonicalLocus => representation.unstagedStoreAtAddress(
-          sm,
-          addr,
-          region,
-          pt.representation,
-          srcAddress,
-          deepCopy,
-        )
+      case pt: PCanonicalLocus =>
+        representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
     }
 
   override def containsPointers: Boolean = representation.containsPointers
 
-  override def _copyFromAddress(
-    sm: HailStateManager,
+  override protected def _copyFromAddress(
     region: Region,
     srcPType: PType,
     srcAddress: Long,
@@ -112,7 +100,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
   ): Long =
     srcPType match {
       case pt: PCanonicalLocus =>
-        representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
+        representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
     }
 
   def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(setRequired(false))
@@ -177,41 +165,25 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
 
   override def unstagedLoadFromNested(addr: Long): Long = addr
 
-  override def unstagedStoreLocus(
-    sm: HailStateManager,
-    addr: Long,
-    contig: String,
-    position: Int,
-    region: Region,
-  ): Unit = {
-    contigType.unstagedStoreJavaObjectAtAddress(
-      sm,
-      representation.fieldOffset(addr, 0),
-      contig,
-      region,
-    )
+  override def unstagedStoreLocus(addr: Long, contig: String, position: Call, region: Region)
+    : Unit = {
+    contigType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 0), contig, region)
     positionType.unstagedStoreJavaObjectAtAddress(
-      sm,
       representation.fieldOffset(addr, 1),
       position,
       region,
     )
   }
 
-  override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    annotation: Annotation,
-    region: Region,
-  ): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region)
+    : Unit = {
     val myLocus = annotation.asInstanceOf[Locus]
-    unstagedStoreLocus(sm, addr, myLocus.contig, myLocus.position, region)
+    unstagedStoreLocus(addr, myLocus.contig, myLocus.position, region)
   }
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
-    : Long = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val addr = representation.allocate(region)
-    unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
   }
 

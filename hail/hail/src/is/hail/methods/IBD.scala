@@ -242,7 +242,6 @@ object IBD {
   ): ContextRDD[Long] = {
 
     val nSamples = input.nCols
-    val sm = ctx.stateManager
 
     val rowPType = input.rvRowPType
     val unnormalizedIbse = input.rvd.mapPartitions { (ctx, it) =>
@@ -308,7 +307,7 @@ object IBD {
 
     joined
       .cmapPartitions { (ctx, it) =>
-        val rvb = new RegionValueBuilder(sm, ctx.region)
+        val rvb = new RegionValueBuilder(ctx.region)
         for {
           ((iChunk, jChunk), ibses) <- it
           si <- (0 until chunkSize).iterator

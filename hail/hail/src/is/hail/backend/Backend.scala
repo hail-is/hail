@@ -41,7 +41,7 @@ object Backend {
     bufferSpecString: String,
     os: OutputStream,
   ): Unit = {
-    val bs = BufferSpec.parseOrDefault(bufferSpecString)
+    val bs = BufferSpec.parseOrDefault(ctx, bufferSpecString)
     assert(t.size == 1)
     val elementType = t.fields(0).typ
     val codec = TypedCodecSpec(

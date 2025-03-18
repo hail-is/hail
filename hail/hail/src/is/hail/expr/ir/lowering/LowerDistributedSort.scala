@@ -1,24 +1,23 @@
 package is.hail.expr.ir.lowering
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow}
-import is.hail.asm4s.{classInfo, AsmFunction1RegionLong, LongInfo}
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.{ArrayFunctions, IRRandomness, UtilFunctions}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDPartitioner
-import is.hail.types.{tcoerce, RTable, VirtualTypeWithReq}
+import is.hail.types.{RTable, VirtualTypeWithReq, tcoerce}
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable.ArrayBuffer
-
 import org.apache.spark.sql.Row
-import org.json4s.JValue
+import org.json4s.{Formats, JValue}
 import org.json4s.JsonAST.JString
 
 object LowerDistributedSort {
@@ -69,7 +68,6 @@ object LowerDistributedSort {
     val partitionerKeyIndex = partitionerKeyType.fieldNames.map(f => rowType.fieldIdx(f))
 
     val partitioner = new RVDPartitioner(
-      ctx.stateManager,
       partitionerKeyType,
       sortedRows.grouped(itemsPerPartition).map { group =>
         val first = group.head.asInstanceOf[Row].select(partitionerKeyIndex)
@@ -106,11 +104,11 @@ object LowerDistributedSort {
     def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
       VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
 
-    override def toJValue: JValue = JString("LocalSortReader")
-
-    def renderShort(): String = "LocalSortReader"
-
-    override def defaultRender(): String = "LocalSortReader"
+    override def pretty: PrettyOps =
+      new PrettyOps {
+        override def toJValue(implicit fmts: Formats): JValue = JString(renderShort)
+        override def renderShort: String = "LocalSortReader"
+      }
 
     override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
       PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
@@ -141,7 +139,7 @@ object LowerDistributedSort {
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
       val f = rowType.fields(i)
-      val fo = f.typ.ordering(ctx.stateManager)
+      val fo = f.typ.ordering
       if (so == Ascending) fo else fo.reverse
     }.toArray
 
@@ -961,14 +959,12 @@ case class DistributionSortReader(
 
   override def pathsUsed: Seq[String] = FastSeq()
 
-  def defaultPartitioning(sm: HailStateManager): RVDPartitioner = {
-    val (partitionerKey, intervals) = if (keyed) {
-      (key, orderedOutputPartitions.map(segment => segment.interval))
-    } else {
-      (TStruct(), orderedOutputPartitions.map(_ => Interval(Row(), Row(), true, false)))
-    }
+  lazy val defaultPartitioning: RVDPartitioner = {
+    val (partitionerKey, intervals) =
+      if (keyed) (key, orderedOutputPartitions.map(_.interval))
+      else (TStruct(), orderedOutputPartitions.map(_ => Interval(Row(), Row(), true, false)))
 
-    new RVDPartitioner(sm, partitionerKey, intervals)
+    new RVDPartitioner(partitionerKey, intervals)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = None
@@ -981,11 +977,11 @@ case class DistributionSortReader(
   def globalRequiredness(ctx: ExecuteContext, requestedType: TableType): VirtualTypeWithReq =
     VirtualTypeWithReq.subset(requestedType.globalType, rt.globalType)
 
-  override def toJValue: JValue = JString("DistributionSortReader")
-
-  def renderShort(): String = "DistributionSortReader"
-
-  override def defaultRender(): String = "DistributionSortReader"
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue = JString(renderShort)
+      override def renderShort: String = "DistributionSortReader"
+    }
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     PruneDeadFields.upcast(ctx, globals, requestedGlobalsType)
@@ -1010,11 +1006,9 @@ case class DistributionSortReader(
       contextData,
     ))
 
-    val partitioner = defaultPartitioning(ctx.stateManager)
-
     TableStage(
       PruneDeadFields.upcast(ctx, globals, requestedType.globalType),
-      partitioner.coarsen(requestedType.key.length),
+      defaultPartitioning.coarsen(requestedType.key.length),
       TableStageDependency.none,
       contexts,
       { ctxRef =>

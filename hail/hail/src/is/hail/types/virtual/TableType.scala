@@ -1,19 +1,23 @@
 package is.hail.types.virtual
 
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir._
 import is.hail.rvd.RVDType
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.utils._
-
 import org.json4s._
 import org.json4s.JsonAST.JString
 
-class TableTypeSerializer extends CustomSerializer[TableType](format =>
+object TableTypeSerializer {
+  def apply(ctx: ExecuteContext): Serializer[TableType] =
+    new CustomSerializer[TableType](_ =>
       (
-        { case JString(s) => IRParser.parseTableType(s) },
+        { case JString(s) => IRParser.parseTableType(ctx, s) },
         { case tt: TableType => JString(tt.toString) },
       )
     )
+}
+
 
 object TableType {
   def keyType(ts: TStruct, key: IndexedSeq[String]): TStruct =

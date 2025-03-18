@@ -13,7 +13,7 @@ import org.testng.annotations.{BeforeMethod, Test}
 
 class IntervalSuite extends HailSuite {
 
-  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
+  val pord: ExtendedOrdering = TInt32.ordering()
 
   // set of intervals chosen from 5 endpoints spans the space of relations
   // that two non-empty intervals can have with each other.
@@ -245,7 +245,7 @@ object SetInterval {
 
 case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean) {
 
-  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
+  val pord: ExtendedOrdering = TInt32.ordering()
 
   val doubledPointSet: Set[Int] = {
     val first = if (includesStart) 2 * start else 2 * start + 1
@@ -315,7 +315,7 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
 
 case class SetIntervalTree(ctx: ExecuteContext, annotations: Array[(SetInterval, Int)]) {
 
-  val pord: ExtendedOrdering = TInt32.ordering(HailStateManager(Map.empty))
+  val pord: ExtendedOrdering = TInt32.ordering()
 
   val doubledPointSet: Set[Int] =
     annotations.foldLeft(Set.empty[Int]) { case (ps, (i, _)) => ps.union(i.doubledPointSet) }
@@ -323,7 +323,7 @@ case class SetIntervalTree(ctx: ExecuteContext, annotations: Array[(SetInterval,
   val (intervals, values) = annotations.unzip
 
   val intervalTree: RVDPartitioner =
-    new RVDPartitioner(ctx.stateManager, TStruct(("i", TInt32)), intervals.map(_.rowInterval))
+    new RVDPartitioner(TStruct(("i", TInt32)), intervals.map(_.rowInterval))
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 

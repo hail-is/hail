@@ -14,13 +14,13 @@ import org.scalacheck.Gen._
 
 private[scalacheck] trait GenVal {
 
-  def genNonMissing(ctx: ExecuteContext, typ: Type): Gen[An] =
-    genVal(ctx, PType.canonical(typ, required = true, innerRequired = true))
+  def genNonMissing(typ: Type): Gen[Any] =
+    genVal(PType.canonical(typ, required = true, innerRequired = true))
 
-  def genNullable(ctx: ExecuteContext, typ: Type): Gen[An] =
-    genVal(ctx, PType.canonical(typ))
+  def genNullable(typ: Type): Gen[Any] =
+    genVal(PType.canonical(typ))
 
-  def genVal(ctx: ExecuteContext, pt: PType): Gen[An] = {
+  def genVal(pt: PType): Gen[Any] = {
 
     def wrap(g: Gen[An]): Gen[An] =
       if (pt.required) g else nullable(g)
@@ -28,9 +28,9 @@ private[scalacheck] trait GenVal {
     wrap {
       pt match {
         case p: PArray =>
-          containerOf[IndexedSeq, An](genVal(ctx, p.elementType))
+          containerOf[IndexedSeq, An](genVal(p.elementType))
         case t: PBaseStruct =>
-          sequence(t.types.map(genVal(ctx, _))).map(arr => new GenericRow(arr))
+          sequence(t.types.map(genVal)).map(arr => new GenericRow(arr))
         case _: PBoolean =>
           arbitrary[Boolean]
         case _: PBinary =>
@@ -38,7 +38,7 @@ private[scalacheck] trait GenVal {
         case _: PCall =>
           genCall
         case t: PDict =>
-          mapOf(genVal(ctx, t.elementType).map { case Row(k, v) => (k, v) })
+          mapOf(genVal(t.elementType).map { case Row(k, v) => (k, v) })
         case _: PFloat32 =>
           arbitrary[Float]
         case _: PFloat64 =>
@@ -48,23 +48,23 @@ private[scalacheck] trait GenVal {
         case _: PInt64 =>
           arbitrary[Long]
         case t: PInterval =>
-          val ord = t.pointType.virtualType.mkOrdering(ctx.stateManager)
-          val elem = genVal(ctx, t.pointType)
+          val ord = t.pointType.virtualType.ordering
+          val elem = genVal(t.pointType)
           for {
             (a, b, s, e) <- zip(elem, elem, arbitrary[Boolean], arbitrary[Boolean])
             if ord.compare(a, b) != 0 || (s && e)
           } yield Interval(ord.min(a, b), ord.max(a, b), s, e)
         case p: PLocus =>
-          genLocus(ctx.references(p.rg))
+          genLocus(p.rg)
         case t: PNDArray =>
           for {
             len <- size
             scale <- dirichlet(Array.fill(t.nDims)(1d))
             shape = scale map { factor => (factor * len).ceil.toLong }
-            data <- containerOfN[Array, An](shape.sum.toInt, genVal(ctx, t.elementType))
+            data <- containerOfN[Array, An](shape.sum.toInt, genVal(t.elementType))
           } yield SafeNDArray(shape, data)
         case p: PSet =>
-          containerOf[Set, An](genVal(ctx, p.elementType))
+          containerOf[Set, An](genVal(p.elementType))
         case _: PString =>
           asciiStr
         case PVoid =>
@@ -73,17 +73,17 @@ private[scalacheck] trait GenVal {
     }
   }
 
-  def genNullableT[A <: Null](ctx: ExecuteContext, typ: Type): Gen[A] =
-    genNullable(ctx, typ).asInstanceOf[Gen[A]]
+  def genNullableT[A <: Null](typ: Type): Gen[Any] =
+    genNullable(typ).asInstanceOf[Gen[A]]
 
-  def genNonMissingT[A](ctx: ExecuteContext, typ: Type): Gen[A] =
-    genNonMissing(ctx, typ).asInstanceOf[Gen[A]]
+  def genNonMissingT[A](typ: Type): Gen[Any] =
+    genNonMissing(typ).asInstanceOf[Gen[A]]
 
-  def genTypeVal[T <: Type: Arbitrary](ctx: ExecuteContext): Gen[(T, An)] =
-    genTypeValImpl[T](genNullable(ctx, _).filter(_ != null))
+  def genTypeVal[T <: Type: Arbitrary]: Gen[(T, Any)] =
+    genTypeValImpl[T](genNullable(_).filter(_ != null))
 
-  def genPTypeVal[P <: PType: Arbitrary](ctx: ExecuteContext): Gen[(P, An)] =
-    genTypeValImpl[P](genVal(ctx, _))
+  def genPTypeVal[P <: PType: Arbitrary]: Gen[(P, Any)] =
+    genTypeValImpl[P](genVal)
 
   private[this] def genTypeValImpl[A: Arbitrary](an: A => Gen[An]): Gen[(A, An)] =
     for {

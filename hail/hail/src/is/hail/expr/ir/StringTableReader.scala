@@ -16,8 +16,8 @@ import is.hail.types.physical.stypes.concrete.{SJavaString, SStackStruct, SStack
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStreamValue}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Value}
 import is.hail.types.virtual._
-import is.hail.utils.{checkGzipOfGlobbedFiles, FastSeq}
-
+import is.hail.utils.{FastSeq, checkGzipOfGlobbedFiles}
+import org.json4s.Extraction.decompose
 import org.json4s.{Extraction, Formats, JValue}
 
 case class StringTableReaderParameters(
@@ -35,11 +35,11 @@ object StringTableReader {
     new StringTableReader(params, fileListEntries)
   }
 
-  def fromJValue(fs: FS, jv: JValue): StringTableReader = {
-    implicit val formats: Formats = TableReader.formats
-    val params = jv.extract[StringTableReaderParameters]
-    StringTableReader(fs, params)
-  }
+  def fromJValue(ctx: ExecuteContext, jv: JValue): StringTableReader =
+    TableReader.withFormats(ctx) { implicit formats =>
+      val params = jv.extract[StringTableReaderParameters]
+      StringTableReader(ctx.fs, params)
+    }
 }
 
 case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
@@ -154,7 +154,8 @@ case class StringTablePartitionReader(lines: GenericLines, uidFieldName: String)
     }
   }
 
-  override def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
+  override def toJValue: JValue =
+    Extraction.decompose(this)(PartitionReader.formats)
 }
 
 case class StringTableReader(
@@ -169,8 +170,6 @@ case class StringTableReader(
     FastSeq.empty,
     TStruct(),
   )
-
-  override def renderShort(): String = defaultRender()
 
   override def pathsUsed: Seq[String] = params.files
 
@@ -188,7 +187,7 @@ case class StringTableReader(
     )
     TableStage(
       globals = MakeStruct(FastSeq()),
-      partitioner = RVDPartitioner.unkeyed(ctx.stateManager, lines.nPartitions),
+      partitioner = RVDPartitioner.unkeyed(lines.nPartitions),
       dependency = TableStageDependency.none,
       contexts = ToStream(Literal.coerce(TArray(lines.contextType), lines.contexts)),
       body = { partitionContext: Ref =>
@@ -222,4 +221,10 @@ case class StringTableReader(
   override def globalRequiredness(ctx: ExecuteContext, requestedType: TableType)
     : VirtualTypeWithReq =
     VirtualTypeWithReq(PCanonicalStruct.empty(required = true))
+
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue = decompose(this)
+      override def renderShort: String = ???
+    }
 }

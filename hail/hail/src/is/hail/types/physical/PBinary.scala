@@ -2,35 +2,35 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.virtual.TBinary
 
 abstract class PBinary extends PType {
   lazy val virtualType: TBinary.type = TBinary
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int = {
-      val l1 = loadLength(o1)
-      val l2 = loadLength(o2)
+  override lazy val unsafeOrdering: UnsafeOrdering =
+    new UnsafeOrdering {
+      def compare(o1: Long, o2: Long): Int = {
+        val l1 = loadLength(o1)
+        val l2 = loadLength(o2)
 
-      val bOff1 = bytesAddress(o1)
-      val bOff2 = bytesAddress(o2)
+        val bOff1 = bytesAddress(o1)
+        val bOff2 = bytesAddress(o2)
 
-      val lim = math.min(l1, l2)
-      var i = 0
+        val lim = math.min(l1, l2)
+        var i = 0
 
-      while (i < lim) {
-        val b1 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff1 + i))
-        val b2 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff2 + i))
-        if (b1 != b2)
-          return java.lang.Integer.compare(b1, b2)
+        while (i < lim) {
+          val b1 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff1 + i))
+          val b2 = java.lang.Byte.toUnsignedInt(Region.loadByte(bOff2 + i))
+          if (b1 != b2)
+            return java.lang.Integer.compare(b1, b2)
 
-        i += 1
+          i += 1
+        }
+        Integer.compare(l1, l2)
       }
-      Integer.compare(l1, l2)
     }
-  }
 
   def contentAlignment: Long
 

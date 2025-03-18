@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
-import is.hail.backend.HailStateManager
+
 import is.hail.utils._
 
 import org.json4s.jackson.JsonMethods
@@ -68,8 +68,8 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
           }
         })
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    ExtendedOrdering.mapOrdering(elementType.ordering(sm), missingEqual)
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    ExtendedOrdering.mapOrdering(elementType.ordering, missingEqual)
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     val subdict = subtype.asInstanceOf[TDict]

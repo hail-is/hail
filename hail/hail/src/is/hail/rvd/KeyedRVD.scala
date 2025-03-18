@@ -51,7 +51,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
   ): RVD = {
     checkJoinCompatability(right)
 
-    val sm = ctx.stateManager
     val newPartitioner = {
       def leftPart = this.rvd.partitioner.strictify()
       def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType.virtualType)
@@ -59,12 +58,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         case "left" => leftPart
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
-        case "outer" => RVDPartitioner.generate(
-            sm,
-            kType.fieldNames,
-            realType.kType.virtualType,
-            leftPart.rangeBounds ++ rightPart.rangeBounds,
-          )
+        case "outer" => RVDPartitioner.generate(kType.fieldNames, realType.kType.virtualType, leftPart.rangeBounds ++ rightPart.rangeBounds)
       }
     }
     val repartitionedLeft = rvd.repartition(ctx, newPartitioner)
@@ -89,9 +83,9 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       joiner(
         ctx,
         compute(
-          OrderedRVIterator(lTyp, leftIt, ctx, sm),
-          OrderedRVIterator(rTyp, rightIt, ctx, sm),
-          new RegionValueArrayBuffer(rRowPType, sideBuffer, sm),
+          OrderedRVIterator(lTyp, leftIt, ctx),
+          OrderedRVIterator(rTyp, rightIt, ctx),
+          new RegionValueArrayBuffer(rRowPType, sideBuffer),
         ),
       )
     }.extendKeyPreservesPartitioning(ctx, joinedType.key)
@@ -110,7 +104,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     val lTyp = virtType
     val rTyp = right.virtType
 
-    val sm = executeContext.stateManager
     rvd.intervalAlignAndZipPartitions(executeContext, right.rvd) {
       t: PStruct =>
         val (newTyp, f) = joiner(t)
@@ -120,8 +113,8 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
           (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
             f(
               ctx,
-              OrderedRVIterator(lTyp, it, ctx, sm)
-                .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx, sm)),
+              OrderedRVIterator(lTyp, it, ctx)
+                .leftIntervalJoin(OrderedRVIterator(rTyp, intervals, ctx)),
             ),
         )
     }
@@ -137,7 +130,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     val lTyp = virtType
     val rTyp = right.virtType
 
-    val sm = executeContext.stateManager
     rvd.intervalAlignAndZipPartitions(executeContext, right.rvd) {
       t: PStruct =>
         val (newTyp, f) = joiner(t)
@@ -147,8 +139,8 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
           (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
             f(
               ctx,
-              OrderedRVIterator(lTyp, it, ctx, sm)
-                .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx, sm)),
+              OrderedRVIterator(lTyp, it, ctx)
+                .leftIntervalJoinDistinct(OrderedRVIterator(rTyp, intervals, ctx)),
             ),
         )
     }
@@ -162,7 +154,6 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     checkJoinCompatability(right)
     val lTyp = virtType
     val rTyp = right.virtType
-    val sm = right.rvd.partitioner.sm
 
     rvd.alignAndZipPartitions(
       joinedType,
@@ -171,12 +162,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     ) { (ctx, leftIt, rightIt) =>
       joiner(
         ctx,
-        OrderedRVIterator(lTyp, leftIt, ctx, sm).leftJoinDistinct(OrderedRVIterator(
-          rTyp,
-          rightIt,
-          ctx,
-          sm,
-        )),
+        OrderedRVIterator(lTyp, leftIt, ctx).leftJoinDistinct(OrderedRVIterator(rTyp, rightIt, ctx)),
       )
     }
   }
@@ -199,20 +185,19 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
       right.rvd.partitioner.coarsenedRangeBounds(key)
-    val newPartitioner = RVDPartitioner.generate(ctx.stateManager, virtType.key, kType, ranges)
+    val newPartitioner = RVDPartitioner.generate(virtType.key, kType, ranges)
 
     val repartitionedLeft = this.rvd.repartition(ctx, newPartitioner)
     val lType = this.virtType
     val rType = right.virtType
-    val sm = ctx.stateManager
 
     repartitionedLeft.alignAndZipPartitions(
       this.virtType,
       right.rvd,
       key,
     ) { (ctx, leftIt, rightIt) =>
-      OrderedRVIterator(lType, leftIt, ctx, sm)
-        .merge(OrderedRVIterator(rType, rightIt, ctx, sm))
+      OrderedRVIterator(lType, leftIt, ctx)
+        .merge(OrderedRVIterator(rType, rightIt, ctx))
     }
   }
 }

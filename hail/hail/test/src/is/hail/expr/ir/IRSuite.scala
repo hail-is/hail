@@ -3683,7 +3683,7 @@ class IRSuite extends HailSuite {
         ),
         RelationalLetTable(freshName(), I32(0), read), {
           val structs = MakeStream(FastSeq(), TStream(TStruct()))
-          val partitioner = RVDPartitioner.empty(ctx.stateManager, TStruct())
+          val partitioner = RVDPartitioner.empty(TStruct())
           TableGen(
             structs,
             MakeStruct(FastSeq()),
@@ -4145,7 +4145,7 @@ class IRSuite extends HailSuite {
     val t = TTuple(FastSeq(TupleField(1, TInt64)))
     val lit = Literal(t, Row(1L))
 
-    assert(IRParser.parseType(t.parsableString()) == t)
+    assert(IRParser.parseType(, t.parsableString()) == t)
     assert(IRParser.parse_value_ir(ctx, Pretty.sexprStyle(lit, elideLiterals = false)) == lit)
   }
 
@@ -4164,7 +4164,7 @@ class IRSuite extends HailSuite {
     val v = backend.execute(ctx, ir)
 
     assert(
-      ir.typ.ordering(ctx.stateManager).equiv(
+      ir.typ.ordering().equiv(
         FastSeq(
           Interval(
             Row(Locus("20", 10277621)),
@@ -4433,7 +4433,7 @@ class IRSuite extends HailSuite {
       )
     )
     val kord: ExtendedOrdering =
-      PartitionBoundOrdering(ctx, pivots.typ.asInstanceOf[TArray].elementType)
+      PartitionBoundOrdering(pivots.typ.asInstanceOf[TArray].elementType)
 
     var dataIdx = 0
 

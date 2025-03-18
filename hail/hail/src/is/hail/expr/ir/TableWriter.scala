@@ -119,7 +119,7 @@ object TableNativeWriter {
               MakeArray(GetField(writeGlobals, "filePath")),
               RVDSpecWriter(
                 s"$path/globals",
-                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
               ),
             ),
             WriteMetadata(
@@ -157,7 +157,7 @@ case class TableNativeWriter(
 ) extends TableWriter {
 
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
-    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+    val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(ctx, codecSpecJSONStr)
     val rowSpec =
       TypedCodecSpec(EType.fromTypeAndAnalysis(ctx, ts.rowType, r.rowType), ts.rowType, bufferSpec)
     val globalSpec = TypedCodecSpec(
@@ -438,7 +438,7 @@ class TableSpecHelper(
   typ: TableType,
   log: Boolean,
 ) extends Serializable {
-  def write(fs: FS, partCounts: Array[Long], distinctlyKeyed: Boolean): Unit = {
+  def write(ctx: ExecuteContext, partCounts: Array[Long], distinctlyKeyed: Boolean): Unit = {
     val spec = TableSpecParameters(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
@@ -454,7 +454,7 @@ class TableSpecHelper(
       ),
     )
 
-    spec.write(fs, path)
+    spec.write(ctx, path)
 
     val nRows = partCounts.sum
     if (log) info(s"wrote table with $nRows ${plural(nRows, "row")} " +
@@ -599,7 +599,7 @@ case class RelationalSetup(path: String, overwrite: Boolean, refs: Option[TableT
           "writeReference",
           cb.emb.getFS,
           referencesFQPath,
-          cb.emb.getReferenceGenome(rg),
+          cb.emb.getReferenceGenome(rg.name),
         )
       }
     }
@@ -627,7 +627,7 @@ case class RelationalCommit(path: String) extends MetadataWriter {
 case class RelationalWriter(
   path: String,
   overwrite: Boolean,
-  maybeRefs: Option[(String, Set[String])],
+  maybeRefs: Option[(String, Set[ReferenceGenome])],
 ) extends MetadataWriter {
   def annotationType: Type = TVoid
 
@@ -654,7 +654,7 @@ case class RelationalWriter(
           "writeReference",
           cb.emb.getFS,
           referencesFQPath,
-          cb.emb.getReferenceGenome(rg),
+          cb.emb.getReferenceGenome(rg.name),
         )
       }
     }
@@ -935,7 +935,7 @@ case class TableNativeFanoutWriter(
 
   override def lower(ctx: ExecuteContext, ts: TableStage, r: RTable): IR = {
     val partitioner = ts.partitioner
-    val bufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
+    val bufferSpec = BufferSpec.parseOrDefault(ctx, codecSpecJSONStr)
     val globalSpec = TypedCodecSpec(
       EType.fromTypeAndAnalysis(ctx, ts.globalType, r.globalType),
       ts.globalType,
@@ -1014,7 +1014,7 @@ case class TableNativeFanoutWriter(
               ),
               RVDSpecWriter(
                 s"${target.path}/globals",
-                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(ctx.stateManager, 1)),
+                RVDSpecMaker(globalSpec, RVDPartitioner.unkeyed(1)),
               ),
             ),
             WriteMetadata(

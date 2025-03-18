@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SFloat64, SFloat64Value}
@@ -22,14 +21,13 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     sb.append("PFloat64")
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
-    def compare(o1: Long, o2: Long): Int =
+  override lazy val unsafeOrdering: UnsafeOrdering =
+    (o1: Long, o2: Long) =>
       java.lang.Double.compare(Region.loadDouble(o1), Region.loadDouble(o2))
-  }
 
   override def byteSize: Long = 8
 
-  override def zero = coerce[PFloat64](const(0.0))
+  override def zero: Value[PFloat64] = coerce[PFloat64](const(0.0))
 
   override def add(a: Code[_], b: Code[_]): Code[PFloat64] =
     coerce[PFloat64](coerce[Double](a) + coerce[Double](b))
@@ -45,12 +43,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   override def loadCheapSCode(cb: EmitCodeBuilder, addr: Code[Long]): SFloat64Value =
     new SFloat64Value(cb.memoize(Region.loadDouble(addr)))
 
-  override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    annotation: Annotation,
-    region: Region,
-  ): Unit =
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     Region.storeDouble(addr, annotation.asInstanceOf[Double])
 }
 

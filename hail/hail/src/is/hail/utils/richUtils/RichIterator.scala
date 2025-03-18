@@ -150,5 +150,5 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
   def copyToRegion(region: Region, rowTyp: PStruct): Iterator[Long] =
-    it.map(row => rowTyp.unstagedStoreJavaObject(null, row, region))
+    it.map(row => rowTyp.unstagedStoreJavaObject(row, region))
 }

@@ -250,15 +250,15 @@ object Interpret {
           null
         else
           op match {
-            case EQ(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case EQWithNA(t, _) => t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQ(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case NEQWithNA(t, _) => !t.ordering(ctx.stateManager).equiv(lValue, rValue)
-            case LT(t, _) => t.ordering(ctx.stateManager).lt(lValue, rValue)
-            case GT(t, _) => t.ordering(ctx.stateManager).gt(lValue, rValue)
-            case LTEQ(t, _) => t.ordering(ctx.stateManager).lteq(lValue, rValue)
-            case GTEQ(t, _) => t.ordering(ctx.stateManager).gteq(lValue, rValue)
-            case Compare(t, _) => t.ordering(ctx.stateManager).compare(lValue, rValue)
+            case EQ(t, _) => t.ordering.equiv(lValue, rValue)
+            case EQWithNA(t, _) => t.ordering.equiv(lValue, rValue)
+            case NEQ(t, _) => !t.ordering.equiv(lValue, rValue)
+            case NEQWithNA(t, _) => !t.ordering.equiv(lValue, rValue)
+            case LT(t, _) => t.ordering.lt(lValue, rValue)
+            case GT(t, _) => t.ordering.gt(lValue, rValue)
+            case LTEQ(t, _) => t.ordering.lteq(lValue, rValue)
+            case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
+            case Compare(t, _) => t.ordering.compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastSeq
@@ -372,7 +372,7 @@ object Interpret {
         if (cValue == null)
           null
         else {
-          val ordering = tcoerce[TIterable](c.typ).elementType.ordering(ctx.stateManager).toOrdering
+          val ordering = tcoerce[TIterable](c.typ).elementType.ordering.toOrdering
           cValue match {
             case s: Set[_] =>
               s.asInstanceOf[Set[Any]].toFastSeq.sorted(ordering)
@@ -391,10 +391,10 @@ object Interpret {
           cValue match {
             case s: Set[_] =>
               assert(!onKey)
-              s.count(elem.typ.ordering(ctx.stateManager).lt(_, eValue))
+              s.count(elem.typ.ordering.lt(_, eValue))
             case d: Map[_, _] =>
               assert(onKey)
-              d.count { case (k, _) => elem.typ.ordering(ctx.stateManager).lt(k, eValue) }
+              d.count { case (k, _) => elem.typ.ordering.lt(k, eValue) }
             case a: IndexedSeq[_] =>
               if (onKey) {
                 val (eltF, eltT) =
@@ -414,11 +414,11 @@ object Interpret {
                         i.pointType,
                       )
                   }
-                val ordering = eltT.ordering(ctx.stateManager)
+                val ordering = eltT.ordering
                 val lb = a.count(elem => ordering.lt(eltF(elem), eValue))
                 lb
               } else
-                a.count(elem.typ.ordering(ctx.stateManager).lt(_, eValue))
+                a.count(elem.typ.ordering.lt(_, eValue))
           }
         }
 
@@ -469,7 +469,7 @@ object Interpret {
             val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
             val inner = new BoxedArrayBuilder[Row]()
             val (kType, getKey) = structType.select(key)
-            val keyOrd = TBaseStruct.getJoinOrdering(ctx.stateManager, kType.types, missingEqual)
+            val keyOrd = TBaseStruct.getJoinOrdering(kType.types, missingEqual)
             var curKey: Row = getKey(seq.head)
 
             seq.foreach { elt =>
@@ -527,7 +527,7 @@ object Interpret {
           val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
           val (kType, getKey) = structType.select(key)
           val heads = Array.fill[Int](k)(-1)
-          val ordering = kType.ordering(ctx.stateManager).toOrdering.on[Row](getKey)
+          val ordering = kType.ordering.toOrdering.on[Row](getKey)
 
           def get(i: Int): Row = streams(i)(heads(i))
           def lt(li: Int, lv: Row, ri: Int, rv: Row): Boolean = {
@@ -571,8 +571,8 @@ object Interpret {
           val structType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
           val (kType, getKey) = structType.select(key)
           val heads = Array.fill[Int](k)(-1)
-          val ordering = kType.ordering(ctx.stateManager).toOrdering.on[Row](getKey)
-          val hasKey = TBaseStruct.getJoinOrdering(ctx.stateManager, kType.types).equivNonnull _
+          val ordering = kType.ordering.toOrdering.on[Row](getKey)
+          val hasKey = TBaseStruct.getJoinOrdering(kType.types).equivNonnull _
 
           def get(i: Int): Row = streams(i)(heads(i))
 
@@ -705,7 +705,7 @@ object Interpret {
           val (rKeyTyp, rGetKey) =
             tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).select(rKey)
           assert(lKeyTyp isJoinableWith rKeyTyp)
-          val keyOrd = TBaseStruct.getJoinOrdering(ctx.stateManager, lKeyTyp.types)
+          val keyOrd = TBaseStruct.getJoinOrdering(lKeyTyp.types)
 
           def compF(lelt: Any, relt: Any): Int =
             keyOrd.compare(lGetKey(lelt.asInstanceOf[Row]), rGetKey(relt.asInstanceOf[Row]))
@@ -886,7 +886,7 @@ object Interpret {
               (rt.get, makeFunction(ctx.theHailClassLoader, ctx.fs, ctx.taskContext, region))
             },
           )
-          val rvb = new RegionValueBuilder(ctx.stateManager)
+          val rvb = new RegionValueBuilder()
           rvb.set(region)
           rvb.start(argTuple)
           rvb.startTuple()

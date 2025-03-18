@@ -3,11 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{
-  EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR,
-  LowerMatrixIR, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, TableNativeReader,
-  TableReader,
-}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitSettable, EmitValue, IEmitCode, IR, LowerMatrixIR, MatrixHybridReader, MatrixReader, PartitionNativeIntervalReader, PrettyOps, TableNativeReader, TableReader}
 import is.hail.expr.ir.defs.{Literal, MakeStruct, PartitionReader, ReadPartition, Ref, ToStream}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.expr.ir.streams.StreamProducer
@@ -22,13 +18,13 @@ import is.hail.types.physical.stypes.concrete.{SJavaArrayString, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 import scala.collection.mutable
 import scala.io.Source
-
 import org.apache.spark.sql.Row
-import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
-import org.json4s.JsonAST.{JArray, JInt, JNull, JString}
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
+import org.json4s.JsonAST.{ JNull, JString}
 
 case class BgenHeader(
   compression: Int, // 0 uncompressed, 1 zlib, 2 zstd
@@ -46,7 +42,7 @@ case class BgenFileMetadata(
   indexPath: String,
   indexVersion: SemanticVersion,
   header: BgenHeader,
-  rg: Option[String],
+  rg: Option[ReferenceGenome],
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean,
   nVariants: Long,
@@ -205,17 +201,17 @@ object LoadBgen {
       mutable.Map.empty
 
     headers.zip(indexFilePaths).map { case (h, indexFilePath) =>
-      val (keyType, annotationType) = IndexReader.readTypes(fs, indexFilePath)
+      val (keyType, annotationType) = IndexReader.readTypes(ctx, indexFilePath)
       val rg = keyType.asInstanceOf[TStruct].field("locus").typ match {
         case TLocus(rg) => Some(rg)
         case _ => None
       }
-      val metadata = IndexReader.readMetadata(fs, indexFilePath, keyType, annotationType)
+      val metadata = IndexReader.readMetadata(ctx, indexFilePath, keyType, annotationType)
       val indexVersion = SemanticVersion(metadata.fileVersion)
       val indexSpec = BgenSettings.getIndexSpec(indexVersion, rg)
 
       val getKeys = cacheByRG.getOrElseUpdate(
-        rg,
+        rg.map(_.name),
         StagedBGENReader.queryIndexByPosition(ctx, indexSpec),
       )
 
@@ -286,16 +282,16 @@ object LoadBgen {
   def getFileHeaders(fs: FS, files: Seq[String]): Array[BgenHeader] =
     files.map(LoadBgen.readState(fs, _)).toArray
 
-  def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[String] =
-    getReferenceGenome(fileMetadata.map(_.rg))
+  def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] = {
+    val rgs = fileMetadata.flatMap(_.rg).distinct
 
-  def getReferenceGenome(rgs: Array[Option[String]]): Option[String] = {
-    if (rgs.distinct.length != 1)
+    if (rgs.length > 1)
       fatal(
         s"""Found multiple reference genomes were specified in the BGEN index files:
-           |  ${rgs.distinct.map(_.getOrElse("None")).mkString("\n  ")}""".stripMargin
+           |  ${rgs.map(_.name).mkString("\n  ")}""".stripMargin
       )
-    rgs.head
+
+    rgs.headOption
   }
 
   def getIndexTypes(fileMetadata: Array[BgenFileMetadata]): (Type, Type) = {
@@ -319,7 +315,7 @@ object LoadBgen {
 }
 
 object MatrixBGENReader {
-  def fullMatrixTypeWithoutUIDs(rg: Option[String]): MatrixType = {
+  def fullMatrixTypeWithoutUIDs(rg: Option[ReferenceGenome]): MatrixType = {
     MatrixType(
       globalType = TStruct.empty,
       colType = TStruct(
@@ -343,7 +339,7 @@ object MatrixBGENReader {
     )
   }
 
-  def fullMatrixType(rg: Option[String]): MatrixType = {
+  def fullMatrixType(rg: Option[ReferenceGenome]): MatrixType = {
     val mt = fullMatrixTypeWithoutUIDs(rg)
     val newRowType = mt.rowType.appendKey(MatrixReader.rowUIDFieldName, TTuple(TInt64, TInt64))
     val newColType = mt.colType.appendKey(MatrixReader.colUIDFieldName, TInt64)
@@ -351,7 +347,7 @@ object MatrixBGENReader {
     mt.copy(rowType = newRowType, colType = newColType)
   }
 
-  def fullTableType(rg: Option[String]): TableType = {
+  def fullTableType(rg: Option[ReferenceGenome]): TableType = {
     val mt = fullMatrixTypeWithoutUIDs(rg)
     val ttNoUID = mt.copy(mt.colType.appendKey(MatrixReader.colUIDFieldName, TInt64))
       .toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
@@ -480,26 +476,11 @@ case class MatrixBGENReaderParameters(
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
   includedVariants: Option[String],
-) {
-
-  def toJValue: JValue = {
-    JObject(List(
-      "name" -> JString("MatrixBGENReader"),
-      "files" -> JArray(files.map(JString).toList),
-      "sampleFile" -> sampleFile.map(JString).getOrElse(JNull),
-      "indexFileMap" -> JObject(indexFileMap.map { case (k, v) =>
-        k -> JString(v)
-      }.toList),
-      "nPartitions" -> nPartitions.map(JInt(_)).getOrElse(JNull),
-      "blockSizeInMB" -> blockSizeInMB.map(JInt(_)).getOrElse(JNull),
-      "includedVariants" -> includedVariants.map(t => JString(t)).getOrElse(JNull),
-    ))
-  }
-}
+)
 
 class MatrixBGENReader(
   val params: MatrixBGENReaderParameters,
-  referenceGenome: Option[String],
+  referenceGenome: Option[ReferenceGenome],
   val fullMatrixTypeWithoutUIDs: MatrixType,
   indexKeyType: Type,
   indexAnnotationType: Type,
@@ -569,9 +550,13 @@ class MatrixBGENReader(
     }
   }
 
-  override def toJValue: JValue = params.toJValue
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue =
+        decomposeWithName(params, "MatrixBGENReader")
 
-  def renderShort(): String = defaultRender()
+      override def renderShort: String = ???
+    }
 
   override def hashCode(): Int = params.hashCode()
 
@@ -585,13 +570,13 @@ class MatrixBGENReader(
     val globals = lowerGlobals(ctx, requestedType.globalType)
     variants match {
       case Some(v) =>
-        val t0 = TableNativeReader.read(ctx.fs, v, None)
+        val t0 = TableNativeReader.read(ctx, v, None)
 
         val contexts = new BoxedArrayBuilder[Row]()
         val rangeBounds = new BoxedArrayBuilder[Interval]()
         filePartitionInfo.zipWithIndex.foreach { case (file, fileIdx) =>
           val filePartitioner =
-            new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), file.intervals)
+            new RVDPartitioner(tcoerce[TStruct](indexKeyType), file.intervals)
 
           val filterKeyLen = t0.spec.table_type.key.length
           val strictShortKey = filePartitioner.coarsen(filterKeyLen).strictify()
@@ -603,12 +588,12 @@ class MatrixBGENReader(
         }
 
         val partitioner =
-          new RVDPartitioner(ctx.stateManager, tcoerce[TStruct](indexKeyType), rangeBounds.result())
+          new RVDPartitioner(tcoerce[TStruct](indexKeyType), rangeBounds.result())
 
         val reader = BgenPartitionReaderWithVariantFilter(
           filePartitionInfo.map(_.metadata).toArray,
           referenceGenome,
-          PartitionNativeIntervalReader(ctx.stateManager, v, t0.spec, "__dummy"),
+          PartitionNativeIntervalReader(v, t0.spec, "__dummy"),
         )
 
         TableStage(
@@ -620,11 +605,7 @@ class MatrixBGENReader(
         )
 
       case None =>
-        val partitioner = new RVDPartitioner(
-          ctx.stateManager,
-          tcoerce[TStruct](indexKeyType),
-          filePartitionInfo.flatMap(_.intervals),
-        )
+        val partitioner = new RVDPartitioner(tcoerce[TStruct](indexKeyType), filePartitionInfo.flatMap(_.intervals))
         val reader = BgenPartitionReader(
           fileMetadata = filePartitionInfo.map(_.metadata).toArray,
           referenceGenome,
@@ -658,7 +639,7 @@ class MatrixBGENReader(
 
 case class BgenPartitionReaderWithVariantFilter(
   fileMetadata: Array[BgenFileMetadata],
-  rg: Option[String],
+  rg: Option[ReferenceGenome],
   child: PartitionNativeIntervalReader,
 ) extends PartitionReader {
   lazy val contextType: TStruct = TStruct(
@@ -830,7 +811,7 @@ case class BgenPartitionReaderWithVariantFilter(
   def toJValue: JValue = Extraction.decompose(this)(PartitionReader.formats)
 }
 
-case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option[String])
+case class BgenPartitionReader(fileMetadata: Array[BgenFileMetadata], rg: Option[ReferenceGenome])
     extends PartitionReader {
   lazy val contextType: TStruct = TStruct(
     "file_index" -> TInt32,

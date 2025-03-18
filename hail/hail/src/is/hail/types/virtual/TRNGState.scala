@@ -1,6 +1,6 @@
 package is.hail.types.virtual
 
-import is.hail.backend.HailStateManager
+
 
 case object TRNGState extends Type {
   override def _toPretty = "RNGState"
@@ -10,7 +10,7 @@ case object TRNGState extends Type {
 
   def _typeCheck(a: Any): Boolean = ???
 
-  def mkOrdering(sm: HailStateManager, missingEqual: Boolean)
+  def mkOrdering(missingEqual: Boolean)
     : is.hail.annotations.ExtendedOrdering = ???
 
   override def isIsomorphicTo(t: Type): Boolean =

@@ -2,14 +2,10 @@ package is.hail.io.index
 
 import is.hail.annotations.{Annotation, Region, RegionPool}
 import is.hail.asm4s.{HailClassLoader, _}
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
-import is.hail.expr.ir.{
-  CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode,
-  IntArrayBuilder, LongArrayBuilder, ParamType,
-}
+import is.hail.backend.{ExecuteContext, HailTaskContext}
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
-import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
 import is.hail.types.physical.stypes.SValue
@@ -18,9 +14,9 @@ import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.json4s.DefaultFormats
 
 import java.io.OutputStream
-
 import org.json4s.jackson.Serialization
 
 trait AbstractIndexMetadata {
@@ -86,34 +82,18 @@ object IndexWriter {
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any],
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
-    val sm = ctx.stateManager;
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
-    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
-      new IndexWriter(
-        sm,
-        keyType,
-        annotationType,
-        f(path, hcl, htc, pool, attributes),
-        pool,
-        attributes,
-      )
-    }
+    (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
+      new IndexWriter(keyType, annotationType, f(path, hcl, htc, pool, attributes), pool)
   }
 }
 
-class IndexWriter(
-  sm: HailStateManager,
-  keyType: PType,
-  valueType: PType,
-  comp: CompiledIndexWriter,
-  pool: RegionPool,
-  attributes: Map[String, Any],
-) extends AutoCloseable {
+class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
   private val region = Region(pool = pool)
 
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
-    val koff = keyType.unstagedStoreJavaObject(sm, x, region)
-    val voff = valueType.unstagedStoreJavaObject(sm, annotation, region)
+    val koff = keyType.unstagedStoreJavaObject(x, region)
+    val voff = valueType.unstagedStoreJavaObject(annotation, region)
     comp.apply(koff, offset, voff)
   }
 
@@ -225,7 +205,6 @@ case class StagedIndexMetadata(
   attributes: Map[String, Any],
 ) {
   def serialize(out: OutputStream, height: Int, rootOffset: Long, nKeys: Long): Unit = {
-    import AbstractRVDSpec.formats
     val metadata = IndexMetadata(
       IndexWriter.version.rep,
       branchingFactor,
@@ -237,7 +216,7 @@ case class StagedIndexMetadata(
       rootOffset,
       attributes,
     )
-    Serialization.write(metadata, out)
+    Serialization.write(metadata, out)(DefaultFormats)
   }
 }
 

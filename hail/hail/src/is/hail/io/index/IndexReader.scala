@@ -2,7 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations._
 import is.hail.asm4s.HailClassLoader
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.{ExecuteContext}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.{AbstractIndexSpec, PartitionBoundOrdering}
@@ -38,11 +38,12 @@ object IndexReaderBuilder {
     leafPType: PStruct,
     intPType: PStruct,
   ): (HailClassLoader, FS, String, Int, RegionPool) => IndexReader = {
-    val sm = ctx.stateManager
     (theHailClassLoader, fs, path, cacheCapacity, pool) =>
       new IndexReader(
         theHailClassLoader, fs, path, cacheCapacity, leafDec, intDec, keyType, annotationType,
-        leafPType, intPType, pool, sm)
+        leafPType, intPType, pool,
+        IndexReader.readMetadata(ctx, path, keyType, annotationType),
+      )
   }
 }
 
@@ -56,14 +57,14 @@ object IndexReader {
     jv.extract[IndexMetadataUntypedJSON]
   }
 
-  def readMetadata(fs: FS, path: String, keyType: Type, annotationType: Type): IndexMetadata = {
-    val untyped = IndexReader.readUntyped(fs, path)
+  def readMetadata(ctx: ExecuteContext, path: String, keyType: Type, annotationType: Type): IndexMetadata = {
+    val untyped = IndexReader.readUntyped(ctx.fs, path)
     untyped.toMetadata(keyType, annotationType)
   }
 
-  def readTypes(fs: FS, path: String): (Type, Type) = {
-    val jv = using(fs.open(path + "/metadata.json.gz"))(in => JsonMethods.parse(in))
-    implicit val formats: Formats = defaultJSONFormats + new TypeSerializer
+  def readTypes(ctx: ExecuteContext, path: String): (Type, Type) = {
+    implicit val formats: Formats = defaultJSONFormats + TypeSerializer(ctx)
+    val jv = using(ctx.fs.open(path + "/metadata.json.gz"))(JsonMethods.parse(_))
     val metadata = jv.extract[IndexMetadata]
     metadata.keyType -> metadata.annotationType
   }
@@ -81,9 +82,8 @@ class IndexReader(
   val leafPType: PStruct,
   val internalPType: PStruct,
   val pool: RegionPool,
-  val sm: HailStateManager,
+  metadata: IndexMetadata,
 ) extends AutoCloseable {
-  private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
@@ -91,8 +91,8 @@ class IndexReader(
   val indexRelativePath = metadata.indexPath
 
   val ordering = keyType match {
-    case ts: TStruct => PartitionBoundOrdering(sm, ts)
-    case t => t.ordering(sm)
+    case ts: TStruct => PartitionBoundOrdering(ts)
+    case t => t.ordering
   }
 
   private val is = fs.openNoCompression(path + "/" + indexRelativePath)

@@ -1,13 +1,12 @@
 package is.hail.expr.ir
 
-import is.hail.io.fs.FS
+import is.hail.backend.ExecuteContext
 import is.hail.rvd._
 import is.hail.types.virtual.TableType
 import is.hail.utils._
 
 import java.io.OutputStreamWriter
-
-import org.json4s.{Formats, JValue}
+import org.json4s.{ JValue}
 import org.json4s.jackson.JsonMethods
 
 object SortOrder {
@@ -63,21 +62,21 @@ abstract class AbstractTableSpec extends RelationalSpec {
 }
 
 object TableSpec {
-  def apply(fs: FS, path: String, params: TableSpecParameters): TableSpec = {
+  def apply(ctx: ExecuteContext, path: String, params: TableSpecParameters): TableSpec = {
     val globalsComponent = params.components("globals").asInstanceOf[RVDComponentSpec]
-    val globalsSpec = globalsComponent.rvdSpec(fs, path)
+    val globalsSpec = globalsComponent.rvdSpec(ctx, path)
 
     val rowsComponent = params.components("rows").asInstanceOf[RVDComponentSpec]
-    val rowsSpec = rowsComponent.rvdSpec(fs, path)
+    val rowsSpec = rowsComponent.rvdSpec(ctx, path)
 
     new TableSpec(params, globalsSpec, rowsSpec)
   }
 
-  def fromJValue(fs: FS, path: String, jv: JValue): TableSpec = {
-    implicit val formats: Formats = RelationalSpec.formats
-    val params = jv.extract[TableSpecParameters]
-    TableSpec(fs, path, params)
-  }
+  def fromJValue(ctx: ExecuteContext, path: String, jv: JValue): TableSpec =
+    RelationalSpec.withFormats(ctx) { implicit formats =>
+      val params = jv.extract[TableSpecParameters]
+      TableSpec(ctx, path, params)
+    }
 }
 
 case class TableSpecParameters(
@@ -88,9 +87,11 @@ case class TableSpecParameters(
   components: Map[String, ComponentSpec],
 ) {
 
-  def write(fs: FS, path: String): Unit =
-    using(new OutputStreamWriter(fs.create(path + "/metadata.json.gz"))) { out =>
-      out.write(JsonMethods.compact(decomposeWithName(this, "TableSpec")(RelationalSpec.formats)))
+  def write(ctx: ExecuteContext, path: String): Unit =
+    RelationalSpec.withFormats(ctx) { implicit formats =>
+      using(new OutputStreamWriter(ctx.fs.create(path + "/metadata.json.gz"))) { out =>
+        out.write(JsonMethods.compact(decomposeWithName(this, "TableSpec")))
+      }
     }
 }
 
@@ -109,6 +110,4 @@ class TableSpec(
 
   def table_type: TableType = params.table_type
 
-  def toJValue: JValue =
-    decomposeWithName(params, "TableSpec")(RelationalSpec.formats)
 }

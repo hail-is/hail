@@ -1565,8 +1565,8 @@ class TableIRSuite extends HailSuite {
   }
 
   @Test def testRepartitionCostEstimate(): Unit = {
-    val empty = RVDPartitioner.empty(ctx.stateManager, TStruct(Array.empty[Field]))
-    val some = RVDPartitioner.unkeyed(ctx.stateManager, _)
+    val empty = RVDPartitioner.empty(TStruct(Array.empty[Field]))
+    val some = (numPartitions: Int) => RVDPartitioner.unkeyed(numPartitions)
 
     val data = IndexedSeq(
       (empty, empty, Succeeded, Failed("Repartitioning from an empty partitioner should be free")),

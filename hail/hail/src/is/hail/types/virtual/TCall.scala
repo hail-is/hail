@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
+
 import is.hail.variant.Call
 
 case object TCall extends Type {
@@ -17,7 +17,7 @@ case object TCall extends Type {
   override def str(a: Annotation): String =
     if (a == null) "NA" else Call.toString(a.asInstanceOf[Call])
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Int]], missingEqual)
 
   override def isIsomorphicTo(t: Type): Boolean =

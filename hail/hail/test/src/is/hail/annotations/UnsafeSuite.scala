@@ -84,7 +84,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val g: Gen[(TStruct, Annotation)] =
       for {
         t <- arbitrary[TStruct]
-        v <- genNullable(ctx, t)
+        v <- genNullable(t)
         if v != null
       } yield (t, v)
 
@@ -100,7 +100,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       BufferSpec.specs.foreach { bufferSpec =>
         val codec = TypedCodecSpec(ctx, pt, bufferSpec)
         region.clear()
-        val offset = pt.unstagedStoreJavaObject(sm, a, region)
+        val offset = pt.unstagedStoreJavaObject(a, region)
 
         val aos = new ByteArrayOutputStream()
         val en = codec.buildEncoder(ctx, pt)(aos, theHailClassLoader)
@@ -175,7 +175,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           val res =
             dec((new ByteArrayInputStream(serialized)), theHailClassLoader).readRegionValue(region)
 
-          assert(t.unsafeOrdering(sm).equiv(res, off))
+          assert(t.unsafeOrdering.equiv(res, off))
         }
       }
     }
@@ -208,7 +208,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     val g: Gen[(Type, Annotation, Int, Int)] =
       for {
         t <- arbitrary[Type]
-        v <- genNullable(ctx, t) if v != null
+        v <- genNullable(t) if v != null
         (n, n2) <- zip(choose(0, 100), choose(0, 100))
       } yield (t, v, n, n2)
 
@@ -220,7 +220,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       region.clear()
       region.allocate(1, n) // preallocate
 
-      val offset = pt.unstagedStoreJavaObject(sm, a, region)
+      val offset = pt.unstagedStoreJavaObject(a, region)
 
       val ur = UnsafeRow.read(pt, region, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
@@ -232,7 +232,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       // test addAnnotation from ur
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      val offset2 = pt.unstagedStoreJavaObject(sm, ur, region2)
+      val offset2 = pt.unstagedStoreJavaObject(ur, region2)
 
       val ur2 = UnsafeRow.read(pt, region2, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
@@ -253,7 +253,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           region2.clear()
           region2.allocate(1, n) // preallocate
           val offset4 =
-            ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
+            ps.unstagedStoreJavaObject(Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
@@ -271,7 +271,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
           val offset6 =
-            ps.unstagedStoreJavaObject(sm, Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
+            ps.unstagedStoreJavaObject(Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
           val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
@@ -289,7 +289,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       x = (fraction * s).toInt
       y = s - x
       t <- resize(x, arbitrary[TStruct])
-      v <- resize(y, genNullable(ctx, t))
+      v <- resize(y, genNullable(t))
       if v != null
     } yield (t, v)
 
@@ -345,7 +345,7 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val g: Gen[(PStruct, Annotation, Annotation)] =
       arbitrary[PCanonicalStruct]
-        .flatMap(t => Gen.zip(const(t), genVal(ctx, t), genVal(ctx, t)))
+        .flatMap(t => Gen.zip(const(t), genVal(t), genVal(t)))
         .filter { case (_, a1, a2) => a1 != null && a2 != null }
 
     forAll(resize(10, g)) { case (t, a1, a2) =>
@@ -355,19 +355,19 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       tv.typeCheck(a2)
 
       region.clear()
-      val offset = t.unstagedStoreJavaObject(sm, a1, region)
+      val offset = t.unstagedStoreJavaObject(a1, region)
 
       val ur1 = new UnsafeRow(t, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      val offset2 = t.unstagedStoreJavaObject(sm, a2, region2)
+      val offset2 = t.unstagedStoreJavaObject(a2, region2)
 
       val ur2 = new UnsafeRow(t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))
 
-      val ord = tv.ordering(sm)
-      val uord = t.unsafeOrdering(sm)
+      val ord = tv.ordering
+      val uord = t.unsafeOrdering
 
       val c1 = ord.compare(a1, a2)
       val c2 = ord.compare(ur1, ur2)

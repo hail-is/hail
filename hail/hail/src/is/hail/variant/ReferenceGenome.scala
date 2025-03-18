@@ -10,7 +10,6 @@ import is.hail.io.fs.FS
 import is.hail.io.reference.{
   FASTAReader, FASTAReaderConfig, FastaSequenceIndex, IndexedFastaSequenceFile, LiftOver,
 }
-import is.hail.types._
 import is.hail.types.virtual.{TLocus, Type}
 import is.hail.utils._
 
@@ -111,20 +110,11 @@ case class ReferenceGenome(
     }
   }
 
-  val extendedLocusOrdering = ExtendedOrdering.extendToNull(locusOrdering)
+  val extendedLocusOrdering: ExtendedOrdering =
+    ExtendedOrdering.extendToNull(locusOrdering)
 
-  // must be constructed after orderings
-  @transient @volatile var _locusType: TLocus = _
-
-  def locusType: TLocus = {
-    if (_locusType == null) {
-      synchronized {
-        if (_locusType == null)
-          _locusType = TLocus(this.name)
-      }
-    }
-    _locusType
-  }
+  @transient lazy val locusType: TLocus =
+    TLocus(this)
 
   val par = parInput.map { case (start, end) =>
     if (start.contig != end.contig)
@@ -509,8 +499,8 @@ object ReferenceGenome {
   def fromFile(fs: FS, file: String): ReferenceGenome =
     using(fs.open(file))(read)
 
-  def fromHailDataset(fs: FS, path: String): Array[ReferenceGenome] =
-    RelationalSpec.readReferences(fs, path)
+  def fromHailDataset(ctx: ExecuteContext, path: String): Array[ReferenceGenome] =
+    RelationalSpec.readReferences(ctx, path)
 
   def fromJSON(config: String): ReferenceGenome =
     parse(config)
@@ -574,18 +564,14 @@ object ReferenceGenome {
   def writeReference(fs: FS, path: String, rg: ReferenceGenome): Unit = {
     val rgPath = path + "/" + rg.name + ".json.gz"
     if (!hailReferences.contains(rg.name) && !fs.isFile(rgPath))
-      rg.asInstanceOf[ReferenceGenome].write(fs, rgPath)
+      rg.write(fs, rgPath)
   }
 
-  def getReferences(t: Type): Set[String] = {
-    var rgs = Set[String]()
-    MapTypes.foreach {
-      case tl: TLocus =>
-        rgs += tl.rg
-      case _ =>
-    }(t)
-    rgs
-  }
+  def getReferences(t: Type): Set[ReferenceGenome] =
+    TreeTraversal.levelOrder[Type](_.children.iterator)(t).foldLeft(Set.empty[ReferenceGenome]) {
+      case (s, tl: TLocus) => s + tl.rg
+      case (s, _) => s
+    }
 
   def exportReferences(fs: FS, path: String, rgs: Set[ReferenceGenome]): Unit =
     rgs.foreach(writeReference(fs, path, _))

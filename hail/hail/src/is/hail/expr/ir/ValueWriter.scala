@@ -3,18 +3,15 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.types.encoded._
-import is.hail.types.physical._
 import is.hail.types.physical.stypes.SValue
-import is.hail.types.virtual._
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.OutputStream
 
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
-
 object ValueWriter {
-  implicit val formats: Formats =
-    new DefaultFormats() {
-      override val typeHints = ShortTypeHints(
+  lazy val formats: Formats =
+    DefaultFormats.withHints {
+      ShortTypeHints(
         List(
           classOf[ETypeValueWriter],
           classOf[AbstractTypedCodecSpec],
@@ -23,10 +20,7 @@ object ValueWriter {
         typeHintFieldName = "name",
       ) + BufferSpec.shortTypeHints
     } +
-      new TStructSerializer +
-      new TypeSerializer +
-      new PTypeSerializer +
-      new ETypeSerializer
+      ETypeSerializer
 }
 
 abstract class ValueWriter {

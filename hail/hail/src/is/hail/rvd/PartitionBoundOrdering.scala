@@ -1,19 +1,16 @@
 package is.hail.rvd
 
 import is.hail.annotations.{ExtendedOrdering, IntervalEndpointOrdering}
-import is.hail.backend.{ExecuteContext, HailStateManager}
 import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
 
 object PartitionBoundOrdering {
-  def apply(ctx: ExecuteContext, _kType: Type): ExtendedOrdering =
-    apply(ctx.stateManager, _kType)
 
-  def apply(sm: HailStateManager, _kType: Type): ExtendedOrdering = {
+  def apply(_kType: Type): ExtendedOrdering = {
     val kType = _kType.asInstanceOf[TBaseStruct]
-    val fieldOrd = kType.types.map(_.ordering(sm))
+    val fieldOrd = kType.types.map(_.ordering)
 
     new ExtendedOrdering {
       outer =>

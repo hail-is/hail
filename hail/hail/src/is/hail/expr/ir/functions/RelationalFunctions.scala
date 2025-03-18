@@ -1,14 +1,13 @@
 package is.hail.expr.ir.functions
 
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{MatrixValue, RelationalSpec, TableValue}
+import is.hail.expr.ir.{MatrixValue, PrettyOps, RelationalSpec, TableValue}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
 import is.hail.utils._
-
-import org.json4s.{Extraction, JValue, ShortTypeHints}
+import org.json4s.{Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
 abstract class MatrixToMatrixFunction {
@@ -52,6 +51,14 @@ case class WrappedMatrixToTableFunction(
     function.execute(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
 
   override def preservesPartitionCounts: Boolean = function.preservesPartitionCounts
+
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue =
+        Extraction.decompose(this)
+
+      override def renderShort: String = ???
+    }
 }
 
 abstract class TableToTableFunction {
@@ -63,8 +70,7 @@ abstract class TableToTableFunction {
 
   def requestType(requestedType: TableType, childBaseType: TableType): TableType = childBaseType
 
-  def toJValue: JValue =
-    Extraction.decompose(this)(RelationalFunctions.formats)
+  def pretty: PrettyOps
 }
 
 abstract class TableToValueFunction {
@@ -109,43 +115,49 @@ abstract class BlockMatrixToValueFunction {
 }
 
 object RelationalFunctions {
-  implicit val formats = RelationalSpec.formats + ShortTypeHints(
-    List(
-      classOf[LinearRegressionRowsSingle],
-      classOf[LinearRegressionRowsChained],
-      classOf[TableFilterPartitions],
-      classOf[MatrixFilterPartitions],
-      classOf[TableCalculateNewPartitions],
-      classOf[ForceCountTable],
-      classOf[ForceCountMatrixTable],
-      classOf[NPartitionsTable],
-      classOf[NPartitionsMatrixTable],
-      classOf[LogisticRegression],
-      classOf[PoissonRegression],
-      classOf[Skat],
-      classOf[LocalLDPrune],
-      classOf[MatrixExportEntriesByCol],
-      classOf[PCA],
-      classOf[VEP],
-      classOf[IBD],
-      classOf[Nirvana],
-      classOf[GetElement],
-      classOf[WrappedMatrixToTableFunction],
-      classOf[WrappedMatrixToValueFunction],
-      classOf[PCRelate],
-    ),
-    typeHintFieldName = "name",
-  )
-
-  def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
-    val jv = JsonMethods.parse(config)
-    (jv \ "name").extract[String] match {
-      case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
-      case _ =>
-        log.info("JSON: " + jv.toString)
-        jv.extract[T]
+  def withFormats[A](ctx: ExecuteContext)(f: Formats => A): A =
+    RelationalSpec.withFormats(ctx) { formats =>
+      f {
+        formats + ShortTypeHints(
+          List(
+            classOf[LinearRegressionRowsSingle],
+            classOf[LinearRegressionRowsChained],
+            classOf[TableFilterPartitions],
+            classOf[MatrixFilterPartitions],
+            classOf[TableCalculateNewPartitions],
+            classOf[ForceCountTable],
+            classOf[ForceCountMatrixTable],
+            classOf[NPartitionsTable],
+            classOf[NPartitionsMatrixTable],
+            classOf[LogisticRegression],
+            classOf[PoissonRegression],
+            classOf[Skat],
+            classOf[LocalLDPrune],
+            classOf[MatrixExportEntriesByCol],
+            classOf[PCA],
+            classOf[VEP],
+            classOf[IBD],
+            classOf[Nirvana],
+            classOf[GetElement],
+            classOf[WrappedMatrixToTableFunction],
+            classOf[WrappedMatrixToValueFunction],
+            classOf[PCRelate],
+          ),
+          typeHintFieldName = "name",
+        )
+      }
     }
-  }
+
+  def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T =
+    withFormats(ctx) { implicit formats =>
+      val jv = JsonMethods.parse(config)
+      (jv \ "name").extract[String] match {
+        case "VEP" => VEP.fromJValue(ctx, jv).asInstanceOf[T]
+        case _ =>
+          log.info("JSON: " + jv.toString)
+          jv.extract[T]
+      }
+    }
 
   def lookupMatrixToMatrix(ctx: ExecuteContext, config: String): MatrixToMatrixFunction =
     extractTo[MatrixToMatrixFunction](ctx, config)

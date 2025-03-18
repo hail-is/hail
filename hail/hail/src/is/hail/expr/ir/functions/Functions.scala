@@ -2,7 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.{ExecuteContext}
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{Apply, ApplyIR, ApplySeeded, ApplySpecial}
@@ -75,8 +75,8 @@ object IRFunctionRegistry {
   ): Unit = {
     requireJavaIdentifier(name)
     val argNames = argNameStrs.map(Name)
-    val typeParameters = typeParamStrs.map(IRParser.parseType).toFastSeq
-    val valueParameterTypes = argTypeStrs.map(IRParser.parseType).toFastSeq
+    val typeParameters = typeParamStrs.map((code: String) => IRParser.parseType(ctx,code)).toFastSeq
+    val valueParameterTypes = argTypeStrs.map((code: String) => IRParser.parseType(ctx,code)).toFastSeq
     val refMap = BindingEnv.eval(argNames.zip(valueParameterTypes): _*)
     val body = IRParser.parse_value_ir(ctx, bodyStr, refMap)
 
@@ -85,7 +85,7 @@ object IRFunctionRegistry {
       name,
       typeParameters,
       valueParameterTypes,
-      IRParser.parseType(returnType),
+      IRParser.parseType(ctx,returnType),
       false,
       (_, args, _) => Subst(body, BindingEnv.eval(argNames.zip(args): _*)),
     )
@@ -262,7 +262,7 @@ object RegistryHelpers {
   def stupidUnwrapStruct(rgs: Map[String, ReferenceGenome], r: Region, value: Row, ptype: PType)
     : Long = {
     assert(value != null)
-    ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
+    ptype.unstagedStoreJavaObject(value, r)
   }
 
   def stupidUnwrapArray(
@@ -272,7 +272,7 @@ object RegistryHelpers {
     ptype: PType,
   ): Long = {
     assert(value != null)
-    ptype.unstagedStoreJavaObject(HailStateManager(rgs), value, r)
+    ptype.unstagedStoreJavaObject(value, r)
   }
 }
 

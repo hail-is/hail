@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallValue}
@@ -21,44 +20,24 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    representation.unsafeOrdering(sm) // this was a terrible idea
+  override def unsafeOrdering: UnsafeOrdering =
+    representation.unsafeOrdering // this was a terrible idea
 
   def setRequired(required: Boolean) =
     if (required == this.required) this else PCanonicalCall(required)
 
-  override def unstagedStoreAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Unit =
+  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     srcPType match {
       case pt: PCanonicalCall =>
-        representation.unstagedStoreAtAddress(
-          sm,
-          addr,
-          region,
-          pt.representation,
-          srcAddress,
-          deepCopy,
-        )
+        representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
     }
 
   override def containsPointers: Boolean = representation.containsPointers
 
-  override def _copyFromAddress(
-    sm: HailStateManager,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Long =
+  protected override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     srcPType match {
       case pt: PCanonicalCall =>
-        representation._copyFromAddress(sm, region, pt.representation, srcAddress, deepCopy)
+        representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
     }
 
   def sType: SCall = SCanonicalCall
@@ -90,15 +69,10 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   override def unstagedLoadFromNested(addr: Long): Long =
     representation.unstagedLoadFromNested(addr)
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region)
     : Long =
-    representation.unstagedStoreJavaObject(sm, annotation, region)
+    representation.unstagedStoreJavaObject(annotation, region)
 
-  override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    annotation: Annotation,
-    region: Region,
-  ): Unit =
-    representation.unstagedStoreJavaObjectAtAddress(sm, addr, annotation, region)
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
+    representation.unstagedStoreJavaObjectAtAddress(addr, annotation, region)
 }
