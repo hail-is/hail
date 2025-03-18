@@ -995,7 +995,7 @@ class BlockMatrixStage2 private (
       letBindings,
       bcFields.map(ref => ref.name -> ref) :+ globalsId -> Ref(globalsId, emptyGlobals.typ),
       Ref(globalsId, emptyGlobals.typ),
-      RVDPartitioner.unkeyed(ctx.stateManager, bmTyp.nDefinedBlocks),
+      RVDPartitioner.unkeyed(bmTyp.nDefinedBlocks),
       TableStageDependency.none,
       contextsIR,
       tsPartitionFunction,

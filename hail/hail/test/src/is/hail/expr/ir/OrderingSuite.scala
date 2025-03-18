@@ -97,10 +97,10 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t).asInstanceOf[PStruct]
 
-        val v = pType.unstagedStoreJavaObject(sm, a, region)
+        val v = pType.unstagedStoreJavaObject(a, region)
 
-        val eordME = t.mkOrdering(sm)
-        val eordMNE = t.mkOrdering(sm, missingEqual = false)
+        val eordME = t.mkOrdering()
+        val eordMNE = t.mkOrdering(missingEqual = false)
 
         def checkCompare(compResult: Int, expected: Int): Unit =
           assert(
@@ -246,11 +246,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
-        val compare = java.lang.Integer.signum(t.ordering(sm).compare(a1, a2))
+        val compare = java.lang.Integer.signum(t.ordering().compare(a1, a2))
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
         val result = java.lang.Integer.signum(fcompare(region, v1, v2))
 
@@ -259,27 +259,27 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           s"compare expected: $compare vs $result\n  t=${t.parsableString()}\n  v1=$a1\n  v2=$a2",
         )
 
-        val equiv = t.ordering(sm).equiv(a1, a2)
+        val equiv = t.ordering().equiv(a1, a2)
         val fequiv = getStagedOrderingFunction(pType, CodeOrdering.Equiv(), region)
 
         assert(fequiv(region, v1, v2) == equiv, s"equiv expected: $equiv")
 
-        val lt = t.ordering(sm).lt(a1, a2)
+        val lt = t.ordering().lt(a1, a2)
         val flt = getStagedOrderingFunction(pType, CodeOrdering.Lt(), region)
 
         assert(flt(region, v1, v2) == lt, s"lt expected: $lt")
 
-        val lteq = t.ordering(sm).lteq(a1, a2)
+        val lteq = t.ordering().lteq(a1, a2)
         val flteq = getStagedOrderingFunction(pType, CodeOrdering.Lteq(), region)
 
         assert(flteq(region, v1, v2) == lteq, s"lteq expected: $lteq")
 
-        val gt = t.ordering(sm).gt(a1, a2)
+        val gt = t.ordering().gt(a1, a2)
         val fgt = getStagedOrderingFunction(pType, CodeOrdering.Gt(), region)
 
         assert(fgt(region, v1, v2) == gt, s"gt expected: $gt")
 
-        val gteq = t.ordering(sm).gteq(a1, a2)
+        val gteq = t.ordering().gteq(a1, a2)
         val fgteq = getStagedOrderingFunction(pType, CodeOrdering.Gteq(), region)
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
@@ -293,11 +293,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
-        val v1 = pType.unstagedStoreJavaObject(sm, a1, region)
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        val v2 = pType.unstagedStoreJavaObject(sm, a2, region)
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
-        val reversedExtendedOrdering = t.ordering(sm).reverse
+        val reversedExtendedOrdering = t.ordering().reverse
 
         val compare = java.lang.Integer.signum(reversedExtendedOrdering.compare(a2, a1))
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region, Descending)
@@ -345,7 +345,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       } yield (elt, a, asc)
 
     forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
-      val ord = if (asc) t.ordering(sm).toOrdering else t.ordering(sm).reverse.toOrdering
+      val ord = if (asc) t.ordering().toOrdering else t.ordering().reverse.toOrdering
       assertEvalsTo(
         ArraySort(ToStream(In(0, TArray(t))), Literal.coerce(TBoolean, asc)),
         FastSeq(a -> TArray(t)),
@@ -368,7 +368,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       assertEvalsTo(
         ToArray(ToSet(In(0, TArray(t)))),
         FastSeq(array -> TArray(t)),
-        expected = array.sorted(t.ordering(sm).toOrdering).distinct,
+        expected = array.sorted(t.ordering().toOrdering).distinct,
       )
       true
     }
@@ -388,7 +388,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       assertEvalsTo(
         ToArray(mapIR(ToStream(In(0, TArray(telt))))(GetField(_, "key"))),
         FastSeq(array -> TArray(telt)),
-        expected = expectedMap.keys.toFastSeq.sorted(telt.types(0).ordering(sm).toOrdering),
+        expected = expectedMap.keys.toFastSeq.sorted(telt.types(0).ordering().toOrdering),
       )
       true
     }
@@ -480,9 +480,9 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val pArray = PCanonicalArray(pt)
 
       pool.scopedRegion { region =>
-        val soff = pset.unstagedStoreJavaObject(sm, set, region)
+        val soff = pset.unstagedStoreJavaObject(set, region)
 
-        val eoff = pTuple.unstagedStoreJavaObject(sm, Row(elem), region)
+        val eoff = pTuple.unstagedStoreJavaObject(Row(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
         val cset = fb.getCodeParam[Long](2)
@@ -534,7 +534,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val soff = pDict.unstagedStoreJavaObject(sm, dict, region)
 
         val ptuple = PCanonicalTuple(false, FastSeq(pDict.keyType): _*)
-        val eoff = ptuple.unstagedStoreJavaObject(sm, Row(key), region)
+        val eoff = ptuple.unstagedStoreJavaObject(Row(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
         val cdict = fb.getCodeParam[Long](2)

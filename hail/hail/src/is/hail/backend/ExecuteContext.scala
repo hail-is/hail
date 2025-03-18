@@ -146,8 +146,6 @@ class ExecuteContext(
         )
     }
 
-  val stateManager = HailStateManager(references)
-
   val tempFileManager: TempFileManager =
     if (_tempFileManager != null) _tempFileManager else new OwningTempFileManager(fs)
 

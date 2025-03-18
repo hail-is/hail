@@ -1,7 +1,6 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
@@ -12,14 +11,14 @@ object TBaseStruct {
   /** Define an ordering on Row objects. Works with any row r such that the list of types of r is a
     * prefix of types, or types is a prefix of the list of types of r.
     */
-  def getOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = true)
+  def getOrdering(types: Array[Type], missingEqual: Boolean = true)
     : ExtendedOrdering =
-    ExtendedOrdering.rowOrdering(types.map(_.ordering(sm)), missingEqual)
+    ExtendedOrdering.rowOrdering(types.map(_.ordering), missingEqual)
 
-  def getJoinOrdering(sm: HailStateManager, types: Array[Type], missingEqual: Boolean = false)
+  def getJoinOrdering(types: Array[Type], missingEqual: Boolean = false)
     : ExtendedOrdering =
     ExtendedOrdering.rowOrdering(
-      types.map(_.mkOrdering(sm, missingEqual = missingEqual)),
+      types.map(_.mkOrdering(missingEqual = missingEqual)),
       _missingEqual = missingEqual,
     )
 }

@@ -1081,7 +1081,7 @@ object Simplify {
       TableAggregateByKey(TableFilterIntervals(child, intervals, keep), expr)
     case TableFilterIntervals(TableFilterIntervals(child, _i1, keep1), _i2, keep2)
         if keep1 == keep2 =>
-      val ord = PartitionBoundOrdering(ctx, child.typ.keyType).intervalEndpointOrdering
+      val ord = PartitionBoundOrdering(child.typ.keyType).intervalEndpointOrdering
       val i1 = Interval.union(_i1.toArray[Interval], ord)
       val i2 = Interval.union(_i2.toArray[Interval], ord)
       val intervals = if (keep1)
@@ -1114,12 +1114,12 @@ object Simplify {
         case None =>
           val pt = t.keyType
           NativeReaderOptions(
-            Interval.union(intervals, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering),
+            Interval.union(intervals, PartitionBoundOrdering(pt).intervalEndpointOrdering),
             pt,
             true,
           )
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(
               Interval.union(preIntervals, iord),
@@ -1144,12 +1144,12 @@ object Simplify {
         case None =>
           val pt = t.keyType
           NativeReaderOptions(
-            Interval.union(intervals, PartitionBoundOrdering(ctx, pt).intervalEndpointOrdering),
+            Interval.union(intervals, PartitionBoundOrdering(pt).intervalEndpointOrdering),
             pt,
             true,
           )
         case Some(NativeReaderOptions(preIntervals, intervalPointType, _)) =>
-          val iord = PartitionBoundOrdering(ctx, intervalPointType).intervalEndpointOrdering
+          val iord = PartitionBoundOrdering(intervalPointType).intervalEndpointOrdering
           NativeReaderOptions(
             Interval.intersection(
               Interval.union(preIntervals, iord),

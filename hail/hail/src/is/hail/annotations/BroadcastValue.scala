@@ -31,7 +31,7 @@ object BroadcastRow {
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
     val pType = PType.literalPType(t, value).asInstanceOf[PStruct]
-    val offset = pType.unstagedStoreJavaObject(ctx.stateManager, value, ctx.r)
+    val offset = pType.unstagedStoreJavaObject(value, ctx.r)
     BroadcastRow(ctx, RegionValue(ctx.r, offset), pType)
   }
 }
@@ -89,7 +89,7 @@ trait BroadcastRegionValue {
 
   override def equals(obj: Any): Boolean = obj match {
     case b: BroadcastRegionValue =>
-      t == b.t && (ctx eq b.ctx) && t.unsafeOrdering(ctx.stateManager).compare(value, b.value) == 0
+      t == b.t && (ctx eq b.ctx) && t.unsafeOrdering.compare(value, b.value) == 0
     case _ => false
   }
 
@@ -112,7 +112,7 @@ case class BroadcastRow(ctx: ExecuteContext, value: RegionValue, t: PStruct)
       ctx,
       RegionValue(
         value.region,
-        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+        newT.copyFromAddress(value.region, t, value.offset, deepCopy = false),
       ),
       newT,
     )
@@ -141,7 +141,7 @@ case class BroadcastIndexedSeq(
       ctx,
       RegionValue(
         value.region,
-        newT.copyFromAddress(ctx.stateManager, value.region, t, value.offset, deepCopy = false),
+        newT.copyFromAddress(value.region, t, value.offset, deepCopy = false),
       ),
       newT,
     )

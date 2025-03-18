@@ -7,7 +7,6 @@ import is.hail.expr.ir.DeprecatedIRBuilder._
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.functions.MatrixToMatrixFunction
 import is.hail.io.bgen.MatrixBGENReader
-import is.hail.io.fs.FS
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
@@ -21,14 +20,8 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods
 
 object MatrixIR {
-  def read(
-    fs: FS,
-    path: String,
-    dropCols: Boolean = false,
-    dropRows: Boolean = false,
-    requestedType: Option[MatrixType] = None,
-  ): MatrixIR = {
-    val reader = MatrixNativeReader(fs, path)
+  def read(ctx: ExecuteContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
+    val reader = MatrixNativeReader(ctx, path)
     MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
   }
 
@@ -118,7 +111,7 @@ object MatrixReader {
     implicit val formats: Formats = DefaultFormats
     (jv \ "name").extract[String] match {
       case "MatrixRangeReader" => MatrixRangeReader.fromJValue(ctx, jv)
-      case "MatrixNativeReader" => MatrixNativeReader.fromJValue(ctx.fs, jv)
+      case "MatrixNativeReader" => MatrixNativeReader.fromJValue(ctx, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(ctx, jv)
       case "MatrixPLINKReader" => MatrixPLINKReader.fromJValue(ctx, jv)
       case "MatrixVCFReader" => MatrixVCFReader.fromJValue(ctx, jv)
@@ -230,12 +223,12 @@ abstract class MatrixHybridReader extends TableReaderWithExtraUID with MatrixRea
 }
 
 object MatrixNativeReader {
-  def apply(fs: FS, path: String, options: Option[NativeReaderOptions] = None): MatrixNativeReader =
-    MatrixNativeReader(fs, MatrixNativeReaderParameters(path, options))
+  def apply(ctx: ExecuteContext, path: String, options: Option[NativeReaderOptions] = None): MatrixNativeReader =
+    MatrixNativeReader(ctx, MatrixNativeReaderParameters(path, options))
 
-  def apply(fs: FS, params: MatrixNativeReaderParameters): MatrixNativeReader = {
+  def apply(ctx: ExecuteContext, params: MatrixNativeReaderParameters): MatrixNativeReader = {
     val spec =
-      (RelationalSpec.read(fs, params.path): @unchecked) match {
+      (RelationalSpec.read(ctx, params.path): @unchecked) match {
         case mts: AbstractMatrixTableSpec => mts
         case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '${params.path}'")
       }
@@ -249,18 +242,18 @@ object MatrixNativeReader {
     new MatrixNativeReader(params, spec)
   }
 
-  def fromJValue(fs: FS, jv: JValue): MatrixNativeReader = {
+  def fromJValue(ctx: ExecuteContext, jv: JValue): MatrixNativeReader = {
     val path = jv \ "path" match {
       case JString(s) => s
     }
 
     val options = jv \ "options" match {
       case optionsJV: JObject =>
-        Some(NativeReaderOptions.fromJValue(optionsJV))
+        Some(NativeReaderOptions.fromJValue(ctx, optionsJV))
       case JNothing => None
     }
 
-    MatrixNativeReader(fs, MatrixNativeReaderParameters(path, options))
+    MatrixNativeReader(ctx, MatrixNativeReaderParameters(path, options))
   }
 }
 

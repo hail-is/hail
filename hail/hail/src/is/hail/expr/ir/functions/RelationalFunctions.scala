@@ -7,8 +7,7 @@ import is.hail.methods._
 import is.hail.types.{RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{BlockMatrixType, MatrixType, TableType, Type}
 import is.hail.utils._
-
-import org.json4s.{Extraction, JValue, ShortTypeHints}
+import org.json4s.{Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.jackson.JsonMethods
 
 abstract class MatrixToMatrixFunction {
@@ -109,43 +108,49 @@ abstract class BlockMatrixToValueFunction {
 }
 
 object RelationalFunctions {
-  implicit val formats = RelationalSpec.formats + ShortTypeHints(
-    List(
-      classOf[LinearRegressionRowsSingle],
-      classOf[LinearRegressionRowsChained],
-      classOf[TableFilterPartitions],
-      classOf[MatrixFilterPartitions],
-      classOf[TableCalculateNewPartitions],
-      classOf[ForceCountTable],
-      classOf[ForceCountMatrixTable],
-      classOf[NPartitionsTable],
-      classOf[NPartitionsMatrixTable],
-      classOf[LogisticRegression],
-      classOf[PoissonRegression],
-      classOf[Skat],
-      classOf[LocalLDPrune],
-      classOf[MatrixExportEntriesByCol],
-      classOf[PCA],
-      classOf[VEP],
-      classOf[IBD],
-      classOf[Nirvana],
-      classOf[GetElement],
-      classOf[WrappedMatrixToTableFunction],
-      classOf[WrappedMatrixToValueFunction],
-      classOf[PCRelate],
-    ),
-    typeHintFieldName = "name",
-  )
-
-  def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
-    val jv = JsonMethods.parse(config)
-    (jv \ "name").extract[String] match {
-      case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
-      case _ =>
-        log.info("JSON: " + jv.toString)
-        jv.extract[T]
+  def withFormats[A](ctx: ExecuteContext)(f: Formats => A): A =
+    RelationalSpec.withFormats(ctx) { formats =>
+      f {
+        formats + ShortTypeHints(
+          List(
+            classOf[LinearRegressionRowsSingle],
+            classOf[LinearRegressionRowsChained],
+            classOf[TableFilterPartitions],
+            classOf[MatrixFilterPartitions],
+            classOf[TableCalculateNewPartitions],
+            classOf[ForceCountTable],
+            classOf[ForceCountMatrixTable],
+            classOf[NPartitionsTable],
+            classOf[NPartitionsMatrixTable],
+            classOf[LogisticRegression],
+            classOf[PoissonRegression],
+            classOf[Skat],
+            classOf[LocalLDPrune],
+            classOf[MatrixExportEntriesByCol],
+            classOf[PCA],
+            classOf[VEP],
+            classOf[IBD],
+            classOf[Nirvana],
+            classOf[GetElement],
+            classOf[WrappedMatrixToTableFunction],
+            classOf[WrappedMatrixToValueFunction],
+            classOf[PCRelate],
+          ),
+          typeHintFieldName = "name",
+        )
+      }
     }
-  }
+
+  def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T =
+    withFormats(ctx) { implicit formats =>
+      val jv = JsonMethods.parse(config)
+      (jv \ "name").extract[String] match {
+        case "VEP" => VEP.fromJValue(ctx, jv).asInstanceOf[T]
+        case _ =>
+          log.info("JSON: " + jv.toString)
+          jv.extract[T]
+      }
+    }
 
   def lookupMatrixToMatrix(ctx: ExecuteContext, config: String): MatrixToMatrixFunction =
     extractTo[MatrixToMatrixFunction](ctx, config)
