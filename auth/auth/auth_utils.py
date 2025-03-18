@@ -42,4 +42,4 @@ def is_valid_username(username: str) -> bool:
         return False
 
     # Check that all characters are numeric or lowercase or hyphen:
-    return all((c.isdigit() or c.islower() or c == '-') for c in username)
+    return all(c.isascii() and (c.isdigit() or c.islower() or c == '-') for c in username)
