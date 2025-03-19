@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 
 import org.json4s.jackson.JsonMethods
 
@@ -37,9 +36,6 @@ final case class TStream(elementType: Type) extends TIterable {
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
 
   override def isRealizable = false
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
-    throw new UnsupportedOperationException("Streams don't have associated annotations.")
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     throw new UnsupportedOperationException("Stream comparison is currently undefined.")

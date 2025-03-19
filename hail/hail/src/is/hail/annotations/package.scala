@@ -10,6 +10,8 @@ package object annotations {
 
   type Annotation = Any
 
+  type An = Annotation
+
   type Deleter = (Annotation) => Annotation
 
   type Querier = (Annotation) => Any

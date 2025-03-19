@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 import is.hail.utils._
 
 import org.json4s.jackson.JsonMethods
@@ -58,9 +57,6 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
       .mkString("{", ",", "}")
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
-    Gen.buildableOf2[Map](Gen.zip(keyType.genValue(sm), valueType.genValue(sm)))
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean)
     : Boolean =
