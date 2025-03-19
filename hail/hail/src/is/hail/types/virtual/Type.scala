@@ -1,22 +1,24 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
+import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
 import is.hail.utils
 import is.hail.utils._
-
 import org.apache.spark.sql.types.DataType
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.{CustomSerializer, JValue, Serializer}
 import org.json4s.JsonAST.JString
 
-class TypeSerializer extends CustomSerializer[Type](_ =>
+object TypeSerializer {
+  def apply(ctx: ExecuteContext): Serializer[Type] =
+    new CustomSerializer[Type](_ =>
       (
-        { case JString(s) => IRParser.parseType(s) },
+        { case JString(s) => IRParser.parseType(ctx, s) },
         { case t: Type => JString(t.parsableString()) },
       )
     )
+}
 
 abstract class Type extends VType with Serializable {
 
@@ -98,14 +100,9 @@ abstract class Type extends VType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
+  def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering
 
-  @transient protected var ord: ExtendedOrdering = _
-
-  def ordering(sm: HailStateManager): ExtendedOrdering = {
-    if (ord == null) ord = mkOrdering(sm)
-    ord
-  }
+  lazy val ordering: ExtendedOrdering = mkOrdering()
 
   def _typeCheck(a: Any): Boolean
 

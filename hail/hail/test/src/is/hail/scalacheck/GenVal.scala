@@ -29,7 +29,7 @@ private[scalacheck] trait GenVal {
       case _: TBaseStruct =>
         elem match { case ts: Gen[Seq[Gen[An]]] => ts flatMap sequence[Seq[An], An] }
       case TInterval(point) =>
-        val ord = point.mkOrdering(ctx.stateManager)
+        val ord = point.mkOrdering()
         for {
           (a, b, s, e) <- zip(elem, elem, arbitrary[Boolean], arbitrary[Boolean])
           if ord.compare(a, b) != 0 || (s && e)

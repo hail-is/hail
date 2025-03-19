@@ -1178,7 +1178,7 @@ package defs {
   ) extends IR
 
   object PartitionReader {
-    implicit val formats: Formats =
+    lazy val formats: Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
@@ -1200,39 +1200,43 @@ package defs {
           typeHintFieldName = "name",
         ) + BufferSpec.shortTypeHints
       } +
-        new TStructSerializer +
-        new TypeSerializer +
-        new PTypeSerializer +
-        new ETypeSerializer +
-        new AvroSchemaSerializer
+        ETypeSerializer +
+        AvroSchemaSerializer
 
-    def extract(ctx: ExecuteContext, jv: JValue): PartitionReader = {
+  def withFormats[A](ctx: ExecuteContext)(f: Formats => A): A =
+    f {
+      formats +
+        TStructSerializer(ctx) +
+        TypeSerializer(ctx) +
+        PTypeSerializer(ctx)
+    }
+
+    def extract(ctx: ExecuteContext, jv: JValue): PartitionReader =
+     withFormats(ctx) { implicit formats =>
       (jv \ "name").extract[String] match {
         case "PartitionNativeIntervalReader" =>
           val path = (jv \ "path").extract[String]
-          val spec = TableNativeReader.read(ctx.fs, path, None).spec
+          val spec = TableNativeReader.read(ctx, path, None).spec
           PartitionNativeIntervalReader(
-            ctx.stateManager,
             path,
             spec,
             (jv \ "uidFieldName").extract[String],
           )
         case "PartitionZippedNativeIntervalReader" =>
           val path = (jv \ "path").extract[String]
-          val spec = RelationalSpec.read(ctx.fs, path).asInstanceOf[AbstractMatrixTableSpec]
+          val spec = RelationalSpec.read(ctx, path).asInstanceOf[AbstractMatrixTableSpec]
           PartitionZippedNativeIntervalReader(
-            ctx.stateManager,
             path,
             spec,
             (jv \ "uidFieldName").extract[String],
           )
         case "GVCFPartitionReader" =>
-          val header = VCFHeaderInfo.fromJSON((jv \ "header"))
+          val header = VCFHeaderInfo.fromJSON(ctx, jv \ "header")
           val callFields = (jv \ "callFields").extract[Set[String]]
-          val entryFloatType = IRParser.parseType((jv \ "entryFloatType").extract[String])
+          val entryFloatType = IRParser.parseType(ctx,(jv \ "entryFloatType").extract[String])
           val arrayElementsRequired = (jv \ "arrayElementsRequired").extract[Boolean]
           val rg = (jv \ "rg") match {
-            case JString(s) => Some(s)
+            case JString(s) => Some(ctx.references(s))
             case JNothing => None
           }
           val contigRecoding = (jv \ "contigRecoding").extract[Map[String, String]]
@@ -1241,9 +1245,16 @@ package defs {
           val entriesFieldName = (jv \ "entriesFieldName").extract[String]
           val uidFieldName = (jv \ "uidFieldName").extract[String]
           GVCFPartitionReader(
-            header, callFields, entryFloatType, arrayElementsRequired, rg,
+            header,
+            callFields,
+            entryFloatType,
+            arrayElementsRequired,
+            rg,
             contigRecoding,
-            skipInvalidLoci, filterAndReplace, entriesFieldName, uidFieldName,
+            skipInvalidLoci,
+            filterAndReplace,
+            entriesFieldName,
+            uidFieldName,
           )
         case _ => jv.extract[PartitionReader]
       }
@@ -1251,7 +1262,7 @@ package defs {
   }
 
   object PartitionWriter {
-    implicit val formats: Formats =
+    lazy val formats: Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
@@ -1266,15 +1277,11 @@ package defs {
           typeHintFieldName = "name",
         ) + BufferSpec.shortTypeHints
       } +
-        new TStructSerializer +
-        new TypeSerializer +
-        new PTypeSerializer +
-        new PStructSerializer +
-        new ETypeSerializer
+        ETypeSerializer
   }
 
   object MetadataWriter {
-    implicit val formats: Formats =
+    lazy val formats: Formats =
       new DefaultFormats() {
         override val typeHints = ShortTypeHints(
           List(
@@ -1291,10 +1298,7 @@ package defs {
           typeHintFieldName = "name",
         ) + BufferSpec.shortTypeHints
       } +
-        new TStructSerializer +
-        new TypeSerializer +
-        new PTypeSerializer +
-        new ETypeSerializer
+        ETypeSerializer
   }
 
   abstract class PartitionReader {

@@ -2,31 +2,36 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.{ExecuteContext}
 import is.hail.expr.ir._
-import is.hail.types.{tcoerce, Requiredness}
+import is.hail.types.{Requiredness, tcoerce}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SRNGState
 import is.hail.types.virtual._
 import is.hail.utils._
-
 import org.apache.spark.sql.Row
-import org.json4s.CustomSerializer
+import org.json4s.{CustomSerializer, Serializer}
 import org.json4s.JsonAST.JString
 
-class PTypeSerializer extends CustomSerializer[PType](format =>
+object PTypeSerializer {
+  def apply(ctx: ExecuteContext): Serializer[PType] =
+    new CustomSerializer[PType](_ =>
       (
-        { case JString(s) => PType.canonical(IRParser.parsePType(s)) },
+        { case JString(s) => PType.canonical(IRParser.parsePType(ctx, s)) },
         { case t: PType => JString(t.toString) },
       )
     )
+}
 
-class PStructSerializer extends CustomSerializer[PStruct](format =>
+object PStructSerializer {
+  def apply(ctx: ExecuteContext): Serializer[PStruct] =
+    new CustomSerializer[PStruct](_ =>
       (
-        { case JString(s) => tcoerce[PStruct](IRParser.parsePType(s)) },
+        { case JString(s) => tcoerce[PStruct](IRParser.parsePType(ctx, s)) },
         { case t: PStruct => JString(t.toString) },
       )
     )
+}
 
 object PType {
 
@@ -306,14 +311,14 @@ abstract class PType extends Serializable with Requiredness {
     sb.result()
   }
 
-  def unsafeOrdering(sm: HailStateManager): UnsafeOrdering
+  def unsafeOrdering: UnsafeOrdering
 
   def isCanonical: Boolean =
     PType.canonical(this) == this // will recons, may need to rewrite this method
 
-  def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
+  def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(virtualType == rightType.virtualType, s"$this, $rightType")
-    unsafeOrdering(sm)
+    unsafeOrdering
   }
 
   def asIdent: String = (if (required) "r_" else "o_") + _asIdent
@@ -400,21 +405,15 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  protected[physical] def _copyFromAddress(
-    sm: HailStateManager,
+  protected def _copyFromAddress(
     region: Region,
     srcPType: PType,
     srcAddress: Long,
     deepCopy: Boolean,
   ): Long
 
-  def copyFromAddress(
-    sm: HailStateManager,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Long = {
+  def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean)
+    : Long = {
     // no requirement for requiredness
     // this can have more/less requiredness than srcPType
     // if value is not compatible with this, an exception will be thrown
@@ -425,7 +424,7 @@ abstract class PType extends Serializable with Requiredness {
           s"virtualType: $virtualType != srcPType.virtualType: ${srcPType.virtualType}",
         )
     }
-    _copyFromAddress(sm, region, srcPType, srcAddress, deepCopy)
+    _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
 
   /* return a SCode that can cheaply operate on the region representation. Generally a pointer type,
@@ -447,7 +446,6 @@ abstract class PType extends Serializable with Requiredness {
   ): Unit
 
   def unstagedStoreAtAddress(
-    sm: HailStateManager,
     addr: Long,
     region: Region,
     srcPType: PType,
@@ -463,12 +461,7 @@ abstract class PType extends Serializable with Requiredness {
 
   def unstagedLoadFromNested(addr: Long): Long
 
-  def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region): Long
+  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long
 
-  def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    annotation: Annotation,
-    region: Region,
-  ): Unit
+  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit
 }

@@ -1,23 +1,27 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder, Name}
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
 import org.apache.spark.sql.Row
-import org.json4s.CustomSerializer
+import org.json4s.{CustomSerializer, Serializer}
 import org.json4s.JsonAST.JString
 
-class TStructSerializer extends CustomSerializer[TStruct](format =>
-      (
-        { case JString(s) => IRParser.parseStructType(s) },
-        { case t: TStruct => JString(t.parsableString()) },
-      )
+object TStructSerializer {
+  def apply(ctx: ExecuteContext): Serializer[TStruct] =
+    new CustomSerializer[TStruct](_ =>
+    ( {
+      case JString(s) => IRParser.parseStructType(ctx, s)
+    }, {
+      case t: TStruct => JString(t.parsableString())
+    },
     )
+  )
+}
 
 object TStruct {
   val empty: TStruct = TStruct()
@@ -66,8 +70,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   override def truncate(newSize: Int): TStruct = TStruct(fields.take(newSize))
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
-    TBaseStruct.getOrdering(sm, types, missingEqual)
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
+    TBaseStruct.getOrdering(types, missingEqual)
 
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>

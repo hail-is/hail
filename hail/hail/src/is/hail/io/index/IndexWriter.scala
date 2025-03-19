@@ -2,7 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations.{Annotation, Region, RegionPool}
 import is.hail.asm4s.{HailClassLoader, _}
-import is.hail.backend.{ExecuteContext, HailStateManager, HailTaskContext}
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.{
   CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, IEmitCode,
   IntArrayBuilder, LongArrayBuilder, ParamType,
@@ -86,34 +86,18 @@ object IndexWriter {
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any],
   ): (String, HailClassLoader, HailTaskContext, RegionPool) => IndexWriter = {
-    val sm = ctx.stateManager;
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor);
-    { (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
-      new IndexWriter(
-        sm,
-        keyType,
-        annotationType,
-        f(path, hcl, htc, pool, attributes),
-        pool,
-        attributes,
-      )
-    }
+    (path: String, hcl: HailClassLoader, htc: HailTaskContext, pool: RegionPool) =>
+      new IndexWriter(keyType, annotationType, f(path, hcl, htc, pool, attributes), pool)
   }
 }
 
-class IndexWriter(
-  sm: HailStateManager,
-  keyType: PType,
-  valueType: PType,
-  comp: CompiledIndexWriter,
-  pool: RegionPool,
-  attributes: Map[String, Any],
-) extends AutoCloseable {
+class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
   private val region = Region(pool = pool)
 
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
-    val koff = keyType.unstagedStoreJavaObject(sm, x, region)
-    val voff = valueType.unstagedStoreJavaObject(sm, annotation, region)
+    val koff = keyType.unstagedStoreJavaObject(x, region)
+    val voff = valueType.unstagedStoreJavaObject(annotation, region)
     comp.apply(koff, offset, voff)
   }
 

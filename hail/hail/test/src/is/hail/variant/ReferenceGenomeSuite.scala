@@ -172,7 +172,7 @@ class ReferenceGenomeSuite extends HailSuite {
           fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
         }
 
-      val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
+      val ordering = TLocus(rg.name).ordering()
       property("interval test") =
         forAll(genNullable(ctx, TInterval(TLocus(rg.name))).suchThat(_ != null)) {
           case i: Interval =>
