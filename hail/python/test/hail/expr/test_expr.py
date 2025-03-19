@@ -4562,6 +4562,18 @@ def test_local_agg():
     assert hl.eval(x.aggregate(lambda x: hl.agg.sum(x))) == 10
 
 
+def test_local_scan():
+    x = hl._stream_range(10)
+    res = hl.eval(x._aggregate_scan(lambda e: hl.scan.sum(x)).to_array())
+    assert res == [0, 0, 1, 3, 6, 10, 15, 21, 28, 36]
+
+
+def test_cannot_aggregate_in_local_scan():
+    x = hl._stream_range(10)
+    with pytest.raises(hl.ExpressionException, match='local stream scan cannot aggregate'):
+        _ = x._aggregate_scan(lambda e: hl.agg.sum(e))
+
+
 def test_zip_join_producers():
     contexts = hl.literal([1, 2, 3])
     zj = hl._zip_join_producers(

@@ -4839,6 +4839,8 @@ class StreamExpression(Expression):
         var = Env.get_uid(base='scan')
         ref = construct_expr(ir.Ref(var, elt), elt, self._indices)
         scan_expr = f(ref)
+        if scan_expr._aggregations:
+            raise ExpressionException('local stream scan cannot aggregate')
 
         indices, _ = unify_all(self, scan_expr)
         return construct_expr(
