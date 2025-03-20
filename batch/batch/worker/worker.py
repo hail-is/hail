@@ -1125,6 +1125,8 @@ class Container:
 
         with open(f'{self.container_scratch}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(config))
+            log.info("config.json successfully written for worker.")
+            log.info(f)
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
