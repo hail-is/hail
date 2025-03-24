@@ -4835,6 +4835,20 @@ class StreamExpression(Expression):
 
     @typecheck_method(f=func_spec(1, expr_any))
     def _aggregate_scan(self, f):
+        """Uses the scan library to compute a scan from an array.
+
+        This method is useful for accessing functionality that exists in the scan library
+        but not the basic expression library, for instance, :func:`.call_stats`.
+
+        Parameters
+        ----------
+        f
+            Scan function.
+
+        Returns
+        -------
+        :class:`.StreamExpression`
+        """
         elt = self.dtype.element_type
         var = Env.get_uid(base='scan')
         ref = construct_expr(ir.Ref(var, elt), elt, self._indices)
