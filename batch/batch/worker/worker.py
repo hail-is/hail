@@ -1084,7 +1084,7 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     stdin = asyncio.subprocess.PIPE if self.stdin else None
-
+                    log.info("About to execute crun.")
                     try:
                         self.process = await asyncio.create_subprocess_exec(
                             'crun',
