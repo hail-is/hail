@@ -4564,7 +4564,7 @@ def test_local_agg():
 
 def test_local_scan():
     x = hl._stream_range(10)
-    res = hl.eval(x._aggregate_scan(lambda e: hl.scan.sum(x)).to_array())
+    res = hl.eval(x._aggregate_scan(lambda x: hl.scan.sum(x)).to_array())
     assert res == [0, 0, 1, 3, 6, 10, 15, 21, 28, 36]
 
 
