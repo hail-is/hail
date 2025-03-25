@@ -1096,6 +1096,8 @@ class Container:
                             stdout=container_log,
                             stderr=container_log,
                         )
+                        with open(self.log_path, 'r', encoding='utf-8') as cont_log:
+                            log.info(cont_log.read())
                     except Exception as e:
                         log.info(e)
 
