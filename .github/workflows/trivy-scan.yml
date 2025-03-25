@@ -80,16 +80,20 @@ jobs:
       - name: Run Trivy vulnerability scanner
         # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        env:
+          IMAGE_TO_SCAN: ${{ matrix.image }}
         with:
-          image-ref: ${{ matrix.image }}
+          image-ref: "${{ env.IMAGE_TO_SCAN }}"
           format: 'sarif'
           output: 'trivy-results/scan.sarif'
 
       - name: Generate human-readable report
         # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
         uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        env:
+          IMAGE_TO_SCAN: ${{ matrix.image }}
         with:
-          image-ref: ${{ matrix.image }}
+          image-ref: "${{ env.IMAGE_TO_SCAN }}"
           format: 'table'
           output: 'trivy-results/scan.txt'
 
