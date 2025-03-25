@@ -1096,8 +1096,9 @@ class Container:
                             stdout=container_log,
                             stderr=container_log,
                         )
-                        with open(self.log_path, 'r', encoding='utf-8') as cont_log:
-                            log.info(cont_log.read())
+                        with open('/var/log/nvidia-container-runtime.log', 'r', encoding='utf-8') as f:
+                            log.info("Reading Nvidia container runtime.log...")
+                            log.info(f.read())
                     except Exception as e:
                         log.info(e)
 
@@ -1134,9 +1135,6 @@ class Container:
             log.info(json.dumps(config, indent=4))
         with open('/etc/nvidia-container-runtime/config.toml', 'r', encoding='utf-8') as f:
             log.info("Reading config.toml...")
-            log.info(f.read())
-        with open('/var/log/nvidia-container-runtime.log', 'r', encoding='utf-8') as f:
-            log.info("Reading Nvidia container runtime.log...")
             log.info(f.read())
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
