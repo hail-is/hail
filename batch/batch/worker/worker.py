@@ -1130,8 +1130,11 @@ class Container:
 
         with open(f'{self.container_scratch}/config.json', 'w', encoding='utf-8') as f:
             f.write(json.dumps(config))
-            log.info("config.json successfully written for worker.")
+            log.info("config.json successfully written for worker...")
             log.info(json.dumps(config, indent=4))
+        with open('/etc/nvidia-container-runtime/config.toml', 'r', encoding='utf-8') as f:
+            log.info("Reading config.toml...")
+            log.info(f.read())
 
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
@@ -1172,15 +1175,15 @@ class Container:
                     ],
                 }
             ]
-        poststart_hook = [
-            {
-                "path": "/bin/bash",
-                "args": [
-                    "-c",
-                    "[ -f /var/log/nvidia-container-toolkit.log ] && cat var/log/nvidia-container-toolkit.log",
-                ],
-            }
-        ]
+        # poststart_hook = [
+        #     {
+        #         "path": "/bin/bash",
+        #         "args": [
+        #             "-c",
+        #             "[ -f /var/log/nvidia-container-toolkit.log ] && cat var/log/nvidia-container-toolkit.log",
+        #         ],
+        #     }
+        # ]
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
@@ -1204,7 +1207,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
-            "hooks": {"prestart": nvidia_runtime_hook, "poststart": poststart_hook},
+            "hooks": {"prestart": nvidia_runtime_hook},  # "poststart": poststart_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
