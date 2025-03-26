@@ -1090,14 +1090,17 @@ class Container:
                             'crun',
                             'run',
                             '--bundle',
+                            '--log=/var/log/crun.json',
+                            '--log-level=debug',
+                            '--log-format=json',
                             self.container_scratch,
                             self.name,
                             stdin=stdin,
                             stdout=container_log,
                             stderr=container_log,
                         )
-                        with open('/var/log/nvidia-container-runtime.log', 'r', encoding='utf-8') as f:
-                            log.info("Reading Nvidia container runtime.log...")
+                        with open('/var/log/crun.json', 'r', encoding='utf-8') as f:
+                            log.info("Reading crun log file...")
                             log.info(f.read())
                     except Exception as e:
                         log.info(e)
