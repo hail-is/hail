@@ -1088,13 +1088,13 @@ class Container:
                     try:
                         self.process = await asyncio.create_subprocess_exec(
                             'crun',
-                            'run',
                             '--log',
                             '/var/log/crun.json',
                             '--log-level',
                             'debug',
                             '--log-format',
                             'json',
+                            'run',
                             '--bundle',
                             self.container_scratch,
                             self.name,
@@ -1107,7 +1107,7 @@ class Container:
                             log.info(f.read())
                     except Exception as e:
                         log.info(e)
-
+                    log.info("Executed crun.")
                     assert self.netns
 
                     self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)
