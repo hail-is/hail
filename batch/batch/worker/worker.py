@@ -1089,11 +1089,11 @@ class Container:
                         self.process = await asyncio.create_subprocess_exec(
                             'crun',
                             '--log',
-                            '/var/log/crun.json',
-                            '--log-level',
-                            'debug',
-                            '--log-format',
-                            'json',
+                            '/var/log/crun.log',
+                            # '--log-level',
+                            # 'debug',
+                            # '--log-format',
+                            # 'json',
                             'run',
                             '--bundle',
                             self.container_scratch,
@@ -1102,7 +1102,7 @@ class Container:
                             stdout=container_log,
                             stderr=container_log,
                         )
-                        with open('/var/log/crun.json', 'r', encoding='utf-8') as f:
+                        with open('/var/log/crun.log', 'r', encoding='utf-8') as f:
                             log.info("Reading crun log file...")
                             log.info(f.read())
                     except Exception as e:
