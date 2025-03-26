@@ -1089,7 +1089,8 @@ class Container:
                         self.process = await asyncio.create_subprocess_exec(
                             'crun',
                             'run',
-                            '--log=/var/log/crun.json',
+                            '--log',
+                            '/var/log/crun.json',
                             '--log-level',
                             'debug',
                             '--log-format',
