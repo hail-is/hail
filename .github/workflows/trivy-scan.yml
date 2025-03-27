@@ -1,0 +1,177 @@
+name: Trivy Security Scan
+
+permissions:
+  security-events: write
+  # id-token: write # TODO: Add back in when we authenticate with Google Cloud Workload Identity Federation
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Comma-separated list of image names to scan (from Google Artifact Registry)'
+        required: true
+        type: string
+      branch:
+        description: 'Branch name to upload results against'
+        required: true
+        type: string
+      commit_hash:
+        description: 'Commit hash to upload results against'
+        required: true
+        type: string
+      # TODO: Add back in when we authenticate with Google Cloud Workload Identity Federation
+      # google_project_id:
+      #   description: 'Google Cloud Project ID. Must be configured with Workload Identity Federation to accept auth from this repository ID. Discover by running `gcloud projects describe <project> --format="value(projectNumber)"`'
+      #   required: true
+      #   type: string
+      # google_service_account:
+      #   description: 'Google Cloud service account name. Must be configured with Workload Identity Federation in the project.'
+      #   required: true
+      #   type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        name: Set matrix
+        env:
+          IMAGES: ${{ github.event.inputs.images }}
+        run: |
+          # Convert comma-separated list to JSON array
+          images=$(echo "$IMAGES" | jq -R -s -c 'split(",")|map(select(length>0)|gsub("\\n";""))')
+          echo "matrix=${images}" >> $GITHUB_OUTPUT
+
+  scan:
+    needs: prepare
+    name: Trivy Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    strategy:
+      matrix:
+        image: ${{ fromJson(needs.prepare.outputs.matrix) }}
+      
+    steps:
+      - name: Set up Google Cloud Auth
+        # https://github.com/google-github-actions/auth/releases/tag/v2.1.8
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935
+        with:
+          # Use secret instead of workload identity federation:
+          credentials_json: ${{ secrets.GOOGLE_GAR_CREDENTIALS }}
+          # TODO: Add back in when we authenticate with Google Cloud Workload Identity Federation:
+          # workload_identity_provider: "projects/${{ github.event.inputs.google_project_id }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+          # service_account: "${{ github.event.inputs.google_service_account }}"
+          
+      - name: Configure Google Cloud SDK
+        # https://github.com/google-github-actions/setup-gcloud/releases/tag/v2.1.4
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a
+          
+      - name: Configure Docker for GAR
+        run: |
+          gcloud auth configure-docker
+
+      - name: Create results directory
+        run: mkdir -p trivy-results
+          
+      - name: Run Trivy vulnerability scanner
+        # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        env:
+          IMAGE_TO_SCAN: ${{ matrix.image }}
+        with:
+          image-ref: "${{ env.IMAGE_TO_SCAN }}"
+          format: 'sarif'
+          output: 'trivy-results/scan.sarif'
+
+      - name: Generate human-readable report
+        # https://github.com/aquasecurity/trivy-action/releases/tag/0.30.0
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5
+        env:
+          IMAGE_TO_SCAN: ${{ matrix.image }}
+        with:
+          image-ref: "${{ env.IMAGE_TO_SCAN }}"
+          format: 'table'
+          output: 'trivy-results/scan.txt'
+
+      - name: Add image information to SARIF
+        run: |
+          # Remove version from image name so that we can track issues across versions
+          IMAGE_NAME=$(echo "${{ matrix.image }}" | cut -d ':' -f 1)
+
+          jq --arg img "${IMAGE_NAME}" '
+            .runs[0].results |= map(
+              .message.text = ("Image: " + $img + "\n" + .message.text)
+            )
+          ' trivy-results/scan.sarif > trivy-results/scan.tmp.sarif \
+          && mv trivy-results/scan.tmp.sarif trivy-results/scan.sarif
+
+      - name: Generate safe artifact name
+        id: safe-name
+        run: |
+          SAFE_NAME=$(echo "${{ matrix.image }}" | tr ':/' '__')
+          echo "name=${SAFE_NAME}" >> $GITHUB_OUTPUT
+
+
+      - name: Upload sarif scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-${{ steps.safe-name.outputs.name }}.sarif
+          path: trivy-results/scan.sarif
+
+
+      - name: Upload human readable results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan-${{ steps.safe-name.outputs.name }}.txt
+          path: trivy-results/scan.txt
+
+  upload-combined:
+    needs: scan
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+    steps:
+      - name: Create results directory
+        run: mkdir -p combined-results
+
+      - name: Download all SARIF results
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Combine SARIF files
+        run: |
+          echo "Downloaded artifacts:"
+          ls -laR all-artifacts
+
+          # Use first file as base
+          BASE_FILE=$(find all-artifacts -name "*.sarif" -type f | head -n 1)
+          echo "Using $BASE_FILE as base file"
+          cp "$BASE_FILE" combined-results/combined.sarif
+
+          # Combine the rest
+          for sarif_file in $(find all-artifacts -name "*.sarif" -type f); do
+            if [ "$sarif_file" != "$BASE_FILE" ]; then
+              echo "Combining $sarif_file"
+              jq -s '
+                if length > 1 then
+                  .[0].runs += .[1].runs | .[0]
+                else
+                  .[0]
+                end
+              ' combined-results/combined.sarif "$sarif_file" > combined-results/temp.sarif
+              mv combined-results/temp.sarif combined-results/combined.sarif
+            fi
+          done
+
+      - name: Upload combined SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: combined-results/combined.sarif
+          category: trivy-container-scan
+          ref: refs/heads/${{ github.event.inputs.branch }}
+          sha: ${{ github.event.inputs.commit_hash }}
