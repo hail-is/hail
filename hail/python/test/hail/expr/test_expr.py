@@ -4401,6 +4401,12 @@ def test_stream_randomness():
     a = a.map(lambda x: hl._stream_range(10).aggregate(lambda y: hl.agg.count() + hl.rand_int64()))
     assert_contains_node(a, ir.StreamAgg)
 
+    # test StreamAggScan
+    a = hl._stream_range(10)
+    a = a._aggregate_scan(lambda x: x + hl.rand_int64() + hl.scan.sum(x + hl.rand_int32(100)))
+    assert_contains_node(a, ir.StreamAggScan)
+    assert len(hl.eval(a.to_array())) == 10
+
     # test AggExplode
     t = hl.utils.range_table(5)
     t = t.annotate(a=hl.range(t.idx))
@@ -4554,6 +4560,18 @@ def test_struct_expr_rename_order():
 def test_local_agg():
     x = hl.literal([1, 2, 3, 4])
     assert hl.eval(x.aggregate(lambda x: hl.agg.sum(x))) == 10
+
+
+def test_local_scan():
+    x = hl._stream_range(10)
+    res = hl.eval(x._aggregate_scan(lambda x: hl.scan.sum(x)).to_array())
+    assert res == [0, 0, 1, 3, 6, 10, 15, 21, 28, 36]
+
+
+def test_cannot_aggregate_in_local_scan():
+    x = hl._stream_range(10)
+    with pytest.raises(hl.ExpressionException, match='local stream scan cannot aggregate'):
+        _ = x._aggregate_scan(lambda e: hl.agg.sum(e))
 
 
 def test_zip_join_producers():
