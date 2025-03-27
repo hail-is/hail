@@ -52,6 +52,12 @@ spec:
                 key: cloud
           - name: HAIL_SHA
             value: "{{ code.sha }}"
+          - name: SESSION_MAX_AGE_SECS
+            valueFrom:
+              secretKeyRef:
+                name: auth-oauth2-client-secret
+                key: sp_oauth_scope
+                optional: true
 {% if scope != "test" %}
           - name: HAIL_SHOULD_PROFILE
             value: "1"
