@@ -213,8 +213,6 @@ propcache==0.2.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   yarl
-protobuf==3.20.2
-    # via -r hail/python/requirements.txt
 py4j==0.10.9.7
     # via pyspark
 pyasn1==0.6.1
