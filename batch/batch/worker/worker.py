@@ -1102,9 +1102,6 @@ class Container:
                             stdout=container_log,
                             stderr=container_log,
                         )
-                        for i in range(0, 60):
-                            log.info('Sleep i% minute of 60 minutes...', i)
-                            await asyncio.sleep(60)
                     except Exception as e:
                         log.info(e)
                     log.info("Executed crun.")
@@ -1171,6 +1168,7 @@ class Container:
         nvidia_runtime_hook = []
         if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
+                {"path": "/bin/sh", "args": ["sh", "-c", "sleep 3600"]},
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
                     "args": ["nvidia-container-runtime-hook", "prestart", "-debug"],
@@ -1180,7 +1178,7 @@ class Container:
                         "NOTIFY_SOCKET=/run/systemd/notify",
                         "TMPDIR=/var/lib/docker/tmp",
                     ],
-                }
+                },
             ]
         # poststart_hook = [
         #     {
@@ -1214,7 +1212,7 @@ class Container:
                     'permitted': default_docker_capabilities,
                 },
             },
-            "hooks": {"prestart": nvidia_runtime_hook},  # "poststart": poststart_hook},
+            "hooks": {"prestart": nvidia_runtime_hook},
             'linux': {
                 'rootfsPropagation': 'slave',
                 'namespaces': [
