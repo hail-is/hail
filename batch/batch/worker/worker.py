@@ -1168,7 +1168,7 @@ class Container:
         nvidia_runtime_hook = []
         if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
-                {"path": "/bin/sh", "args": ["sh", "-c", "sleep 1"]},
+                # {"path": "/bin/sh", "args": ["sh", "-c", "sleep 1"]},
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
                     "args": ["nvidia-container-runtime-hook", "prestart", "-debug"],
@@ -1178,7 +1178,7 @@ class Container:
                         "NOTIFY_SOCKET=/run/systemd/notify",
                         "TMPDIR=/var/lib/docker/tmp",
                     ],
-                },
+                }
             ]
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
