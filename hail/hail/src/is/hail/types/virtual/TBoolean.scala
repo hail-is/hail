@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
+
 
 case object TBoolean extends Type {
   def _toPretty = "Boolean"
@@ -15,7 +15,7 @@ case object TBoolean extends Type {
 
   def parse(s: String): Annotation = s.toBoolean
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]], missingEqual)
 
   override def isIsomorphicTo(t: Type): Boolean =

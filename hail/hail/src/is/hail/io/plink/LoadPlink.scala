@@ -71,7 +71,7 @@ object LoadPlink {
       }
     }
     val variants = vs.result()
-    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering(ctx.stateManager).toOrdering))
+    (n, variants.sortBy(_.locusAlleles)(locusAllelesType.ordering.toOrdering))
   }
 
   val numericRegex =
@@ -190,7 +190,7 @@ object MatrixPLINKReader {
     val referenceGenome = params.rg.map(ctx.references)
     referenceGenome.foreach(_.validateContigRemap(params.contigRecoding))
 
-    val locusType = TLocus.schemaFromRG(params.rg)
+    val locusType = TLocus.schemaFromRG(referenceGenome)
     val locusAllelesType = TStruct(
       "locus" -> locusType,
       "alleles" -> TArray(TString),
@@ -268,7 +268,7 @@ object MatrixPLINKReader {
 
     var p = 0
     var prevEnd = 0
-    val lOrd = locusType.ordering(ctx.stateManager)
+    val lOrd = locusType.ordering
     while (p < nPartitions && prevEnd < nVariants) {
       val start = prevEnd
 
@@ -301,7 +301,7 @@ object MatrixPLINKReader {
 
     val contexts = cb.result().map(r => r: Any)
 
-    val partitioner = new RVDPartitioner(ctx.stateManager, locusAllelesType, ib.result(), 0)
+    val partitioner = new RVDPartitioner(locusAllelesType, ib.result(), 0)
 
     val fullMatrixType: MatrixType = MatrixType(
       globalType = TStruct.empty,
@@ -388,9 +388,8 @@ class MatrixPLINKReader(
     val localA2Reference = params.a2Reference
     val variantsBc = ctx.backend.broadcast(variants)
     val localNSamples = nSamples
-    val sm = ctx.stateManager
 
-    val localLocusType = TLocus.schemaFromRG(referenceGenome.map(_.name))
+    val localLocusType = TLocus.schemaFromRG(referenceGenome)
 
     val contextType = TStruct(
       "bed" -> TString,
@@ -405,7 +404,7 @@ class MatrixPLINKReader(
 
     val fullRowPType = PCanonicalStruct(
       true,
-      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome.map(_.name), true),
+      "locus" -> PCanonicalLocus.schemaFromRG(referenceGenome, true),
       "alleles" -> PCanonicalArray(PCanonicalString(true), true),
       "rsid" -> PCanonicalString(true),
       "cm_position" -> PFloat64(true),
@@ -441,7 +440,7 @@ class MatrixPLINKReader(
 
         val blockLength = (localNSamples + 3) / 4
 
-        val rvb = new RegionValueBuilder(sm, region)
+        val rvb = new RegionValueBuilder(region)
 
         val is = fs.open(bed)
         if (TaskContext.get != null) {
@@ -559,12 +558,12 @@ class MatrixPLINKReader(
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType, "PLINK file", params)
 
-  override def toJValue: JValue = {
-    implicit val formats: Formats = DefaultFormats
-    decomposeWithName(params, "MatrixPLINKReader")
-  }
 
-  def renderShort(): String = defaultRender()
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue = decomposeWithName(params, "MatrixPLINKReader")
+      override def renderShort: String = ???
+    }
 
   override def hashCode(): Int = params.hashCode()
 

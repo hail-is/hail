@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray}
-import is.hail.backend.HailStateManager
+
 import is.hail.expr.{Nat, NatBase}
 
 object TNDArray {
@@ -110,7 +110,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     case _ => false
   }
 
-  override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
+  override def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
 

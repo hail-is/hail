@@ -2,7 +2,6 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerValue}
@@ -296,12 +295,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     aoff
   }
 
-  override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering =
-    unsafeOrdering(sm, this)
+  override lazy val unsafeOrdering: UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering = {
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     val right = rightType.asInstanceOf[PContainer]
-    val eltOrd = elementType.unsafeOrdering(sm, right.elementType)
+    val eltOrd = elementType.unsafeOrdering(right.elementType)
 
     new UnsafeOrdering {
       override def compare(o1: Long, o2: Long): Int = {
@@ -372,7 +371,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     )
   }
 
-  def deepPointerCopy(sm: HailStateManager, region: Region, dstAddress: Long): Unit = {
+  def deepPointerCopy(region: Region, dstAddress: Long): Unit = {
     if (!this.elementType.containsPointers) {
       return
     }
@@ -384,21 +383,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
         val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
         val currentElementAddressFromNested =
           this.elementType.unstagedLoadFromNested(currentElementAddress)
-        this.elementType.unstagedStoreAtAddress(sm, currentElementAddress, region, this.elementType,
-          currentElementAddressFromNested, true)
+        this.elementType.unstagedStoreAtAddress(currentElementAddress, region, this.elementType, currentElementAddressFromNested, true)
       }
 
       currentIdx += 1
     }
   }
 
-  override def _copyFromAddress(
-    sm: HailStateManager,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Long = {
+  protected override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcArrayT = srcPType.asInstanceOf[PArray]
 
     if (equalModuloRequired(srcArrayT)) {
@@ -408,7 +400,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
       val len = srcArrayT.loadLength(srcAddress)
       val newAddr = allocate(region, len)
       Region.copyFrom(srcAddress, newAddr, contentsByteSize(len))
-      deepPointerCopy(sm, region, newAddr)
+      deepPointerCopy(region, newAddr)
       newAddr
     } else {
       val len = srcArrayT.loadLength(srcAddress)
@@ -420,14 +412,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
       while (i < len) {
         if (srcArrayT.isElementDefined(srcAddress, i)) {
           setElementPresent(newAddr, i)
-          elementType.unstagedStoreAtAddress(
-            sm,
-            elementOffset(newAddr, len, i),
-            region,
-            srcElementT,
-            srcArrayT.loadElement(srcAddress, len, i),
-            deepCopy,
-          )
+          elementType.unstagedStoreAtAddress(elementOffset(newAddr, len, i), region, srcElementT, srcArrayT.loadElement(srcAddress, len, i), deepCopy)
         } else
           assert(!elementType.required)
 
@@ -531,16 +516,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
   ): Unit =
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
 
-  override def unstagedStoreAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    region: Region,
-    srcPType: PType,
-    srcAddress: Long,
-    deepCopy: Boolean,
-  ): Unit = {
+  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcArray = srcPType.asInstanceOf[PArray]
-    Region.storeAddress(addr, copyFromAddress(sm, region, srcArray, srcAddress, deepCopy))
+    Region.storeAddress(addr, copyFromAddress(region, srcArray, srcAddress, deepCopy))
   }
 
   override def deepRename(t: Type): PType = deepRenameArray(t.asInstanceOf[TArray])
@@ -694,7 +672,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
 
   override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 
-  override def unstagedStoreJavaObject(sm: HailStateManager, annotation: Annotation, region: Region)
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region)
     : Long = {
     val is = annotation.asInstanceOf[IndexedSeq[Annotation]]
     val valueAddress = allocate(region, is.length)
@@ -707,7 +685,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
       if (is(i) == null) {
         setElementMissing(valueAddress, i)
       } else {
-        elementType.unstagedStoreJavaObjectAtAddress(sm, curElementAddress, is(i), region)
+        elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, is(i), region)
       }
       curElementAddress = nextElementAddress(curElementAddress)
       i += 1
@@ -716,17 +694,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
     valueAddress
   }
 
-  override def unstagedStoreJavaObjectAtAddress(
-    sm: HailStateManager,
-    addr: Long,
-    annotation: Annotation,
-    region: Region,
-  ): Unit =
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     annotation match {
       case uis: UnsafeIndexedSeq =>
-        this.unstagedStoreAtAddress(sm, addr, region, uis.t, uis.aoff, region.ne(uis.region))
+        this.unstagedStoreAtAddress(addr, region, uis.t, uis.aoff, region.ne(uis.region))
       case _: IndexedSeq[Annotation] =>
-        Region.storeAddress(addr, unstagedStoreJavaObject(sm, annotation, region))
+        Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
     }
 
   override def copiedType: PType = {
