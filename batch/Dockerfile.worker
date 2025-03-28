@@ -29,8 +29,6 @@ RUN curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | gpg --dearm
 RUN apt-get update && \
     hail-apt-get-install nvidia-container-toolkit
 
-RUN sed -i 's/#debug/debug/g' /etc/nvidia-container-runtime/config.toml
-
 {% elif global.cloud == "azure" %}
 RUN apt-get update && \
     hail-apt-get-install libreadline8
