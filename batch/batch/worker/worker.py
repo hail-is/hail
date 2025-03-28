@@ -16,7 +16,6 @@ import traceback
 import uuid
 from collections import defaultdict
 from contextlib import AsyncExitStack, ExitStack
-from time import sleep
 from typing import (
     Any,
     Awaitable,
@@ -1103,7 +1102,9 @@ class Container:
                             stdout=container_log,
                             stderr=container_log,
                         )
-                        sleep(3600)
+                        for i in range(0, 60):
+                            log.info('Sleep i% minute of 60 minutes...', i)
+                            await asyncio.sleep(60)
                     except Exception as e:
                         log.info(e)
                     log.info("Executed crun.")
