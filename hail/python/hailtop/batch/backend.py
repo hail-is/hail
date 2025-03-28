@@ -710,6 +710,20 @@ class ServiceBackend(Backend[bc.Batch]):
 
         async_batch = batch._async_batch
 
+        for job_group in batch._job_groups:
+            if job_group._async_job_group is None:
+                parent_job_group = job_group._parent_job_group
+                if parent_job_group is None:
+                    job_group._async_job_group = async_batch.create_job_group(
+                        attributes=copy.deepcopy(job_group.attributes),
+                        cancel_after_n_failures=job_group.cancel_after_n_failures
+                    )
+                else:
+                    job_group._async_job_group = parent_job_group._async_job_group.create_job_group(
+                        attributes=copy.deepcopy(job_group.attributes),
+                        cancel_after_n_failures=job_group.cancel_after_n_failures
+                    )
+
         n_jobs_submitted = 0
         used_remote_tmpdir = False
 
@@ -855,7 +869,7 @@ class ServiceBackend(Backend[bc.Batch]):
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 
-            j = async_batch.create_job(
+            j = job._job_group._create_aiobc_job(
                 image=image,
                 command=[job._shell if job._shell else DEFAULT_SHELL, '-c', cmd],
                 parents=[parent._async_job for parent in parents],  # type: ignore
