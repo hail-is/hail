@@ -42,6 +42,7 @@ def create_vm_config(
     acceleratorCount: Optional[int] = None,
     acceleratorType: Optional[str] = None,
 ) -> dict:
+    machine_type_full = machine_type
     parts = machine_type.split('+')
     if len(parts) == 3:
         machine_type, acceleratorType, count = parts
@@ -52,7 +53,7 @@ def create_vm_config(
     cores = parts.cores
 
     region = instance_config.region_for(zone)
-    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type) else ''
+    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type_full) else ''
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',

@@ -1168,7 +1168,7 @@ class Container:
         nvidia_runtime_hook = []
         if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
-                {"path": "/bin/sh", "args": ["sh", "-c", "sleep 3600"]},
+                {"path": "/bin/sh", "args": ["sh", "-c", "sleep 1"]},
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
                     "args": ["nvidia-container-runtime-hook", "prestart", "-debug"],
@@ -1180,15 +1180,6 @@ class Container:
                     ],
                 },
             ]
-        # poststart_hook = [
-        #     {
-        #         "path": "/bin/bash",
-        #         "args": [
-        #             "-c",
-        #             "[ -f /var/log/nvidia-container-toolkit.log ] && cat var/log/nvidia-container-toolkit.log",
-        #         ],
-        #     }
-        # ]
         config: Dict[str, Any] = {
             'ociVersion': '1.0.1',
             'root': {
