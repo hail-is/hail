@@ -16,6 +16,7 @@ import traceback
 import uuid
 from collections import defaultdict
 from contextlib import AsyncExitStack, ExitStack
+from time import sleep
 from typing import (
     Any,
     Awaitable,
@@ -1088,8 +1089,8 @@ class Container:
                     try:
                         self.process = await asyncio.create_subprocess_exec(
                             'crun',
-                            '--log',
-                            '/var/log/crun.log',
+                            # '--log',
+                            # '/var/log/crun.log',
                             # '--log-level',
                             # 'debug',
                             # '--log-format',
@@ -1102,9 +1103,7 @@ class Container:
                             stdout=container_log,
                             stderr=container_log,
                         )
-                        with open('/var/log/crun.log', 'r', encoding='utf-8') as f:
-                            log.info("Reading crun log file...")
-                            log.info(f.read())
+                        sleep(3600)
                     except Exception as e:
                         log.info(e)
                     log.info("Executed crun.")
