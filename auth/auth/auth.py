@@ -47,7 +47,7 @@ from web_common import (
     web_security_headers,
 )
 
-from .auth_utils import validate_credentials_secret_name_input
+from .auth_utils import is_valid_username, validate_credentials_secret_name_input
 from .exceptions import (
     AuthUserError,
     DuplicateLoginID,
@@ -129,7 +129,7 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
-    if not username or not all(c for c in username if c.isalnum()):
+    if not is_valid_username(username):
         raise InvalidUsername(username)
 
     existing_users = await users_with_username_or_login_id(tx, username, login_id)
