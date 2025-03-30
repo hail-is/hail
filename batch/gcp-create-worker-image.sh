@@ -5,7 +5,6 @@ set -e
 cd "$(dirname "$0")"
 source ../devbin/functions.sh
 
-
 if [ -z "${NAMESPACE}" ]; then
     echo "Must specify a NAMESPACE environment variable"
     exit 1;

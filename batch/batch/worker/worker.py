@@ -1095,6 +1095,9 @@ class Container:
         config = await self.container_config()
         self._validate_container_config(config)
 
+        with open(f'{self.container_scratch}/config.json', 'w', encoding='utf-8') as f:
+            f.write(json.dumps(config))
+
     # https://github.com/opencontainers/runtime-spec/blob/master/config.md
     async def container_config(self):
         assert self.image.image_config
@@ -1123,10 +1126,9 @@ class Container:
         nvidia_runtime_hook = []
         if is_gpu(INSTANCE_CONFIG["machine_type"]):
             nvidia_runtime_hook = [
-                # {"path": "/bin/sh", "args": ["sh", "-c", "sleep 1"]},
                 {
                     "path": "/usr/bin/nvidia-container-runtime-hook",
-                    "args": ["nvidia-container-runtime-hook", "prestart", "-debug"],
+                    "args": ["nvidia-container-runtime-hook", "prestart"],
                     "env": [
                         "LANG=C.UTF-8",
                         "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin",
