@@ -5,7 +5,6 @@ set -e
 cd "$(dirname "$0")"
 source ../devbin/functions.sh
 
-NAMESPACE="grohlice"
 
 if [ -z "${NAMESPACE}" ]; then
     echo "Must specify a NAMESPACE environment variable"
@@ -16,7 +15,7 @@ PROJECT=$(get_global_config_field gcp_project $NAMESPACE)
 ZONE=$(get_global_config_field gcp_zone $NAMESPACE)
 DOCKER_ROOT_IMAGE=$(get_global_config_field docker_root_image $NAMESPACE)
 
-WORKER_IMAGE_VERSION=99
+WORKER_IMAGE_VERSION=15
 
 if [ "$NAMESPACE" == "default" ]; then
     WORKER_IMAGE=batch-worker-${WORKER_IMAGE_VERSION}
@@ -26,7 +25,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20250304
+UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20230726
 
 create_build_image_instance() {
     echo "Deleting any preexisting $BUILDER instance. This is expected to print an ERROR if the image does not exist."
