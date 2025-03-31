@@ -149,3 +149,23 @@ def test_attach_to_existing_batch():
     b = batch_client.get_batch(batch_id)
     status = b.status()
     assert status['n_jobs'] > 0, str(b.debug_info())
+
+
+@pytest.fixture
+def run_in_batch(request):
+    batch_id = os.getenv('HAIL_BATCH_ID')
+    skipif = pytest.mark.skipif(batch_id is None, reason='Must be run in batch')
+    request.node.add_marker(skipif)
+
+
+@pytest.mark.backend('batch')
+@pytest.mark.usefixtures('run_in_batch')
+def test_attach_to_current_batch():
+    current_batch_id = int(os.getenv('HAIL_BATCH_ID'))
+    hl.stop()
+    hl.init(backend='batch', batch_id=current_batch_id)
+    hl.utils.range_table(2)._force_count()
+
+    backend = hl.current_backend()
+    assert isinstance(backend, hl.backend.service_backend.ServiceBackend)
+    assert backend._batch.id == current_batch_id
