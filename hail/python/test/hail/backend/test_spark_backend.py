@@ -10,10 +10,10 @@ def fatal(typ: hl.HailType, msg: str = "") -> hl.Expression:
     return hl.construct_expr(hl.ir.Die(hl.to_expr(msg, hl.tstr)._ir, typ), typ)
 
 
-@skip_unless_spark_backend()
+@pytest.mark.uninitialized
+@pytest.mark.backend('spark')
 @pytest.mark.parametrize('copy', [True, False])
 def test_copy_spark_log(copy):
-    hl.stop()
     hl.init(copy_spark_log_on_error=copy)
 
     expr = fatal(hl.tint32)
