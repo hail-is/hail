@@ -1073,9 +1073,10 @@ class Container:
                     self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)
                     assert self.monitor
                     async with self.monitor:
-                        if self.stdin is not None:
+                        if self.stdin is not None and self.process is not None:
                             await self.process.communicate(self.stdin.encode('utf-8'))
-                        await self.process.wait()
+                        if self.process is not None:
+                            await self.process.wait()
         except asyncio.TimeoutError:
             return True
         finally:
