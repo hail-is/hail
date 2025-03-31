@@ -1062,17 +1062,15 @@ steps:
       export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
       python3 -m pytest \
-              -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
+              -Werror:::hail -Werror::ResourceWarning \
               --log-cli-level=INFO \
               -s \
               -r A \
               -vv \
               --instafail \
               --durations=50 \
-              --ignore=test/hailtop/batch/ \
-              --ignore=test/hailtop/inter_cloud \
               --timeout=120 \
-              test
+              test/hail
     inputs:
       - from: /derived/debug/hail/build/deploy/dist
         to: /io/debug-wheel
@@ -1096,7 +1094,7 @@ steps:
     clouds:
       - gcp
   - kind: runImage
-    name: test_hail_python_fs
+    name: test_hailtop_python_fs
     numSplits: 5
     image:
       valueFrom: hailgenetics_hailtop_image.image
@@ -3025,7 +3023,7 @@ steps:
       - hail_dev_image
       - create_ci_test_repo
   - kind: runImage
-    name: test_hailtop_batch
+    name: test_hailtop_python
     resources:
       memory: standard
       cpu: '0.25'
@@ -3033,22 +3031,28 @@ steps:
     image:
       valueFrom: hail_dev_image.image
     script: |
-      cd /io/hailtop
+      cd /io
       set -ex
-      export HAIL_CLOUD={{ global.cloud }}
-      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      
+      tar xzf test.tar.gz
+      python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
+            
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
+      export HAIL_CLOUD={{ global.cloud }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_GENETICS_HAIL_IMAGE="{{ hailgenetics_hail_image.image }}"
       export HAIL_GENETICS_HAILTOP_IMAGE="{{ hailgenetics_hailtop_image.image }}"
+      export HAIL_TEST_STORAGE_URI={{ global.test_storage_uri }}/{{ token }}
 
       {% if global.cloud == 'gcp' %}
       export GCS_REQUESTER_PAYS_PROJECT={{ global.gcp_project }}
       {% endif %}
 
       hailctl config set batch/billing_project test
-      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_batch/{{ token }}/
+      hailctl config set batch/remote_tmpdir {{ global.test_storage_uri }}/test_hailtop_python/{{ token }}/
 
       python3 -m pytest \
               -Werror:::hail -Werror:::hailtop -Werror::ResourceWarning \
@@ -3059,14 +3063,13 @@ steps:
               --instafail \
               --durations=50 \
               --timeout=360 \
-              /io/test/hailtop/batch/
+              --ignore=test/hailtop/inter_cloud \
+              test/hailtop
     inputs:
-      - from: /repo/hail/python/pytest.ini
-        to: /io/pytest.ini
-      - from: /repo/hail/python/test
-        to: /io/test
-      - from: /repo/hail/python/hailtop
-        to: /io/hailtop
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+      - from: /derived/debug/hail/build/deploy/dist
+        to: /io/debug-wheel
     timeout: 1200
     secrets:
       - name: test-gsa-key
@@ -3079,8 +3082,8 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - merge_code
       - hail_dev_image
+      - hail_debug_wheel
       - deploy_batch
   - kind: runImage
     name: test_hailctl_batch
@@ -3484,6 +3487,8 @@ steps:
       - build_hail_jar_and_wheel
       - build_azure_wheel
       - test_hail_java
+      - test_hail_python
+      - test_hailtop_python
       - test_hail_python_local_backend
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
@@ -3833,7 +3838,7 @@ steps:
       - deploy_batch
       - test_batch
       - test_ci
-      - test_hailtop_batch
+      - test_hailtop_python
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - test_hail_services_java
@@ -3882,7 +3887,7 @@ steps:
       - deploy_batch
       - test_batch
       - test_ci
-      - test_hailtop_batch
+      - test_hailtop_python
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
@@ -3929,7 +3934,7 @@ steps:
       - test_batch_invariants
       - test_batch
       - test_ci
-      - test_hailtop_batch
+      - test_hailtop_python
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches
@@ -3979,7 +3984,7 @@ steps:
       - test_batch_invariants
       - test_batch
       - test_ci
-      - test_hailtop_batch
+      - test_hailtop_python
       - test_hail_python_service_backend_gcp
       - test_hail_python_service_backend_azure
       - cancel_all_running_test_batches

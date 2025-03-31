@@ -37,7 +37,7 @@ def test_init_hail_context_twice():
     hl_init_for_test(idempotent=True)  # Should be no error
 
     if isinstance(Env.backend(), SparkBackend):
-        hl_init_for_test(hl.spark_context(), idempotent=True)  # Should be no error
+        hl_init_for_test(sc=hl.spark_context(), idempotent=True)  # Should be no error
 
 
 @qobtest
