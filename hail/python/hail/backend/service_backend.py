@@ -245,24 +245,22 @@ class ServiceBackend(Backend):
                 flags['gcs_requester_pays_project'] = gcs_requester_pays_configuration[0]
                 flags['gcs_requester_pays_buckets'] = ','.join(gcs_requester_pays_configuration[1])
 
-        if batch_id is not None:
-            batch = await batch_client.get_batch(batch_id)
-        else:
-            batch = None
-
         sb = ServiceBackend(
             billing_project=billing_project,
             sync_fs=sync_fs,
             async_fs=async_fs,
             batch_client=batch_client,
+            batch=(
+                (await batch_client.get_batch(batch_id))
+                if batch_id is not None
+                else batch_client.create_batch(attributes=batch_attributes)
+            ),
             disable_progress_bar=disable_progress_bar,
-            batch_attributes=batch_attributes,
             remote_tmpdir=remote_tmpdir,
             driver_cores=driver_cores,
             driver_memory=driver_memory,
             worker_cores=worker_cores,
             worker_memory=worker_memory,
-            batch=batch,
             regions=regions,
             async_exit_stack=async_exit_stack,
         )
@@ -276,14 +274,13 @@ class ServiceBackend(Backend):
         sync_fs: FS,
         async_fs: RouterAsyncFS,
         batch_client: BatchClient,
+        batch: Batch,
         disable_progress_bar: bool,
-        batch_attributes: Dict[str, str],
         remote_tmpdir: str,
         driver_cores: Optional[Union[int, str]],
         driver_memory: Optional[str],
         worker_cores: Optional[Union[int, str]],
         worker_memory: Optional[str],
-        batch: Optional[Batch],
         regions: List[str],
         async_exit_stack: AsyncExitStack,
     ):
@@ -292,9 +289,9 @@ class ServiceBackend(Backend):
         self._sync_fs = sync_fs
         self._async_fs = async_fs
         self._batch_client = batch_client
+        self._batch = batch
         self._job_group_was_submitted: bool = False
         self.disable_progress_bar = disable_progress_bar
-        self.batch_attributes = batch_attributes
         self.remote_tmpdir = remote_tmpdir
         self.flags: Dict[str, str] = {}
         self.functions: List[IRFunction] = []
@@ -304,13 +301,8 @@ class ServiceBackend(Backend):
         self.worker_cores = worker_cores
         self.worker_memory = worker_memory
         self.regions = regions
-
-        self._batch: Batch = self._create_batch() if batch is None else batch
         self._job_group: Optional[JobGroup] = None
         self._async_exit_stack = async_exit_stack
-
-    def _create_batch(self) -> Batch:
-        return self._batch_client.create_batch(attributes=self.batch_attributes)
 
     def validate_file(self, uri: str) -> None:
         async_to_blocking(validate_file(uri, self._async_fs, validate_scheme=True))
@@ -319,7 +311,7 @@ class ServiceBackend(Backend):
         return {
             'jar_spec': self.jar_spec,
             'billing_project': self.billing_project,
-            'batch_attributes': self.batch_attributes,
+            'batch_attributes': self._batch.attributes,
             'remote_tmpdir': self.remote_tmpdir,
             'flags': self.flags,
             'driver_cores': self.driver_cores,
@@ -388,8 +380,7 @@ class ServiceBackend(Backend):
                     resources['storage'] = service_backend_config.storage
 
                 self._job_group = self._batch.create_job_group(attributes={'name': name})
-
-                j = self._batch.create_jvm_job(
+                self._batch.create_jvm_job(
                     jar_spec=self.jar_spec,
                     argv=[
                         ServiceBackend.DRIVER,
@@ -413,7 +404,7 @@ class ServiceBackend(Backend):
                     await self._job_group.wait(
                         description=name,
                         disable_progress_bar=self.disable_progress_bar,
-                        progress=progress
+                        progress=progress,
                     )
                 except KeyboardInterrupt:
                     raise
