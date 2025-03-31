@@ -1,12 +1,14 @@
 import asyncio
 import os
 
+import pytest
+
 import hail as hl
 from hailtop.aiocloud.aioazure import AzureAsyncFS
 from hailtop.test_utils import run_if_azure, skip_in_azure
 from hailtop.utils import secret_alnum_string
 
-from ..helpers import fails_local_backend, hl_init_for_test, hl_stop_for_test, resource, test_timeout
+from ..helpers import fails_local_backend, hl_init_for_test, resource, test_timeout
 
 
 @skip_in_azure
@@ -34,8 +36,8 @@ def test_requester_pays_write_no_settings():
 
 
 @skip_in_azure
+@pytest.mark.uninitialized
 def test_requester_pays_write_with_project():
-    hl_stop_for_test()
     hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
     random_filename = 'gs://hail-test-requester-pays-fds32/test_requester_pays_on_worker_driver_' + secret_alnum_string(
         10
@@ -47,45 +49,43 @@ def test_requester_pays_write_with_project():
 
 
 @skip_in_azure
+@pytest.mark.uninitialized
 @test_timeout(local=5 * 60, batch=5 * 60)
-def test_requester_pays_with_project():
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
-        hl.Struct(f0='hello')
-    ]
-
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
-        hl.Struct(f0='hello')
-    ]
-
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
-    assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
-        hl.Struct(f0='hello')
-    ]
-
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
-    try:
-        hl.import_table('gs://hail-test-requester-pays-fds32/hello')
-    except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
-    else:
-        assert False
-
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
+@pytest.mark.parametrize(
+    'requester_pays',
+    [
+        'hail-vdc',
+        ('hail-vdc', ['hail-test-requester-pays-fds32']),
+        ('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']),
+    ],
+)
+def test_requester_pays_with_project(requester_pays):
+    hl_init_for_test(gcs_requester_pays_configuration=requester_pays)
     assert hl.import_table('gs://hail-test-requester-pays-fds32/hello', no_header=True).collect() == [
         hl.Struct(f0='hello')
     ]
 
 
 @skip_in_azure
+@pytest.mark.uninitialized
+def test_requester_pays_no_project():
+    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
+    with pytest.raises(Exception, match='Bucket is a requester pays bucket but no user project provided'):
+        hl.import_table('gs://hail-test-requester-pays-fds32/hello')
+
+
+@skip_in_azure
+@pytest.mark.uninitialized
 @test_timeout(local=5 * 60, batch=5 * 60)
-def test_requester_pays_with_project_more_than_one_partition():
+@pytest.mark.parametrize(
+    'requester_pays',
+    [
+        'hail-vdc',
+        ('hail-vdc', ['hail-test-requester-pays-fds32']),
+        ('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']),
+    ],
+)
+def test_requester_pays_with_project_more_than_one_partition(requester_pays):
     # NB: this test uses a file with more rows than partitions because Hadoop's Seekable input
     # streams do not permit seeking past the end of the input (ref:
     # https://hadoop.apache.org/docs/stable/api/org/apache/hadoop/fs/Seekable.html#seek-long-).
@@ -108,42 +108,20 @@ def test_requester_pays_with_project_more_than_one_partition():
         hl.Struct(f0='9'),
     ]
 
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
+    hl_init_for_test(gcs_requester_pays_configuration=requester_pays)
     assert (
         hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
         == expected_file_contents
     )
 
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32']))
-    assert (
-        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
-        == expected_file_contents
-    )
 
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['hail-test-requester-pays-fds32', 'other-bucket']))
-    assert (
-        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
-        == expected_file_contents
-    )
-
-    hl_stop_for_test()
+@skip_in_azure
+@pytest.mark.uninitialized
+@test_timeout(local=5 * 60, batch=5 * 60)
+def test_requester_pays_with_project_more_than_one_partition_no_project():
     hl_init_for_test(gcs_requester_pays_configuration=('hail-vdc', ['other-bucket']))
-    try:
+    with pytest.raises(Exception, match='Bucket is a requester pays bucket but no user project provided'):
         hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', min_partitions=8)
-    except Exception as exc:
-        assert "Bucket is a requester pays bucket but no user project provided" in str(exc)
-    else:
-        assert False
-
-    hl_stop_for_test()
-    hl_init_for_test(gcs_requester_pays_configuration='hail-vdc')
-    assert (
-        hl.import_table('gs://hail-test-requester-pays-fds32/zero-to-nine', no_header=True, min_partitions=8).collect()
-        == expected_file_contents
-    )
 
 
 @run_if_azure
