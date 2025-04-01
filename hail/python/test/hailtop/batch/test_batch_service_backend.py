@@ -801,3 +801,47 @@ async def test_validate_cloud_storage_policy(service_backend: ServiceBackend, mo
     arg = [fake_bucket1]
     ServiceBackend(remote_tmpdir=fake_uri1, gcs_bucket_allow_list=arg)
     await _test_raises_no_bucket_error(fake_uri2, arg)
+
+
+def test_job_groups(service_backend: ServiceBackend):
+    b = batch(service_backend)
+    jg_py = b.create_job_group()
+    jg_bash = b.create_job_group()
+
+    def add(x: int, y: int) -> int:
+        return x + y
+
+    py_j = jg_py.new_python_job()
+    py_j.call(add, 1, 2)
+    py_j.cpu(1)
+
+    bash_j = jg_bash.new_bash_job()
+    bash_j.command('true')
+    bash_j.cpu(1)
+
+    nested_jg = jg_bash.create_job_group()
+    nested_j = nested_jg.new_bash_job()
+    nested_j.command('true')
+
+    empty_jg = b.create_job_group()
+
+    res = b.run()
+    assert res
+
+    res_status = res.status()
+    assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    job_groups = list(res.job_groups())
+    assert len(job_groups) == 4
+
+    # Append new empty job group to batch
+    b.create_job_group()
+
+    res = b.run()
+    assert res
+
+    res_status = res.status()
+    assert res_status['state'] == 'success', str((res_status, res.debug_info()))
+
+    job_groups = list(res.job_groups())
+    assert len(job_groups) == 5
