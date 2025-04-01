@@ -1,0 +1,488 @@
+openapi: "3.1.0"
+info:
+  title: Hail CI Service
+  version: "{{ spec_version }}"
+  description: Continuous Integration service for Hail
+  contact:
+    email: hail-team@broadinstitute.org
+    url: https://www.hail.is/gethelp.html
+  license:
+    name: MIT License
+    url: https://github.com/hail-is/hail/blob/main/LICENSE
+
+servers:
+  - url: "{{ base_url }}"
+    description: "Current CI service."
+
+tags:
+  - name: Builds
+    description: "Endpoints for managing CI builds"
+  - name: Deployments
+    description: "Endpoints for managing deployments"
+  - name: Namespaces
+    description: "Endpoints for managing namespaces and services"
+  - name: GitHub Integration
+    description: "Endpoints for GitHub webhook integration"
+  - name: Documentation
+    description: "Endpoints for API documentation"
+
+components:
+  schemas:
+    BuildStatus:
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Build identifier"
+        status:
+          type: string
+          enum: [pending, running, success, failure, error]
+          description: "Current status of the build"
+        start_time:
+          type: string
+          format: date-time
+          description: "Build start time"
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: "Build end time"
+        source:
+          type: object
+          properties:
+            branch:
+              type: string
+              description: "Git branch name"
+            sha:
+              type: string
+              description: "Git commit SHA"
+            repo:
+              type: string
+              description: "Git repository name"
+
+    BuildList:
+      type: array
+      items:
+        $ref: '#/components/schemas/BuildStatus'
+
+    DeployStatus:
+      type: object
+      properties:
+        branch:
+          type: string
+          description: "Branch name"
+        sha:
+          type: string
+          description: "Git commit SHA"
+        deploy_batch_id:
+          type: integer
+          nullable: true
+          description: "ID of the deployment batch"
+        deploy_state:
+          type: string
+          enum: [success, failure, running]
+          description: "Current state of the deployment"
+        repo:
+          type: string
+          description: "Repository name"
+        failure_information:
+          type: array
+          nullable: true
+          description: "Information about deployment failures"
+          items:
+            type: object
+
+    DevDeployRequest:
+      type: object
+      required:
+        - branch
+        - steps
+        - excluded_steps
+      properties:
+        branch:
+          type: string
+          description: "Branch to deploy"
+        steps:
+          type: array
+          description: "Steps to execute"
+          items:
+            type: string
+        excluded_steps:
+          type: array
+          description: "Steps to exclude"
+          items:
+            type: string
+        extra_config:
+          type: object
+          description: "Additional configuration"
+          additionalProperties: true
+
+    DevDeployResponse:
+      type: object
+      properties:
+        sha:
+          type: string
+          description: "Git commit SHA"
+        batch_id:
+          type: integer
+          description: "Batch ID for the deployment"
+
+    NamespaceInfo:
+      type: object
+      properties:
+        namespace:
+          type: string
+          description: "Namespace identifier"
+        services:
+          type: object
+          description: "Map of services and their rate limits"
+          additionalProperties:
+            type: integer
+            nullable: true
+
+    EnvoyConfig:
+      type: object
+      properties:
+        cds:
+          type: object
+          description: "Cluster Discovery Service configuration"
+        rds:
+          type: object
+          description: "Route Discovery Service configuration"
+
+  securitySchemes:
+    developerAuth:
+      type: http
+      scheme: bearer
+      description: Developer authentication token
+
+paths:
+  /api/v1alpha/deploy_status:
+    get:
+      summary: Get deployment status
+      description: Get status of all branch deployments
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: Deployment status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeployStatus'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/update:
+    post:
+      summary: Trigger update
+      description: Trigger an update of all watched branches
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: Update triggered successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/dev_deploy_branch:
+    post:
+      summary: Deploy branch for development
+      description: Create a development deployment for a specific branch
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevDeployRequest'
+      responses:
+        '200':
+          description: Development deployment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DevDeployResponse'
+        '400':
+          description: Invalid request parameters
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/batch_callback:
+    post:
+      summary: Batch callback
+      description: Callback endpoint for batch operations
+      tags: [Builds]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Callback processed successfully
+
+  /api/v1alpha/builds:
+    get:
+      summary: List builds
+      description: Get a list of CI builds
+      tags: [Builds]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          description: Maximum number of builds to return
+          schema:
+            type: integer
+            default: 50
+        - name: status
+          in: query
+          description: Filter builds by status
+          schema:
+            type: string
+            enum: [pending, running, success, failure, error]
+      responses:
+        '200':
+          description: List of builds retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildList'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/builds/{build_id}:
+    get:
+      summary: Get build details
+      description: Get detailed information about a specific build
+      tags: [Builds]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: build_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Build details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildStatus'
+        '404':
+          description: Build not found
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /github_callback:
+    post:
+      summary: GitHub webhook callback
+      description: Callback endpoint for GitHub events
+      tags: [GitHub Integration]
+      responses:
+        '200':
+          description: GitHub event processed successfully
+
+  /envoy-config/{proxy}:
+    get:
+      summary: Get Envoy configuration
+      description: Get Envoy proxy configuration for gateway or internal-gateway
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: proxy
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [gateway, internal-gateway]
+          description: Proxy type
+      responses:
+        '200':
+          description: Envoy configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cds:
+                    type: object
+                    description: Cluster Discovery Service configuration
+                  rds:
+                    type: object
+                    description: Route Discovery Service configuration
+        '400':
+          description: Invalid proxy specified
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /freeze_merge_deploy:
+    post:
+      summary: Freeze merges and deploys
+      description: Freeze all merges and deployments
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: Successfully froze merges and deploys
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /unfreeze_merge_deploy:
+    post:
+      summary: Unfreeze merges and deploys
+      description: Unfreeze all merges and deployments
+      tags: [Deployments]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: Successfully unfroze merges and deploys
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /namespaces:
+    get:
+      summary: List namespaces
+      description: Get a list of active namespaces and their services
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: List of namespaces retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NamespaceInfo'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /namespaces/{namespace}/services/add:
+    post:
+      summary: Add service to namespace
+      description: Add a new service to a namespace
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Namespace identifier
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                service:
+                  type: string
+                  description: Service name to add
+      responses:
+        '200':
+          description: Service added successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /namespaces/{namespace}/services/{service}/edit:
+    post:
+      summary: Edit service in namespace
+      description: Edit service configuration in a namespace
+      tags: [Namespaces]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: namespace
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Namespace identifier
+        - name: service
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Service name
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                rate_limit:
+                  type: integer
+                  nullable: true
+                  description: Rate limit in requests per second
+      responses:
+        '200':
+          description: Service updated successfully
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /swagger:
+    get:
+      summary: API Documentation UI
+      description: Interactive UI for exploring and testing the API
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Swagger UI HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /openapi.yaml:
+    get:
+      summary: OpenAPI Specification
+      description: Raw OpenAPI specification in YAML format
+      tags: [Documentation]
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            text/yaml:
+              schema:
+                type: string 

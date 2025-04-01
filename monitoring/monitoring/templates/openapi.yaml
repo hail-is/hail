@@ -1,0 +1,165 @@
+openapi: "3.1.0"
+info:
+  title: Hail Monitoring Service
+  version: "{{ spec_version }}"
+  description: Monitoring and billing service for Hail
+  contact:
+    email: hail-team@broadinstitute.org
+    url: https://www.hail.is/gethelp.html
+  license:
+    name: MIT License
+    url: https://github.com/hail-is/hail/blob/main/LICENSE
+
+servers:
+  - url: "{{ base_url }}"
+    description: "Current Monitoring service."
+
+tags:
+  - name: Billing
+    description: "Endpoints for billing information and cost tracking"
+  - name: Documentation
+    description: "Endpoints for API documentation"
+
+components:
+  schemas:
+    CostByService:
+      type: object
+      properties:
+        service:
+          type: string
+          description: "Name of the service"
+        cost:
+          type: string
+          description: "Cost in dollars"
+          example: "$123.45"
+
+    ComputeCostBreakdown:
+      type: object
+      properties:
+        source:
+          type: string
+          description: "Source of the compute cost"
+          example: "batch-production"
+        cost:
+          type: string
+          description: "Cost in dollars"
+          example: "$123.45"
+
+    CostBySKUSource:
+      type: object
+      properties:
+        service_id:
+          type: string
+          description: "Service identifier"
+        service_description:
+          type: string
+          description: "Service description"
+        sku_id:
+          type: string
+          description: "SKU identifier"
+        sku_description:
+          type: string
+          description: "SKU description"
+        source:
+          type: string
+          description: "Source of the cost"
+          nullable: true
+        cost:
+          type: string
+          description: "Cost in dollars"
+          example: "$123.45"
+
+    BillingResponse:
+      type: object
+      properties:
+        cost_by_service:
+          type: array
+          description: "Costs broken down by service"
+          items:
+            $ref: '#/components/schemas/CostByService'
+        compute_cost_breakdown:
+          type: array
+          description: "Compute costs broken down by source"
+          items:
+            $ref: '#/components/schemas/ComputeCostBreakdown'
+        cost_by_sku_label:
+          type: array
+          description: "Costs broken down by SKU and source"
+          items:
+            $ref: '#/components/schemas/CostBySKUSource'
+        time_period_query:
+          type: string
+          description: "Time period for the billing data"
+          example: "07/2023"
+
+  securitySchemes:
+    developerAuth:
+      type: http
+      scheme: bearer
+      description: Developer authentication token
+
+paths:
+  /api/v1alpha/billing:
+    get:
+      summary: Get billing information
+      description: Retrieve billing information for a specific time period
+      tags: [Billing]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: time_period
+          in: query
+          description: Time period in MM/YYYY format
+          schema:
+            type: string
+            pattern: "^(0[1-9]|1[0-2])/[0-9]{4}$"
+            example: "07/2023"
+      responses:
+        '200':
+          description: Billing information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+  /billing:
+    get:
+      summary: Get billing information
+      description: Retrieve billing information for a specific time period
+      tags: [Billing]
+      responses:
+        '200':
+          description: Billing information retrieved successfully
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /swagger:
+    get:
+      summary: API Documentation UI
+      description: Interactive UI for exploring and testing the API
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Swagger UI HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /openapi.yaml:
+    get:
+      summary: OpenAPI Specification
+      description: Raw OpenAPI specification in YAML format
+      tags: [Documentation]
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            text/yaml:
+              schema:
+                type: string 
