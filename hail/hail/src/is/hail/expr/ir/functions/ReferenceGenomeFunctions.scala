@@ -2,7 +2,7 @@ package is.hail.expr.ir.functions
 
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.ir.defs.{ErrorIDs, If, NA}
+import is.hail.expr.ir.defs.{If, NA}
 import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.concrete.SJavaString
 import is.hail.types.physical.stypes.interfaces._
@@ -92,21 +92,9 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
       typeParameters = Array(LocusFunctions.tlocus("R")),
     ) {
       case (tl, Seq(contig, pos, before, after), _) =>
-        val getRef = IRFunctionRegistry.lookupUnseeded(
-          name = "getReferenceSequenceFromValidLocus",
-          returnType = TString,
-          typeParameters = tl,
-          arguments = Seq(TString, TInt32, TInt32, TInt32),
-        ).get
-        val isValid = IRFunctionRegistry.lookupUnseeded(
-          "isValidLocus",
-          TBoolean,
-          typeParameters = tl,
-          Seq(TString, TInt32),
-        ).get
-
-        val r = isValid(tl, Seq(contig, pos), ErrorIDs.NO_ERROR)
-        val p = getRef(tl, Seq(contig, pos, before, after), ErrorIDs.NO_ERROR)
+        val r = invoke("isValidLocus", TBoolean, tl, contig, pos)
+        val p =
+          invoke("getReferenceSequenceFromValidLocus", TString, tl, contig, pos, before, after)
         If(r, p, NA(TString))
     }
   }

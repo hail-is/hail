@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.asm4s._
-import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, ErrorIDs, I32, In}
+import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I32, In}
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
@@ -51,15 +51,10 @@ class FunctionSuite extends HailSuite {
 
   TestRegisterFunctions.registerAll()
 
-  def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR = {
-    val l = IRFunctionRegistry.lookupUnseeded(meth, rt, types).get
-    l(Seq(), irs, ErrorIDs.NO_ERROR)
-  }
-
   @Test
   def testCodeFunction(): Unit =
     assertEvalsTo(
-      lookup("triangle", TInt32, TInt32)(In(0, TInt32)),
+      invoke("triangle", TInt32, In(0, TInt32)),
       FastSeq(5 -> TInt32),
       (5 * (5 + 1)) / 2,
     )
@@ -67,22 +62,22 @@ class FunctionSuite extends HailSuite {
   @Test
   def testStaticFunction(): Unit =
     assertEvalsTo(
-      lookup("compare", TInt32, TInt32, TInt32)(In(0, TInt32), I32(0)) > 0,
+      invoke("compare", TInt32, In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
       true,
     )
 
   @Test
   def testScalaFunction(): Unit =
-    assertEvalsTo(lookup("foobar1", TInt32)(), 1)
+    assertEvalsTo(invoke("foobar1", TInt32), 1)
 
   @Test
   def testIRConversion(): Unit =
-    assertEvalsTo(lookup("addone", TInt32, TInt32)(In(0, TInt32)), FastSeq(5 -> TInt32), 6)
+    assertEvalsTo(invoke("addone", TInt32, In(0, TInt32)), FastSeq(5 -> TInt32), 6)
 
   @Test
   def testScalaFunctionCompanion(): Unit =
-    assertEvalsTo(lookup("foobar2", TInt32)(), 2)
+    assertEvalsTo(invoke("foobar2", TInt32), 2)
 
   @Test
   def testVariableUnification(): Unit = {
@@ -111,7 +106,7 @@ class FunctionSuite extends HailSuite {
   @Test
   def testUnphasedDiploidGtIndexCall(): Unit =
     assertEvalsTo(
-      lookup("UnphasedDiploidGtIndexCall", TCall, TInt32)(In(0, TInt32)),
+      invoke("UnphasedDiploidGtIndexCall", TCall, In(0, TInt32)),
       FastSeq(0 -> TInt32),
       Call2.fromUnphasedDiploidGtIndex(0),
     )
