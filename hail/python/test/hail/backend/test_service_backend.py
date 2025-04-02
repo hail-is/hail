@@ -8,7 +8,7 @@ import pytest
 
 import hail as hl
 from hail.backend.service_backend import ServiceBackend
-from hailtop.batch_client.client import Batch, Job, JobGroup
+from hailtop.batch_client.client import Batch, BatchClient, Job, JobGroup
 
 
 @dataclass
@@ -129,3 +129,43 @@ def test_driver_and_worker_job_groups():
     assert len(worker_jobs) == n_partitions
     for i, partition in enumerate(worker_jobs):
         assert partition['name'] == f'execute(...)_stage0_table_force_count_job{i}'
+
+
+@pytest.mark.backend('batch')
+def test_attach_to_existing_batch():
+    backend = hl.current_backend()
+    assert isinstance(backend, ServiceBackend)
+
+    batch_client = BatchClient.from_async(backend._batch_client)
+    b = batch_client.create_batch()
+    b.submit()
+    batch_id = b.id
+
+    hl.stop()
+    hl.init(backend='batch', batch_id=batch_id)
+
+    hl.utils.range_table(2)._force_count()
+
+    b = batch_client.get_batch(batch_id)
+    status = b.status()
+    assert status['n_jobs'] > 0, str(b.debug_info())
+
+
+@pytest.fixture
+def run_in_batch(request):
+    batch_id = os.getenv('HAIL_BATCH_ID')
+    skipif = pytest.mark.skipif(batch_id is None, reason='Must be run in batch')
+    request.node.add_marker(skipif)
+
+
+@pytest.mark.backend('batch')
+@pytest.mark.usefixtures('run_in_batch')
+def test_attach_to_current_batch():
+    current_batch_id = int(os.getenv('HAIL_BATCH_ID'))
+    hl.stop()
+    hl.init(backend='batch', batch_id=current_batch_id)
+    hl.utils.range_table(2)._force_count()
+
+    backend = hl.current_backend()
+    assert isinstance(backend, hl.backend.service_backend.ServiceBackend)
+    assert backend._batch.id == current_batch_id
