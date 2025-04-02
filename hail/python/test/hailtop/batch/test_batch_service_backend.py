@@ -510,6 +510,21 @@ def test_specify_job_region(service_backend: ServiceBackend):
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
 
+def test_use_default_region_when_not_specifying_any_regions(service_backend: ServiceBackend):
+    b = batch(service_backend)
+    j = b.new_job('region')
+    default_region = service_backend.default_region()
+    j.regions()
+    j.command('true')
+    assert b._regions == [default_region], str(b._regions)
+    assert j._regions == [default_region], str(j._regions)
+    res = b.run()
+    assert res
+    res_status = res.status()
+    job_status = res.get_job(1).status()
+    assert job_status['status']['region'] == default_region, str((job_status, res.debug_info()))
+
+
 def test_job_regions_controls_job_execution_region(service_backend: ServiceBackend):
     the_region = service_backend.supported_regions()[0]
 
