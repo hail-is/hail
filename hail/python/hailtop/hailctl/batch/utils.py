@@ -84,6 +84,18 @@ async def create_gcp_bucket(*, project: str, bucket: str, location: str, verbose
             f'--location={location}',
             echo=verbose,
         )
+
+        await check_exec_output(
+            'gcloud',
+            '--project',
+            project,
+            'storage',
+            'buckets',
+            'update',
+            '--clear-soft-delete',
+            f'gs://{bucket}',
+            echo=verbose,
+        )
     except CalledProcessError as e:
         if 'does not have storage.buckets.create access to the Google Cloud project' in e.stderr.decode('utf-8'):
             msg = (
