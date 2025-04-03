@@ -2,7 +2,6 @@ package is.hail.variant
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.ExecuteContext
-import is.hail.check.Gen
 import is.hail.expr.{
   JSONExtractContig, JSONExtractIntervalLocus, JSONExtractReferenceGenome, Parser,
 }
@@ -606,33 +605,6 @@ object ReferenceGenome {
 
     Integer.compare(l1.position, l2.position)
   }
-
-  def gen: Gen[ReferenceGenome] =
-    for {
-      name <- Gen.identifier.filter(!ReferenceGenome.hailReferences.contains(_))
-      nContigs <- Gen.choose(3, 10)
-      contigs <- Gen.distinctBuildableOfN[Array](nContigs, Gen.identifier)
-      lengths <- Gen.buildableOfN[Array](nContigs, Gen.choose(1000000, 500000000))
-      contigsIndex = contigs.zip(lengths).toMap
-      xContig <- Gen.oneOfSeq(contigs)
-      parXA <- Gen.choose(0, contigsIndex(xContig))
-      parXB <- Gen.choose(0, contigsIndex(xContig))
-      yContig <- Gen.oneOfSeq(contigs) if yContig != xContig
-      parYA <- Gen.choose(0, contigsIndex(yContig))
-      parYB <- Gen.choose(0, contigsIndex(yContig))
-      mtContig <- Gen.oneOfSeq(contigs) if mtContig != xContig && mtContig != yContig
-    } yield ReferenceGenome(
-      name,
-      contigs,
-      contigs.zip(lengths).toMap,
-      Set(xContig),
-      Set(yContig),
-      Set(mtContig),
-      Array(
-        (Locus(xContig, math.min(parXA, parXB)), Locus(xContig, math.max(parXA, parXB))),
-        (Locus(yContig, math.min(parYA, parYB)), Locus(yContig, math.max(parYA, parYB))),
-      ),
-    )
 
   def apply(
     name: String,

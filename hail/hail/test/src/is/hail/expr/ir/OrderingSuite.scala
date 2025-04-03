@@ -4,12 +4,12 @@ import is.hail.{ExecStrategy, HailSuite}
 import is.hail.TestUtils._
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.defs.{
   ApplyComparisonOp, ApplySpecial, ArraySort, ErrorIDs, GetField, I32, In, IsNA, Literal,
   MakeStream, NA, ToArray, ToDict, ToSet, ToStream, True,
 }
 import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
@@ -17,13 +17,23 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.scalacheck.Arbitrary.arbitrary
+import org.scalacheck.Gen
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.{DataProvider, Test}
 
-class OrderingSuite extends HailSuite {
+class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   implicit val execStrats = ExecStrategy.values
 
   def sm = ctx.stateManager
+
+  def genTypeNonMissingVal2: Gen[(Type, Annotation, Annotation)] =
+    for {
+      typ <- arbitrary[Type]
+      a <- genNonMissing(ctx, typ)
+      b <- genNonMissing(ctx, typ)
+    } yield (typ, a, b)
 
   def recursiveSize(t: Type): Int = {
     val inner = t match {
@@ -76,11 +86,14 @@ class OrderingSuite extends HailSuite {
       fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
     }
 
-    val compareGen = for {
-      t <- Type.genStruct
-      a <- t.genNonmissingValue(sm)
-    } yield (t, a)
-    val p = Prop.forAll(compareGen) { case (t, a) =>
+    val compareGen =
+      for {
+        t <- arbitrary[TStruct]
+        a <- genNullable(ctx, t)
+        if a != null
+      } yield (t, a)
+
+    forAll(compareGen) { case (t, a) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t).asInstanceOf[PStruct]
 
@@ -226,17 +239,10 @@ class OrderingSuite extends HailSuite {
         true
       }
     }
-
-    p.check()
   }
 
-  @Test def testRandomOpsAgainstExtended(): Unit = {
-    val compareGen = for {
-      t <- Type.genArb
-      a1 <- t.genNonmissingValue(sm)
-      a2 <- t.genNonmissingValue(sm)
-    } yield (t, a1, a2)
-    val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
+  @Test def testRandomOpsAgainstExtended(): Unit =
+    forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
@@ -281,16 +287,9 @@ class OrderingSuite extends HailSuite {
 
       true
     }
-    p.check()
-  }
 
-  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): Unit = {
-    val compareGen = for {
-      t <- Type.genArb
-      a1 <- t.genNonmissingValue(sm)
-      a2 <- t.genNonmissingValue(sm)
-    } yield (t, a1, a2)
-    val p = Prop.forAll(compareGen) { case (t, a1, a2) =>
+  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): Unit =
+    forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
 
@@ -334,17 +333,18 @@ class OrderingSuite extends HailSuite {
 
       true
     }
-    p.check()
-  }
 
   @Test def testSortOnRandomArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
-    val compareGen = for {
-      elt <- Type.genArb
-      a <- TArray(elt).genNonmissingValue(sm)
-      asc <- Gen.coin()
-    } yield (elt, a, asc)
-    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
+
+    val compareGen =
+      for {
+        elt <- arbitrary[Type]
+        a <- genNullable(ctx, TArray(elt)) if a != null
+        asc <- arbitrary[Boolean]
+      } yield (elt, a, asc)
+
+    forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
       val ord = if (asc) t.ordering(sm).toOrdering else t.ordering(sm).reverse.toOrdering
       assertEvalsTo(
         ArraySort(ToStream(In(0, TArray(t))), Literal.coerce(TBoolean, asc)),
@@ -353,16 +353,17 @@ class OrderingSuite extends HailSuite {
       )
       true
     }
-    p.check()
   }
 
   def testToSetOnRandomDuplicatedArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
-    val compareGen = for {
-      elt <- Type.genArb
-      a <- TArray(elt).genNonmissingValue(sm)
-    } yield (elt, a)
-    val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
+    val compareGen =
+      for {
+        elt <- arbitrary[Type]
+        a <- genNullable(ctx, TArray(elt)) if a != null
+      } yield (elt, a)
+
+    forAll(compareGen) { case (t, a: IndexedSeq[Any]) =>
       val array = a ++ a
       assertEvalsTo(
         ToArray(ToSet(In(0, TArray(t)))),
@@ -371,18 +372,17 @@ class OrderingSuite extends HailSuite {
       )
       true
     }
-    p.check()
   }
 
   def testToDictOnRandomDuplicatedArray(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
-    val compareGen = for {
-      kt <- Type.genArb
-      vt <- Type.genArb
-      telt = TTuple(kt, vt)
-      a <- TArray(telt).genNonmissingValue(sm)
-    } yield (telt, a)
-    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row] @unchecked) =>
+    val compareGen =
+      for {
+        telt <- arbitrary[TTuple]
+        a <- genNullable(ctx, TArray(telt)) if a != null
+      } yield (telt, a)
+
+    forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row] @unchecked) =>
       val array: IndexedSeq[Row] = a ++ a
       val expectedMap = array.filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
       assertEvalsTo(
@@ -392,7 +392,6 @@ class OrderingSuite extends HailSuite {
       )
       true
     }
-    p.check()
   }
 
   @Test def testSortOnMissingArray(): Unit = {
@@ -405,9 +404,15 @@ class OrderingSuite extends HailSuite {
 
   @Test def testSetContainsOnRandomSet(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
-    val compareGen = Type.genArb
-      .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue(sm), t.genValue(sm)))
-    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1) =>
+    val compareGen =
+      for {
+        t <- arbitrary[TSet]
+        s <- genNullable(ctx, t)
+        a <- genNullable(ctx, t.elementType)
+        if s != null && a != null
+      } yield (t, s, a)
+
+    forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1) =>
       val telt = tset.elementType
 
       if (set.nonEmpty) {
@@ -425,50 +430,49 @@ class OrderingSuite extends HailSuite {
       )
       true
     }
-    p.check()
   }
 
   def testDictGetOnRandomDict(): Unit = {
     implicit val execStrats = ExecStrategy.javaOnly
 
-    val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
-      case (k, v) =>
-        Gen.zip(
-          Gen.const(TDict(k, v)),
-          TDict(k, v).genNonmissingValue(sm),
-          k.genNonmissingValue(sm),
-        )
-    }
-    val p =
-      Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
+    val compareGen =
+      for {
+        tdict <- arbitrary[TDict]
+        dict <- genNullable(ctx, tdict)
+        key <- genNullable(ctx, tdict.keyType)
+        if dict != null && key != null
+      } yield (tdict, dict, key)
+
+    forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
+      assertEvalsTo(
+        invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
+        FastSeq(dict -> tdict, testKey1 -> tdict.keyType),
+        dict.getOrElse(testKey1, null),
+      )
+
+      if (dict.nonEmpty) {
+        val testKey2 = dict.keys.toSeq.head
+        val expected2 = dict(testKey2)
         assertEvalsTo(
           invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
-          FastSeq(dict -> tdict, testKey1 -> tdict.keyType),
-          dict.getOrElse(testKey1, null),
+          FastSeq(dict -> tdict, testKey2 -> tdict.keyType),
+          expected2,
         )
-
-        if (dict.nonEmpty) {
-          val testKey2 = dict.keys.toSeq.head
-          val expected2 = dict(testKey2)
-          assertEvalsTo(
-            invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
-            FastSeq(dict -> tdict, testKey2 -> tdict.keyType),
-            expected2,
-          )
-        }
-        true
       }
-    p.check()
+      true
+    }
   }
 
   def testBinarySearchOnSet(): Unit = {
-    val compareGen = Type.genArb.flatMap(t =>
-      Gen.zip(Gen.const(t), TSet(t).genNonmissingValue(sm), t.genNonmissingValue(sm))
-    )
-    val p = Prop.forAll(compareGen.filter { case (_, a, _) =>
-      a.asInstanceOf[Set[Any]].nonEmpty
-    }) { case (t, a, elem) =>
-      val set = a.asInstanceOf[Set[Any]]
+    val compareGen =
+      for {
+        elt <- arbitrary[Type]
+        set: Set[Annotation] <- genNonMissingT(ctx, TSet(elt))
+        v <- genNonMissing(ctx, elt)
+        if set.nonEmpty
+      } yield (elt, set, v)
+
+    forAll(compareGen) { case (t, set, elem) =>
       val pt = PType.canonical(t)
       val pset = PCanonicalSet(pt)
 
@@ -512,18 +516,18 @@ class OrderingSuite extends HailSuite {
         (t.ordering(sm).compare(elem, maybeEqual) <= 0 || (closestI == set.size - 1))
       }
     }
-    p.check()
   }
 
   @Test def testBinarySearchOnDict(): Unit = {
-    val compareGen = Gen.zip(Type.genArb, Type.genArb)
-      .flatMap { case (k, v) =>
-        Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue(sm), k.genValue(sm))
-      }
-    val p = Prop.forAll(compareGen.filter { case (_, a, _) =>
-      a.asInstanceOf[Map[Any, Any]].nonEmpty
-    }) { case (tDict, a, key) =>
-      val dict = a.asInstanceOf[Map[Any, Any]]
+    val compareGen =
+      for {
+        tdict <- arbitrary[TDict]
+        dict: Map[Annotation, Annotation] <- genNullableT(ctx, tdict) suchThat (_ != null)
+        key <- genNullable(ctx, tdict.keyType)
+        if dict.nonEmpty && key != null
+      } yield (tdict, dict, key)
+
+    forAll(compareGen) { case (tDict, dict, key) =>
       val pDict = PType.canonical(tDict).asInstanceOf[PDict]
 
       pool.scopedRegion { region =>
@@ -590,7 +594,6 @@ class OrderingSuite extends HailSuite {
         }
       }
     }
-    p.check()
   }
 
   @Test def testContainsWithArrayFold(): Unit = {
