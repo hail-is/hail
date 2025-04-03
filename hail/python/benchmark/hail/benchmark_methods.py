@@ -3,43 +3,43 @@ import pytest
 import hail as hl
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=5)
 def benchmark_import_vcf_write(profile25_vcf, tmp_path):
     mt = hl.import_vcf(str(profile25_vcf))
     out = str(tmp_path / 'out.mt')
     mt.write(out)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=1)
 def benchmark_import_vcf_count_rows(profile25_vcf):
     mt = hl.import_vcf(str(profile25_vcf))
     mt.count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=5, burn_in_iterations=15)
 def benchmark_export_vcf(profile25_mt, tmp_path):
     mt = hl.read_matrix_table(str(profile25_mt))
     out = str(tmp_path / 'out.vcf.bgz')
     hl.export_vcf(mt, out)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=10)
 def benchmark_sample_qc(profile25_mt):
     hl.sample_qc(hl.read_matrix_table(str(profile25_mt))).cols()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=20, burn_in_iterations=8)
 def benchmark_variant_qc(profile25_mt):
     hl.variant_qc(hl.read_matrix_table(str(profile25_mt))).rows()._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=18)
 def benchmark_variant_and_sample_qc(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     hl.sample_qc(hl.variant_qc(mt))._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=5, burn_in_iterations=13)
 def benchmark_variant_and_sample_qc_nested_with_filters_2(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = hl.variant_qc(mt)
@@ -53,7 +53,7 @@ def benchmark_variant_and_sample_qc_nested_with_filters_2(profile25_mt):
     mt.count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=20)
 def benchmark_variant_and_sample_qc_nested_with_filters_4(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = hl.variant_qc(mt)
@@ -75,7 +75,7 @@ def benchmark_variant_and_sample_qc_nested_with_filters_4(profile25_mt):
     mt.count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=8, burn_in_iterations=20)
 def benchmark_variant_and_sample_qc_nested_with_filters_4_counts(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = hl.variant_qc(mt)
@@ -100,40 +100,40 @@ def benchmark_variant_and_sample_qc_nested_with_filters_4_counts(profile25_mt):
     mt.count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=10)
 def benchmark_hwe_normalized_pca(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.filter_rows(mt.info.AF[0] > 0.01)
     hl.hwe_normalized_pca(mt.GT)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=10, burn_in_iterations=5)
 def benchmark_hwe_normalized_pca_blanczos_small_data_0_iterations(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.filter_rows(mt.info.AF[0] > 0.01)
     hl._hwe_normalized_blanczos(mt.GT, q_iterations=0)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=5, burn_in_iterations=7)
 def benchmark_hwe_normalized_pca_blanczos_small_data_10_iterations(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.filter_rows(mt.info.AF[0] > 0.01)
     hl._hwe_normalized_blanczos(mt.GT, q_iterations=10)
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=10)
 def benchmark_split_multi_hts(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     hl.split_multi_hts(mt)._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.2, instances=10, iterations=5, burn_in_iterations=4)
 def benchmark_split_multi(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     hl.split_multi(mt)._force_count_rows()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=10, burn_in_iterations=3)
 def benchmark_concordance(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.filter_rows(mt.alleles.length() == 2)
@@ -142,7 +142,7 @@ def benchmark_concordance(profile25_mt):
     c._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=10)
 def benchmark_genetics_pipeline(profile25_mt, tmp_path):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = hl.split_multi_hts(mt)
@@ -162,7 +162,8 @@ def benchmark_ld_prune_profile_25(profile25_mt):
     hl.ld_prune(mt.GT)._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iteratins=5, burn_in_iterations=3)
+@pytest.mark.xtimeout(120)
 def benchmark_pc_relate(profile25_mt):
     mt = hl.read_matrix_table(str(profile25_mt))
     mt = mt.annotate_cols(scores=hl.range(2).map(lambda x: hl.rand_unif(0, 1)))
@@ -170,7 +171,7 @@ def benchmark_pc_relate(profile25_mt):
     rel._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=10, iterations=10, burn_in_iterations=4)
 @pytest.mark.xtimeout(320)
 def benchmark_pc_relate_5k_5k(balding_nichols_5k_5k):
     mt = hl.read_matrix_table(str(balding_nichols_5k_5k))
@@ -179,7 +180,7 @@ def benchmark_pc_relate_5k_5k(balding_nichols_5k_5k):
     rel._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=15, iterations=5, burn_in_iterations=10)
 def benchmark_linear_regression_rows(random_doubles_mt):
     mt = hl.read_matrix_table(str(random_doubles_mt))
     num_phenos = 100
@@ -195,6 +196,7 @@ def benchmark_linear_regression_rows(random_doubles_mt):
 
 
 @pytest.mark.benchmark()
+@pytest.mark.xtimeout
 def benchmark_linear_regression_rows_nd(random_doubles_mt):
     mt = hl.read_matrix_table(str(random_doubles_mt))
     num_phenos = 100
@@ -209,7 +211,7 @@ def benchmark_linear_regression_rows_nd(random_doubles_mt):
     res._force_count()
 
 
-@pytest.mark.benchmark()
+@pytest.mark.benchmark(mds=1.1, instances=20, iterations=10, burn_in_iterations=5)
 def benchmark_logistic_regression_rows_wald(random_doubles_mt):
     mt = hl.read_matrix_table(str(random_doubles_mt))
     mt = mt.head(2000)
