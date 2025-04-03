@@ -3,9 +3,8 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr._
-import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.{PrettyOps, TableValue}
 import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
-import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
@@ -16,10 +15,9 @@ import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
 import com.fasterxml.jackson.core.JsonParseException
 import org.apache.spark.sql.Row
-import org.json4s.{Formats, JValue}
+import org.json4s.{ Formats, JValue}
 import org.json4s.jackson.JsonMethods
 
 case class VEPConfiguration(
@@ -29,9 +27,9 @@ case class VEPConfiguration(
 )
 
 object VEP {
-  def readConfiguration(fs: FS, path: String): VEPConfiguration = {
-    val jv = using(fs.open(path))(in => JsonMethods.parse(in))
-    implicit val formats: Formats = defaultJSONFormats + new TStructSerializer
+  def readConfiguration(ctx: ExecuteContext, path: String): VEPConfiguration = {
+    implicit val formats: Formats = defaultJSONFormats + TStructSerializer(ctx)
+    val jv = using(ctx.fs.open(path))(in => JsonMethods.parse(in))
     jv.extract[VEPConfiguration]
   }
 
@@ -97,21 +95,19 @@ object VEP {
     }
   }
 
-  def apply(fs: FS, params: VEPParameters): VEP = {
-    val conf = VEP.readConfiguration(fs, params.config)
-    new VEP(params, conf)
-  }
+  def apply(ctx: ExecuteContext, params: VEPParameters): VEP =
+    new VEP(params, VEP.readConfiguration(ctx, params.config))
 
-  def apply(fs: FS, config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
+  def apply(ctx: ExecuteContext, config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
     : VEP =
-    VEP(fs, VEPParameters(config, csq, blockSize, tolerateParseError))
+    VEP(ctx, VEPParameters(config, csq, blockSize, tolerateParseError))
 
-  def fromJValue(fs: FS, jv: JValue): VEP = {
-    log.info(s"vep config json: ${jv.toString}")
-    implicit val formats: Formats = RelationalFunctions.formats
-    val params = jv.extract[VEPParameters]
-    VEP(fs, params)
-  }
+  def fromJValue(ctx: ExecuteContext, jv: JValue): VEP =
+    RelationalFunctions.withFormats(ctx) { implicit formats =>
+      log.info(s"vep config json: ${jv.toString}")
+      val params = jv.extract[VEPParameters]
+      VEP(ctx, params)
+    }
 }
 
 case class VEPParameters(config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
@@ -290,13 +286,18 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
     TableValue(ctx, newTT, BroadcastRow(ctx, globalValue, newTT.globalType), vepRVD)
   }
 
-  override def toJValue: JValue =
-    decomposeWithName(params, "VEP")(RelationalFunctions.formats)
-
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {
     case that: VEP => params == that.params
     case _ => false
   }
+
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue =
+        decomposeWithName(params, "VEP")
+
+      override def renderShort: String = ???
+    }
 }

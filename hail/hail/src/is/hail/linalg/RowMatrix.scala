@@ -1,6 +1,6 @@
 package is.hail.linalg
 
-import is.hail.backend.{BroadcastValue, ExecuteContext, HailStateManager}
+import is.hail.backend.{BroadcastValue, ExecuteContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.io.InputBuffer
 import is.hail.io.fs.FS
@@ -83,16 +83,11 @@ class RowMatrix(
 
     val partStarts = partitionStarts()
 
-    new RVDPartitioner(
-      HailStateManager(Map.empty),
-      partitionKey,
-      kType,
-      Array.tabulate(partStarts.length - 1) { i =>
-        val start = partStarts(i)
-        val end = partStarts(i + 1)
-        Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
-      },
-    )
+    new RVDPartitioner(partitionKey, kType, Array.tabulate(partStarts.length - 1) { i =>
+      val start = partStarts(i)
+      val end = partStarts(i + 1)
+      Interval(Row(start), Row(end), includesStart = true, includesEnd = false)
+    })
   }
 
   def toBreezeMatrix(): DenseMatrix[Double] = {

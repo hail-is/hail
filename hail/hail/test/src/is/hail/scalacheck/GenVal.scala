@@ -45,7 +45,7 @@ private[scalacheck] trait GenVal {
             new GenericRow(elems)
         }
       case TInterval(point) =>
-        val ord = point.mkOrdering(ctx.stateManager)
+        val ord = point.mkOrdering()
         for {
           (a, b, s, e) <- zip(elem, elem, arbitrary[Boolean], arbitrary[Boolean])
           if ord.compare(a, b) != 0 || (s && e)

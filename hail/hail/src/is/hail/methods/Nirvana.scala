@@ -3,7 +3,7 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.TableValue
+import is.hail.expr.ir.{PrettyOps, TableValue}
 import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
@@ -14,12 +14,12 @@ import is.hail.variant.{Locus, RegionValueVariant}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
-
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
+import org.json4s.Extraction.decompose
+import org.json4s.{Formats, JValue}
 import org.json4s.jackson.JsonMethods
 
 object Nirvana {
@@ -408,7 +408,7 @@ object Nirvana {
     val localRowType = tv.rvd.rowPType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = tv.typ.keyType.ordering(ctx.stateManager)
+    val rowKeyOrd = tv.typ.keyType.ordering
 
     info("Running Nirvana")
 
@@ -469,7 +469,7 @@ object Nirvana {
       nirvanaRVDType,
       prev.partitioner,
       ContextRDD.weaken(annotations).cmapPartitions { (rvdContext, it) =>
-        val rvb = new RegionValueBuilder(ctx.stateManager, rvdContext.region)
+        val rvb = new RegionValueBuilder(rvdContext.region)
 
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
@@ -508,4 +508,10 @@ case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTable
 
   def execute(ctx: ExecuteContext, tv: TableValue): TableValue =
     Nirvana.annotate(ctx, tv, config, blockSize)
+
+  override def pretty: PrettyOps =
+    new PrettyOps {
+      override def toJValue(implicit fmts: Formats): JValue = decompose(this)
+      override def renderShort: String = ???
+    }
 }

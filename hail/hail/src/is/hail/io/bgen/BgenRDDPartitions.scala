@@ -3,6 +3,7 @@ package is.hail.io.bgen
 import is.hail.backend.ExecuteContext
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 
 case class FilePartitionInfo(
   metadata: BgenFileMetadata,
@@ -15,7 +16,7 @@ object BgenRDDPartitions extends Logging {
   def checkFilesDisjoint(ctx: ExecuteContext, fileMetadata: Seq[BgenFileMetadata], keyType: Type)
     : Array[Interval] = {
     assert(fileMetadata.nonEmpty)
-    val pord = keyType.ordering(ctx.stateManager)
+    val pord = keyType.ordering
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
     val overlappingBounds = new BoxedArrayBuilder[(String, Interval, String, Interval)]
@@ -44,15 +45,15 @@ object BgenRDDPartitions extends Logging {
   }
 
   def apply(
-    ctx: ExecuteContext,
-    rg: Option[String],
-    files: IndexedSeq[BgenFileMetadata],
-    blockSizeInMB: Option[Int],
-    nPartitions: Option[Int],
-    keyType: Type,
+             ctx: ExecuteContext,
+             rg: Option[ReferenceGenome],
+             files: IndexedSeq[BgenFileMetadata],
+             blockSizeInMB: Option[Int],
+             nPartitions: Option[Int],
+             keyType: Type,
   ): IndexedSeq[FilePartitionInfo] = {
     val fileRangeBounds = checkFilesDisjoint(ctx, files, keyType)
-    val intervalOrdering = TInterval(keyType).ordering(ctx.stateManager)
+    val intervalOrdering = TInterval(keyType).ordering
 
     val sortedFiles = files.zip(fileRangeBounds)
       .sortWith { case ((_, i1), (_, i2)) => intervalOrdering.lt(i1, i2) }

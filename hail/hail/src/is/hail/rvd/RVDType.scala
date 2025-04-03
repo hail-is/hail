@@ -1,24 +1,13 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.IRParser
 import is.hail.types.physical.{PInterval, PStruct}
 import is.hail.utils._
-
-import org.json4s.CustomSerializer
+import org.json4s
+import org.json4s.Formats
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
-
-class RVDTypeSerializer extends CustomSerializer[RVDType](format =>
-      (
-        {
-          case JString(s) => IRParser.parseRVDType(s)
-        },
-        {
-          case rvdType: RVDType => JString(rvdType.toString)
-        },
-      )
-    )
 
 final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Serializable {
   require(rowType.required, rowType)
@@ -34,50 +23,35 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  @transient private var _kInRowOrd: UnsafeOrdering = _
-  @transient private var _kRowOrd: UnsafeOrdering = _
-  @transient private var _kOrd: UnsafeOrdering = _
+  @transient lazy val kInRowOrd: UnsafeOrdering =
+    RVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
 
-  def kInRowOrd(sm: HailStateManager): UnsafeOrdering = {
-    if (_kInRowOrd == null)
-      _kInRowOrd = RVDType.selectUnsafeOrdering(sm, rowType, kFieldIdx, rowType, kFieldIdx)
-    _kInRowOrd
-  }
+  @transient lazy val kRowOrd: UnsafeOrdering =
+    RVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
 
-  def kRowOrd(sm: HailStateManager): UnsafeOrdering = {
-    if (_kRowOrd == null) _kRowOrd =
-      RVDType.selectUnsafeOrdering(sm, kType, Array.range(0, kType.size), rowType, kFieldIdx)
-    _kRowOrd
-  }
+  def kOrd: UnsafeOrdering =
+    kType.unsafeOrdering
 
-  def kOrd(sm: HailStateManager): UnsafeOrdering = {
-    if (_kOrd == null) _kOrd = kType.unsafeOrdering(sm)
-    _kOrd
-  }
-
-  def kComp(sm: HailStateManager, other: RVDType): UnsafeOrdering =
+  def kComp(other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
-      sm,
       this.rowType,
       this.kFieldIdx,
       other.rowType,
       other.kFieldIdx,
-      true,
     )
 
-  def joinComp(sm: HailStateManager, other: RVDType): UnsafeOrdering =
+  def joinComp(other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(
-      sm,
       this.rowType,
       this.kFieldIdx,
       other.rowType,
       other.kFieldIdx,
-      false,
+      missingEqual = false,
     )
 
   /** Comparison of a point with an interval, for use in joins where one side is keyed by intervals.
     */
-  def intervalJoinComp(sm: HailStateManager, other: RVDType): UnsafeOrdering = {
+  def intervalJoinComp(other: RVDType): UnsafeOrdering = {
     require(other.key.length == 1)
     require(other.rowType.field(other.key(0)).typ.asInstanceOf[
       PInterval
@@ -89,7 +63,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
       val f1 = kFieldIdx(0)
       val f2 = other.kFieldIdx(0)
       val intervalType = t2.types(f2).asInstanceOf[PInterval]
-      val pord = t1.types(f1).unsafeOrdering(sm, intervalType.pointType)
+      val pord = t1.types(f1).unsafeOrdering(intervalType.pointType)
 
       // Left is a point, right is an interval.
       // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
@@ -122,16 +96,16 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
     }
   }
 
-  def kRowOrdView(sm: HailStateManager, region: Region) = new OrderingView[RegionValue] {
-    val wrv = WritableRegionValue(sm, kType, region)
-    val kRowOrdering = kRowOrd(sm)
+  def kRowOrdView(region: Region): OrderingView[RegionValue] =
+    new OrderingView[RegionValue] {
+      val wrv = WritableRegionValue(kType, region)
 
-    def setFiniteValue(representative: RegionValue): Unit =
-      wrv.setSelect(rowType, kFieldIdx, representative)
+      def setFiniteValue(representative: RegionValue): Unit =
+        wrv.setSelect(rowType, kFieldIdx, representative)
 
-    def compareFinite(rv: RegionValue): Int =
-      kRowOrdering.compare(wrv.value, rv)
-  }
+      def compareFinite(rv: RegionValue): Int =
+        kRowOrd.compare(wrv.value, rv)
+    }
 
   def toJSON: JValue =
     JObject(List(
@@ -155,15 +129,14 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
 
 object RVDType {
   def selectUnsafeOrdering(
-    sm: HailStateManager,
     t1: PStruct,
     fields1: Array[Int],
     t2: PStruct,
     fields2: Array[Int],
     missingEqual: Boolean = true,
   ): UnsafeOrdering = {
-    val fieldOrderings = Range(0, fields1.length).map { i =>
-      t1.types(fields1(i)).unsafeOrdering(sm, t2.types(fields2(i)))
+    val fieldOrderings = fields1.indices.map { i =>
+      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)))
     }.toArray
 
     selectUnsafeOrdering(t1, fields1, t2, fields2, fieldOrderings, missingEqual)
@@ -207,6 +180,18 @@ object RVDType {
         }
         if (!missingEqual && hasMissing) -1 else 0
       }
+    }
+  }
+
+  object Json4sFormat extends Json4sFormat[RVDType, JString] {
+    override object ToJson extends Json4sWriter[RVDType, JString] {
+      override def apply(a: RVDType)(implicit f: Formats): JString =
+        JString(a.toString)
+    }
+
+    override object writer extends Json4sReader[RVDType, JString] {
+      override def apply(ctx: ExecuteContext, v: JString)(implicit f: Formats): RVDType =
+        IRParser.parseRVDType(ctx, v.s)
     }
   }
 }
