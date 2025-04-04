@@ -1054,20 +1054,16 @@ class Container:
             async with async_timeout.timeout(self.timeout):
                 with open(self.log_path, 'w', encoding='utf-8') as container_log:
                     stdin = asyncio.subprocess.PIPE if self.stdin else None
-                    log.info("About to execute crun...")
-                    try:
-                        self.process = await asyncio.create_subprocess_exec(
-                            'crun',
-                            'run',
-                            '--bundle',
-                            self.container_scratch,
-                            self.name,
-                            stdin=stdin,
-                            stdout=container_log,
-                            stderr=container_log,
-                        )
-                    except Exception as e:
-                        log.info(e)
+                    self.process = await asyncio.create_subprocess_exec(
+                        'crun',
+                        'run',
+                        '--bundle',
+                        self.container_scratch,
+                        self.name,
+                        stdin=stdin,
+                        stdout=container_log,
+                        stderr=container_log,
+                    )
                     assert self.netns
 
                     self.monitor = self.new_resource_usage_monitor(self.resource_usage_path)

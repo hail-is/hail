@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import gcp_machine_type_to_parts, machine_type_to_gpu
+from ..resource_utils import GPUConfig, gcp_machine_type_to_parts, machine_type_to_gpu
 
 log = logging.getLogger('create_instance')
 
@@ -39,14 +39,21 @@ def create_vm_config(
     job_private: bool,
     project: str,
     instance_config: InstanceConfig,
-    acceleratorCount: Optional[int] = None,
-    acceleratorType: Optional[str] = None,
+    gpu_config: Optional[GPUConfig] = None,
 ) -> dict:
+    if gpu_config is not None:
+        accelerator_count = gpu_config.num_gpus
+        accelerator_type = gpu_config.gpu_type
+    else:
+        accelerator_count = None
+        accelerator_type = None
     machine_type_full = machine_type
     parts = machine_type.split('+')
     if len(parts) == 3:
-        machine_type, acceleratorType, count = parts
-        acceleratorCount = int(count)
+        machine_type, accelerator_type, count = parts
+        accelerator_count = int(count)
+
+    is_gpu = accelerator_type is not None and accelerator_count is not None
 
     parts = gcp_machine_type_to_parts(machine_type)
     assert parts
@@ -387,11 +394,11 @@ journalctl -u docker.service > dockerd.log
         },
         'tags': {'items': ["batch2-agent"]},
     }
-    if acceleratorCount is not None and acceleratorType is not None:
+    if is_gpu:
         config['guestAccelerators'] = [
             {
-                'acceleratorCount': acceleratorCount,
-                'acceleratorType': f'projects/{project}/zones/{zone}/acceleratorTypes/{acceleratorType}',
+                'acceleratorCount': accelerator_count,
+                'acceleratorType': f'projects/{project}/zones/{zone}/acceleratorTypes/{accelerator_type}',
             }
         ]
     return config
