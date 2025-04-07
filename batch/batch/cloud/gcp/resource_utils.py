@@ -122,7 +122,7 @@ MACHINE_TYPE_TO_PARTS = {
     **n1_highcpu_t4_machines,
     **n1_standard_machines,
     **n1_highmem_machines,
-    **n1_highmem_machines,
+    **n1_highcpu_machines,
     'g2-standard-4': MachineTypeParts(
         cores=4,
         memory=gib_to_bytes(16),
