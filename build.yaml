@@ -405,6 +405,9 @@ steps:
         script: /io/sql/change-username-collation.sql
       - name: add-hail-identity-uid
         script: /io/sql/add-hail-identity-uid.sql
+      - name: add-users-last-active
+        script: /io/sql/add-users-last-active.sql
+        online: true
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
