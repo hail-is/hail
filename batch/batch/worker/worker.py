@@ -3447,6 +3447,10 @@ class Worker:
 
     async def activate(self):
         log.info('activating')
+        # async-timeout 5.x has been upstreamed into Python 3.11+ and its type hints now match
+        # asyncio.Timeout, causing some type conflicts when used through aiohttp
+        # See: https://pypi.org/project/async-timeout/ (Deprecation notice)
+        # type: ignore[return-value]
         resp_json = await retry_transient_errors(
             self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
