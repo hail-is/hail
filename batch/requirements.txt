@@ -8,4 +8,4 @@ plotly>=5.18.0,<6
 # Worker requirements
 aiodocker>=0.17.0,<1
 aiorwlock>=1.0.0,<2
-async-timeout>=4.0.2,<5
+async-timeout>=5,<6

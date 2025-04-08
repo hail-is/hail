@@ -3,7 +3,7 @@ from collections import OrderedDict
 from os import path
 from statistics import mean, median, stdev
 from typing import Annotated as Ann
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 from zlib import MAX_WBITS, decompress
 
 import orjson
@@ -53,13 +53,14 @@ def parse_schema(s):
 
 
 def type_str(t, depth=1):
-    name_map = {'Boolean': 'bool', 'String': 'str'}
+    name_map: Dict[str, str] = {'Boolean': 'bool', 'String': 'str'}
 
-    def element_str(e):
+    def element_str(e: Union[dict, str]) -> str:
         if isinstance(e, dict):
             if e['type'] == 'Struct':
                 return "struct {{\n{}\n{}}}".format(type_str(e['value'], depth + 1), (IDENT * depth))
             return "{}<{}>".format(e['type'].lower(), ", ".join([element_str(x) for x in e['value']]))
+        # Otherwise we can assume isinstance(e, str):
         return name_map.get(e, e).lower().replace('(', '<').replace(')', '>')
 
     return "\n".join("{}'{}': {}".format(IDENT * depth, k, element_str(v)) for k, v in t.items())
