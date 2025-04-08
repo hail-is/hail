@@ -24,7 +24,7 @@ else
     BUILDER=build-batch-worker-$NAMESPACE-image
 fi
 
-UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-20250126
+UBUNTU_IMAGE=ubuntu-minimal-2204-jammy-v20250311
 
 create_build_image_instance() {
     echo "Deleting any preexisting $BUILDER instance. This is expected to print an ERROR if the image does not exist."

@@ -117,7 +117,7 @@ def create_vm_config(
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-15',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-17',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
