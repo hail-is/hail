@@ -3,9 +3,7 @@ package is.hail.backend
 import is.hail.asm4s._
 import is.hail.backend.Backend.jsonToBytes
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{
-  BaseIR, IR, IRParser, IRParserEnvironment, LoweringAnalyses, SortField, TableIR, TableReader,
-}
+import is.hail.expr.ir.{IR, IRParser, LoweringAnalyses, SortField, TableIR, TableReader}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
@@ -18,7 +16,6 @@ import is.hail.types.virtual.TFloat64
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import scala.collection.mutable
 import scala.reflect.ClassTag
 
 import java.io._
@@ -67,7 +64,6 @@ trait BackendContext {
 }
 
 abstract class Backend extends Closeable {
-  val persistedIR: mutable.Map[Int, BaseIR] = mutable.Map()
 
   def defaultParallelism: Int
 
@@ -88,8 +84,6 @@ abstract class Backend extends Closeable {
 
   def asSpark(op: String): SparkBackend =
     fatal(s"${getClass.getSimpleName}: $op requires SparkBackend")
-
-  def shouldCacheQueryInfo: Boolean = true
 
   def lowerDistributedSort(
     ctx: ExecuteContext,
@@ -125,30 +119,30 @@ abstract class Backend extends Closeable {
   def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T
 
   final def valueType(s: String): Array[Byte] =
-    jsonToBytes {
-      withExecuteContext { ctx =>
-        IRParser.parse_value_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+    withExecuteContext { ctx =>
+      jsonToBytes {
+        IRParser.parse_value_ir(ctx, s).typ.toJSON
       }
     }
 
   final def tableType(s: String): Array[Byte] =
-    jsonToBytes {
-      withExecuteContext { ctx =>
-        IRParser.parse_table_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+    withExecuteContext { ctx =>
+      jsonToBytes {
+        IRParser.parse_table_ir(ctx, s).typ.toJSON
       }
     }
 
   final def matrixTableType(s: String): Array[Byte] =
-    jsonToBytes {
-      withExecuteContext { ctx =>
-        IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+    withExecuteContext { ctx =>
+      jsonToBytes {
+        IRParser.parse_matrix_ir(ctx, s).typ.toJSON
       }
     }
 
   final def blockMatrixType(s: String): Array[Byte] =
-    jsonToBytes {
-      withExecuteContext { ctx =>
-        IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, persistedIR.toMap)).typ.toJSON
+    withExecuteContext { ctx =>
+      jsonToBytes {
+        IRParser.parse_blockmatrix_ir(ctx, s).typ.toJSON
       }
     }
 

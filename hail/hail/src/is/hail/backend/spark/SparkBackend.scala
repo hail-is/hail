@@ -7,6 +7,7 @@ import is.hail.backend._
 import is.hail.backend.py4j.Py4JBackendExtensions
 import is.hail.expr.Validate
 import is.hail.expr.ir._
+import is.hail.expr.ir.LoweredTableReader.LoweredTableReaderCoercer
 import is.hail.expr.ir.analyses.SemanticHash
 import is.hail.expr.ir.compile.Compile
 import is.hail.expr.ir.defs.MakeTuple
@@ -355,6 +356,8 @@ class SparkBackend(
 
   private[this] val bmCache = mutable.Map.empty[String, BlockMatrix]
   private[this] val codeCache = new Cache[CodeCacheKey, CompiledFunction[_]](50)
+  private[this] val persistedIr = mutable.Map.empty[Int, BaseIR]
+  private[this] val coercerCache = new Cache[Any, LoweredTableReaderCoercer](32)
 
   def createExecuteContextForTests(
     timer: ExecutionTimer,
@@ -379,6 +382,8 @@ class SparkBackend(
       new IrMetadata(),
       ImmutableMap.empty,
       ImmutableMap.empty,
+      ImmutableMap.empty,
+      ImmutableMap.empty,
     )
 
   override def withExecuteContext[T](f: ExecuteContext => T)(implicit E: Enclosing): T =
@@ -400,6 +405,8 @@ class SparkBackend(
         new IrMetadata(),
         bmCache,
         codeCache,
+        persistedIr,
+        coercerCache,
       )(f)
     }
 

@@ -14,7 +14,7 @@ import mill.util.Jvm
 
 object Settings {
   val hailMajorMinorVersion = "0.2"
-  val hailPatchVersion = "133"
+  val hailPatchVersion = "134"
 }
 
 object Deps {

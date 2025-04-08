@@ -47,7 +47,7 @@ from web_common import (
     web_security_headers,
 )
 
-from .auth_utils import validate_credentials_secret_name_input
+from .auth_utils import is_valid_username, validate_credentials_secret_name_input
 from .exceptions import (
     AuthUserError,
     DuplicateLoginID,
@@ -129,7 +129,7 @@ async def check_valid_new_user(tx: Transaction, username, login_id, is_developer
         raise MultipleUserTypes(username)
     if not is_service_account and not login_id:
         raise EmptyLoginID(username)
-    if not username or not (username.isalnum() and username.islower()):
+    if not is_valid_username(username):
         raise InvalidUsername(username)
 
     existing_users = await users_with_username_or_login_id(tx, username, login_id)
@@ -658,6 +658,12 @@ WHERE {' AND '.join(where_conditions)};
         raise UnknownUser(username)
 
 
+async def _invalidate_all_sessions(db: Database):
+    await db.just_execute(
+        'DELETE s FROM sessions s JOIN users u ON s.user_id = u.id WHERE u.is_service_account = FALSE;'
+    )
+
+
 @routes.post('/users/delete')
 @web_security_headers
 @auth.authenticated_developers_only()
@@ -756,6 +762,26 @@ WHERE copy_paste_tokens.id = %s
 
     session = await maybe_pop_token()
     return json_response({'token': session['session_id'], 'username': session['username']})
+
+
+@routes.post('/api/v1alpha/invalidate_all_sessions')
+@api_security_headers
+@auth.authenticated_developers_only()
+async def rest_invalidate_all_sessions(request: web.Request, _) -> web.Response:
+    db = request.app[AppKeys.DB]
+    await _invalidate_all_sessions(db)
+    return web.Response(status=200)
+
+
+@routes.post('/users/invalidate_all_sessions')
+@web_security_headers
+@auth.authenticated_developers_only()
+async def invalidate_all_sessions(request: web.Request, _) -> NoReturn:
+    db = request.app[AppKeys.DB]
+    await _invalidate_all_sessions(db)
+    # Redirect to the user page. The session of the user calling this will have just been deleted, so this will
+    # allow the user to log back in.
+    raise web.HTTPFound(deploy_config.external_url('auth', '/user'))
 
 
 @routes.post('/api/v1alpha/logout')

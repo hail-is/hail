@@ -6,6 +6,9 @@ Eg for `batch`:
 ```bash
 # First time only:
 $ pip install -e web_common -e batch -e gear
+# Tailwind 4 is not currently supported:
+$ npm install tailwindcss@3
+
 
 #Then:
 $ SERVICE=batch make devserver

@@ -3,15 +3,16 @@ package is.hail.services
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.services.BatchClient.{
   BunchMaxSizeBytes, JarSpecSerializer, JobGroupResponseDeserializer, JobGroupStateDeserializer,
-  JobProcessRequestSerializer,
+  JobListEntryDeserializer, JobProcessRequestSerializer, JobStateDeserializer,
 }
 import is.hail.services.oauth2.CloudCredentials
 import is.hail.services.requests.Requester
 import is.hail.utils._
 
+import scala.collection.immutable.Stream.cons
 import scala.util.Random
 
-import java.net.URL
+import java.net.{URL, URLEncoder}
 import java.nio.charset.StandardCharsets.UTF_8
 import java.nio.file.Path
 
@@ -89,6 +90,26 @@ object JobGroupStates {
   case object Success extends JobGroupState
   case object Running extends JobGroupState
 }
+
+sealed trait JobState extends Product with Serializable
+
+object JobStates {
+  case object Pending extends JobState
+  case object Ready extends JobState
+  case object Creating extends JobState
+  case object Running extends JobState
+  case object Cancelled extends JobState
+  case object Error extends JobState
+  case object Failed extends JobState
+  case object Success extends JobState
+}
+
+case class JobListEntry(
+  batch_id: Int,
+  job_id: Int,
+  state: JobState,
+  exit_code: Int,
+)
 
 object BatchClient {
 
@@ -181,6 +202,39 @@ object BatchClient {
           },
         )
       )
+
+  object JobStateDeserializer
+      extends CustomSerializer[JobState](_ =>
+        (
+          {
+            case JString("Pending") => JobStates.Pending
+            case JString("Ready") => JobStates.Ready
+            case JString("Creating") => JobStates.Creating
+            case JString("Running") => JobStates.Running
+            case JString("Cancelled") => JobStates.Cancelled
+            case JString("Error") => JobStates.Error
+            case JString("Failed") => JobStates.Failed
+            case JString("Success") => JobStates.Success
+          },
+          PartialFunction.empty,
+        )
+      )
+
+  object JobListEntryDeserializer
+      extends CustomSerializer[JobListEntry](implicit fmts =>
+        (
+          {
+            case o: JObject =>
+              JobListEntry(
+                batch_id = (o \ "batch_id").extract[Int],
+                job_id = (o \ "job_id").extract[Int],
+                state = (o \ "state").extract[JobState],
+                exit_code = (o \ "exit_code").extract[Int],
+              )
+          },
+          PartialFunction.empty,
+        )
+      )
 }
 
 case class BatchClient private (req: Requester) extends Logging with AutoCloseable {
@@ -190,7 +244,14 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
       JobProcessRequestSerializer +
       JobGroupStateDeserializer +
       JobGroupResponseDeserializer +
-      JarSpecSerializer
+      JarSpecSerializer +
+      JobStateDeserializer +
+      JobListEntryDeserializer
+
+  private[this] def paginated[S, A](s0: S)(f: S => (A, S)): Stream[A] = {
+    val (a, s1) = f(s0)
+    cons(a, paginated(s1)(f))
+  }
 
   def newBatch(createRequest: BatchRequest): Int = {
     val response = req.post("/api/v1alpha/batches/create", Extraction.decompose(createRequest))
@@ -199,9 +260,9 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     batchId
   }
 
-  def newJobGroup(req: JobGroupRequest): Int = {
+  def newJobGroup(req: JobGroupRequest): (Int, Int) = {
     val nJobs = req.jobs.length
-    val (updateId, startJobGroupId) = beginUpdate(req.batch_id, req.token, nJobs)
+    val (updateId, startJobGroupId, startJobId) = beginUpdate(req.batch_id, req.token, nJobs)
     log.info(s"Began update '$updateId' for batch '${req.batch_id}'.")
 
     createJobGroup(updateId, req)
@@ -213,13 +274,33 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
     commitUpdate(req.batch_id, updateId)
     log.info(s"Committed update $updateId for batch ${req.batch_id}.")
 
-    startJobGroupId
+    (startJobGroupId, startJobId)
   }
 
   def getJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse =
     req
       .get(s"/api/v1alpha/batches/$batchId/job-groups/$jobGroupId")
       .extract[JobGroupResponse]
+
+  def getJobGroupJobs(batchId: Int, jobGroupId: Int, status: Option[JobState] = None)
+    : Stream[IndexedSeq[JobListEntry]] = {
+    val q = status.map(s => s"state=${s.toString.toLowerCase}").getOrElse("")
+    paginated(Some(0): Option[Int]) {
+      case Some(jobId) =>
+        req.get(
+          s"/api/v2alpha/batches/$batchId/job-groups/$jobGroupId/jobs?q=${URLEncoder.encode(q, UTF_8)}&last_job_id=$jobId"
+        )
+          .as { case obj: JObject =>
+            (
+              (obj \ "jobs").extract[IndexedSeq[JobListEntry]],
+              (obj \ "last_job_id").extract[Option[Int]],
+            )
+          }
+      case None =>
+        (IndexedSeq.empty, None)
+    }
+      .takeWhile(_.nonEmpty)
+  }
 
   def waitForJobGroup(batchId: Int, jobGroupId: Int): JobGroupResponse = {
     val start = System.nanoTime()
@@ -301,7 +382,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
     }
 
-  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int) =
+  private[this] def beginUpdate(batchId: Int, token: String, nJobs: Int): (Int, Int, Int) =
     req
       .post(
         s"/api/v1alpha/batches/$batchId/updates/create",
@@ -315,6 +396,7 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         (
           (obj \ "update_id").extract[Int],
           (obj \ "start_job_group_id").extract[Int],
+          (obj \ "start_job_id").extract[Int],
         )
       }
 
@@ -335,4 +417,5 @@ case class BatchClient private (req: Requester) extends Logging with AutoCloseab
         )
       )),
     )
+
 }

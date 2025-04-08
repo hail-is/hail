@@ -2261,8 +2261,9 @@ class StreamFor(IR):
 class StreamAgg(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
-        a = a.handle_randomness(body.uses_agg_randomness)
-        if body.uses_agg_randomness:
+        uses_agg_randomness = body.uses_agg_randomness(is_scan=False)
+        a = a.handle_randomness(uses_agg_randomness)
+        if uses_agg_randomness:
             tup, uid, elt = unpack_uid(a.typ)
             body = AggLet(value_name, elt, body, is_scan=False)
             body = with_split_rng_state(body, uid, is_scan=False)
@@ -2318,10 +2319,92 @@ class StreamAgg(IR):
             return {}
 
     def renderable_bindings(self, i, default_value=None):
-        if i == 1:
-            return {BaseIR.agg_capability: default_value}
-        else:
+        return {BaseIR.agg_capability: default_value} if i == 1 else {}
+
+    def renderable_new_block(self, i: int) -> bool:
+        return i == 1
+
+
+class StreamAggScan(IR):
+    @typecheck_method(a=IR, value_name=str, body=IR)
+    def __init__(self, a, value_name, body):
+        super().__init__(a, body)
+        self.a = a
+        self.value_name = value_name
+        self.body = body
+
+    def _handle_randomness(self, create_uids):
+        if not self.body.uses_randomness and not create_uids:
+            a = self.a.handle_randomness(False)
+            return StreamAggScan(a=a, value_name=self.value_name, body=self.body)
+
+        if isinstance(self.typ.element_type, tstream):
+            raise NotImplementedError('StreamAggScan nested streams are not implemented')
+
+        if not self.needs_randomness_handling and self.a.has_uids:
+            # There are occations when handle_randomness is called twice on a
+            # `StreamAggScan`: once with `create_uids=False` and the second time
+            # with `True`. In these cases, we only need to propagate the uid.
+            assert create_uids
+            assert self.body.uses_randomness
+            _, uid, _ = unpack_uid(self.a.typ, self.value_name)
+            new_body = pack_uid(uid, self.body)
+            return StreamAggScan(self.a, self.value_name, new_body)
+
+        a = self.a.handle_randomness(True)
+
+        name, uid, elt = unpack_uid(a.typ)
+        new_body = Let(self.value_name, elt, self.body)
+        if self.body.uses_randomness:
+            new_body = with_split_rng_state(new_body, uid)
+        if create_uids:
+            new_body = pack_uid(uid, new_body)
+        return StreamAggScan(a=a, value_name=name, body=new_body)
+
+    @typecheck_method(a=IR, body=IR)
+    def copy(self, a, body):
+        return StreamAggScan(a, self.value_name, body)
+
+    def head_str(self):
+        return escape_id(self.value_name)
+
+    def _eq(self, other):
+        return self.value_name == other.value_name
+
+    @property
+    def bound_variables(self):
+        return {self.value_name} | super().bound_variables
+
+    def _compute_type(self, env, agg_env, deep_typecheck):
+        self.a.compute_type(env, agg_env, deep_typecheck)
+        self.body.compute_type(env, _env_bind(env, self.bindings(1)), deep_typecheck)
+        return tstream(self.body.typ)
+
+    @property
+    def free_vars(self):
+        fv = (self.body.free_scan_vars.difference({self.value_name})).union(self.a.free_vars)
+        return fv
+
+    @property
+    def free_scan_vars(self):
+        return set()
+
+    def renderable_child_context_without_bindings(self, i: int, parent_context):
+        if i == 0:
+            return parent_context
+        eval_c, _, _ = parent_context
+        return eval_c, None, eval_c
+
+    def renderable_bindings(self, i, default_value=None):
+        if i != 1:
             return {}
+        return self.renderable_scan_bindings(i, default_value) | {BaseIR.agg_capability: default_value}
+
+    def renderable_scan_bindings(self, i, default_value=None):
+        if i != 1:
+            return {}
+        value = self.a.typ.element_type if default_value is None else default_value
+        return {self.value_name: value}
 
     def renderable_new_block(self, i: int) -> bool:
         return i == 1
@@ -3508,6 +3591,37 @@ class PartitionNativeIntervalReader(PartitionReader):
         if self.uid_field is None:
             return self.table_row_type
         return tstruct(**self.table_row_type, **{self.uid_field: ttuple(tint64, tint64)})
+
+
+class PartitionZippedNativeIntervalReader(PartitionReader):
+    def __init__(self, path, full_row_type, uid_field=None):
+        self.path = path
+        self.full_row_type = full_row_type
+        self.uid_field = uid_field
+
+    def with_uid_field(self, uid_field):
+        return PartitionZippedNativeIntervalReader(path=self.path, uid_field=uid_field)
+
+    def render(self):
+        return escape_str(
+            json.dumps({
+                "name": "PartitionZippedNativeIntervalReader",
+                "path": self.path,
+                "uidFieldName": self.uid_field if self.uid_field is not None else '__dummy',
+            })
+        )
+
+    def _eq(self, other):
+        return (
+            isinstance(other, PartitionZippedNativeIntervalReader)
+            and self.path == other.path
+            and self.uid_field == other.uid_field
+        )
+
+    def row_type(self):
+        if self.uid_field is None:
+            return self.full_row_type
+        return tstruct(**self.full_row_type, **{self.uid_field: ttuple(tint64, tint64)})
 
 
 class ReadPartition(IR):
