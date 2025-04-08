@@ -1,6 +1,6 @@
-import asyncio
+from asyncio import Event
 from types import TracebackType
-from typing import Optional, Type
+from typing import Optional, Type, cast
 
 from sortedcontainers import SortedKeyList
 
@@ -29,23 +29,27 @@ class WeightedSemaphore:
     def release(self, n: int) -> None:
         self.value += n
         while self.events:
-            n, event = self.events[0]
-            if self.value >= n:
+            _n, _event = self.events[0]
+            # cast to int / Event:
+            _n = cast(int, _n)
+            _event = cast(Event, _event)
+
+            if self.value >= _n:
                 self.events.pop(0)
-                self.value -= n
-                event.set()
+                self.value -= _n
+                _event.set()
             else:
                 break
 
     def acquire_manager(self, n: int) -> _AcquireManager:
         return _AcquireManager(self, n)
 
-    async def acquire(self, n) -> None:
+    async def acquire(self, n: int) -> None:
         assert n <= self.max
         if self.value >= n:
             self.value -= n
             return
 
-        event = asyncio.Event()
+        event = Event()
         self.events.add((n, event))
         await event.wait()

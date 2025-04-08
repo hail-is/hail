@@ -12,8 +12,7 @@ import aiohttp
 import azure.core.exceptions
 from azure.mgmt.storage.aio import StorageManagementClient
 from azure.storage.blob import BlobProperties, ResourceTypes, generate_account_sas
-from azure.storage.blob.aio import BlobClient, BlobServiceClient, ContainerClient, StorageStreamDownloader
-from azure.storage.blob.aio._list_blobs_helper import BlobPrefix
+from azure.storage.blob.aio import BlobClient, BlobPrefix, BlobServiceClient, ContainerClient, StorageStreamDownloader
 
 from hailtop.aiotools import WriteBuffer
 from hailtop.aiotools.fs import (
