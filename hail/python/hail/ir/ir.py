@@ -2338,7 +2338,6 @@ class StreamAggScan(IR):
             a = self.a.handle_randomness(False)
             return StreamAggScan(a=a, value_name=self.value_name, body=self.body)
 
-        # FIXME other case from streammap???
         if isinstance(self.typ.element_type, tstream):
             raise NotImplementedError('StreamAggScan nested streams are not implemented')
 
