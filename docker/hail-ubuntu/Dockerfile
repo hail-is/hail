@@ -1,5 +1,5 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
-FROM $DOCKER_PREFIX/ubuntu:jammy-20250311
+FROM $DOCKER_PREFIX/ubuntu:jammy-20250126
 
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
