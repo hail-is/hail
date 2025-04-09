@@ -95,7 +95,7 @@ def reinitialize_hail_for_testing(init_hail, request):
     hl_init_for_test(app_name=request.node.name)
     yield
     new_backend = current_backend()
-    if isinstance(new_backend, ServiceBackend) and new_backend._batch_was_submitted:
+    if isinstance(new_backend, ServiceBackend) and new_backend._job_group_was_submitted:
         batch = new_backend._batch
         report: Dict[str, CollectReport] = request.node.stash[test_results_key]
         if any(r.failed for r in report.values()):
