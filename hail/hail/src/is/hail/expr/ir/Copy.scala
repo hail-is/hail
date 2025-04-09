@@ -506,11 +506,8 @@ object Copy {
       case ConsoleLog(_, _) =>
         assert(newChildren.length == 2)
         ConsoleLog(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR])
-      case x @ ApplyIR(fn, typeArgs, _, rt, errorID) =>
-        val r = ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), rt, errorID)
-        r.conversion = x.conversion
-        r.inline = x.inline
-        r
+      case ApplyIR(fn, typeArgs, _, rt, errorID) =>
+        ApplyIR(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), rt, errorID)
       case Apply(fn, typeArgs, _, t, errorID) =>
         Apply(fn, typeArgs, newChildren.map(_.asInstanceOf[IR]), t, errorID)
       case ApplySeeded(fn, _, _, staticUID, t) =>
