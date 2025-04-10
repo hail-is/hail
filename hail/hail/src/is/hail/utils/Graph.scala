@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, UnsafeIndexedSeq}
 import is.hail.asm4s._
-import is.hail.backend.{HailStateManager, HailTaskContext}
+import is.hail.backend.{HailTaskContext}
 import is.hail.io.fs.FS
 import is.hail.types.physical.PTuple
 import is.hail.variant.ReferenceGenome
@@ -53,7 +53,7 @@ object Graph {
     val nodeType = wrappedNodeType.types.head.virtualType
     val region = outerRegion.getPool().getRegion()
     val tieBreakerF = tieBreaker(hcl, fs, htc, region)
-    val rvb = new RegionValueBuilder(HailStateManager(rgs))
+    val rvb = new RegionValueBuilder()
     val tbf = (l: Any, r: Any) => {
       region.clear()
       rvb.set(region)

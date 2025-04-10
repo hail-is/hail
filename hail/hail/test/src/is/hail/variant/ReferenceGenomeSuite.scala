@@ -1,7 +1,7 @@
 package is.hail.variant
 
 import is.hail.{HailSuite, TestUtils}
-import is.hail.backend.{ExecuteContext, HailStateManager}
+import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
 import is.hail.scalacheck.{genLocus, genNullable}
@@ -14,7 +14,7 @@ import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
 
-  def hasReference(name: String) = ctx.stateManager.referenceGenomes.contains(name)
+  def hasReference(name: String) = ctx.references.contains(name)
 
   def getReference(name: String) = ctx.references(name)
 
@@ -173,14 +173,11 @@ class ReferenceGenomeSuite extends HailSuite {
       }.check()
 
       {
-        "interval test" |: forAll(
-          genNullable(ctx, TInterval(TLocus(rg.name))).suchThat(_ != null)
-        ) {
+        "interval test" |: forAll(genNullable(TInterval(TLocus(rg))) suchThat { _ != null }) {
           case i: Interval =>
             val start = i.start.asInstanceOf[Locus]
             val end = i.end.asInstanceOf[Locus]
-
-            val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
+            val ordering = TLocus(rg).ordering
 
             def getHtsjdkIntervalSequence: String = {
               val sb = new StringBuilder

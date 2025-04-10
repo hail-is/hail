@@ -1,22 +1,16 @@
 package is.hail.types.virtual
 
 import is.hail.annotations._
-import is.hail.backend.HailStateManager
+import is.hail.backend.ExecuteContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.expr.ir._
 import is.hail.utils
 import is.hail.utils._
-
 import org.apache.spark.sql.types.DataType
-import org.json4s.{CustomSerializer, JValue}
+import org.json4s.{CustomSerializer, Formats, JValue, Serializer}
 import org.json4s.JsonAST.JString
 
-class TypeSerializer extends CustomSerializer[Type](_ =>
-      (
-        { case JString(s) => IRParser.parseType(s) },
-        { case t: Type => JString(t.parsableString()) },
-      )
-    )
+import is.hail.utils.json4s._
 
 abstract class Type extends VType with Serializable {
 
@@ -98,14 +92,9 @@ abstract class Type extends VType with Serializable {
 
   def canCompare(other: Type): Boolean = this == other
 
-  def mkOrdering(sm: HailStateManager, missingEqual: Boolean = true): ExtendedOrdering
+  def mkOrdering(missingEqual: Boolean = true): ExtendedOrdering
 
-  @transient protected var ord: ExtendedOrdering = _
-
-  def ordering(sm: HailStateManager): ExtendedOrdering = {
-    if (ord == null) ord = mkOrdering(sm)
-    ord
-  }
+  lazy val ordering: ExtendedOrdering = mkOrdering()
 
   def _typeCheck(a: Any): Boolean
 
@@ -117,4 +106,15 @@ abstract class Type extends VType with Serializable {
   }
 
   def isIsomorphicTo(t: Type): Boolean
+}
+
+object Type {
+  object Json4sFormat extends Json4sFormat[Type, JString] {
+    override lazy val reader: Json4sReader[Type, JString] =
+      (ctx: ExecuteContext, v: JString) =>
+        (_: Formats) => IRParser.parseType(ctx, v.s)
+
+    override lazy val writer: Json4sWriter[Type, JString] =
+      (t: Type) => (_: Formats) => JString(t.parsableString())
+  }
 }

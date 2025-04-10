@@ -3,10 +3,7 @@ package is.hail.io.bgen
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.expr.ir.{
-  uuid4, ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode,
-  LowerMatrixIR, ParamType, StagedArrayBuilder,
-}
+import is.hail.expr.ir.{ArraySorter, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitSettable, IEmitCode, LowerMatrixIR, ParamType, StagedArrayBuilder, uuid4}
 import is.hail.expr.ir.functions.{RegistryFunctions, StringFunctions}
 import is.hail.expr.ir.streams.StreamUtils
 import is.hail.io._
@@ -18,12 +15,11 @@ import is.hail.types.{RStruct, TypeWithRequiredness}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SingleCodeType
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.{primitive, NoBoxLongIterator, SBaseStructValue}
+import is.hail.types.physical.stypes.interfaces.{NoBoxLongIterator, SBaseStructValue, primitive}
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.types.virtual._
 import is.hail.utils.{BoxedArrayBuilder, CompressionUtils, FastSeq}
-import is.hail.variant.Call2
-
+import is.hail.variant.{Call2, ReferenceGenome}
 import org.objectweb.asm.Opcodes._
 
 object StagedBGENReader {
@@ -62,16 +58,16 @@ object StagedBGENReader {
   }
 
   def decodeRow(
-    cb: EmitCodeBuilder,
-    region: Value[Region],
-    cbfis: Value[HadoopFSDataBinaryReader],
-    nSamples: Value[Int],
-    fileIdx: Value[Int],
-    compression: Value[Int],
-    skipInvalidLoci: Value[Boolean],
-    contigRecoding: Value[Map[String, String]],
-    requestedType: TStruct,
-    rg: Option[String],
+                 cb: EmitCodeBuilder,
+                 region: Value[Region],
+                 cbfis: Value[HadoopFSDataBinaryReader],
+                 nSamples: Value[Int],
+                 fileIdx: Value[Int],
+                 compression: Value[Int],
+                 skipInvalidLoci: Value[Boolean],
+                 contigRecoding: Value[Map[String, String]],
+                 requestedType: TStruct,
+                 rg: Option[ReferenceGenome],
   ): EmitCode = {
     var out: EmitSettable = null // defined and assigned inside method
     val emb = cb.emb.ecb.genEmitMethod(
@@ -88,7 +84,7 @@ object StagedBGENReader {
       UnitInfo,
     )
     emb.voidWithBuilder { cb =>
-      val rgBc = rg.map(rg => cb.memoize(emb.getReferenceGenome(rg)))
+      val rgBc = rg.map(rg => cb.memoize(emb.getReferenceGenome(rg.name)))
       val region = emb.getCodeParam[Region](1)
       val cbfis = emb.getCodeParam[HadoopFSDataBinaryReader](2)
       val nSamples = emb.getCodeParam[Int](3)
@@ -892,13 +888,13 @@ object BGENFunctions extends RegistryFunctions {
         iw.init(
           cb,
           idxPath,
-          cb.memoize(Code.invokeScalaObject3[String, Map[String, String], Boolean, Map[
+          cb.memoize(Code.invokeScalaObject3[ReferenceGenome, Map[String, String], Boolean, Map[
             String,
             Any,
           ]](
             BGENFunctions.getClass,
             "wrapAttrs",
-            mb.getObject(rg.orNull),
+            if (rg.isEmpty) null else mb.getReferenceGenome(rg.get.name),
             recoding,
             skipInvalidLoci,
           )),
@@ -928,10 +924,10 @@ object BGENFunctions extends RegistryFunctions {
     }
   }
 
-  def wrapAttrs(rg: String, recoding: Map[String, String], skipInvalidLoci: Boolean)
+  def wrapAttrs(rg: ReferenceGenome, recoding: Map[String, String], skipInvalidLoci: Boolean)
     : Map[String, Any] =
     Map(
-      "reference_genome" -> rg,
+      "reference_genome" -> rg.name,
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci,
     )

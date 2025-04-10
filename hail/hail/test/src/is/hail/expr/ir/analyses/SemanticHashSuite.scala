@@ -368,7 +368,6 @@ class SemanticHashSuite extends HailSuite {
             HAIL_PRETTY_VERSION
           override def components: Map[String, ComponentSpec] =
             Map.empty
-          override def toJValue: JValue = ???
         },
       )
 
@@ -392,6 +391,5 @@ class SemanticHashSuite extends HailSuite {
       override def components: Map[String, ComponentSpec] =
         Map("partition_counts" -> PartitionCountsComponentSpec(Array(1L)))
 
-      override def toJValue: JValue = ???
     }
 }

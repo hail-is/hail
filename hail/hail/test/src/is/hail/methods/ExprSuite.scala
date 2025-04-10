@@ -1,7 +1,7 @@
 package is.hail.methods
 
 import is.hail.HailSuite
-import is.hail.backend.HailStateManager
+
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
 import is.hail.scalacheck._
@@ -28,7 +28,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sb.clear()
       t.pretty(sb, 0, compact = true)
       val res = sb.result()
-      val parsed = IRParser.parseType(res)
+      val parsed = IRParser.parseType(, res)
       t == parsed
     }
 
@@ -36,13 +36,13 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sb.clear()
       t.pretty(sb, 0, compact = false)
       val res = sb.result()
-      val parsed = IRParser.parseType(res)
+      val parsed = IRParser.parseType(, res)
       t == parsed
     }
 
     forAll { (t: Type) =>
       val s = t.parsableString()
-      val parsed = IRParser.parseType(s)
+      val parsed = IRParser.parseType(, s)
       t == parsed
     }
   }
@@ -96,7 +96,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val g = for {
       t <- arbitrary[Type]
-      a <- genNullable(ctx, t)
+      a <- genNullable(t)
     } yield (t, a)
 
     forAll(g) { case (t, a) =>
@@ -110,7 +110,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   }
 
   @Test def testOrdering(): Unit = {
-    val intOrd = TInt32.ordering(ctx.stateManager)
+    val intOrd = TInt32.ordering()
 
     assert(intOrd.compare(-2, -2) == 0)
     assert(intOrd.compare(null, null) == 0)
@@ -120,12 +120,12 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val g = for {
       t <- arbitrary[Type]
-      a <- genNullable(ctx, t)
-      b <- genNullable(ctx, t)
+      a <- genNullable(t)
+      b <- genNullable(t)
     } yield (t, a, b)
 
     forAll(g) { case (t, a, b) =>
-      val ord = t.ordering(ctx.stateManager)
+      val ord = t.ordering()
       ord.compare(a, b) == -ord.compare(b, a)
     }
   }
