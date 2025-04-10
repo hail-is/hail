@@ -86,26 +86,41 @@ def read_dense_mt(path, *, _intervals=None):
         return construct_expr(joined_ir, joined_ir.typ, indices)
 
     def gen_part(var_interval, gbl):
-        to_drop = 'alleles', 'rsid', 'ref_allele'
-        ref_start_pos = hl.max(var_interval.start.position - rbml, 1)
+        to_drop = 'alleles', 'rsid', 'ref_allele', 'LEN', 'END'
+        ref_start_pos = hl.max(var_interval.start.locus.position - rbml, 1)
+        rg = var_interval.start.locus.dtype.reference_genome
+        ref_start_locus = hl.locus(var_interval.start.locus.contig, ref_start_pos, rg)
         ref_interval = hl.interval(
-            start=hl.locus(var_interval.start.contig, ref_start_pos, var_interval.start.reference_genome),
+            start=hl.struct(locus=ref_start_locus),
             end=var_interval.end,
             includes_start=var_interval.includes_start,
             includes_end=var_interval.includes_end,
         )
-        ref_stream = (
-            hl.query_matrix_table_rows(ref_path, ref_interval, '_ref_entries')
-            ._to_stream()
-            .map(
+        ref_stream = hl.query_matrix_table_rows(ref_path, ref_interval, '_ref_entries')._to_stream()
+
+        # This is awful! But, we need to handle
+        if 'LEN' in ref_stream.element_type._ref_entries.element_type:
+            ref_stream = ref_stream.map(
                 lambda elt: hl.rbind(
                     elt.locus.global_position(),
                     lambda gp: elt.annotate(
-                        _ref_entries=elt._ref_entries.map(lambda ent: ent.transmute(_END_GLOBAL=gp + ent.LEN - 1))
+                        _ref_entries=elt._ref_entries.map(lambda ent: ent.annotate(_END_GLOBAL=gp + ent.LEN - 1))
                     ).drop(*(x for x in to_drop if x in elt)),
                 )
             )
-        )
+        else:
+            assert 'END' in ref_stream.element_type._ref_entries.element_type
+            ref_stream = ref_stream.map(
+                lambda elt: hl.rbind(
+                    elt.locus.global_position(),
+                    elt.locus.position,
+                    lambda gp, local_pos: elt.annotate(
+                        _ref_entries=elt._ref_entries.map(
+                            lambda ent: ent.annotate(_END_GLOBAL=gp + ent.END - local_pos)
+                        )
+                    ).drop(*(x for x in to_drop if x in elt)),
+                )
+            )
         var_stream = (
             hl.query_matrix_table_rows(var_path, var_interval, '_var_entries')
             ._to_stream()
