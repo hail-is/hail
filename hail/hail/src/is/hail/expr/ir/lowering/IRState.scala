@@ -1,79 +1,71 @@
 package is.hail.expr.ir.lowering
 
-import is.hail.expr.ir.{BaseIR, TableKeyBy, TableKeyByAndAggregate, TableOrderBy}
+import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.{BaseIR, IRTraversal, TableKeyBy, TableKeyByAndAggregate, TableOrderBy}
 import is.hail.expr.ir.defs.{RelationalLet, RelationalRef}
+import is.hail.expr.ir.lowering.Rules._
+import is.hail.utils.toRichPredicate
 
-trait IRState {
+abstract class IRState(implicit E: sourcecode.Enclosing) {
+  protected def allows: Rule
 
-  val rules: Array[Rule]
-
-  final def allows(ir: BaseIR): Boolean = rules.forall(_.allows(ir))
-
-  final def verify(ir: BaseIR): Unit = {
-    if (!rules.forall(_.allows(ir)))
-      throw new RuntimeException(s"lowered state ${this.getClass.getCanonicalName} forbids IR $ir")
-    ir.children.foreach(verify)
-  }
-
-  final def permits(ir: BaseIR): Boolean = rules.forall(_.allows(ir)) && ir.children.forall(permits)
-
-  def +(other: IRState): IRState = {
-    val newRules = rules ++ other.rules
-    new IRState {
-      val rules: Array[Rule] = newRules
+  final def verify(ctx: ExecuteContext, ir: BaseIR): Unit =
+    ctx.time {
+      IRTraversal.levelOrder(ir).foreach { ir =>
+        if (!allows(ir))
+          throw new RuntimeException(
+            s"lowered state ${this.getClass.getCanonicalName} forbids IR $ir"
+          )
+      }
     }
-  }
+
+  def +(other: IRState)(implicit E: sourcecode.Enclosing): IRState =
+    new IRState()(E) {
+      override val allows: Rule = allows and other.allows
+    }
 }
 
 case object AnyIR extends IRState {
-  val rules: Array[Rule] = Array()
+  override val allows: Rule = _ => true
 }
 
 case object MatrixLoweredToTable extends IRState {
-  val rules: Array[Rule] = Array(NoMatrixIR)
+  override val allows: Rule = NoMatrixIR
 }
 
 case object ExecutableTableIR extends IRState {
-  val rules: Array[Rule] = Array(NoMatrixIR, NoRelationalLets, CompilableValueIRs)
+  override val allows: Rule = NoMatrixIR and NoRelationalLets and CompilableValueIRs
 }
 
 case object CompilableIR extends IRState {
-  val rules: Array[Rule] = Array(ValueIROnly, CompilableValueIRs)
+  override val allows: Rule = ValueIROnly and CompilableValueIRs
 }
 
 case object CompilableIRNoApply extends IRState {
-  val rules: Array[Rule] = Array(ValueIROnly, CompilableValueIRs, NoApplyIR)
+  override val allows: Rule = ValueIROnly and CompilableValueIRs and NoApplyIR
 }
 
 case object EmittableIR extends IRState {
-  val rules: Array[Rule] = Array(ValueIROnly, EmittableValueIRs)
+  override val allows: Rule = ValueIROnly and EmittableValueIRs
 }
 
 case object EmittableStreamIRs extends IRState {
-  val rules: Array[Rule] = Array(ValueIROnly, EmittableValueIRs)
+  override val allows: Rule = ValueIROnly and EmittableValueIRs
 }
 
 case object NoRelationalLetsState extends IRState {
-  val rules: Array[Rule] = Array(
-    new Rule {
-      def allows(ir: BaseIR): Boolean = ir match {
-        case _: RelationalRef => false
-        case _: RelationalLet => false
-        case _ => true
-      }
-    }
-  )
+  override val allows: Rule = {
+    case _: RelationalRef => false
+    case _: RelationalLet => false
+    case _ => true
+  }
 }
 
 case object LoweredShuffles extends IRState {
-  val rules: Array[Rule] = Array(
-    new Rule {
-      def allows(ir: BaseIR): Boolean = ir match {
-        case t: TableKeyBy => t.definitelyDoesNotShuffle
-        case _: TableKeyByAndAggregate => false
-        case t: TableOrderBy => t.definitelyDoesNotShuffle
-        case _ => true
-      }
-    }
-  )
+  override val allows: Rule = {
+    case t: TableKeyBy => t.definitelyDoesNotShuffle
+    case _: TableKeyByAndAggregate => false
+    case t: TableOrderBy => t.definitelyDoesNotShuffle
+    case _ => true
+  }
 }
