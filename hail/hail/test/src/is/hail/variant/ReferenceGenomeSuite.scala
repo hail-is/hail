@@ -2,14 +2,14 @@ package is.hail.variant
 
 import is.hail.{HailSuite, TestUtils}
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.check.Prop._
-import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig, LiftOver}
-import is.hail.types.virtual.TLocus
+import is.hail.scalacheck.{genLocus, genNullable}
+import is.hail.types.virtual.{TInterval, TLocus}
 import is.hail.utils._
 
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
+import org.scalacheck.Prop.forAll
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
@@ -146,79 +146,86 @@ class ReferenceGenomeSuite extends HailSuite {
     val indexFile = getTestResource("fake_reference.fasta.fai")
 
     val rg = ReferenceGenome("test", Array("a", "b", "c"), Map("a" -> 25, "b" -> 15, "c" -> 10))
+    ctx.local(references = ctx.references + (rg.name -> rg)) { ctx =>
+      val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
+      val frGzip =
+        FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFileGzip, indexFile, 3, 5).reader
+      val refReaderPath =
+        FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFile, indexFile)
+      val refReaderPathGz =
+        FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFileGzip, indexFile)
+      val refReader = ReferenceSequenceFileFactory.getReferenceSequenceFile(
+        new java.io.File(uriPath(refReaderPath))
+      )
+      val refReaderGz = ReferenceSequenceFileFactory.getReferenceSequenceFile(
+        new java.io.File(uriPath(refReaderPathGz))
+      )
 
-    val fr = FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFile, indexFile, 3, 5).reader
-    val frGzip =
-      FASTAReaderConfig(ctx.localTmpdir, ctx.fs, rg, fastaFileGzip, indexFile, 3, 5).reader
-    val refReaderPath = FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFile, indexFile)
-    val refReaderPathGz =
-      FASTAReader.getLocalFastaFile(ctx.localTmpdir, ctx.fs, fastaFileGzip, indexFile)
-    val refReader = ReferenceSequenceFileFactory.getReferenceSequenceFile(
-      new java.io.File(uriPath(refReaderPath))
-    )
-    val refReaderGz = ReferenceSequenceFileFactory.getReferenceSequenceFile(
-      new java.io.File(uriPath(refReaderPathGz))
-    )
-
-    object Spec extends Properties("Fasta Random") {
-      property("cache gives same base as from file") = forAll(Locus.gen(rg)) { l =>
-        val contig = l.contig
-        val pos = l.position
-        val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
-        val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
-        assert(expected == expectedGz, "wat: fasta files don't have the same data")
-        fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
-      }
-
-      val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
-      property("interval test") = forAll(Interval.gen(ordering, Locus.gen(rg))) { i =>
-        val start = i.start.asInstanceOf[Locus]
-        val end = i.end.asInstanceOf[Locus]
-
-        def getHtsjdkIntervalSequence: String = {
-          val sb = new StringBuilder
-          var pos = start
-          while (ordering.lteq(pos, end) && pos != null) {
-            val endPos = if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
-            sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
-            pos =
-              if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
-                null
-              else
-                Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
-          }
-          sb.result()
+      {
+        "cache gives same base as from file" |: forAll(genLocus(rg)) { l =>
+          val contig = l.contig
+          val pos = l.position
+          val expected = refReader.getSubsequenceAt(contig, pos, pos).getBaseString
+          val expectedGz = refReaderGz.getSubsequenceAt(contig, pos, pos).getBaseString
+          assert(expected == expectedGz, "wat: fasta files don't have the same data")
+          fr.lookup(contig, pos, 0, 0) == expected && frGzip.lookup(contig, pos, 0, 0) == expectedGz
         }
+      }.check()
 
-        fr.lookup(
-          Interval(start, end, includesStart = true, includesEnd = true)
-        ) == getHtsjdkIntervalSequence
-      }
+      {
+        "interval test" |: forAll(
+          genNullable(ctx, TInterval(TLocus(rg.name))).suchThat(_ != null)
+        ) {
+          case i: Interval =>
+            val start = i.start.asInstanceOf[Locus]
+            val end = i.end.asInstanceOf[Locus]
+
+            val ordering = TLocus(rg.name).ordering(HailStateManager(Map(rg.name -> rg)))
+
+            def getHtsjdkIntervalSequence: String = {
+              val sb = new StringBuilder
+              var pos = start
+              while (ordering.lteq(pos, end) && pos != null) {
+                val endPos =
+                  if (pos.contig != end.contig) rg.contigLength(pos.contig) else end.position
+                sb ++= refReader.getSubsequenceAt(pos.contig, pos.position, endPos).getBaseString
+                pos =
+                  if (rg.contigsIndex.get(pos.contig) == rg.contigs.length - 1)
+                    null
+                  else
+                    Locus(rg.contigs(rg.contigsIndex.get(pos.contig) + 1), 1)
+              }
+              sb.result()
+            }
+
+            fr.lookup(
+              Interval(start, end, includesStart = true, includesEnd = true)
+            ) == getHtsjdkIntervalSequence
+        }
+      }.check()
+
+      assert(fr.lookup("a", 25, 0, 5) == "A")
+      assert(fr.lookup("b", 1, 5, 0) == "T")
+      assert(fr.lookup("c", 5, 10, 10) == "GGATCCGTGC")
+      assert(fr.lookup(Interval(
+        Locus("a", 1),
+        Locus("a", 5),
+        includesStart = true,
+        includesEnd = false,
+      )) == "AGGT")
+      assert(fr.lookup(Interval(
+        Locus("a", 20),
+        Locus("b", 5),
+        includesStart = false,
+        includesEnd = false,
+      )) == "ACGTATAAT")
+      assert(fr.lookup(Interval(
+        Locus("a", 20),
+        Locus("c", 5),
+        includesStart = false,
+        includesEnd = false,
+      )) == "ACGTATAATTAAATTAGCCAGGAT")
     }
-
-    Spec.check()
-
-    assert(fr.lookup("a", 25, 0, 5) == "A")
-    assert(fr.lookup("b", 1, 5, 0) == "T")
-    assert(fr.lookup("c", 5, 10, 10) == "GGATCCGTGC")
-    assert(fr.lookup(Interval(
-      Locus("a", 1),
-      Locus("a", 5),
-      includesStart = true,
-      includesEnd = false,
-    )) == "AGGT")
-    assert(fr.lookup(Interval(
-      Locus("a", 20),
-      Locus("b", 5),
-      includesStart = false,
-      includesEnd = false,
-    )) == "ACGTATAAT")
-    assert(fr.lookup(Interval(
-      Locus("a", 20),
-      Locus("c", 5),
-      includesStart = false,
-      includesEnd = false,
-    )) == "ACGTATAATTAAATTAGCCAGGAT")
   }
 
   @Test def testSerializeOnFB(): Unit = {

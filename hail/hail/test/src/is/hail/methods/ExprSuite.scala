@@ -2,19 +2,21 @@ package is.hail.methods
 
 import is.hail.HailSuite
 import is.hail.backend.HailStateManager
-import is.hail.check.Prop._
-import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.ir.IRParser
+import is.hail.scalacheck._
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 
 import org.apache.spark.sql.Row
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.scalacheck.Arbitrary._
+import org.scalacheck.Gen
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class ExprSuite extends HailSuite {
+class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   def sm: HailStateManager = ctx.stateManager
 
@@ -22,32 +24,31 @@ class ExprSuite extends HailSuite {
     // for arbType
 
     val sb = new StringBuilder
-    check(forAll { (t: Type) =>
+    forAll { (t: Type) =>
       sb.clear()
       t.pretty(sb, 0, compact = true)
       val res = sb.result()
       val parsed = IRParser.parseType(res)
       t == parsed
-    })
-    check(forAll { (t: Type) =>
+    }
+
+    forAll { (t: Type) =>
       sb.clear()
       t.pretty(sb, 0, compact = false)
       val res = sb.result()
       val parsed = IRParser.parseType(res)
       t == parsed
-    })
-    check(forAll { (t: Type) =>
+    }
+
+    forAll { (t: Type) =>
       val s = t.parsableString()
       val parsed = IRParser.parseType(s)
       t == parsed
-    })
+    }
   }
 
-  @Test def testEscaping(): Unit = {
-    val p = forAll((s: String) => s == unescapeString(escapeString(s)))
-
-    p.check()
-  }
+  @Test def testEscaping(): Unit =
+    forAll((s: String) => s == unescapeString(escapeString(s)))
 
   @Test def testEscapingSimple(): Unit = {
     // a == 0x61, _ = 0x5f
@@ -61,14 +62,12 @@ class ExprSuite extends HailSuite {
     assert(escapeStringSimple("my name is 名谦", '_', _ => false) == "my name is _u540d_u8c26")
     assert(unescapeStringSimple("my name is _u540d_u8c26", '_') == "my name is 名谦")
 
-    val p = forAll { (s: String) =>
+    forAll(Gen.asciiPrintableStr) { (s: String) =>
       s == unescapeStringSimple(
         escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit),
         '_',
       )
     }
-
-    p.check()
   }
 
   @Test def testImportEmptyJSONObjectAsStruct(): Unit =
@@ -96,22 +95,18 @@ class ExprSuite extends HailSuite {
   @Test def testImpexes(): Unit = {
 
     val g = for {
-      t <- Type.genArb
-      a <- t.genValue(sm)
+      t <- arbitrary[Type]
+      a <- genNullable(ctx, t)
     } yield (t, a)
 
-    object Spec extends Properties("ImpEx") {
-      property("json") = forAll(g) { case (t, a) =>
-        JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
-      }
-
-      property("json-text") = forAll(g) { case (t, a) =>
-        val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
-        JSONAnnotationImpex.importAnnotation(parse(string), t) == a
-      }
+    forAll(g) { case (t, a) =>
+      JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
     }
 
-    Spec.check()
+    forAll(g) { case (t, a) =>
+      val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
+      JSONAnnotationImpex.importAnnotation(parse(string), t) == a
+    }
   }
 
   @Test def testOrdering(): Unit = {
@@ -124,15 +119,14 @@ class ExprSuite extends HailSuite {
     assert(intOrd.compare(null, -2) > 0)
 
     val g = for {
-      t <- Type.genArb
-      a <- t.genValue(sm)
-      b <- t.genValue(sm)
+      t <- arbitrary[Type]
+      a <- genNullable(ctx, t)
+      b <- genNullable(ctx, t)
     } yield (t, a, b)
 
-    val p = forAll(g) { case (t, a, b) =>
+    forAll(g) { case (t, a, b) =>
       val ord = t.ordering(ctx.stateManager)
       ord.compare(a, b) == -ord.compare(b, a)
     }
-    p.check()
   }
 }

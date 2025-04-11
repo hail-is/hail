@@ -2,8 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations._
 import is.hail.backend.HailStateManager
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
 
 case object TBoolean extends Type {
   def _toPretty = "Boolean"
@@ -16,8 +14,6 @@ case object TBoolean extends Type {
   override def _showStr(a: Annotation): String = if (a.asInstanceOf[Boolean]) "True" else "False"
 
   def parse(s: String): Annotation = s.toBoolean
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = arbitrary[Boolean]
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]], missingEqual)
