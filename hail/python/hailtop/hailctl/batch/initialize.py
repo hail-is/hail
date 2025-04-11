@@ -180,6 +180,9 @@ async def setup_new_remote_tmpdir(
         await grant_service_account_bucket_access_with_role(
             bucket_name, service_account, 'roles/storage.objectAdmin', verbose=verbose
         )
+        await grant_service_account_bucket_access_with_role(
+            bucket_name, service_account, 'roles/storage.legacyBucketOwner', verbose=verbose
+        )
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
         raise Abort() from e
