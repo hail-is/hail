@@ -58,7 +58,7 @@ apt-get install -y g++-12
 update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 50
 update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 50
 
-NVIDIA_VERSION=555.58.02
+NVIDIA_VERSION=570.133.07
 wget --no-verbose https://us.download.nvidia.com/XFree86/Linux-x86_64/$NVIDIA_VERSION/NVIDIA-Linux-x86_64-$NVIDIA_VERSION.run
 chmod +x NVIDIA-Linux-x86_64-$NVIDIA_VERSION.run
 ./NVIDIA-Linux-x86_64-$NVIDIA_VERSION.run --ui=none --no-questions > /var/log/nvidia-run.log

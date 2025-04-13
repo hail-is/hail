@@ -3071,7 +3071,7 @@ class Worker:
     async def return_broken_jvm(self, jvm: JVM):
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
-    async def headers(self):
+    async def headers(self) -> Dict[str, str]:
         headers = {'X-Hail-Instance-Name': NAME, 'X-Hail-Instance-Token': self.instance_token}
         if isinstance(CLOUD_WORKER_API, TerraAzureWorkerAPI):
             headers.update(await CLOUD_WORKER_API.extra_hail_headers())
