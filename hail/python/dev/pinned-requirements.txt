@@ -90,7 +90,7 @@ curlylint==0.13.1
     # via -r hail/python/dev/requirements.txt
 cycler==0.12.1
     # via matplotlib
-debugpy==1.8.13
+debugpy==1.8.14
     # via ipykernel
 decorator==4.4.2
     # via
@@ -139,7 +139,7 @@ fswatch==0.1.1
     # via -r hail/python/dev/requirements.txt
 h11==0.14.0
     # via httpcore
-httpcore==1.0.7
+httpcore==1.0.8
     # via httpx
 httpx==0.28.1
     # via jupyterlab
@@ -178,7 +178,7 @@ ipython==8.18.1
     #   ipykernel
     #   ipywidgets
     #   jupyter-console
-ipywidgets==8.1.5
+ipywidgets==8.1.6
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
@@ -239,7 +239,7 @@ jupyter-server==2.15.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.3.6
+jupyterlab==4.4.0
     # via
     #   jupyter
     #   notebook
@@ -249,7 +249,7 @@ jupyterlab-server==2.27.3
     # via
     #   jupyterlab
     #   notebook
-jupyterlab-widgets==3.0.13
+jupyterlab-widgets==3.0.14
     # via ipywidgets
 kiwisolver==1.4.7
     # via matplotlib
@@ -272,7 +272,7 @@ mistune==3.1.3
     # via nbconvert
 mock==5.1.0
     # via -r hail/python/dev/requirements.txt
-multidict==6.3.2
+multidict==6.4.3
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   aiohttp
@@ -303,13 +303,13 @@ nodeenv==1.9.1
     #   pyright
 nodejs-wheel-binaries==22.14.0
     # via pyright
-notebook==7.3.3
+notebook==7.4.0
     # via jupyter
 notebook-shim==0.2.4
     # via
     #   jupyterlab
     #   notebook
-numpy==1.26.4
+numpy==2.0.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   contourpy
@@ -339,7 +339,7 @@ pathspec==0.12.1
     # via curlylint
 pexpect==4.9.0
     # via ipython
-pillow==11.1.0
+pillow==11.2.1
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   -r hail/python/dev/requirements.txt
@@ -393,7 +393,7 @@ pyparsing==3.2.3
     # via matplotlib
 pyproject-hooks==1.2.0
     # via build
-pyright==1.1.398
+pyright==1.1.399
     # via -r hail/python/dev/requirements.txt
 pytest==7.4.4
     # via
@@ -585,7 +585,7 @@ types-urllib3==1.26.25.14
     # via
     #   -r hail/python/dev/requirements.txt
     #   types-requests
-typing-extensions==4.13.1
+typing-extensions==4.13.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
     #   anyio
@@ -608,7 +608,7 @@ uv==0.2.37
     # via -r hail/python/dev/requirements.txt
 virtualenv==20.30.0
     # via pre-commit
-watchfiles==1.0.4
+watchfiles==1.0.5
     # via aiohttp-devtools
 wcwidth==0.2.13
     # via prompt-toolkit
@@ -620,7 +620,7 @@ webencodings==0.5.1
     #   tinycss2
 websocket-client==1.8.0
     # via jupyter-server
-widgetsnbextension==4.0.13
+widgetsnbextension==4.0.14
     # via ipywidgets
 wrapt==1.17.2
     # via
