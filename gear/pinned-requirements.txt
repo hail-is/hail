@@ -64,7 +64,7 @@ google-api-core==2.24.2
     # via google-api-python-client
 google-api-python-client==2.167.0
     # via google-cloud-profiler
-google-auth==2.38.0
+google-auth==2.39.0
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt

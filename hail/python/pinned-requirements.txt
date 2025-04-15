@@ -55,11 +55,11 @@ azure-storage-blob==12.25.1
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.37.33
+boto3==1.37.34
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.37.33
+botocore==1.37.34
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -114,7 +114,7 @@ frozenlist==1.5.0
     #   -r hail/python/hailtop/requirements.txt
     #   aiohttp
     #   aiosignal
-google-auth==2.38.0
+google-auth==2.39.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -285,7 +285,7 @@ s3transfer==0.11.4
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   boto3
-scipy==1.6.1
+scipy==1.13.1
     # via -r hail/python/requirements.txt
 shellingham==1.5.4
     # via

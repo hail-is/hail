@@ -12,4 +12,4 @@ parsimonious<1
 plotly>=5.18.0,<6
 pyspark>=3.5.0,<3.6
 requests>=2.31.0,<3
-scipy>1.2,<1.12
+scipy>1.13,<2
