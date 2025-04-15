@@ -29,6 +29,7 @@ known-first-party = ["auth", "batch", "ci", "gear", "hailtop", "monitoring", "we
 "devbin/**/*" = ["ALL"]
 "docker/**/*" = ["ALL"]
 "query/**/*" = ["ALL"]
+"hail/python/hail/docs/tutorials/*.ipynb" = ["ALL"]  # don't need to lint the tutorial notebooks
 
 [tool.ruff.format]
 preview = true
