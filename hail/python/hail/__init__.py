@@ -36,6 +36,7 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 # E402 module level import not at top of file
 
 # ruff: noqa: E402
+# ruff: noqa: F403
 from hail.utils import (
     ANY_REGION,
     Interval,
