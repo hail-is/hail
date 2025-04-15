@@ -1581,7 +1581,7 @@ class BlockMatrix(object):
             path_prefix = new_temp_file("tree_matmul_tmp")
 
         if splits != 1:
-            inner_brange_size = int(math.ceil(self._n_block_cols / splits))
+            inner_brange_size = math.ceil(self._n_block_cols / splits)
             split_points = [*list(range(0, self._n_block_cols, inner_brange_size)), self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             blocks_to_multiply = [
@@ -2558,7 +2558,7 @@ def _shape_after_broadcast(left, right):
     """
 
     def join_dim(l_size, r_size):
-        if not (l_size == r_size or l_size == 1 or r_size == 1):  # noqa: PLR1714
+        if not (l_size == r_size or l_size == 1 or r_size == 1):
             raise ValueError(f'Incompatible shapes for broadcasting: {left}, {right}')
 
         return max(l_size, r_size)

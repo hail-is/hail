@@ -640,7 +640,7 @@ def is_transient_error(e: BaseException) -> bool:
     ):
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-        e.status in RETRYABLE_HTTP_STATUS_CODES or e.status == 403 and 'rateLimitExceeded' in e.body
+        e.status in RETRYABLE_HTTP_STATUS_CODES or (e.status == 403 and 'rateLimitExceeded' in e.body)
     ):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
@@ -705,7 +705,7 @@ def is_rate_limit_error(e: BaseException) -> bool:
     if isinstance(e, aiohttp.ClientResponseError) and e.status == 429:
         return True
     if isinstance(e, hailtop.httpx.ClientResponseError) and (
-        e.status == 429 or e.status == 403 and 'rateLimitExceeded' in e.body
+        e.status == 429 or (e.status == 403 and 'rateLimitExceeded' in e.body)
     ):
         return True
     return False

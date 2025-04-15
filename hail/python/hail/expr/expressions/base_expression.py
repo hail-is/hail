@@ -186,7 +186,7 @@ def _impute_type(x, partial_type):
         return tinterval(x.point_type)
     elif isinstance(x, Call):
         return tcall
-    elif isinstance(x, Struct) or isinstance(x, dict) and isinstance(partial_type, tstruct):
+    elif isinstance(x, Struct) or (isinstance(x, dict) and isinstance(partial_type, tstruct)):
         partial_type = refine(partial_type, hl.tstruct())
         t = tstruct(**{k: _impute_type(x[k], partial_type.get(k)) for k in x})
         return t

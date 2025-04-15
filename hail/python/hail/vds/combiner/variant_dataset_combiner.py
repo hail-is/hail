@@ -950,7 +950,7 @@ class Decoder(json.JSONDecoder):
             del obj['name']
             obj['vdses'] = [VDSMetadata(*x) for x in obj['vdses']]
             obj['dataset_type'] = CombinerOutType(*(tmatrix._from_json(ty) for ty in obj['dataset_type']))
-            if 'gvcf_type' in obj and obj['gvcf_type']:
+            if obj.get('gvcf_type'):
                 obj['gvcf_type'] = tmatrix._from_json(obj['gvcf_type'])
 
             rg = hl.get_reference(obj['reference_genome'])
