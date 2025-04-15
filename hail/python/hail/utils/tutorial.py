@@ -79,7 +79,7 @@ def get_1kg(output_dir, overwrite: bool = False):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
-        info(f'downloading 1KG VCF ...\n' f'  Source: {source}')
+        info(f'downloading 1KG VCF ...\n  Source: {source}')
         sync_retry_transient_errors(urlretrieve, resources['1kg_matrix_table'], tmp_vcf)
         cluster_readable_vcf = _copy_to_tmp(fs, local_path_uri(tmp_vcf), extension='vcf.bgz')
         info('importing VCF and writing to matrix table...')
@@ -87,12 +87,12 @@ def get_1kg(output_dir, overwrite: bool = False):
 
         tmp_sample_annot = os.path.join(tmp_dir, '1kg_annotations.txt')
         source = resources['1kg_annotations']
-        info(f'downloading 1KG annotations ...\n' f'  Source: {source}')
+        info(f'downloading 1KG annotations ...\n  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_sample_annot)
 
         tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
         source = resources['1kg_ensembl_gene_annotations']
-        info(f'downloading Ensembl gene annotations ...\n' f'  Source: {source}')
+        info(f'downloading Ensembl gene annotations ...\n  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_gene_annot)
 
         hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)
@@ -139,7 +139,7 @@ def get_hgdp(output_dir, overwrite: bool = False):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, 'HGDP.vcf.bgz')
         source = resources['HGDP_matrix_table']
-        info(f'downloading HGDP VCF ...\n' f'  Source: {source}')
+        info(f'downloading HGDP VCF ...\n  Source: {source}')
         sync_retry_transient_errors(urlretrieve, resources['HGDP_matrix_table'], tmp_vcf)
         cluster_readable_vcf = _copy_to_tmp(fs, local_path_uri(tmp_vcf), extension='vcf.bgz')
         info('importing VCF and writing to matrix table...')
@@ -149,12 +149,12 @@ def get_hgdp(output_dir, overwrite: bool = False):
 
         tmp_sample_annot = os.path.join(tmp_dir, 'HGDP_annotations.txt')
         source = resources['HGDP_annotations']
-        info(f'downloading HGDP annotations ...\n' f'  Source: {source}')
+        info(f'downloading HGDP annotations ...\n  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_sample_annot)
 
         tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
         source = resources['HGDP_ensembl_gene_annotations']
-        info(f'downloading Ensembl gene annotations ...\n' f'  Source: {source}')
+        info(f'downloading Ensembl gene annotations ...\n  Source: {source}')
         sync_retry_transient_errors(urlretrieve, source, tmp_gene_annot)
 
         hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)

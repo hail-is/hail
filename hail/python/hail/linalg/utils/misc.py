@@ -48,7 +48,7 @@ def array_windows(a, radius):
         raise ValueError("array_windows: 'a' must be 1-dimensional")
     if not (np.issubdtype(a.dtype, np.signedinteger) or np.issubdtype(a.dtype, np.floating)):
         raise ValueError(
-            f"array_windows: 'a' must be an ndarray of signed integer or float values, " f"found dtype {a.dtype!s}"
+            f"array_windows: 'a' must be an ndarray of signed integer or float values, found dtype {a.dtype!s}"
         )
 
     size = a.size
@@ -231,10 +231,10 @@ def locus_windows(locus_expr, radius, coord_expr=None, _localize=True):
 
 def _check_dims(a, name, ndim, min_size=1):
     if len(a.shape) != ndim:
-        raise ValueError(f'{name} must be {ndim}-dimensional, ' f'found {a.ndim}')
+        raise ValueError(f'{name} must be {ndim}-dimensional, found {a.ndim}')
     for i in range(ndim):
         if a.shape[i] < min_size:
-            raise ValueError(f'{name}.shape[{i}] must be at least ' f'{min_size}, found {a.shape[i]}')
+            raise ValueError(f'{name}.shape[{i}] must be at least {min_size}, found {a.shape[i]}')
 
 
 def _ndarray_matmul_ndim(left, right):

@@ -625,9 +625,9 @@ def test_to_dense_mt():
 
     dense = hl.vds.to_dense_mt(vds).select_entries('LGT', 'LA', 'GQ', 'DP')
 
-    assert (
-        dense.rows().select()._same(vds.variant_data.rows().select())
-    ), "rows differ between variant data and dense mt"
+    assert dense.rows().select()._same(vds.variant_data.rows().select()), (
+        "rows differ between variant data and dense mt"
+    )
 
     assert dense.filter_entries(hl.is_defined(dense.LA))._same(
         vds.variant_data.select_entries('LGT', 'LA', 'GQ', 'DP')
@@ -666,9 +666,9 @@ def test_to_dense_mt_haploid():
 
     dense = hl.vds.to_dense_mt(vds).select_entries('LGT', 'LA', 'GQ', 'DP')
 
-    assert (
-        dense.rows().select()._same(vds.variant_data.rows().select())
-    ), "rows differ between variant data and dense mt"
+    assert dense.rows().select()._same(vds.variant_data.rows().select()), (
+        "rows differ between variant data and dense mt"
+    )
 
     assert dense.filter_entries(hl.is_defined(dense.LA))._same(
         vds.variant_data.select_entries('LGT', 'LA', 'GQ', 'DP')
@@ -943,9 +943,9 @@ def test_basic_impex():
 
     new_vds = hl.vds.import_vcf(path, reference_genome=orig_vds.variant_data.locus.dtype.reference_genome)
 
-    assert (
-        VariantDataset.ref_block_max_length_field in new_vds.reference_data.globals
-    ), 'failed to parse ref_block_max_length line from header'
+    assert VariantDataset.ref_block_max_length_field in new_vds.reference_data.globals, (
+        'failed to parse ref_block_max_length line from header'
+    )
     orig_rbml = hl.eval(orig_vds.reference_data[VariantDataset.ref_block_max_length_field])
     new_rbml = hl.eval(new_vds.reference_data[VariantDataset.ref_block_max_length_field])
     assert orig_rbml == new_rbml

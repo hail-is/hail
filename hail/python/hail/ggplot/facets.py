@@ -83,7 +83,7 @@ class FacetWrap(Faceter):
         self, facets: StructExpression, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed"
     ):
         if nrow is not None and ncol is not None:
-            raise ValueError("Both `nrow` and `ncol` were specified. " "Please specify only one of these values.")
+            raise ValueError("Both `nrow` and `ncol` were specified. Please specify only one of these values.")
         if scales not in self._scale_mappings:
             raise ValueError(
                 f"An unsupported value ({scales}) was provided for `scales`. "

@@ -560,7 +560,7 @@ class CSETests(unittest.TestCase):
     def test_cse(self):
         x = ir.I32(5)
         x = ir.ApplyBinaryPrimOp('+', x, x)
-        expected = '(Let eval __cse_1 (I32 5)' ' (ApplyBinaryPrimOp `+`' ' (Ref __cse_1)' ' (Ref __cse_1)))'
+        expected = '(Let eval __cse_1 (I32 5) (ApplyBinaryPrimOp `+` (Ref __cse_1) (Ref __cse_1)))'
         assert expected == CSERenderer()(x)
 
     def test_cse_debug(self):

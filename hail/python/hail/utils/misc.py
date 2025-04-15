@@ -123,7 +123,7 @@ def check_positive_and_in_range(caller, name, value):
         raise ValueError(f"'{caller}': parameter '{name}' must be positive, found {value}")
     elif value > hail.tint32.max_value:
         raise ValueError(
-            f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, " f"found {value}"
+            f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, found {value}"
         )
 
 
@@ -132,7 +132,7 @@ def check_nonnegative_and_in_range(caller, name, value):
         raise ValueError(f"'{caller}': parameter '{name}' must be non-negative, found {value}")
     elif value > hail.tint32.max_value:
         raise ValueError(
-            f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, " f"found {value}"
+            f"'{caller}': parameter '{name}' must be less than or equal to {hail.tint32.max_value}, found {value}"
         )
 
 
@@ -455,8 +455,7 @@ def check_keys(caller, name, protected_key):
 
     if name in protected_key:
         msg = (
-            f"{caller!r}: cannot overwrite key field {name!r} with annotate, select or drop; "
-            f"use key_by to modify keys."
+            f"{caller!r}: cannot overwrite key field {name!r} with annotate, select or drop; use key_by to modify keys."
         )
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)

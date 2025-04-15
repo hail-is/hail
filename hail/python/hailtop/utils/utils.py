@@ -868,7 +868,7 @@ def retry_response_returning_functions(fun, *args, **kwargs):
     while response.status_code in RETRYABLE_HTTP_STATUS_CODES:
         tries += 1
         if tries % 10 == 0:
-            log.warning(f'encountered {tries} bad status codes, most recent ' f'one was {response.status_code}')
+            log.warning(f'encountered {tries} bad status codes, most recent one was {response.status_code}')
         response = sync_retry_transient_errors(fun, *args, **kwargs)
         sync_sleep_before_try(tries)
     return response
