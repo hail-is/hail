@@ -1,6 +1,5 @@
-from test.hail.helpers import with_flags
-
 import pytest
+from test.hail.helpers import with_flags
 
 import hail as hl
 from benchmark.tools import benchmark, chunk
