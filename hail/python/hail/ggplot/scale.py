@@ -188,7 +188,7 @@ class ScaleDiscrete(Scale):
             mapping = dict(zip(categories, values))
         else:
             raise TypeError(
-                "Expected scale values to be a Mapping or list, but received a(n) " f"{type(values)}: {values}."
+                f"Expected scale values to be a Mapping or list, but received a(n) {type(values)}: {values}."
             )
 
         def transform(df):

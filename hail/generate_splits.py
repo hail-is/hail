@@ -43,9 +43,9 @@ for split_index, split in enumerate(splits):
     with open(f'testng-splits-{split_index}.xml', 'w') as f:
         xml = f"""
 <suite name="SuiteAll" verbose="1">
-    <test name="Split{ split_index }">
+    <test name="Split{split_index}">
       <classes>
-        { classes }
+        {classes}
       </classes>
     </test>
 </suite>

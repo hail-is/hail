@@ -219,7 +219,7 @@ class AggFunc(object):
             )
         if not self._as_scan and not aggregation._aggregations:
             raise ExpressionException(
-                f"'hl.{self.correct_prefix()}.filter' " f"must have aggregation in argument to 'aggregation'"
+                f"'hl.{self.correct_prefix()}.filter' must have aggregation in argument to 'aggregation'"
             )
 
         _check_agg_bindings(condition, self._agg_bindings)
@@ -244,7 +244,7 @@ class AggFunc(object):
             )
         if not self._as_scan and not aggregation._aggregations:
             raise ExpressionException(
-                f"'hl.{self.correct_prefix()}.group_by' " f"must have aggregation in argument to 'aggregation'"
+                f"'hl.{self.correct_prefix()}.group_by' must have aggregation in argument to 'aggregation'"
             )
 
         _check_agg_bindings(group, self._agg_bindings)
@@ -280,7 +280,7 @@ class AggFunc(object):
 
         if not self._as_scan and not aggregated._aggregations:
             raise ExpressionException(
-                f"'hl.{self.correct_prefix()}.array_agg' " f"must take mapping that contains aggregation expression."
+                f"'hl.{self.correct_prefix()}.array_agg' must take mapping that contains aggregation expression."
             )
 
         indices, _ = unify_all(array, aggregated)
@@ -323,7 +323,7 @@ def _aggregate_local_array(array, f):
 
     if not aggregated._aggregations:
         raise ExpressionException(
-            "'hl.aggregate_local_array' " "must take a mapping that contains aggregation expression."
+            "'hl.aggregate_local_array' must take a mapping that contains aggregation expression."
         )
 
     indices, _ = unify_all(array, aggregated)
@@ -1657,9 +1657,7 @@ def info_score(gp) -> StructExpression:
             hl.rbind(
                 hl.case()
                 .when(hl.len(unchecked_gp) == 3, unchecked_gp)
-                .or_error(
-                    f"'info_score': expected 'gp' to have length 3, " f"found length {hl.str(hl.len(unchecked_gp))}"
-                ),
+                .or_error(f"'info_score': expected 'gp' to have length 3, found length {hl.str(hl.len(unchecked_gp))}"),
                 lambda gp: hl.rbind(
                     gp[1],
                     gp[2],

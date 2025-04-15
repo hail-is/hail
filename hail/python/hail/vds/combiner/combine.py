@@ -638,7 +638,7 @@ def calculate_even_genome_partitioning(reference_genome, interval_size) -> List[
         contigs = [f'chr{i}' for i in range(1, 23)] + ['chrX', 'chrY', 'chrM']
     else:
         raise ValueError(
-            f"Unsupported reference genome '{reference_genome.name}', " "only 'GRCh37' and 'GRCh38' are supported"
+            f"Unsupported reference genome '{reference_genome.name}', only 'GRCh37' and 'GRCh38' are supported"
         )
 
     intervals = []

@@ -2096,7 +2096,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not have length 4')
             if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
                 raise ValueError(
-                    f'rectangle {r} does not satisfy ' f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
+                    f'rectangle {r} does not satisfy 0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
                 )
 
         rectangles = hl.literal(list(itertools.chain(*rectangles)), hl.tarray(hl.tint64))
@@ -2201,7 +2201,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not have length 4')
             if not (0 <= r[0] <= r[1] <= self.n_rows and 0 <= r[2] <= r[3] <= self.n_cols):
                 raise ValueError(
-                    f'rectangle {r} does not satisfy ' f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
+                    f'rectangle {r} does not satisfy 0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
                 )
 
         writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)

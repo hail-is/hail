@@ -1700,7 +1700,7 @@ class Table(BaseTable):
                     fields_to_drop.add(all_field_exprs[e])
                 else:
                     raise ExpressionException(
-                        "method 'drop' expects string field names or top-level field expressions" " (e.g. table['foo'])"
+                        "method 'drop' expects string field names or top-level field expressions (e.g. table['foo'])"
                     )
             else:
                 assert isinstance(e, str)
@@ -2254,7 +2254,7 @@ class Table(BaseTable):
 
             if has_more:
                 n_rows = len(rows)
-                s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+                s += f"showing top {n_rows} {'row' if n_rows == 1 else 'rows'}\n"
 
             return s
 
@@ -2266,9 +2266,7 @@ class Table(BaseTable):
             rows, has_more, dtype = self.data()
             fields = list(dtype)
 
-            default_td_style = (
-                'white-space: nowrap; ' 'max-width: 500px; ' 'overflow: hidden; ' 'text-overflow: ellipsis; '
-            )
+            default_td_style = 'white-space: nowrap; max-width: 500px; overflow: hidden; text-overflow: ellipsis; '
 
             def format_line(values, extra_style=''):
                 style = default_td_style + extra_style
@@ -2303,7 +2301,7 @@ class Table(BaseTable):
             if has_more:
                 n_rows = len(rows)
                 s += '<p style="background: #fdd; padding: 0.4em;">'
-                s += f"showing top { n_rows } { plural('row', n_rows) }"
+                s += f"showing top {n_rows} {plural('row', n_rows)}"
                 s += '</p>\n'
 
             return s
@@ -2956,9 +2954,7 @@ class Table(BaseTable):
         ) in enumerate(tables):
             if left_key != ht.key.dtype:
                 raise ValueError(
-                    f"'union': table {i} has a different key."
-                    f"  Expected:  {left_key}\n"
-                    f"  Table {i}: {ht.key.dtype}"
+                    f"'union': table {i} has a different key.  Expected:  {left_key}\n  Table {i}: {ht.key.dtype}"
                 )
 
             if not (unify or ht.row.dtype == self.row.dtype):
@@ -3783,7 +3779,7 @@ class Table(BaseTable):
                     raise ValueError("Sort fields must be fields of the callee Table, found scalar expression")
                 else:
                     raise ValueError(
-                        f"Sort fields must be fields of the callee Table," f" found field of {e._indices.source}"
+                        f"Sort fields must be fields of the callee Table, found field of {e._indices.source}"
                     )
             elif e._indices != self._row_indices:
                 raise ValueError("Sort fields must be row-indexed, found global sort expression")

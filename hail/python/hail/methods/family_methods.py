@@ -792,7 +792,7 @@ def de_novo(
     missing_fields = required_entry_fields - set(mt.entry)
     if missing_fields:
         raise ValueError(
-            f"'de_novo': expected 'MatrixTable' to have at least {required_entry_fields}, " f"missing {missing_fields}"
+            f"'de_novo': expected 'MatrixTable' to have at least {required_entry_fields}, missing {missing_fields}"
         )
 
     pop_frequency_prior = (

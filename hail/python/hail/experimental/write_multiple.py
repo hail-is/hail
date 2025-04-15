@@ -53,9 +53,9 @@ def export_block_matrices(
     custom_filenames=None,
 ):
     if custom_filenames:
-        assert len(custom_filenames) == len(
-            bms
-        ), "Number of block matrices and number of custom filenames must be equal"
+        assert len(custom_filenames) == len(bms), (
+            "Number of block matrices and number of custom filenames must be equal"
+        )
 
     writer = BlockMatrixTextMultiWriter(prefix, overwrite, delimiter, header, add_index, compression, custom_filenames)
     Env.backend().execute(BlockMatrixMultiWrite([bm._bmir for bm in bms], writer))

@@ -464,7 +464,7 @@ class CSEPrintPass:
 
     BindingsStackFrame = namedtuple(
         'BindingsStackFrame',
-        'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited' ' scan_visited let_bodies',
+        'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited scan_visited let_bodies',
     )
 
     class StackFrame:
