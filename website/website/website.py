@@ -141,7 +141,7 @@ def run(local_mode):
     web.run_app(
         deploy_config.prefix_application(app, 'www'),
         host='0.0.0.0',
-        port=int(os.environ.get('PORT', 5000)),
+        port=int(os.environ.get('PORT', 5000)),  # noqa: PLW1508
         access_log_class=AccessLogger,
         ssl_context=deploy_config.server_ssl_context(),
     )

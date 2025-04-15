@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import sys
 
 from hailtop.hail_logging import configure_logging
