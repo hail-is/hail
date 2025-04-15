@@ -2,7 +2,6 @@ import functools
 import random
 import re
 import unittest
-from test.hail.helpers import resource, skip_unless_spark_backend, skip_when_service_backend
 
 import numpy as np
 import pytest
@@ -15,6 +14,7 @@ from hail.expr.types import tint32
 from hail.ir.renderer import CSERenderer
 from hail.utils import new_temp_file
 from hail.utils.java import Env
+from test.hail.helpers import resource, skip_unless_spark_backend, skip_when_service_backend
 
 
 def value_irs_env():
