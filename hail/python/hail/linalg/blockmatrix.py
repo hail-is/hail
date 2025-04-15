@@ -72,7 +72,7 @@ from hail.utils.java import Env
 block_matrix_type = lazy()
 
 
-class BlockMatrix(object):
+class BlockMatrix:
     """Hail's block-distributed matrix of :py:data:`.tfloat64` elements.
 
     .. include:: ../_templates/experimental.rst
@@ -830,11 +830,11 @@ class BlockMatrix(object):
     def _check_indices(indices, size):
         if len(indices) == 0:
             raise ValueError('index list must be non-empty')
-        elif not all(x < y for x, y in zip(indices, indices[1:])):
+        if not all(x < y for x, y in zip(indices, indices[1:])):
             raise ValueError('index list must be strictly increasing')
-        elif indices[0] < 0:
+        if indices[0] < 0:
             raise ValueError(f'index list values must be in range [0, {size}), found {indices[0]}')
-        elif indices[-1] >= size:
+        if indices[-1] >= size:
             raise ValueError(f'index list values must be in range [0, {size}), found {indices[-1]}')
 
     @typecheck_method(rows_to_keep=sequenceof(int))
@@ -1171,11 +1171,11 @@ class BlockMatrix(object):
             raise ValueError(f'n_rows must be less than 2^31, found {n_rows}')
         if len(starts) != n_rows or len(stops) != n_rows:
             raise ValueError(f'starts and stops must both have length {n_rows} (the number of rows)')
-        if any([start < 0 for start in starts]):
+        if any(start < 0 for start in starts):
             raise ValueError('all start values must be non-negative')
-        if any([stop > self.n_cols for stop in stops]):
+        if any(stop > self.n_cols for stop in stops):
             raise ValueError(f'all stop values must be less than or equal to {n_cols} (the number of columns)')
-        if any([starts[i] > stops[i] for i in range(0, n_rows)]):
+        if any(starts[i] > stops[i] for i in range(0, n_rows)):
             raise ValueError('every start value must be less than or equal to the corresponding stop value')
 
         return self._sparsify_row_intervals_expr((starts, stops), blocks_only)
@@ -1717,13 +1717,12 @@ class BlockMatrix(object):
         if axis is None:
             bmir = BlockMatrixAgg(self._bmir, [0, 1])
             return BlockMatrix(bmir)[0, 0]
-        elif axis in {0, 1}:
+        if axis in {0, 1}:
             out_index_expr = [axis]
 
             bmir = BlockMatrixAgg(self._bmir, out_index_expr)
             return BlockMatrix(bmir)
-        else:
-            raise ValueError(f'axis must be None, 0, or 1: found {axis}')
+        raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
     def entries(self, keyed=True):
         """Returns a table with the indices and value of each block matrix entry.
@@ -2558,7 +2557,7 @@ def _shape_after_broadcast(left, right):
     """
 
     def join_dim(l_size, r_size):
-        if not (l_size == r_size or l_size == 1 or r_size == 1):
+        if not (l_size == r_size or l_size == 1 or r_size == 1):  # noqa: PLR1714
             raise ValueError(f'Incompatible shapes for broadcasting: {left}, {right}')
 
         return max(l_size, r_size)
