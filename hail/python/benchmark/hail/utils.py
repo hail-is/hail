@@ -102,7 +102,7 @@ def get_peak_task_memory(log_path) -> int:
         task_peak_bytes = [
             int(match.groups()[0])
             for line in f
-            if (match := __peak_mem_pattern.match(line)) is not None  #
+            if (match := __peak_mem_pattern.match(line)) is not None
         ]
 
     if len(task_peak_bytes) == 0:
