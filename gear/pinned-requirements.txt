@@ -161,7 +161,7 @@ requests==2.32.3
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-profiler
-rsa==4.9
+rsa==4.9.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -199,7 +199,6 @@ urllib3==1.26.20
     #   requests
 wrapt==1.17.2
     # via
-    #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   prometheus-async
 yarl==1.19.0
