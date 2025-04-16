@@ -51,6 +51,9 @@ from .scale import (
 )
 
 __all__ = [
+    "Aesthetic",
+    "FigureAttribute",
+    "GGPlot",
     "aes",
     "coord_cartesian",
     "facet_wrap",
