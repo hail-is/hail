@@ -38,315 +38,91 @@ class MachineTypeParts:
         self.gpu_config = gpu_config
 
 
+# Standard cores: 1 2 4 8 16 32 64
+# Standard mem: 3.75 * cores
+n1_standard_t4_machines = {
+    f'n1-standard-{cores}+nvidia-tesla-t4+1': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(3.75 * cores),
+        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
+        machine_family='n1',
+        worker_type='standard',
+    )
+    for cores in [1, 2, 4, 8, 16, 32, 64]
+}
+
+# Highmem cores: 2 4 8 16 32 64 96
+# Highmem mem: 6.5 * cores
+n1_highmem_t4_machines = {
+    f'n1-highmem-{cores}+nvidia-tesla-t4+1': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(6.5 * cores),
+        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
+        machine_family='n1',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 64, 96]
+}
+
+# Highcpu cores: 2 4 8 16 32 64 96
+# Highcpu mem: 924 * cores (in MB!!!)
+n1_highcpu_t4_machines = {
+    f'n1-highcpu-{cores}+nvidia-tesla-t4+1': MachineTypeParts(
+        cores=cores,
+        memory=mib_to_bytes(924 * cores),
+        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
+        machine_family='n1',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 64, 96]
+}
+
+# Standard cores: 1 2 4 8 16 32 64
+# Standard mem: 3.75 * cores
+n1_standard_machines = {
+    f'n1-standard-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(3.75 * cores),
+        gpu_config=None,
+        machine_family='n1',
+        worker_type='standard',
+    )
+    for cores in [1, 2, 4, 8, 16, 32, 64]
+}
+
+# Highmem cores: 2 4 8 16 32 64 96
+# Highmem mem: 6.5 * cores
+n1_highmem_machines = {
+    f'n1-highmem-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=gib_to_bytes(6.5 * cores),
+        gpu_config=None,
+        machine_family='n1',
+        worker_type='highmem',
+    )
+    for cores in [2, 4, 8, 16, 32, 64, 96]
+}
+
+# Highcpu cores: 2 4 8 16 32 64 96
+# Highcpu mem: 924 * cores (in MB!!!)
+n1_highcpu_machines = {
+    f'n1-highcpu-{cores}': MachineTypeParts(
+        cores=cores,
+        memory=mib_to_bytes(924 * cores),
+        gpu_config=None,
+        machine_family='n1',
+        worker_type='highcpu',
+    )
+    for cores in [2, 4, 8, 16, 32, 64, 96]
+}
+
 MACHINE_TYPE_TO_PARTS = {
-    'n1-standard-1-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=1,
-        memory=gib_to_bytes(3.75),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-2-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=2,
-        memory=gib_to_bytes(7.5),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-4-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=4,
-        memory=gib_to_bytes(15),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-8-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=8,
-        memory=gib_to_bytes(30),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-16-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=16,
-        memory=gib_to_bytes(60),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-32-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=32,
-        memory=gib_to_bytes(120),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-64-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=64,
-        memory=gib_to_bytes(240),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-96-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=96,
-        memory=gib_to_bytes(360),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-highmem-2-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=2,
-        memory=gib_to_bytes(13),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-4-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=4,
-        memory=gib_to_bytes(26),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-8-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=8,
-        memory=gib_to_bytes(52),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-16-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=16,
-        memory=gib_to_bytes(104),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-32-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=32,
-        memory=gib_to_bytes(208),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-64-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=64,
-        memory=gib_to_bytes(416),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-96-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=96,
-        memory=gib_to_bytes(624),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highcpu-2-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=2,
-        memory=mib_to_bytes(924 * 2),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-4-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=4,
-        memory=mib_to_bytes(924 * 4),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-8-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=8,
-        memory=mib_to_bytes(924 * 8),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-16-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=16,
-        memory=mib_to_bytes(924 * 16),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-32-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=32,
-        memory=mib_to_bytes(924 * 32),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-64-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=64,
-        memory=mib_to_bytes(924 * 64),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-96-nvidia-tesla-t4-1': MachineTypeParts(
-        cores=96,
-        memory=mib_to_bytes(924 * 96),
-        gpu_config=GPUConfig(num_gpus=1, gpu_type='t4'),
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-standard-1': MachineTypeParts(
-        cores=1,
-        memory=gib_to_bytes(3.75),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-2': MachineTypeParts(
-        cores=2,
-        memory=gib_to_bytes(7.5),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-4': MachineTypeParts(
-        cores=4,
-        memory=gib_to_bytes(15),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-8': MachineTypeParts(
-        cores=8,
-        memory=gib_to_bytes(30),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-16': MachineTypeParts(
-        cores=16,
-        memory=gib_to_bytes(60),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-32': MachineTypeParts(
-        cores=32,
-        memory=gib_to_bytes(120),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-64': MachineTypeParts(
-        cores=64,
-        memory=gib_to_bytes(240),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-standard-96': MachineTypeParts(
-        cores=96,
-        memory=gib_to_bytes(360),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='standard',
-    ),
-    'n1-highmem-2': MachineTypeParts(
-        cores=2,
-        memory=gib_to_bytes(13),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-4': MachineTypeParts(
-        cores=4,
-        memory=gib_to_bytes(26),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-8': MachineTypeParts(
-        cores=8,
-        memory=gib_to_bytes(52),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-16': MachineTypeParts(
-        cores=16,
-        memory=gib_to_bytes(104),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-32': MachineTypeParts(
-        cores=32,
-        memory=gib_to_bytes(208),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-64': MachineTypeParts(
-        cores=64,
-        memory=gib_to_bytes(416),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highmem-96': MachineTypeParts(
-        cores=96,
-        memory=gib_to_bytes(624),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highmem',
-    ),
-    'n1-highcpu-2': MachineTypeParts(
-        cores=2,
-        memory=mib_to_bytes(924 * 2),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-4': MachineTypeParts(
-        cores=4,
-        memory=mib_to_bytes(924 * 4),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-8': MachineTypeParts(
-        cores=8,
-        memory=mib_to_bytes(924 * 8),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-16': MachineTypeParts(
-        cores=16,
-        memory=mib_to_bytes(924 * 16),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-32': MachineTypeParts(
-        cores=32,
-        memory=mib_to_bytes(924 * 32),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-64': MachineTypeParts(
-        cores=64,
-        memory=mib_to_bytes(924 * 64),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
-    'n1-highcpu-96': MachineTypeParts(
-        cores=96,
-        memory=mib_to_bytes(924 * 96),
-        gpu_config=None,
-        machine_family='n1',
-        worker_type='highcpu',
-    ),
+    **n1_standard_t4_machines,
+    **n1_highmem_t4_machines,
+    **n1_highcpu_t4_machines,
+    **n1_standard_machines,
+    **n1_highmem_machines,
+    **n1_highcpu_machines,
     'g2-standard-4': MachineTypeParts(
         cores=4,
         memory=gib_to_bytes(16),
