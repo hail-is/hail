@@ -22,15 +22,12 @@ package object ir {
   var uidCounter: Long = 0
 
   def genUID(): String = {
-    val uid = iruid(uidCounter)
+    val uid = s"__iruid_$uidCounter"
     uidCounter += 1
     uid
   }
 
   def freshName(): Name = Name(genUID())
-
-  def iruid(i: Long): String =
-    s"__iruid_$i"
 
   def uuid4(): String = UUID.randomUUID().toString
 
