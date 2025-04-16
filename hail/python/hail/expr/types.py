@@ -2293,35 +2293,34 @@ def is_float64(x):
 def from_numpy(np_dtype):
     if np_dtype == np.int32:
         return tint32
-    elif np_dtype == np.int64:
+    if np_dtype == np.int64:
         return tint64
-    elif np_dtype == np.float32:
+    if np_dtype == np.float32:
         return tfloat32
-    elif np_dtype == np.float64:
+    if np_dtype == np.float64:
         return tfloat64
-    elif np_dtype == np.bool_:
+    if np_dtype == np.bool:
         return tbool
-    else:
-        raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
+    raise ValueError(f"numpy type {np_dtype} could not be converted to a hail type.")
 
 
 def dtypes_from_pandas(pd_dtype):
-    if type(pd_dtype) == pd.StringDtype:
+    if pd_dtype is pd.StringDtype:
         return hl.tstr
-    elif pd_dtype == np.int64:
+    if pd_dtype == np.int64:
         return hl.tint64
-    elif pd_dtype == np.uint64:
+    if pd_dtype == np.uint64:
         # Hail does *not* support unsigned integers but the next condition,
         # pd.api.types.is_integer_dtype(pd_dtype) would return true on unsigned 64-bit ints
         return None
     # For some reason pandas doesn't have `is_int32_dtype`, so we use `is_integer_dtype` if first branch failed.
-    elif pd.api.types.is_integer_dtype(pd_dtype):
+    if pd.api.types.is_integer_dtype(pd_dtype):
         return hl.tint32
-    elif pd_dtype == np.float32:
+    if pd_dtype == np.float32:
         return hl.tfloat32
-    elif pd_dtype == np.float64:
+    if pd_dtype == np.float64:
         return hl.tfloat64
-    elif pd_dtype == bool:
+    if pd_dtype == np.bool:
         return hl.tbool
     return None
 
