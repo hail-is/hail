@@ -27,7 +27,7 @@ argon2-cffi-bindings==21.2.0
     # via argon2-cffi
 arrow==1.3.0
     # via isoduration
-astroid==2.15.8
+astroid==3.3.9
     # via pylint
 asttokens==2.4.1
     # via
@@ -182,7 +182,7 @@ ipywidgets==8.1.6
     # via jupyter
 isoduration==20.11.0
     # via jsonschema
-isort==5.13.2
+isort==6.0.1
     # via pylint
 jedi==0.19.2
     # via ipython
@@ -253,8 +253,6 @@ jupyterlab-widgets==3.0.14
     # via ipywidgets
 kiwisolver==1.4.7
     # via matplotlib
-lazy-object-proxy==1.10.0
-    # via astroid
 markupsafe==3.0.2
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
@@ -387,7 +385,7 @@ pygments==2.19.1
     #   jupyter-console
     #   nbconvert
     #   sphinx
-pylint==2.17.7
+pylint==3.3.6
     # via -r hail/python/dev/requirements.txt
 pyparsing==3.2.3
     # via matplotlib
@@ -622,10 +620,6 @@ websocket-client==1.8.0
     # via jupyter-server
 widgetsnbextension==4.0.14
     # via ipywidgets
-wrapt==1.17.2
-    # via
-    #   -c hail/python/dev/../pinned-requirements.txt
-    #   astroid
 yarl==1.19.0
     # via
     #   -c hail/python/dev/../pinned-requirements.txt
