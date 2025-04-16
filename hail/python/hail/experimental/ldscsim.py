@@ -169,9 +169,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
     pi = pi.tolist() if isinstance(pi, np.ndarray) else ([pi] if not isinstance(pi, list) else pi)
     rg = rg.tolist() if isinstance(rg, np.ndarray) else ([rg] if not isinstance(rg, list) else rg)
     assert all(x >= 0 and x <= 1 for x in h2), 'h2 values must be between 0 and 1'
-    assert (pi != [None]) or all(x >= 0 and x <= 1 for x in pi), (
-        'pi values for spike & slab must be between 0 and 1'
-    )
+    assert (pi != [None]) or all(x >= 0 and x <= 1 for x in pi), 'pi values for spike & slab must be between 0 and 1'
     assert rg == [None] or all(x >= -1 and x <= 1 for x in rg), 'rg values must be between -1 and 1 or None'
     if annot is not None:  # multi-trait annotation-informed
         assert rg == [None], 'Correlated traits not supported for annotation-informed model'
