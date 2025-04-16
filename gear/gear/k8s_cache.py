@@ -17,7 +17,7 @@ class K8sCache:
         self.service_account_cache = TimeLimitedMaxSizeCache(
             self._get_service_account_from_k8s, refresh_time_ns, max_size, 'K8s service account cache'
         )
-        self.k8s_timeout = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))  # noqa: PLW1508
+        self.k8s_timeout = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 
     async def _get_secret_from_k8s(self, name_and_namespace: Tuple[str, str]):
         return await retry_transient_errors(

@@ -28,7 +28,7 @@ from .utils import DOCKER_ROOT_IMAGE, HAIL_GENETICS_HAIL_IMAGE, create_batch, le
 deploy_config = get_deploy_config()
 
 
-skip_if_terra = pytest.mark.skipif(os.environ.get('HAIL_TERRA', False), reason="doesn't work yet on terra")  # noqa: PLW1508
+skip_if_terra = pytest.mark.skipif(os.environ.get('HAIL_TERRA', False), reason="doesn't work yet on terra")
 
 
 @pytest.fixture
