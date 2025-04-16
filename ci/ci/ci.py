@@ -31,7 +31,7 @@ from gear import (
     setup_aiohttp_session,
 )
 from gear.profiling import install_profiler_if_requested
-from hailtop import aiotools, httpx, uvloopx
+from hailtop import __version__, aiotools, httpx, uvloopx
 from hailtop.auth import hail_credentials
 from hailtop.batch_client.aioclient import Batch, BatchClient
 from hailtop.config import get_deploy_config
@@ -44,6 +44,7 @@ from web_common import (
     setup_aiohttp_jinja2,
     setup_common_static_routes,
     web_security_headers,
+    web_security_headers_swagger,
 )
 
 from .constants import AUTHORIZED_USERS, TEAMS
@@ -377,6 +378,22 @@ async def post_authorized_source_sha(request: web.Request, _) -> NoReturn:
 @web_security_headers
 async def healthcheck(_) -> web.Response:
     return web.Response(status=200)
+
+
+@routes.get('/swagger')
+@web_security_headers_swagger
+async def swagger(request):
+    """UI for exploring the API documentation."""
+    page_context = {'service': 'ci', 'base_path': deploy_config.base_path('ci')}
+    return await render_template('ci', request, None, 'swagger.html', page_context)
+
+
+@routes.get('/openapi.yaml')
+@web_security_headers
+async def openapi(request):
+    """OpenAPI specification for the CI service."""
+    page_context = {'base_path': deploy_config.base_path('ci'), 'spec_version': __version__}
+    return await render_template('ci', request, None, 'openapi.yaml', page_context)
 
 
 gh_router = gh_routing.Router()

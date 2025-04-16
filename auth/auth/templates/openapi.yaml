@@ -1,0 +1,397 @@
+openapi: "3.1.0"
+info:
+  title: Hail Auth Service
+  version: "{{ spec_version }}"
+  description: Authentication and authorization service for Hail
+  contact:
+    email: hail-team@broadinstitute.org
+    url: https://www.hail.is/gethelp.html
+  license:
+    name: MIT License
+    url: https://github.com/hail-is/hail/blob/main/LICENSE
+
+servers:
+  - url: "{{ base_url }}"
+    description: "Current Auth service."
+
+tags:
+  - name: Authentication
+    description: "Endpoints for user authentication and session management"
+  - name: User Management
+    description: "Endpoints for managing users and their permissions"
+  - name: Developer Operations
+    description: "Operations restricted to developers"
+  - name: Documentation
+    description: "Endpoints for accessing API documentation"
+
+components:
+  schemas:
+    UserInfo:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: "User's unique identifier"
+        username:
+          type: string
+          description: "User's username"
+        login_id:
+          type: string
+          description: "User's login identifier"
+        state:
+          type: string
+          enum: [creating, active, deleting, deleted]
+          description: "Current state of the user account"
+        is_developer:
+          type: boolean
+          description: "Whether the user has developer privileges"
+        is_service_account:
+          type: boolean
+          description: "Whether this is a service account"
+        hail_identity:
+          type: string
+          nullable: true
+          description: "User's Hail identity"
+
+    UserList:
+      type: array
+      items:
+        $ref: '#/components/schemas/UserInfo'
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: "Session token"
+        username:
+          type: string
+          description: "Username of the authenticated user"
+
+    CreateUserRequest:
+      type: object
+      required:
+        - login_id
+        - is_developer
+        - is_service_account
+      properties:
+        login_id:
+          type: string
+          description: "Login identifier for the new user"
+        is_developer:
+          type: boolean
+          description: "Whether the user should have developer privileges"
+        is_service_account:
+          type: boolean
+          description: "Whether this is a service account"
+        hail_identity:
+          type: string
+          nullable: true
+          description: "Optional Hail identity"
+        hail_credentials_secret_name:
+          type: string
+          nullable: true
+          description: "Optional credentials secret name"
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          description: "Whether the operation was successful"
+
+  securitySchemes:
+    developerAuth:
+      type: http
+      scheme: bearer
+      description: Developer authentication token
+
+paths:
+  /api/v1alpha/userinfo:
+    get:
+      summary: Get current user information
+      tags: [Authentication]
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '401':
+          description: Unauthorized
+
+  /api/v1alpha/users:
+    get:
+      summary: List all users
+      tags: [User Management]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: List of users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserList'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+
+  /api/v1alpha/users/{username}:
+    get:
+      summary: Get user by username
+      tags: [User Management]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserInfo'
+        '404':
+          description: User not found
+    delete:
+      summary: Delete user
+      tags: [User Management]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted successfully
+        '404':
+          description: User not found
+
+  /api/v1alpha/users/{username}/create:
+    post:
+      summary: Create new user
+      tags: [User Management]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: username
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '200':
+          description: User created successfully
+        '400':
+          description: Invalid request
+        '409':
+          description: User already exists
+
+  /api/v1alpha/login:
+    get:
+      summary: Initiate login flow
+      tags: [Authentication]
+      parameters:
+        - name: callback_port
+          in: query
+          required: true
+          schema:
+            type: integer
+            description: Port for OAuth callback
+      responses:
+        '200':
+          description: Login flow initiated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  flow:
+                    type: object
+                    description: OAuth flow data
+                  authorization_url:
+                    type: string
+                    description: URL to redirect user for authentication
+                  state:
+                    type: string
+                    description: OAuth state parameter
+
+  /api/v1alpha/oauth2callback:
+    get:
+      summary: OAuth callback endpoint
+      tags: [Authentication]
+      parameters:
+        - name: flow
+          in: query
+          schema:
+            type: string
+            description: OAuth flow data
+        - name: callback_port
+          in: query
+          schema:
+            type: integer
+            description: Callback port
+        - name: state
+          in: query
+          schema:
+            type: string
+            description: OAuth state parameter
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Authentication failed
+
+  /api/v1alpha/logout:
+    post:
+      summary: Logout current user
+      tags: [Authentication]
+      responses:
+        '200':
+          description: Successfully logged out
+        '401':
+          description: Not authenticated
+
+  /api/v1alpha/verify_dev_credentials:
+    get:
+      summary: Verify developer credentials
+      description: Verify that the authenticated user has developer credentials
+      tags: [Authentication]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: User has valid developer credentials
+        '401':
+          description: Unauthorized or not a developer
+
+  /api/v1alpha/verify_dev_or_sa_credentials:
+    get:
+      summary: Verify developer or service account credentials
+      description: Verify that the authenticated user has developer or service account credentials
+      tags: [Authentication]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: User has valid developer or service account credentials
+        '401':
+          description: Unauthorized or not a developer/service account
+
+  /swagger:
+    get:
+      summary: API Documentation UI
+      description: Interactive UI for exploring and testing the API
+      tags: [Documentation]
+      responses:
+        '200':
+          description: Swagger UI HTML page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /openapi.yaml:
+    get:
+      summary: OpenAPI Specification
+      description: Raw OpenAPI specification in YAML format
+      tags: [Documentation]
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            text/yaml:
+              schema:
+                type: string
+
+  /api/v1alpha/oauth2-client:
+    get:
+      summary: Get OAuth2 client configuration
+      description: Retrieve OAuth2 client configuration for hailctl
+      tags: [Authentication]
+      responses:
+        '200':
+          description: OAuth2 client configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  idp:
+                    type: string
+                    description: Identity provider (google or microsoft)
+                  oauth2_client:
+                    type: object
+                    description: OAuth2 client configuration details
+
+  /api/v1alpha/users/{user}:
+    get:
+      summary: Get user details
+      description: Retrieve details for a specific user
+      tags: [Users]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: user
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Username to retrieve details for
+      responses:
+        '200':
+          description: User details retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                    description: User ID
+                  username:
+                    type: string
+                    description: Username
+                  login_id:
+                    type: string
+                    nullable: true
+                    description: Login identifier
+                  state:
+                    type: string
+                    description: User state
+                  is_developer:
+                    type: integer
+                    description: Whether user is a developer
+                  is_service_account:
+                    type: integer
+                    description: Whether user is a service account
+                  hail_identity:
+                    type: string
+                    nullable: true
+                    description: Hail identity ID
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: User not found 
