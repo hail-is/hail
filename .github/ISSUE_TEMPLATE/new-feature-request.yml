@@ -1,0 +1,30 @@
+name: New Feature Request
+description: Issue type for requesting new features or enhancements to hail
+type: Feature
+labels: [ needs-triage, new-feature ]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Please give a brief (1 paragraph) description of the new functionality
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: |
+        Please motivate your proposed feature with relevant background context, user scenarios,
+        business values and/or limitations with the current tool. 
+        
+        Simply put, why is this feature important to you?
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Detailed Description
+      description: |
+        Please provide a detailed description of your proposed new feature. 
+        Include any code examples that might help demonstrate the new capability.
