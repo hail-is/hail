@@ -1,7 +1,6 @@
 package is.hail.utils
 
 import is.hail.annotations._
-import is.hail.check._
 import is.hail.types.virtual.TBoolean
 
 import org.apache.spark.sql.Row
@@ -207,16 +206,6 @@ object Interval {
       IntervalEndpoint(start, if (includesStart) -1 else 1),
       IntervalEndpoint(end, if (includesEnd) 1 else -1),
     )
-
-  def gen[P](pord: ExtendedOrdering, pgen: Gen[P]): Gen[Interval] =
-    Gen.zip(pgen, pgen, Gen.coin(), Gen.coin())
-      .filter { case (x, y, s, e) => pord.compare(x, y) != 0 || (s && e) }
-      .map { case (x, y, s, e) =>
-        if (pord.compare(x, y) < 0)
-          Interval(x, y, s, e)
-        else
-          Interval(y, x, s, e)
-      }
 
   def ordering(pord: ExtendedOrdering, startPrimary: Boolean, _missingEqual: Boolean = true)
     : ExtendedOrdering = new ExtendedOrdering {

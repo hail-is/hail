@@ -1,15 +1,18 @@
 package is.hail.utils
 
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
-import is.hail.check.Prop._
+import is.hail.scalacheck._
 
 import scala.collection.mutable
+import scala.util.Random
 
+import org.scalacheck.Arbitrary._
+import org.scalacheck.Gen
+import org.scalacheck.Gen._
 import org.scalatest.matchers.should.Matchers._
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class BinaryHeapSuite {
+class BinaryHeapSuite extends ScalaCheckDrivenPropertyChecks {
   @Test
   def insertOneIsMax(): Unit = {
     val bh = new BinaryHeap[Int]()
@@ -324,15 +327,15 @@ class BinaryHeapSuite {
     assert(bh.max() === 14, s"trace: ${trace.result().mkString("\n")}")
   }
 
-  sealed private trait HeapOp
+  sealed trait HeapOp
 
-  sealed private case class Max() extends HeapOp
+  sealed case class Max() extends HeapOp
 
-  sealed private case class ExtractMax() extends HeapOp
+  sealed case class ExtractMax() extends HeapOp
 
-  sealed private case class Insert(t: Long, rank: Long) extends HeapOp
+  sealed case class Insert(t: Long, rank: Long) extends HeapOp
 
-  private class LongPriorityQueueReference {
+  class LongPriorityQueueReference {
 
     import Ordering.Implicits._
 
@@ -359,14 +362,12 @@ class BinaryHeapSuite {
 
   @Test
   def sameAsReferenceImplementation(): Unit = {
-    import Gen._
-
-    val ops = for {
-      maxOrExtract <- buildableOfN(64, oneOfGen(const(Max()), const(ExtractMax())))
-      ranks <- distinctBuildableOfN(64, arbitrary[Long])
-      inserts = ranks.map(r => Insert(r, r))
-      ret <- Gen.shuffle(inserts ++ maxOrExtract)
-    } yield ret
+    val ops =
+      for {
+        maxOrExtract <- containerOfN[IndexedSeq, HeapOp](64, Gen.oneOf(Max(), ExtractMax()))
+        ranks <- distinctContainerOfN[IndexedSeq, Long](64, arbitrary[Long])
+        inserts = ranks.map(r => Insert(r, r))
+      } yield Random.shuffle(inserts ++ maxOrExtract)
 
     forAll(ops) { opList =>
       val bh = new BinaryHeap[Long]()
@@ -396,7 +397,7 @@ class BinaryHeapSuite {
           assert(bh.size === ref.size, s"trace; ${trace.result().mkString("\n")}")
       }
       true
-    }.check()
+    }
   }
 
   private def evensFirst(a: Int, b: Int): Int = {

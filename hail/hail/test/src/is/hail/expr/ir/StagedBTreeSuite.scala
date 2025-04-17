@@ -4,7 +4,6 @@ import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.backend.ExecuteContext
-import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg.{AppendOnlyBTree, BTreeKey}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
@@ -18,6 +17,8 @@ import scala.collection.mutable
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
+import org.scalacheck.Gen._
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
@@ -235,29 +236,30 @@ class TestSet {
   def getElements: Array[java.lang.Long] = map.toArray
 }
 
-class StagedBTreeSuite extends HailSuite {
+class StagedBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   @Test def testBTree(): Unit = {
     pool.scopedRegion { region =>
       val refSet = new TestSet()
       val nodeSizeParams = Array(
-        2 -> Gen.choose(-10, 10),
-        3 -> Gen.choose(-10, 10),
-        5 -> Gen.choose(-30, 30),
-        6 -> Gen.choose(-30, 30),
-        22 -> Gen.choose(-3, 3),
+        2 -> choose(-10, 10),
+        3 -> choose(-10, 10),
+        5 -> choose(-30, 30),
+        6 -> choose(-30, 30),
+        22 -> choose(-3, 3),
       )
 
       for ((n, values) <- nodeSizeParams) {
         val testSet = new BTreeBackedSet(ctx, region, n)
 
-        val sets = Gen.buildableOf[Array](Gen.zip(Gen.coin(.1), values)
+        val sets = containerOf[Array, java.lang.Long](zip(prob(.1), values)
           .map { case (m, v) => if (m) null else Long.box(v.longValue()) })
+
         val lt = { (l1: java.lang.Long, l2: java.lang.Long) =>
           !(l1 == null) && ((l2 == null) || (l1 < l2))
         }
 
-        Prop.forAll(sets) { set =>
+        forAll(sets) { set =>
           refSet.clear()
           testSet.clear()
           assert(refSet.getElements sameElements testSet.getElements)
@@ -271,7 +273,7 @@ class StagedBTreeSuite extends HailSuite {
             val testSet2 = BTreeBackedSet.bulkLoad(ctx, region, serialized, n)
             refSet.getElements.sortWith(lt) sameElements testSet2.getElements.sortWith(lt)
           }
-        }.check()
+        }
       }
     }
   }

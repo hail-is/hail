@@ -3,14 +3,12 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailStateManager}
-import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir._
 import is.hail.types.{tcoerce, Requiredness}
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.stypes.concrete.SRNGState
 import is.hail.types.virtual._
 import is.hail.utils._
-import is.hail.variant.ReferenceGenome
 
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
@@ -31,108 +29,6 @@ class PStructSerializer extends CustomSerializer[PStruct](format =>
     )
 
 object PType {
-  def genScalar(required: Boolean): Gen[PType] =
-    Gen.oneOf(
-      PBoolean(required),
-      PInt32(required),
-      PInt64(required),
-      PFloat32(required),
-      PFloat64(required),
-      PCanonicalString(required),
-      PCanonicalCall(required),
-    )
-
-  val genOptionalScalar: Gen[PType] = genScalar(false)
-
-  val genRequiredScalar: Gen[PType] = genScalar(true)
-
-  def genComplexType(required: Boolean): Gen[PType] = {
-    val rgDependents = ReferenceGenome.hailReferences.toArray.map(PCanonicalLocus(_, required))
-    val others = Array(PCanonicalCall(required))
-    Gen.oneOfSeq(rgDependents ++ others)
-  }
-
-  def genFields(required: Boolean, genFieldType: Gen[PType]): Gen[Array[PField]] = {
-    Gen.buildableOf[Array](
-      Gen.zip(Gen.identifier, genFieldType)
-    )
-      .filter(fields => fields.map(_._1).areDistinct())
-      .map(fields =>
-        fields
-          .iterator
-          .zipWithIndex
-          .map { case ((k, t), i) => PField(k, t, i) }
-          .toArray
-      )
-  }
-
-  def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] =
-    for (fields <- genFields(required, genFieldType)) yield PCanonicalStruct(fields, required)
-
-  def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] =
-    for (fields <- genFields(required, genFieldType))
-      yield PCanonicalTuple(required, fields.map(_.typ): _*)
-
-  private val defaultRequiredGenRatio = 0.2
-
-  def genStruct: Gen[PStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(preGenStruct(_, genArb))
-
-  val genOptionalStruct: Gen[PType] = preGenStruct(required = false, genArb)
-
-  val genRequiredStruct: Gen[PType] = preGenStruct(required = true, genArb)
-
-  val genInsertableStruct: Gen[PStruct] = Gen.coin(defaultRequiredGenRatio).flatMap(required =>
-    if (required)
-      preGenStruct(required = true, genArb)
-    else
-      preGenStruct(required = false, genOptional)
-  )
-
-  def genSized(size: Int, required: Boolean, genPStruct: Gen[PStruct]): Gen[PType] =
-    if (size < 1)
-      Gen.const(PCanonicalStruct.empty(required))
-    else if (size < 2)
-      genScalar(required)
-    else {
-      Gen.frequency(
-        (4, genScalar(required)),
-        (1, genComplexType(required)),
-        (
-          1,
-          genArb.map {
-            PCanonicalArray(_)
-          },
-        ),
-        (
-          1,
-          genArb.map {
-            PCanonicalSet(_)
-          },
-        ),
-        (
-          1,
-          genArb.map {
-            PCanonicalInterval(_)
-          },
-        ),
-        (1, preGenTuple(required, genArb)),
-        (1, Gen.zip(genRequired, genArb).map { case (k, v) => PCanonicalDict(k, v) }),
-        (1, genPStruct.resize(size)),
-      )
-    }
-
-  def preGenArb(required: Boolean, genStruct: Gen[PStruct] = genStruct): Gen[PType] =
-    Gen.sized(genSized(_, required, genStruct))
-
-  def genArb: Gen[PType] = Gen.coin(0.2).flatMap(preGenArb(_))
-
-  val genOptional: Gen[PType] = preGenArb(required = false)
-
-  val genRequired: Gen[PType] = preGenArb(required = true)
-
-  val genInsertable: Gen[PStruct] = genInsertableStruct
-
-  implicit def arbType = Arbitrary(genArb)
 
   def canonical(t: Type, required: Boolean, innerRequired: Boolean): PType = {
     t match {
@@ -397,15 +293,6 @@ object PType {
 }
 
 abstract class PType extends Serializable with Requiredness {
-  self =>
-
-  def genValue(sm: HailStateManager): Gen[Annotation] =
-    if (required) genNonmissingValue(sm)
-    else Gen.nextCoin(0.05).flatMap(isEmpty =>
-      if (isEmpty) Gen.const(null) else genNonmissingValue(sm)
-    )
-
-  def genNonmissingValue(sm: HailStateManager): Gen[Annotation] = virtualType.genNonmissingValue(sm)
 
   def virtualType: Type
 

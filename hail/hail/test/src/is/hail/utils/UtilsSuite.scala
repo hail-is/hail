@@ -1,16 +1,18 @@
 package is.hail.utils
 
 import is.hail.{CancellingExecutorService, HailSuite}
-import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
 
 import java.util.concurrent.Executors
 
 import com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService
 import org.apache.spark.storage.StorageLevel
+import org.scalacheck.Gen
+import org.scalacheck.Gen.containerOf
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class UtilsSuite extends HailSuite {
+class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   @Test def testD_==(): Unit = {
     assert(D_==(1, 1))
     assert(D_==(1, 1 + 1e-7))
@@ -122,11 +124,11 @@ class UtilsSuite extends HailSuite {
   }
 
   @Test def testCollectAsSet(): Unit =
-    Prop.forAll(Gen.buildableOf[Array](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
+    forAll(containerOf[Array, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
       case (values, parts) =>
         val rdd = sc.parallelize(values, numSlices = parts)
         rdd.collectAsSet() == rdd.collect().toSet
-    }.check()
+    }
 
   @Test def testDigitsNeeded(): Unit = {
     assert(digitsNeeded(0) == 1)
