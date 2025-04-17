@@ -51,7 +51,7 @@ class NormalizeNames(freeVariables: Set[Name]) {
 
   @tailrec private def gen(): Name = {
     count += 1
-    val name = Name(iruid(count))
+    val name = Name(s"__norm_$count")
     if (freeVariables.contains(name)) {
       gen()
     } else {
