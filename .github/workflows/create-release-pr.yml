@@ -1,0 +1,87 @@
+name: Create Release PR
+on:
+  workflow_dispatch:
+  schedule:
+    # Midnight on the 1st of every 2nd month
+    - cron: 0 0 1 */2 *
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Increment Patch Version
+        id: version
+        run: |
+          prefix=$(grep -Po '(?<=HAIL_MAJOR_MINOR_VERSION := )(\d+\.\d+)' hail/Makefile)
+          patch=$(grep -Po '(?<=HAIL_PATCH_VERSION := )(\d+)' hail/Makefile)
+          
+          n=$((patch + 1))
+          
+          sed -Ei 's|(HAIL_PATCH_VERSION := )[[:digit:]]+|\1'"${n}"'|' hail/Makefile
+          sed -Ei 's|(hailPatchVersion = ")[[:digit:]]+|\1'"${n}"'|' hail/build.mill
+          
+          echo "old=${prefix}.${patch}" >> "${GITHUB_OUTPUT}"
+          echo "new=${prefix}.${n}" >> "${GITHUB_OUTPUT}"
+          echo "next=${prefix}.$((n + 1))" >> "{GITHUB_OUTPUT}"
+
+      - name: Generate Changelog Entries
+        run: |
+          git log "${{ steps.version.outputs.old }}"..HEAD --format='%s' |\
+            grep -P '\[all|(com(biner|piler)|dep(s|endencies)|hail(?!ctl|genetics|jwt|top)|ir|jvm|p(ip|ython)|q(uery|ob)|vds)[^\]]*\]' |\
+            sed -E 's/\[[^\]+\] (.*) \(#([[:digit:]]*)\)/- (hail#\2) \1/' |\
+            sed 1i"## Version ${{ steps.version.outputs.new }}\n" |\
+            sed -e '$a\'$'\n' > HAIL_ENTRY
+          
+          sed -i '/## Version '"${{ steps.version.outputs.old }}"'/e cat HAIL_ENTRY' \
+            hail/python/hail/docs/change_log.md
+          
+          git log "${{ steps.version.outputs.old }}"..HEAD --format='%s' |\
+            grep -P '\[(a(ll|uth)|batch|dataproc|fs|hail(ctl|genetics|top)|infra|services)[^\]]*\]' |\
+            sed -E 's$\[[^\]+\] (.*) \(#([[:digit:]]*)\)$- (\`#\2 <https://github.com/hail-is/hail/pulls/\2>\`__) \1$' |\
+            sed 1i"**Version ${{ steps.version.outputs.new }}**\n" |\
+            sed -e '$a\'$'\n' > HAILTOP_ENTRY
+          
+          sed -i -e '/Change Log/{N; N; r HAILTOP_ENTRY' -e '}' \
+            hail/python/hailtop/batch/docs/change_log.rst
+
+      - name: Commit and Push
+        run: |
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+          
+          git switch -c "release/${{ steps.version.outputs.new }}"
+          git commit -m "[release] ${{ steps.version.outputs.new }}" \
+            hail/python/hail/docs/change_log.md \
+            hail/python/hailtop/batch/docs/change_log.rst \
+            hail/build.mill \
+            hail/Makefile
+          git push origin $(git branch --show-current)
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cat << 'EOF' | gh pr create --base=main --head=$(git branch --show-current) --draft --fill -F -
+          # Release Checklist (delete before merge)
+          
+          [ ] Verify new PATCH version is correct 
+          [ ] Organise / format / expand / delete new entries from
+          - [ ] hail/python/hail/docs/change_log.md
+          - [ ] hail/python/hailtop/batch/docs/change_log.rst
+          
+          # Security Assessment
+          This change has low security impact as:
+          - there are no functional changes herein
+          - all changes since the last release have an approved security impact assessment.
+          EOF
+          
+      - name: Create Next Milestone ${{ steps.version.outputs.next }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api -X POST "/repos/${GITHUB_REPOSITORY}/milestones" \
+            -f "title=${{ steps.version.outputs.next }}" \
+            -f "due_on=$(date --iso-8601=seconds --utc --date='00:00 +2 month +1 week')"
