@@ -1,0 +1,45 @@
+name: Create Release PR
+on:
+  schedule:
+    # Midnight on the 1st of every 2nd month
+    - cron: 0 0 1 */2 *
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Increment Patch Version
+        id: bump
+        run: |
+          prefix=$(grep -Po '(?<=HAIL_MAJOR_MINOR_VERSION := )(\d+\.\d+)' hail/Makefile)
+          patch=$(grep -Po '(?<=HAIL_PATCH_VERSION := )(\d+)' hail/Makefile)
+          
+          n=$((patch + 1))
+          
+          # Bump patch version in Makefile and build.mill
+          sed -Ei 's|(HAIL_PATCH_VERSION := )([[:digit:]]+)|\1'"n"'|' hail/Makefile
+          sed -Ei 's|(hailPatchVersion = ")([[:digit:]]+)|\1'"n"'|' hail/build.mill
+          
+          version="${prefix}.${n}"
+          
+          # Create changelog entries
+          entry="\n**Version ${version}**\n\nTODO\n"
+          sed -Ezi 's|(Change Log\n==========\n)|\1'"${entry}"'|g' hail/python/hailtop/batch/docs/change_log.rst
+          
+          entry="## Version ${version}\n\nTODO\n\n"
+          sed -Ei 's|(## Version '"${prefix}.${patch}"')|'"${entry}"'\1|g' hail/python/hail/docs/change_log.md
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e
+        with:
+          title: '[release] Hail ${{ steps.bump.outputs.version }}'
+          branch: 'release/${{ steps.bump.outputs.version }}'
+          draft: true
+          add-paths: |
+            hail/python/hailtop/batch/docs/change_log.rst
+            hail/python/hail/docs/change_log.md
+            hail/build.mill
+            hail/Makefile
