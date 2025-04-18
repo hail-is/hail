@@ -785,7 +785,7 @@ class tndarray(HailType):
 
     def _convert_from_encoding(self, byte_reader, _should_freeze: bool = False) -> np.ndarray:
         shape = [byte_reader.read_int64() for i in range(self.ndim)]
-        total_num_elements = np.product(shape, dtype=np.int64)
+        total_num_elements = np.prod(shape, dtype=np.int64)
 
         if self.element_type in _numeric_types:
             element_byte_size = self.element_type._byte_size
