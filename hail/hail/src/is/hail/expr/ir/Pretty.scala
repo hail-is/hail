@@ -410,7 +410,7 @@ class Pretty(
     case ArraySort(_, l, r, _) if !elideBindings =>
       FastSeq(prettyName(l), prettyName(r))
     case ArrayRef(_, _, errorID) => single(s"$errorID")
-    case ApplyIR(function, typeArgs, _, _, errorID) => FastSeq(
+    case ApplyIR(function, typeArgs, _, _, errorID, _) => FastSeq(
         s"$errorID",
         prettyIdentifier(function),
         prettyTypes(typeArgs),
