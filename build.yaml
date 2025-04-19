@@ -180,12 +180,12 @@ steps:
       - merge_code
   - kind: buildImage2
     name: create_certs_image
-    dockerFile: /io/tls/Dockerfile
-    contextPath: /io/tls
+    dockerFile: /io/repo/tls/Dockerfile
+    contextPath: /io/repo
     publishAs: create_certs_image
     inputs:
-      - from: /repo/tls
-        to: /io/tls
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - hail_ubuntu_image
       - merge_code
@@ -236,6 +236,10 @@ steps:
       valueFrom: create_certs_image.image
     script: |
       set -ex
+      export CLOUD={{ global.cloud }}
+      {% if global.cloud == 'gcp' %}
+      export HAIL_PROJECT={{ global.gcp_project }}
+      {% endif %}
       python3 create_certs.py \
               {{ default_ns.name }} \
               config.yaml \

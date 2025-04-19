@@ -7,12 +7,14 @@ from typing import Dict, Optional
 import aiohttp
 
 from gear import CommonAiohttpAppKeys, Database, transaction
+from hailtop import httpx
 from hailtop.humanizex import naturaldelta_msec
 from hailtop.utils import retry_transient_errors, time_msecs, time_msecs_str
 
 from ..cloud.utils import instance_config_from_config_dict
 from ..globals import INSTANCE_VERSION
 from ..instance_config import InstanceConfig
+from ..utils import instance_base_url
 
 log = logging.getLogger('instance')
 
@@ -132,7 +134,7 @@ VALUES (%s, %s);
         instance_config: InstanceConfig,
     ):
         self.db: Database = app['db']
-        self.client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
+        self.client_session: httpx.ClientSession = app[CommonAiohttpAppKeys.CLIENT_SESSION]
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state
@@ -152,6 +154,10 @@ VALUES (%s, %s);
     @property
     def state(self):
         return self._state
+
+    @property
+    def base_url(self) -> str:
+        return instance_base_url(self.version, self.ip_address)
 
     async def activate(self, ip_address, timestamp):
         assert self._state == 'pending'
@@ -197,7 +203,7 @@ VALUES (%s, %s);
                 return
             try:
                 await self.client_session.post(
-                    f'http://{self.ip_address}:5000/api/v1alpha/kill', timeout=aiohttp.ClientTimeout(total=30)
+                    f'{self.base_url}/api/v1alpha/kill', timeout=aiohttp.ClientTimeout(total=30)
                 )
             except aiohttp.ClientResponseError as err:
                 if err.status == 403:
@@ -278,7 +284,7 @@ VALUES (%s, %s);
     async def check_is_active_and_healthy(self):
         if self._state == 'active' and self.ip_address:
             try:
-                async with self.client_session.get(f'http://{self.ip_address}:5000/healthcheck') as resp:
+                async with self.client_session.get(f'{self.base_url}/healthcheck') as resp:
                     actual_name = (await resp.json()).get('name')
                     if actual_name and actual_name != self.name:
                         return False
