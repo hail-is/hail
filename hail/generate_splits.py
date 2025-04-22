@@ -34,7 +34,7 @@ with open('classes', 'r') as f:
     ]
     classes = [cls for cls in classes if not cls.startswith('is.hail.services') if not cls.startswith('is.hail.io.fs')]
 
-random.shuffle(classes, lambda: 0.0)
+random.shuffle(classes)
 
 splits = partition(n_splits, classes)
 
