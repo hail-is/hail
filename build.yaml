@@ -125,13 +125,13 @@ steps:
       - merge_code
       - copy_third_party_images
   - kind: buildImage2
-    name: hail_ubuntu_image_python_3_11
+    name: hail_ubuntu_image_python_3_12
     dockerFile: /io/hail-ubuntu/Dockerfile
     contextPath: /io/hail-ubuntu
-    publishAs: hail-ubuntu-python-3-11
+    publishAs: hail-ubuntu-python-3-12
     buildArgs:
       - name: PYTHON_VERSION
-        value: "3.11"
+        value: "3.12"
     resources:
       storage: 10Gi
       cpu: "2"

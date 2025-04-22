@@ -11,7 +11,7 @@ COPY hail-pip-install /bin/hail-pip-install
 COPY controller.sh /
 COPY curlrc /root/.curlrc
 
-ARG PYTHON_VERSION=3.9
+ARG PYTHON_VERSION=3.11
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
     chmod 755 /bin/hail-pip-install && \
