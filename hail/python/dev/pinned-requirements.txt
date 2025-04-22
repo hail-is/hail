@@ -230,7 +230,7 @@ jupyter-server==2.15.0
     #   notebook-shim
 jupyter-server-terminals==0.5.3
     # via jupyter-server
-jupyterlab==4.4.0
+jupyterlab==4.4.1
     # via
     #   jupyter
     #   notebook
@@ -478,7 +478,7 @@ snowballstemmer==2.2.0
     # via sphinx
 soupsieve==2.7
     # via beautifulsoup4
-sphinx==6.2.1
+sphinx==7.3.7
     # via
     #   -r hail/python/dev/requirements.txt
     #   nbsphinx
@@ -522,6 +522,7 @@ tomli==2.2.1
     #   jupyterlab
     #   pylint
     #   pytest
+    #   sphinx
 tomlkit==0.13.2
     # via pylint
 tornado==6.4.2
