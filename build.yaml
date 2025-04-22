@@ -1424,14 +1424,14 @@ steps:
       - build_hail_jar_and_wheel
       - hail_ubuntu_image_python_3_10
   - kind: buildImage2
-    name: hailgenetics_hail_image_python_3_11
+    name: hailgenetics_hail_image_python_3_12
     dockerFile: /io/repo/docker/hailgenetics/hail/Dockerfile
     contextPath: /io/repo
     publishAs: hailgenetics/hail
     buildArgs:
       - name: BASE_IMAGE
         value:
-          valueFrom: hail_ubuntu_image_python_3_11.image
+          valueFrom: hail_ubuntu_image_python_3_12.image
       - name: HAIL_WHEEL_DIR
         value: /wheel
     inputs:
@@ -1444,7 +1444,7 @@ steps:
     dependsOn:
       - merge_code
       - build_hail_jar_and_wheel
-      - hail_ubuntu_image_python_3_11
+      - hail_ubuntu_image_python_3_12
   - kind: runImage
     name: test_hailgenetics_hail_image
     image:
@@ -1468,16 +1468,16 @@ steps:
     dependsOn:
       - hailgenetics_hail_image_python_3_10
   - kind: runImage
-    name: test_hailgenetics_hail_image_python_3_11
+    name: test_hailgenetics_hail_image_python_3_12
     image:
-      valueFrom: hailgenetics_hail_image_python_3_11.image
+      valueFrom: hailgenetics_hail_image_python_3_12.image
     script: |
       set -ex
       python3 --version | grep '3.11'
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
-      - hailgenetics_hail_image_python_3_11
+      - hailgenetics_hail_image_python_3_12
   - kind: buildImage2
     name: hail_dev_image
     dockerFile: /io/repo/docker/Dockerfile.hail-dev
@@ -3033,13 +3033,13 @@ steps:
     script: |
       cd /io
       set -ex
-      
+
       tar xzf test.tar.gz
       python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
-            
+
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      
+
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
@@ -3433,7 +3433,7 @@ steps:
       GITHUB_OAUTH_HEADER_FILE=/io/github-oauth \
       HAIL_GENETICS_HAIL_IMAGE=docker://{{ hailgenetics_hail_image.image }} \
       HAIL_GENETICS_HAIL_IMAGE_PY_3_10=docker://{{ hailgenetics_hail_image_python_3_10.image }} \
-      HAIL_GENETICS_HAIL_IMAGE_PY_3_11=docker://{{ hailgenetics_hail_image_python_3_11.image }} \
+      HAIL_GENETICS_HAIL_IMAGE_PY_3_12=docker://{{ hailgenetics_hail_image_python_3_12.image }} \
       HAIL_GENETICS_HAILTOP_IMAGE=docker://{{ hailgenetics_hailtop_image.image }} \
       HAIL_GENETICS_VEP_GRCH37_85_IMAGE=docker://{{ hailgenetics_vep_grch37_85_image.image }} \
       HAIL_GENETICS_VEP_GRCH38_95_IMAGE=docker://{{ hailgenetics_vep_grch38_95_image.image }} \
@@ -3480,7 +3480,7 @@ steps:
       - merge_code
       - hailgenetics_hail_image
       - hailgenetics_hail_image_python_3_10
-      - hailgenetics_hail_image_python_3_11
+      - hailgenetics_hail_image_python_3_12
       - hailgenetics_hailtop_image
       - hailgenetics_vep_grch37_85_image
       - hailgenetics_vep_grch38_95_image
