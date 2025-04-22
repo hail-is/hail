@@ -120,7 +120,7 @@
                 "hail-ubuntu",
                 "hail-ubuntu-py-3-10",
                 "hail-ubuntu-python-3-10",
-                "hail-ubuntu-python-3-11",
+                "hail-ubuntu-python-3-12",
                 "hailgenetics/hail",
                 "hailgenetics/hailtop",
                 "hailgenetics/vep-grch37-85",
