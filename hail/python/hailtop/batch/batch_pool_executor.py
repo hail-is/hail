@@ -218,11 +218,11 @@ class BatchPoolExecutor:
         def generator_from_async_generator(aiter):
             try:
                 while True:
-                    yield async_to_blocking(aiter.__anext__())
+                    yield async_to_blocking(aiter.__anext__())  # pylint: disable=unnecessary-dunder-call
             except StopAsyncIteration:
                 return
 
-        return generator_from_async_generator(agen.__aiter__())
+        return generator_from_async_generator(agen.__aiter__())  # pylint: disable=unnecessary-dunder-call
 
     async def async_map(
         self,

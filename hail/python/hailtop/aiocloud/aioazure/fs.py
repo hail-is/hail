@@ -204,7 +204,7 @@ class AzureReadableStream(ReadableStream):
 
         while len(self._buffer) < n:
             try:
-                chunk = await self._chunk_it.__anext__()
+                chunk = await self._chunk_it.__anext__()  # pylint: disable=unnecessary-dunder-call
                 self._buffer.extend(chunk)
             except StopAsyncIteration:
                 break
@@ -603,7 +603,8 @@ class AzureAsyncFS(AsyncFS):
 
         it = it.__aiter__()
         try:
-            first_entry = await it.__anext__()
+            first_entry = await it.__anext__()  # pylint: disable=unnecessary-dunder-call
+
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
@@ -624,7 +625,7 @@ class AzureAsyncFS(AsyncFS):
                 yield first_entry
             try:
                 while True:
-                    next_entry = await it.__anext__()
+                    next_entry = await it.__anext__()  # pylint: disable=unnecessary-dunder-call
                     if await should_yield(next_entry):
                         yield next_entry
             except StopAsyncIteration:
