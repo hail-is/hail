@@ -29,9 +29,9 @@ RUN chmod 755 /bin/retry && \
         | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \
     echo 'deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main' \
         >> /etc/apt/sources.list && \
-    hail-apt-get-install python$PYTHON_VERSION-minimal python$PYTHON_VERSION-dev python$PYTHON_VERSION-distutils gcc g++ && \
+    hail-apt-get-install python$PYTHON_VERSION-dev gcc g++ && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1 && \
     curl https://bootstrap.pypa.io/get-pip.py | python3 && \
-    python3 -m pip install 'pip>=23,<24.1' && \
+    python3 -m pip install 'pip>=25,<26' 'setuptools' && \
     python3 -m pip check && \
     python3 -m pip --version
