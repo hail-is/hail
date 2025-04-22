@@ -1451,7 +1451,7 @@ steps:
       valueFrom: hailgenetics_hail_image.image
     script: |
       set -ex
-      python3 --version | grep '3.9'
+      python3 --version | grep '3.11'
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import scipy'
     dependsOn:
