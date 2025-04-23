@@ -17,6 +17,7 @@ Classes
     :toctree: ./
     :template: class.rst
 
+    hail.table.BaseTable
     hail.Table
     hail.GroupedTable
     hail.MatrixTable

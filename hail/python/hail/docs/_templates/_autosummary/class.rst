@@ -3,18 +3,19 @@
 .. currentmodule:: {{ module }}
 
 .. autoclass:: {{ objname }}()
+    :show-inheritance:
     :members:
     :no-inherited-members:
 
     {% block attributes %}
-    {% if attributes %}
+    {% if (attributes | reject('in', inherited_members) | list | count) != 0 %}
     .. rubric:: Attributes
 
     .. autosummary::
         :nosignatures:
 
     {% for item in attributes %}
-    {% if item[0] != '_' %}
+    {% if item not in inherited_members and item[0] != '_' %}
         ~{{ name }}.{{ item }}
     {% endif %}
     {%- endfor %}
