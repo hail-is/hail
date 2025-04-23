@@ -13,7 +13,7 @@ from hail.typecheck import typecheck_method
 
 
 class ConditionalBuilder:
-    """Base class for :class:`.SwitchBuilder` and :class:`.ConditionalBuilder`"""
+    """Base class for :class:`.SwitchBuilder` and :class:`.CaseBuilder`"""
 
     def __init__(self):
         self._ret_type = None
