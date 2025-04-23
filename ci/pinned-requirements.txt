@@ -22,7 +22,7 @@ click==8.1.8
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-cryptography==43.0.3
+cryptography==44.0.2
     # via
     #   -c ci/../hail/python/pinned-requirements.txt
     #   pyjwt
@@ -52,7 +52,7 @@ requests==2.32.3
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   zulip
-typing-extensions==4.13.1
+typing-extensions==4.13.2
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt

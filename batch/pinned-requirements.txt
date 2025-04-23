@@ -57,7 +57,7 @@ idna==3.10
     #   -c batch/../hail/python/pinned-requirements.txt
     #   -c batch/../web_common/pinned-requirements.txt
     #   yarl
-multidict==6.3.2
+multidict==6.4.3
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
@@ -65,7 +65,7 @@ multidict==6.3.2
     #   -c batch/../web_common/pinned-requirements.txt
     #   aiohttp
     #   yarl
-numpy==1.26.4
+numpy==2.0.2
     # via
     #   -c batch/../hail/python/dev/pinned-requirements.txt
     #   -c batch/../hail/python/pinned-requirements.txt
@@ -111,7 +111,7 @@ tenacity==9.1.2
     # via
     #   -c batch/../hail/python/pinned-requirements.txt
     #   plotly
-typing-extensions==4.13.1
+typing-extensions==4.13.2
     # via
     #   -c batch/../gear/pinned-requirements.txt
     #   -c batch/../hail/python/dev/pinned-requirements.txt
