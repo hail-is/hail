@@ -165,7 +165,7 @@ rsa==4.9.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-setuptools==79.0.0
+setuptools==79.0.1
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   kubernetes-asyncio

@@ -28,9 +28,9 @@ azure-mgmt-storage==20.1.0
     # via -r hail/python/hailtop/requirements.txt
 azure-storage-blob==12.25.1
     # via -r hail/python/hailtop/requirements.txt
-boto3==1.37.38
+boto3==1.38.1
     # via -r hail/python/hailtop/requirements.txt
-botocore==1.37.38
+botocore==1.38.1
     # via
     #   -r hail/python/hailtop/requirements.txt
     #   boto3
@@ -146,7 +146,7 @@ rich==12.6.0
     #   typer
 rsa==4.9.1
     # via google-auth
-s3transfer==0.11.5
+s3transfer==0.12.0
     # via boto3
 shellingham==1.5.4
     # via typer
