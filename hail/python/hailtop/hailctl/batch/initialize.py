@@ -99,7 +99,7 @@ async def setup_new_remote_tmpdir(
     else:
         default_compute_region = supported_regions[0]
 
-    bucket_region = Prompt.ask(f'Which region does your data reside in?', default=default_compute_region)
+    bucket_region = Prompt.ask('Which region does your data reside in?', default=default_compute_region)
     if bucket_region not in supported_regions:
         typer.secho(
             f'The region where your data lives ({bucket_region}) is not in one of the supported regions of the Batch Service ({supported_regions}). '
