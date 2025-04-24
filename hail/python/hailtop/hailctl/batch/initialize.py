@@ -88,7 +88,7 @@ async def setup_new_remote_tmpdir(
 
     token = secret_alnum_string(5).lower()
     maybe_bucket_name = f'hail-batch-{username}-{token}'
-    bucket_name = Prompt.ask(f'What is the name of the new bucket?', default=maybe_bucket_name)
+    bucket_name = Prompt.ask('What is the name of the new bucket?', default=maybe_bucket_name)
 
     default_project = await get_gcp_default_project(verbose=verbose)
     bucket_prompt = f'Which google project should {bucket_name} be created in? This project will incur costs for storing your Hail generated data.'
