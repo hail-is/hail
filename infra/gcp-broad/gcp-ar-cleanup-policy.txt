@@ -107,7 +107,6 @@
                 "base",
                 "batch",
                 "batch-worker",
-                "blog_nginx",
                 "ci",
                 "ci-hello",
                 "ci-utils",
