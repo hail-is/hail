@@ -70,7 +70,6 @@ def base_context(session, userdata, service):
         'ci_base_url': deploy_config.external_url('ci', ''),
         'grafana_base_url': deploy_config.external_url('grafana', ''),
         'monitoring_base_url': deploy_config.external_url('monitoring', ''),
-        'blog_base_url': deploy_config.external_url('blog', ''),
         'userdata': userdata,
     }
     if 'message' in session:
