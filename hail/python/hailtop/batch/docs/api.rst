@@ -21,7 +21,8 @@ and the order or dependencies between the jobs. Each :class:`.Job` has
 an image in which to execute commands and settings for storage,
 memory, and CPU. A :class:`.BashJob` is a subclass of :class:`.Job`
 that runs bash commands while a :class:`.PythonJob` executes Python
-functions.
+functions. A :class:`.JobGroup` can be used to organize jobs into a
+hierarchy that can be cancelled or monitored as subgroups.
 
 .. autosummary::
     :toctree: api/batch/
@@ -32,6 +33,7 @@ functions.
     job.Job
     job.BashJob
     job.PythonJob
+    job_group.JobGroup
 
 
 Resources

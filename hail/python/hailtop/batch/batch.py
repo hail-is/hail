@@ -17,6 +17,7 @@ from hailtop.utils import async_to_blocking, path_str, secret_alnum_string, url_
 from . import job
 from . import resource as _resource
 from .exceptions import BatchException
+from .job_group import JobGroup
 
 if TYPE_CHECKING:
     from hailtop.batch.backend import LocalBackend, ServiceBackend
@@ -235,6 +236,7 @@ class Batch:
         self._python_function_files: Dict[int, _resource.InputResourceFile] = {}
 
         self._async_batch: Optional[_aiobc.Batch] = None
+        self._job_groups: List[JobGroup] = []
 
     @property
     def _unsubmitted_jobs(self):
@@ -243,6 +245,12 @@ class Batch:
     @property
     def _submitted_jobs(self):
         return [j for j in self._jobs if j._submitted]
+
+    @property
+    def _root_job_group(self) -> JobGroup:
+        from hailtop.batch.backend import ServiceBackend  # pylint: disable=import-outside-toplevel
+        assert isinstance(self._backend, ServiceBackend)
+        return JobGroup(self, None, attributes=self.attributes, cancel_after_n_failures=self._cancel_after_n_failures)
 
     def _register_python_function(self, function: Callable) -> int:
         function_id = id(function)
@@ -284,6 +292,23 @@ class Batch:
             return self._DEPRECATED_fs
         return self._backend._fs
 
+    def create_job_group(self, *, attributes: Optional[Dict[str, str]] = None, cancel_after_n_failures: Optional[int] = None) -> JobGroup:
+        return self._create_job_group(None, attributes=attributes, cancel_after_n_failures=cancel_after_n_failures)
+
+    def _create_job_group(self,
+                          parent_job_group: Optional['JobGroup'],
+                          *,
+                          attributes: Optional[Dict[str, str]] = None,
+                          cancel_after_n_failures: Optional[int] = None) -> JobGroup:
+        from hailtop.batch.backend import ServiceBackend  # pylint: disable=import-outside-toplevel
+        assert isinstance(self._backend, ServiceBackend)
+        jg = JobGroup(self, parent_job_group, attributes=attributes, cancel_after_n_failures=cancel_after_n_failures)
+        self._job_groups.append(jg)
+        return jg
+
+    def get_job_group(self, job_group_id: int) -> JobGroup:
+        return JobGroup.from_job_group_id(self, job_group_id)
+
     def new_job(
         self, name: Optional[str] = None, attributes: Optional[Dict[str, str]] = None, shell: Optional[str] = None
     ) -> job.BashJob:
@@ -318,6 +343,33 @@ class Batch:
             Use the name argument instead.
         """
 
+        return self._new_bash_job(self._root_job_group, name=name, attributes=attributes, shell=shell)
+
+    def _new_bash_job(
+        self, job_group: JobGroup, name: Optional[str] = None, attributes: Optional[Dict[str, str]] = None, shell: Optional[str] = None
+    ) -> job.BashJob:
+        """
+        Initialize a :class:`.BashJob` object with default memory, storage,
+        image, and CPU settings (defined in :class:`.Batch`) upon batch creation.
+
+        Examples
+        --------
+        Create and execute a batch `b` with one job `j` that prints "hello world":
+
+        >>> b = Batch()
+        >>> j = b.new_bash_job(name='hello', attributes={'language': 'english'})
+        >>> j.command('echo "hello world"')
+        >>> b.run()
+
+        Parameters
+        ----------
+        name:
+            Name of the job.
+        attributes:
+            Key-value pairs of additional attributes. 'name' is not a valid keyword.
+            Use the name argument instead.
+        """
+
         if attributes is None:
             attributes = {}
 
@@ -325,7 +377,7 @@ class Batch:
             shell = self._default_shell
 
         token = self._unique_job_token()
-        j = job.BashJob(batch=self, token=token, name=name, attributes=attributes, shell=shell)
+        j = job.BashJob(batch=self, job_group=job_group, token=token, name=name, attributes=attributes, shell=shell)
 
         if self._default_image is not None:
             j.image(self._default_image)
@@ -392,11 +444,14 @@ class Batch:
             Key-value pairs of additional attributes. 'name' is not a valid keyword.
             Use the name argument instead.
         """
+        return self._new_python_job(self._root_job_group, name=name, attributes=attributes)
+
+    def _new_python_job(self, job_group: JobGroup, name: Optional[str] = None, attributes: Optional[Dict[str, str]] = None) -> job.PythonJob:
         if attributes is None:
             attributes = {}
 
         token = self._unique_job_token()
-        j = job.PythonJob(batch=self, token=token, name=name, attributes=attributes)
+        j = job.PythonJob(batch=self, job_group=job_group, token=token, name=name, attributes=attributes)
 
         if self._default_python_image is not None:
             j.image(self._default_python_image)
