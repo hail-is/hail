@@ -758,4 +758,23 @@ class SimplifySuite extends HailSuite {
     assert(x == expected)
   }
 
+  @DataProvider(name = "CastRules")
+  def castRules: Array[Array[Any]] = {
+    Array(
+      Array(TInt32, TFloat32, false),
+      Array(TInt32, TInt64, true),
+      Array(TInt64, TInt32, false),
+      Array(TInt32, TFloat64, true),
+      Array(TFloat32, TFloat64, true),
+      Array(TFloat64, TFloat32, false),
+    )
+  }
+
+  @Test(dataProvider = "CastRules")
+  def testCastSimplify(t1: Type, t2: Type, simplifies: Boolean): Unit = {
+    val x = ref(t1)
+    val ir = Cast(Cast(x, t2), t1)
+    val expected = if (simplifies) x else ir
+    assert(Simplify(ctx, ir) == expected)
+  }
 }
