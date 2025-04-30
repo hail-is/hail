@@ -1,23 +1,17 @@
 import pytest
 
 import hail as hl
-from hail.backend.service_backend import ServiceBackend
 
 
 class TestAnnotationDB:
     @pytest.fixture(scope="class")
-    def db_json(init_hail):
-        backend = hl.current_backend()
-        if isinstance(backend, ServiceBackend):
-            backend.batch_attributes = dict(name='setupAnnotationDBTests')
+    def db_json(self):
         t = hl.utils.genomic_range_table(10)
         t = t.annotate(annotation=hl.str(t.locus.position - 1))
         tempdir_manager = hl.TemporaryDirectory()
         d = tempdir_manager.__enter__()
         fname = d + '/f.mt'
         t.write(fname)
-        if isinstance(backend, ServiceBackend):
-            backend.batch_attributes = dict()
         db_json = {
             'unique_dataset': {
                 'description': 'now with unique rows!',

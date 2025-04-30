@@ -8,7 +8,8 @@ import pytest
 
 import hail as hl
 from hail.backend.service_backend import ServiceBackend
-from hailtop.batch_client.client import Batch, Job, JobGroup
+from hailtop.batch_client.client import Batch, BatchClient, Job, JobGroup
+from hailtop.config import ConfigVariable, configuration_of
 
 
 @dataclass
@@ -35,6 +36,16 @@ def run_on_batch_mocks(mocker):
 
     outfile = type('Settable', (object,), {'value': None})
 
+    async def write_output(*args, **kwargs):
+        async with await backend._async_fs.create(outfile.value) as f:
+            payload = hl.ttuple(hl.tint64)._to_encoding([0])
+            await f.write(struct.pack('<b', 1))
+            await f.write(struct.pack('<i', len(payload)))
+            await f.write(payload)
+
+    mjob_group = mocker.patch(classname(JobGroup))
+    mjob_group.wait = write_output
+
     def set_outdir(*args, **kwargs):
         outfile.value = kwargs['argv'][3]
         with backend.fs.open(kwargs['argv'][2]) as f:
@@ -46,20 +57,10 @@ def run_on_batch_mocks(mocker):
     m.create_jvm_job.side_effect = set_outdir
 
     m.create_job_group = mocker.patch.object(batch, 'create_job_group')
-    m.create_job_group.return_value = mocker.patch(classname(JobGroup))
+    m.create_job_group.return_value = mjob_group
 
     m.submit = mocker.patch.object(batch, 'submit')
     m.submit.return_value = None
-
-    async def write_output(*args, **kwargs):
-        async with await backend._async_fs.create(outfile.value) as f:
-            payload = hl.ttuple(hl.tint64)._to_encoding([0])
-            await f.write(struct.pack('<b', 1))
-            await f.write(struct.pack('<i', len(payload)))
-            await f.write(payload)
-
-    m.wait = mocker.patch.object(batch, 'wait')
-    m.wait.side_effect = write_output
     return m
 
 
@@ -129,3 +130,24 @@ def test_driver_and_worker_job_groups():
     assert len(worker_jobs) == n_partitions
     for i, partition in enumerate(worker_jobs):
         assert partition['name'] == f'execute(...)_stage0_table_force_count_job{i}'
+
+
+@pytest.mark.backend('batch')
+@pytest.mark.uninitialized
+def test_attach_to_existing_batch(request):
+    billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, None, None)
+    assert billing_project is not None
+
+    client = BatchClient(billing_project)
+    batch = client.create_batch(attributes={'name': request.node.nodeid})
+    batch.submit()
+
+    hl.init(backend='batch', batch_id=batch.id)
+    hl.utils.range_table(2)._force_count()
+
+    backend = hl.current_backend()
+    assert isinstance(backend, ServiceBackend)
+    assert backend._batch.id == batch.id
+
+    status = batch.status()
+    assert status['n_jobs'] > 0, repr(batch.debug_info())
