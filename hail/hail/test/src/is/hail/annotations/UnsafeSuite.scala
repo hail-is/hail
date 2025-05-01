@@ -83,10 +83,9 @@ class UnsafeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     val g: Gen[(TStruct, Annotation)] =
       for {
-        t <- arbitrary[TStruct]
-        v <- genNullable(ctx, t)
-        if v != null
-      } yield (t, v)
+        pt <- arbitrary[PCanonicalStruct]
+        v <- genVal(ctx, pt.setRequired(true))
+      } yield (pt.virtualType, v)
 
     forAll(g) { case (t, a) =>
       assert(t.typeCheck(a))

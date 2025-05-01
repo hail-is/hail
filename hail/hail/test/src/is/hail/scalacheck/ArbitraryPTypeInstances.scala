@@ -61,7 +61,7 @@ private[scalacheck] trait ArbitraryPTypeInstances {
   implicit lazy val arbPCanonicalDict: Arbitrary[PCanonicalDict] =
     liftA3(
       PCanonicalDict(_, _, _),
-      smaller[PType] suchThat (_.required),
+      smaller[PType] map { _.setRequired(true) },
       smaller[PType],
       genIsRequired,
     )
