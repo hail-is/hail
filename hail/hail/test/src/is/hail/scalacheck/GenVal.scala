@@ -57,12 +57,14 @@ private[scalacheck] trait GenVal {
         case _: PInt64 =>
           arbitrary[Long]
         case t: PInterval =>
-          val ord = t.pointType.virtualType.mkOrdering(ctx.stateManager)
-          val elem = scale(0.5, genVal(ctx, t.pointType))
-          for {
-            (a, b, s, e) <- zip(elem, elem, arbitrary[Boolean], arbitrary[Boolean])
-            if ord.compare(a, b) != 0 || (s && e)
-          } yield Interval(ord.min(a, b), ord.max(a, b), s, e)
+          distribute(2, genVal(ctx, t.pointType)) flatMap { case Array(a, b) =>
+            t.pointType.virtualType.mkOrdering(ctx.stateManager).compare(a, b) match {
+              case 0 => const(Interval(a, b, true, true))
+              case n =>
+                val (start, end) = if (n < 0) (a, b) else (b, a)
+                resultOf[Boolean, Boolean, Interval](Interval(start, end, _, _))
+            }
+          }
         case p: PLocus =>
           genLocus(ctx.references(p.rg))
         case t: PNDArray =>
