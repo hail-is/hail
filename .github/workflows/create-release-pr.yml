@@ -15,6 +15,8 @@ jobs:
       - name: Increment Patch Version
         id: version
         run: |
+          set -e
+          
           prefix=$(grep -Po '(?<=HAIL_MAJOR_MINOR_VERSION := )(\d+\.\d+)' hail/Makefile)
           patch=$(grep -Po '(?<=HAIL_PATCH_VERSION := )(\d+)' hail/Makefile)
           
@@ -29,6 +31,10 @@ jobs:
 
       - name: Generate Changelog Entries
         run: |
+          set -e 
+          
+          git fetch origin "${{ steps.version.outputs.old }}"
+          
           git log "${{ steps.version.outputs.old }}"..HEAD --format='%s' |\
             grep -P '\[all|(com(biner|piler)|dep(s|endencies)|hail(?!ctl|genetics|jwt|top)|ir|jvm|p(ip|ython)|q(uery|ob)|vds)[^\]]*\]' |\
             sed -E 's/\[[^\]+\] (.*) \(#([[:digit:]]*)\)/- (hail#\2) \1/' |\
@@ -49,6 +55,11 @@ jobs:
 
       - name: Commit and Push
         run: |
+          set -e 
+          
+          git config --global user.name "${GITHUB_ACTOR}"
+          git config --global user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+          
           git checkout -B "release/${{ steps.version.outputs.new }}"
           git commit -m "[release] ${{ steps.version.outputs.new }}" \
             hail/python/hail/docs/change_log.md \
