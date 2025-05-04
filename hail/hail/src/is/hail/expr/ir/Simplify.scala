@@ -265,7 +265,7 @@ object Simplify {
       default
 
     case Cast(x, t) if x.typ == t => x
-    case Cast(Cast(x, _), t) if x.typ == t => x
+    case Cast(Cast(x, t2), t) if x.typ == t && Casts.get(t, t2).isLossless => x
 
     case CastRename(x, t) if x.typ == t => x
     case CastRename(CastRename(x, _), t) => CastRename(x, t)

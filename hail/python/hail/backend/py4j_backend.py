@@ -305,7 +305,11 @@ class Py4JBackend(Backend):
         return self._parse_blockmatrix_ir(self._render_ir(ir))
 
     def stop(self):
-        self._backend_server.close()
+        try:
+            self._backend_server.close()
+        except requests.exceptions.ConnectionError:
+            pass
+
         self._jbackend.close()
         self._jhc.stop()
         self._jhc = None

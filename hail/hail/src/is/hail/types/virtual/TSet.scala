@@ -2,7 +2,6 @@ package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.backend.HailStateManager
-import is.hail.check.Gen
 
 import org.json4s.jackson.JsonMethods
 
@@ -45,9 +44,6 @@ final case class TSet(elementType: Type) extends TContainer {
       .mkString("{", ",", "}")
 
   override def str(a: Annotation): String = JsonMethods.compact(export(a))
-
-  override def genNonmissingValue(sm: HailStateManager): Gen[Annotation] =
-    Gen.buildableOf[Set](elementType.genValue(sm))
 
   override def valueSubsetter(subtype: Type): Any => Any = {
     assert(elementType == subtype.asInstanceOf[TSet].elementType)

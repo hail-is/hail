@@ -119,7 +119,10 @@ def desc(col):
     return Descending(col)
 
 
-class ExprContainer:
+class BaseTable:
+    """Base class for :class:`.Table`, :class:`.GroupedTable`, :class:`hail.matrixtable.MatrixTable`,
+    and :class:`hail.matrixtable.GroupedMatrixTable`"""
+
     # this can only grow as big as the object dir, so no need to worry about memory leak
     _warned_about: ClassVar = set()
 
@@ -127,7 +130,7 @@ class ExprContainer:
         self._fields: Dict[str, Expression] = {}
         self._fields_inverse: Dict[Expression, str] = {}
         self._dir = set(dir(self))
-        super(ExprContainer, self).__init__()
+        super(BaseTable, self).__init__()
 
     def _set_field(self, key, value):
         assert key not in self._fields_inverse, key
@@ -137,8 +140,8 @@ class ExprContainer:
         # key is in __dir for methods
         # key is in __dict__ for private class fields
         if key in self._dir or key in self.__dict__:
-            if key not in ExprContainer._warned_about:
-                ExprContainer._warned_about.add(key)
+            if key not in BaseTable._warned_about:
+                BaseTable._warned_about.add(key)
                 warning(
                     f"Name collision: field {key!r} already in object dict. "
                     f"\n  This field must be referenced with __getitem__ syntax: obj[{key!r}]"
@@ -170,12 +173,12 @@ class ExprContainer:
 
         raise AttributeError(get_nice_attr_error(self, item))
 
-    def _copy_fields_from(self, other: 'ExprContainer'):
+    def _copy_fields_from(self, other: 'BaseTable'):
         self._fields = other._fields
         self._fields_inverse = other._fields_inverse
 
 
-class GroupedTable(ExprContainer):
+class GroupedTable(BaseTable):
     """Table grouped by row that can be aggregated into a new table.
 
     There are only two operations on a grouped table, :meth:`.GroupedTable.partition_hint`
@@ -298,7 +301,7 @@ class GroupedTable(ExprContainer):
         )
 
 
-class Table(ExprContainer):
+class Table(BaseTable):
     """Hail's distributed implementation of a dataframe or SQL table.
 
     Use :func:`.read_table` to read a table that was written with

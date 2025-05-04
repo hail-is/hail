@@ -190,7 +190,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         }
         states.bind(node, s)
       case x @ ApplyIR(_, _, args, _, _) =>
-        x.refIdx.foreach { case (n, i) => addBinding(n, args(i)) }
+        x.refs.zipWithIndex.foreach { case (r, i) => addBinding(r.name, args(i)) }
       case ArraySort(a, l, r, _) =>
         addElementBinding(l, a, makeRequired = true)
         addElementBinding(r, a, makeRequired = true)

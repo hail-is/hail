@@ -1,13 +1,14 @@
 package is.hail.linalg
 
 import is.hail.HailSuite
-import is.hail.check.Gen
+import is.hail.scalacheck._
 import is.hail.utils._
 
 import breeze.linalg.DenseMatrix
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class RowMatrixSuite extends HailSuite {
+class RowMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   private def rowArrayToRowMatrix(a: Array[Array[Double]], nPartitions: Int = sc.defaultParallelism)
     : RowMatrix = {
     require(a.length > 0)
@@ -63,25 +64,24 @@ class RowMatrixSuite extends HailSuite {
   }
 
   @Test
-  def readBlock(): Unit = {
-    val fname = ctx.createTmpPath("test")
-    val lm = Gen.denseMatrix[Double](9, 10).sample()
+  def readBlock(): Unit =
+    forAll(genDenseMatrix(9, 10)) { lm =>
+      val fname = ctx.createTmpPath("test")
 
-    for {
-      blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
-      partSize <- Seq(1, 2, 4, 9, 11)
-    } {
-      BlockMatrix.fromBreezeMatrix(lm, blockSize).write(
-        ctx,
-        fname,
-        overwrite = true,
-        forceRowMajor = true,
-      )
-      val rowMatrix = RowMatrix.readBlockMatrix(fs, fname, partSize)
-
-      assert(rowMatrix.toBreezeMatrix() === lm)
+      for {
+        blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
+        partSize <- Seq(1, 2, 4, 9, 11)
+      } {
+        BlockMatrix.fromBreezeMatrix(lm, blockSize).write(
+          ctx,
+          fname,
+          overwrite = true,
+          forceRowMajor = true,
+        )
+        val rowMatrix = RowMatrix.readBlockMatrix(fs, fname, partSize)
+        assert(rowMatrix.toBreezeMatrix() === lm)
+      }
     }
-  }
 
   private def readCSV(fname: String): Array[Array[Double]] =
     fs.readLines(fname)(it =>

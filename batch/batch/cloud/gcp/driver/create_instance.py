@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from shlex import quote as shq
-from typing import Dict
+from typing import Dict, Optional
 
 from gear.cloud_config import get_global_config
 from hailtop.config import get_deploy_config
@@ -13,7 +13,7 @@ from ....file_store import FileStore
 from ....instance_config import InstanceConfig
 from ...resource_utils import unreserved_worker_data_disk_size_gib
 from ...utils import ACCEPTABLE_QUERY_JAR_URL_PREFIX
-from ..resource_utils import gcp_machine_type_to_parts, machine_type_to_gpu
+from ..resource_utils import GPUConfig, gcp_machine_type_to_parts, machine_type_to_gpu
 
 log = logging.getLogger('create_instance')
 
@@ -39,13 +39,28 @@ def create_vm_config(
     job_private: bool,
     project: str,
     instance_config: InstanceConfig,
+    gpu_config: Optional[GPUConfig] = None,
 ) -> dict:
+    if gpu_config is not None:
+        accelerator_count = gpu_config.num_gpus
+        accelerator_type = gpu_config.gpu_type
+    else:
+        accelerator_count = None
+        accelerator_type = None
+    machine_type_full = machine_type
+    parts = machine_type.split('+')
+    if len(parts) == 3:
+        machine_type, accelerator_type, count = parts
+        accelerator_count = int(count)
+
+    is_gpu = accelerator_type is not None and accelerator_count is not None
+
     parts = gcp_machine_type_to_parts(machine_type)
     assert parts
     cores = parts.cores
 
     region = instance_config.region_for(zone)
-    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type) else ''
+    docker_run_gpu_args = '--runtime=nvidia --gpus all' if machine_type_to_gpu(machine_type_full) else ''
     if local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
@@ -93,7 +108,7 @@ def create_vm_config(
 
         return result
 
-    return {
+    config = {
         'name': machine_name,
         'machineType': f'projects/{project}/zones/{zone}/machineTypes/{machine_type}',
         'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
@@ -102,7 +117,7 @@ def create_vm_config(
                 'boot': True,
                 'autoDelete': True,
                 'initializeParams': {
-                    'sourceImage': f'projects/{project}/global/images/batch-worker-15',
+                    'sourceImage': f'projects/{project}/global/images/batch-worker-17',
                     'diskType': f'projects/{project}/zones/{zone}/diskTypes/pd-ssd',
                     'diskSizeGb': str(boot_disk_size_gb),
                 },
@@ -380,3 +395,11 @@ journalctl -u docker.service > dockerd.log
         },
         'tags': {'items': ["batch2-agent"]},
     }
+    if is_gpu:
+        config['guestAccelerators'] = [
+            {
+                'acceleratorCount': accelerator_count,
+                'acceleratorType': f'projects/{project}/zones/{zone}/acceleratorTypes/{accelerator_type}',
+            }
+        ]
+    return config

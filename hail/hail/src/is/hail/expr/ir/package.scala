@@ -22,15 +22,12 @@ package object ir {
   var uidCounter: Long = 0
 
   def genUID(): String = {
-    val uid = iruid(uidCounter)
+    val uid = s"__iruid_$uidCounter"
     uidCounter += 1
     uid
   }
 
   def freshName(): Name = Name(genUID())
-
-  def iruid(i: Long): String =
-    s"__iruid_$i"
 
   def uuid4(): String = UUID.randomUUID().toString
 
@@ -45,13 +42,13 @@ package object ir {
 
   def invoke(name: String, rt: Type, typeArgs: Seq[Type], errorID: Int, args: IR*): IR =
     IRFunctionRegistry.lookupUnseeded(name, rt, typeArgs, args.map(_.typ)) match {
-      case Some(f) => f(typeArgs, args, errorID)
+      case Some(f) => f(args, errorID)
       case None => fatal(
           s"no conversion found for $name(${typeArgs.mkString(", ")}, ${args.map(_.typ).mkString(", ")}) => $rt"
         )
     }
 
-  def invoke(name: String, rt: Type, typeArgs: Array[Type], args: IR*): IR =
+  def invoke(name: String, rt: Type, typeArgs: Seq[Type], args: IR*): IR =
     invoke(name, rt, typeArgs, ErrorIDs.NO_ERROR, args: _*)
 
   def invoke(name: String, rt: Type, args: IR*): IR =

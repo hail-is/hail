@@ -2,19 +2,23 @@ package is.hail.annotations
 
 import is.hail.HailSuite
 import is.hail.asm4s._
-import is.hail.check.{Gen, Prop}
+import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
+import is.hail.io.fs.FS
+import is.hail.scalacheck._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt32Value
-import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.scalatest.matchers.must.Matchers.{be, include}
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
+import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
-class StagedConstructorSuite extends HailSuite {
+class StagedConstructorSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   val showRVInfo = true
 
@@ -481,41 +485,60 @@ class StagedConstructorSuite extends HailSuite {
     assert(run(42, false, -1.0) == ((42, false, -1.0)))
   }
 
-  @Test def testDeepCopy(): Unit = {
-    val g = Type.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), t.genValue(sm)))
-      .filter { case (_, a) => a != null }
-      .map { case (t, a) => (PType.canonical(t).asInstanceOf[PStruct], a) }
-
-    val p = Prop.forAll(g) { case (t, a) =>
-      assert(t.virtualType.typeCheck(a))
-      val copy = pool.scopedRegion { region =>
-        val copyOff = pool.scopedRegion { srcRegion =>
-          val src = ScalaToRegionValue(sm, srcRegion, t, a)
-
-          val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
-          fb.emitWithBuilder[Long](cb =>
-            t.store(
-              cb,
-              fb.apply_method.getCodeParam[Region](1),
-              t.loadCheapSCode(cb, fb.apply_method.getCodeParam[Long](2)),
-              deepCopy = true,
-            )
-          )
-          val copyF = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
-          val newOff = copyF(region, src)
-
-          // clear old stuff
-          val len = srcRegion.allocate(0) - src
-          Region.storeBytes(src, Array.fill(len.toInt)(0.toByte))
-          newOff
-        }
-        SafeRow(t, copyOff)
-      }
-      copy == a
+  def emitCopy(ctx: ExecuteContext, ptype: PType, deepCopy: Boolean)
+    : (HailClassLoader, FS, HailTaskContext, Region) => AsmFunction2[Region, Long, Long] = {
+    val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "copy")
+    fb.emitWithBuilder { cb =>
+      val region = fb.getCodeParam[Region](1)
+      val offset = fb.getCodeParam[Long](2)
+      val value = ptype.loadCheapSCode(cb, offset)
+      ptype.store(cb, region, value, deepCopy)
     }
-    p.check()
+    fb.resultWithIndex()
   }
+
+  @Test def testShallowCopyOfPointersFailsAcrossRegions(): Unit = {
+    val ptype = PCanonicalStruct(required = true, "a" -> PCanonicalArray(PInt32()))
+    val value = genVal(ctx, ptype).sample.get
+    val ShallowCopy = emitCopy(ctx, ptype, deepCopy = false)
+
+    val ex: RuntimeException =
+      ctx.scopedExecution { (hcl, fs, htc, r1) =>
+        val invalidPtr: Long =
+          using(RegionPool(strictMemoryCheck = true)) { p2 =>
+            using(p2.getRegion()) { r2 =>
+              val offset = ScalaToRegionValue(sm, r2, ptype, value)
+              ShallowCopy(hcl, fs, htc, r1)(r1, offset)
+            }
+          }
+
+        intercept[RuntimeException] {
+          SafeRow(ptype, invalidPtr)
+        }
+      }
+
+    ex.getMessage should include("invalid memory access")
+  }
+
+  @Test def testDeepCopy(): Unit =
+    forAll(genPTypeVal[PCanonicalStruct](ctx)) { case (t, a: Row) =>
+      val DeepCopy = emitCopy(ctx, t, deepCopy = true)
+
+      val copy: Row =
+        ctx.scopedExecution { (hcl, fs, htc, r1) =>
+          val validPtr: Long =
+            using(RegionPool(strictMemoryCheck = true)) { p2 =>
+              using(p2.getRegion()) { r2 =>
+                val offset = ScalaToRegionValue(sm, r2, t, a)
+                DeepCopy(hcl, fs, htc, r1)(r1, offset)
+              }
+            }
+
+          SafeRow(t, validPtr)
+        }
+
+      copy should be(a)
+    }
 
   @Test def testUnstagedCopy(): Unit = {
     val t1 = PCanonicalArray(

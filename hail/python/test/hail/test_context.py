@@ -1,6 +1,8 @@
 from test.hail.helpers import hl_init_for_test, hl_stop_for_test, qobtest, skip_unless_spark_backend, with_flags
 from typing import Dict, Optional, Tuple
 
+import pytest
+
 import hail as hl
 from hail.backend.backend import Backend
 from hail.backend.spark_backend import SparkBackend
@@ -25,7 +27,9 @@ def _scala_map_str_to_tuple_str_str_to_dict(scala) -> Dict[str, Tuple[Optional[s
 
 
 @qobtest
+@pytest.mark.uninitialized
 def test_init_hail_context_twice():
+    hl_init_for_test()
     hl_init_for_test(idempotent=True)  # Should be no error
     hl_stop_for_test()
 
@@ -37,7 +41,7 @@ def test_init_hail_context_twice():
     hl_init_for_test(idempotent=True)  # Should be no error
 
     if isinstance(Env.backend(), SparkBackend):
-        hl_init_for_test(hl.spark_context(), idempotent=True)  # Should be no error
+        hl_init_for_test(sc=hl.spark_context(), idempotent=True)  # Should be no error
 
 
 @qobtest

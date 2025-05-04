@@ -12,7 +12,9 @@ from hail.expr.expressions import (
 from hail.typecheck import typecheck_method
 
 
-class ConditionalBuilder(object):
+class ConditionalBuilder:
+    """Base class for :class:`.SwitchBuilder` and :class:`.CaseBuilder`"""
+
     def __init__(self):
         self._ret_type = None
         self._cases = []

@@ -2,14 +2,15 @@ package is.hail.methods
 
 import is.hail.{HailSuite, TestUtils}
 import is.hail.annotations.Annotation
-import is.hail.check.{Gen, Properties}
-import is.hail.check.Prop._
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
 import is.hail.variant._
 
 import breeze.linalg.{Vector => BVector}
 import org.apache.spark.rdd.RDD
+import org.scalacheck.{Gen, Properties}
+import org.scalacheck.Gen._
+import org.scalacheck.Prop.forAll
 import org.testng.annotations.Test
 
 object LocalLDPruneSuite {
@@ -284,11 +285,12 @@ class LocalLDPruneSuite extends HailSuite {
   }
 
   object Spec extends Properties("LDPrune") {
-    val vectorGen = for {
-      nSamples: Int <- Gen.choose(1, 1000)
-      v1: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
-      v2: Array[BoxedCall] <- Gen.buildableOfN[Array](nSamples, Gen.choose(-1, 2).map(toC2))
-    } yield (nSamples, v1, v2)
+    val vectorGen: Gen[(Call, Array[BoxedCall], Array[BoxedCall])] =
+      for {
+        nSamples: Int <- choose(1, 1000)
+        v1: Array[BoxedCall] <- containerOfN[Array, BoxedCall](nSamples, choose(-1, 2).map(toC2))
+        v2: Array[BoxedCall] <- containerOfN[Array, BoxedCall](nSamples, choose(-1, 2).map(toC2))
+      } yield (nSamples, v1, v2)
 
     property("bitPacked pack and unpack give same as orig") =
       forAll(vectorGen) { case (_: Int, v1: Array[BoxedCall], _) =>

@@ -48,5 +48,6 @@ Core language functions
     :toctree: ./
     :template: class.rst
 
+    ConditionalBuilder
     CaseBuilder
     SwitchBuilder
