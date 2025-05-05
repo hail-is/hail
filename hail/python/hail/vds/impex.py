@@ -79,7 +79,7 @@ def read_dense_mt(path, *, _intervals=None):
             l_name=l_uid,
             r_name=r_uid,
             join=join_expr._ir,
-            joint_type='outer',
+            join_type='outer',
         )
 
         indices, _ = unify_all(left, right, join_expr)
@@ -98,8 +98,9 @@ def read_dense_mt(path, *, _intervals=None):
         )
         ref_stream = hl.query_matrix_table_rows(ref_path, ref_interval, '_ref_entries')._to_stream()
 
-        # This is awful! But, we need to handle
-        if 'LEN' in ref_stream.element_type._ref_entries.element_type:
+        # This is awful! But, we need to handle the fact that on disk, some vds have
+        # LEN and others have END
+        if 'LEN' in ref_stream.dtype.element_type['_ref_entries'].element_type:
             ref_stream = ref_stream.map(
                 lambda elt: hl.rbind(
                     elt.locus.global_position(),
@@ -109,7 +110,7 @@ def read_dense_mt(path, *, _intervals=None):
                 )
             )
         else:
-            assert 'END' in ref_stream.element_type._ref_entries.element_type
+            assert 'END' in ref_stream.dtype.element_type['_ref_entries'].element_type
             ref_stream = ref_stream.map(
                 lambda elt: hl.rbind(
                     elt.locus.global_position(),
