@@ -659,6 +659,50 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
 
 
+@test_timeout(local=5 * 60, batch=8 * 60)
+def test_read_dense_mt_and_to_dense_mt_equivalence():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    vds = hl.vds.filter_chromosomes(vds, keep='chr22')
+    to_dense_mt_mt = hl.vds.to_dense_mt(vds).select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    mt = hl.vds.read_dense_mt(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    mt = hl.filter_intervals(mt, [hl.parse_locus_interval('chr22', 'GRCh38')])
+    read_dense_mt_mt = mt.select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    assert to_dense_mt_mt._same(read_dense_mt_mt)
+
+
+def test_read_dense_mt():
+    mt = hl.vds.read_dense_mt(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    mt = hl.filter_intervals(mt, [hl.parse_locus_interval('chr22', 'GRCh38')])
+    dense = mt.select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    as_dict = dense.aggregate_entries(
+        hl.dict(hl.zip(hl.agg.collect((hl.str(dense.locus), dense.s)), hl.agg.collect(dense.entry)))
+    )
+
+    assert as_dict.get(('chr22:10514784', 'NA12891')) is None
+    assert as_dict.get(('chr22:10514784', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=23, DP=4)
+
+    assert as_dict.get(('chr22:10516102', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=12, DP=7)
+    assert as_dict.get(('chr22:10516102', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=26, DP=3)
+
+    assert as_dict.get(('chr22:10516150', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=64, DP=4)
+    assert as_dict.get(('chr22:10516150', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=10)
+
+    assert as_dict.get(('chr22:10519088', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=21)
+    assert as_dict.get(('chr22:10519088', 'NA12878')) is None
+
+    assert as_dict.get(('chr22:10557694', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=28, DP=19)
+    assert as_dict.get(('chr22:10557694', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=13, DP=16)
+
+    assert as_dict.get(('chr22:10562435', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
+    assert as_dict.get(('chr22:10562435', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
+
+    assert as_dict.get(('chr22:10562436', 'NA12891')) == hl.Struct(LGT=hl.Call([0, 1]), LA=[0, 1], GQ=99, DP=15)
+    assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
+
+
 def test_to_dense_mt_haploid():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')
