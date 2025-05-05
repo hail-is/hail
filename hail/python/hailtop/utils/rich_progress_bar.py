@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple
 
 from rich import filesize
 from rich.progress import (
@@ -126,6 +126,7 @@ class CopyToolProgressBar:
             RateColumn(),
             TimeRemainingColumn(),
             TimeElapsedColumn(),
+            TextColumn("${task.fields[cost]:.4f}"),
         )
 
     def __enter__(self) -> Progress:
@@ -157,6 +158,7 @@ class BatchProgressBar:
             MofNCompleteColumn(),
             TimeRemainingColumn(),
             TimeElapsedColumn(),
+            TextColumn("${task.fields[cost]:.4f}"),
         )
 
     def __enter__(self) -> 'BatchProgressBar':
@@ -173,9 +175,9 @@ class BatchProgressBar:
             self._progress.stop()
 
     def with_task(
-        self, description: str, *, total: int = 0, disable: bool = False, transient: bool = False
+        self, description: str, *, total: int = 0, disable: bool = False, transient: bool = False, **fields: Any
     ) -> 'BatchProgressBarTask':
-        tid = self._progress.add_task(description, total=total, visible=not disable)
+        tid = self._progress.add_task(description, total=total, visible=not disable, **fields)
         return BatchProgressBarTask(self._progress, tid, transient)
 
 

@@ -507,10 +507,10 @@ class JobGroup:
         else:
             description += url
 
-        with progress.with_task(description, total=status['n_jobs'], disable=disable_progress_bar) as progress_task:
+        with progress.with_task(description, total=status['n_jobs'], disable=disable_progress_bar, cost=status['cost']) as progress_task:
             while True:
                 status = await self.status()
-                progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'])
+                progress_task.update(None, total=status['n_jobs'], completed=status['n_completed'], cost=status['cost'])
                 if status['complete']:
                     return status
                 j = random.randrange(math.floor(1.1**i))
@@ -701,12 +701,12 @@ class Batch:
         else:
             description += url
         with progress.with_task(
-            description, total=status['n_jobs'] - starting_job + 1, disable=disable_progress_bar
+            description, total=status['n_jobs'] - starting_job + 1, disable=disable_progress_bar, cost=status['cost']
         ) as progress_task:
             while True:
                 status = await self.status()
                 progress_task.update(
-                    None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1
+                    None, total=status['n_jobs'] - starting_job + 1, completed=status['n_completed'] - starting_job + 1, cost=status['cost']
                 )
                 if status['complete']:
                     return status
