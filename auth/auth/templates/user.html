@@ -3,6 +3,22 @@
 {% block title %}User{% endblock %}
 {% block content %}
 <div id="profile" class="vcentered space-y-2">
+  <p>
+    The Hail system records your email address and IP address. Your email address
+    is recorded so that we can authenticate you. Your IP address is tracked as part of our
+    surveillance of all traffic to and from the Hail system. This broad surveillance enables the
+    protection of the Hail system from malicious actors.
+  </p>
+  <p>
+    <b>Notice:</b> To log in and use the Hail system, you must review and agree to be bound by the Hail Terms of Service.
+  </p>
+  <p>
+    <b>Terms of Service:</b> <a href="https://batch.hail.is/tos" target="_blank">Link</a>
+  </p>
+  <p>
+    <b>Privacy Policy:</b> <a href="https://batch.hail.is/privacy" target="_blank">Link</a>
+  </p>
+
   {% if userdata %}
   <h1 class='text-4xl mb-4'>{{ userdata['username'] }}</h1>
   <form action="{{ auth_base_url }}/logout" method="POST">
@@ -28,6 +44,14 @@
   {% else %}
     <p>You must sign up or log in to continue</p>
   {% endif %}
+  
+  <div class="mb-4">
+    <label class="flex items-center">
+      <input type="checkbox" id="tosCheckbox" class="mr-2" onchange="updateButtons()">
+      <span>I have reviewed and agree to the <a href="https://batch.hail.is/tos" target="_blank" class="text-blue-600 hover:underline">Terms of Service</a></span>
+    </label>
+  </div>
+
   <table class="table-auto w-64">
     <tr>
       <td>
@@ -36,7 +60,7 @@
           {% if next_page %}
           <input type="hidden" name="next" value="{{ next_page }}" />
           {% endif %}
-          {{ submit_button('Sign up') }}
+          {{ submit_button('Sign up', attrs='id=signupButton disabled') }}
         </form>
       </td>
       <td>
@@ -45,20 +69,36 @@
           {% if next_page %}
           <input type="hidden" name="next" value="{{ next_page }}" />
           {% endif %}
-          {{ submit_button('Log in') }}
+          {{ submit_button('Log in', attrs='id=loginButton disabled') }}
         </form>
       </td>
     </tr>
   </table>
+
+  <script>
+    function updateButtons() {
+      const checkbox = document.getElementById('tosCheckbox');
+      const signupButton = document.getElementById('signupButton');
+      const loginButton = document.getElementById('loginButton');
+      
+      signupButton.disabled = !checkbox.checked;
+      loginButton.disabled = !checkbox.checked;
+      
+      // Update button styles based on state
+      [signupButton, loginButton].forEach(button => {
+        if (button.disabled) {
+          button.classList.add('opacity-50', 'cursor-not-allowed');
+          button.classList.remove('hover:bg-blue-700');
+        } else {
+          button.classList.remove('opacity-50', 'cursor-not-allowed');
+          button.classList.add('hover:bg-blue-700');
+        }
+      });
+    }
+
+    // Initialize button states
+    updateButtons();
+  </script>
   {% endif %}
-  <p>
-    The Hail system records your email address and IP address. Your email address
-    is recorded so that we can authenticate you. Your IP address is tracked as part of our
-    surveillance of all traffic to and from the Hail system. This broad surveillance enables the
-    protection of the Hail system from malicious actors.
-  </p>
-  <p>
-    <b>Notice:</b> By signing up or logging in and continuing to use the system, you agree to these terms of service.
-  </p>
 </div>
 {% endblock %}
