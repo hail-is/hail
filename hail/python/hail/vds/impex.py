@@ -129,7 +129,7 @@ def read_dense_mt(path, *, _intervals=None):
         joined = join(var_stream, ref_stream)
         dr = joined._aggregate_scan(
             lambda elt: elt.annotate(
-                dense_ref=hl.or_missing(elt._variant_defined, hl.scan._densify(hl.len(gbl._var_cols), elt._ref_entries))
+                dense_ref=hl.or_missing(elt._variant_defined, hl.scan._densify(vds.n_samples(), elt._ref_entries))
             )
         )
         dr = dr.filter(lambda elt: elt._variant_defined)
