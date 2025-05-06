@@ -60,7 +60,7 @@
           {% if next_page %}
           <input type="hidden" name="next" value="{{ next_page }}" />
           {% endif %}
-          {{ submit_button('Sign up', attrs='id=signupButton disabled') }}
+          {{ submit_button_with_attrs('Sign up', 'id=signupButton disabled') }}
         </form>
       </td>
       <td>
@@ -69,7 +69,7 @@
           {% if next_page %}
           <input type="hidden" name="next" value="{{ next_page }}" />
           {% endif %}
-          {{ submit_button('Log in', attrs='id=loginButton disabled') }}
+          {{ submit_button_with_attrs('Log in', 'id=loginButton disabled') }}
         </form>
       </td>
     </tr>
