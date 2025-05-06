@@ -3495,6 +3495,19 @@ async def openapi(request):
     return await render_template('batch', request, None, 'openapi.yaml', page_context)
 
 
+
+@routes.get('/tos')
+@web_security_headers
+async def tos(request):
+    return await render_template('batch', request, None, 'tos.html', {})
+
+
+@routes.get('/privacy')
+@web_security_headers
+async def privacy(request):
+    return await render_template('batch', request, None, 'privacy.html', {})
+
+
 async def cancel_batch_loop_body(app):
     client_session = app[CommonAiohttpAppKeys.CLIENT_SESSION]
     await retry_transient_errors(
