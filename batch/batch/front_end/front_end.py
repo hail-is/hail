@@ -3495,7 +3495,6 @@ async def openapi(request):
     return await render_template('batch', request, None, 'openapi.yaml', page_context)
 
 
-
 @routes.get('/tos')
 @web_security_headers
 async def tos(request):
