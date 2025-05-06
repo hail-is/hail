@@ -42,7 +42,6 @@ def __get_range_bounds(path, key_type: tstruct):
 @typecheck(path=str, _intervals=nullable(sequenceof(anytype)))
 def read_dense_mt(path, *, _intervals=None):
     # FIXME: use _intervals
-    fs = hl.current_backend().fs
     vds = read_vds(path)
     if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
         raise ValueError(
