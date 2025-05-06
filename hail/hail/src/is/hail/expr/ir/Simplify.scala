@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.backend.ExecuteContext
+import is.hail.expr.ir.analyses.{ColumnCount, PartitionCounts, PartitionCountsOrColumnCount}
 import is.hail.expr.ir.defs._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.rvd.PartitionBoundOrdering
@@ -569,10 +570,9 @@ object Simplify {
 
     case GetTupleElement(MakeTuple(xs), idx) => xs.find(_._1 == idx).get._2
 
-    case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined =>
-      I64(child.columnCount.get)
+    case TableCount(MatrixColsTable(ColumnCount(nCols))) => I64(nCols)
 
-    case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
+    case TableCount(PartitionCounts(counts)) => I64(counts.sum)
     case TableCount(CastMatrixToTable(child, _, _)) => TableCount(MatrixRowsTable(child))
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
@@ -600,12 +600,12 @@ object Simplify {
         ),
       )
 
-    case MatrixCount(child) if child.partitionCounts.isDefined || child.columnCount.isDefined =>
-      val rowCount = child.partitionCounts match {
+    case MatrixCount(child @ PartitionCountsOrColumnCount((maybeParts, maybeCols))) =>
+      val rowCount = maybeParts match {
         case Some(pc) => I64(pc.sum)
         case None => TableCount(MatrixRowsTable(child))
       }
-      val colCount = child.columnCount match {
+      val colCount = maybeCols match {
         case Some(cc) => I32(cc)
         case None => TableCount(MatrixColsTable(child)).toI
       }
