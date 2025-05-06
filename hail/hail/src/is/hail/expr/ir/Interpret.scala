@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
+import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringPipeline}
@@ -902,7 +903,7 @@ object Interpret {
           }
         }
       case TableCount(child) =>
-        child.partitionCounts
+        PartitionCounts(child)
           .map(_.sum)
           .getOrElse(ExecuteRelational(ctx, child).asTableValue(ctx).rvd.count())
       case TableGetGlobals(child) =>
