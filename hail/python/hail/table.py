@@ -4680,4 +4680,5 @@ class Table(BaseTable):
             )
         )
 
+
 table_type.set(Table)
