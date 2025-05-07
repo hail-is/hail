@@ -77,6 +77,14 @@ def units(task: Task) -> Tuple[List[str], int]:
     return ["", "K", "M", "G", "T", "P", "E", "Z", "Y"], 1000
 
 
+class CostColumn(ProgressColumn):
+    def render(self, task: Task) -> Text:
+        cost = task.fields.get("cost", None)
+        if cost is not None:
+            return Text(f"${cost:.4f}")
+        return Text("(NA)")
+
+
 class BytesOrCountOrN(ProgressColumn):
     def render(self, task: "Task") -> Text:
         completed = int(task.completed)
@@ -126,7 +134,7 @@ class CopyToolProgressBar:
             RateColumn(),
             TimeRemainingColumn(),
             TimeElapsedColumn(),
-            TextColumn("${task.fields[cost]:.4f}"),
+            CostColumn(),
         )
 
     def __enter__(self) -> Progress:
@@ -158,7 +166,7 @@ class BatchProgressBar:
             MofNCompleteColumn(),
             TimeRemainingColumn(),
             TimeElapsedColumn(),
-            TextColumn("${task.fields[cost]:.4f}"),
+            CostColumn(),
         )
 
     def __enter__(self) -> 'BatchProgressBar':
