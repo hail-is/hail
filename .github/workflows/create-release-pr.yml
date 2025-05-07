@@ -8,15 +8,17 @@ jobs:
   create-release-pr:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       pull-requests: write
+    defaults:
+      run:
+        shell: bash -ex {0}
     steps:
       - uses: actions/checkout@v4
 
       - name: Increment Patch Version
         id: version
         run: |
-          set -e
-          
           prefix=$(grep -Po '(?<=HAIL_MAJOR_MINOR_VERSION := )(\d+\.\d+)' hail/Makefile)
           patch=$(grep -Po '(?<=HAIL_PATCH_VERSION := )(\d+)' hail/Makefile)
           
@@ -31,11 +33,9 @@ jobs:
 
       - name: Generate Changelog Entries
         run: |
-          set -e 
+          git fetch --unshallow --filter=tree:0 --no-tags origin tag ${{ steps.version.outputs.old }}
           
-          git fetch origin "${{ steps.version.outputs.old }}"
-          
-          git log "${{ steps.version.outputs.old }}"..HEAD --format='%s' |\
+          git log ${{ steps.version.outputs.old }}.. --format='%s' |\
             grep -P '\[all|(com(biner|piler)|dep(s|endencies)|hail(?!ctl|genetics|jwt|top)|ir|jvm|p(ip|ython)|q(uery|ob)|vds)[^\]]*\]' |\
             sed -E 's/\[[^\]+\] (.*) \(#([[:digit:]]*)\)/- (hail#\2) \1/' |\
             sed 1i"## Version ${{ steps.version.outputs.new }}\n" |\
@@ -44,7 +44,7 @@ jobs:
           sed -i '/## Version '"${{ steps.version.outputs.old }}"'/e cat HAIL_ENTRY' \
             hail/python/hail/docs/change_log.md
           
-          git log "${{ steps.version.outputs.old }}"..HEAD --format='%s' |\
+          git log ${{ steps.version.outputs.old }}.. --format='%s' |\
             grep -P '\[(a(ll|uth)|batch|dataproc|fs|hail(ctl|genetics|top)|infra|services)[^\]]*\]' |\
             sed -E 's$\[[^\]+\] (.*) \(#([[:digit:]]*)\)$- (\`#\2 <https://github.com/hail-is/hail/pulls/\2>\`__) \1$' |\
             sed 1i"**Version ${{ steps.version.outputs.new }}**\n" |\
@@ -55,8 +55,6 @@ jobs:
 
       - name: Commit and Push
         run: |
-          set -e 
-          
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
           
