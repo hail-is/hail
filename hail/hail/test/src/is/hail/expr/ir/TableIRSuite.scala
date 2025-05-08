@@ -7,7 +7,7 @@ import is.hail.annotations.SafeNDArray
 import is.hail.expr.Nat
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerTableIR}
+import is.hail.expr.ir.lowering.{DArrayLowering, ExecuteRelational, LowerTableIR}
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types.virtual._
@@ -948,7 +948,7 @@ class TableIRSuite extends HailSuite {
     val table = TableRange(5, 4)
     val path = ctx.createTmpPath("test-table-write", "ht")
     Interpret[Unit](ctx, TableWrite(table, TableNativeWriter(path)))
-    val before = table.analyzeAndExecute(ctx).asTableValue(ctx)
+    val before = ExecuteRelational(ctx, table).asTableValue(ctx)
     val read = TableIR.read(fs, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
     val after = Interpret(read, ctx, false)

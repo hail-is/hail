@@ -4,6 +4,7 @@ import is.hail.HailSuite
 import is.hail.expr.Nat
 import is.hail.expr.ir.PruneDeadFields.TypeState
 import is.hail.expr.ir.defs._
+import is.hail.expr.ir.lowering.ExecuteRelational
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.types._
@@ -134,29 +135,32 @@ class PruneSuite extends HailSuite {
   }
 
   lazy val tab = TableLiteral(
-    TableKeyBy(
-      TableParallelize(
-        Literal(
-          TStruct(
-            "rows" -> TArray(TStruct(
-              "1" -> TString,
-              "2" -> TArray(TStruct("2A" -> TInt32)),
-              "3" -> TString,
-              "4" -> TStruct("A" -> TInt32, "B" -> TArray(TStruct("i" -> TString))),
-              "5" -> TString,
-            )),
-            "global" -> TStruct("g1" -> TInt32, "g2" -> TInt32),
+    ExecuteRelational(
+      ctx,
+      TableKeyBy(
+        TableParallelize(
+          Literal(
+            TStruct(
+              "rows" -> TArray(TStruct(
+                "1" -> TString,
+                "2" -> TArray(TStruct("2A" -> TInt32)),
+                "3" -> TString,
+                "4" -> TStruct("A" -> TInt32, "B" -> TArray(TStruct("i" -> TString))),
+                "5" -> TString,
+              )),
+              "global" -> TStruct("g1" -> TInt32, "g2" -> TInt32),
+            ),
+            Row(
+              FastSeq(Row("hi", FastSeq(Row(1)), "bye", Row(2, FastSeq(Row("bar"))), "foo")),
+              Row(5, 10),
+            ),
           ),
-          Row(
-            FastSeq(Row("hi", FastSeq(Row(1)), "bye", Row(2, FastSeq(Row("bar"))), "foo")),
-            Row(5, 10),
-          ),
+          None,
         ),
-        None,
+        FastSeq("3"),
+        false,
       ),
-      FastSeq("3"),
-      false,
-    ).analyzeAndExecute(ctx).asTableValue(ctx),
+    ).asTableValue(ctx),
     theHailClassLoader,
   )
 

@@ -598,7 +598,7 @@ class SparkBackend(
     CanLowerEfficiently(ctx, inputIR) match {
       case Some(failReason) =>
         log.info(s"SparkBackend: could not lower IR to table stage: $failReason")
-        inputIR.analyzeAndExecute(ctx).asTableStage(ctx)
+        ExecuteRelational(ctx, inputIR).asTableStage(ctx)
       case None =>
         LowerTableIR.applyTable(inputIR, DArrayLowering.All, ctx, analyses)
     }
