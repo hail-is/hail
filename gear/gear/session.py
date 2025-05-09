@@ -1,9 +1,17 @@
+import os
+
 import aiohttp_session
 import aiohttp_session.cookie_storage
 
 from hailtop.config import get_deploy_config
 
 from .cloud_config import get_global_config
+
+# Default value: 1800 seconds (30 minutes)
+try:
+    MAX_AGE_SECS: int = int(os.environ.get("SESSION_MAX_AGE_SECS", "1800"))
+except Exception as exc:
+    raise ValueError("Unable to interpret SESSION_MAX_AGE_SECS as an integer.") from exc
 
 
 def setup_aiohttp_session(app):
@@ -21,7 +29,6 @@ def setup_aiohttp_session(app):
                 samesite='Lax',
                 domain=deploy_config._domain,
                 path=deploy_config._base_path or '/',
-                # 2592000s = 30d
-                max_age=2592000,
+                max_age=MAX_AGE_SECS,
             ),
         )
