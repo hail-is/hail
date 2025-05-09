@@ -1,8 +1,5 @@
 blank_issues_enabled: true
 contact_links:
-  - name: Discussion forum
-    url: https://discuss.hail.is/
-    about: Please post support and feature requests here.
   - name: Zulip chatroom
     url: https://hail.zulipchat.com/
     about: Chat with us about Hail development.
