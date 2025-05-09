@@ -549,6 +549,7 @@ class VCFTests(unittest.TestCase):
         mt = hl.read_matrix_table(vcf_path + '.mt')
         self.assertTrue(mt._same(vcf))
 
+    @test_timeout(4 * 60)
     def test_combiner_works(self):
         from hail.vds.combiner.combine import combine_variant_datasets, transform_gvcf
 
