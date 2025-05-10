@@ -52,6 +52,34 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.135
+
+- (hail#14923) add methods for (multivariate) hypergeometric distribution
+- (hail#14905) Serialize plink variants per partition
+- (hail#14913) fix RIterable
+- (hail#14915) Update python dependencies.
+- (hail#14917) Add extra logging to new_combiner
+- (hail#14907) Make pyToDF use long lived temp files (again)
+- (hail#14903) Remove unnecessary serialization in ServiceBackend broadcast
+- (hail#14896) Cleanup static pipeline data by removing container classes
+- (hail#14893) Cache movie lens data for private use
+- (hail#14897) Reorder LEN field to end of new ref entry struct
+- (hail#14876) Add cost to BatchProgressBar
+- (hail#14771) codegen all value ir node classes
+- (hail#14872) move TableIR execute methods out of class
+- (hail#14869) fix overeager cast simplification
+- (hail#14829) Add ability to attach to existing batch
+- (hail#14860) Documentation changes in preparation for python upgrade
+- (hail#14855) Upgrade to Numpy 2.x series
+- (hail#14846) Add `unitialized` pytest marker to initialisation tests
+- (hail#14857) fix a bug in NormalizeNames
+- (hail#14801) Move `is.hail.check` to test code
+- (hail#14845) refactor ApplyIR
+- (hail#14839) Add StreamAggScan to python
+- (hail#14843) Re-remove hail's protobuf dependency.
+- (hail#14696) Move LoweredTableReaderCoercer into ExecuteContext
+- (hail#14838) Fix randomness handling in StreamAgg
+
 ## Version 0.2.134
 
 Released 2025-02-25

@@ -15,6 +15,25 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.135**
+
+- (`#14919 <https://github.com/hail-is/hail/pull/14919>`__) Fix job_group cancellation logic in SQL procedures
+- (`#14912 <https://github.com/hail-is/hail/pull/14912>`__) Change hailctl batch init defaults
+- (`#14895 <https://github.com/hail-is/hail/pull/14895>`__) Add support for multiple configuration profiles
+- (`#14915 <https://github.com/hail-is/hail/pull/14915>`__) Update python dependencies.
+- (`#14848 <https://github.com/hail-is/hail/pull/14848>`__) Use the default region when a user doesn't specify a region
+- (`#14908 <https://github.com/hail-is/hail/pull/14908>`__) Add default_region API endpoint
+- (`#14901 <https://github.com/hail-is/hail/pull/14901>`__) remove_tmpdir jobs run in correct region
+- (`#14810 <https://github.com/hail-is/hail/pull/14810>`__) Making session timeout duration configurable
+- (`#14849 <https://github.com/hail-is/hail/pull/14849>`__) Initialize buckets without soft delete on
+- (`#14884 <https://github.com/hail-is/hail/pull/14884>`__) Make Sign Up button less prominent
+- (`#14878 <https://github.com/hail-is/hail/pull/14878>`__) Login UI requires ToS acceptance
+- (`#14844 <https://github.com/hail-is/hail/pull/14844>`__) Add support for n1 machines with T4 GPUs in GCP
+- (`#14833 <https://github.com/hail-is/hail/pull/14833>`__) API documentation additions and fixes
+- (`#14851 <https://github.com/hail-is/hail/pull/14851>`__) Regenerate requirements locks
+- (`#14847 <https://github.com/hail-is/hail/pull/14847>`__) Update ubuntu images
+- (`#14841 <https://github.com/hail-is/hail/pull/14841>`__) Allow (non-adjacent) hyphens in usernames
+
 **Version 0.2.132**
 
 - (`#14576 <https://github.com/hail-is/hail/pull/14576>`__) Fixed bug where
