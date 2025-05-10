@@ -1,6 +1,7 @@
 import abc
 import base64
 import os
+import ssl
 import tempfile
 from typing import Dict, List, Optional, Tuple
 
@@ -30,7 +31,13 @@ class AzureWorkerAPI(CloudWorkerAPI):
         assert acr_url.endswith('azurecr.io'), acr_url
         return AzureWorkerAPI(subscription_id, resource_group, acr_url, hail_oauth_scope)
 
-    def __init__(self, subscription_id: str, resource_group: str, acr_url: str, hail_oauth_scope: str):
+    def __init__(
+        self,
+        subscription_id: str,
+        resource_group: str,
+        acr_url: str,
+        hail_oauth_scope: str,
+    ):
         self.subscription_id = subscription_id
         self.resource_group = resource_group
         self.hail_oauth_scope = hail_oauth_scope
@@ -63,6 +70,9 @@ class AzureWorkerAPI(CloudWorkerAPI):
 
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         raise NotImplementedError
+
+    async def worker_ssl_context(self, namespace: str) -> Optional[ssl.SSLContext]:
+        return None  # TODO
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> AzureSlimInstanceConfig:
         return AzureSlimInstanceConfig.from_dict(config_dict)
