@@ -717,7 +717,7 @@ class Table(BaseTable):
     @typecheck(
         contexts=expr_array(expr_any),
         partitions=oneof(sequenceof(Interval), int),
-        rowfn=func_spec(2, expr_array(expr_struct())),
+        rowfn=func_spec(2, oneof(expr_array(expr_struct()), expr_stream(expr_struct()))),
         globals=nullable(expr_struct()),
     )
     def _generate(
