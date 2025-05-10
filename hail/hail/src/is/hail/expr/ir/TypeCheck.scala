@@ -345,7 +345,7 @@ object TypeCheck {
         assert(key.forall(structType.hasField))
       case x @ StreamMap(a, _, body) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(x.elementTyp == body.typ)
+        assert(x.typ.elementType == body.typ)
       case x @ StreamZip(as, names, body, _, _) =>
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)

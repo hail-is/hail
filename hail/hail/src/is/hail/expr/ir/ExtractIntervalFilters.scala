@@ -841,30 +841,6 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
         .restrict(keySet)
     case (IsNA(_), Seq(b: BoolValue)) => b.isNA.restrict(keySet)
     // collection contains
-    case (ApplyIR("contains", _, _, _, _), Seq(ConstantValue(collectionVal), queryVal))
-        if literalSizeOkay(collectionVal) =>
-      if (collectionVal == null) {
-        BoolValue.allNA(keySet)
-      } else queryVal match {
-        case Contig(rgStr) =>
-          val rg = ctx.stateManager.referenceGenomes(rgStr)
-          val intervals = intervalsFromLiteralContigs(collectionVal, rg)
-          BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
-            keySet
-          )
-        case KeyField(0) =>
-          val intervals = intervalsFromLiteral(collectionVal, firstKeyOrd.toOrdering, true)
-          BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
-            keySet
-          )
-        case struct: StructValue if struct.isKeyPrefix =>
-          val intervals = intervalsFromLiteral(collectionVal, keyOrd.toOrdering, false)
-          BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
-            keySet
-          )
-        case _ => BoolValue.top(keySet)
-      }
-    // interval contains
     case (ApplySpecial("contains", _, _, _, _), Seq(ConstantValue(intervalVal), queryVal)) =>
       (intervalVal: @unchecked) match {
         case null => BoolValue.allNA(keySet)
@@ -887,6 +863,30 @@ class ExtractIntervalFilters(ctx: ExecuteContext, keyType: TStruct) {
                 .restrict(keySet)
             case _ => BoolValue.top(keySet)
           }
+      }
+    // interval contains
+    case (ApplyIR("contains", _, _, _, _), Seq(ConstantValue(collectionVal), queryVal))
+        if literalSizeOkay(collectionVal) =>
+      if (collectionVal == null) {
+        BoolValue.allNA(keySet)
+      } else queryVal match {
+        case Contig(rgStr) =>
+          val rg = ctx.stateManager.referenceGenomes(rgStr)
+          val intervals = intervalsFromLiteralContigs(collectionVal, rg)
+          BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
+            keySet
+          )
+        case KeyField(0) =>
+          val intervals = intervalsFromLiteral(collectionVal, firstKeyOrd.toOrdering, true)
+          BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
+            keySet
+          )
+        case struct: StructValue if struct.isKeyPrefix =>
+          val intervals = intervalsFromLiteral(collectionVal, keyOrd.toOrdering, false)
+          BoolValue(intervals, KeySetLattice.complement(intervals), KeySetLattice.bottom).restrict(
+            keySet
+          )
+        case _ => BoolValue.top(keySet)
       }
     case (ApplyComparisonOp(op, _, _), Seq(l, r)) =>
       AbstractLattice.compare(l, r, op, keySet)
