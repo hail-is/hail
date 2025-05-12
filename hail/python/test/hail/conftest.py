@@ -75,7 +75,7 @@ def pytest_collection_modifyitems(items):
         bins[priority].append(item)
 
     # Attempt to run tests that require no initialisation first
-    items[:] = sum(bins, [])
+    items[:] = [item for group in bins for item in group]
 
 
 @pytest.fixture(scope='function')
