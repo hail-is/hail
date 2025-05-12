@@ -1,7 +1,7 @@
 name: AppSec Approval Check
 
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
@@ -13,24 +13,21 @@ jobs:
       - name: Check secrets
         id: check-secrets
         env:
-          APP_ID: ${{ secrets.org.APPSEC_REVIEW_APP_APP_ID }}
-          PRIVATE_KEY: ${{ secrets.org.APPSEC_REVIEW_APP_PRIVATE_KEY }}
-          INSTALLATION_ID: ${{ secrets.org.APPSEC_REVIEW_APP_INSTALLATION_ID }}
+          APP_ID: ${{ secrets.APPSEC_REVIEW_APP_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}
+          INSTALLATION_ID: ${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}
         
         run: |
           if [ -z "$APP_ID" ]; then
-            echo "APPSEC_REVIEW_APP_APP_ID is not set"
-            ERRORS="APPSEC_REVIEW_APP_APP_ID is not set $ERRORS"
+            ERRORS="APPSEC_REVIEW_APP_APP_ID is not set. $ERRORS"
           fi
 
           if [ -z "$APPSEC_REVIEW_APP_PRIVATE_KEY" ]; then
-            echo "APPSEC_REVIEW_APP_PRIVATE_KEY is not set"
-            ERRORS="APPSEC_REVIEW_APP_PRIVATE_KEY is not set $ERRORS"
+            ERRORS="APPSEC_REVIEW_APP_PRIVATE_KEY is not set. $ERRORS"
           fi
 
           if [ -z "$APPSEC_REVIEW_APP_INSTALLATION_ID" ]; then
-            echo "APPSEC_REVIEW_APP_INSTALLATION_ID is not set"
-            ERRORS="APPSEC_REVIEW_APP_INSTALLATION_ID is not set $ERRORS"
+            ERRORS="APPSEC_REVIEW_APP_INSTALLATION_ID is not set. $ERRORS"
           fi
 
           if [ -n "$ERRORS" ]; then
@@ -48,9 +45,9 @@ jobs:
       - name: Generate installation token
         id: generate-token
         env:
-          APP_ID: ${{ secrets.org.APPSEC_REVIEW_APP_APP_ID }}
-          PRIVATE_KEY: ${{ secrets.org.APPSEC_REVIEW_APP_PRIVATE_KEY }}
-          INSTALLATION_ID: ${{ secrets.org.APPSEC_REVIEW_APP_INSTALLATION_ID }}
+          APP_ID: ${{ secrets.APPSEC_REVIEW_APP_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}
+          INSTALLATION_ID: ${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}
         run: |
           # Exit on error
           set -e 
