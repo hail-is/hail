@@ -22,11 +22,11 @@ jobs:
             ERRORS="APPSEC_REVIEW_APP_APP_ID is not set. $ERRORS"
           fi
 
-          if [ -z "$APPSEC_REVIEW_APP_PRIVATE_KEY" ]; then
+          if [ -z "$PRIVATE_KEY" ]; then
             ERRORS="APPSEC_REVIEW_APP_PRIVATE_KEY is not set. $ERRORS"
           fi
 
-          if [ -z "$APPSEC_REVIEW_APP_INSTALLATION_ID" ]; then
+          if [ -z "$INSTALLATION_ID" ]; then
             ERRORS="APPSEC_REVIEW_APP_INSTALLATION_ID is not set. $ERRORS"
           fi
 
