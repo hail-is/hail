@@ -2671,8 +2671,7 @@ class JVMProfiler:
             raise
         except Exception:
             log.warning(f'could not start JVM profiling for {self.container.container.name}')
-        finally:
-            return self  # pylint: disable=lost-exception
+        return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.output_file is None:

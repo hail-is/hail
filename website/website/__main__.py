@@ -1,4 +1,5 @@
 # ruff: noqa: E402
+# pylint: disable=wrong-import-position
 import sys
 
 from hailtop.hail_logging import configure_logging
