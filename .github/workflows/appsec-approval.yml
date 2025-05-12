@@ -18,24 +18,32 @@ jobs:
       - name: Generate installation token
         id: generate-token
         run: |
-          # Install jwt-cli for JWT generation
-          sudo apt-get update && sudo apt-get install -y jwt-cli
+          # Install required npm package
+          npm install @octokit/auth-app
 
-          # Generate JWT with required claims
-          JWT=$(echo "${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}" | jwt encode \
-            --alg RS256 \
-            --kid "" \
-            --iss "${{ secrets.APPSEC_REVIEW_APP_APP_ID }}" \
-            --exp $(( $(date +%s) + 600 )) \
-            --iat $(date +%s) \
-            -)
+          # Create a Node.js script to generate the token
+          cat > generate-token.js << 'EOF'
+          const { createAppAuth } = require('@octokit/auth-app');
+          
+          async function getToken() {
+            const auth = createAppAuth({
+              appId: process.env.APP_ID,
+              privateKey: process.env.PRIVATE_KEY,
+              installationId: process.env.INSTALLATION_ID
+            });
+            
+            const { token } = await auth({ type: "installation" });
+            console.log(token);
+          }
+          
+          getToken().catch(console.error);
+          EOF
 
-          # Get installation token using stored installation ID
-          TOKEN=$(curl -s -X POST \
-            -H "Authorization: Bearer $JWT" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/app/installations/${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}/access_tokens" | jq -r '.token')
+          # Run the script to get the token
+          TOKEN=$(APP_ID='${{ secrets.APPSEC_REVIEW_APP_APP_ID }}' \
+                 PRIVATE_KEY='${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}' \
+                 INSTALLATION_ID='${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}' \
+                 node generate-token.js)
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
