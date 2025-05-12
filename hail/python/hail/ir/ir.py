@@ -2377,7 +2377,8 @@ class StreamAggScan(IR):
 
     def _compute_type(self, env, agg_env, deep_typecheck):
         self.a.compute_type(env, agg_env, deep_typecheck)
-        self.body.compute_type(env, _env_bind(env, self.bindings(1)), deep_typecheck)
+        new_env = _env_bind(env, self.bindings(1))
+        self.body.compute_type(new_env, new_env, deep_typecheck)
         return tstream(self.body.typ)
 
     @property

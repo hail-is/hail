@@ -53,7 +53,7 @@ def read_dense_mt(path, *, _intervals=None):
     var_path = VariantDataset._variants_path(path)
     range_bounds = __get_range_bounds(ref_path, vds.reference_data.row_key.dtype)
     rbml = hl.eval(vds.reference_data.globals[VariantDataset.ref_block_max_length_field])
-    var_globals = vds.variant_data.localize_entries(columns_array_field_name='_var_cols').globals
+    var_globals = vds.variant_data.localize_entries(columns_array_field_name='_var_cols').index_globals()
 
     def join(left, right):
         key = ['locus']
@@ -133,7 +133,7 @@ def read_dense_mt(path, *, _intervals=None):
             )
         )
         dr = dr.filter(lambda elt: elt._variant_defined)
-        return dr
+        return dr.to_array()
 
     dr = hl.Table._generate(range_bounds, range_bounds, gen_part, var_globals)
 
