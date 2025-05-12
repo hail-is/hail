@@ -10,6 +10,30 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Check secrets
+        id: check-secrets
+        env:
+          APP_ID: ${{ secrets.APPSEC_REVIEW_APP_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}
+          INSTALLATION_ID: ${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}
+        
+        run: |
+          if [ -z "$APP_ID" ]; then
+            echo "APPSEC_REVIEW_APP_APP_ID is not set"
+            exit 1
+          fi
+
+          if [ -z "$APPSEC_REVIEW_APP_PRIVATE_KEY" ]; then
+            echo "APPSEC_REVIEW_APP_PRIVATE_KEY is not set"
+            exit 1
+          fi
+
+          if [ -z "$APPSEC_REVIEW_APP_INSTALLATION_ID" ]; then
+            echo "APPSEC_REVIEW_APP_INSTALLATION_ID is not set"
+            exit 1
+          fi
+          echo "All secrets are set"
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -17,7 +41,14 @@ jobs:
 
       - name: Generate installation token
         id: generate-token
+        env:
+          APP_ID: ${{ secrets.APPSEC_REVIEW_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}
+          INSTALLATION_ID: ${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}
         run: |
+          # Exit on error
+          set -e 
+
           # Install required npm package
           npm install @octokit/auth-app
 
@@ -40,16 +71,16 @@ jobs:
           EOF
 
           # Run the script to get the token
-          TOKEN=$(APP_ID='${{ secrets.APPSEC_REVIEW_APP_APP_ID }}' \
-                 PRIVATE_KEY='${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}' \
-                 INSTALLATION_ID='${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}' \
-                 node generate-token.js)
+          TOKEN=$(node generate-token.js)
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
 
       - name: Check for changes in sensitive directories
         id: check-changes
         run: |
+          # Exit on error
+          set -e 
+
           # Get the base branch (usually main/master)
           BASE_SHA=${{ github.event.pull_request.base.sha }}
           HEAD_SHA=${{ github.event.pull_request.head.sha }}
@@ -97,6 +128,9 @@ jobs:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         id: request-review
         run: |
+          # Exit on error
+          set -e 
+
           # Check if review was already requested
           REQUESTED_REVIEWERS=$(gh api \
             -H "Accept: application/vnd.github+json" \
@@ -119,6 +153,9 @@ jobs:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         id: check-approval
         run: |
+          # Exit on error
+          set -e 
+
           # Get the PR reviews
           REVIEWS=$(gh api \
             -H "Accept: application/vnd.github+json" \
