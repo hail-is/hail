@@ -15,6 +15,30 @@ jobs:
         with:
           fetch-depth: 0  # Needed to get all history for changed files check
 
+      - name: Generate installation token
+        id: generate-token
+        run: |
+          # Install jwt-cli for JWT generation
+          sudo apt-get update && sudo apt-get install -y jwt-cli
+
+          # Generate JWT with required claims
+          JWT=$(echo "${{ secrets.APPSEC_REVIEW_APP_PRIVATE_KEY }}" | jwt encode \
+            --alg RS256 \
+            --kid "" \
+            --iss "${{ secrets.APPSEC_REVIEW_APP_APP_ID }}" \
+            --exp $(( $(date +%s) + 600 )) \
+            --iat $(date +%s) \
+            -)
+
+          # Get installation token using stored installation ID
+          TOKEN=$(curl -s -X POST \
+            -H "Authorization: Bearer $JWT" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "https://api.github.com/app/installations/${{ secrets.APPSEC_REVIEW_APP_INSTALLATION_ID }}/access_tokens" | jq -r '.token')
+
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
       - name: Check for changes in sensitive directories
         id: check-changes
         run: |
@@ -62,16 +86,29 @@ jobs:
       - name: Request AppSec team review if needed
         if: steps.check-changes.outputs.sensitive-changes == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         id: request-review
         run: |
-          # Simply request the review from the team
-          gh pr edit ${{ github.event.pull_request.number }} --add-reviewer "hail-is/appsec" || true
+          # Check if review was already requested
+          REQUESTED_REVIEWERS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers)
+          
+          # Check if appsec team is already requested
+          TEAM_ALREADY_REQUESTED=$(echo "$REQUESTED_REVIEWERS" | jq -r '.teams[] | select(.slug=="appsec") | .slug')
+          
+          if [ -z "$TEAM_ALREADY_REQUESTED" ]; then
+            echo "Requesting review from AppSec team..."
+            gh pr edit ${{ github.event.pull_request.number }} --add-reviewer "hail-is/appsec"
+          else
+            echo "Review from AppSec team already requested"
+          fi
 
       - name: Check AppSec team approval
         if: steps.check-changes.outputs.sensitive-changes == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         id: check-approval
         run: |
           # Get the PR reviews
