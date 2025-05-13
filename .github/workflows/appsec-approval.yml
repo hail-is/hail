@@ -15,9 +15,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           # If the label is present on this PR, then remove it
-          if gh pr get ${{ github.event.pull_request.number }} --json labels --jq '.labels[] | select(.name == "needs-appsec-review-checker")' | grep -q "needs-appsec-review-checker"; then
-            gh pr edit ${{ github.event.pull_request.number }} --remove-label "needs-appsec-review-checker"
+          if gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --json labels --jq '.labels[] | select(.name == "needs-appsec-review-checker")' | grep -q "needs-appsec-review-checker"; then
+            echo "Removing needs-appsec-review-checker label from PR"
+            gh pr edit ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --remove-label "needs-appsec-review-checker"
           fi
+          
 
       - name: Check secrets
         id: check-secrets
@@ -86,13 +88,6 @@ jobs:
           TOKEN=$(node generate-token.js)
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
-
-      - name: Remove hook label
-        if: github.event.label.name == 'needs-appsec-review-checker'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        run: |
-          gh pr edit ${{ github.event.pull_request.number }} --remove-label "needs-appsec-review-checker"
 
       - name: Check for changes in sensitive directories
         id: check-changes
