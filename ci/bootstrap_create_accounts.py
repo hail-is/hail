@@ -1,5 +1,5 @@
 # ruff: noqa: E402
-# pylint: disable=wrong-import-position,ungrouped-imports
+# pylint: disable=ungrouped-imports
 from hailtop.hail_logging import configure_logging
 
 configure_logging()
