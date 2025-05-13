@@ -125,35 +125,6 @@ jobs:
           
           echo "sensitive-changes=$SENSITIVE_CHANGES" >> $GITHUB_OUTPUT
 
-      - name: Request AppSec team review if needed
-        if: steps.check-changes.outputs.sensitive-changes == 'true'
-        env:
-          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
-        id: request-review
-        run: |
-          # Exit on error
-          set -e 
-
-          # Check if review was already requested
-          REQUESTED_REVIEWERS=$(gh api \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers)
-
-          echo "DEBUG: Requested reviewers: $REQUESTED_REVIEWERS"
-          
-          # Check if appsec team is already requested
-          TEAM_ALREADY_REQUESTED=$(echo "$REQUESTED_REVIEWERS" | jq -r '.teams[] | select(.slug=="appsec") | .slug')
-          
-          echo "DEBUG: Team already requested: $TEAM_ALREADY_REQUESTED"
-
-          if [ -z "$TEAM_ALREADY_REQUESTED" ]; then
-            echo "Requesting review from AppSec team..."
-            gh pr edit ${{ github.event.pull_request.number }} --add-reviewer "hail-is/appsec"
-          else
-            echo "Review from AppSec team already requested"
-          fi
-
       - name: Check AppSec team approval
         if: steps.check-changes.outputs.sensitive-changes == 'true'
         env:
@@ -169,8 +140,6 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews)
 
-          echo "DEBUG: Reviews: $REVIEWS"
-
           REVIEWERS_APPROVING=$(echo "$REVIEWS" | jq -r '.[] | select(.state=="APPROVED") | .user.login')
 
           echo "DEBUG: Reviewers approving: $REVIEWERS_APPROVING"
@@ -183,28 +152,49 @@ jobs:
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             /orgs/hail-is/teams/appsec/members | jq -r '.[].login')
-
-          echo "DEBUG: Team members: $TEAM_MEMBERS"
           
           # Check if any team member has approved
           for REVIEWER in $REVIEWERS_APPROVING; do
             if echo "$TEAM_MEMBERS" | grep -q "^${REVIEWER}$"; then
               APPROVED=true
-              echo "Found approval from AppSec team member"
+              echo "Found approval from AppSec team member $REVIEWER"
               break
             fi
           done
           
           if [ "$APPROVED" = "true" ]; then
             echo "AppSec team approval found"
+            echo "approved=true" >> $GITHUB_OUTPUT
             exit 0
           else
             echo "No AppSec team approval found yet"
+            echo "approved=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-      - name: Set status
-        if: steps.check-changes.outputs.sensitive-changes == 'true' && failure()
+      - name: Request AppSec team review if needed
+        if: steps.check-changes.outputs.sensitive-changes == 'true' && steps.check-approval.outputs.approved == 'false'
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        id: request-review
         run: |
-          echo "Changes in sensitive directories require approval from the AppSec team"
-          exit 1 
+          # Exit on error
+          set -e 
+
+          # Check if review was already requested
+          REQUESTED_REVIEWERS=$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            /repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/requested_reviewers)
+          
+          # Check if appsec team is already requested
+          TEAM_ALREADY_REQUESTED=$(echo "$REQUESTED_REVIEWERS" | jq -r '.teams[] | select(.slug=="appsec") | .slug')
+          
+          echo "DEBUG: Team already requested: $TEAM_ALREADY_REQUESTED"
+
+          if [ -z "$TEAM_ALREADY_REQUESTED" ]; then
+            echo "Requesting review from AppSec team..."
+            gh pr edit ${{ github.event.pull_request.number }} --add-reviewer "hail-is/appsec"
+          else
+            echo "Review from AppSec team already requested"
+          fi
