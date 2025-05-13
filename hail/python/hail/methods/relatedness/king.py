@@ -8,7 +8,7 @@ from hail.utils.java import Env
 
 
 @typecheck(call_expr=expr_call, block_size=nullable(int))
-def king(call_expr, *, block_size=None):
+def king(call_expr, *, block_size=None, statistics='all'):
     r"""Compute relatedness estimates between individuals using a KING variant.
 
     .. include:: ../_templates/req_diploid_gt.rst
@@ -259,6 +259,42 @@ def king(call_expr, *, block_size=None):
         n_hets_row=n_hets_for_rows[kinship_between.row_key, kinship_between.col_key].element,
         n_hets_col=n_hets_for_cols[kinship_between.row_key, kinship_between.col_key].element
     )
+    kinship_between = kinship_between.annotate_entries(
+        min_n_hets=hl.min(kinship_between.n_hets_row,
+                          kinship_between.n_hets_col)
+    )
+    kinship_between = kinship_between.annotate_entries(
+        phi = 0.5 + ( (2 * kinship_between.het_hom_balance) - kinship_between.n_hets_row - kinship_between.n_hets_col ) / (4 * kinship_between.min_n_hets)
+    )
+
+    if statistics == 'all':
+        N_AA_AA = (ref.T @ ref).checkpoint(hl.utils.new_temp_file())         # both homozygous ref count
+        N_aa_aa = (var.T @ var).checkpoint(hl.utils.new_temp_file())         # both homozygous alt count
+        N_total = (defined.T @ defined).checkpoint(hl.utils.new_temp_file()) # total non-missing loci count
+        
+        ibs0_mt   = N_AA_aa.to_matrix_table_row_major()    # has entry field 'element' = IBS0_count
+        ibs2_mt   = (N_AA_AA + N_aa_aa + N_Aa_Aa).to_matrix_table_row_major()  # entry = IBS2_count
+        total_mt  = N_total.to_matrix_table_row_major()      # entry = total count
+        
+        # Rename entry fields for clarity
+        ibs0_mt = ibs0_mt.rename({'element': 'ibs0_count'})
+        ibs2_mt = ibs2_mt.rename({'element': 'ibs2_count'})
+        total_mt = total_mt.rename({'element': 'total_count'})
+    
+        # Add IBS0, IBS2, total counts as entry annotations by indexing with row_idx, col_idx
+        kinship_between = kinship_between.annotate_entries(
+            ibs0_count  = ibs0_mt[kinship_between.row_idx, kinship_between.col_idx].ibs0_count,
+            ibs2_count  = ibs2_mt[kinship_between.row_idx, kinship_between.col_idx].ibs2_count,
+            total_count = total_mt[kinship_between.row_idx, kinship_between.col_idx].total_count
+        )
+        kinship_between = kinship_between.annotate_entries(
+            IBD0Seg = hl.if_else(kinship_between.total_count > 0, kinship_between.ibs0_count / kinship_between.total_count, hl.float64(0)),
+            IBD2Seg = hl.max(hl.float64(0), 4 * kinship_between.phi + (kinship_between.ibs0_count / kinship_between.total_count) - 1)
+        )
+        kinship_between = kinship_between.annotate_entries(
+            IBD1Seg = hl.max(hl.float64(0), 1.0 - kinship_between.IBD0Seg - kinship_between.IBD2Seg)
+        )
+
 
     col_index_field = Env.get_uid()
     col_key = mt.col_key
@@ -275,20 +311,15 @@ def king(call_expr, *, block_size=None):
         **cols[kinship_between.row_idx].select(*col_key).rename(dict(renaming))
     )
 
-    kinship_between = kinship_between.annotate_entries(
-        min_n_hets=hl.min(kinship_between.n_hets_row,
-                          kinship_between.n_hets_col)
-    )
-    return kinship_between.select_entries(
-        phi=(
-            0.5
-        ) + (
-            (
-                2 * kinship_between.het_hom_balance +
-                - kinship_between.n_hets_row
-                - kinship_between.n_hets_col
-            ) / (
-                4 * kinship_between.min_n_hets
-            )
-        )
-    ).select_rows().select_cols().select_globals()
+    if statistics != 'all':
+        return kinship_between.select_entries(
+            'phi'
+        ).select_rows().select_cols().select_globals()
+    else:
+        return kinship_between.select_entries(
+            'phi',
+            'IBD0Seg',
+            'IBD2Seg',
+            'IBD1Seg'
+        ).select_rows().select_cols().select_globals()
+        
