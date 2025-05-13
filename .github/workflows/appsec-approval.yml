@@ -2,7 +2,7 @@ name: AppSec Approval Check
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 jobs:
   check-appsec-approval:
@@ -10,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Remove hook label
+        if: github.event.label.name == 'needs-appsec-review-checker'
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "needs-appsec-review-checker"
+
       - name: Check secrets
         id: check-secrets
         env:
@@ -164,16 +169,14 @@ jobs:
           
           if [ "$APPROVED" = "true" ]; then
             echo "AppSec team approval found"
-            echo "approved=true" >> $GITHUB_OUTPUT
             exit 0
           else
             echo "No AppSec team approval found yet"
-            echo "approved=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
       - name: Request AppSec team review if needed
-        if: steps.check-changes.outputs.sensitive-changes == 'true' && steps.check-approval.outputs.approved == 'false'
+        if: steps.check-changes.outputs.sensitive-changes == 'true' && !success()
         env:
           GH_TOKEN: ${{ steps.generate-token.outputs.token }}
         id: request-review
