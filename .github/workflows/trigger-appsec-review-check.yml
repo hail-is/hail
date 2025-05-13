@@ -4,6 +4,10 @@ on:
   pull_request_review:
     types: [submitted, edited, dismissed]
 
+# Minimal permissions needed, no permission to create a status check
+permissions:
+  pull-requests: write
+
 jobs:
   add-trigger-label:
     name: Add Trigger Label
@@ -17,9 +21,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           # Check if the label already exists on the PR
-          if ! gh pr get ${{ github.event.pull_request.number }} --json labels --jq '.labels[] | select(.name == "needs-appsec-review-checker")' | grep -q "needs-appsec-review-checker"; then
+          if ! gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --json labels --jq '.labels[] | select(.name == "needs-appsec-review-checker")' | grep -q "needs-appsec-review-checker"; then
             echo "Adding needs-appsec-review-checker label to trigger review check..."
-            gh pr edit ${{ github.event.pull_request.number }} --add-label "needs-appsec-review-checker"
+            gh pr edit ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --add-label "needs-appsec-review-checker"
           else
             echo "Label already exists on PR"
           fi 
