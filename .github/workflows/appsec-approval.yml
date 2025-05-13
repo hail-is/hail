@@ -10,11 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Remove hook label
-        if: github.event.label.name == 'needs-appsec-review-checker'
-        run: |
-          gh pr edit ${{ github.event.pull_request.number }} --remove-label "needs-appsec-review-checker"
-
       - name: Check secrets
         id: check-secrets
         env:
@@ -82,6 +77,13 @@ jobs:
           TOKEN=$(node generate-token.js)
 
           echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Remove hook label
+        if: github.event.label.name == 'needs-appsec-review-checker'
+        env:
+          GH_TOKEN: ${{ steps.generate-token.outputs.token }}
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "needs-appsec-review-checker"
 
       - name: Check for changes in sensitive directories
         id: check-changes
