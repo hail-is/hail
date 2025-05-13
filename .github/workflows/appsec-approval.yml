@@ -2,9 +2,7 @@ name: AppSec Approval Check
 
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, ready_for_review]
-  pull_request_review:
-    types: [submitted, edited, dismissed]
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
 
 jobs:
   check-appsec-approval:
@@ -12,6 +10,11 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
+      - name: Remove hook label
+        if: github.event.label.name == 'needs-appsec-review-checker'
+        run: |
+          gh pr edit ${{ github.event.pull_request.number }} --remove-label "needs-appsec-review-checker"
+
       - name: Check secrets
         id: check-secrets
         env:
