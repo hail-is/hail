@@ -8,11 +8,13 @@ jobs:
   check-appsec-approval:
     name: Check AppSec Team Approval
     runs-on: ubuntu-latest
+    # Prevent running on forks since they won't have access to secrets
+    if: github.repository == 'hail-is/hail'
     
     steps:
       - name: Remove hook label
         env:
-          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           # If the label is present on this PR, then remove it
           if gh pr view ${{ github.event.pull_request.number }} --repo ${{ github.repository }} --json labels --jq '.labels[] | select(.name == "needs-appsec-review-checker")' | grep -q "needs-appsec-review-checker"; then
