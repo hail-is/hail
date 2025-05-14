@@ -8,7 +8,7 @@ from hail.utils.java import Env
 
 
 @typecheck(call_expr=expr_call, block_size=nullable(int))
-def king(call_expr, *, block_size=None, statistics='all'):
+def king(call_expr, *, block_size=None, output_all_statistics=False):
     r"""Compute relatedness estimates between individuals using a KING variant.
 
     .. include:: ../_templates/req_diploid_gt.rst
@@ -202,6 +202,8 @@ def king(call_expr, *, block_size=None, statistics='all'):
                    {4 \cdot \mathrm{min}(N^{Aa}_{i}, N^{Aa}_{j})}
         \end{aligned}
 
+
+
     This function, :func:`.king`, only implements the "between-family"
     estimator, :math:`\widehat{\phi_{i,j}^{\mathrm{between}}}`.
 
@@ -212,7 +214,9 @@ def king(call_expr, *, block_size=None, statistics='all'):
     block_size : :obj:`int`, optional
         Block size of block matrices used in the algorithm.
         Default given by :meth:`.BlockMatrix.default_block_size`.
-
+    output_all_statistics : :obj:`bool`, optional
+        Default False.
+        If True, output all statistics including phi, IBD0Seg, IBD2Seg, IBD1Seg, else output only phi.
     Returns
     -------
     :class:`.MatrixTable`
@@ -267,7 +271,7 @@ def king(call_expr, *, block_size=None, statistics='all'):
         phi = 0.5 + ( (2 * kinship_between.het_hom_balance) - kinship_between.n_hets_row - kinship_between.n_hets_col ) / (4 * kinship_between.min_n_hets)
     )
 
-    if statistics == 'all':
+    if output_all_statistics:
         N_AA_AA = (ref.T @ ref).checkpoint(hl.utils.new_temp_file())         # both homozygous ref count
         N_aa_aa = (var.T @ var).checkpoint(hl.utils.new_temp_file())         # both homozygous alt count
         N_total = (defined.T @ defined).checkpoint(hl.utils.new_temp_file()) # total non-missing loci count
@@ -289,7 +293,7 @@ def king(call_expr, *, block_size=None, statistics='all'):
         )
         kinship_between = kinship_between.annotate_entries(
             IBD0Seg = hl.if_else(kinship_between.total_count > 0, kinship_between.ibs0_count / kinship_between.total_count, hl.float64(0)),
-            IBD2Seg = hl.max(hl.float64(0), 4 * kinship_between.phi + (kinship_between.ibs0_count / kinship_between.total_count) - 1)
+            IBD2Seg = hl.if_else(kinship_between.total_count > 0, kinship_between.ibs2_count / kinship_between.total_count, hl.float64(0)),
         )
         kinship_between = kinship_between.annotate_entries(
             IBD1Seg = hl.max(hl.float64(0), 1.0 - kinship_between.IBD0Seg - kinship_between.IBD2Seg)
@@ -311,7 +315,7 @@ def king(call_expr, *, block_size=None, statistics='all'):
         **cols[kinship_between.row_idx].select(*col_key).rename(dict(renaming))
     )
 
-    if statistics != 'all':
+    if not output_all_statistics:
         return kinship_between.select_entries(
             'phi'
         ).select_rows().select_cols().select_globals()
@@ -321,5 +325,4 @@ def king(call_expr, *, block_size=None, statistics='all'):
             'IBD0Seg',
             'IBD2Seg',
             'IBD1Seg'
-        ).select_rows().select_cols().select_globals()
-        
+        ).select_rows().select_cols().select_globals()        
