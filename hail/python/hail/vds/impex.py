@@ -8,7 +8,7 @@ from hail import ir
 from hail.expr.expressions import construct_expr, construct_variable, unify_all
 from hail.expr.types import tarray, tcall, tfloat32, tfloat64, tint32, tinterval, tstruct
 from hail.genetics.reference_genome import reference_genome_type
-from hail.typecheck import anytype, dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck
+from hail.typecheck import dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck
 from hail.utils.java import Env, info, warning
 
 from .functions import lgt_to_gt
