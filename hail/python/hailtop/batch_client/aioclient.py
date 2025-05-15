@@ -508,7 +508,7 @@ class JobGroup:
             description += url
 
         with progress.with_task(
-                description, total=status['n_jobs'], disable=disable_progress_bar, cost=status['cost']
+            description, total=status['n_jobs'], disable=disable_progress_bar, cost=status['cost']
         ) as progress_task:
             while True:
                 status = await self.status()
