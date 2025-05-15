@@ -39,9 +39,22 @@ def __get_range_bounds(path, key_type: tstruct):
     return bounds_type._convert_from_json(bounds)
 
 
-@typecheck(path=str, _intervals=nullable(sequenceof(anytype)))
-def read_dense_mt(path, *, _intervals=None):
-    # FIXME: use _intervals
+@typecheck(path=str)
+def read_dense_mt(path):
+    """Reads a :class:`.VariantDataset` as a single dense :class:`hail.matrixtable.MatrixTable`.
+
+    Parameters
+    ----------
+    path: :obj:`str`
+        Path to the VDS to read. The ``ref_block_max_len`` global field must be defined on the
+        target VDS. If it is not, the vds can be patched in place with
+        :func:`hail.vds.store_ref_block_max_length`
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset in dense MatrixTable representation.
+    """
     vds = read_vds(path)
     if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
         raise ValueError(
