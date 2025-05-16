@@ -4,7 +4,7 @@ import typer
 from rich.prompt import Confirm, IntPrompt, Prompt
 from typer import Abort, Exit
 
-from hailtop.config import ConfigVariable
+from hailtop.config import ConfigVariable, configuration_of
 
 
 async def setup_existing_remote_tmpdir(service_account: str, verbose: bool) -> Tuple[Optional[str], str, bool]:
@@ -86,22 +86,26 @@ async def setup_new_remote_tmpdir(
         update_gcp_bucket,
     )
 
-    token = secret_alnum_string(5).lower()
-    maybe_bucket_name = f'hail-batch-{username}-{token}'
-    bucket_name = Prompt.ask(f'What is the name of the new bucket (Example: {maybe_bucket_name})')
-
     default_project = await get_gcp_default_project(verbose=verbose)
+
+    token = secret_alnum_string(5).lower()
+    default_project_str = f'-{default_project}' if default_project is not None else ''
+
+    maybe_bucket_name = f'hail-batch-{username}{default_project_str}-{token}'
+    bucket_name = Prompt.ask('What is the name of the new bucket?', default=maybe_bucket_name)
+
     bucket_prompt = f'Which google project should {bucket_name} be created in? This project will incur costs for storing your Hail generated data.'
     if default_project is not None:
-        bucket_prompt += f' (Example: {default_project})'
-    project = Prompt.ask(bucket_prompt)
+        project = Prompt.ask(bucket_prompt, default=default_project)
+    else:
+        project = Prompt.ask(bucket_prompt)
 
     if 'us-central1' in supported_regions:
         default_compute_region = 'us-central1'
     else:
         default_compute_region = supported_regions[0]
 
-    bucket_region = Prompt.ask(f'Which region does your data reside in? (Example: {default_compute_region})')
+    bucket_region = Prompt.ask('Which region does your data reside in?', default=default_compute_region)
     if bucket_region not in supported_regions:
         typer.secho(
             f'The region where your data lives ({bucket_region}) is not in one of the supported regions of the Batch Service ({supported_regions}). '
@@ -181,6 +185,9 @@ async def setup_new_remote_tmpdir(
     try:
         await grant_service_account_bucket_access_with_role(
             bucket_name, service_account, 'roles/storage.objectAdmin', verbose=verbose
+        )
+        await grant_service_account_bucket_access_with_role(
+            bucket_name, service_account, 'roles/storage.legacyBucketOwner', verbose=verbose
         )
     except InsufficientPermissions as e:
         typer.secho(e.message, fg=typer.colors.RED)
@@ -286,8 +293,9 @@ async def async_basic_initialize(verbose: bool = False):
         )
         warnings = True
 
-    if trial_bp_name:
-        set_config(ConfigVariable.BATCH_BILLING_PROJECT, trial_bp_name)
+    billing_project = configuration_of(ConfigVariable.BATCH_BILLING_PROJECT, trial_bp_name, None)
+    if billing_project:
+        set_config(ConfigVariable.BATCH_BILLING_PROJECT, billing_project)
 
     if remote_tmpdir:
         set_config(ConfigVariable.BATCH_REMOTE_TMPDIR, remote_tmpdir)
