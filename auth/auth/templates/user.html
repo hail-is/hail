@@ -42,28 +42,26 @@
     </label>
   </div>
 
-  <table class="table-auto w-64">
-    <tr>
-      <td>
-        <form action="{{ auth_base_url }}/signup" method="GET">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-          {% if next_page %}
-          <input type="hidden" name="next" value="{{ next_page }}" />
-          {% endif %}
-          {{ submit_button_with_attrs('Sign up', 'id=signupButton disabled') }}
-        </form>
-      </td>
-      <td>
-        <form action="{{ auth_base_url }}/login" method="GET">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-          {% if next_page %}
-          <input type="hidden" name="next" value="{{ next_page }}" />
-          {% endif %}
-          {{ submit_button_with_attrs('Log in', 'id=loginButton disabled') }}
-        </form>
-      </td>
-    </tr>
-  </table>
+  <div>
+    <form action="{{ auth_base_url }}/login" method="GET">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+      {% if next_page %}
+      <input type="hidden" name="next" value="{{ next_page }}" />
+      {% endif %}
+      {{ submit_button_with_attrs('Log in', 'id=loginButton disabled') }}
+    </form>
+
+    <div class="pt-4">
+      <p class="text-gray-600 mb-2">No account yet? Click below to sign up:</p>
+      <form action="{{ auth_base_url }}/signup" method="GET">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+        {% if next_page %}
+        <input type="hidden" name="next" value="{{ next_page }}" />
+        {% endif %}
+        {{ submit_button_with_attrs('Sign up', 'id=signupButton disabled') }}
+      </form>
+    </div>
+  </div>
 
   <script>
     function updateButtons() {
