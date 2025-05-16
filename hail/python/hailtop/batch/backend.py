@@ -546,6 +546,22 @@ class ServiceBackend(Backend[bc.Batch]):
         with BatchClient('dummy') as dummy_client:
             return dummy_client.supported_regions()
 
+    @staticmethod
+    def default_region():
+        """
+        Get the default cloud region
+
+        Examples
+        --------
+        >>> region = ServiceBackend.default_region()
+
+        Returns
+        -------
+        The default region jobs run in when no regions are specified
+        """
+        with BatchClient('dummy') as dummy_client:
+            return dummy_client.default_region()
+
     def __init__(
         self,
         *args,
@@ -618,8 +634,11 @@ class ServiceBackend(Backend[bc.Batch]):
             if regions_from_conf is not None:
                 assert isinstance(regions_from_conf, str)
                 regions = regions_from_conf.split(',')
+            else:
+                regions = [ServiceBackend.default_region()]
         elif regions == ServiceBackend.ANY_REGION:
             regions = None
+
         self.regions = regions
         self.__batch_client: Optional[AioBatchClient] = None
 
