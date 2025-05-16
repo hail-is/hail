@@ -86,13 +86,19 @@ async def setup_new_remote_tmpdir(
         update_gcp_bucket,
     )
 
+    default_project = await get_gcp_default_project(verbose=verbose)
+
     token = secret_alnum_string(5).lower()
-    maybe_bucket_name = f'hail-batch-{username}-{token}'
+    default_project_str = f'-{default_project}' if default_project is not None else ''
+
+    maybe_bucket_name = f'hail-batch-{username}{default_project_str}-{token}'
     bucket_name = Prompt.ask('What is the name of the new bucket?', default=maybe_bucket_name)
 
-    default_project = await get_gcp_default_project(verbose=verbose)
     bucket_prompt = f'Which google project should {bucket_name} be created in? This project will incur costs for storing your Hail generated data.'
-    project = Prompt.ask(bucket_prompt, default=default_project)
+    if default_project is not None:
+        project = Prompt.ask(bucket_prompt, default=default_project)
+    else:
+        project = Prompt.ask(bucket_prompt)
 
     if 'us-central1' in supported_regions:
         default_compute_region = 'us-central1'
