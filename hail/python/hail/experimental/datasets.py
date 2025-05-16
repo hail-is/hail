@@ -61,29 +61,23 @@ def load_dataset(
     valid_regions = {'us', 'us-central1', 'europe-west1'}
     if region not in valid_regions:
         raise ValueError(
-            f'Specify valid region parameter,'
-            f' received: region={region!r}.\n'
-            f'Valid region values are {valid_regions}.'
+            f'Specify valid region parameter, received: region={region!r}.\nValid region values are {valid_regions}.'
         )
 
     valid_clouds = {'gcp', 'aws'}
     if cloud not in valid_clouds:
         raise ValueError(
-            f'Specify valid cloud parameter,'
-            f' received: cloud={cloud!r}.\n'
-            f'Valid cloud platforms are {valid_clouds}.'
+            f'Specify valid cloud parameter, received: cloud={cloud!r}.\nValid cloud platforms are {valid_clouds}.'
         )
 
     datasets = get_datasets_metadata()
     names = set([dataset for dataset in datasets])
     if name not in names:
-        raise ValueError(f'{name} is not a dataset available in the' f' repository.')
+        raise ValueError(f'{name} is not a dataset available in the repository.')
 
     versions = set(dataset['version'] for dataset in datasets[name]['versions'])
     if version not in versions:
-        raise ValueError(
-            f'Version {version!r} not available for dataset' f' {name!r}.\n' f'Available versions: {versions}.'
-        )
+        raise ValueError(f'Version {version!r} not available for dataset {name!r}.\nAvailable versions: {versions}.')
 
     reference_genomes = set(dataset['reference_genome'] for dataset in datasets[name]['versions'])
     if reference_genome not in reference_genomes:

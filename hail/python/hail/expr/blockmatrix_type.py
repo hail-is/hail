@@ -6,7 +6,7 @@ from hail.utils.java import jiterable_to_list
 
 
 class tblockmatrix(object):
-    __slots__ = 'element_type', 'shape', 'is_row_vector', 'block_size'
+    __slots__ = 'block_size', 'element_type', 'is_row_vector', 'shape'
 
     @staticmethod
     def _from_java(jtbm):

@@ -83,7 +83,7 @@ class FacetWrap(Faceter):
         self, facets: StructExpression, nrow: Optional[int] = None, ncol: Optional[int] = None, scales: str = "fixed"
     ):
         if nrow is not None and ncol is not None:
-            raise ValueError("Both `nrow` and `ncol` were specified. " "Please specify only one of these values.")
+            raise ValueError("Both `nrow` and `ncol` were specified. Please specify only one of these values.")
         if scales not in self._scale_mappings:
             raise ValueError(
                 f"An unsupported value ({scales}) was provided for `scales`. "
@@ -103,7 +103,7 @@ class FacetWrap(Faceter):
         elif self.nrow is not None:
             return (self.nrow, n_partitions(num_facet_values, self.nrow))
         else:
-            ncol = int(math.ceil(math.sqrt(num_facet_values)))
+            ncol = math.ceil(math.sqrt(num_facet_values))
             return (n_partitions(num_facet_values, ncol), ncol)
 
     def get_shared_axis_kwargs(self) -> Dict[str, str]:

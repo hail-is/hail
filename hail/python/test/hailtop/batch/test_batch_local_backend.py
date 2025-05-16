@@ -46,11 +46,12 @@ def test_read_input_and_write_output(batch):
 
 
 def test_read_input_group(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
-        'w'
-    ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file1, tempfile.NamedTemporaryFile(
-        'w'
-    ) as output_file2:
+    with (
+        tempfile.NamedTemporaryFile('w') as input_file1,
+        tempfile.NamedTemporaryFile('w') as input_file2,
+        tempfile.NamedTemporaryFile('w') as output_file1,
+        tempfile.NamedTemporaryFile('w') as output_file2,
+    ):
         input_file1.write('abc')
         input_file2.write('123')
         input_file1.flush()
@@ -68,9 +69,11 @@ def test_read_input_group(batch):
 
 
 def test_write_resource_group(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
-        'w'
-    ) as input_file2, tempfile.TemporaryDirectory() as output_dir:
+    with (
+        tempfile.NamedTemporaryFile('w') as input_file1,
+        tempfile.NamedTemporaryFile('w') as input_file2,
+        tempfile.TemporaryDirectory() as output_dir,
+    ):
         b = batch
         input = b.read_input_group(in1=input_file1.name, in2=input_file2.name)
 
@@ -151,9 +154,11 @@ def test_single_job_w_input(batch):
 
 
 def test_single_job_w_input_group(batch):
-    with tempfile.NamedTemporaryFile('w') as input_file1, tempfile.NamedTemporaryFile(
-        'w'
-    ) as input_file2, tempfile.NamedTemporaryFile('w') as output_file:
+    with (
+        tempfile.NamedTemporaryFile('w') as input_file1,
+        tempfile.NamedTemporaryFile('w') as input_file2,
+        tempfile.NamedTemporaryFile('w') as output_file,
+    ):
         msg1 = 'abc'
         msg2 = '123'
 
@@ -346,9 +351,10 @@ def test_add_extension_input_resource_file(batch):
 
 
 def test_file_name_space(batch):
-    with tempfile.NamedTemporaryFile(
-        'w', prefix="some file name with (foo) spaces"
-    ) as input_file, tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file:
+    with (
+        tempfile.NamedTemporaryFile('w', prefix="some file name with (foo) spaces") as input_file,
+        tempfile.NamedTemporaryFile('w', prefix="another file name with (foo) spaces") as output_file,
+    ):
         input_file.write('abc')
         input_file.flush()
 

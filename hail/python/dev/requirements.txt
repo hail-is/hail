@@ -2,9 +2,9 @@
 
 aiohttp-devtools>=1.1,<2
 build>=1.1,<1.2
-pylint>=2.13.5,<3
+pylint>3.3,<4
 pre-commit>=3.3.3,<4
-ruff==0.1.13
+ruff>=0.11,<0.12
 uv>=0.1.38,<0.3
 curlylint>=0.13.1,<1
 click>=8.1.2,<9

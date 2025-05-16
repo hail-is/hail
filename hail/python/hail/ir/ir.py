@@ -2652,7 +2652,7 @@ def lookup_aggregator_return_type(name, init_args, seq_args):
                 p.unify(a) for p, a in zip(seq_params, seq_args)
             ):
                 return ret_type.subst()
-    raise KeyError(f'aggregator {name}({ ",".join([str(t) for t in seq_args]) }) not found')
+    raise KeyError(f'aggregator {name}({",".join([str(t) for t in seq_args])}) not found')
 
 
 class BaseApplyAggOp(IR):

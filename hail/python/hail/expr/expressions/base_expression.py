@@ -47,7 +47,7 @@ class Summary(object):
 
     @staticmethod
     def pct(x):
-        return f'{x*100:.2f}%'
+        return f'{x * 100:.2f}%'
 
     @staticmethod
     def format(x):
@@ -186,7 +186,7 @@ def _impute_type(x, partial_type):
         return tinterval(x.point_type)
     elif isinstance(x, Call):
         return tcall
-    elif isinstance(x, Struct) or isinstance(x, dict) and isinstance(partial_type, tstruct):
+    elif isinstance(x, Struct) or (isinstance(x, dict) and isinstance(partial_type, tstruct)):
         partial_type = refine(partial_type, hl.tstruct())
         t = tstruct(**{k: _impute_type(x[k], partial_type.get(k)) for k in x})
         return t
@@ -204,7 +204,7 @@ def _impute_type(x, partial_type):
         unified_type = super_unify_types(*ts)
         if unified_type is None:
             raise ExpressionException(
-                "Hail does not support heterogeneous arrays: " "found list with elements of types {} ".format(list(ts))
+                "Hail does not support heterogeneous arrays: found list with elements of types {} ".format(list(ts))
             )
         return tarray(unified_type)
 
@@ -216,7 +216,7 @@ def _impute_type(x, partial_type):
         unified_type = super_unify_types(*ts)
         if not unified_type:
             raise ExpressionException(
-                "Hail does not support heterogeneous sets: " "found set with elements of types {} ".format(list(ts))
+                "Hail does not support heterogeneous sets: found set with elements of types {} ".format(list(ts))
             )
         return tset(unified_type)
 
@@ -231,7 +231,7 @@ def _impute_type(x, partial_type):
         unified_value_type = super_unify_types(*vts)
         if unified_key_type is None:
             raise ExpressionException(
-                "Hail does not support heterogeneous dicts: " "found dict with keys {} of types {} ".format(
+                "Hail does not support heterogeneous dicts: found dict with keys {} of types {} ".format(
                     list(x.keys()), list(kts)
                 )
             )
@@ -240,7 +240,7 @@ def _impute_type(x, partial_type):
                 return tstruct(**{k: _impute_type(x[k], None) for k in x})
 
             raise ExpressionException(
-                "Hail does not support heterogeneous dicts: " "found dict with values of types {} ".format(list(vts))
+                "Hail does not support heterogeneous dicts: found dict with values of types {} ".format(list(vts))
             )
         return tdict(unified_key_type, unified_value_type)
     elif isinstance(x, np.generic):
@@ -252,7 +252,7 @@ def _impute_type(x, partial_type):
         return partial_type
     elif isinstance(x, (hl.expr.builders.CaseBuilder, hl.expr.builders.SwitchBuilder)):
         raise ExpressionException(
-            "'switch' and 'case' expressions must end with a call to either" "'default' or 'or_missing'"
+            "'switch' and 'case' expressions must end with a call to either'default' or 'or_missing'"
         )
     else:
         raise ExpressionException("Hail cannot automatically impute type of {}: {}".format(type(x), x))
@@ -626,7 +626,7 @@ class Expression(object):
         left, right, success = unify_exprs(self, other)
         if not success:
             raise TypeError(
-                f"Invalid '{op}' comparison, cannot compare expressions " f"of type '{self.dtype}' and '{other.dtype}'"
+                f"Invalid '{op}' comparison, cannot compare expressions of type '{self.dtype}' and '{other.dtype}'"
             )
         res = left._bin_op(op, right, hl.tbool)
         return res

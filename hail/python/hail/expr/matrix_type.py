@@ -6,7 +6,7 @@ from hail.utils.java import escape_parsable, jiterable_to_list
 
 
 class tmatrix(object):
-    __slots__ = 'global_type', 'col_type', 'col_key', 'row_type', 'row_key', 'entry_type'
+    __slots__ = 'col_key', 'col_type', 'entry_type', 'global_type', 'row_key', 'row_type'
 
     @staticmethod
     def _from_java(jtt):

@@ -513,9 +513,9 @@ def _pc_relate_bm(
         scores_table = mt.select_cols(__scores=scores_expr).key_cols_by().select_cols('__scores').cols()
         compute_S0 = True
     elif k and scores_expr is not None:
-        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' " "must be set, found both")
+        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' must be set, found both")
     else:
-        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' " "must be set, found neither")
+        raise ValueError("pc_relate_bm: exactly one of 'k' and 'scores_expr' must be set, found neither")
 
     n_missing = scores_table.aggregate(agg.count_where(hl.is_missing(scores_table.__scores)))
     if n_missing > 0:

@@ -19,7 +19,7 @@ class ClientResponseError(aiohttp.ClientResponseError):
         self.body = body
 
     def __str__(self) -> str:
-        return f"{self.status}, message={self.message!r}, " f"url={self.request_info.real_url!r} body={self.body!r}"
+        return f"{self.status}, message={self.message!r}, url={self.request_info.real_url!r} body={self.body!r}"
 
     def __repr__(self) -> str:
         args = f"{self.request_info!r}, {self.history!r}"
