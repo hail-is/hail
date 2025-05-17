@@ -40,3 +40,7 @@ variable "github_context" {
 variable "storage_account_suffix" {
   type = string
 }
+
+variable "worker_key_vault_id" {
+  type = string
+}

@@ -127,6 +127,7 @@ module "ci" {
   container_registry_id  = azurerm_container_registry.acr.id
 
   test_storage_container_resource_id = module.batch.test_storage_container.resource_manager_id
+  worker_key_vault_id = module.batch.worker_key_vault_id
 
   deploy_steps                            = var.ci_config.deploy_steps
   watched_branches                        = var.ci_config.watched_branches
