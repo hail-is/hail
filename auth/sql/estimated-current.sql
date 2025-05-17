@@ -1,7 +1,7 @@
 CREATE TABLE `users` (
   `id` INT(11) NOT NULL AUTO_INCREMENT,
   `state` VARCHAR(100) NOT NULL,
-  -- creating, active, deleting, deleted
+  -- creating, active, deleting, deleted, inactive
   `username` varchar(255) NOT NULL COLLATE utf8mb4_0900_as_cs,
   `login_id` varchar(255) DEFAULT NULL COLLATE utf8mb4_0900_as_cs,
   `display_name` varchar(255) DEFAULT NULL,
@@ -16,6 +16,8 @@ CREATE TABLE `users` (
   -- namespace, for developers
   `namespace_name` varchar(255) DEFAULT NULL,
   `trial_bp_name` varchar(300) DEFAULT NULL,
+  -- "last activated" tracking
+  `last_activated` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   UNIQUE KEY `username` (`username`)
