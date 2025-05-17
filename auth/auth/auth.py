@@ -816,6 +816,9 @@ async def get_userinfo(request: web.Request, auth_token: str) -> UserData:
 
     userdata = await get_userinfo_from_hail_session_id(request, auth_token)
     if userdata:
+        db = request.app[AppKeys.DB]
+        await db.just_execute("UPDATE sessions SET created = NOW() WHERE session_id = %s", (auth_token,))
+
         return userdata
 
     hailctl_oauth_client = request.app[AppKeys.HAILCTL_CLIENT_CONFIG]
