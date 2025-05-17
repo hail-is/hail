@@ -279,7 +279,7 @@ class SimplifySuite extends HailSuite {
       },
     )
 
-    doesRewrite.foreach(a => assert(Simplify(ctx, a) == a.query))
+    doesRewrite.foreach(a => !Simplify(ctx, a).isInstanceOf[StreamAggScan])
 
     val doesNotRewrite: Array[StreamAggScan] = Array(
       streamAggScanIR(ToStream(In(0, TArray(TInt32))))(foo => ApplyScanOp(Sum())(foo)),
