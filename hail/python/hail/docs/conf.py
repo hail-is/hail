@@ -78,11 +78,11 @@ napoleon_use_rtype = False
 napoleon_use_param = False
 
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3.9', None),
+    'python': ('https://docs.python.org/3.11', None),
     'PySpark': ('https://spark.apache.org/docs/latest/api/python/', None),
     'Bokeh': ('https://docs.bokeh.org/en/3.1.0/', None),
     'numpy': ('https://numpy.org/doc/stable/', None),
-    'scipy': ('https://docs.scipy.org/doc/scipy-1.9.3', None),
+    'scipy': ('https://docs.scipy.org/doc/scipy-1.15.2', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
 }
 

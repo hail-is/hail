@@ -8,9 +8,7 @@
 
 aiohttp_session>=2.7,<2.13
 aiomysql>=0.0.20,<1
-google-cloud-profiler<4.0.0
-# google-cloud-profiler<4 is incompatible with protobuf 4 but does not place an upper bound on its pin
-protobuf==3.20.2
+google-cloud-profiler>4,<=4.1
 kubernetes-asyncio>=19.15.1,<20
 prometheus_async>=19.2.0,<20
 prometheus_client>=0.11.0,<1
