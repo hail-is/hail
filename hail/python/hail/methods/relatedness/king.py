@@ -7,7 +7,7 @@ from hail.utils import deduplicate
 from hail.utils.java import Env
 
 
-@typecheck(call_expr=expr_call, block_size=nullable(int))
+@typecheck(call_expr=expr_call, block_size=nullable(int), output_all_statistics=nullable(bool))
 def king(call_expr, *, block_size=None, output_all_statistics=False):
     r"""Compute relatedness estimates between individuals using a KING variant.
 
