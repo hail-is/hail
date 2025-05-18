@@ -62,6 +62,13 @@
 {% endmacro %}
 
 
+{% macro submit_button_with_attrs(text, attrs) %}
+<button class='border border-gray-200 bg-gray-50 hover:bg-slate-400 hover:text-white px-2 py-1 rounded-md' {{ attrs }}>
+  {{ text }}
+</button>
+{% endmacro %}
+
+
 {% macro link(href, text) %}
 <a class='block hover:cursor-pointer hover:text-sky-600 hover:underline underline-offset-2' href="{{ href }}">
   {{ text }}

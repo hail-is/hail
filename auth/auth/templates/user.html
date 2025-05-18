@@ -1,4 +1,4 @@
-{% from "utils.html" import submit_button %}
+{% from "utils.html" import submit_button, submit_button_with_attrs %}
 {% extends "layout.html" %}
 {% block title %}User{% endblock %}
 {% block content %}
@@ -9,6 +9,10 @@
     <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
     {{ submit_button('Log out') }}
   </form>
+  <p> <b>Notice:</b>
+    By continuing to use the Hail system, you agree that you have reviewed and will be bound by the Hail <a href="https://batch.hail.is/tos" target="_blank" class="text-blue-600 hover:underline">Terms of Service</a>
+    and have read the <a href="https://batch.hail.is/privacy" target="_blank" class="text-blue-600 hover:underline">Privacy Policy</a>. If not you must log out and stop using the Hail system immediately.
+  </p>
   {% if cloud == "gcp" %}
   <p><b>Google Service Account: </b>{{ userdata['display_name'] }}</p>
   {% endif %}
@@ -28,37 +32,69 @@
   {% else %}
     <p>You must sign up or log in to continue</p>
   {% endif %}
-  <table class="table-auto w-64">
-    <tr>
-      <td>
-        <form action="{{ auth_base_url }}/signup" method="GET">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-          {% if next_page %}
-          <input type="hidden" name="next" value="{{ next_page }}" />
-          {% endif %}
-          {{ submit_button('Sign up') }}
-        </form>
-      </td>
-      <td>
-        <form action="{{ auth_base_url }}/login" method="GET">
-          <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-          {% if next_page %}
-          <input type="hidden" name="next" value="{{ next_page }}" />
-          {% endif %}
-          {{ submit_button('Log in') }}
-        </form>
-      </td>
-    </tr>
-  </table>
+  
+  <div class="mb-4">
+    <label class="flex items-center">
+      <input type="checkbox" id="tosCheckbox" class="mr-2" onchange="updateButtons()">
+      <span>I have reviewed and agree to the <a href="https://batch.hail.is/tos" target="_blank" class="text-blue-600 hover:underline">Terms of Service</a>
+        and have read the <a href="https://batch.hail.is/privacy" target="_blank" class="text-blue-600 hover:underline">Privacy Policy</a>
+      </span>
+    </label>
+  </div>
+
+  <div>
+    <form action="{{ auth_base_url }}/login" method="GET">
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+      {% if next_page %}
+      <input type="hidden" name="next" value="{{ next_page }}" />
+      {% endif %}
+      {{ submit_button_with_attrs('Log in', 'id=loginButton disabled') }}
+    </form>
+
+    <div class="pt-4">
+      <p class="text-gray-600 mb-2">No account yet? Click below to sign up:</p>
+      <form action="{{ auth_base_url }}/signup" method="GET">
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
+        {% if next_page %}
+        <input type="hidden" name="next" value="{{ next_page }}" />
+        {% endif %}
+        {{ submit_button_with_attrs('Sign up', 'id=signupButton disabled') }}
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function updateButtons() {
+      const checkbox = document.getElementById('tosCheckbox');
+      const signupButton = document.getElementById('signupButton');
+      const loginButton = document.getElementById('loginButton');
+      
+      signupButton.disabled = !checkbox.checked;
+      loginButton.disabled = !checkbox.checked;
+      
+      // Update button styles based on state
+      [signupButton, loginButton].forEach(button => {
+        if (button.disabled) {
+          button.classList.add('opacity-50', 'cursor-not-allowed');
+          button.classList.remove('hover:bg-blue-700');
+        } else {
+          button.classList.remove('opacity-50', 'cursor-not-allowed');
+          button.classList.add('hover:bg-blue-700');
+        }
+      });
+    }
+
+    // Initialize button states
+    updateButtons();
+  </script>
   {% endif %}
+
   <p>
     The Hail system records your email address and IP address. Your email address
     is recorded so that we can authenticate you. Your IP address is tracked as part of our
     surveillance of all traffic to and from the Hail system. This broad surveillance enables the
     protection of the Hail system from malicious actors.
   </p>
-  <p>
-    <b>Notice:</b> By signing up or logging in and continuing to use the system, you agree to these terms of service.
-  </p>
+
 </div>
 {% endblock %}

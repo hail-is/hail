@@ -5,12 +5,13 @@ import is.hail.expr.ir.defs.{
   AggLet, ApplyAggOp, ApplyScanOp, ApplySeeded, F64, I32, I64, RNGStateLiteral, Str,
 }
 import is.hail.types.virtual.{TFloat64, TInt32}
+import is.hail.utils.FastSeq
 
 import org.testng.annotations.{DataProvider, Test}
 
 class FoldConstantsSuite extends HailSuite {
   @Test def testRandomBlocksFolding(): Unit = {
-    val x = ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), RNGStateLiteral(), 0L, TFloat64)
+    val x = ApplySeeded("rand_norm", FastSeq(F64(0d), F64(0d)), RNGStateLiteral(), 0L, TFloat64)
     assert(FoldConstants(ctx, x) == x)
   }
 

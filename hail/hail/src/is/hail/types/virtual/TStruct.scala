@@ -107,7 +107,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
       case _ => return None
     }
 
-  override def queryTyped(p: List[String]): (Type, Querier) = {
+  override def queryTyped(p: Seq[String]): (Type, Querier) = {
     if (p.isEmpty)
       (this, identity[Annotation])
     else {

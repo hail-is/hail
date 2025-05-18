@@ -174,7 +174,7 @@ object IRFunctionRegistry {
     : Option[(Seq[IR], IR) => IR] =
     lookupFunction(name, returnType, Array.empty[Type], TRNGState +: arguments)
       .map { f => (irArguments: Seq[IR], rngState: IR) =>
-        ApplySeeded(name, irArguments, rngState, staticUID, f.returnType.subst())
+        ApplySeeded(name, irArguments.toFastSeq, rngState, staticUID, f.returnType.subst())
       }
 
   def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type])
@@ -189,7 +189,7 @@ object IRFunctionRegistry {
   ): Option[ConcreteIRFunctionImplementation] = {
     val validIR: Option[ConcreteIRFunctionImplementation] =
       lookupIR(name, typeParameters, arguments).map { _ => (args, errorID) =>
-        ApplyIR(name, typeParameters, args, returnType, errorID)
+        ApplyIR(name, typeParameters, args.toFastSeq, returnType, errorID)
       }
 
     val validMethods = lookupFunction(name, returnType, typeParameters, arguments)
@@ -197,9 +197,21 @@ object IRFunctionRegistry {
         { (irArguments: Seq[IR], errorID: Int) =>
           f match {
             case _: UnseededMissingnessObliviousJVMFunction =>
-              Apply(name, typeParameters, irArguments, returnType, errorID)
+              Apply(
+                name,
+                typeParameters,
+                irArguments.toFastSeq,
+                returnType,
+                errorID,
+              )
             case _: UnseededMissingnessAwareJVMFunction =>
-              ApplySpecial(name, typeParameters, irArguments, returnType, errorID)
+              ApplySpecial(
+                name,
+                typeParameters,
+                irArguments.toFastSeq,
+                returnType,
+                errorID,
+              )
           }
         }
       }

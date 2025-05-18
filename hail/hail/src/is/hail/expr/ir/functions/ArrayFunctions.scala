@@ -55,14 +55,14 @@ object ArrayFunctions extends RegistryFunctions {
         tnum("T"),
         TFloat64,
         (ir1: IR, ir2: IR, errorID: Int) =>
-          Apply("pow", Seq(), Seq(ir1, ir2), TFloat64, errorID),
+          Apply("pow", Seq(), FastSeq(ir1, ir2), TFloat64, errorID),
       ),
       (
         "mod",
         tnum("T"),
         tv("T"),
         (ir1: IR, ir2: IR, errorID: Int) =>
-          Apply("mod", Seq(), Seq(ir1, ir2), ir2.typ, errorID),
+          Apply("mod", Seq(), FastSeq(ir1, ir2), ir2.typ, errorID),
       ),
     )
 

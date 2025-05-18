@@ -6,7 +6,7 @@ import is.hail.backend.{ExecuteContext, HailTaskContext}
 import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.compile.{Compile, CompileWithAggregators}
 import is.hail.expr.ir.defs._
-import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.lowering.{ExecuteRelational, LoweringPipeline}
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDContext
@@ -31,12 +31,12 @@ object Interpret {
       LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing(
         ctx
       )
-    lowered.analyzeAndExecute(ctx).asTableValue(ctx)
+    ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
   def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
     val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
-    lowered.analyzeAndExecute(ctx).asTableValue(ctx)
+    ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
   def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
@@ -863,14 +863,7 @@ object Interpret {
           val (rt, f) = functionMemo.getOrElseUpdate(
             ir, {
               val in = Ref(freshName(), argTuple.virtualType)
-              val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (_, i) =>
-                GetTupleElement(in, i)
-              }.toFastSeq
-              val newChildren = ir match {
-                case _: ApplySeeded => wrappedArgs :+ NA(TRNGState)
-                case _ => wrappedArgs
-              }
-              val wrappedIR = Copy(ir, newChildren)
+              val wrappedIR = ir.mapChildrenWithIndex { case (_, i) => GetTupleElement(in, i) }
 
               val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](
                 ctx,
@@ -911,23 +904,23 @@ object Interpret {
       case TableCount(child) =>
         child.partitionCounts
           .map(_.sum)
-          .getOrElse(child.analyzeAndExecute(ctx).asTableValue(ctx).rvd.count())
+          .getOrElse(ExecuteRelational(ctx, child).asTableValue(ctx).rvd.count())
       case TableGetGlobals(child) =>
-        child.analyzeAndExecute(ctx).asTableValue(ctx).globals.safeJavaValue
+        ExecuteRelational(ctx, child).asTableValue(ctx).globals.safeJavaValue
       case TableCollect(child) =>
-        val tv = child.analyzeAndExecute(ctx).asTableValue(ctx)
+        val tv = ExecuteRelational(ctx, child).asTableValue(ctx)
         Row(tv.rvd.collect(ctx).toFastSeq, tv.globals.safeJavaValue)
       case TableMultiWrite(children, writer) =>
-        val tvs = children.map(_.analyzeAndExecute(ctx).asTableValue(ctx))
+        val tvs = children.map(child => ExecuteRelational(ctx, child).asTableValue(ctx))
         writer(ctx, tvs)
       case TableWrite(child, writer) =>
-        writer(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
+        writer(ctx, ExecuteRelational(ctx, child).asTableValue(ctx))
       case BlockMatrixWrite(child, writer) =>
         writer(ctx, child.execute(ctx))
       case BlockMatrixMultiWrite(blockMatrices, writer) =>
         writer(ctx, blockMatrices.map(_.execute(ctx)))
       case TableToValueApply(child, function) =>
-        function.execute(ctx, child.analyzeAndExecute(ctx).asTableValue(ctx))
+        function.execute(ctx, ExecuteRelational(ctx, child).asTableValue(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixCollect(child) =>
@@ -937,7 +930,7 @@ object Interpret {
         val shape = IndexedSeq(bm.nRows, bm.nCols)
         SafeNDArray(shape, breezeMat.toArray)
       case x @ TableAggregate(child, query) =>
-        val value = child.analyzeAndExecute(ctx).asTableValue(ctx)
+        val value = ExecuteRelational(ctx, child).asTableValue(ctx)
         val fsBc = ctx.fsBc
 
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)

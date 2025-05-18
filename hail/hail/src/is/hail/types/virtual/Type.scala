@@ -47,9 +47,7 @@ abstract class Type extends VType with Serializable {
     q
   }
 
-  def queryTyped(fields: String*): (Type, Querier) = queryTyped(fields.toList)
-
-  def queryTyped(path: List[String]): (Type, Querier) =
+  def queryTyped(path: Seq[String]): (Type, Querier) =
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${path.mkString(".")} from type ${this}")
     else

@@ -49,5 +49,7 @@ wheel-container.tar
 hail/python/hail/backend/extra_classpath
 hail/python/hail/backend/hail.jar
 hail/install-editable
+hail/python/install-editable
+batch/jvm-entryway/bin
 _/
 .helix

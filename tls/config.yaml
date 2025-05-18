@@ -62,7 +62,3 @@ principals:
   domains:
     - prometheus
   kind: nginx
-- name: guide-analysis
-  domains:
-    - guide-analysis
-  kind: nginx

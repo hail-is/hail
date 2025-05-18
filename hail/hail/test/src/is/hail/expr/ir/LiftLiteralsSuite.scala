@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.defs.{ApplyBinaryPrimOp, I64, MakeStruct, TableCount, TableGetGlobals}
+import is.hail.expr.ir.lowering.ExecuteRelational
 import is.hail.utils.FastSeq
 
 import org.apache.spark.sql.Row
@@ -12,7 +13,7 @@ class LiftLiteralsSuite extends HailSuite {
 
   @Test def testNestedGlobalsRewrite(): Unit = {
     val tab =
-      TableLiteral(TableRange(10, 1).analyzeAndExecute(ctx).asTableValue(ctx), theHailClassLoader)
+      TableLiteral(ExecuteRelational(ctx, TableRange(10, 1)).asTableValue(ctx), theHailClassLoader)
     val ir = TableGetGlobals(
       TableMapGlobals(
         tab,
