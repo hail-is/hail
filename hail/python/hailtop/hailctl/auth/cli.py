@@ -23,7 +23,7 @@ def tos_agreement():
     This broad surveillance enables the protection of the Hail system from malicious actors.
     """
     agree_statement = """
-    Use of Hail requires you to agree to our Terms of Service and Privacy Policy.
+    Use of Hail requires you to read and agree to our Terms of Service, and to read the Privacy Policy.
     Please review the following Terms of Service: https://batch.hail.is/tos
     Please review the following Privacy Policy: https://batch.hail.is/privacy
 
