@@ -27,7 +27,7 @@ def tos_agreement():
     Please read and agree to the Terms of Service: https://batch.hail.is/tos
     Please read the Privacy Policy: https://batch.hail.is/privacy
 
-    Do you agree to these terms? y/n:
+    Enter 'y' to agree or 'n' to disagree with the following statement: I have reviewed and agree to the [Terms of Service](https://batch.hail.is/tos) and have read the [Privacy Policy](https://batch.hail.is/privacy)? y/n:
     """
 
     print(tos_statement)
