@@ -18,6 +18,15 @@ app = typer.Typer(
     pretty_exceptions_show_locals=False,
 )
 
+profile_app = typer.Typer(
+    name='profile',
+    no_args_is_help=True,
+    help='Manage Hail configuration profiles.',
+    pretty_exceptions_show_locals=False,
+)
+
+app.add_typer(profile_app)
+
 
 def get_section_key_path(parameter: str) -> Tuple[str, str, Tuple[str, ...]]:
     path = parameter.split('/')
@@ -53,7 +62,7 @@ def set(
     value: str,
 ):
     """Set a Hail configuration parameter."""
-    from hailtop.config import get_user_config, get_user_config_path  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_config_profile_name, get_user_config, get_user_config_path_by_profile_name, get_config_from_file  # pylint: disable=import-outside-toplevel
 
     if parameter not in config_variables():
         print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
@@ -68,8 +77,14 @@ def set(
         print(f"Error: bad value {value!r} for parameter {parameter!r} {error_msg}", file=sys.stderr)
         sys.exit(1)
 
-    config = get_user_config()
-    config_file = get_user_config_path()
+    profile_name = get_config_profile_name()
+
+    if parameter != ConfigVariable.PROFILE:
+        config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
+    else:
+        config_file = get_user_config_path_by_profile_name(profile_name=None)
+
+    config = get_config_from_file(config_file)
 
     if section not in config:
         config[section] = {}
@@ -136,13 +151,18 @@ def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocomple
 @app.command(name='config-location')
 def config_location():
     """Print the location of the config file."""
-    from hailtop.config import get_user_config_path  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_config_profile_name, get_user_config_path, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
 
-    print(get_user_config_path())
+    print(f'Default settings: {get_user_config_path()}')
+
+    profile_name = get_config_profile_name()
+    if profile_name is not None:
+        profile_path = get_user_config_path_by_profile_name(profile_name=profile_name)
+        print(f'Overrode default settings with profile "{profile_name}": {profile_path}')
 
 
-@app.command()
-def list(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
+@app.command(name='list')
+def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
     """Lists every config variable in the section."""
     from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
 
@@ -154,3 +174,103 @@ def list(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
         for sname, items in config.items():
             for key, value in items.items():
                 print(f'{sname}/{key}={value}')
+
+
+def _list_profiles():
+    from hailtop.config import get_hail_config_path  # pylint: disable=import-outside-toplevel
+
+    profiles = ['default']
+    for file in os.listdir(get_hail_config_path()):
+        if file.endswith('.ini') and file != 'config.ini':
+            profile_name = file[:-4]
+            profiles.append(profile_name)
+
+    profiles.sort()
+
+    return profiles
+
+
+@profile_app.command(name='list')
+def list_profiles():
+    """List the available Hail configuration profiles."""
+    from hailtop.config import get_config_profile_name  # pylint: disable=import-outside-toplevel
+
+    profiles = _list_profiles()
+    current_profile = get_config_profile_name() or 'default'
+
+    for profile in profiles:
+        if profile == current_profile:
+            print(f'* {profile}')
+        else:
+            print(f'  {profile}')
+
+
+def _get_profile(incomplete: str) -> str:
+    profiles = _list_profiles()
+    for profile in profiles:
+        if profile.startswith(incomplete):
+            yield profile
+
+
+@profile_app.command(name='load')
+def load_profile(profile_name: Ann[str, Arg(help='Name of configuration profile to load.', autocompletion=_get_profile)] = 'default'):
+    """Load a Hail configuration profile."""
+    from hailtop.config import get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
+
+    if profile_name == 'default':
+        config_file = get_user_config_path_by_profile_name(profile_name=None)
+    else:
+        config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
+
+    if not os.path.exists(config_file):
+        print(f"Error: profile '{profile_name}' does not exist. Use `hailctl config profile create {profile_name}` to create it.", file=sys.stderr)
+        sys.exit(1)
+
+    set(ConfigVariable.PROFILE, profile_name)
+
+    print(f'Loaded profile {profile_name} with settings:')
+    list_config()
+
+
+@profile_app.command(name='create')
+def create_profile(profile_name: Ann[str, Arg(help='Name of configuration profile to create.')]):
+    """Create a new Hail configuration profile."""
+    from hailtop.config import get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
+
+    profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
+
+    if os.path.isfile(profile_config_file):
+        print(f'Error: profile {profile_name} already exists!')
+        sys.exit(1)
+
+    try:
+        open(profile_config_file, 'w', encoding='utf-8')
+    except FileNotFoundError:
+        os.makedirs(profile_config_file.parent, exist_ok=True)
+        open(profile_config_file, 'w', encoding='utf-8')
+
+    print(f'Created profile "{profile_name}". You can load the profile with `hailctl config profile load {profile_name}`.')
+
+
+@profile_app.command(name='delete')
+def delete_profile(profile_name: Ann[str, Arg(help='Name of configuration profile to delete.', autocompletion=_get_profile)]):
+    """Delete a Hail configuration profile."""
+    from hailtop.config import get_config_profile_name, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
+
+    if profile_name == 'default':
+        print(f'Cannot delete the "default" profile.')
+        sys.exit(1)
+
+    current_profile = get_config_profile_name()
+    if current_profile == profile_name:
+        print(f'Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`.')
+        sys.exit(1)
+
+    profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
+    try:
+        os.remove(profile_config_file)
+    except FileNotFoundError:
+        print(f'Unknown profile "{profile_name}".')
+        sys.exit(1)
+
+    print(f'Deleted profile "{profile_name}".')

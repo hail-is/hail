@@ -25,20 +25,52 @@ def get_user_config_path(*, _config_dir: Optional[str] = None) -> Path:
     return Path(get_hail_config_path(_config_dir=_config_dir), 'config.ini')
 
 
+def get_user_config_path_by_profile_name(*,
+                                         profile_name: Optional[str] = None,
+                                         _config_dir: Optional[str] = None) -> Path:
+    profile_name = profile_name or 'config'  # this is necessary for backwards compatibility
+    return Path(get_hail_config_path(_config_dir=_config_dir), f'{profile_name}.ini')
+
+
 def get_user_identity_config_path() -> Path:
     return Path(get_hail_config_path(), 'identity.json')
 
 
+def get_config_profile_name() -> Optional[str]:
+    default_config_path = get_user_config_path()
+    global_config = get_config_from_file(default_config_path)
+
+    if 'global' in global_config.sections():
+        if 'profile' in global_config['global']:
+            profile_name = global_config['global']['profile']
+            if profile_name != 'default':
+                return profile_name
+    return None
+
+
+def get_config_from_file(file: Path) -> configparser.ConfigParser:
+    config = configparser.ConfigParser()
+    config.read(file)
+    return config
+
+
 def get_user_config() -> configparser.ConfigParser:
-    user_config = configparser.ConfigParser()
-    config_file = get_user_config_path()
+    config_file = get_user_config_path_by_profile_name(profile_name=None)
+
     # in older versions, the config file was accidentally named
     # config.yaml, if the new config does not exist, and the old
     # one does, silently rename it
     old_path = config_file.with_name('config.yaml')
     if old_path.exists() and not config_file.exists():
         old_path.rename(config_file)
-    user_config.read(config_file)
+
+    user_config = get_config_from_file(config_file)
+
+    profile_name = get_config_profile_name()
+    if profile_name:
+        profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
+        user_config.read(profile_config_file)
+
     return user_config
 
 
