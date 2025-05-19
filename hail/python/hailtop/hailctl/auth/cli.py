@@ -24,7 +24,7 @@ def tos_agreement():
     """
     agree_statement = """
     Use of Hail requires you to read and agree to our Terms of Service, and to read the Privacy Policy.
-    Please review the following Terms of Service: https://batch.hail.is/tos
+    Please read and agree to the Terms of Service: https://batch.hail.is/tos
     Please review the following Privacy Policy: https://batch.hail.is/privacy
 
     Do you agree to these terms? y/n:
