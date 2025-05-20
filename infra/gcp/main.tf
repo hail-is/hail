@@ -368,13 +368,6 @@ END
   }
 }
 
-resource "google_container_registry" "registry" {
-  # Note: As of August 8 2024, *new* "container registry" instances get converted into "artifact repository" instances
-  # and the registry cannot be found after 'creation'. GCR is scheduled for a general switch-off in March 2025
-  # so this is only left here for backwards compatibility until then.
-  count = var.use_artifact_registry ? 0 : 1
-}
-
 resource "google_artifact_registry_repository" "repository" {
   provider = google-beta
   format = "DOCKER"
@@ -407,13 +400,6 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_
   location = var.gcp_location
   role = "roles/artifactregistry.admin"
   member = "serviceAccount:${module.ci_gsa_secret.email}"
-}
-
-resource "google_storage_bucket_iam_member" "gcr_push_admin" {
-  count = var.use_artifact_registry ? 0 : 1
-  bucket = google_container_registry.registry[0].id
-  role = "roles/storage.admin"
-  member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
@@ -814,8 +800,5 @@ module "ci" {
   bucket_storage_class = local.ci_config.data["bucket_storage_class"]
 
   ci_email = module.ci_gsa_secret.email
-  # For now, GCP CI via this terraform relies on container registry, which is going away it March 2025
-  # so this might need adapting to be more like the gcp-broad main.tf when that happens
-  container_registry_id = google_container_registry.registry[0].id
   github_context = local.ci_config.data["github_context"]
 }
