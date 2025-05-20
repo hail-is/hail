@@ -36,7 +36,7 @@ def tos_agreement():
     while True:
         if response in {'y', 'n'}:
             break
-        response = input('Invalid input. Enter 'y' to agree or 'n' to disagree with the following statement: I have reviewed and agree to the [Terms of Service](https://batch.hail.is/tos) and have read the [Privacy Policy](https://batch.hail.is/privacy). y/n: ').strip().lower()
+        response = input("Invalid input. Enter 'y' to agree or 'n' to disagree with the following statement: I have reviewed and agree to the [Terms of Service](https://batch.hail.is/tos) and have read the [Privacy Policy](https://batch.hail.is/privacy). y/n: ").strip().lower()
     if response != 'y':
         print("You must agree to the Terms of Service to log in.")
         return False
