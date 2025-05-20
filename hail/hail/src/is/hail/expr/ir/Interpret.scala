@@ -937,7 +937,8 @@ object Interpret {
         val globalsBc = value.globals.broadcast(ctx.theHailClassLoader)
         val globalsOffset = value.globals.value.offset
 
-        val extracted = agg.Extract(query, Requiredness(x, ctx))
+        val extracted = agg.Extract(ctx, query, Requiredness(x, ctx))
+        val (initIR, seqIR, resultIR) = extracted.components
 
         val wrapped = if (extracted.aggs.isEmpty) {
           val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) =
@@ -949,7 +950,7 @@ object Interpret {
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
-              MakeTuple.ordered(FastSeq(extracted.postAggIR)),
+              MakeTuple.ordered(FastSeq(resultIR)),
             )
 
           // TODO Is this right? where does wrapped run?
@@ -968,7 +969,7 @@ object Interpret {
             )),
             FastSeq(classInfo[Region], LongInfo),
             UnitInfo,
-            extracted.init,
+            initIR,
           )
 
           val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
@@ -986,7 +987,7 @@ object Interpret {
             ),
             FastSeq(classInfo[Region], LongInfo, LongInfo),
             UnitInfo,
-            extracted.seqPerElt,
+            seqIR,
           )
 
           val useTreeAggregate = extracted.shouldTreeAggregate
@@ -1074,10 +1075,7 @@ object Interpret {
               )),
               FastSeq(classInfo[Region], LongInfo),
               LongInfo,
-              Let(
-                FastSeq(extracted.resultRef.name -> extracted.results),
-                MakeTuple.ordered(FastSeq(extracted.postAggIR)),
-              ),
+              MakeTuple.ordered(FastSeq(resultIR)),
             )
           assert(rTyp.types(0).virtualType == query.typ)
 
