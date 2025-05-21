@@ -15,14 +15,6 @@ object Main {
     StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
   )
 
-  /* This constraint should be overridden as early as possible. See:
-   * - https://github.com/hail-is/hail/issues/14580
-   * - https://github.com/hail-is/hail/issues/14749
-   * - The note on this setting in is.hail.backend.Backend */
-  StreamReadConstraints.overrideDefaultStreamReadConstraints(
-    StreamReadConstraints.builder().maxStringLength(Integer.MAX_VALUE).build()
-  )
-
   def main(argv: Array[String]): Unit =
     argv(3) match {
       case WORKER => Worker.main(argv)
