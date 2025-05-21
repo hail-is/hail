@@ -11,7 +11,7 @@ from hailtop.hailctl.config import cli, config_variables
 def test_config_location(runner: CliRunner, config_dir: str):
     res = runner.invoke(cli.app, 'config-location', catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f'{config_dir}/hail/config.ini'
+    assert res.stdout.strip() == f'Default settings: {config_dir}/hail/config.ini'
 
 
 def test_config_list_empty_config(runner: CliRunner):
@@ -127,3 +127,103 @@ def test_config_set_bad_value(name: str, value: str, runner: CliRunner):
 def test_all_config_variables_in_map():
     for variable in ConfigVariable:
         assert variable in config_variables.config_variables()
+
+
+def test_profile(runner: CliRunner, config_dir: str):
+    os.remove(f'{config_dir}/hail/config.ini')
+
+    # check there are no variables set
+    res = runner.invoke(cli.app, 'list', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == ''
+
+    orig_remote_tmpdir = 'gs://my-bucket/tmp/batch/'
+    new_remote_tmpdir = 'gs://my-bucket-2/tmp/batch/'
+    default_backend = 'spark'
+
+    # set default variables
+    runner.invoke(cli.app, ['set', 'batch/remote_tmpdir', orig_remote_tmpdir], catch_exceptions=False)
+    runner.invoke(cli.app, ['set', 'query/backend', default_backend], catch_exceptions=False)
+
+    # list the default config variables
+    res = runner.invoke(cli.app, 'list', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == f'Config settings from {config_dir}/hail/config.ini:\n\nbatch/remote_tmpdir={orig_remote_tmpdir}\nquery/backend={default_backend}\n'
+
+    # create a new profile
+    res = runner.invoke(cli.profile_app, ['create', 'profile1'], catch_exceptions=False)
+    assert res.exit_code == 0
+
+    # make sure the profile is still the default one
+    res = runner.invoke(cli.app, ['get', 'global/profile'], catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == 'default'
+
+    # load the new profile
+    res = runner.invoke(cli.profile_app, ['load', 'profile1'], catch_exceptions=False)
+    assert res.exit_code == 0
+
+    # Make sure the original config is still there
+    res = runner.invoke(cli.app, 'list', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == f'Config settings from {config_dir}/hail/config.ini:\n\nbatch/remote_tmpdir={orig_remote_tmpdir}\nquery/backend={default_backend}\nglobal/profile=profile1\n'
+
+    # the value for profile should be the new one (not the default one)
+    res = runner.invoke(cli.app, ['get', 'global/profile'], catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == 'profile1'
+
+    # reset the value of remote_tmpdir to something new
+    runner.invoke(cli.app, ['set', 'batch/remote_tmpdir', new_remote_tmpdir], catch_exceptions=False)
+    assert res.exit_code == 0
+
+    # List the new config to make sure the defaults are overridden if a profile-specific value exists while keeping additional defaults
+    res = runner.invoke(cli.app, 'list', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == f'Config settings from {config_dir}/hail/config.ini:\n\nquery/backend={default_backend}\nglobal/profile=profile1\n\nConfig settings from {config_dir}/hail/profile1.ini:\nbatch/remote_tmpdir={new_remote_tmpdir}\n'
+
+    # List the available profiles
+    res = runner.invoke(cli.profile_app, ['list'], catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == '  default\n* profile1'
+
+    # the value for remote tmpdir should be the new one (not the default one)
+    res = runner.invoke(cli.app, ['get', 'batch/remote_tmpdir'], catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == new_remote_tmpdir
+
+    # Test config location
+    res = runner.invoke(cli.app, 'config-location', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == f'Default settings: {config_dir}/hail/config.ini\nOverrode default settings with profile "profile1": {config_dir}/hail/profile1.ini'
+
+    # can't delete an active profile
+    res = runner.invoke(cli.profile_app, ['delete', 'profile1'], catch_exceptions=False)
+    assert res.exit_code == 1
+
+    # can't delete the default profile
+    res = runner.invoke(cli.profile_app, ['delete', 'default'], catch_exceptions=False)
+    assert res.exit_code == 1
+
+    # load the original profile
+    res = runner.invoke(cli.profile_app, ['load', 'default'], catch_exceptions=False)
+    assert res.exit_code == 0
+
+    # Make sure the original config is still there
+    res = runner.invoke(cli.app, 'list', catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == f'Config settings from {config_dir}/hail/config.ini:\n\nbatch/remote_tmpdir={orig_remote_tmpdir}\nquery/backend={default_backend}\nglobal/profile=profile1\n'
+
+    # delete non-active profile
+    res = runner.invoke(cli.profile_app, ['delete', 'profile1'], catch_exceptions=False)
+    assert res.exit_code == 0
+
+    # list profiles
+    res = runner.invoke(cli.profile_app, ['list'], catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == '* default'
+
+    # the value for remote_tmpdir should be the original one
+    res = runner.invoke(cli.app, ['get', 'batch/remote_tmpdir'], catch_exceptions=False)
+    assert res.exit_code == 0
+    assert res.stdout.strip() == orig_remote_tmpdir

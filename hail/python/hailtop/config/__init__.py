@@ -8,6 +8,7 @@ from .user_config import (
     get_user_config,
     get_user_config_path,
     get_user_config_path_by_profile_name,
+    get_user_config_with_profile_overrides_and_source,
     get_user_identity_config_path,
 )
 from .variables import ConfigVariable
@@ -24,5 +25,6 @@ __all__ = [
     'get_user_config',
     'get_user_config_path',
     'get_user_config_path_by_profile_name',
+    'get_user_config_with_profile_overrides_and_source',
     'get_user_identity_config_path',
 ]
