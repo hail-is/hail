@@ -40,7 +40,10 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
 
   private[this] val _staticHailClassLoader: StaticFieldRef[HailClassLoader] =
     modb.genStaticField[HailClassLoader]("hailClassLoader")
-  def setHailClassLoader(cb: EmitCodeBuilder, cl: Code[HailClassLoader]): Unit = cb.assign(_staticHailClassLoader, cl)
+
+  def setHailClassLoader(cb: EmitCodeBuilder, cl: Code[HailClassLoader]): Unit =
+    cb.assign(_staticHailClassLoader, cl)
+
   def getHailClassLoader: Value[HailClassLoader] = _staticHailClassLoader
 
   private[this] val _staticFS: StaticFieldRef[FS] = modb.genStaticField[FS]("filesystem")
