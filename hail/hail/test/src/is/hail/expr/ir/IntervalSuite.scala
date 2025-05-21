@@ -278,7 +278,7 @@ class IntervalSuite extends HailSuite {
       function: String,
       expected: Boolean,
     ): Unit = {
-      val pointIR = MakeTuple.ordered(point.map(I32))
+      val pointIR = MakeTuple.ordered(point.map(I32.apply))
       val endpointIR = MakeTuple.ordered(FastSeq(
         MakeTuple.ordered(Array.tabulate(3)(i =>
           if (i < intervalEndpoint.length) I32(intervalEndpoint(i)) else NA(TInt32)

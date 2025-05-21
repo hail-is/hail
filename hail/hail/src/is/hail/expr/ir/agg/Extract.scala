@@ -495,7 +495,7 @@ object Extract {
     val initOps = initBuilder.to(ArraySeq)
     val pAggSigs = initOps.map(_.aggSig)
     val sigs = new AggSignatures(pAggSigs)
-    result._typ = sigs.resultsOp.typ
+    result.typ = sigs.resultsOp.typ
 
     new ExtractedAggs(
       ctx,

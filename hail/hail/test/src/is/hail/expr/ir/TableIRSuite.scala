@@ -1151,7 +1151,7 @@ class TableIRSuite extends HailSuite {
     var tir: TableIR = TableRange(1, 1)
     var ir: IR = rangeIR(5)
     ir = StreamGrouped(ir, 2)
-    ir = ToArray(mapIR(ir)(ToArray))
+    ir = ToArray(mapIR(ir)(ToArray.apply))
     ir = InsertFields(Ref(TableIR.rowName, tir.typ.rowType), FastSeq("foo" -> ir))
     tir = TableMapRows(tir, ir)
     assertEvalsTo(

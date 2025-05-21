@@ -28,32 +28,18 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import org.json4s.JsonAST.{JNothing, JString}
 
 trait IR extends BaseIR {
-  private var _typ: Type = null
-
-  override def typ: Type = {
-    if (_typ == null) {
-      try
-        _typ = InferType(this)
-      catch {
-        case e: Throwable => throw new RuntimeException(s"typ: inference failure:", e)
-      }
-      assert(_typ != null)
-    }
-    _typ
-  }
+//  protected var _typ: Type = null
+//
+//  override def typ: Type = {
+//    assert(_typ != null)
+//    _typ
+//  }
+  override def typ: Type
 
   override def mapChildren(f: BaseIR => BaseIR): IR = super.mapChildren(f).asInstanceOf[IR]
 
   override def mapChildrenWithIndex(f: (BaseIR, Int) => BaseIR): IR =
     super.mapChildrenWithIndex(f).asInstanceOf[IR]
-
-  override def deepCopy(): this.type = {
-
-    val cp = super.deepCopy()
-    if (_typ != null)
-      cp._typ = _typ
-    cp
-  }
 
   lazy val size: Int = 1 + children.map {
     case x: IR => x.size
@@ -64,7 +50,7 @@ trait IR extends BaseIR {
 package defs {
 
   trait TypedIR[T <: Type] extends IR {
-    override def typ: T = tcoerce[T](super.typ)
+    override def typ: T
   }
 
   // Mark Refs and constants as IRs that are safe to duplicate
@@ -91,11 +77,22 @@ package defs {
       val scope = if (isScan) Scope.SCAN else Scope.AGG
       Block(FastSeq(Binding(name, value, scope)), body)
     }
+
+    def untyped(name: Name, value: IR, body: IR, isScan: Boolean): IR = {
+      val scope = if (isScan) Scope.SCAN else Scope.AGG
+      Block.untyped(FastSeq(Binding(name, value, scope)), body)
+    }
   }
 
   object Let {
     def apply(bindings: IndexedSeq[(Name, IR)], body: IR): Block =
       Block(
+        bindings.map { case (name, value) => Binding(name, value) },
+        body,
+      )
+
+    def untyped(bindings: IndexedSeq[(Name, IR)], body: IR): Block =
+      Block.untyped(
         bindings.map { case (name, value) => Binding(name, value) },
         body,
       )
@@ -116,13 +113,19 @@ package defs {
         Void()
       else
         Let(xs.init.map(x => (freshName(), x)), xs.last)
+
+    def untyped(xs: IndexedSeq[IR]): IR =
+      if (xs.isEmpty)
+        Void()
+      else
+        Let.untyped(xs.init.map(x => (freshName(), x)), xs.last)
   }
 
   case class Binding(name: Name, value: IR, scope: Int = Scope.EVAL)
 
   trait BaseRef extends IR with TrivialIR {
     def name: Name
-    def _typ: Type
+//    def _typ: Type
   }
 
   object ArrayZipBehavior extends Enumeration {
@@ -225,14 +228,12 @@ package defs {
 
     def args: Seq[IR]
 
-    def returnType: Type
-
     def typeArgs: Seq[Type]
 
     def argTypes: Seq[Type] = args.map(_.typ)
 
-    lazy val implementation: F =
-      IRFunctionRegistry.lookupFunctionOrFail(function, returnType, typeArgs, argTypes)
+    val implementation: F =
+      IRFunctionRegistry.lookupFunctionOrFail(function, typ, typeArgs, argTypes)
         .asInstanceOf[F]
   }
 
@@ -625,7 +626,6 @@ package defs {
             upcast
           },
           requestedType,
-          requiresMemoryManagementPerElement,
         )
       }
     }
@@ -676,13 +676,21 @@ package defs {
         )
     }
 
-    trait StreamJoinRightDistinctExt { self: StreamJoinRightDistinct =>
-      def isIntervalJoin: Boolean = {
+    abstract class StreamJoinRightDistinctCompanionExt {
+      def isIntervalJoin(lTyp: TStruct, rTyp: TStruct, lKey: IndexedSeq[String], rKey: IndexedSeq[String]): Boolean = {
         if (rKey.size != 1) return false
-        val lKeyTyp = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType).fieldType(lKey(0))
-        val rKeyTyp = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType).fieldType(rKey(0))
+        val lKeyTyp = lTyp.fieldType(lKey(0))
+        val rKeyTyp = rTyp.fieldType(rKey(0))
 
         rKeyTyp.isInstanceOf[TInterval] && lKeyTyp != rKeyTyp
+      }
+    }
+
+    trait StreamJoinRightDistinctExt { self: StreamJoinRightDistinct =>
+      def isIntervalJoin: Boolean = {
+        val lTyp = tcoerce[TStruct](tcoerce[TStream](left.typ).elementType)
+        val rTyp = tcoerce[TStruct](tcoerce[TStream](right.typ).elementType)
+        StreamJoinRightDistinct.isIntervalJoin(lTyp, rTyp, lKey, rKey)
       }
     }
 
@@ -889,7 +897,7 @@ package defs {
 
       lazy val explicitNode: IR = {
         val ir = Let(refs.map(_.name).zip(args), body)
-        assert(ir.typ == returnType)
+        assert(ir.typ == typ)
         ir
       }
     }

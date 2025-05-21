@@ -332,7 +332,7 @@ object Simplify {
       case ArraySlice(z @ ToArray(s), x @ I32(i), Some(I32(j)), I32(1), _) if i > 0 && j > 0 =>
         Some(
           if (j > i) ToArray(StreamTake(StreamDrop(s, x), I32(j - i)))
-          else new MakeArray(FastSeq(), z.typ.asInstanceOf[TArray])
+          else MakeArray(FastSeq(), z.typ.asInstanceOf[TArray])
         )
 
       case ArraySlice(ToArray(s), x @ I32(i), None, I32(1), _) if i >= 0 =>
@@ -738,7 +738,7 @@ object Simplify {
       case TableGetGlobals(TableMultiWayZipJoin(children, _, globalName)) =>
         Some(
           MakeStruct(FastSeq(globalName -> MakeArray(
-            children.map(TableGetGlobals),
+            children.map(TableGetGlobals.apply),
             TArray(children.head.typ.globalType),
           )))
         )
