@@ -1,5 +1,6 @@
 import os
 import sys
+from collections import defaultdict
 from typing import Annotated as Ann
 from typing import Optional, Tuple
 
@@ -62,7 +63,7 @@ def set(
     value: str,
 ):
     """Set a Hail configuration parameter."""
-    from hailtop.config import get_config_profile_name, get_user_config, get_user_config_path_by_profile_name, get_config_from_file  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_config_from_file, get_config_profile_name, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
 
     if parameter not in config_variables():
         print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
@@ -84,7 +85,7 @@ def set(
     else:
         config_file = get_user_config_path_by_profile_name(profile_name=None)
 
-    config = get_config_from_file(config_file)
+    config, _ = get_config_from_file(config_file)
 
     if section not in config:
         config[section] = {}
@@ -164,16 +165,24 @@ def config_location():
 @app.command(name='list')
 def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
     """Lists every config variable in the section."""
-    from hailtop.config import get_user_config  # pylint: disable=import-outside-toplevel
+    from hailtop.config import get_user_config_with_profile_overrides_and_source  # pylint: disable=import-outside-toplevel
 
-    config = get_user_config()
-    if section:
-        for key, value in config.items(section):
-            print(f'{key}={value}')
-    else:
-        for sname, items in config.items():
-            for key, value in items.items():
-                print(f'{sname}/{key}={value}')
+    _, source = get_user_config_with_profile_overrides_and_source()
+
+    grouped_source = defaultdict(list)
+    for ((_section, option), (value, path)) in source.items():
+        if section is None or _section == section:
+            grouped_source[path].append(((_section, option), value))
+
+    output = []
+    for path, values in grouped_source.items():
+        output.append(f'Config settings from {path}:\n')
+        for ((_section, option), value) in values:
+            output.append(f'{_section}/{option}={value}\n')
+        output.append('\n')
+
+    print(''.join(output).rstrip('\n'))
+
 
 
 def _list_profiles():
@@ -228,7 +237,7 @@ def load_profile(profile_name: Ann[str, Arg(help='Name of configuration profile 
 
     set(ConfigVariable.PROFILE, profile_name)
 
-    print(f'Loaded profile {profile_name} with settings:')
+    print(f'Loaded profile {profile_name} with settings:\n')
     list_config()
 
 
@@ -258,12 +267,12 @@ def delete_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
     from hailtop.config import get_config_profile_name, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
 
     if profile_name == 'default':
-        print(f'Cannot delete the "default" profile.')
+        print('Cannot delete the "default" profile.')
         sys.exit(1)
 
     current_profile = get_config_profile_name()
     if current_profile == profile_name:
-        print(f'Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`.')
+        print('Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`.')
         sys.exit(1)
 
     profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
