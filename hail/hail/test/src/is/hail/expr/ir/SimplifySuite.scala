@@ -716,13 +716,13 @@ class SimplifySuite extends HailSuite {
   @DataProvider(name = "SwitchRules")
   def switchRules: Array[Array[Any]] =
     Array(
-      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(-1)),
-      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32), I32(1)),
+      Array(I32(-1), I32(-1), IndexedSeq.tabulate(5)(I32.apply), I32(-1)),
+      Array(I32(1), I32(-1), IndexedSeq.tabulate(5)(I32.apply), I32(1)),
       Array(
         ref(TInt32),
         I32(-1),
-        IndexedSeq.tabulate(5)(I32),
-        Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32)),
+        IndexedSeq.tabulate(5)(I32.apply),
+        Switch(ref(TInt32), I32(-1), IndexedSeq.tabulate(5)(I32.apply)),
       ),
       Array(I32(256), I32(-1), IndexedSeq.empty[IR], I32(-1)),
       Array(

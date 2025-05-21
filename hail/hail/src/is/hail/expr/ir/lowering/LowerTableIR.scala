@@ -318,7 +318,7 @@ class TableStage(
   }
 
   def collectWithGlobals(staticID: String, dynamicID: IR = NA(TString)): IR =
-    mapCollectWithGlobals(staticID, dynamicID)(ToArray) { (parts, globals) =>
+    mapCollectWithGlobals(staticID, dynamicID)(ToArray.apply) { (parts, globals) =>
       MakeStruct(FastSeq(
         "rows" -> ToArray(flatMapIR(ToStream(parts))(ToStream(_))),
         "global" -> globals,
@@ -1508,7 +1508,7 @@ object LowerTableIR {
                       Str(", nParts="),
                       invoke("str", TString, howManyPartsToTryRef),
                     ),
-                  )(StreamLen)
+                  )(StreamLen.apply)
               ) { counts =>
                 If(
                   (Cast(

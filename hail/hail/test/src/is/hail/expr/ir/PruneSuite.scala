@@ -1865,7 +1865,7 @@ class PruneSuite extends HailSuite {
       TArray(TStruct("z" -> TString)),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[CastRename]
-        ir._typ == TArray(TStruct("z" -> TString))
+        ir.typ == TArray(TStruct("z" -> TString))
       },
     )
   }
