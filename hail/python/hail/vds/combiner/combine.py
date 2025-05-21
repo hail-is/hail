@@ -100,7 +100,7 @@ def make_ref_entry_struct(e, entry_to_keep, row):
         hl.case()
         .when(
             e.GT.is_hom_ref(),
-            hl.struct(LEN=row.info.END - row.locus.position + 1, **reference_fields, **handled_fields),
+            hl.struct(**reference_fields, **handled_fields, LEN=row.info.END - row.locus.position + 1),
         )
         .or_error('found reference block with non reference-genotype at' + hl.str(row.locus))
     )
