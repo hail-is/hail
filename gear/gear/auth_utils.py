@@ -20,8 +20,8 @@ def max_age():
                 logging.exception("Unable to interpret SESSION_MAX_AGE_SECS as an integer.")
 
     if MAX_AGE_SECS is None:
-        # Default value: 1800 seconds (30 minutes)
-        MAX_AGE_SECS = 1800
+        # Default value, no env. variable set: 2592000 seconds (30 days)
+        MAX_AGE_SECS = 2592000
 
     return MAX_AGE_SECS
 
@@ -38,7 +38,9 @@ VALUES ({', '.join([f'%({k})s' for k in spec.keys()])})
     )
 
 
-async def create_session(db: Database, user_id: int, max_age_secs: Optional[int] = max_age()) -> str:
+async def create_session(db: Database, user_id: int, max_age_secs: Optional[int] = None) -> str:
+    if max_age_secs is None:
+        max_age_secs = max_age()
     session_id = session_id_encode_to_str(secrets.token_bytes(32))
     await db.just_execute(
         'INSERT INTO sessions (session_id, user_id, max_age_secs) VALUES (%s, %s, %s);',
