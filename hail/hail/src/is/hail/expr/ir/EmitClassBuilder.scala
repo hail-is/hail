@@ -38,54 +38,36 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   ): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
 
-  private[this] val _staticHailClassLoader: StaticField[HailClassLoader] = {
-    val cls = genEmitClass[Unit]("HailClassLoaderContainer")
-    cls.newStaticField[HailClassLoader]("hailClassLoader", Code._null[HailClassLoader])
-  }
+  private[this] val _staticHailClassLoader: StaticFieldRef[HailClassLoader] =
+    modb.genStaticField[HailClassLoader]("hailClassLoader")
 
-  def setHailClassLoader(cb: EmitCodeBuilder, fs: Code[HailClassLoader]): Unit =
-    cb += _staticHailClassLoader.put(fs)
+  def setHailClassLoader(cb: EmitCodeBuilder, cl: Code[HailClassLoader]): Unit =
+    cb.assign(_staticHailClassLoader, cl)
 
-  def getHailClassLoader: Value[HailClassLoader] = new StaticFieldRef(_staticHailClassLoader)
+  def getHailClassLoader: Value[HailClassLoader] = _staticHailClassLoader
 
-  private[this] val _staticFS: StaticField[FS] = {
-    val cls = genEmitClass[Unit]("FSContainer")
-    cls.newStaticField[FS]("filesystem", Code._null[FS])
-  }
+  private[this] val _staticFS: StaticFieldRef[FS] = modb.genStaticField[FS]("filesystem")
+  def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = cb.assign(_staticFS, fs)
+  def getFS: Value[FS] = _staticFS
 
-  def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = cb += _staticFS.put(fs)
-
-  def getFS: Value[FS] = new StaticFieldRef(_staticFS)
-
-  private val rgContainers: mutable.Map[String, StaticField[ReferenceGenome]] = mutable.Map.empty
+  private val rgContainers: mutable.Map[String, StaticFieldRef[ReferenceGenome]] = mutable.Map.empty
 
   def hasReferences: Boolean = rgContainers.nonEmpty
 
-  def getReferenceGenome(rg: String): Value[ReferenceGenome] = {
-    val rgField = rgContainers.getOrElseUpdate(
-      rg, {
-        val cls = genEmitClass[Unit](s"RGContainer_$rg")
-        cls.newStaticField("reference_genome", Code._null[ReferenceGenome])
-      },
-    )
-    new StaticFieldRef(rgField)
-  }
+  def getReferenceGenome(rg: String): Value[ReferenceGenome] =
+    rgContainers.getOrElseUpdate(rg, modb.genStaticField[ReferenceGenome](s"reference_genome_$rg"))
 
   def referenceGenomes(): IndexedSeq[ReferenceGenome] =
     rgContainers.keys.map(ctx.references(_)).toIndexedSeq.sortBy(_.name)
 
-  def referenceGenomeFields(): IndexedSeq[StaticField[ReferenceGenome]] =
+  def referenceGenomeFields(): IndexedSeq[StaticFieldRef[ReferenceGenome]] =
     rgContainers.toFastSeq.sortBy(_._1).map(_._2)
 
   var _rgMapField: StaticFieldRef[Map[String, ReferenceGenome]] = null
 
   def referenceGenomeMap: Value[Map[String, ReferenceGenome]] = {
     if (_rgMapField == null) {
-      val cls = genEmitClass[Unit](s"RGMapContainer")
-      _rgMapField = new StaticFieldRef(cls.newStaticField(
-        "reference_genome_map",
-        Code._null[Map[String, ReferenceGenome]],
-      ))
+      _rgMapField = modb.genStaticField[Map[String, ReferenceGenome]]("reference_genome_map")
     }
     _rgMapField
   }
@@ -850,7 +832,7 @@ final class EmitClassBuilder[C](val emodb: EmitModuleBuilder, val cb: ClassBuild
       )
       for ((fld, i) <- rgFields.zipWithIndex) {
         cb += rgs(i).invoke[String, FS, Unit]("heal", ctx.localTmpdir, getFS)
-        cb += fld.put(rgs(i))
+        cb.assign(fld, rgs(i))
       }
 
       Option(emodb._rgMapField).foreach { fld =>
