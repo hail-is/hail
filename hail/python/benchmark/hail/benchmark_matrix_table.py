@@ -119,8 +119,8 @@ def benchmark_matrix_table_nested_annotate_rows_annotate_entries(profile25_mt):
     mt = mt.annotate_rows(r0=mt.info.AF[0] + 1)
     mt = mt.annotate_entries(e0=mt.GQ + 5)
     for i in range(1, 20):
-        mt = mt.annotate_rows(**{f'r{i}': mt[f'r{i-1}'] + 1})
-        mt = mt.annotate_entries(**{f'e{i}': mt[f'e{i-1}'] + 1})
+        mt = mt.annotate_rows(**{f'r{i}': mt[f'r{i - 1}'] + 1})
+        mt = mt.annotate_entries(**{f'e{i}': mt[f'e{i - 1}'] + 1})
     mt._force_count_rows()
 
 

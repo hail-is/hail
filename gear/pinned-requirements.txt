@@ -6,7 +6,7 @@ aiohappyeyeballs==2.6.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.11.16
+aiohttp==3.11.18
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -40,20 +40,20 @@ cachetools==5.5.2
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-certifi==2025.1.31
+certifi==2025.4.26
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   kubernetes-asyncio
     #   requests
-charset-normalizer==3.4.1
+charset-normalizer==3.4.2
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   requests
-frozenlist==1.5.0
+frozenlist==1.6.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -62,9 +62,9 @@ frozenlist==1.5.0
     #   aiosignal
 google-api-core==2.24.2
     # via google-api-python-client
-google-api-python-client==2.167.0
+google-api-python-client==2.169.0
     # via google-cloud-profiler
-google-auth==2.39.0
+google-auth==2.40.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
@@ -161,12 +161,12 @@ requests==2.32.3
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-api-core
     #   google-cloud-profiler
-rsa==4.9
+rsa==4.9.1
     # via
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-setuptools==78.1.0
+setuptools==80.4.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   kubernetes-asyncio
@@ -199,10 +199,9 @@ urllib3==1.26.20
     #   requests
 wrapt==1.17.2
     # via
-    #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   prometheus-async
-yarl==1.19.0
+yarl==1.20.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt

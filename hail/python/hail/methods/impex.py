@@ -2283,7 +2283,7 @@ def import_matrix_table(
 
     if sep is not None:
         if delimiter is not None:
-            raise ValueError(f'expecting either sep or delimiter but received both: ' f'{sep}, {delimiter}')
+            raise ValueError(f'expecting either sep or delimiter but received both: {sep}, {delimiter}')
         delimiter = sep
     del sep
 
@@ -2295,7 +2295,7 @@ def import_matrix_table(
     if add_row_id:
         if 'row_id' in row_fields:
             raise FatalError(
-                "import_matrix_table reserves the field name 'row_id' for" 'its own use, please use a different name'
+                "import_matrix_table reserves the field name 'row_id' forits own use, please use a different name"
             )
 
     for k, v in row_fields.items():

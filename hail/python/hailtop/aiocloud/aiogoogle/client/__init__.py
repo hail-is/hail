@@ -13,15 +13,15 @@ from .storage_client import (
 )
 
 __all__ = [
+    'GCSRequesterPaysConfiguration',
     'GoogleBigQueryClient',
     'GoogleBillingClient',
-    'GoogleContainerClient',
     'GoogleComputeClient',
+    'GoogleContainerClient',
     'GoogleIAmClient',
     'GoogleLoggingClient',
     'GoogleMetadataServerClient',
-    'GCSRequesterPaysConfiguration',
-    'GoogleStorageClient',
     'GoogleStorageAsyncFS',
     'GoogleStorageAsyncFSFactory',
+    'GoogleStorageClient',
 ]

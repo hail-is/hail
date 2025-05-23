@@ -1300,7 +1300,7 @@ def test_hadoop_can_use_cloud_credentials(client: BatchClient, remote_tmpdir: st
     script = f"""import hail as hl
 import secrets
 attempt_token = secrets.token_urlsafe(5)
-location = f"{remote_tmpdir}/{ token }/{{ attempt_token }}/test_can_use_hailctl_auth.t"
+location = f"{remote_tmpdir}/{token}/{{ attempt_token }}/test_can_use_hailctl_auth.t"
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 """

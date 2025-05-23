@@ -372,7 +372,7 @@ def _krylov_factorization(A: TallSkinnyMatrix, V0, p, compute_U=False, compute_V
     k = hl.eval(V0.shape[1])
 
     for j in range(0, p):
-        info(f"krylov_factorization: Beginning iteration {j+1}/{p}")
+        info(f"krylov_factorization: Beginning iteration {j + 1}/{p}")
         G_i = t.aggregate(hl.agg.ndarray_sum(A_expr.T @ (A_expr @ G_i)), _localize=False)
         G_i = hl.nd.qr(G_i)[0]._persist()
         g_list.append(G_i)

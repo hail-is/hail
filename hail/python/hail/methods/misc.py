@@ -114,7 +114,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
     if i.dtype != j.dtype:
         raise ValueError(
-            "'maximal_independent_set' expects arguments `i` and `j` to have same type. " "Found {} and {}.".format(
+            "'maximal_independent_set' expects arguments `i` and `j` to have same type. Found {} and {}.".format(
                 i.dtype, j.dtype
             )
         )
@@ -245,7 +245,7 @@ def require_first_key_field_locus(dataset, method):
         key = dataset.row_key
     if len(key) == 0 or not isinstance(key[0].dtype, tlocus):
         raise ValueError(
-            "Method '{}' requires first key field of type 'locus<any>'.\n" "  Found:{}".format(
+            "Method '{}' requires first key field of type 'locus<any>'.\n  Found:{}".format(
                 method, ''.join("\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in key)
             )
         )

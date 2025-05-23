@@ -2152,7 +2152,7 @@ def coalesce(*args):
     *exprs, success = unify_exprs(*args)
     if not success:
         arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in builtins.enumerate(exprs)])
-        raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types" f"{arg_types}")
+        raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types{arg_types}")
     indices, aggregations = unify_all(*exprs)
     return construct_expr(ir.Coalesce(*(e._ir for e in exprs)), exprs[0].dtype, indices, aggregations)
 

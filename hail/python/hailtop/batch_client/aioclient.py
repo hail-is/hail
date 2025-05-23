@@ -1042,7 +1042,7 @@ class Batch:
             n_bytes = spec.n_bytes
             assert n_bytes < max_bunch_bytesize, (
                 'every spec must be less than max_bunch_bytesize,'
-                f' { max_bunch_bytesize }B, but {spec.spec_bytes.decode()} is larger'
+                f' {max_bunch_bytesize}B, but {spec.spec_bytes.decode()} is larger'
             )
             if bunch_n_bytes + n_bytes < max_bunch_bytesize and len(bunch) < max_bunch_size:
                 bunch.append(spec)
