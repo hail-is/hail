@@ -3,6 +3,7 @@ import aiohttp_session.cookie_storage
 
 from hailtop.config import get_deploy_config
 
+from .auth_utils import max_age
 from .cloud_config import get_global_config
 
 
@@ -21,7 +22,6 @@ def setup_aiohttp_session(app):
                 samesite='Lax',
                 domain=deploy_config._domain,
                 path=deploy_config._base_path or '/',
-                # 2592000s = 30d
-                max_age=2592000,
+                max_age=max_age(),
             ),
         )

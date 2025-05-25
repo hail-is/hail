@@ -18,6 +18,7 @@ resources = {
     'HGDP_matrix_table': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_subset.vcf.bgz',
     'HGDP_ensembl_gene_annotations': 'https://storage.googleapis.com/hail-tutorial/hgdp/hgdp_gene_annotations.tsv',
     'movie_lens_100k': 'https://files.grouplens.org/datasets/movielens/ml-100k.zip',
+    'movie_lens_HAIL_PRIVATE': 'gs://hail-tutorial-private/ml-100k.zip',
 }
 
 tmp_dir: str = None
@@ -190,10 +191,12 @@ def get_movie_lens(output_dir, overwrite: bool = False):
     paths = [os.path.join(output_dir, x) for x in ['movies.ht', 'ratings.ht', 'users.ht']]
     if overwrite or any(not _dir_exists(fs, f) for f in paths):
         init_temp_dir()
-        source = resources['movie_lens_100k']
         tmp_path = os.path.join(tmp_dir, 'ml-100k.zip')
-        info(f'downloading MovieLens-100k data ...\n' f'  Source: {source}')
-        sync_retry_transient_errors(urlretrieve, source, tmp_path)
+        info('downloading MovieLens-100k data ...')
+        if os.environ.get('HAIL_USE_PRIVATE_LENS_DATA'):
+            fs.copy(resources['movie_lens_HAIL_PRIVATE'], tmp_path)
+        else:
+            sync_retry_transient_errors(urlretrieve, resources['movie_lens_100k'], tmp_path)
         with zipfile.ZipFile(tmp_path, 'r') as z:
             z.extractall(tmp_dir)
 
