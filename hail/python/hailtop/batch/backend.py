@@ -892,6 +892,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 resources={'cpu': '0.25'},
                 attributes={'name': 'remove_tmpdir'},
                 always_run=True,
+                regions=self.regions,
             )
             n_jobs_submitted += 1
 
