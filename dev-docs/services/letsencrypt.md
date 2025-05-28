@@ -2,6 +2,33 @@
 
 Hail uses Let's Encrypt certificates for the gateway pod.
 
+
+## Context: Description of the Let's Encrypt Job
+
+All Hail services under the hail.is domain share a single SSL certificate with multiple Subject Alternative Names (SANs). 
+Certificates are obtained from Let's Encrypt. Every ninety (90) days, the following process is triggered when you execute make -C letsencrypt as described in the next section:
+
+- A Docker container based on certbot/certbot is built and deployed as a Kubernetes pod [ref](https://github.com/hail-is/hail/blob/main/letsencrypt/Dockerfile)
+- The process generates a single certificate request covering:
+  - The main domain (hail.is)
+  - An internal subdomain (internal.hail.is)
+  - Service-specific subdomains (batch.hail.is, batch-driver.hail.is, ci.hail.is, etc.)
+  - As defined in the subdomains configuration [ref](https://github.com/hail-is/hail/blob/main/letsencrypt/subdomains.txt) and processed by the Makefile [ref](https://github.com/hail-is/hail/blob/main/letsencrypt/Makefile)
+- Certbot runs in standalone mode to prove domain control and acquire a Let's Encrypt SSL certificate [ref](https://github.com/hail-is/hail/blob/main/letsencrypt/letsencrypt.sh)
+- The certificate (fullchain.pem), private key (privkey.pem), and NGINX SSL configuration files are stored in a shared Kubernetes Secret named letsencrypt-config [ref](https://github.com/hail-is/hail/blob/main/letsencrypt/letsencrypt.sh#L14-L21)
+- All Hail services reference this same letsencrypt-config Secret to access the certificate and configuration
+- The process is repeated every 90 days via the make script, automatically rotating the shared certificate for all services
+- The certificates are provisioned with Let's Encrypt, which generates certificates chaining to ISRG Root X1 or ISRG Root X2 that are widely trusted. 
+- The system enforces modern TLS security through NGINX configuration [ref](https://github.com/hail-is/hail/blob/main/letsencrypt/letsencrypt.sh#L31-L41) that requires:
+  - TLS 1.2 and 1.3 protocols only
+  - Strong cipher suites including:
+    - ECDHE-ECDSA with AES-GCM
+    - ECDHE-RSA with AES-GCM
+    - ECDHE with ChaCha20-Poly1305
+    - DHE-RSA with AES-GCM
+- Reference Let's Encrypt Certificate Compatibility for further detail.
+
+
 ## Refreshing Certificates
 
 Certificates must be updated once per cluster.
