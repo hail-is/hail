@@ -519,8 +519,10 @@ class ServiceBackend(Backend[bc.Batch]):
     regions:
         Cloud regions in which jobs may run. :attr:`.ServiceBackend.ANY_REGION` indicates jobs may
         run in any region. If unspecified or ``None``, the ``batch/regions`` Hail configuration
-        variable is consulted. See examples above. If none of these variables are set, then jobs may
-        run in any region. :meth:`.ServiceBackend.supported_regions` lists the available regions.
+        variable is consulted. See examples above. If none of these variables are set, then jobs run
+        in the region the Batch instance resides in ("us-central1" for the Hail team-maintained instance).
+        :meth:`.ServiceBackend.default_region` returns the default region.
+        :meth:`.ServiceBackend.supported_regions` lists the available regions.
     gcs_bucket_allow_list:
         A list of buckets that the :class:`.ServiceBackend` should be permitted to read from or write to, even if their
         default policy is to use "cold" storage.
@@ -550,6 +552,8 @@ class ServiceBackend(Backend[bc.Batch]):
     def default_region():
         """
         Get the default cloud region
+
+        This value is "us-central1" for the Hail Team maintained Batch instance.
 
         Examples
         --------
