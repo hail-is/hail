@@ -138,19 +138,10 @@ class ServiceBackend(
 
   def defaultParallelism: Int = 4
 
-  def broadcast[T: ClassTag](_value: T): BroadcastValue[T] = {
-    using(new ObjectOutputStream(new ByteArrayOutputStream())) { os =>
-      try
-        os.writeObject(_value)
-      catch {
-        case e: Exception =>
-          fatal(_value.toString, e)
-      }
-    }
+  def broadcast[T: ClassTag](_value: T): BroadcastValue[T] =
     new BroadcastValue[T] with Serializable {
       def value: T = _value
     }
-  }
 
   private[this] def readString(in: DataInputStream): String = {
     val n = in.readInt()
