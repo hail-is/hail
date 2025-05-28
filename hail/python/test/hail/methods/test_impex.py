@@ -1477,9 +1477,11 @@ class BGENTests(unittest.TestCase):
 
     def test_index_multiple_bgen_files_does_not_fail_and_is_importable(self):
         original_bgen_files = [resource('random-b.bgen'), resource('random-c.bgen'), resource('random-a.bgen')]
-        with hl.TemporaryFilename(suffix='.bgen') as f, hl.TemporaryFilename(suffix='.bgen') as g, hl.TemporaryFilename(
-            suffix='.bgen'
-        ) as h:
+        with (
+            hl.TemporaryFilename(suffix='.bgen') as f,
+            hl.TemporaryFilename(suffix='.bgen') as g,
+            hl.TemporaryFilename(suffix='.bgen') as h,
+        ):
             newly_indexed_bgen_files = [f, g, h]
             for source, temp in zip(original_bgen_files, newly_indexed_bgen_files):
                 hl.current_backend().fs.copy(source, temp)

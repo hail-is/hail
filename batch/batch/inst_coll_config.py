@@ -153,9 +153,9 @@ WHERE pools.name = %s;
         standing_worker_max_idle_time_secs: int,
         job_queue_scheduling_window_secs: int,
     ):
-        assert (
-            min_instances <= max_live_instances <= max_instances
-        ), f'{(min_instances, max_live_instances, max_instances)}'
+        assert min_instances <= max_live_instances <= max_instances, (
+            f'{(min_instances, max_live_instances, max_instances)}'
+        )
         self.name = name
         self.cloud = cloud
         self.worker_type = worker_type

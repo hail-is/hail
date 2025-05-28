@@ -152,9 +152,9 @@ class CloudBillingManager(abc.ABC):
                     product_version_updates.append((product, latest_product_version, latest_sku))
                     log.info(f'product {product} does not have a current sku, updating it to {latest_sku}')
                 else:
-                    assert (
-                        have_latest_version and have_latest_rate and have_latest_sku
-                    ), f'{current_product_version} {latest_product_version} {current_resource_rate} {latest_resource_rate} {latest_sku}'
+                    assert have_latest_version and have_latest_rate and have_latest_sku, (
+                        f'{current_product_version} {latest_product_version} {current_resource_rate} {latest_resource_rate} {latest_sku}'
+                    )
 
         @transaction(self.db)
         async def insert_or_update(tx):

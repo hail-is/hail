@@ -479,7 +479,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     right_bad = [f'{k!r}: {v}' for k, v in right_sample_counter.items() if v > 1]
     if left_bad or right_bad:
         raise ValueError(
-            f"Found duplicate sample IDs:\n" f"  left:  {', '.join(left_bad)}\n" f"  right: {', '.join(right_bad)}"
+            f"Found duplicate sample IDs:\n  left:  {', '.join(left_bad)}\n  right: {', '.join(right_bad)}"
         )
 
     included = set(left_sample_counter.keys()).intersection(set(right_sample_counter.keys()))

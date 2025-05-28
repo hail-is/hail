@@ -291,7 +291,7 @@ def ld_score_regression(
                 '__w': ds[ws[i]],
                 '__n': hl.int(ds[ns[i]]),
             })
-            for i, y in enumerate(ys)
+            for i in range(len(ys))
         ]
 
         mts = [

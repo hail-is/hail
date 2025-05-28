@@ -9,19 +9,19 @@ from .resource import PythonResult, Resource, ResourceFile, ResourceGroup
 from .utils import concatenate, plink_merge
 
 __all__ = [
-    'Batch',
-    'LocalBackend',
-    'ServiceBackend',
     'Backend',
+    'Batch',
     'BatchException',
     'BatchPoolExecutor',
-    'build_python_image',
-    'concatenate',
-    'plink_merge',
+    'LocalBackend',
     'PythonResult',
     'Resource',
     'ResourceFile',
     'ResourceGroup',
+    'ServiceBackend',
+    'build_python_image',
+    'concatenate',
+    'plink_merge',
 ]
 
 warnings.filterwarnings('once', append=True)

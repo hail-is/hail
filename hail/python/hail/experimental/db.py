@@ -315,9 +315,7 @@ class DB:
     ):
         if region not in DB._valid_regions:
             raise ValueError(
-                f'Specify valid region parameter,'
-                f' received: region={region!r}.\n'
-                f'Valid regions are {DB._valid_regions}.'
+                f'Specify valid region parameter, received: region={region!r}.\nValid regions are {DB._valid_regions}.'
             )
         if cloud not in DB._valid_clouds:
             raise ValueError(
@@ -334,7 +332,7 @@ class DB:
             )
         if config is not None and url is not None:
             raise ValueError(
-                f'Only specify one of the parameters url and' f' config, received: url={url} and config={config}'
+                f'Only specify one of the parameters url and config, received: url={url} and config={config}'
             )
         if config is None:
             if url is None:
@@ -345,7 +343,7 @@ class DB:
                 config = response.json()
             assert isinstance(config, dict)
         elif not isinstance(config, dict):
-            raise ValueError(f'expected a dict mapping dataset names to ' f'configurations, but found {config}')
+            raise ValueError(f'expected a dict mapping dataset names to configurations, but found {config}')
         config = {k: v for k, v in config.items() if 'annotation_db' in v}
         self.region = region
         self.cloud = cloud
@@ -385,7 +383,7 @@ class DB:
         elif isinstance(rel, Table):
             return TableRows(rel)
         else:
-            raise ValueError('annotation database can only annotate Hail' ' MatrixTable or Table')
+            raise ValueError('annotation database can only annotate Hail MatrixTable or Table')
 
     def _dataset_by_name(self, name: str) -> Dataset:
         """Retrieve :class:`Dataset` object by name.
@@ -401,9 +399,7 @@ class DB:
         """
         if name not in self.__by_name:
             raise ValueError(
-                f'{name} not found in annotation database,'
-                f' you may list all known dataset names'
-                f' with available_datasets'
+                f'{name} not found in annotation database, you may list all known dataset names with available_datasets'
             )
         return self.__by_name[name]
 
@@ -435,7 +431,7 @@ class DB:
         """
         unavailable = [x for x in names if x not in self.__by_name.keys()]
         if unavailable:
-            raise ValueError(f'datasets: {unavailable} not available' f' in the {self.region} region.')
+            raise ValueError(f'datasets: {unavailable} not available in the {self.region} region.')
 
     @typecheck_method(rel=oneof(table_type, matrix_table_type), names=str)
     def annotate_rows_db(self, rel: Union[Table, MatrixTable], *names: str) -> Union[Table, MatrixTable]:
@@ -488,7 +484,7 @@ class DB:
         """
         rel = self._row_lens(rel)
         if len(set(names)) != len(names):
-            raise ValueError(f'cannot annotate same dataset twice,' f' please remove duplicates from: {names}')
+            raise ValueError(f'cannot annotate same dataset twice, please remove duplicates from: {names}')
         self._check_availability(names)
         datasets = [self._dataset_by_name(name) for name in names]
         if any(dataset.is_gene_keyed for dataset in datasets):

@@ -300,7 +300,7 @@ iptables --append FORWARD --source 172.20.0.0/16 --jump ACCEPT
 
 mkdir /deploy-config
 cat >/deploy-config/deploy-config.json <<EOF
-{ json.dumps(get_deploy_config().with_location('gce').get_config()) }
+{json.dumps(get_deploy_config().with_location('gce').get_config())}
 EOF
 
 # retry once
