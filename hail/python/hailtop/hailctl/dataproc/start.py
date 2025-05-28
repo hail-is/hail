@@ -19,8 +19,11 @@ DEFAULT_PROPERTIES = {
     "spark:spark.executor.extraJavaOptions": "-Xss4M",
     'spark:spark.speculation': 'true',
     "hdfs:dfs.replication": "1",
+    'dataproc:dataproc.logging.extended.enabled': 'false',
     'dataproc:dataproc.logging.stackdriver.enable': 'false',
+    'dataproc:dataproc.logging.syslog.enabled': 'false',
     'dataproc:dataproc.monitoring.stackdriver.enable': 'false',
+    'dataproc:diagnostic.capture.enabled': 'false',
 }
 
 # leadre (master) machine type to memory map, used for setting
