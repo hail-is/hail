@@ -6,10 +6,10 @@ from .pricing_client import AzurePricingClient
 from .resources_client import AzureResourcesClient
 
 __all__ = [
-    'AzureResourceManagerClient',
     'AzureComputeClient',
     'AzureGraphClient',
     'AzureNetworkClient',
     'AzurePricingClient',
+    'AzureResourceManagerClient',
     'AzureResourcesClient',
 ]

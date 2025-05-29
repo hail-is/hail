@@ -1,6 +1,8 @@
 import asyncio
+import functools
 import hashlib
 import logging
+import operator
 import os
 from typing import Dict
 
@@ -75,7 +77,7 @@ def pytest_collection_modifyitems(items):
         bins[priority].append(item)
 
     # Attempt to run tests that require no initialisation first
-    items[:] = sum(bins, [])
+    items[:] = functools.reduce(operator.iadd, bins, [])
 
 
 @pytest.fixture(scope='function')

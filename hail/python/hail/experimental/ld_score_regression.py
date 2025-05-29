@@ -287,7 +287,7 @@ def ld_score_regression(
                 '__x': ds.__x,
                 '__x_floor': hl.max(ds.__x, 1.0),
                 '__y_name': i,
-                '__y': ds[ys[i]],
+                '__y': ds[y],
                 '__w': ds[ws[i]],
                 '__n': hl.int(ds[ns[i]]),
             })

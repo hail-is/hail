@@ -5,7 +5,7 @@ repos:
     hooks:
       - id: ruff
         name: ruff
-        entry: ruff --fix --show-fixes
+        entry: ruff check hail --fix
         language: system
         types: [python]
         require_serial: true

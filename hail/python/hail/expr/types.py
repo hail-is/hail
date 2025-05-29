@@ -24,37 +24,37 @@ from .nat import NatBase, NatLiteral
 from .type_parsing import type_grammar, type_grammar_str, type_node_visitor
 
 __all__ = [
+    'HailType',
     'dtype',
     'dtypes_from_pandas',
-    'HailType',
     'hail_type',
-    'is_container',
+    'hts_entry_schema',
     'is_compound',
+    'is_container',
     'is_numeric',
     'is_primitive',
-    'types_match',
-    'tint',
-    'tint32',
-    'tint64',
+    'tarray',
+    'tbool',
+    'tcall',
+    'tdict',
     'tfloat',
     'tfloat32',
     'tfloat64',
-    'tstr',
-    'tbool',
-    'tarray',
-    'tstream',
-    'tndarray',
-    'tset',
-    'tdict',
-    'tstruct',
-    'tunion',
-    'ttuple',
+    'tint',
+    'tint32',
+    'tint64',
     'tinterval',
     'tlocus',
-    'tcall',
-    'tvoid',
+    'tndarray',
+    'tset',
+    'tstr',
+    'tstream',
+    'tstruct',
+    'ttuple',
+    'tunion',
     'tvariable',
-    'hts_entry_schema',
+    'tvoid',
+    'types_match',
 ]
 
 
@@ -2306,7 +2306,7 @@ def from_numpy(np_dtype):
 
 
 def dtypes_from_pandas(pd_dtype):
-    if type(pd_dtype) == pd.StringDtype:
+    if type(pd_dtype) is pd.StringDtype:
         return hl.tstr
     elif pd_dtype == np.int64:
         return hl.tint64
@@ -2321,7 +2321,7 @@ def dtypes_from_pandas(pd_dtype):
         return hl.tfloat32
     elif pd_dtype == np.float64:
         return hl.tfloat64
-    elif pd_dtype == bool:
+    elif pd_dtype is bool:
         return hl.tbool
     return None
 

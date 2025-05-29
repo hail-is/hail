@@ -1,4 +1,3 @@
-from test.hail.helpers import hl_init_for_test, hl_stop_for_test, qobtest, skip_unless_spark_backend, with_flags
 from typing import Dict, Optional, Tuple
 
 import pytest
@@ -7,6 +6,7 @@ import hail as hl
 from hail.backend.backend import Backend
 from hail.backend.spark_backend import SparkBackend
 from hail.utils.java import Env
+from test.hail.helpers import hl_init_for_test, hl_stop_for_test, qobtest, skip_unless_spark_backend, with_flags
 
 
 def _scala_map_str_to_tuple_str_str_to_dict(scala) -> Dict[str, Tuple[Optional[str], Optional[str]]]:

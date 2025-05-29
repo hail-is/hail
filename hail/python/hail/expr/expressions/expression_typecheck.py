@@ -27,26 +27,26 @@ from hail.typecheck import TypeChecker, TypecheckFailure
 from hail.utils.java import escape_parsable
 
 __all__ = [
+    'coercer_from_dtype',
     'expr_any',
-    'expr_int32',
-    'expr_int64',
+    'expr_array',
+    'expr_bool',
+    'expr_call',
+    'expr_dict',
     'expr_float32',
     'expr_float64',
-    'expr_call',
-    'expr_bool',
-    'expr_str',
-    'expr_locus',
+    'expr_int32',
+    'expr_int64',
     'expr_interval',
-    'expr_array',
-    'expr_stream',
+    'expr_locus',
     'expr_ndarray',
-    'expr_set',
-    'expr_dict',
-    'expr_tuple',
-    'expr_struct',
-    'expr_oneof',
     'expr_numeric',
-    'coercer_from_dtype',
+    'expr_oneof',
+    'expr_set',
+    'expr_str',
+    'expr_stream',
+    'expr_struct',
+    'expr_tuple',
 ]
 
 T = TypeVar('T')
@@ -269,7 +269,9 @@ class ArrayCoercer(ExprCoercer):
         return self.ec._requires_conversion(t.element_type)
 
     def can_coerce(self, t: HailType) -> bool:
-        return (isinstance(t, tndarray) and t.ndim == 1 or isinstance(t, tarray)) and self.ec.can_coerce(t.element_type)
+        return ((isinstance(t, tndarray) and t.ndim == 1) or isinstance(t, tarray)) and self.ec.can_coerce(
+            t.element_type
+        )
 
     def _coerce(self, x: Expression):
         if isinstance(x, hl.expr.NDArrayExpression):

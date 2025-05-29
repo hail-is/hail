@@ -100,9 +100,7 @@ __peak_mem_pattern = re.compile(r'.*TaskReport:.*peakBytes=(\d+),.*')
 def get_peak_task_memory(log_path) -> int:
     with open(log_path, 'r') as f:
         task_peak_bytes = [
-            int(match.groups()[0])
-            for line in f
-            if (match := __peak_mem_pattern.match(line)) is not None  #
+            int(match.groups()[0]) for line in f if (match := __peak_mem_pattern.match(line)) is not None
         ]
 
     if len(task_peak_bytes) == 0:

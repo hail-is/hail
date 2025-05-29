@@ -169,9 +169,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
     pi = pi.tolist() if isinstance(pi, np.ndarray) else ([pi] if not isinstance(pi, list) else pi)
     rg = rg.tolist() if isinstance(rg, np.ndarray) else ([rg] if not isinstance(rg, list) else rg)
     assert all(x >= 0 and x <= 1 for x in h2), 'h2 values must be between 0 and 1'
-    assert (pi is not [None]) or all(
-        x >= 0 and x <= 1 for x in pi
-    ), 'pi values for spike & slab must be between 0 and 1'
+    assert (pi != [None]) or all(x >= 0 and x <= 1 for x in pi), 'pi values for spike & slab must be between 0 and 1'
     assert rg == [None] or all(x >= -1 and x <= 1 for x in rg), 'rg values must be between -1 and 1 or None'
     if annot is not None:  # multi-trait annotation-informed
         assert rg == [None], 'Correlated traits not supported for annotation-informed model'
@@ -182,7 +180,7 @@ def make_betas(mt, h2, pi=None, annot=None, rg=None):
         mt, rg = multitrait_inf(mt=mt, h2=h2, rg=rg)
     elif len(h2) == 2 and len(pi) > 1 and len(rg) == 1:  # two trait correlated spike & slab
         print('multitrait ss')
-        mt, pi, rg = multitrait_ss(mt=mt, h2=h2, rg=0 if rg is [None] else rg[0], pi=pi)
+        mt, pi, rg = multitrait_ss(mt=mt, h2=h2, rg=0 if rg == [None] else rg[0], pi=pi)
     elif len(h2) == 1 and len(pi) == 1:  # single trait infinitesimal/spike & slab
         M = mt.count_rows()
         pi_temp = 1 if pi == [None] else pi[0]
@@ -235,7 +233,7 @@ def multitrait_inf(mt, h2=None, rg=None, cov_matrix=None, seed=None):
     h2 = h2.tolist() if isinstance(h2, np.ndarray) else ([h2] if not isinstance(h2, list) else h2)
     rg = rg.tolist() if isinstance(rg, np.ndarray) else ([rg] if not isinstance(rg, list) else rg)
     assert all(x >= 0 and x <= 1 for x in h2), 'h2 values must be between 0 and 1'
-    assert h2 is not [None] or cov_matrix is not None, 'h2 and cov_matrix cannot both be None'
+    assert h2 != [None] or cov_matrix is not None, 'h2 and cov_matrix cannot both be None'
     M = mt.count_rows()
     if cov_matrix is not None:
         n_phens = cov_matrix.shape[0]
@@ -458,9 +456,9 @@ def get_cov_matrix(h2, rg, psd_rg=False):
         maxlines = 50
         msg = ['Adjusting rg values to make covariance matrix positive semidefinite']
         msg += (
-            [(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(n_rg)]
+            [(f'{cor0[idx[0][i], idx[1][i]]} -> {cor[idx[0][i], idx[1][i]]}') for i in range(n_rg)]
             if n_rg <= maxlines
-            else [(f'{cor0[idx[0][i],idx[1][i]]} -> {cor[idx[0][i],idx[1][i]]}') for i in range(maxlines)]
+            else [(f'{cor0[idx[0][i], idx[1][i]]} -> {cor[idx[0][i], idx[1][i]]}') for i in range(maxlines)]
             + [f'[ printed first {maxlines} rg changes -- omitted {n_rg - maxlines} ]']
         )
         print('\n'.join(msg))

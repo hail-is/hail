@@ -1581,7 +1581,7 @@ class BlockMatrix(object):
             path_prefix = new_temp_file("tree_matmul_tmp")
 
         if splits != 1:
-            inner_brange_size = int(math.ceil(self._n_block_cols / splits))
+            inner_brange_size = math.ceil(self._n_block_cols / splits)
             split_points = [*list(range(0, self._n_block_cols, inner_brange_size)), self._n_block_cols]
             inner_ranges = list(zip(split_points[:-1], split_points[1:]))
             blocks_to_multiply = [
@@ -2096,7 +2096,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not have length 4')
             if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
                 raise ValueError(
-                    f'rectangle {r} does not satisfy ' f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
+                    f'rectangle {r} does not satisfy 0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
                 )
 
         rectangles = hl.literal(list(itertools.chain(*rectangles)), hl.tarray(hl.tint64))
@@ -2201,7 +2201,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not have length 4')
             if not (0 <= r[0] <= r[1] <= self.n_rows and 0 <= r[2] <= r[3] <= self.n_cols):
                 raise ValueError(
-                    f'rectangle {r} does not satisfy ' f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
+                    f'rectangle {r} does not satisfy 0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols'
                 )
 
         writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)

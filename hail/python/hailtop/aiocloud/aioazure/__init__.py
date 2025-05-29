@@ -13,11 +13,11 @@ __all__ = [
     'AzureAsyncFS',
     'AzureAsyncFSFactory',
     'AzureAsyncFSURL',
-    'AzureCredentials',
     'AzureComputeClient',
+    'AzureCredentials',
     'AzureGraphClient',
     'AzureNetworkClient',
     'AzurePricingClient',
-    'AzureResourcesClient',
     'AzureResourceManagerClient',
+    'AzureResourcesClient',
 ]
