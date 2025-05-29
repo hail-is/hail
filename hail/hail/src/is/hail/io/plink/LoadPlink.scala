@@ -466,74 +466,74 @@ class MatrixPLINKReader(
         table(3) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(0)
         else Call2.fromUnphasedDiploidGtIndex(2)
 
-        Iterator.range(start, end).zip(variants.iterator).map { case (i: Int, variant: PlinkVariant) =>
-
-          val newOffset: Long = 3L + variant.index.toLong * blockLength
-          if (newOffset != offset) {
-            is match {
-              case base: Seekable =>
-                base.seek(newOffset)
-              case base: org.apache.hadoop.fs.Seekable =>
-                base.seek(newOffset)
-            }
-            offset = newOffset
-          }
-
-          is.readFully(input, 0, input.length)
-
-          rvb.start(requestedPType)
-          rvb.startStruct()
-
-          val locusAlleles = variant.locusAlleles.asInstanceOf[Row]
-
-          if (hasLocus)
-            rvb.addAnnotation(localLocusType, locusAlleles.get(0))
-
-          if (hasAlleles) {
-            val alleles = locusAlleles.getAs[IndexedSeq[String]](1)
-            rvb.startArray(2)
-            rvb.addString(alleles(0))
-            rvb.addString(alleles(1))
-            rvb.endArray()
-          }
-
-          if (hasRsid)
-            rvb.addString(variant.rsid)
-          if (hasCmPos)
-            rvb.addDouble(variant.cmPos)
-
-          if (hasEntries) {
-            rvb.startArray(localNSamples)
-            if (hasGT) {
-              var i = 0
-              while (i < localNSamples) {
-                rvb.startStruct() // g
-                val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
-                if (x == 1)
-                  rvb.setMissing()
-                else
-                  rvb.addCall(table(x))
-                rvb.endStruct() // g
-                i += 1
+        Iterator.range(start, end).zip(variants.iterator).map {
+          case (i: Int, variant: PlinkVariant) =>
+            val newOffset: Long = 3L + variant.index.toLong * blockLength
+            if (newOffset != offset) {
+              is match {
+                case base: Seekable =>
+                  base.seek(newOffset)
+                case base: org.apache.hadoop.fs.Seekable =>
+                  base.seek(newOffset)
               }
-            } else {
-              var i = 0
-              while (i < localNSamples) {
-                rvb.startStruct() // g
-                rvb.endStruct() // g
-                i += 1
-              }
+              offset = newOffset
             }
 
-            rvb.endArray()
-          }
+            is.readFully(input, 0, input.length)
 
-          if (hasRowUID)
-            rvb.addLong(i)
+            rvb.start(requestedPType)
+            rvb.startStruct()
 
-          rvb.endStruct()
+            val locusAlleles = variant.locusAlleles.asInstanceOf[Row]
 
-          rvb.end()
+            if (hasLocus)
+              rvb.addAnnotation(localLocusType, locusAlleles.get(0))
+
+            if (hasAlleles) {
+              val alleles = locusAlleles.getAs[IndexedSeq[String]](1)
+              rvb.startArray(2)
+              rvb.addString(alleles(0))
+              rvb.addString(alleles(1))
+              rvb.endArray()
+            }
+
+            if (hasRsid)
+              rvb.addString(variant.rsid)
+            if (hasCmPos)
+              rvb.addDouble(variant.cmPos)
+
+            if (hasEntries) {
+              rvb.startArray(localNSamples)
+              if (hasGT) {
+                var i = 0
+                while (i < localNSamples) {
+                  rvb.startStruct() // g
+                  val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
+                  if (x == 1)
+                    rvb.setMissing()
+                  else
+                    rvb.addCall(table(x))
+                  rvb.endStruct() // g
+                  i += 1
+                }
+              } else {
+                var i = 0
+                while (i < localNSamples) {
+                  rvb.startStruct() // g
+                  rvb.endStruct() // g
+                  i += 1
+                }
+              }
+
+              rvb.endArray()
+            }
+
+            if (hasRowUID)
+              rvb.addLong(i)
+
+            rvb.endStruct()
+
+            rvb.end()
         }
       }
     }
