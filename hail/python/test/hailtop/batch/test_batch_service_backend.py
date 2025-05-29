@@ -512,11 +512,13 @@ def test_specify_job_region(service_backend: ServiceBackend):
 
 def test_use_default_region_when_not_specifying_any_regions():
     service_backend = ServiceBackend()
+    default_region = service_backend.default_region()
 
     try:
-        service_backend.regions = None
+        assert service_backend.regions == [default_region], str(service_backend.regions)
 
-        default_region = service_backend.default_region()
+        # test default works when service backend `regions` has no default set
+        service_backend.regions = None
 
         b = batch(service_backend, default_regions=None)
         j = b.new_job('region')
