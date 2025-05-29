@@ -510,22 +510,28 @@ def test_specify_job_region(service_backend: ServiceBackend):
     assert res_status['state'] == 'success', str((res_status, res.debug_info()))
 
 
-def test_use_default_region_when_not_specifying_any_regions(service_backend: ServiceBackend):
-    assert service_backend.regions is None
-    default_region = service_backend.default_region()
+def test_use_default_region_when_not_specifying_any_regions():
+    service_backend = ServiceBackend()
 
-    b = batch(service_backend, default_regions=None)
-    j = b.new_job('region')
-    j.command('true')
+    try:
+        service_backend.regions = None
 
-    assert b._default_regions == [default_region], str(b._default_regions)
-    assert j._regions == [default_region], str(j._regions)
+        default_region = service_backend.default_region()
 
-    res = b.run()
-    assert res
+        b = batch(service_backend, default_regions=None)
+        j = b.new_job('region')
+        j.command('true')
 
-    job_status = res.get_job(1).status()
-    assert job_status['status']['region'] == default_region, str((job_status, res.debug_info()))
+        assert b._default_regions == [default_region], str(b._default_regions)
+        assert j._regions == [default_region], str(j._regions)
+
+        res = b.run()
+        assert res
+
+        job_status = res.get_job(1).status()
+        assert job_status['status']['region'] == default_region, str((job_status, res.debug_info()))
+    finally:
+        service_backend.close()
 
 
 def test_job_regions_controls_job_execution_region(service_backend: ServiceBackend):
