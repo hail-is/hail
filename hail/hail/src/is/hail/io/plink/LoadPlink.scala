@@ -22,6 +22,8 @@ import org.apache.spark.sql.Row
 import org.json4s.{DefaultFormats, Formats, JValue}
 import org.json4s.jackson.JsonMethods
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 case class FamFileConfig(
   isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
@@ -283,7 +285,7 @@ object MatrixPLINKReader {
         )
           end += 1
 
-        cb += Row(params.bed, start, end)
+        cb += Row(start, end, variants.slice(start, end))
 
         ib += Interval(
           variants(start).locusAlleles,
@@ -299,8 +301,7 @@ object MatrixPLINKReader {
     }
     assert(prevEnd == nVariants)
 
-    val contexts = cb.result().map(r => r: Any)
-
+    val contexts = cb.result()
     val partitioner = new RVDPartitioner(ctx.stateManager, locusAllelesType, ib.result(), 0)
 
     val fullMatrixType: MatrixType = MatrixType(
@@ -318,7 +319,7 @@ object MatrixPLINKReader {
     )
     assert(locusAllelesType == fullMatrixType.rowKeyStruct)
 
-    new MatrixPLINKReader(params, referenceGenome, fullMatrixType, sampleInfo, variants, contexts,
+    new MatrixPLINKReader(params, referenceGenome, fullMatrixType, nVariants, sampleInfo, contexts,
       partitioner)
   }
 }
@@ -350,9 +351,9 @@ class MatrixPLINKReader(
   val params: MatrixPLINKReaderParameters,
   referenceGenome: Option[ReferenceGenome],
   val fullMatrixTypeWithoutUIDs: MatrixType,
+  val nVariants: Long,
   sampleInfo: IndexedSeq[Row],
-  variants: Array[PlinkVariant],
-  contexts: Array[Any],
+  contexts: Array[Row],
   partitioner: RVDPartitioner,
 ) extends MatrixHybridReader {
 
@@ -362,8 +363,6 @@ class MatrixPLINKReader(
   def pathsUsed: Seq[String] = FastSeq(params.bed, params.bim, params.fam)
 
   def nSamples: Int = sampleInfo.length
-
-  def nVariants: Long = variants.length
 
   val columnCount: Option[Int] = Some(nSamples)
 
@@ -386,7 +385,6 @@ class MatrixPLINKReader(
 
   def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
     val localA2Reference = params.a2Reference
-    val variantsBc = ctx.backend.broadcast(variants)
     val localNSamples = nSamples
     val sm = ctx.stateManager
 
@@ -394,13 +392,15 @@ class MatrixPLINKReader(
 
     val contextType = TStruct(
       "bed" -> TString,
+      "variants" -> TString,
       "start" -> TInt32,
       "end" -> TInt32,
-      "partitionIndex" -> TInt32,
     )
 
-    val contextsWithPartIdx = contexts.zipWithIndex.map { case (row: Row, partIdx: Int) =>
-      Row(row(0), row(1), row(2), partIdx)
+    val fullContexts = contexts.zipWithIndex.map { case (Row(start, end, vars), i) =>
+      val path = ctx.createTmpPath(s"load_plink_variants_$i")
+      ctx.fs.writePDOS(path)(os => using(new ObjectOutputStream(os))(oos => oos.writeObject(vars)))
+      Row(params.bed, path, start, end)
     }
 
     val fullRowPType = PCanonicalStruct(
@@ -436,12 +436,18 @@ class MatrixPLINKReader(
       { (region: Region, theHailClassLoader: HailClassLoader, fs: FS, context: Any) =>
         val c = context.asInstanceOf[Row]
         val bed = c.getString(0)
-        val start = c.getInt(1)
-        val end = c.getInt(2)
+        val varFile = c.getString(1)
+        val start = c.getInt(2)
+        val end = c.getInt(3)
 
         val blockLength = (localNSamples + 3) / 4
 
         val rvb = new RegionValueBuilder(sm, region)
+
+        val variants =
+          using(new ObjectInputStream(fs.open(varFile)))(_.readObject()).asInstanceOf[Array[
+            PlinkVariant
+          ]]
 
         val is = fs.open(bed)
         if (TaskContext.get != null) {
@@ -460,8 +466,7 @@ class MatrixPLINKReader(
         table(3) = if (localA2Reference) Call2.fromUnphasedDiploidGtIndex(0)
         else Call2.fromUnphasedDiploidGtIndex(2)
 
-        Iterator.range(start, end).flatMap { i =>
-          val variant = variantsBc.value(i)
+        Iterator.range(start, end).zip(variants.iterator).map { case (i: Int, variant: PlinkVariant) =>
 
           val newOffset: Long = 3L + variant.index.toLong * blockLength
           if (newOffset != offset) {
@@ -528,7 +533,7 @@ class MatrixPLINKReader(
 
           rvb.endStruct()
 
-          Some(rvb.end())
+          rvb.end()
         }
       }
     }
@@ -544,7 +549,7 @@ class MatrixPLINKReader(
         subset(globals).asInstanceOf[Row]
       },
       contextType,
-      contextsWithPartIdx,
+      fullContexts,
       bodyPType,
       body,
     )
