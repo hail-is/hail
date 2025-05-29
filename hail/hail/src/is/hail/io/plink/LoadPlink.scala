@@ -395,12 +395,13 @@ class MatrixPLINKReader(
       "variants" -> TString,
       "start" -> TInt32,
       "end" -> TInt32,
+      "partitionIndex" -> TInt32,
     )
 
-    val fullContexts = contexts.zipWithIndex.map { case (Row(start, end, vars), i) =>
-      val path = ctx.createTmpPath(s"load_plink_variants_$i")
+    val fullContexts = contexts.zipWithIndex.map { case (Row(start, end, vars), idx) =>
+      val path = ctx.createTmpPath(s"load_plink_variants_$idx")
       ctx.fs.writePDOS(path)(os => using(new ObjectOutputStream(os))(oos => oos.writeObject(vars)))
-      Row(params.bed, path, start, end)
+      Row(params.bed, path, start, end, idx)
     }
 
     val fullRowPType = PCanonicalStruct(
