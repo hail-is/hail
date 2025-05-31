@@ -1,3 +1,5 @@
+data "azurerm_client_config" "primary" {}
+
 resource "azurerm_storage_account" "ci" {
   name                     = "${var.resource_group.name}ci${var.storage_account_suffix}"
   resource_group_name      = var.resource_group.name
@@ -47,6 +49,16 @@ resource "azurerm_role_assignment" "ci_test_container_contributor" {
   scope                = var.test_storage_container_resource_id
   role_definition_name = "Storage Blob Data Contributor"
   principal_id         = var.ci_principal_id
+}
+
+resource "azurerm_key_vault_access_policy" "ci_manage" {
+  key_vault_id = var.worker_key_vault_id
+  tenant_id    = data.azurerm_client_config.primary.tenant_id
+  object_id    = var.ci_principal_id
+
+  secret_permissions = [
+    "Get", "List", "Delete"
+  ]
 }
 
 module "k8s_resources" {

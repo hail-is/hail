@@ -5,6 +5,7 @@ from .container_client import GoogleContainerClient
 from .iam_client import GoogleIAmClient
 from .logging_client import GoogleLoggingClient
 from .metadata_server_client import GoogleMetadataServerClient
+from .secret_manager_client import GoogleSecretManagerClient
 from .storage_client import (
     GCSRequesterPaysConfiguration,
     GoogleStorageAsyncFS,
@@ -20,6 +21,7 @@ __all__ = [
     'GoogleIAmClient',
     'GoogleLoggingClient',
     'GoogleMetadataServerClient',
+    'GoogleSecretManagerClient',
     'GCSRequesterPaysConfiguration',
     'GoogleStorageClient',
     'GoogleStorageAsyncFS',

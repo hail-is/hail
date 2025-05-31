@@ -23,6 +23,11 @@ principals:
   domains:
     - batch-driver
   kind: nginx
+- name: batch-worker
+  domains:
+    - batch-worker
+  kind: json
+  store_in_cloud_secret_manager: True
 - name: ci
   domains:
     - ci

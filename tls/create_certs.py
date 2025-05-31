@@ -1,25 +1,18 @@
 import argparse
-import json
+import asyncio
+import base64
+import os
 import shutil
 import subprocess as sp
 import tempfile
+from pathlib import Path
 
+import orjson
 import yaml
 
-# gear, hailtop, and web_common are not available in the create_certs image
+from hailtop.aiocloud.aiogoogle import GoogleSecretManagerClient
 
-parser = argparse.ArgumentParser(prog='create_certs.py', description='create hail certs')
-parser.add_argument('namespace', type=str, help='kubernetes namespace')
-parser.add_argument('config_file', type=str, help='YAML format config file')
-parser.add_argument('root_key_file', type=str, help='the root key file')
-parser.add_argument('root_cert_file', type=str, help='the root cert file')
-
-args = parser.parse_args()
-namespace = args.namespace
-with open(args.config_file) as f:
-    arg_config = yaml.safe_load(f)
-root_key_file = args.root_key_file
-root_cert_file = args.root_cert_file
+ONE_WEEK_IN_SECONDS = 60 * 60 * 24 * 7
 
 
 def echo_check_call(cmd):
@@ -27,7 +20,7 @@ def echo_check_call(cmd):
     sp.run(cmd, check=True)
 
 
-def create_key_and_cert(p):
+def create_key_and_cert(p, namespace, root_cert_file, root_key_file):
     name = p['name']
     domains = p['domains']
     unmanaged = p.get('unmanaged', False)
@@ -90,7 +83,7 @@ def create_key_and_cert(p):
     return {'key': key_file, 'cert': cert_file, 'key_store': key_store_file}
 
 
-def create_trust(principal, trust_type):  # pylint: disable=unused-argument
+def create_trust(principal, trust_type, root_cert_file):
     trust_file = f'{principal}-{trust_type}.pem'
     trust_store_file = f'{principal}-{trust_type}-store.jks'
     with open(trust_file, 'w') as out:
@@ -125,7 +118,7 @@ def create_json_config(incoming_trust, outgoing_trust, key, cert, key_store):
     }
     config_file = 'ssl-config.json'
     with open(config_file, 'w') as out:
-        out.write(json.dumps(principal_config))
+        out.write(orjson.dumps(principal_config).decode('utf-8'))
         return [config_file]
 
 
@@ -167,12 +160,24 @@ def create_config(incoming_trust, outgoing_trust, key, cert, key_store, kind):
     return create_nginx_config(incoming_trust, outgoing_trust, key, cert)
 
 
-def create_principal(principal, kind, key, cert, key_store, unmanaged):
+async def create_principal(
+    namespace, principal, kind, key, cert, key_store, root_cert_file, unmanaged, store_in_cloud_secret_manager
+):
     if unmanaged and namespace != 'default':
         return
-    incoming_trust = create_trust(principal, 'incoming')
-    outgoing_trust = create_trust(principal, 'outgoing')
+    incoming_trust = create_trust(principal, 'incoming', root_cert_file)
+    outgoing_trust = create_trust(principal, 'outgoing', root_cert_file)
     configs = create_config(incoming_trust, outgoing_trust, key, cert, key_store, kind)
+    secret_files = [
+        key,
+        cert,
+        key_store,
+        incoming_trust['trust'],
+        incoming_trust['trust_store'],
+        outgoing_trust['trust'],
+        outgoing_trust['trust_store'],
+        *configs,
+    ]
     with tempfile.NamedTemporaryFile() as k8s_secret:
         sp.check_call(
             [
@@ -182,14 +187,7 @@ def create_principal(principal, kind, key, cert, key_store, unmanaged):
                 'generic',
                 f'ssl-config-{principal}',
                 f'--namespace={namespace}',
-                f'--from-file={key}',
-                f'--from-file={cert}',
-                f'--from-file={key_store}',
-                f'--from-file={incoming_trust["trust"]}',
-                f'--from-file={incoming_trust["trust_store"]}',
-                f'--from-file={outgoing_trust["trust"]}',
-                f'--from-file={outgoing_trust["trust_store"]}',
-                *[f'--from-file={c}' for c in configs],
+                *[f'--from-file={f}' for f in secret_files],
                 '--save-config',
                 '--dry-run=client',
                 '-o',
@@ -199,9 +197,53 @@ def create_principal(principal, kind, key, cert, key_store, unmanaged):
         )
         sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 
+    if store_in_cloud_secret_manager:
+        cloud = os.getenv('CLOUD')
+        if cloud == 'gcp':
+            client = GoogleSecretManagerClient(os.environ['HAIL_PROJECT'])
+            expiration_seconds = None if namespace == 'default' else 60 * 60 * 24 * 7
+            secret_id = f'ssl-config-{principal}-{namespace}'
+            await client.create_secret_if_not_exists(secret_id, expiration_seconds)
+            secret_data = {f: base64.b64encode(Path(f).read_bytes()).decode() for f in secret_files}
+            await client.create_secret_version(secret_id, orjson.dumps(secret_data))
+            print(f'Created {secret_id} in GCP secret manager')
+        else:
+            assert cloud == 'azure'
 
-assert 'principals' in arg_config, arg_config
 
-principal_by_name = {p['name']: {**p, **create_key_and_cert(p)} for p in arg_config['principals']}
-for name, p in principal_by_name.items():
-    create_principal(name, p['kind'], p['key'], p['cert'], p['key_store'], p.get('unmanaged', False))
+async def main():
+    parser = argparse.ArgumentParser(prog='create_certs.py', description='create hail certs')
+    parser.add_argument('namespace', type=str, help='kubernetes namespace')
+    parser.add_argument('config_file', type=str, help='YAML format config file')
+    parser.add_argument('root_key_file', type=str, help='the root key file')
+    parser.add_argument('root_cert_file', type=str, help='the root cert file')
+
+    args = parser.parse_args()
+    namespace = args.namespace
+    with open(args.config_file) as f:
+        arg_config = yaml.safe_load(f)
+    root_key_file = args.root_key_file
+    root_cert_file = args.root_cert_file
+
+    assert 'principals' in arg_config, arg_config
+
+    principal_by_name = {
+        p['name']: {**p, **create_key_and_cert(p, namespace, root_cert_file, root_key_file)}
+        for p in arg_config['principals']
+    }
+    for name, p in principal_by_name.items():
+        await create_principal(
+            namespace,
+            name,
+            p['kind'],
+            p['key'],
+            p['cert'],
+            p['key_store'],
+            root_cert_file,
+            p.get('unmanaged', False),
+            p.get('store_in_cloud_secret_manager', False),
+        )
+
+
+if __name__ == '__main__':
+    asyncio.run(main())

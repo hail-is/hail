@@ -88,9 +88,10 @@ class ClientSession:
         *args,
         raise_for_status: bool = True,
         timeout: Union[aiohttp.ClientTimeout, float, int, None] = None,
+        check_hostname: bool = True,
         **kwargs,
     ):
-        tls = get_deploy_config().client_ssl_context()
+        tls = get_deploy_config().client_ssl_context(check_hostname=check_hostname)
         assert 'connector' not in kwargs
 
         configuration_of_timeout = configuration_of(ConfigVariable.HTTP_TIMEOUT_IN_SECONDS, timeout, 5)

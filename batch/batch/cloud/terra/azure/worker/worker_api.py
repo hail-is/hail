@@ -1,5 +1,6 @@
 import os
-from typing import Dict, List
+import ssl
+from typing import Dict, List, Optional
 
 import orjson
 from aiohttp import web
@@ -68,6 +69,10 @@ class TerraAzureWorkerAPI(CloudWorkerAPI):
 
     def create_metadata_server_app(self, credentials: Dict[str, str]) -> web.Application:
         raise NotImplementedError
+
+    async def worker_ssl_context(self, namespace: str) -> Optional[ssl.SSLContext]:
+        # There are no internal certs in Terra on Azure
+        return None
 
     def instance_config_from_config_dict(self, config_dict: Dict[str, str]) -> TerraAzureSlimInstanceConfig:
         return TerraAzureSlimInstanceConfig.from_dict(config_dict)

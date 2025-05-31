@@ -114,6 +114,7 @@ from ..resource_usage import ResourceUsageMonitor
 from ..spec_writer import SpecWriter
 from ..utils import (
     add_metadata_to_request,
+    instance_base_url,
     query_billing_projects_with_cost,
     query_billing_projects_without_cost,
     regions_to_bits_rep,
@@ -411,7 +412,7 @@ async def _get_job_record(app, batch_id, job_id):
 
     record = await db.select_and_fetchone(
         """
-SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id
+SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id, t.attempt_id AS last_cancelled_attempt_id, instances.version as instance_version
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -470,11 +471,12 @@ def attempt_id_from_spec(record) -> Optional[str]:
     return record['attempt_id'] or record['last_cancelled_attempt_id']
 
 
-async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, ip_address) -> bytes:
+async def _get_job_container_log_from_worker(client_session, batch_id, job_id, container, job_record) -> bytes:
+    base_url = instance_base_url(job_record['instance_version'], job_record['ip_address'])
     try:
         return await retry_transient_errors(
             client_session.get_read,
-            f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
+            f'{base_url}/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log/{container}',
         )
     except aiohttp.ClientResponseError:
         log.exception(f'while getting log for {(batch_id, job_id)}')
@@ -499,7 +501,11 @@ async def _get_job_container_log(app, batch_id, job_id, container, job_record) -
     state = job_record['state']
     if state == 'Running':
         return await _get_job_container_log_from_worker(
-            app[CommonAiohttpAppKeys.CLIENT_SESSION], batch_id, job_id, container, job_record['ip_address']
+            app[CommonAiohttpAppKeys.CLIENT_SESSION],
+            batch_id,
+            job_id,
+            container,
+            job_record,
         )
 
     attempt_id = attempt_id_from_spec(job_record)
@@ -534,7 +540,7 @@ async def _get_job_resource_usage_from_record(
     batch_format_version = BatchFormatVersion(record['format_version'])
 
     state = record['state']
-    ip_address = record['ip_address']
+    base_url = instance_base_url(record['instance_version'], record['ip_address'])
     tasks = job_tasks_from_spec(record)
     attempt_id = attempt_id_from_spec(record)
 
@@ -545,7 +551,7 @@ async def _get_job_resource_usage_from_record(
         try:
             data = await retry_transient_errors(
                 client_session.get_read_json,
-                f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
+                f'{base_url}/api/v1alpha/batches/{batch_id}/jobs/{job_id}/resource_usage',
             )
             return {
                 task: ResourceUsageMonitor.decode_to_df(base64.b64decode(encoded_df))
@@ -671,11 +677,11 @@ async def _get_full_job_status(app, record):
     assert state == 'Running'
     assert record['status'] is None
 
-    ip_address = record['ip_address']
+    base_url = instance_base_url(record['instance_version'], record['ip_address'])
     try:
         return await retry_transient_errors(
             client_session.get_read_json,
-            f'http://{ip_address}:5000/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status',
+            f'{base_url}/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status',
         )
     except aiohttp.ClientResponseError as e:
         if e.status == 404:
