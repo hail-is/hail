@@ -163,7 +163,7 @@ trait Py4JBackendExtensions {
   }
 
   def pyToDF(s: String): DataFrame =
-    backend.withExecuteContext { ctx =>
+    withExecuteContext(selfContainedExecution = false) { ctx =>
       val tir = IRParser.parse_table_ir(ctx, s)
       Interpret(tir, ctx).toDF()
     }
