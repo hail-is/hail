@@ -181,7 +181,8 @@ def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = 
             output.append(f'{_section}/{option}={value}\n')
         output.append('\n')
 
-    print(''.join(output).rstrip('\n'))
+    if output:
+        print(''.join(output).rstrip('\n'))
 
 
 
