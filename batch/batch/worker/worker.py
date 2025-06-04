@@ -3003,8 +3003,8 @@ def _jvm_initializer_task_callback(future: asyncio.Future):
     if exception is None:
         log.info('JVM Initializer completed successfully')
     else:
-        log.info('JVM Initializer failed with exception:')
-        log.error(exception)
+        log.error(f'JVM Initializer failed with {type(exception)}')
+        log.error(f'JVM Initializer failed with exception: {traceback.format_exception(exception)}')
 
 class Worker:
     def __init__(self):
