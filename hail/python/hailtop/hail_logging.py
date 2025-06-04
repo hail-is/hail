@@ -68,6 +68,6 @@ class AccessLogger(AbstractAccessLogger):
         extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
 
         self.logger.info(
-            f'{request.scheme} {request.method} {request.path} ' f'done in {time}s: {response.status}',
+            f'{request.scheme} {request.method} {request.path} done in {time}s: {response.status}',
             extra={**extra, **request.get('batch_telemetry', {})},
         )

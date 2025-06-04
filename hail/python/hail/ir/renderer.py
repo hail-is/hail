@@ -229,18 +229,18 @@ class CSEAnalysisPass:
 
     class StackFrame:
         __slots__ = [
+            'agg_lifted_lets',
+            'agg_visited',
+            'child_idx',
+            'context',
+            'lifted_lets',
             'min_binding_depth',
             'min_value_binding_depth',
-            'scan_scope',
-            'context',
             'node',
-            'visited',
-            'agg_visited',
-            'scan_visited',
-            'lifted_lets',
-            'agg_lifted_lets',
             'scan_lifted_lets',
-            'child_idx',
+            'scan_scope',
+            'scan_visited',
+            'visited',
         ]
 
         def __init__(
@@ -464,22 +464,22 @@ class CSEPrintPass:
 
     BindingsStackFrame = namedtuple(
         'BindingsStackFrame',
-        'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited' ' scan_visited let_bodies',
+        'depth lifted_lets agg_lifted_lets scan_lifted_lets visited agg_visited scan_visited let_bodies',
     )
 
     class StackFrame:
         __slots__ = [
-            'node',
-            'children',
-            'min_binding_depth',
-            'context',
-            'min_value_binding_depth',
-            'scan_scope',
-            'depth',
-            'lift_to_frame',
-            'insert_lets',
             'builder',
             'child_idx',
+            'children',
+            'context',
+            'depth',
+            'insert_lets',
+            'lift_to_frame',
+            'min_binding_depth',
+            'min_value_binding_depth',
+            'node',
+            'scan_scope',
         ]
 
         def __init__(

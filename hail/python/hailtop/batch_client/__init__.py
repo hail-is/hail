@@ -6,8 +6,8 @@ __all__ = [
     'BatchNotCreatedError',
     'JobAlreadySubmittedError',
     'JobNotSubmittedError',
-    'client',
     'aioclient',
+    'client',
     'parse',
     'types',
 ]

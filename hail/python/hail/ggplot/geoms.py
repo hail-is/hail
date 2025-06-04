@@ -413,9 +413,7 @@ class GeomHistogram(Geom):
                 "col": facet_col,
                 "customdata": list(zip(left_xs, right_xs)),
                 "width": bar_width,
-                "hovertemplate": "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>"
-                "Count: %{y}<br>"
-                "<extra></extra>",
+                "hovertemplate": "Range: [%{customdata[0]:.3f}-%{customdata[1]:.3f})<br>Count: %{y}<br><extra></extra>",
             }
 
             self._add_aesthetics_to_trace_args(trace_args, df)

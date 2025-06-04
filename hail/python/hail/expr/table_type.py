@@ -6,7 +6,7 @@ from hail.utils.java import escape_parsable, jiterable_to_list
 
 
 class ttable(object):
-    __slots__ = 'global_type', 'row_type', 'row_key'
+    __slots__ = 'global_type', 'row_key', 'row_type'
 
     @staticmethod
     def _from_java(jtt):

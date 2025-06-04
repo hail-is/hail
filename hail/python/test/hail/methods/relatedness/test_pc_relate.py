@@ -58,11 +58,12 @@ def test_pc_relate_simple_example():
 @test_timeout(6 * 60, batch=14 * 60)
 @skip_when_service_backend_in_azure(reason='takes >14 minutes in QoB in Azure')
 def test_pc_relate_paths_1():
-    with hl.TemporaryDirectory(ensure_exists=False) as bn_f, hl.TemporaryDirectory(
-        ensure_exists=False
-    ) as scores_f, hl.TemporaryDirectory(ensure_exists=False) as kin1_f, hl.TemporaryDirectory(
-        ensure_exists=False
-    ) as kins1_f:
+    with (
+        hl.TemporaryDirectory(ensure_exists=False) as bn_f,
+        hl.TemporaryDirectory(ensure_exists=False) as scores_f,
+        hl.TemporaryDirectory(ensure_exists=False) as kin1_f,
+        hl.TemporaryDirectory(ensure_exists=False) as kins1_f,
+    ):
         mt = hl.balding_nichols_model(3, 50, 100).checkpoint(bn_f)
         _, scores3, _ = hl._hwe_normalized_blanczos(mt.GT, k=3, compute_loadings=False, q_iterations=10)
         scores3 = scores3.checkpoint(scores_f)
@@ -119,9 +120,10 @@ def test_self_kinship_2():
 @test_timeout(6 * 60, batch=14 * 60)
 def test_self_kinship_3():
     mt = hl.balding_nichols_model(3, 10, 50).cache()
-    with hl.TemporaryDirectory(ensure_exists=False) as with_self_f, hl.TemporaryDirectory(
-        ensure_exists=False
-    ) as without_self_f:
+    with (
+        hl.TemporaryDirectory(ensure_exists=False) as with_self_f,
+        hl.TemporaryDirectory(ensure_exists=False) as without_self_f,
+    ):
         with_self = hl.pc_relate(
             mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True
         ).checkpoint(with_self_f)

@@ -935,9 +935,9 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
         )
 
     if ref_block_winsorize_fraction is not None:
-        assert (
-            ref_block_winsorize_fraction > 0 and ref_block_winsorize_fraction < 1
-        ), 'truncate_reference_blocks: "ref_block_winsorize_fraction" must be between 0 and 1 (e.g. 0.01 to truncate the top 1% of reference blocks)'
+        assert ref_block_winsorize_fraction > 0 and ref_block_winsorize_fraction < 1, (
+            'truncate_reference_blocks: "ref_block_winsorize_fraction" must be between 0 and 1 (e.g. 0.01 to truncate the top 1% of reference blocks)'
+        )
         if ref_block_winsorize_fraction > 0.1:
             warning(
                 f"'truncate_reference_blocks': ref_block_winsorize_fraction of {ref_block_winsorize_fraction} will lead to significant data duplication,"
@@ -947,9 +947,9 @@ def truncate_reference_blocks(ds, *, max_ref_block_base_pairs=None, ref_block_wi
             hl.agg.approx_quantiles(rd.LEN, 1 - ref_block_winsorize_fraction, k=200)
         )
 
-    assert (
-        max_ref_block_base_pairs > 0
-    ), 'truncate_reference_blocks: "max_ref_block_base_pairs" must be between greater than zero'
+    assert max_ref_block_base_pairs > 0, (
+        'truncate_reference_blocks: "max_ref_block_base_pairs" must be between greater than zero'
+    )
     info(f"splitting VDS reference blocks at {max_ref_block_base_pairs} base pairs")
 
     rd_under_limit = rd.filter_entries(rd.LEN <= max_ref_block_base_pairs).localize_entries('fixed_blocks', 'cols')

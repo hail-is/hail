@@ -29,7 +29,7 @@ class FatalError(Exception):
 
         better_stack_trace = error_sources[0]._stack_trace
         error_message = str(self)
-        message_and_trace = f'{error_message}\n' '------------\n' 'Hail stack trace:\n' f'{better_stack_trace}'
+        message_and_trace = f'{error_message}\n------------\nHail stack trace:\n{better_stack_trace}'
         return HailUserError(message_and_trace)
 
 

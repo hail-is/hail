@@ -10,13 +10,13 @@ from .user_config import (
 from .variables import ConfigVariable
 
 __all__ = [
+    'ConfigVariable',
+    'DeployConfig',
+    'configuration_of',
     'get_deploy_config',
+    'get_hail_config_path',
+    'get_remote_tmpdir',
     'get_user_config',
     'get_user_config_path',
     'get_user_identity_config_path',
-    'get_remote_tmpdir',
-    'get_hail_config_path',
-    'DeployConfig',
-    'ConfigVariable',
-    'configuration_of',
 ]
