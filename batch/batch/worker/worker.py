@@ -2991,6 +2991,16 @@ class JVMPool:
     def __repr__(self):
         return f'JVMPool({self.queue!r}, {self.total_jvms_including_borrowed!r}, {self.max_jvms!r}, {self.n_cores!r})'
 
+def _jvm_initializer_task_callback(future: asyncio.Future):
+    # Check if cancelled, otherwise calling .exception will raise an exception
+    if future.cancelled():
+        return
+    exception = future.exception()
+    if exception is None:
+        log.info('JVM Initializer completed successfully')
+    else:
+        log.info('JVM Initializer failed with exception:')
+        log.error(exception)
 
 class Worker:
     def __init__(self):
@@ -3020,6 +3030,7 @@ class Worker:
         self._jvmpools_by_cores: Dict[int, JVMPool] = {n_cores: JVMPool(n_cores, self) for n_cores in (1, 2, 4, 8)}
         self._waiting_for_jvm_with_n_cores: asyncio.Queue[int] = asyncio.Queue()
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
+        self._jvm_initializer_task.add_done_callback(_jvm_initializer_task_callback)
 
     async def _initialize_jvms(self):
         assert instance_config
