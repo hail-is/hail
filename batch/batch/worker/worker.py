@@ -2980,10 +2980,14 @@ class JVMPool:
     async def create_jvm(self):
         assert self.queue.qsize() < self.max_jvms
         assert self.total_jvms_including_borrowed < self.max_jvms
-        self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
-        log.info(f'JVMPool.create_jvm: created JVM-{JVMPool.global_jvm_index} for {self.n_cores=}')
-        self.total_jvms_including_borrowed += 1
-        JVMPool.global_jvm_index += 1
+        try:
+            self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
+            log.info(f'JVMPool.create_jvm: created JVM-{JVMPool.global_jvm_index} for {self.n_cores=}')
+            self.total_jvms_including_borrowed += 1
+            JVMPool.global_jvm_index += 1
+        except Exception:
+            log.error(f'JVMPool.create_jvm: create failed: {traceback.format_exc()}')
+            raise
 
     def full(self) -> bool:
         return self.total_jvms_including_borrowed == self.max_jvms
