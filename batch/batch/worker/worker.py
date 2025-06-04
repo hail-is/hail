@@ -2981,6 +2981,7 @@ class JVMPool:
         assert self.queue.qsize() < self.max_jvms
         assert self.total_jvms_including_borrowed < self.max_jvms
         self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
+        log.info(f'JVMPool.create_jvm: created JVM-{JVMPool.global_jvm_index} for {self.n_cores=}')
         self.total_jvms_including_borrowed += 1
         JVMPool.global_jvm_index += 1
 
@@ -3030,6 +3031,7 @@ class Worker:
                 requested_n_cores = self._waiting_for_jvm_with_n_cores.get_nowait()
                 log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}')
                 await self._jvmpools_by_cores[requested_n_cores].create_jvm()
+                log.info(f'Worker._initialize_jvms after wakeup JVM creation: {self._jvmpools_by_cores[requested_n_cores]!r}')
             except asyncio.QueueEmpty:
                 next_unfull_jvmpool = None
                 for jvmpool in self._jvmpools_by_cores.values():
@@ -3039,7 +3041,9 @@ class Worker:
 
                 if next_unfull_jvmpool is None:
                     break
+                log.info(f'Worker._initialize_jvms hunted for {next_unfull_jvmpool.n_cores=}')
                 await next_unfull_jvmpool.create_jvm()
+                log.info(f'Worker._initialize_jvms after unfull JVM creation: {next_unfull_jvmpool!r}')
 
         assert self._waiting_for_jvm_with_n_cores.empty()
         assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
@@ -3066,9 +3070,11 @@ class Worker:
 
     def return_jvm(self, jvm: JVM):
         jvm.reset()
+        log.info(f'Returning {jvm} after use')
         self._jvmpools_by_cores[jvm.n_cores].return_jvm(jvm)
 
     async def return_broken_jvm(self, jvm: JVM):
+        log.info(f'Returning borked {jvm} after use')
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
     async def headers(self):
