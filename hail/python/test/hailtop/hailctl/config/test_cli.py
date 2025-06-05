@@ -130,6 +130,8 @@ def test_all_config_variables_in_map():
 
 
 def test_profile(runner: CliRunner, config_dir: str):
+    config_dir = config_dir.rstrip('/')
+
     # check there are no variables set
     res = runner.invoke(cli.app, 'list', catch_exceptions=False)
     assert res.exit_code == 0
