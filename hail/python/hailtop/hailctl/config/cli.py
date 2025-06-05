@@ -63,7 +63,11 @@ def set(
     value: str,
 ):
     """Set a Hail configuration parameter."""
-    from hailtop.config import get_config_from_file, get_config_profile_name, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
+    from hailtop.config import (  # pylint: disable=import-outside-toplevel
+        get_config_from_file,
+        get_config_profile_name,
+        get_user_config_path_by_profile_name,
+    )
 
     if parameter not in config_variables():
         print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
@@ -152,7 +156,11 @@ def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocomple
 @app.command(name='config-location')
 def config_location():
     """Print the location of the config file."""
-    from hailtop.config import get_config_profile_name, get_user_config_path, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
+    from hailtop.config import (  # pylint: disable=import-outside-toplevel
+        get_config_profile_name,
+        get_user_config_path,
+        get_user_config_path_by_profile_name,
+    )
 
     print(f'Default settings: {get_user_config_path()}')
 
@@ -165,7 +173,9 @@ def config_location():
 @app.command(name='list')
 def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
     """Lists every config variable in the section."""
-    from hailtop.config import get_user_config_with_profile_overrides_and_source  # pylint: disable=import-outside-toplevel
+    from hailtop.config import (
+        get_user_config_with_profile_overrides_and_source,  # pylint: disable=import-outside-toplevel
+    )
 
     _, source = get_user_config_with_profile_overrides_and_source()
 
@@ -265,7 +275,10 @@ def create_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
 @profile_app.command(name='delete')
 def delete_profile(profile_name: Ann[str, Arg(help='Name of configuration profile to delete.', autocompletion=_get_profile)]):
     """Delete a Hail configuration profile."""
-    from hailtop.config import get_config_profile_name, get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
+    from hailtop.config import (  # pylint: disable=import-outside-toplevel
+        get_config_profile_name,
+        get_user_config_path_by_profile_name,
+    )
 
     if profile_name == 'default':
         print('Cannot delete the "default" profile.')
