@@ -2978,9 +2978,10 @@ class JVMPool:
         log.info(f'killed {jvm} and recreated a new jvm')
 
     async def create_jvm(self):
-        assert self.queue.qsize() < self.max_jvms
-        assert self.total_jvms_including_borrowed < self.max_jvms
         try:
+            log.info(f'JVMPool.create_jvm: {self.n_cores=}: {self.queue.qsize()=} {self.total_jvms_including_borrowed=} {self.max_jvms=}')
+            assert self.queue.qsize() < self.max_jvms
+            assert self.total_jvms_including_borrowed < self.max_jvms
             self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
             log.info(f'JVMPool.create_jvm: created JVM-{JVMPool.global_jvm_index} for {self.n_cores=}')
             self.total_jvms_including_borrowed += 1
@@ -3062,7 +3063,11 @@ class Worker:
                 log.info(f'Worker._initialize_jvms after unfull JVM creation: {next_unfull_jvmpool!r}')
 
         assert self._waiting_for_jvm_with_n_cores.empty()
-        assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
+        all_full = all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
+        if not all_full:
+            non_full_jvm_pools = ','.join([str(jvmpool) for jvmpool in self._jvmpools_by_cores.values() if not jvmpool.full()])
+            log.info(f'JVM Pools were not all full: {non_full_jvm_pools}')
+        assert all_full
         log.info(f'JVMs initialized {self._jvmpools_by_cores}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
