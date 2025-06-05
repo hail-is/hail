@@ -3608,12 +3608,6 @@ SELECT instance_id, n_tokens, frozen FROM globals;
         assert max(regions.values()) < 64, str(regions)
     app['regions'] = regions
 
-    if CLOUD == 'gcp':
-        app['default_region'] = get_gcp_config().region
-    else:
-        assert CLOUD == 'azure'
-        app['default_region'] = get_azure_config().region
-
     fs = get_cloud_async_fs()
     app['file_store'] = FileStore(fs, BATCH_STORAGE_URI, instance_id)
     exit_stack.push_async_callback(app['file_store'].close)
