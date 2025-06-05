@@ -3,7 +3,7 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import Dict, Optional, TypeVar, Tuple, Union
+from typing import Dict, Optional, Tuple, TypeVar, Union
 
 from .variables import ConfigVariable
 

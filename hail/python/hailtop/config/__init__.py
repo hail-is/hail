@@ -1,8 +1,8 @@
 from .deploy_config import DeployConfig, get_deploy_config
 from .user_config import (
     configuration_of,
-    get_config_profile_name,
     get_config_from_file,
+    get_config_profile_name,
     get_hail_config_path,
     get_remote_tmpdir,
     get_user_config,
