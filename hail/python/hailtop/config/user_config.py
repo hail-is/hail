@@ -25,9 +25,9 @@ def get_user_config_path(*, _config_dir: Optional[str] = None) -> Path:
     return Path(get_hail_config_path(_config_dir=_config_dir), 'config.ini')
 
 
-def get_user_config_path_by_profile_name(*,
-                                         profile_name: Optional[str] = None,
-                                         _config_dir: Optional[str] = None) -> Path:
+def get_user_config_path_by_profile_name(
+    *, profile_name: Optional[str] = None, _config_dir: Optional[str] = None
+) -> Path:
     profile_name = profile_name or 'config'  # this is necessary for backwards compatibility
     return Path(get_hail_config_path(_config_dir=_config_dir), f'{profile_name}.ini')
 
@@ -63,7 +63,9 @@ def get_user_config() -> configparser.ConfigParser:
     return user_config
 
 
-def get_user_config_with_profile_overrides_and_source() -> Tuple[configparser.ConfigParser, Dict[Tuple[str, str], Tuple[str, Path]]]:
+def get_user_config_with_profile_overrides_and_source() -> Tuple[
+    configparser.ConfigParser, Dict[Tuple[str, str], Tuple[str, Path]]
+]:
     config_file = get_user_config_path_by_profile_name(profile_name=None)
 
     # in older versions, the config file was accidentally named
@@ -83,9 +85,9 @@ def get_user_config_with_profile_overrides_and_source() -> Tuple[configparser.Co
         user_config.read(profile_config_file)
 
     source = {}
-    for (default_config_option, default_config_value) in default_source.items():
+    for default_config_option, default_config_value in default_source.items():
         source[default_config_option] = default_config_value
-    for (profile_config_option, profile_config_value) in profile_source.items():
+    for profile_config_option, profile_config_value in profile_source.items():
         source[profile_config_option] = profile_config_value
 
     return (user_config, source)

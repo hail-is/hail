@@ -148,12 +148,18 @@ def test_profile(runner: CliRunner, config_dir: str):
     # list the default config variables
     res = runner.invoke(cli.app, 'list', catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f'Config settings from {config_dir}/config.ini:\nbatch/remote_tmpdir={orig_remote_tmpdir}\nquery/backend={default_backend}'
+    assert (
+        res.stdout.strip()
+        == f'Config settings from {config_dir}/config.ini:\nbatch/remote_tmpdir={orig_remote_tmpdir}\nquery/backend={default_backend}'
+    )
 
     # create a new profile
     res = runner.invoke(cli.profile_app, ['create', 'profile1'], catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == 'Created profile "profile1". You can load the profile with `hailctl config profile load profile1`.'
+    assert (
+        res.stdout.strip()
+        == 'Created profile "profile1". You can load the profile with `hailctl config profile load profile1`.'
+    )
 
     # make sure the profile is still the default one
     res = runner.invoke(cli.app, ['get', 'global/profile'], catch_exceptions=False)
@@ -167,20 +173,26 @@ def test_profile(runner: CliRunner, config_dir: str):
     # load the new profile
     res = runner.invoke(cli.profile_app, ['load', 'profile1'], catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f"""Loaded profile profile1 with settings:
+    assert (
+        res.stdout.strip()
+        == f"""Loaded profile profile1 with settings:
 
 Config settings from {config_dir}/config.ini:
 batch/remote_tmpdir=gs://my-bucket/tmp/batch/
 query/backend=spark
 global/profile=profile1"""
+    )
 
     # Make sure the original config is still there
     res = runner.invoke(cli.app, 'list', catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f"""Config settings from {config_dir}/config.ini:
+    assert (
+        res.stdout.strip()
+        == f"""Config settings from {config_dir}/config.ini:
 batch/remote_tmpdir={orig_remote_tmpdir}
 query/backend={default_backend}
 global/profile=profile1"""
+    )
 
     # the value for profile should be the new one (not the default one)
     res = runner.invoke(cli.app, ['get', 'global/profile'], catch_exceptions=False)
@@ -194,12 +206,15 @@ global/profile=profile1"""
     # List the new config to make sure the defaults are overridden if a profile-specific value exists while keeping additional defaults
     res = runner.invoke(cli.app, 'list', catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f"""Config settings from {config_dir}/profile1.ini:
+    assert (
+        res.stdout.strip()
+        == f"""Config settings from {config_dir}/profile1.ini:
 batch/remote_tmpdir={new_remote_tmpdir}
 
 Config settings from {config_dir}/config.ini:
 query/backend=spark
 global/profile=profile1"""
+    )
 
     # List the available profiles
     res = runner.invoke(cli.profile_app, ['list'], catch_exceptions=False)
@@ -214,13 +229,19 @@ global/profile=profile1"""
     # Test config location
     res = runner.invoke(cli.app, 'config-location', catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f"""Default settings: {config_dir}/config.ini
+    assert (
+        res.stdout.strip()
+        == f"""Default settings: {config_dir}/config.ini
 Overrode default settings with profile "profile1": {config_dir}/profile1.ini"""
+    )
 
     # can't delete an active profile
     res = runner.invoke(cli.profile_app, ['delete', 'profile1'], catch_exceptions=False)
     assert res.exit_code == 1
-    assert res.stdout.strip() == "Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`."
+    assert (
+        res.stdout.strip()
+        == "Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`."
+    )
 
     # can't delete the default profile
     res = runner.invoke(cli.profile_app, ['delete', 'default'], catch_exceptions=False)
@@ -230,20 +251,26 @@ Overrode default settings with profile "profile1": {config_dir}/profile1.ini"""
     # load the original profile
     res = runner.invoke(cli.profile_app, ['load', 'default'], catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f"""Loaded profile default with settings:
+    assert (
+        res.stdout.strip()
+        == f"""Loaded profile default with settings:
 
 Config settings from {config_dir}/config.ini:
 batch/remote_tmpdir={orig_remote_tmpdir}
 query/backend={default_backend}
 global/profile=default"""
+    )
 
     # Make sure the original config is still there
     res = runner.invoke(cli.app, 'list', catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == f"""Config settings from {config_dir}/config.ini:
+    assert (
+        res.stdout.strip()
+        == f"""Config settings from {config_dir}/config.ini:
 batch/remote_tmpdir={orig_remote_tmpdir}
 query/backend={default_backend}
 global/profile=default"""
+    )
 
     # delete non-active profile
     res = runner.invoke(cli.profile_app, ['delete', 'profile1'], catch_exceptions=False)

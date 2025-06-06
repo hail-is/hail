@@ -180,20 +180,19 @@ def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = 
     _, source = get_user_config_with_profile_overrides_and_source()
 
     grouped_source = defaultdict(list)
-    for ((_section, option), (value, path)) in source.items():
+    for (_section, option), (value, path) in source.items():
         if section is None or _section == section:
             grouped_source[path].append(((_section, option), value))
 
     output = []
     for path, values in grouped_source.items():
         output.append(f'Config settings from {path}:\n')
-        for ((_section, option), value) in values:
+        for (_section, option), value in values:
             output.append(f'{_section}/{option}={value}\n')
         output.append('\n')
 
     if output:
         print(''.join(output).rstrip('\n'))
-
 
 
 def _list_profiles():
@@ -233,7 +232,9 @@ def _get_profile(incomplete: str) -> str:
 
 
 @profile_app.command(name='load')
-def load_profile(profile_name: Ann[str, Arg(help='Name of configuration profile to load.', autocompletion=_get_profile)] = 'default'):
+def load_profile(
+    profile_name: Ann[str, Arg(help='Name of configuration profile to load.', autocompletion=_get_profile)] = 'default',
+):
     """Load a Hail configuration profile."""
     from hailtop.config import get_user_config_path_by_profile_name  # pylint: disable=import-outside-toplevel
 
@@ -243,7 +244,10 @@ def load_profile(profile_name: Ann[str, Arg(help='Name of configuration profile 
         config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
 
     if not os.path.exists(config_file):
-        print(f"Error: profile '{profile_name}' does not exist. Use `hailctl config profile create {profile_name}` to create it.", file=sys.stderr)
+        print(
+            f"Error: profile '{profile_name}' does not exist. Use `hailctl config profile create {profile_name}` to create it.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     set(ConfigVariable.PROFILE, profile_name)
@@ -269,11 +273,15 @@ def create_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
         os.makedirs(profile_config_file.parent, exist_ok=True)
         open(profile_config_file, 'w', encoding='utf-8')
 
-    print(f'Created profile "{profile_name}". You can load the profile with `hailctl config profile load {profile_name}`.')
+    print(
+        f'Created profile "{profile_name}". You can load the profile with `hailctl config profile load {profile_name}`.'
+    )
 
 
 @profile_app.command(name='delete')
-def delete_profile(profile_name: Ann[str, Arg(help='Name of configuration profile to delete.', autocompletion=_get_profile)]):
+def delete_profile(
+    profile_name: Ann[str, Arg(help='Name of configuration profile to delete.', autocompletion=_get_profile)],
+):
     """Delete a Hail configuration profile."""
     from hailtop.config import (  # pylint: disable=import-outside-toplevel
         get_config_profile_name,
@@ -286,7 +294,9 @@ def delete_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
 
     current_profile = get_config_profile_name()
     if current_profile == profile_name:
-        print('Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`.')
+        print(
+            'Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`.'
+        )
         sys.exit(1)
 
     profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
