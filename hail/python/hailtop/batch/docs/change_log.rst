@@ -15,6 +15,15 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.135**
+
+- (`#14878 <https://github.com/hail-is/hail/pull/14878>`__) Login UI requires ToS acceptance
+- (`#14844 <https://github.com/hail-is/hail/pull/14844>`__) Add support for n1 machines with T4 GPUs in GCP
+- (`#14833 <https://github.com/hail-is/hail/pull/14833>`__) API documentation additions and fixes
+- (`#14851 <https://github.com/hail-is/hail/pull/14851>`__) Regenerate requirements locks
+- (`#14847 <https://github.com/hail-is/hail/pull/14847>`__) Update ubuntu images
+- (`#14841 <https://github.com/hail-is/hail/pull/14841>`__) Allow (non-adjacent) hyphens in usernames
+
 **Version 0.2.132**
 
 - (`#14576 <https://github.com/hail-is/hail/pull/14576>`__) Fixed bug where
