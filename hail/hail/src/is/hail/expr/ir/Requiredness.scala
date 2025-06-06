@@ -115,7 +115,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       assert(!(makeOptional && makeRequired))
       if (refMap.contains(name)) {
         val uses = refMap(name)
-        val eltReq = tcoerce[RIterable](lookup(d)).elementType
+        val eltReq = tcoerce[RContainer](lookup(d)).elementType
         val req = if (makeOptional) {
           val optional = eltReq.copy(eltReq.children)
           optional.union(false)
@@ -629,17 +629,19 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(aReq.required)
       case ToDict(a) =>
         val aReq = lookupAs[RIterable](a)
+        val Seq(rKey, rValue) = tcoerce[RIterable](requiredness).elementType.children
         val Seq(keyType, valueType) = tcoerce[RBaseStruct](aReq.elementType).children
-        tcoerce[RDict](requiredness).keyType.unionFrom(keyType)
-        tcoerce[RDict](requiredness).valueType.unionFrom(valueType)
+        rKey.unionFrom(keyType)
+        rValue.unionFrom(valueType)
         requiredness.union(aReq.required)
       case LowerBoundOnOrderedCollection(collection, _, _) =>
         requiredness.union(lookup(collection).required)
       case GroupByKey(c) =>
         val cReq = lookupAs[RIterable](c)
         val Seq(k, v) = tcoerce[RBaseStruct](cReq.elementType).children
-        tcoerce[RDict](requiredness).keyType.unionFrom(k)
-        tcoerce[RIterable](tcoerce[RDict](requiredness).valueType).elementType.unionFrom(v)
+        val r = tcoerce[RBaseStruct](tcoerce[RIterable](requiredness).elementType)
+        r.children(0).unionFrom(k)
+        tcoerce[RIterable](r.children(1)).elementType.unionFrom(v)
         requiredness.union(cReq.required)
       case StreamGrouped(a, size) =>
         val aReq = lookupAs[RIterable](a)
@@ -722,9 +724,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case AggExplode(_, _, aggBody, _) =>
         requiredness.unionFrom(lookup(aggBody))
       case AggGroupBy(key, aggIR, _) =>
-        val rdict = tcoerce[RDict](requiredness)
-        rdict.keyType.unionFrom(lookup(key))
-        rdict.valueType.unionFrom(lookup(aggIR))
+        val rdict = tcoerce[RBaseStruct](tcoerce[RIterable](requiredness).elementType)
+        rdict.children(0).unionFrom(lookup(key))
+        rdict.children(1).unionFrom(lookup(aggIR))
       case AggArrayPerElement(a, _, _, body, _, _) =>
         val rit = tcoerce[RIterable](requiredness)
         rit.union(lookup(a).required)
