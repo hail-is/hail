@@ -3026,7 +3026,8 @@ class Worker:
         while True:
             try:
                 requested_n_cores = self._waiting_for_jvm_with_n_cores.get_nowait()
-                await self._jvmpools_by_cores[requested_n_cores].create_jvm()
+                if not self._jvmpools_by_cores[requested_n_cores].full():
+                    await self._jvmpools_by_cores[requested_n_cores].create_jvm()
             except asyncio.QueueEmpty:
                 next_unfull_jvmpool = None
                 for jvmpool in self._jvmpools_by_cores.values():
