@@ -5,7 +5,7 @@ from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from hail.vds.combiner import load_combiner, new_combiner
 
-from ..helpers import qobtest, resource, skip_when_service_backend, test_timeout
+from ..helpers import qobtest, resource, test_timeout
 
 all_samples = [
     'HG00308',
@@ -175,10 +175,7 @@ def test_move_load_combiner_plan():
     assert plan == plan_loaded
 
 
-@test_timeout(10 * 60)
-@skip_when_service_backend(
-    reason='Combiner makes extensive use of the Backend API which are serviced by starting a Hail Batch job to execute them. This test will be too slow until we change the combiner to use many fewer executes.'
-)
+@test_timeout(15 * 60)
 def test_combiner_run():
     tmpdir = new_temp_file()
     samples = all_samples[:5]
