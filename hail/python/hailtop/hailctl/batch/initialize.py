@@ -86,15 +86,11 @@ async def setup_new_remote_tmpdir(
         update_gcp_bucket,
     )
 
+    token = secret_alnum_string(5).lower()
+
     default_project = await get_gcp_default_project(verbose=verbose)
 
-    token = secret_alnum_string(5).lower()
-    default_project_str = f'-{default_project}' if default_project is not None else ''
-
-    maybe_bucket_name = f'hail-batch-{username}{default_project_str}-{token}'
-    bucket_name = Prompt.ask('What is the name of the new bucket?', default=maybe_bucket_name)
-
-    bucket_prompt = f'Which google project should {bucket_name} be created in? This project will incur costs for storing your Hail generated data.'
+    bucket_prompt = f'Which google project should the bucket be created in? This project will incur costs for storing your Hail generated data.'
     if default_project is not None:
         project = Prompt.ask(bucket_prompt, default=default_project)
     else:
@@ -113,26 +109,31 @@ async def setup_new_remote_tmpdir(
             fg=typer.colors.YELLOW,
         )
         continue_w_region_error = Confirm.ask(
-            f'Do you wish to continue setting up the new bucket {bucket_name} in region {bucket_region}?'
+            f'Do you wish to continue setting up the new bucket in region {bucket_region}?'
         )
         if not continue_w_region_error:
             raise Abort()
 
-    remote_tmpdir = f'gs://{bucket_name}/batch/tmp'
-    warnings = False
-
     set_lifecycle = Confirm.ask(
-        f'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket {bucket_name}?'
+        f'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket?'
     )
     if set_lifecycle:
         lifecycle_days = IntPrompt.ask(
-            f'After how many days should files be automatically deleted from bucket {bucket_name}?', default=30
+            f'After how many days should files be automatically deleted from bucket?', default=7
         )
         if lifecycle_days <= 0:
             typer.secho(f'Invalid value for lifecycle rule in days {lifecycle_days}', fg=typer.colors.RED)
             raise Abort()
     else:
         lifecycle_days = None
+
+    lifecycle_days_str = f'-{lifecycle_days}day' if lifecycle_days is not None else ''
+
+    maybe_bucket_name = f'hail-batch-{username}-{project}-{token}{lifecycle_days_str}'
+    bucket_name = Prompt.ask('What is the name of the new bucket?', default=maybe_bucket_name)
+
+    remote_tmpdir = f'gs://{bucket_name}/batch/tmp'
+    warnings = False
 
     labels = {
         'bucket': bucket_name,
