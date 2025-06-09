@@ -426,15 +426,16 @@ class TerraAzureDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
+        cloud: str,
     ) -> 'TerraAzureDriver':
         azure_config = get_azure_config()
         region = azure_config.region
         regions = [region]
 
-        region_args = [(r,) for r in regions]
+        region_args = [(r, cloud) for r in regions]
         await db.execute_many(
             """
-INSERT INTO regions (region) VALUES (%s)
+INSERT INTO regions (region, cloud) VALUES (%s, %s)
 ON DUPLICATE KEY UPDATE region = region;
 """,
             region_args,
@@ -442,13 +443,13 @@ ON DUPLICATE KEY UPDATE region = region;
 
         db_regions = {
             record['region']: record['region_id']
-            async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions WHERE cloud = %s', (cloud,))
         }
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
 
         region_monitor = await SingleRegionMonitor.create(region)
-        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, region, regions)
+        inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, region_monitor, cloud, region, regions)
         pricing_client = AzurePricingClient()
         billing_manager = await AzureBillingManager.create(db, pricing_client, regions)
         resource_manager = TerraAzureResourceManager(billing_manager)
@@ -466,7 +467,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 app['async_worker_pool'],
                 task_manager,
             )
-            for config in inst_coll_configs.name_pool_config.values()
+            for config in inst_coll_configs.name_pool_config[cloud].values()
         ]
 
         jpim, *_ = await asyncio.gather(
@@ -476,7 +477,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 inst_coll_manager,
                 resource_manager,
                 machine_name_prefix,
-                inst_coll_configs.jpim_config,
+                inst_coll_configs.jpim_config[cloud],
                 task_manager,
             ),
             *create_pools_coros,
