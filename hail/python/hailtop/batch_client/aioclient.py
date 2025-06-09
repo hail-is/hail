@@ -1437,7 +1437,11 @@ class BatchClient:
         resp = await self._get('/api/v1alpha/supported_regions')
         return await resp.json()
 
-    async def cloud(self):
+    async def default_region(self) -> str:
+        resp = await self._get('/api/v1alpha/default_region')
+        return await resp.text()
+
+    async def cloud(self) -> str:
         resp = await self._get('/api/v1alpha/cloud')
         return await resp.text()
 
