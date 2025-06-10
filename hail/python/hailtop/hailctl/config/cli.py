@@ -1,8 +1,7 @@
 import os
 import sys
 from collections import defaultdict
-from typing import Annotated as Ann
-from typing import Optional, Tuple
+from typing import Annotated as Ann, Generator, Optional, Tuple
 
 import typer
 from rich import print
@@ -224,7 +223,7 @@ def list_profiles():
             print(f'  {profile}')
 
 
-def _get_profile(incomplete: str) -> str:
+def _get_profile(incomplete: str) -> Generator[str, None, None]:
     profiles = _list_profiles()
     for profile in profiles:
         if profile.startswith(incomplete):
