@@ -173,8 +173,8 @@ def config_location():
 @app.command(name='list')
 def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = None):
     """Lists every config variable in the section."""
-    from hailtop.config import (
-        get_user_config_with_profile_overrides_and_source,  # pylint: disable=import-outside-toplevel
+    from hailtop.config import (  # pylint: disable=import-outside-toplevel
+        get_user_config_with_profile_overrides_and_source,
     )
 
     _, source = get_user_config_with_profile_overrides_and_source()
@@ -263,15 +263,15 @@ def create_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
 
     profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
 
-    if os.path.isfile(profile_config_file):
+    if profile_config_file.is_file():
         print(f'Error: profile {profile_name} already exists!')
         sys.exit(1)
 
     try:
-        open(profile_config_file, 'w', encoding='utf-8')
+        profile_config_file.touch()
     except FileNotFoundError:
         os.makedirs(profile_config_file.parent, exist_ok=True)
-        open(profile_config_file, 'w', encoding='utf-8')
+        profile_config_file.touch()
 
     print(
         f'Created profile "{profile_name}". You can load the profile with `hailctl config profile load {profile_name}`.'
