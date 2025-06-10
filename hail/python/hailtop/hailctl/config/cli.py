@@ -5,7 +5,7 @@ from typing import Annotated as Ann
 from typing import Generator, Optional, Tuple
 
 import typer
-from rich import print
+from rich.console import Console
 from typer import Argument as Arg
 
 from hailtop.config.variables import ConfigVariable
@@ -28,6 +28,9 @@ profile_app = typer.Typer(
 
 app.add_typer(profile_app)
 
+outc = Console(soft_wrap=True)
+errc = Console(stderr=True, soft_wrap=True)
+
 
 def get_section_key_path(parameter: str) -> Tuple[str, str, Tuple[str, ...]]:
     path = parameter.split('/')
@@ -35,7 +38,7 @@ def get_section_key_path(parameter: str) -> Tuple[str, str, Tuple[str, ...]]:
         return 'global', path[0], tuple(path)
     if len(path) == 2:
         return path[0], path[1], tuple(path)
-    print(
+    outc.print(
         """
 Parameters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
@@ -70,7 +73,7 @@ def set(
     )
 
     if parameter not in config_variables():
-        print(f"Error: unknown parameter {parameter!r}", file=sys.stderr)
+        errc.print(f"Error: unknown parameter {parameter!r}")
         sys.exit(1)
 
     section, key, _ = get_section_key_path(parameter.value)
@@ -79,7 +82,7 @@ def set(
     validation_func, error_msg = config_variable_info.validation
 
     if not validation_func(value):
-        print(f"Error: bad value {value!r} for parameter {parameter!r} {error_msg}", file=sys.stderr)
+        errc.print(f"Error: bad value {value!r} for parameter {parameter!r} {error_msg}")
         sys.exit(1)
 
     profile_name = get_config_profile_name()
@@ -139,7 +142,7 @@ def unset(parameter: Ann[str, Arg(help="Configuration variable to unset", autoco
         with open(config_file, 'w', encoding='utf-8') as f:
             config.write(f)
     else:
-        print(f"WARNING: Unknown parameter {parameter!r}", file=sys.stderr)
+        errc.print(f"WARNING: Unknown parameter {parameter!r}")
 
 
 @app.command()
@@ -150,7 +153,7 @@ def get(parameter: Ann[str, Arg(help="Configuration variable to get", autocomple
     config = get_user_config()
     section, key, _ = get_section_key_path(parameter)
     if section in config and key in config[section]:
-        print(config[section][key])
+        outc.print(config[section][key])
 
 
 @app.command(name='config-location')
@@ -162,12 +165,12 @@ def config_location():
         get_user_config_path_by_profile_name,
     )
 
-    print(f'Default settings: {get_user_config_path()}')
+    outc.print(f'Default settings: {get_user_config_path()}')
 
     profile_name = get_config_profile_name()
     if profile_name is not None:
         profile_path = get_user_config_path_by_profile_name(profile_name=profile_name)
-        print(f'Overrode default settings with profile "{profile_name}": {profile_path}')
+        outc.print(f'Overrode default settings with profile "{profile_name}": {profile_path}')
 
 
 @app.command(name='list')
@@ -188,11 +191,13 @@ def list_config(section: Ann[Optional[str], Arg(show_default='all sections')] = 
     for path, values in grouped_source.items():
         output.append(f'Config settings from {path}:\n')
         for (_section, option), value in values:
-            output.append(f'{_section}/{option}={value}\n')
+            output.append(
+                f'[cyan]{_section}[/cyan]/[yellow]{option}[/yellow]=[bright_magenta]{value}[/bright_magenta]\n'
+            )
         output.append('\n')
 
     if output:
-        print(''.join(output).rstrip('\n'))
+        outc.print(''.join(output).rstrip('\n'))
 
 
 def _list_profiles():
@@ -219,9 +224,9 @@ def list_profiles():
 
     for profile in profiles:
         if profile == current_profile:
-            print(f'* {profile}')
+            outc.print(f'* [green]{profile}[/green]')
         else:
-            print(f'  {profile}')
+            outc.print(f'  {profile}')
 
 
 def _get_profile(incomplete: str) -> Generator[str, None, None]:
@@ -244,15 +249,14 @@ def load_profile(
         config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
 
     if not os.path.exists(config_file):
-        print(
+        errc.print(
             f"Error: profile '{profile_name}' does not exist. Use `hailctl config profile create {profile_name}` to create it.",
-            file=sys.stderr,
         )
         sys.exit(1)
 
     set(ConfigVariable.PROFILE, profile_name)
 
-    print(f'Loaded profile {profile_name} with settings:\n')
+    outc.print(f'Loaded profile {profile_name} with settings:\n')
     list_config()
 
 
@@ -264,7 +268,7 @@ def create_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
     profile_config_file = get_user_config_path_by_profile_name(profile_name=profile_name)
 
     if profile_config_file.is_file():
-        print(f'Error: profile {profile_name} already exists!')
+        errc.print(f'Error: profile {profile_name} already exists!')
         sys.exit(1)
 
     try:
@@ -273,7 +277,7 @@ def create_profile(profile_name: Ann[str, Arg(help='Name of configuration profil
         os.makedirs(profile_config_file.parent, exist_ok=True)
         profile_config_file.touch()
 
-    print(
+    outc.print(
         f'Created profile "{profile_name}". You can load the profile with `hailctl config profile load {profile_name}`.'
     )
 
@@ -289,12 +293,12 @@ def delete_profile(
     )
 
     if profile_name == 'default':
-        print('Cannot delete the "default" profile.')
+        errc.print('Cannot delete the "default" profile.')
         sys.exit(1)
 
     current_profile = get_config_profile_name()
     if current_profile == profile_name:
-        print(
+        errc.print(
             'Cannot delete a profile that is currently being used. Use `hailctl config profile list` to see available profiles. Load a different environment with `hailctl config profile load <profile_name>`.'
         )
         sys.exit(1)
@@ -303,7 +307,7 @@ def delete_profile(
     try:
         os.remove(profile_config_file)
     except FileNotFoundError:
-        print(f'Unknown profile "{profile_name}".')
+        errc.print(f'Unknown profile "{profile_name}".')
         sys.exit(1)
 
-    print(f'Deleted profile "{profile_name}".')
+    outc.print(f'Deleted profile "{profile_name}".')
