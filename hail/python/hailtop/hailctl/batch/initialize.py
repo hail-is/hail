@@ -90,7 +90,7 @@ async def setup_new_remote_tmpdir(
 
     default_project = await get_gcp_default_project(verbose=verbose)
 
-    bucket_prompt = f'Which google project should the bucket be created in? This project will incur costs for storing your Hail generated data.'
+    bucket_prompt = 'Which google project should the bucket be created in? This project will incur costs for storing your Hail generated data.'
     if default_project is not None:
         project = Prompt.ask(bucket_prompt, default=default_project)
     else:
@@ -115,11 +115,11 @@ async def setup_new_remote_tmpdir(
             raise Abort()
 
     set_lifecycle = Confirm.ask(
-        f'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket?'
+        'Do you want to set a lifecycle policy (automatically delete files after a time period) on the bucket?'
     )
     if set_lifecycle:
         lifecycle_days = IntPrompt.ask(
-            f'After how many days should files be automatically deleted from bucket?', default=7
+            'After how many days should files be automatically deleted from bucket?', default=7
         )
         if lifecycle_days <= 0:
             typer.secho(f'Invalid value for lifecycle rule in days {lifecycle_days}', fg=typer.colors.RED)
