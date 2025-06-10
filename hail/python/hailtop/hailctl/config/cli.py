@@ -1,7 +1,8 @@
 import os
 import sys
 from collections import defaultdict
-from typing import Annotated as Ann, Generator, Optional, Tuple
+from typing import Annotated as Ann
+from typing import Generator, Optional, Tuple
 
 import typer
 from rich import print
