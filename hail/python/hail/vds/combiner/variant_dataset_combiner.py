@@ -835,7 +835,12 @@ def new_combiner(
         gvcf_type = mt._type
         if gvcf_reference_entry_fields_to_keep is None:
             rmt = mt.filter_rows(hl.is_defined(mt.info.END))
+            info(
+                "Computing defined reference entry fields. To avoid this in the future, "
+                "set `gvcf_reference_entry_fields_to_keep` in `new_combiner`."
+            )
             gvcf_reference_entry_fields_to_keep = defined_entry_fields(rmt, 100_000) - {'PGT', 'PL'}
+            info(f"Defined reference entry fields: {gvcf_reference_entry_fields_to_keep}")
         if vds is None:
             vds = transform_gvcf(
                 mt._key_rows_by_assert_sorted('locus'), gvcf_reference_entry_fields_to_keep, gvcf_info_to_keep
