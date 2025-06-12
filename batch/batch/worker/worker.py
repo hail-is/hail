@@ -3017,6 +3017,7 @@ class Worker:
         self._jvmpools_by_cores: Dict[int, JVMPool] = {n_cores: JVMPool(n_cores, self) for n_cores in (1, 2, 4, 8)}
         self._waiting_for_jvm_with_n_cores: asyncio.Queue[int] = asyncio.Queue()
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
+        self._jvm_initializer_task.add_done_callback(self._initialize_jvms_postmortem)
 
     async def _initialize_jvms(self):
         assert instance_config
@@ -3042,6 +3043,13 @@ class Worker:
         assert self._waiting_for_jvm_with_n_cores.empty()
         assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
         log.info(f'JVMs initialized {self._jvmpools_by_cores}')
+
+    @staticmethod
+    def _initialize_jvms_postmortem(task: asyncio.Task):
+        try:
+            _ = task.result()
+        except Exception as e:
+            log.exception(f'JVMs not all initialized due to {type(e).__name__}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
         assert instance_config
@@ -3070,6 +3078,7 @@ class Worker:
 
     async def shutdown(self):
         log.info('Worker.shutdown')
+        self._jvm_initializer_task.remove_done_callback(self._initialize_jvms_postmortem)
         self._jvm_initializer_task.cancel()
         async with AsyncExitStack() as cleanup:
             cleanup.push_async_callback(self.client_session.close)
