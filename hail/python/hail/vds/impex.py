@@ -1,15 +1,202 @@
 import functools
+import gzip
+import json
+import os
 
 import hail as hl
 from hail import ir
-from hail.expr.types import tarray, tcall, tfloat32, tfloat64, tint32, tstruct
+from hail.expr.expressions import construct_expr, construct_variable, unify_all
+from hail.expr.types import tarray, tcall, tfloat32, tfloat64, tint32, tinterval, tstruct
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import dictof, enumeration, nullable, oneof, sequenceof, sized_tupleof, typecheck
-from hail.utils.java import info, warning
+from hail.utils.java import Env, info, warning
 
 from .functions import lgt_to_gt
 from .methods import to_merged_sparse_mt
-from .variant_dataset import VariantDataset
+from .variant_dataset import VariantDataset, read_vds
+
+
+def __get_range_bounds(path, key_type: tstruct):
+    md = 'metadata.json.gz'
+    range_bound_field_map = {
+        'IndexedRVDSpec': 'jRangeBounds',
+        'IndexedRVDSpec2': '_jRangeBounds',
+    }
+
+    fs = hl.current_backend().fs
+    with fs.open(os.path.join(path, md), 'rb') as mdgz_file:
+        with gzip.open(mdgz_file) as md_file:
+            table_spec = json.load(md_file)
+    rows_rel_path = table_spec['components']['rows']['rel_path']
+    with fs.open(os.path.join(path, rows_rel_path, md), 'rb') as mdgz_file:
+        with gzip.open(mdgz_file) as md_file:
+            rvd_spec = json.load(md_file)
+    name = rvd_spec['name']
+    bounds = rvd_spec[range_bound_field_map[name]]
+    point = bounds[0]['start']
+    part_key = key_type._select_fields(list(point))
+    bounds_type = tarray(tinterval(part_key))
+    return bounds_type._convert_from_json(bounds)
+
+
+@typecheck(path=str)
+def read_dense_mt(path):
+    """Reads a :class:`.VariantDataset` as a single dense :class:`hail.matrixtable.MatrixTable`.
+
+    Parameters
+    ----------
+    path: :obj:`str`
+        Path to the VDS to read. The ``ref_block_max_len`` global field must be defined on the
+        target VDS. If it is not, the vds can be patched in place with
+        :func:`hail.vds.store_ref_block_max_length`
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Dataset in dense MatrixTable representation.
+    """
+    vds = read_vds(path)
+    if VariantDataset.ref_block_max_length_field not in vds.reference_data.globals:
+        raise ValueError(
+            f'no `{VariantDataset.ref_block_max_length_field}` field, '
+            'write a copy with `truncate_reference_blocks`, or patch '
+            'the vds in place with `store_ref_block_max_length`'
+        )
+    ref_path = VariantDataset._reference_path(path)
+    var_path = VariantDataset._variants_path(path)
+    range_bounds = __get_range_bounds(ref_path, vds.reference_data.row_key.dtype)
+    rbml = hl.eval(vds.reference_data.globals[VariantDataset.ref_block_max_length_field])
+    var_globals = vds.variant_data.localize_entries(columns_array_field_name='_var_cols').index_globals()
+
+    def join(left, right):
+        key = ['locus']
+        l_uid = Env.get_uid()
+        r_uid = Env.get_uid()
+        l_elt_ty = left.dtype.element_type
+        r_elt_ty = right.dtype.element_type
+        l_elt = construct_variable(l_uid, l_elt_ty, left._indices)
+        r_elt = construct_variable(r_uid, r_elt_ty, right._indices)
+
+        join_expr = hl.struct(
+            **hl.coalesce(l_elt.select(*key), r_elt.select(*key)),
+            **{name: l_elt[name] for name in l_elt if name not in key},
+            **{name: r_elt[name] for name in r_elt if name not in key},
+        )
+
+        joined_ir = ir.StreamJoinRightDistinct(
+            left=left._ir,
+            right=right._ir,
+            l_key=key,
+            r_key=key,
+            l_name=l_uid,
+            r_name=r_uid,
+            join=join_expr._ir,
+            join_type='outer',
+        )
+
+        indices, _ = unify_all(left, right, join_expr)
+        return construct_expr(joined_ir, joined_ir.typ, indices)
+
+    def gen_part(var_interval, gbl):
+        to_drop = 'alleles', 'rsid', 'ref_allele', 'LEN', 'END'
+        ref_start_pos = hl.max(var_interval.start.locus.position - rbml, 1)
+        rg = var_interval.start.locus.dtype.reference_genome
+        ref_start_locus = hl.locus(var_interval.start.locus.contig, ref_start_pos, rg)
+        ref_interval = hl.interval(
+            start=hl.struct(locus=ref_start_locus),
+            end=var_interval.end,
+            includes_start=var_interval.includes_start,
+            includes_end=var_interval.includes_end,
+        )
+        ref_stream = hl.query_matrix_table_rows(ref_path, ref_interval, '_ref_entries')._to_stream()
+
+        # This is awful! But, we need to handle the fact that on disk, some vds have
+        # LEN and others have END
+        if 'LEN' in ref_stream.dtype.element_type['_ref_entries'].element_type:
+            ref_stream = ref_stream.map(
+                lambda elt: hl.rbind(
+                    elt.locus.global_position(),
+                    lambda gp: elt.annotate(
+                        _ref_entries=elt._ref_entries.map(lambda ent: ent.annotate(_END_GLOBAL=gp + ent.LEN - 1))
+                    ).drop(*(x for x in to_drop if x in elt)),
+                )
+            )
+        else:
+            assert 'END' in ref_stream.dtype.element_type['_ref_entries'].element_type
+            ref_stream = ref_stream.map(
+                lambda elt: hl.rbind(
+                    elt.locus.global_position(),
+                    elt.locus.position,
+                    lambda gp, local_pos: elt.annotate(
+                        _ref_entries=elt._ref_entries.map(
+                            lambda ent: ent.annotate(_END_GLOBAL=gp + ent.END - local_pos)
+                        )
+                    ).drop(*(x for x in to_drop if x in elt)),
+                )
+            )
+        var_stream = (
+            hl.query_matrix_table_rows(var_path, var_interval, '_var_entries')
+            ._to_stream()
+            .map(lambda elt: elt.annotate(_variant_defined=True))
+        )
+        joined = join(var_stream, ref_stream)
+        dr = joined._aggregate_scan(
+            lambda elt: elt.annotate(
+                dense_ref=hl.or_missing(elt._variant_defined, hl.scan._densify(vds.n_samples(), elt._ref_entries))
+            )
+        )
+        dr = dr.filter(lambda elt: elt._variant_defined)
+        return dr.to_array()
+
+    dr = hl.Table._generate(range_bounds, range_bounds, gen_part, var_globals)
+
+    def coalesce_join(ref, var):
+        call_field = 'GT' if 'GT' in var else 'LGT'
+        assert call_field in var, var.dtype
+
+        if call_field not in ref:
+            ref_call_field = 'GT' if 'GT' in ref else 'LGT'
+            if ref_call_field not in ref:
+                ref = ref.annotate(**{call_field: hl.call(0, 0)})
+            else:
+                ref = ref.annotate(**{call_field: ref[ref_call_field]})
+
+        # call_field is now in both ref and var
+        ref_set, var_set = set(ref.dtype), set(var.dtype)
+        shared_fields, var_fields = var_set & ref_set, var_set - ref_set
+
+        return hl.if_else(
+            hl.is_defined(var),
+            var.select(*shared_fields, *var_fields),
+            ref.select(*shared_fields, **{f: hl.missing(var[f].dtype) for f in var_fields}),
+        )
+
+    dr = dr.annotate(
+        _dense=hl.rbind(
+            dr._ref_entries,
+            lambda refs_at_this_row: hl.enumerate(hl.zip(dr._var_entries, dr.dense_ref)).map(
+                lambda tup: coalesce_join(
+                    hl.coalesce(
+                        refs_at_this_row[tup[0]],
+                        hl.or_missing(tup[1][1]._END_GLOBAL >= dr.locus.global_position(), tup[1][1]),
+                    ),
+                    tup[1][0],
+                )
+            ),
+        ),
+    )
+
+    dr = dr._key_by_assert_sorted('locus', 'alleles')
+    fields_to_drop = ['_var_entries', '_ref_entries', 'dense_ref', '_variant_defined']
+
+    if hl.vds.VariantDataset.ref_block_max_length_field in dr.globals:
+        fields_to_drop.append(hl.vds.VariantDataset.ref_block_max_length_field)
+
+    if 'ref_allele' in dr.row:
+        fields_to_drop.append('ref_allele')
+    dr = dr.drop(*fields_to_drop)
+
+    return dr._unlocalize_entries('_dense', '_var_cols', list(vds.variant_data.col_key))
 
 
 @typecheck(
