@@ -1,5 +1,6 @@
 ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
 FROM $BASE_IMAGE AS base
+ARG PYTHON_VERSION
 
 # libyajl-dev: crun runtime dependency
 RUN hail-apt-get-install \
