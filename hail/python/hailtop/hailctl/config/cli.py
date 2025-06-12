@@ -38,7 +38,7 @@ def get_section_key_path(parameter: str) -> Tuple[str, str, Tuple[str, ...]]:
         return 'global', path[0], tuple(path)
     if len(path) == 2:
         return path[0], path[1], tuple(path)
-    outc.print(
+    errc.print(
         """
 Parameters must contain at most one slash separating the configuration section
 from the configuration parameter, for example: "batch/billing_project".
@@ -49,7 +49,6 @@ parameter, for example: "domain".
 A parameter with more than one slash is invalid, for example:
 "batch/billing/project".
 """.lstrip('\n'),
-        file=sys.stderr,
     )
     sys.exit(1)
 
