@@ -1,5 +1,6 @@
 ARG BASE_IMAGE={{ base_image.image }}
 FROM $BASE_IMAGE
+ARG PYTHON_VERSION
 
 RUN mkdir -p plink && \
   cd plink && \
@@ -13,7 +14,7 @@ COPY hail/python/pinned-requirements.txt requirements.txt
 COPY hail/python/dev/pinned-requirements.txt dev-requirements.txt
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
-ENV SPARK_HOME /usr/local/lib/python${PYTHON_VERSION}/dist-packages/pyspark
+ENV SPARK_HOME /usr/local/lib/python$PYTHON_VERSION/dist-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
 ENV PYSPARK_PYTHON python3
 ENV PYSPARK_SUBMIT_ARGS "--conf spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator pyspark-shell"
