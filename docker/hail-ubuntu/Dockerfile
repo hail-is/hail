@@ -1,8 +1,8 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
 FROM $DOCKER_PREFIX/ubuntu:noble-20250529
 
-ENV LANG C.UTF-8
-ENV DEBIAN_FRONTEND noninteractive
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
 
 COPY retry /bin/retry
 COPY hail-apt-get-install /bin/hail-apt-get-install
@@ -12,6 +12,8 @@ COPY controller.sh /
 COPY curlrc /root/.curlrc
 
 ARG PYTHON_VERSION=3.11
+# save PYTHON_VERSION to the environment so that dependent images can inherit the value
+ENV HAIL_PYTHON_MAJOR_VERSION=$PYTHON_VERSION
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
     chmod 755 /bin/hail-pip-install && \
