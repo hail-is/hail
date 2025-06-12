@@ -3,6 +3,7 @@ from enum import Enum
 
 class ConfigVariable(str, Enum):
     DOMAIN = 'domain'
+    PROFILE = 'profile'
     GCS_REQUESTER_PAYS_PROJECT = 'gcs_requester_pays/project'
     GCS_REQUESTER_PAYS_BUCKETS = 'gcs_requester_pays/buckets'
     GCS_BUCKET_ALLOW_LIST = 'gcs/bucket_allow_list'
