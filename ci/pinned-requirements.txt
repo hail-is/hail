@@ -17,7 +17,7 @@ charset-normalizer==3.4.2
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
     #   requests
-click==8.1.8
+click==8.2.1
     # via
     #   -c ci/../hail/python/dev/pinned-requirements.txt
     #   -c ci/../hail/python/pinned-requirements.txt
@@ -63,7 +63,7 @@ uritemplate==4.2.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   gidgethub
-urllib3==1.26.20
+urllib3==2.4.0
     # via
     #   -c ci/../gear/pinned-requirements.txt
     #   -c ci/../hail/python/dev/pinned-requirements.txt
