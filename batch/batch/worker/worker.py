@@ -3449,7 +3449,7 @@ class Worker:
         resp_json = await retry_transient_errors(
             self.client_session.post_read_json,
             deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
-            json={'ip_address': os.environ['IP_ADDRESS']},
+            json={'ip_address': os.environ['IP_ADDRESS'], 'cloud': CLOUD},
             headers=await self.headers(),
         )
         self.instance_token = resp_json['token']

@@ -2,7 +2,6 @@ import asyncio
 from typing import Dict
 
 from gear import Database
-from gear.cloud_config import get_gcp_config
 from hailtop import aiotools
 from hailtop.aiocloud import aiogoogle
 from hailtop.utils import RateLimit, periodically_call
@@ -13,11 +12,11 @@ from ....inst_coll_config import InstanceCollectionConfigs
 from .activity_logs import process_activity_log_events_since
 from .billing_manager import GCPBillingManager
 from .disks import delete_orphaned_disks
-from .resource_manager import GCPResourceManager
+from batch.batch.cloud.lambda_.driver.resource_manager import GCPResourceManager
 from .zones import ZoneMonitor
 
 
-class GCPDriver(CloudDriver):
+class LambdaDriver(CloudDriver):
     @staticmethod
     async def create(
         app,
@@ -26,8 +25,11 @@ class GCPDriver(CloudDriver):
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
         cloud: str,
-    ) -> 'GCPDriver':
-        gcp_config = get_gcp_config()
+    ) -> 'LambdaDriver':
+        lambda_config = get_lambda_config()
+
+        # put lambda configuration parameters that are needed here
+
         project = gcp_config.project
         zone = gcp_config.zone
         region = gcp_config.region
@@ -44,26 +46,17 @@ ON DUPLICATE KEY UPDATE region = region;
 
         db_regions: Dict[str, int] = {
             record['region']: record['region_id']
-            async for record in db.select_and_fetchall('SELECT region_id, region from regions WHERE cloud = %s', (cloud,))
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions WHERE cloud = %s;', (cloud,))
         }
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
 
-        compute_client = aiogoogle.GoogleComputeClient(project)
+        compute_client = ...
 
-        activity_logs_client = aiogoogle.GoogleLoggingClient(
-            # The project-wide logging quota is 60 request/m.  The event
-            # loop sleeps 15s per iteration, so the max rate is 4
-            # iterations/m.  Note, the event loop could make multiple
-            # logging requests per iteration, so these numbers are not
-            # quite comparable.  I didn't want to consume the entire quota
-            # since there will be other users of the logging API (us at
-            # the web console, test deployments, etc.)
-            rate_limit=RateLimit(10, 60),
-        )
+        activity_logs_client = ...
 
-        zone_monitor = await ZoneMonitor.create(compute_client, regions, zone)
-        billing_manager = await GCPBillingManager.create(db, regions)
+        zone_monitor = ...
+        billing_manager = ...
         inst_coll_manager = InstanceCollectionManager(db, machine_name_prefix, zone_monitor, region, regions)
         resource_manager = GCPResourceManager(project, compute_client, billing_manager)
 
@@ -97,7 +90,7 @@ ON DUPLICATE KEY UPDATE region = region;
         )
 
         assert isinstance(jpim, JobPrivateInstanceManager)
-        driver = GCPDriver(
+        driver = LambdaDriver(
             db,
             machine_name_prefix,
             compute_client,

@@ -37,12 +37,14 @@ class InstanceCollectionManager:
         db: Database,  # BORROWED
         machine_name_prefix: str,
         location_monitor: CloudLocationMonitor,
+        cloud: str,
         default_region: str,
         regions: List[str],
     ):
         self.db: Database = db
         self.machine_name_prefix = machine_name_prefix
         self.location_monitor = location_monitor
+        self.cloud = cloud
 
         assert default_region in regions, (default_region, regions)
         self._default_region = default_region

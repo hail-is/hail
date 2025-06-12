@@ -1,4 +1,5 @@
 import asyncio
+from collections import defaultdict
 import logging
 from typing import Dict, Optional, Tuple
 
@@ -275,22 +276,22 @@ class InstanceCollectionConfigs:
     @staticmethod
     async def instance_collections_from_db(
         db: Database,
-    ) -> Tuple[Dict[str, PoolConfig], JobPrivateInstanceManagerConfig]:
+    ) -> Tuple[Dict[str, Dict[str, PoolConfig]], Dict[str, JobPrivateInstanceManagerConfig]]:
         records = db.execute_and_fetchall("""
 SELECT inst_colls.*, pools.*
 FROM inst_colls
-LEFT JOIN pools ON inst_colls.name = pools.name;
+LEFT JOIN pools ON inst_colls.cloud = pools.cloud AND inst_colls.name = pools.name;
 """)
 
-        name_pool_config: Dict[str, PoolConfig] = {}
-        jpim_config: Optional[JobPrivateInstanceManagerConfig] = None
+        name_pool_config: Dict[str, Dict[str, PoolConfig]] = defaultdict(dict)
+        jpim_config: Dict[str, JobPrivateInstanceManagerConfig] = {}
         async for record in records:
             if record['is_pool']:
                 config = PoolConfig.from_record(record)
-                name_pool_config[config.name] = config
+                name_pool_config[config.cloud][config.name] = config
             else:
                 config = JobPrivateInstanceManagerConfig.from_record(record)
-                jpim_config = config
+                jpim_config[config.cloud] = config
         assert jpim_config is not None
         return name_pool_config, jpim_config
 
@@ -309,8 +310,8 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
 
     def __init__(
         self,
-        name_pool_config: Dict[str, PoolConfig],
-        jpim_config: JobPrivateInstanceManagerConfig,
+        name_pool_config: Dict[str, Dict[str, PoolConfig]],
+        jpim_config: Dict[str, JobPrivateInstanceManagerConfig],
         resource_rates: Dict[str, float],
         product_versions_data: Dict[str, ProductVersionInfo],
     ):
@@ -334,8 +335,8 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
 
         optimal_result = None
         optimal_price = None
-        for pool in self.name_pool_config.values():
-            if pool.cloud != cloud or pool.preemptible != preemptible:
+        for pool in self.name_pool_config[cloud].values():
+            if pool.preemptible != preemptible:
                 continue
 
             result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
@@ -359,22 +360,20 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     max_regional_maybe_price is not None and max_regional_maybe_price < optimal_price
                 ):
                     optimal_price = max_regional_maybe_price
-                    optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
+                    optimal_result = (pool.cloud, pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
         return optimal_result
 
     def select_pool_from_worker_type(self, cloud, worker_type, cores_mcpu, memory_bytes, storage_bytes, preemptible):
-        for pool in self.name_pool_config.values():
-            if pool.cloud == cloud and pool.worker_type == worker_type and pool.preemptible == preemptible:
+        for pool in self.name_pool_config[cloud].values():
+            if pool.worker_type == worker_type and pool.preemptible == preemptible:
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
                     actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
-                    return (pool.name, actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib)
+                    return (pool.cloud, pool.name, actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib)
         return None
 
     def select_job_private(self, cloud, machine_type, storage_bytes):
-        if self.jpim_config.cloud != cloud:
-            return None
-        return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
+        return self.jpim_config[cloud].convert_requests_to_resources(machine_type, storage_bytes)
 
     def select_inst_coll(
         self, cloud, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes

@@ -28,6 +28,7 @@ class AzureDriver(CloudDriver):
         machine_name_prefix: str,
         namespace: str,
         inst_coll_configs: InstanceCollectionConfigs,
+        cloud: str,
     ) -> 'AzureDriver':
         azure_config = get_azure_config()
         subscription_id = azure_config.subscription_id
@@ -35,10 +36,10 @@ class AzureDriver(CloudDriver):
         region = azure_config.region
         regions = [region]
 
-        region_args = [(r,) for r in regions]
+        region_args = [(r, cloud) for r in regions]
         await db.execute_many(
             """
-INSERT INTO regions (region) VALUES (%s)
+INSERT INTO regions (region, cloud) VALUES (%s, %s)
 ON DUPLICATE KEY UPDATE region = region;
 """,
             region_args,
@@ -46,7 +47,7 @@ ON DUPLICATE KEY UPDATE region = region;
 
         db_regions: Dict[str, int] = {
             record['region']: record['region_id']
-            async for record in db.select_and_fetchall('SELECT region_id, region from regions')
+            async for record in db.select_and_fetchall('SELECT region_id, region from regions WHERE cloud = %s', (cloud,))
         }
         assert max(db_regions.values()) < 64, str(db_regions)
         app['regions'] = db_regions
@@ -80,7 +81,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 app['async_worker_pool'],
                 task_manager,
             )
-            for config in inst_coll_configs.name_pool_config.values()
+            for config in inst_coll_configs.name_pool_config[cloud].values()
         ]
 
         jpim, *_ = await asyncio.gather(
@@ -90,7 +91,7 @@ ON DUPLICATE KEY UPDATE region = region;
                 inst_coll_manager,
                 resource_manager,
                 machine_name_prefix,
-                inst_coll_configs.jpim_config,
+                inst_coll_configs.jpim_config[cloud],
                 task_manager,
             ),
             *create_pools_coros,

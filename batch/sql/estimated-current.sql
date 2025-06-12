@@ -28,25 +28,26 @@ CREATE TABLE IF NOT EXISTS `latest_product_versions` (
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `inst_colls` (
+  `cloud` VARCHAR(100) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
   `is_pool` BOOLEAN NOT NULL,
   `boot_disk_size_gb` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
-  `cloud` VARCHAR(100) NOT NULL,
   `max_new_instances_per_autoscaler_loop` INT NOT NULL,
   `autoscaler_loop_period_secs` INT NOT NULL,
   `worker_max_idle_time_secs` INT NOT NULL,
-  PRIMARY KEY (`name`)
+  PRIMARY KEY (`cloud`, `name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
 
-INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('standard', 1, 10, 6250, 800);
-INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highmem', 1, 10, 6250, 800);
-INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highcpu', 1, 10, 6250, 800);
-INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('job-private', 0, 10, 6250, 800);
+-- INSERT INTO inst_colls (`cloud`, `name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('gcp', 'standard', 1, 10, 6250, 800);
+-- INSERT INTO inst_colls (`cloud`, `name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('gcp', 'highmem', 1, 10, 6250, 800);
+-- INSERT INTO inst_colls (`cloud`, `name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('gcp', 'highcpu', 1, 10, 6250, 800);
+-- INSERT INTO inst_colls (`cloud`, `name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('gcp', 'job-private', 0, 10, 6250, 800);
 
 CREATE TABLE IF NOT EXISTS `pools` (
+  `cloud` VARCHAR(100) NOT NULL,
   `name` VARCHAR(255) NOT NULL,
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_cores` BIGINT NOT NULL,
@@ -58,21 +59,21 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `standing_worker_max_idle_time_secs` INT NOT NULL,
   `job_queue_scheduling_window_secs` INT NOT NULL,
   `min_instances` BIGINT NOT NULL,
-  PRIMARY KEY (`name`),
-  FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
+  PRIMARY KEY (`cloud`, `name`),
+  FOREIGN KEY (`cloud`, `name`) REFERENCES inst_colls(cloud, name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
-VALUES ('standard', 'standard', 16, 1, 0, 1, 4);
-
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
-VALUES ('highmem', 'highmem', 16, 10, 1, 0, 0, 4);
-
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
-  `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
-VALUES ('highcpu', 'highcpu', 16, 10, 1, 0, 0, 4);
+-- INSERT INTO pools (`cloud`, `name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+--   `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+-- VALUES ('gcp', 'standard', 'standard', 16, 1, 0, 1, 4);
+--
+-- INSERT INTO pools (`cloud`, `name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+--   `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+-- VALUES ('gcp', 'highmem', 'highmem', 16, 10, 1, 0, 0, 4);
+--
+-- INSERT INTO pools (`cloud`, `name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+--   `worker_external_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+-- VALUES ('gcp', 'highcpu', 'highcpu', 16, 10, 1, 0, 0, 4);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
@@ -125,16 +126,17 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
   `location` VARCHAR(40) NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   `inst_coll` VARCHAR(255) NOT NULL,
   `machine_type` VARCHAR(255) NOT NULL,
   `preemptible` BOOLEAN NOT NULL,
   `instance_config` MEDIUMTEXT,
   PRIMARY KEY (`name`),
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
+  FOREIGN KEY (`cloud`, `inst_coll`) REFERENCES inst_colls(`cloud`, `name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `instances_removed` ON `instances` (`removed`);
-CREATE INDEX `instances_inst_coll` ON `instances` (`inst_coll`);
-CREATE INDEX `instances_removed_inst_coll` ON `instances` (`removed`, `inst_coll`);
+CREATE INDEX `instances_cloud_inst_coll` ON `instances` (`cloud`, `inst_coll`);
+CREATE INDEX `instances_removed_cloud_inst_coll` ON `instances` (`removed`, `cloud`, `inst_coll`);
 CREATE INDEX `instances_time_activated` ON `instances` (`time_activated`);
 
 CREATE TABLE IF NOT EXISTS `instances_free_cores_mcpu` (
@@ -146,6 +148,7 @@ CREATE TABLE IF NOT EXISTS `instances_free_cores_mcpu` (
 
 CREATE TABLE IF NOT EXISTS `user_inst_coll_resources` (
   `user` VARCHAR(100) NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
@@ -156,10 +159,10 @@ CREATE TABLE IF NOT EXISTS `user_inst_coll_resources` (
   `n_cancelled_ready_jobs` INT NOT NULL DEFAULT 0,
   `n_cancelled_running_jobs` INT NOT NULL DEFAULT 0,
   `n_cancelled_creating_jobs` INT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`user`, `inst_coll`, `token`),
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
+  PRIMARY KEY (`user`, `cloud`, `inst_coll`, `token`),
+  FOREIGN KEY (`cloud`, `inst_coll`) REFERENCES inst_colls(cloud, name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX `user_inst_coll_resources_inst_coll` ON `user_inst_coll_resources` (`inst_coll`);
+CREATE INDEX `user_inst_coll_resources_cloud_inst_coll` ON `user_inst_coll_resources` (`cloud`, `inst_coll`);
 
 CREATE TABLE IF NOT EXISTS `batches` (
   `id` BIGINT NOT NULL AUTO_INCREMENT,
@@ -270,18 +273,19 @@ CREATE TABLE IF NOT EXISTS `job_groups_inst_coll_staging` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
   `job_group_id` INT NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `ready_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `cloud`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`cloud`, `inst_coll`) REFERENCES inst_colls(cloud, name) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
-CREATE INDEX job_groups_inst_coll_staging_inst_coll ON job_groups_inst_coll_staging (`inst_coll`);
+CREATE INDEX job_groups_inst_coll_staging_cloud_inst_coll ON job_groups_inst_coll_staging (`cloud`, `inst_coll`);
 CREATE INDEX job_groups_inst_coll_staging_batch_id_jg_id ON job_groups_inst_coll_staging (`batch_id`, `job_group_id`);
 
 # the values in this table have been preaggregated to include jobs in all child job groups (recursive = true)
@@ -289,6 +293,7 @@ CREATE TABLE `job_group_inst_coll_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
   `update_id` INT NOT NULL,
   `job_group_id` INT NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   `inst_coll` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
@@ -297,10 +302,10 @@ CREATE TABLE `job_group_inst_coll_cancellable_resources` (
   `n_creating_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `n_running_cancellable_jobs` INT NOT NULL DEFAULT 0,
   `running_cancellable_cores_mcpu` BIGINT NOT NULL DEFAULT 0,
-  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `inst_coll`, `token`),
+  PRIMARY KEY (`batch_id`, `update_id`, `job_group_id`, `cloud`, `inst_coll`, `token`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates (`batch_id`, `update_id`) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`cloud`, `inst_coll`) REFERENCES inst_colls(cloud, name) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups (`batch_id`, `job_group_id`) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `job_group_inst_coll_cancellable_resources_inst_coll` ON `job_group_inst_coll_cancellable_resources` (`inst_coll`);
@@ -319,6 +324,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
+  `cloud` VARCHAR(100) NOT NULL,
   `inst_coll` VARCHAR(255),
   `n_regions` INT DEFAULT NULL,
   `regions_bits_rep` BIGINT DEFAULT NULL,
@@ -326,7 +332,7 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `update_id`) REFERENCES batch_updates(batch_id, update_id) ON DELETE CASCADE,
-  FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE,
+  FOREIGN KEY (`cloud`, `inst_coll`) REFERENCES inst_colls(cloud, name) ON DELETE CASCADE,
   FOREIGN KEY (`batch_id`, `job_group_id`) REFERENCES job_groups(batch_id, job_group_id) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
@@ -403,8 +409,9 @@ CREATE INDEX job_attributes_value ON `job_attributes` (batch_id, `value`(256));
 CREATE TABLE IF NOT EXISTS `regions` (
   `region_id` INT NOT NULL AUTO_INCREMENT,
   `region` VARCHAR(40) NOT NULL,
+  `cloud` VARCHAR(100) NOT NULL,
   PRIMARY KEY (`region_id`),
-  UNIQUE(region)
+  UNIQUE(region, cloud)
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `job_group_attributes` (
@@ -717,13 +724,13 @@ BEGIN
   SET delta_running_cancellable_cores_mcpu  = delta_n_running_cancellable_jobs * cores_mcpu;
   SET delta_running_cores_mcpu              = delta_n_running_jobs * cores_mcpu;
 
-  INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
+  INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, cloud, inst_coll, token,
     n_ready_cancellable_jobs,
     ready_cancellable_cores_mcpu,
     n_creating_cancellable_jobs,
     n_running_cancellable_jobs,
     running_cancellable_cores_mcpu)
-  SELECT NEW.batch_id, NEW.update_id, job_group_self_and_ancestors.ancestor_id, NEW.inst_coll, rand_token,
+  SELECT NEW.batch_id, NEW.update_id, job_group_self_and_ancestors.ancestor_id, NEW.cloud, NEW.inst_coll, rand_token,
     delta_n_ready_cancellable_jobs,
     delta_ready_cancellable_cores_mcpu,
     delta_n_creating_cancellable_jobs,
@@ -738,7 +745,7 @@ BEGIN
     n_running_cancellable_jobs = n_running_cancellable_jobs + delta_n_running_cancellable_jobs,
     running_cancellable_cores_mcpu = running_cancellable_cores_mcpu + delta_running_cancellable_cores_mcpu;
 
-  INSERT INTO user_inst_coll_resources (user, inst_coll, token,
+  INSERT INTO user_inst_coll_resources (user, cloud, inst_coll, token,
     n_ready_jobs,
     n_running_jobs,
     n_creating_jobs,
@@ -748,7 +755,7 @@ BEGIN
     n_cancelled_running_jobs,
     n_cancelled_creating_jobs
   )
-  VALUES (cur_user, NEW.inst_coll, rand_token,
+  VALUES (cur_user, NEW.cloud, NEW.inst_coll, rand_token,
     delta_n_ready_jobs,
     delta_n_running_jobs,
     delta_n_creating_jobs,
@@ -969,14 +976,14 @@ BEGIN
         SET `state` = IF(t.staged_n_jobs > 0, 'running', job_groups.state), time_completed = NULL, n_jobs = n_jobs + t.staged_n_jobs;
 
         # compute global number of new ready jobs from taking value from root job group only
-        INSERT INTO user_inst_coll_resources (user, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
-        SELECT user, inst_coll, 0,
+        INSERT INTO user_inst_coll_resources (user, cloud, inst_coll, token, n_ready_jobs, ready_cores_mcpu)
+        SELECT user, cloud, inst_coll, 0,
           @n_ready_jobs := CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED),
           @ready_cores_mcpu := CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED)
         FROM job_groups_inst_coll_staging
         JOIN batches ON batches.id = job_groups_inst_coll_staging.batch_id
         WHERE batch_id = in_batch_id AND update_id = in_update_id AND job_group_id = 0
-        GROUP BY `user`, inst_coll
+        GROUP BY `user`, cloud, inst_coll
         ON DUPLICATE KEY UPDATE
           n_ready_jobs = n_ready_jobs + @n_ready_jobs,
           ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
@@ -1048,12 +1055,12 @@ BEGIN
                               FOR UPDATE);
 
   IF cur_batch_state = 'running' AND NOT cur_cancelled THEN
-    INSERT INTO user_inst_coll_resources (user, inst_coll, token,
+    INSERT INTO user_inst_coll_resources (user, cloud, inst_coll, token,
       n_ready_jobs, ready_cores_mcpu,
       n_running_jobs, running_cores_mcpu,
       n_creating_jobs,
       n_cancelled_ready_jobs, n_cancelled_running_jobs, n_cancelled_creating_jobs)
-    SELECT user, inst_coll, 0,
+    SELECT user, cloud, inst_coll, 0,
       -1 * (@n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0)),
       -1 * (@ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0)),
       -1 * (@n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
@@ -1067,7 +1074,7 @@ BEGIN
     INNER JOIN batch_updates ON job_group_inst_coll_cancellable_resources.batch_id = batch_updates.batch_id AND
       job_group_inst_coll_cancellable_resources.update_id = batch_updates.update_id
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND batch_updates.committed
-    GROUP BY user, inst_coll
+    GROUP BY user, cloud, inst_coll
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
       ready_cores_mcpu = ready_cores_mcpu - @ready_cancellable_cores_mcpu,
@@ -1113,12 +1120,12 @@ BEGIN
                               FOR UPDATE);
 
   IF NOT cur_cancelled THEN
-    INSERT INTO user_inst_coll_resources (user, inst_coll, token,
+    INSERT INTO user_inst_coll_resources (user, cloud, inst_coll, token,
       n_ready_jobs, ready_cores_mcpu,
       n_running_jobs, running_cores_mcpu,
       n_creating_jobs,
       n_cancelled_ready_jobs, n_cancelled_running_jobs, n_cancelled_creating_jobs)
-    SELECT user, inst_coll, 0,
+    SELECT user, cloud, inst_coll, 0,
       -1 * (@n_ready_cancellable_jobs := COALESCE(SUM(n_ready_cancellable_jobs), 0)),
       -1 * (@ready_cancellable_cores_mcpu := COALESCE(SUM(ready_cancellable_cores_mcpu), 0)),
       -1 * (@n_running_cancellable_jobs := COALESCE(SUM(n_running_cancellable_jobs), 0)),
@@ -1134,7 +1141,7 @@ BEGIN
     WHERE job_group_inst_coll_cancellable_resources.batch_id = in_batch_id AND
       job_group_inst_coll_cancellable_resources.job_group_id = in_job_group_id AND
       batch_updates.committed
-    GROUP BY user, inst_coll
+    GROUP BY user, cloud, inst_coll
     FOR UPDATE
     ON DUPLICATE KEY UPDATE
       n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
@@ -1146,13 +1153,13 @@ BEGIN
       n_cancelled_running_jobs = n_cancelled_running_jobs + @n_running_cancellable_jobs,
       n_cancelled_creating_jobs = n_cancelled_creating_jobs + @n_creating_cancellable_jobs;
 
-    INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token,
+    INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, cloud, inst_coll, token,
       n_ready_cancellable_jobs,
       ready_cancellable_cores_mcpu,
       n_creating_cancellable_jobs,
       n_running_cancellable_jobs,
       running_cancellable_cores_mcpu)
-    SELECT batch_id, update_id, ancestor_id, inst_coll, 0,
+    SELECT batch_id, update_id, ancestor_id, cloud, inst_coll, 0,
       -1 * (@jg_n_ready_cancellable_jobs := old_n_ready_cancellable_jobs),
       -1 * (@jg_ready_cancellable_cores_mcpu := old_ready_cancellable_cores_mcpu),
       -1 * (@jg_n_creating_cancellable_jobs := old_n_creating_cancellable_jobs),
@@ -1160,7 +1167,7 @@ BEGIN
       -1 * (@jg_running_cancellable_cores_mcpu := old_running_cancellable_cores_mcpu)
     FROM job_group_self_and_ancestors
     INNER JOIN LATERAL (
-      SELECT update_id, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS old_n_ready_cancellable_jobs,
+      SELECT update_id, cloud, inst_coll, COALESCE(SUM(n_ready_cancellable_jobs), 0) AS old_n_ready_cancellable_jobs,
         COALESCE(SUM(ready_cancellable_cores_mcpu), 0) AS old_ready_cancellable_cores_mcpu,
         COALESCE(SUM(n_creating_cancellable_jobs), 0) AS old_n_creating_cancellable_jobs,
         COALESCE(SUM(n_running_cancellable_jobs), 0) AS old_n_running_cancellable_jobs,
@@ -1168,7 +1175,7 @@ BEGIN
       FROM job_group_inst_coll_cancellable_resources
       WHERE job_group_inst_coll_cancellable_resources.batch_id = job_group_self_and_ancestors.batch_id AND
         job_group_inst_coll_cancellable_resources.job_group_id = job_group_self_and_ancestors.job_group_id
-      GROUP BY update_id, inst_coll
+      GROUP BY update_id, cloud, inst_coll
       FOR UPDATE
     ) AS t ON TRUE
     WHERE job_group_self_and_ancestors.batch_id = in_batch_id AND job_group_self_and_ancestors.job_group_id = in_job_group_id
@@ -1266,7 +1273,7 @@ BEGIN
   SELECT is_pool
   INTO cur_instance_is_pool
   FROM instances
-  LEFT JOIN inst_colls ON instances.inst_coll = inst_colls.name
+  LEFT JOIN inst_colls ON instances.cloud = inst_cols.cloud AND instances.inst_coll = inst_colls.name
   WHERE instances.name = in_instance_name;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);

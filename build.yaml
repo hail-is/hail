@@ -2354,6 +2354,12 @@ steps:
       - name: jobs-add-n-max-attempts
         script: /io/sql/jobs-add-n-max-attempts.sql
         online: true
+      - name: add-cloud-to-regions
+        script: /io/sql/add_cloud_to_regions.py
+        online: true
+      - name: add-lambda-cloud
+        script: /io/sql/add-lambda-cloud.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

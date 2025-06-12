@@ -22,6 +22,7 @@ class Instance:
     def from_record(app, inst_coll, record):
         return Instance(
             app,
+            record['cloud'],
             inst_coll,
             record['name'],
             record['state'],
@@ -63,7 +64,7 @@ class Instance:
             await tx.just_execute(
                 """
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu,
-  time_created, last_updated, version, location, inst_coll, machine_type, preemptible, instance_config)
+  time_created, last_updated, version, location, cloud, inst_coll, machine_type, preemptible, instance_config)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """,
                 (
@@ -76,6 +77,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                     now,
                     INSTANCE_VERSION,
                     location,
+                    inst_coll.cloud,
                     inst_coll.name,
                     machine_type,
                     preemptible,
