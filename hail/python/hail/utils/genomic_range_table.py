@@ -1,3 +1,4 @@
+import itertools
 from typing import Optional
 
 from numpy import linspace
@@ -49,7 +50,7 @@ def genomic_range_table(n: int, n_partitions: Optional[int] = None, reference_ge
 
     n_partitions = n_partitions or 8
     start_idxs = [int(x) for x in linspace(0, n, n_partitions + 1)]
-    idx_bounds = list(zip(start_idxs, start_idxs[1:]))
+    idx_bounds = list(itertools.pairwise(start_idxs))
 
     return hl.Table._generate(
         contexts=idx_bounds,
