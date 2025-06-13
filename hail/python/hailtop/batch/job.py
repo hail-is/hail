@@ -115,7 +115,8 @@ class Job:
                     new_s.append('_')
             return ''.join(new_s)
 
-        self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
+        maxnamelen = 250 - len(self._token)  # typical file system maximum name component length is 255
+        self._dirname = f'{safe_str(name)[:maxnamelen]}-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> 'Resource':
         if item not in self._resources:
