@@ -213,14 +213,12 @@ class ServiceBackend(Backend):
         worker_cores = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_CORES, worker_cores, None)
         worker_memory = configuration_of(ConfigVariable.QUERY_BATCH_WORKER_MEMORY, worker_memory, None)
 
-        if regions is None:
-            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, None)
-            if regions_from_conf is not None:
-                assert isinstance(regions_from_conf, str)
-                regions = regions_from_conf.split(',')
-
-        if regions is None or regions == ANY_REGION:
+        if regions == ANY_REGION:
             regions = await batch_client.supported_regions()
+        else:
+            fallback = await batch_client.default_region()
+            regions_from_conf = configuration_of(ConfigVariable.BATCH_REGIONS, regions, fallback)
+            regions = regions_from_conf.split(',')
 
         assert len(regions) > 0, regions
 

@@ -435,8 +435,7 @@ class Job:
         regions:
             The cloud region(s) to run this job in. Use `None` to signify
             the job can run in any available region. Use py:staticmethod:`.ServiceBackend.supported_regions`
-            to list the available regions to choose from. The default is the job can run in
-            any region.
+            to list the available regions to choose from.
 
         Returns
         -------
