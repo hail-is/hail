@@ -851,9 +851,7 @@ class ServiceBackend(Backend[bc.Batch]):
             image = job._image if job._image else default_image
             image_ref = parse_docker_image_reference(image)
             if image_ref.hosted_in('dockerhub') and image_ref.name() not in HAIL_GENETICS_IMAGES:
-                warnings.warn(
-                    f'Using an image {image} from Docker Hub. ' f'Jobs may fail due to Docker Hub rate limits.'
-                )
+                warnings.warn(f'Using an image {image} from Docker Hub. Jobs may fail due to Docker Hub rate limits.')
 
             env = {**job._env, 'BATCH_TMPDIR': local_tmpdir}
 

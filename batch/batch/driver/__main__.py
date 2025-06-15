@@ -1,14 +1,15 @@
+# ruff: noqa: E402
 from hailtop.hail_logging import configure_logging
 
 # configure logging before importing anything else
 configure_logging()
 
-import sys  # noqa: E402 pylint: disable=wrong-import-position
-import traceback  # noqa: E402 pylint: disable=wrong-import-position
+import sys
+import traceback
 
-import aiohttp  # noqa: E402 pylint: disable=wrong-import-position
+import aiohttp
 
-from .main import run  # noqa: E402 pylint: disable=wrong-import-position
+from .main import run
 
 oldinit = aiohttp.ClientSession.__init__  # type: ignore
 

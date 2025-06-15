@@ -66,7 +66,7 @@ class LocalJob:
 async def docker_run(*args: str):
     script = ' '.join([shq(a) for a in args])
     outerr = await check_shell_output(script, echo=True)
-    print(f'Container output: {outerr[0]!r}\n' f'Container error: {outerr[1]!r}')
+    print(f'Container output: {outerr[0]!r}\nContainer error: {outerr[1]!r}')
 
     cid = outerr[0].decode('ascii').strip()
 

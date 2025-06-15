@@ -39,7 +39,7 @@ def fmt_time(x, size):
 def fmt_mem(b):
     if b is None:
         return 'NA'
-    return f'{int(math.ceil(b / (1024 * 1024)))}'
+    return f'{math.ceil(b / (1024 * 1024))}'
 
 
 def compare(args):

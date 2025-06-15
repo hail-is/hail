@@ -156,7 +156,7 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
                     try:
                         jv = json.loads(line)
                     except json.decoder.JSONDecodeError as e:
-                        msg = f'VEP failed to produce parsable JSON!\n' f'json: {line}\n' f'error: {e.msg}'
+                        msg = f'VEP failed to produce parsable JSON!\njson: {line}\nerror: {e.msg}'
                         if tolerate_parse_error:
                             print(msg)
                             continue
@@ -164,7 +164,7 @@ def run_vep(vep_cmd, input_file, block_size, consequence, tolerate_parse_error, 
 
                     variant_string = jv.get('input')
                     if variant_string is None:
-                        raise ValueError(f'VEP generated null variant string\n' f'json: {line}\n' f'parsed: {jv}')
+                        raise ValueError(f'VEP generated null variant string\njson: {line}\nparsed: {jv}')
                     v = Variant.from_vcf_line(variant_string)
                     orig_v = non_star_to_orig_variants.get(str(v))
                     if orig_v is not None:

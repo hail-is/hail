@@ -81,31 +81,31 @@ class TypeConstructor(NodeVisitor):
         return types.tstr
 
     def visit_locus(self, node, visited_children):
-        tlocus, _, angle_bracket, gr, angle_bracket = visited_children
+        tlocus, _, angle_bracket, gr, angle_bracket = visited_children  # noqa: PLW0128
         return types.tlocus(gr)
 
     def visit_array(self, node, visited_children):
-        tarray, _, angle_bracket, t, angle_bracket = visited_children
+        tarray, _, angle_bracket, t, angle_bracket = visited_children  # noqa: PLW0128
         return types.tarray(t)
 
     def visit_stream(self, node, visited_children):
-        tarray, _, angle_bracket, t, angle_bracket = visited_children
+        tarray, _, angle_bracket, t, angle_bracket = visited_children  # noqa: PLW0128
         return types.tstream(t)
 
     def visit_ndarray(self, node, visited_children):
-        tndarray, _, angle_bracket, elem_t, comma, ndim, angle_bracket = visited_children
+        tndarray, _, angle_bracket, elem_t, comma, ndim, angle_bracket = visited_children  # noqa: PLW0128
         return types.tndarray(elem_t, ndim)
 
     def visit_set(self, node, visited_children):
-        tset, _, angle_bracket, t, angle_bracket = visited_children
+        tset, _, angle_bracket, t, angle_bracket = visited_children  # noqa: PLW0128
         return types.tset(t)
 
     def visit_dict(self, node, visited_children):
-        tdict, _, angle_bracket, kt, comma, vt, angle_bracket = visited_children
+        tdict, _, angle_bracket, kt, comma, vt, angle_bracket = visited_children  # noqa: PLW0128
         return types.tdict(kt, vt)
 
     def visit_struct(self, node, visited_children):
-        tstruct, _, brace, maybe_fields, brace = visited_children
+        tstruct, _, brace, maybe_fields, brace = visited_children  # noqa: PLW0128
         if not maybe_fields:
             return types.tstruct()
         else:
@@ -113,7 +113,7 @@ class TypeConstructor(NodeVisitor):
             return types.tstruct(**dict(fields))
 
     def visit_union(self, node, visited_children):
-        tunion, _, brace, maybe_fields, brace = visited_children
+        tunion, _, brace, maybe_fields, brace = visited_children  # noqa: PLW0128
         if not maybe_fields:
             return types.tunion()
         else:
@@ -121,7 +121,7 @@ class TypeConstructor(NodeVisitor):
             return types.tunion(**dict(fields))
 
     def visit_tuple(self, node, visited_children):
-        ttuple, _, paren, [maybe_types], paren = visited_children
+        ttuple, _, paren, [maybe_types], paren = visited_children  # noqa: PLW0128
         if not maybe_types:
             return types.ttuple()
         else:
@@ -137,7 +137,7 @@ class TypeConstructor(NodeVisitor):
         return (name, type)
 
     def visit_interval(self, node, visited_children):
-        tinterval, _, angle_bracket, point_t, angle_bracket = visited_children
+        tinterval, _, angle_bracket, point_t, angle_bracket = visited_children  # noqa: PLW0128
         return types.tinterval(point_t)
 
     def visit_identifier(self, node, visited_children):
@@ -217,15 +217,15 @@ class VCFTypeConstructor(NodeVisitor):
         return types.tstr
 
     def visit_array(self, node, visited_children):
-        tarray, _, bracket, t, bracket = visited_children
+        tarray, _, bracket, t, bracket = visited_children  # noqa: PLW0128
         return types.tarray(t)
 
     def visit_set(self, node, visited_children):
-        tarray, _, bracket, t, bracket = visited_children
+        tarray, _, bracket, t, bracket = visited_children  # noqa: PLW0128
         return types.tset(t)
 
     def visit_struct(self, node, visited_children):
-        tstruct, _, brace, maybe_fields, brace = visited_children
+        tstruct, _, brace, maybe_fields, brace = visited_children  # noqa: PLW0128
         if not maybe_fields:
             return types.tstruct()
         else:

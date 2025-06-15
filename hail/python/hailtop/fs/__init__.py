@@ -12,14 +12,14 @@ from .fs_utils import (
 )
 
 __all__ = [
-    'open',
     'copy',
     'exists',
-    'is_file',
     'is_dir',
-    'stat',
+    'is_file',
     'ls',
     'mkdir',
+    'open',
     'remove',
     'rmtree',
+    'stat',
 ]

@@ -300,7 +300,7 @@ def combine_sample_qc(
         raise ValueError("Expect 'bases_over_gq_threshold' field in 'vmt_sample_qc' expression")
     if sum('bases_over_dp_threshold' in expr for expr in (rmt_sample_qc, vmt_sample_qc)) % 2 == 1:
         raise ValueError(
-            "Expect 'bases_over_dp_threshold' field in both or neither of " "'rmt_sample_qc' and 'vmt_sample_qc'"
+            "Expect 'bases_over_dp_threshold' field in both or neither of 'rmt_sample_qc' and 'vmt_sample_qc'"
         )
     if len(rmt_sample_qc.bases_over_gq_threshold) != len(vmt_sample_qc.bases_over_gq_threshold):
         raise ValueError("Expect same number of GQ bins for both variant and reference qc results")

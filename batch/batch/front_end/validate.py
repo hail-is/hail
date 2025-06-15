@@ -150,13 +150,13 @@ def handle_deprecated_job_keys(i, job):
     if 'pvc_size' in job:
         if 'resources' in job and 'storage' in job['resources']:
             raise ValidationError(
-                f"jobs[{i}].resources.storage is already defined, but " f"deprecated key 'pvc_size' is also present."
+                f"jobs[{i}].resources.storage is already defined, but deprecated key 'pvc_size' is also present."
             )
         pvc_size = job['pvc_size']
         try:
             job_validator['resources']['storage'].validate(f"jobs[{i}].pvc_size", job['pvc_size'])
         except ValidationError as e:
-            raise ValidationError(f"[pvc_size key is DEPRECATED. Use " f"resources.storage] {e.reason}") from e
+            raise ValidationError(f"[pvc_size key is DEPRECATED. Use resources.storage] {e.reason}") from e
         resources = job.get('resources')
         if resources is None:
             resources = {}

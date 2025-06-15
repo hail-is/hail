@@ -157,9 +157,9 @@ WHERE pools.name = %s;
         job_queue_scheduling_window_secs: int,
         label: str,
     ):
-        assert (
-            min_instances <= max_live_instances <= max_instances
-        ), f'{(min_instances, max_live_instances, max_instances)}'
+        assert min_instances <= max_live_instances <= max_instances, (
+            f'{(min_instances, max_live_instances, max_instances)}'
+        )
         self.name = name
         self.cloud = cloud
         self.worker_type = worker_type

@@ -251,7 +251,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
             raise ValueError("both 'gvcf_sample_names' and 'gvcf_external_header' must be set or unset")
         if gvcf_sample_names is not None and len(gvcf_sample_names) != len(gvcfs):
             raise ValueError(
-                "'gvcf_sample_names' and 'gvcfs' must have the same length " f'{len(gvcf_sample_names)} != {len(gvcfs)}'
+                f"'gvcf_sample_names' and 'gvcfs' must have the same length {len(gvcf_sample_names)} != {len(gvcfs)}"
             )
         if branch_factor < 2:
             raise ValueError(f"'branch_factor' must be at least 2, found {branch_factor}")
@@ -295,7 +295,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         if value * len(self._gvcf_import_intervals) > VariantDatasetCombiner._gvcf_merge_task_limit:
             old_value = value
             value = VariantDatasetCombiner._gvcf_merge_task_limit // len(self._gvcf_import_intervals)
-            warning(f'gvcf_batch_size of {old_value} would produce too many tasks ' f'using {value} instead')
+            warning(f'gvcf_batch_size of {old_value} would produce too many tasks using {value} instead')
         self._gvcf_batch_size = value
 
     def __eq__(self, other):
@@ -381,7 +381,7 @@ class VariantDatasetCombiner:  # pylint: disable=too-many-instance-attributes
         var_success_path = os.path.join(VariantDataset._variants_path(self._output_path), '_SUCCESS')
         if fs.exists(ref_success_path) and fs.exists(var_success_path):
             raise FatalError(
-                f'combiner output already exists at {self._output_path}\n' 'move or delete it before continuing'
+                f'combiner output already exists at {self._output_path}\nmove or delete it before continuing'
             )
 
     def to_dict(self) -> dict:
@@ -717,7 +717,7 @@ def new_combiner(
         gvcf_batch_size = batch_size
     else:
         raise ValueError(
-            'Specify only one of batch_size and gvcf_batch_size. ' f'Received {batch_size} and {gvcf_batch_size}.'
+            f'Specify only one of batch_size and gvcf_batch_size. Received {batch_size} and {gvcf_batch_size}.'
         )
     del batch_size
 
@@ -739,8 +739,7 @@ def new_combiner(
                 return combiner
             except (ValueError, TypeError, OSError, KeyError) as e:
                 warning(
-                    f'file exists at {save_path}, but it is not a valid combiner plan, overwriting\n'
-                    f'    caused by: {e}'
+                    f'file exists at {save_path}, but it is not a valid combiner plan, overwriting\n    caused by: {e}'
                 )
         return None
 
@@ -951,7 +950,7 @@ class Decoder(json.JSONDecoder):
             del obj['name']
             obj['vdses'] = [VDSMetadata(*x) for x in obj['vdses']]
             obj['dataset_type'] = CombinerOutType(*(tmatrix._from_json(ty) for ty in obj['dataset_type']))
-            if 'gvcf_type' in obj and obj['gvcf_type']:
+            if obj.get('gvcf_type'):
                 obj['gvcf_type'] = tmatrix._from_json(obj['gvcf_type'])
 
             rg = hl.get_reference(obj['reference_genome'])

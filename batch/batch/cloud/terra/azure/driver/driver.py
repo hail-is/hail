@@ -114,8 +114,8 @@ write_files:
           sleep 1000
           token=$(az account get-access-token --query accessToken --output tsv)
 
-          VM_RESOURCE_ID={ shq(instance_config._resource_id) }
-          curl -X POST "{ shq(WORKSPACE_MANAGER_URL) }/api/workspaces/v1/$WORKSPACE_ID/resources/controlled/azure/vm/$VM_RESOURCE_ID" \
+          VM_RESOURCE_ID={shq(instance_config._resource_id)}
+          curl -X POST "{shq(WORKSPACE_MANAGER_URL)}/api/workspaces/v1/$WORKSPACE_ID/resources/controlled/azure/vm/$VM_RESOURCE_ID" \
               -H  "accept: */*" \
               -H  "Authorization: Bearer $token" \
               -H  "Content-Type: application/json" \
@@ -159,7 +159,7 @@ write_files:
       export HOME=/root
 
       UNRESERVED_WORKER_DATA_DISK_SIZE_GB=50
-      ACCEPTABLE_QUERY_JAR_URL_PREFIX={ shq(ACCEPTABLE_QUERY_JAR_URL_PREFIX) }
+      ACCEPTABLE_QUERY_JAR_URL_PREFIX={shq(ACCEPTABLE_QUERY_JAR_URL_PREFIX)}
 
       sudo mkdir -p /host/batch
       sudo mkdir -p /host/logs
@@ -169,7 +169,7 @@ write_files:
 
       sudo mkdir /deploy-config
       sudo cat >/deploy-config/deploy-config.json <<'EOF'
-      { json.dumps(get_deploy_config().with_location('external').get_config()) }
+      {json.dumps(get_deploy_config().with_location('external').get_config())}
       EOF
 
 
@@ -181,21 +181,21 @@ write_files:
 
       CORES=$(nproc)
       NAMESPACE=default
-      ACTIVATION_TOKEN={ shq(activation_token) }
-      BATCH_LOGS_STORAGE_URI={ shq(file_store.batch_logs_storage_uri) }
-      INSTANCE_ID={ shq(file_store.instance_id) }
-      INSTANCE_CONFIG="{ instance_config_base64 }"
-      MAX_IDLE_TIME_MSECS={ max_idle_time_msecs }
-      BATCH_WORKER_IMAGE={ shq(BATCH_WORKER_IMAGE) }
+      ACTIVATION_TOKEN={shq(activation_token)}
+      BATCH_LOGS_STORAGE_URI={shq(file_store.batch_logs_storage_uri)}
+      INSTANCE_ID={shq(file_store.instance_id)}
+      INSTANCE_CONFIG="{instance_config_base64}"
+      MAX_IDLE_TIME_MSECS={max_idle_time_msecs}
+      BATCH_WORKER_IMAGE={shq(BATCH_WORKER_IMAGE)}
       INTERNET_INTERFACE=eth0
-      WORKSPACE_STORAGE_CONTAINER_ID={ shq(WORKSPACE_STORAGE_CONTAINER_ID) }
-      TERRA_STORAGE_ACCOUNT={ shq(TERRA_STORAGE_ACCOUNT) }
-      WORKSPACE_STORAGE_CONTAINER_URL={ shq(WORKSPACE_STORAGE_CONTAINER_URL) }
-      WORKSPACE_MANAGER_URL={ shq(WORKSPACE_MANAGER_URL) }
-      WORKSPACE_ID={ shq(WORKSPACE_ID) }
-      REGION={ shq(instance_config.region_for(location)) }
-      INTERNAL_GATEWAY_IP={ shq(INTERNAL_GATEWAY_IP) }
-      DOCKER_PREFIX={ shq(DOCKER_PREFIX) }
+      WORKSPACE_STORAGE_CONTAINER_ID={shq(WORKSPACE_STORAGE_CONTAINER_ID)}
+      TERRA_STORAGE_ACCOUNT={shq(TERRA_STORAGE_ACCOUNT)}
+      WORKSPACE_STORAGE_CONTAINER_URL={shq(WORKSPACE_STORAGE_CONTAINER_URL)}
+      WORKSPACE_MANAGER_URL={shq(WORKSPACE_MANAGER_URL)}
+      WORKSPACE_ID={shq(WORKSPACE_ID)}
+      REGION={shq(instance_config.region_for(location))}
+      INTERNAL_GATEWAY_IP={shq(INTERNAL_GATEWAY_IP)}
+      DOCKER_PREFIX={shq(DOCKER_PREFIX)}
 
       # private job network = 172.20.0.0/16
       # public job network = 172.21.0.0/16

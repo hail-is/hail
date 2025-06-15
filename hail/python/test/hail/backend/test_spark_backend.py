@@ -1,9 +1,9 @@
 import os
-from test.hail.helpers import skip_unless_spark_backend
 
 import pytest
 
 import hail as hl
+from test.hail.helpers import skip_unless_spark_backend
 
 
 def fatal(typ: hl.HailType, msg: str = "") -> hl.Expression:

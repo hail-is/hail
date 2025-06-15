@@ -1302,7 +1302,7 @@ class Container:
                     'source': 'shm',
                     'destination': '/dev/shm',
                     'type': 'tmpfs',
-                    'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', f'size={self.memory_in_bytes//2}'],
+                    'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', f'size={self.memory_in_bytes // 2}'],
                 },
                 {
                     'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
@@ -2671,8 +2671,7 @@ class JVMProfiler:
             raise
         except Exception:
             log.warning(f'could not start JVM profiling for {self.container.container.name}')
-        finally:
-            return self  # pylint: disable=lost-exception
+        return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if self.output_file is None:

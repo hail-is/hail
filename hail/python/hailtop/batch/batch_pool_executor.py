@@ -220,7 +220,7 @@ class BatchPoolExecutor:
                 while True:
                     yield async_to_blocking(aiter.__anext__())
             except StopAsyncIteration:
-                return
+                pass
 
         return generator_from_async_generator(agen.__aiter__())
 

@@ -218,7 +218,7 @@ async def get_pr(request: web.Request, userdata: UserData) -> web.Response:
 
     batch_client = request.app[AppKeys.BATCH_CLIENT]
     target_branch = wb.branch.short_str()
-    batches = batch_client.list_batches(f'test=1 ' f'pr={pr.number} ' f'target_branch={target_branch} ' f'user:ci')
+    batches = batch_client.list_batches(f'test=1 pr={pr.number} target_branch={target_branch} user:ci')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.last_known_status() for b in batches]
 
@@ -869,9 +869,9 @@ ON active_namespaces.namespace = deployed_services.namespace
 
     assert DEFAULT_NAMESPACE in services_per_namespace
     default_services = services_per_namespace.pop(DEFAULT_NAMESPACE)
-    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(
-        set(s.name for s in default_services)
-    ), default_services
+    assert set(['batch', 'auth', 'batch-driver', 'ci']).issubset(set(s.name for s in default_services)), (
+        default_services
+    )
 
     cds_config = create_cds_response(default_services, services_per_namespace, proxy)
     rds_config = create_rds_response(default_services, services_per_namespace, proxy, domain=DOMAIN)
