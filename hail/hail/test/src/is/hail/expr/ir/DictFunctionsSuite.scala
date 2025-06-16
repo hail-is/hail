@@ -58,8 +58,10 @@ class DictFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "dictToArray")
-  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: (IndexedSeq[Row])): Unit =
+  def dictToArray(a: IndexedSeq[(Integer, Integer)], expected: (IndexedSeq[Row])): Unit = {
+    implicit val execStrats = Set(ExecStrategy.JvmCompile)
     assertEvalsTo(invoke("dictToArray", TArray(TTuple(TInt32, TInt32)), toIRDict(a)), expected)
+  }
 
   @DataProvider(name = "keysAndValues")
   def keysAndValuesData(): Array[Array[Any]] = Array(
