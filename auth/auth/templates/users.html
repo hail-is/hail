@@ -72,7 +72,17 @@
 
 <br />
 <h1 class='text-2xl font-light mb-4'>Users</h1>
-<table class="table-auto w-full">
+<div class="mb-4 flex space-x-4">
+  <label class="inline-flex items-center">
+    <input type="checkbox" id="show-active" class="form-checkbox" onchange="filterTable()">
+    <span class="ml-2">Show Active</span>
+  </label>
+  <label class="inline-flex items-center">
+    <input type="checkbox" id="show-developers" class="form-checkbox" onchange="filterTable()">
+    <span class="ml-2">Show Developers</span>
+  </label>
+</div>
+<table class="table-auto w-full" id="users-table">
   <thead>
     <tr>
       <th class='h-12 bg-slate-200 font-light rounded-tl pl-2'>ID</th>
@@ -98,4 +108,24 @@
     {% endfor %}
   </tbody>
 </table>
+
+<script>
+function filterTable() {
+  const showActive = document.getElementById('show-active').checked;
+  const showDevelopers = document.getElementById('show-developers').checked;
+  
+  const rows = document.querySelectorAll('#users-table tbody tr');
+  
+  rows.forEach(row => {
+    const state = row.children[4].textContent.trim();
+    const isDeveloper = row.children[5].querySelector('svg.text-green-500') !== null;
+    
+    let show = true;
+    if (showActive && state !== 'active') show = false;
+    if (showDevelopers && !isDeveloper) show = false;
+    
+    row.style.display = show ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}
