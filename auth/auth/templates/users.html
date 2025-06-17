@@ -75,11 +75,11 @@
 <div class="mb-4 flex space-x-4">
   <label class="inline-flex items-center">
     <input type="checkbox" id="show-active" class="form-checkbox" onchange="filterTable()">
-    <span class="ml-2">Show Active</span>
+    <span class="ml-2">Only Active</span>
   </label>
   <label class="inline-flex items-center">
     <input type="checkbox" id="show-developers" class="form-checkbox" onchange="filterTable()">
-    <span class="ml-2">Show Developers</span>
+    <span class="ml-2">Only Developers</span>
   </label>
 </div>
 <table class="table-auto w-full" id="users-table">
@@ -118,7 +118,7 @@ function filterTable() {
   
   rows.forEach(row => {
     const state = row.children[4].textContent.trim();
-    const isDeveloper = row.children[5].querySelector('svg.text-green-500') !== null;
+    const isDeveloper = row.children[5].querySelector('.material-symbols-outlined.text-green-600') !== null;
     
     let show = true;
     if (showActive && state !== 'active') show = false;
