@@ -101,8 +101,8 @@
       <td>{{ user['username'] }}</td>
       <td>{{ user['login_id'] }}</td>
       <td>{{ user['hail_identity'] }}</td>
-      <td>{{ user['state'] }}</td>
-      <td class='text-center'>{{ check_or_cross(user['is_developer']) }}</td>
+      <td class='text-center' data-state="{{ user['state'] }}">{{ user['state'] }}</td>
+      <td class='text-center' data-developer="{{ user['is_developer'] }}">{{ check_or_cross(user['is_developer']) }}</td>
       <td class='text-center'>{{ check_or_cross(user['is_service_account']) }}</td>
     </tr>
     {% endfor %}
@@ -117,12 +117,12 @@ function filterTable() {
   const rows = document.querySelectorAll('#users-table tbody tr');
   
   rows.forEach(row => {
-    const state = row.children[4].textContent.trim();
-    const isDeveloper = row.children[5].querySelector('.material-symbols-outlined.text-green-600') !== null;
+    const state = row.querySelector('[data-state]').dataset.state.trim();
+    const isDeveloper = row.querySelector('[data-developer]').dataset.developer.trim();
     
     let show = true;
     if (showActive && state !== 'active') show = false;
-    if (showDevelopers && !isDeveloper) show = false;
+    if (showDevelopers && isDeveloper !== '1') show = false;
     
     row.style.display = show ? '' : 'none';
   });
