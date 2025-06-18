@@ -3382,7 +3382,19 @@ class Worker:
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
     async def post_job_complete(self, job, mjs_fut: asyncio.Task, full_status):
-        await mjs_fut
+        # Workers notify the driver that jobs have been started optimistically
+        # and hitherto defer checking the outcome of that notification.
+        # At this point, the job has been completed; errors raised by awaiting
+        # `mjs_fut` should not prevent workers notifying the driver of such.
+        try:
+            await mjs_fut
+        except:
+            log.warning(
+                f'awaiting optimistic mark_started call for job {job} failed.',
+                exc_info=True,
+                stack_info=True,
+            )
+
         try:
             await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:
