@@ -28,6 +28,9 @@ def config_variables():
                 help_msg='Domain of the Batch service',
                 validation=(lambda x: re.fullmatch(r'.+\..+', x) is not None, 'should be valid domain'),
             ),
+            ConfigVariable.PROFILE: ConfigVariableInfo(
+                help_msg='Configuration profile name to use', validation=(lambda _: True, 'can be anything')
+            ),
             ConfigVariable.GCS_REQUESTER_PAYS_PROJECT: ConfigVariableInfo(
                 help_msg='Project when using requester pays buckets in GCS',
                 validation=(lambda x: re.fullmatch(r'[^:/\s]+', x) is not None, 'should be valid GCS project name'),
