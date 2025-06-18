@@ -446,6 +446,12 @@ package object stats {
 
   def qpois(x: Double, lambda: Double): Int = qpois(x, lambda, lowerTail = true, logP = false)
 
+  def phyper(x: Int, popSize: Int, ngood: Int, nsample: Int, logP: Boolean): Double =
+    if (logP)
+      new HypergeometricDistribution(popSize, ngood, nsample).logProbability(x)
+    else
+      new HypergeometricDistribution(popSize, ngood, nsample).probability(x)
+
   def binomTest(nSuccess: Int, n: Int, p: Double, alternative: Int): Double = {
     val kind = alternative match {
       case 0 => TestKind.TWO_SIDED
