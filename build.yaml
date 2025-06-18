@@ -388,23 +388,23 @@ steps:
       valueFrom: ci_utils_image.image
     migrations:
       - name: initial
-        script: /io/sql/initial.sql
+        script: /io/sql/0-initial.sql
       - name: copy-paste-tokens
-        script: /io/sql/copy-paste-tokens.sql
+        script: /io/sql/1-copy-paste-tokens.sql
       - name: drop-bucket
-        script: /io/sql/drop-bucket.sql
+        script: /io/sql/2-drop-bucket.sql
       - name: add-trial-billing-project
-        script: /io/sql/add-trial-billing-project.sql
+        script: /io/sql/3-add-trial-billing-project.sql
       - name: add-roles
-        script: /io/sql/add-roles.sql
+        script: /io/sql/4-add-roles.sql
       - name: rename-gsa-identity
-        script: /io/sql/rename-gsa-identity.sql
+        script: /io/sql/5-rename-gsa-identity.sql
       - name: support-azure-oauth
-        script: /io/sql/support-azure-oauth.sql
+        script: /io/sql/6-support-azure-oauth.sql
       - name: change-username-collation
-        script: /io/sql/change-username-collation.sql
+        script: /io/sql/7-change-username-collation.sql
       - name: add-hail-identity-uid
-        script: /io/sql/add-hail-identity-uid.sql
+        script: /io/sql/8-add-hail-identity-uid.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -1754,7 +1754,7 @@ steps:
       valueFrom: ci_utils_image.image
     migrations:
       - name: initial
-        script: /io/sql/initial.sql
+        script: /io/sql/0-initial.sql
     inputs:
       - from: /repo/monitoring/sql
         to: /io/sql
@@ -2008,23 +2008,23 @@ steps:
       valueFrom: ci_utils_image.image
     migrations:
       - name: initial
-        script: /io/sql/initial.sql
+        script: /io/sql/0-initial.sql
       - name: invalidated-batches
-        script: /io/sql/invalidated-batches.sql
+        script: /io/sql/1-invalidated-batches.sql
       - name: add-frozen-mode
-        script: /io/sql/add-frozen-mode.sql
+        script: /io/sql/2-add-frozen-mode.sql
         online: true
       - name: active-namespaces
-        script: /io/sql/active-namespaces.sql
+        script: /io/sql/3-active-namespaces.sql
         online: true
       - name: fix-default-namespace-record
-        script: /io/sql/fix-default-namespace.py
+        script: /io/sql/4-fix-default-namespace.py
         online: true
       - name: record-failure-notifications
-        script: /io/sql/record-failure-notifications.sql
+        script: /io/sql/5-record-failure-notifications.sql
         online: true
       - name: add-service-rate-limits
-        script: /io/sql/add-service-rate-limits.sql
+        script: /io/sql/6-add-service-rate-limits.sql
         online: true
     inputs:
       - from: /repo/ci/sql
@@ -2050,309 +2050,309 @@ steps:
       valueFrom: ci_utils_image.image
     migrations:
       - name: initial
-        script: /io/sql/initial.sql
+        script: /io/sql/0-initial.sql
       - name: insert-globals
-        script: /io/sql/insert_globals.py
+        script: /io/sql/1-insert_globals.py
       - name: create-billing-projects
-        script: /io/sql/create-billing-projects.sql
+        script: /io/sql/2-create-billing-projects.sql
       - name: increase-spec-size
-        script: /io/sql/increase-spec-size.sql
+        script: /io/sql/3-increase-spec-size.sql
       - name: remove-fk-batches-user-resources
-        script: /io/sql/remove-fk-batches-user-resources.sql
+        script: /io/sql/4-remove-fk-batches-user-resources.sql
       - name: change-ready-cores-bigint
-        script: /io/sql/change-ready-cores-bigint.sql
+        script: /io/sql/5-change-ready-cores-bigint.sql
       - name: add-user-resources-ready-cores-token
-        script: /io/sql/add-user-resources-ready-cores-token.sql
+        script: /io/sql/6-add-user-resources-ready-cores-token.sql
       - name: add-lock-in-share-mode
-        script: /io/sql/add-lock-in-share-mode.sql
+        script: /io/sql/7-add-lock-in-share-mode.sql
       - name: add-batch-create-token
-        script: /io/sql/add-batch-create-token.sql
+        script: /io/sql/8-add-batch-create-token.sql
       - name: improve-cancel
-        script: /io/sql/improve-cancel.sql
+        script: /io/sql/9-improve-cancel.sql
       - name: store-specs-in-gcs
-        script: /io/sql/store-specs-in-gcs.sql
+        script: /io/sql/10-store-specs-in-gcs.sql
       - name: add-batches-time-closed
-        script: /io/sql/add-batches-time-closed.sql
+        script: /io/sql/11-add-batches-time-closed.sql
       - name: add-instance-zone
-        script: /io/sql/add-instance-zone.sql
+        script: /io/sql/12-add-instance-zone.sql
       - name: add-batches-time-created-index
-        script: /io/sql/add-batches-time-created-index.sql
+        script: /io/sql/13-add-batches-time-created-index.sql
       - name: change-test-worker-disk-size
-        script: /io/sql/change_test_worker_disk_size.py
+        script: /io/sql/14-change_test_worker_disk_size.py
       - name: add-resources
-        script: /io/sql/add-resources.sql
+        script: /io/sql/15-add-resources.sql
       - name: insert-resources
-        script: /io/sql/insert_resources.py
+        script: /io/sql/16-insert_resources.py
       - name: insert-standing-worker-globals
-        script: /io/sql/insert_standing_worker_globals.py
+        script: /io/sql/17-insert_standing_worker_globals.py
       - name: insert-local-ssd-resource
-        script: /io/sql/insert_local_ssd_resource.py
+        script: /io/sql/18-insert_local_ssd_resource.py
       - name: fix-mark-job-complete-on-error
-        script: /io/sql/fix-mark-job-complete-on-error.sql
+        script: /io/sql/19-fix-mark-job-complete-on-error.sql
       - name: add-worker-pd-ssd-data-disk
-        script: /io/sql/add-worker-pd-ssd-data-disk.sql
+        script: /io/sql/20-add-worker-pd-ssd-data-disk.sql
       - name: add-aggregated-batch-resources-tokens
-        script: /io/sql/add-aggregated-batch-resources-tokens.sql
+        script: /io/sql/21-add-aggregated-batch-resources-tokens.sql
       - name: change-test-worker-pool-size
-        script: /io/sql/change_test_worker_pool_size.py
+        script: /io/sql/22-change_test_worker_pool_size.py
       - name: add-test-dev-to-billing-project-users
-        script: /io/sql/add-test-dev-to-billing-project-users.sql
+        script: /io/sql/23-add-test-dev-to-billing-project-users.sql
       - name: add-status-flag-billing-projects
-        script: /io/sql/add-status-flag-billing-projects.sql
+        script: /io/sql/24-add-status-flag-billing-projects.sql
       - name: add-aggregated-billing-project-resources
-        script: /io/sql/add-aggregated-billing-project-resources.sql
+        script: /io/sql/25-add-aggregated-billing-project-resources.sql
       - name: add-enable-standing-worker
-        script: /io/sql/add-enable-standing-worker.py
+        script: /io/sql/26-add-enable-standing-worker.py
       - name: add-inst-colls
-        script: /io/sql/add-inst-colls.sql
+        script: /io/sql/27-add-inst-colls.sql
       - name: add-creating-job-state
-        script: /io/sql/add-creating-job-state.sql
+        script: /io/sql/28-add-creating-job-state.sql
       - name: add-job-private-inst-coll
-        script: /io/sql/add-job-private-inst-coll.sql
+        script: /io/sql/29-add-job-private-inst-coll.sql
       - name: insert-nonpreemptible-resources
-        script: /io/sql/insert_nonpreemptible_resources.py
+        script: /io/sql/30-insert_nonpreemptible_resources.py
       - name: fix-schedule-job
-        script: /io/sql/fix-schedule-job.sql
+        script: /io/sql/31-fix-schedule-job.sql
       - name: increase-test-and-dev-pool-sizes
-        script: /io/sql/increase-test-and-dev-pool-sizes.py
+        script: /io/sql/32-increase-test-and-dev-pool-sizes.py
       - name: fix-provisioning-bug
-        script: /io/sql/fix-provisioning-bug.sql
+        script: /io/sql/33-fix-provisioning-bug.sql
       - name: do-not-lock-entire-batch
-        script: /io/sql/do-not-lock-entire-batch.sql
+        script: /io/sql/34-do-not-lock-entire-batch.sql
       - name: add-fail-fast
-        script: /io/sql/add-fail-fast.sql
+        script: /io/sql/35-add-fail-fast.sql
       - name: add-frozen-mode
-        script: /io/sql/add-frozen-mode.sql
+        script: /io/sql/36-add-frozen-mode.sql
       - name: add-instance-config
-        script: /io/sql/add-instance-config.sql
+        script: /io/sql/37-add-instance-config.sql
       - name: cloud-agnostic
-        script: /io/sql/cloud-agnostic.sql
+        script: /io/sql/38-cloud-agnostic.sql
       - name: support-azure
-        script: /io/sql/support-azure.sql
+        script: /io/sql/39-support-azure.sql
       - name: add-azure-tables
-        script: /io/sql/add_azure_tables.py
+        script: /io/sql/40-add_azure_tables.py
       - name: change-azure-test-highcpu-pool
-        script: /io/sql/change_azure_test_highcpu_pool.py
+        script: /io/sql/41-change_azure_test_highcpu_pool.py
       - name: add-latest-product-versions
-        script: /io/sql/add-latest-product-versions.sql
+        script: /io/sql/42-add-latest-product-versions.sql
       - name: add-products-and-versions
-        script: /io/sql/add_products_and_versions.py
+        script: /io/sql/43-add_products_and_versions.py
       - name: kill-more-deadlocks
-        script: /io/sql/kill-more-deadlocks.sql
+        script: /io/sql/44-kill-more-deadlocks.sql
       - name: kill-more-deadlocks2
-        script: /io/sql/kill-more-deadlocks2.sql
+        script: /io/sql/45-kill-more-deadlocks2.sql
       - name: no-locks-add-attempt
-        script: /io/sql/no-locks-add-attempt.sql
+        script: /io/sql/46-no-locks-add-attempt.sql
       - name: fix-n-cancelled-creating-jobs
-        script: /io/sql/fix-n-cancelled-creating-jobs.sql
+        script: /io/sql/47-fix-n-cancelled-creating-jobs.sql
       - name: big-test-instances
-        script: /io/sql/big-test-instances.py
+        script: /io/sql/48-big-test-instances.py
       - name: kill-mjc-deadlocks
-        script: /io/sql/kill-mjc-deadlocks.sql
+        script: /io/sql/49-kill-mjc-deadlocks.sql
       - name: add-nonpreemptible-pools
-        script: /io/sql/add-nonpreemptible-pools.sql
+        script: /io/sql/50-add-nonpreemptible-pools.sql
       - name: set-test-and-dev-pools-to-8-core-max-2
-        script: /io/sql/set-test-and-dev-pools-to-8-core-max-2.py
+        script: /io/sql/51-set-test-and-dev-pools-to-8-core-max-2.py
       - name: set-test-and-dev-jpim-to-max-5
-        script: /io/sql/set-test-and-dev-jpim-to-max-5.py
+        script: /io/sql/52-set-test-and-dev-jpim-to-max-5.py
         online: true
       - name: minimize-deadlock-errors
-        script: /io/sql/minimize-deadlock-errors.sql
+        script: /io/sql/53-minimize-deadlock-errors.sql
         online: true
       - name: add-resource-ids-sql
-        script: /io/sql/add-resource-ids.sql
+        script: /io/sql/54-add-resource-ids.sql
         online: true
       - name: add-resource-ids-python
-        script: /io/sql/add_resource_ids.py
+        script: /io/sql/55-add_resource_ids.py
         online: true
       - name: modify-resource-id-trigger
-        script: /io/sql/modify-resource-id-trigger.sql
+        script: /io/sql/56-modify-resource-id-trigger.sql
         online: true
       - name: rm-resource-names-agg-resources
-        script: /io/sql/rm-resource-names-agg-resources.sql
+        script: /io/sql/57-rm-resource-names-agg-resources.sql
         online: true
       - name: rm-resource-foreign-keys
-        script: /io/sql/rm-resource-foreign-keys.py
+        script: /io/sql/58-rm-resource-foreign-keys.py
         online: true
       - name: rm-resource-names-agg-resources-pt-2
-        script: /io/sql/rm-resource-names-agg-resources-pt-2.sql
+        script: /io/sql/59-rm-resource-names-agg-resources-pt-2.sql
         online: true
       - name: add-att-resources-format-version-lt-3
-        script: /io/sql/add-att-resources-format-version-lt-3.sql
+        script: /io/sql/60-add-att-resources-format-version-lt-3.sql
         online: true
       - name: insert-attempt-resources-format-version-lt-3
-        script: /io/sql/insert_attempt_resources_format_version_lt_3.py
+        script: /io/sql/61-insert_attempt_resources_format_version_lt_3.py
         online: true
       - name: revert-attempt-resources-trigger-back-compat
-        script: /io/sql/revert-attempt-resources-trigger-back-compat.sql
+        script: /io/sql/62-revert-attempt-resources-trigger-back-compat.sql
         online: true
       - name: add-agg-billing-by-date
-        script: /io/sql/add-agg-billing-by-date.sql
+        script: /io/sql/63-add-agg-billing-by-date.sql
         online: true
       - name: populate-agg-billing-by-date
-        script: /io/sql/populate_agg_billing_by_date.py
+        script: /io/sql/64-populate_agg_billing_by_date.py
         online: true
       - name: revert-temp-agg-by-date-infra
-        script: /io/sql/revert-temp-agg-by-date-infra.sql
+        script: /io/sql/65-revert-temp-agg-by-date-infra.sql
         online: true
       - name: rename-timestamp-to-date
-        script: /io/sql/rename-timestamp-to-date.sql
+        script: /io/sql/66-rename-timestamp-to-date.sql
         online: true
       - name: add-real-time-billing
-        script: /io/sql/add-real-time-billing.sql
+        script: /io/sql/67-add-real-time-billing.sql
         online: true
       - name: add-batch-updates
-        script: /io/sql/add-batch-updates.sql
+        script: /io/sql/68-add-batch-updates.sql
         online: true
       - name: populate-batch-updates
-        script: /io/sql/populate_batch_updates.py
+        script: /io/sql/69-populate_batch_updates.py
         online: true
       - name: cleanup-add-batch-updates
-        script: /io/sql/cleanup-add-batch-updates.sql
+        script: /io/sql/70-cleanup-add-batch-updates.sql
         online: true
       - name: add-jobs-update-id-index
-        script: /io/sql/add-jobs-update-id-index.sql
+        script: /io/sql/71-add-jobs-update-id-index.sql
         online: true
       - name: no-dev-standing-workers-by-default
-        script: /io/sql/no_dev_standing_workers_by_default.py
+        script: /io/sql/72-no_dev_standing_workers_by_default.py
         online: true
       - name: add-commit-updates
-        script: /io/sql/add-commit-updates.sql
+        script: /io/sql/73-add-commit-updates.sql
         online: true
       - name: add-job-regions
-        script: /io/sql/add-job-regions.sql
+        script: /io/sql/74-add-job-regions.sql
         online: true
       - name: faster-regions-pool-scheduler
-        script: /io/sql/faster-regions-pool-scheduler.sql
+        script: /io/sql/75-faster-regions-pool-scheduler.sql
         online: true
       - name: add-batch-state-index
-        script: /io/sql/add-batch-state-index.sql
+        script: /io/sql/76-add-batch-state-index.sql
         online: true
       - name: case-sensitive-billing-project
-        script: /io/sql/case-sensitive-billing-project.sql
+        script: /io/sql/77-case-sensitive-billing-project.sql
         online: true
       - name: driver-behavior
-        script: /io/sql/driver_behavior.py
+        script: /io/sql/78-driver_behavior.py
         online: true
       - name: cleanup-old-billing-tables
-        script: /io/sql/cleanup-old-billing-tables.sql
+        script: /io/sql/79-cleanup-old-billing-tables.sql
         online: true
       - name: add-deduped-resource-ids-to-resources
-        script: /io/sql/add-deduped-resource-ids-to-resources.sql
+        script: /io/sql/80-add-deduped-resource-ids-to-resources.sql
         online: true
       - name: create-resource-dedup-mapping
-        script: /io/sql/create_resource_dedup_mapping.py
+        script: /io/sql/81-create_resource_dedup_mapping.py
         online: true
       - name: config-pool-min-instances
-        script: /io/sql/config-pool-min-instances.sql
+        script: /io/sql/82-config-pool-min-instances.sql
         online: true
       - name: add-deduped-resource-ids-to-attempt-resources
-        script: /io/sql/add-deduped-resource-ids-to-attempt-resources.sql
+        script: /io/sql/83-add-deduped-resource-ids-to-attempt-resources.sql
         online: true
       - name: setup-deduped-resources-migration
-        script: /io/sql/setup-deduped-resources-migration.sql
+        script: /io/sql/84-setup-deduped-resources-migration.sql
         online: true
       - name: dedup-attempt-resources
-        script: /io/sql/dedup_attempt_resources.py
+        script: /io/sql/85-dedup_attempt_resources.py
         online: true
       - name: mitigate-bad-attempt-resources-trigger
-        script: /io/sql/mitigate-bad-attempt-resources-trigger.sql
+        script: /io/sql/86-mitigate-bad-attempt-resources-trigger.sql
         online: true
       - name: set-test-and-dev-pools-to-16-core-max-3
-        script: /io/sql/set-test-and-dev-pools-to-16-core-max-3.py
+        script: /io/sql/87-set-test-and-dev-pools-to-16-core-max-3.py
         online: true
       - name: fix-billing-triggers-deduped-resource-id
-        script: /io/sql/fix-billing-triggers-deduped-resource-id.sql
+        script: /io/sql/88-fix-billing-triggers-deduped-resource-id.sql
         online: true
       - name: set-test-and-dev-pools-to-max-16-standing-16
-        script: /io/sql/set-test-and-dev-pools-to-max-16-standing-16.py
+        script: /io/sql/89-set-test-and-dev-pools-to-max-16-standing-16.py
         online: true
       - name: set-test-min-pool-size-to-1
-        script: /io/sql/set-test-min-pool-size-to-1.py
+        script: /io/sql/90-set-test-min-pool-size-to-1.py
         online: true
       - name: dedup-billing-project-users-v2
-        script: /io/sql/dedup_billing_project_users_v2.py
+        script: /io/sql/91-dedup_billing_project_users_v2.py
         online: true
       - name: list-jobs-extra-indices
-        script: /io/sql/list-jobs-extra-indices.sql
+        script: /io/sql/92-list-jobs-extra-indices.sql
         online: true
       - name: dedup-billing-project-users-by-date
-        script: /io/sql/dedup_billing_project_users_by_date.py
+        script: /io/sql/93-dedup_billing_project_users_by_date.py
         online: true
       - name: add-jobs-ready-time
-        script: /io/sql/add-jobs-ready-time.sql
+        script: /io/sql/94-add-jobs-ready-time.sql
         online: true
       - name: add-list-batches-index
-        script: /io/sql/add-list-batches-index.sql
+        script: /io/sql/95-add-list-batches-index.sql
         online: true
       - name: add-feature-flags
-        script: /io/sql/add-feature-flags.sql
+        script: /io/sql/96-add-feature-flags.sql
         online: true
       - name: add-oms-agent-flag
-        script: /io/sql/add-oms-agent-flag.sql
+        script: /io/sql/97-add-oms-agent-flag.sql
         online: true
       - name: increase-test-max-idle-time
-        script: /io/sql/increase_test_max_idle_time.py
+        script: /io/sql/98-increase_test_max_idle_time.py
         online: true
       - name: turn_off_oms_agent_test_dev
-        script: /io/sql/turn_off_oms_agent_test_dev.py
+        script: /io/sql/99-turn_off_oms_agent_test_dev.py
         online: true
       - name: add-billing-index-token
-        script: /io/sql/add-billing-index-token.sql
+        script: /io/sql/100-add-billing-index-token.sql
         online: true
       - name: jobs-after-update-simple.sql
-        script: /io/sql/jobs-after-update-simple.sql
+        script: /io/sql/101-jobs-after-update-simple.sql
         online: true
       - name: turn-on-billing-compaction
-        script: /io/sql/turn_on_billing_compaction.py
+        script: /io/sql/102-turn_on_billing_compaction.py
         online: true
       - name: cleanup-deprecated-functions
-        script: /io/sql/cleanup-deprecated-functions.sql
+        script: /io/sql/103-cleanup-deprecated-functions.sql
         online: true
       - name: set-test-pools-to-known-parameters
-        script: /io/sql/set-test-pools-to-known-parameters.py
+        script: /io/sql/104-set-test-pools-to-known-parameters.py
         online: true
       - name: add-gcp-support-logs-specs-and-firewall-fees
-        script: /io/sql/add-gcp-support-logs-specs-and-firewall-fees.py
+        script: /io/sql/105-add-gcp-support-logs-specs-and-firewall-fees.py
         online: true
       - name: add-product-sku
-        script: /io/sql/add-product-sku.sql
+        script: /io/sql/106-add-product-sku.sql
         online: true
       - name: dedup-agg-batch-resources
-        script: /io/sql/dedup_agg_batch_resources.py
+        script: /io/sql/107-dedup_agg_batch_resources.py
         online: true
       - name: setup-job-groups
-        script: /io/sql/setup-job-groups.sql
+        script: /io/sql/108-setup-job-groups.sql
         online: true
       - name: dedup-job-resources
-        script: /io/sql/dedup_job_resources.py
+        script: /io/sql/109-dedup_job_resources.py
         online: true
       - name: fix-job-groups-state-enum
-        script: /io/sql/fix-job-groups-state-enum.sql
+        script: /io/sql/110-fix-job-groups-state-enum.sql
         online: true
       - name: populate-job-groups
-        script: /io/sql/populate_job_groups.py
+        script: /io/sql/111-populate_job_groups.py
         online: true
       - name: rename-job-groups-tables
-        script: /io/sql/rename-job-groups-tables.sql
+        script: /io/sql/112-rename-job-groups-tables.sql
         online: false  # this must be offline
       - name: remove-v2-billing-writes
-        script: /io/sql/remove-v2-billing-writes.sql
+        script: /io/sql/113-remove-v2-billing-writes.sql
         online: true
       - name: update-ip-fee-resource
-        script: /io/sql/update-ip-fee-resource.py
+        script: /io/sql/114-update-ip-fee-resource.py
         online: true
       - name: remove-v2-billing-tables
-        script: /io/sql/remove-v2-billing-tables.sql
+        script: /io/sql/115-remove-v2-billing-tables.sql
         online: true
       - name: finalize-job-groups
-        script: /io/sql/finalize-job-groups.sql
+        script: /io/sql/116-finalize-job-groups.sql
         online: true
       - name: fix-mark-job-complete-deadlocks
-        script: /io/sql/fix-mark-job-complete-deadlocks.sql
+        script: /io/sql/117-fix-mark-job-complete-deadlocks.sql
         online: true
       - name: jobs-add-n-max-attempts
-        script: /io/sql/jobs-add-n-max-attempts.sql
+        script: /io/sql/118-jobs-add-n-max-attempts.sql
         online: true
       - name: is-job-cancelled
         script: /io/sql/119-is-job-cancelled.sql
