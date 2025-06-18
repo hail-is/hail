@@ -1141,7 +1141,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     job_attributes_args = []
     jobs_telemetry_args = []
 
-    inst_coll_resources: Dict[Tuple[int, str], Dict[str, int]] = collections.defaultdict(
+    inst_coll_resources: Dict[Tuple[int, str, str], Dict[str, int]] = collections.defaultdict(
         lambda: {
             'n_jobs': 0,
             'n_ready_jobs': 0,
@@ -1289,7 +1289,9 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
                 f'machine_type={machine_type}'
             )
 
-        inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+        cloud_name, inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+        assert cloud_name == cloud
+
         resources['cores_mcpu'] = cores_mcpu
         resources['memory_bytes'] = memory_bytes
         resources['storage_gib'] = storage_gib
@@ -1373,7 +1375,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
         sa = spec.get('service_account')
         check_service_account_permissions(user, sa)
 
-        icr = inst_coll_resources[(job_group_id, inst_coll_name)]
+        icr = inst_coll_resources[(job_group_id, cloud_name, inst_coll_name)]
         icr['n_jobs'] += 1
 
         # jobs in non-initial updates of a batch always start out as pending
@@ -1413,6 +1415,7 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
             always_run,
             cores_mcpu,
             len(parent_ids),
+            cloud_name,
             inst_coll_name,
             n_regions,
             regions_bits_rep,
@@ -1437,8 +1440,8 @@ WHERE batch_updates.batch_id = %s AND batch_updates.update_id = %s AND user = %s
     async def insert_jobs_into_db(tx):
         try:
             sql = """
-INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, n_regions, regions_bits_rep, n_max_attempts)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, update_id, job_group_id, state, spec, always_run, cores_mcpu, n_pending_parents, cloud, inst_coll, n_regions, regions_bits_rep, n_max_attempts)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 """
             log.info(f'about to run: {sql} \n\n with parameters: {jobs_args}')
             await tx.execute_many(
@@ -1496,6 +1499,7 @@ VALUES (%s, %s, %s);
             (
                 batch_id,
                 update_id,
+                cloud_name,
                 inst_coll,
                 rand_token,
                 resources['n_jobs'],
@@ -1509,8 +1513,8 @@ VALUES (%s, %s, %s);
         #  job_groups_inst_coll_staging tracks the num of resources recursively for all children job groups
         await tx.execute_many(
             """
-INSERT INTO job_groups_inst_coll_staging (batch_id, update_id, job_group_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-SELECT %s, %s, ancestor_id, %s, %s, %s, %s, %s
+INSERT INTO job_groups_inst_coll_staging (batch_id, update_id, job_group_id, cloud, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+SELECT %s, %s, ancestor_id, %s, %s, %s, %s, %s, %s
 FROM job_group_self_and_ancestors
 WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE
@@ -1526,6 +1530,7 @@ ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
             (
                 batch_id,
                 update_id,
+                cloud_name,
                 inst_coll,
                 rand_token,
                 resources['n_ready_cancellable_jobs'],
@@ -1538,8 +1543,8 @@ ready_cores_mcpu = ready_cores_mcpu + VALUES(ready_cores_mcpu);
         #  job_group_inst_coll_cancellable_resources tracks the num of resources recursively for all children job groups
         await tx.execute_many(
             """
-INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-SELECT %s, %s, ancestor_id, %s, %s, %s, %s
+INSERT INTO job_group_inst_coll_cancellable_resources (batch_id, update_id, job_group_id, cloud, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+SELECT %s, %s, ancestor_id, %s, %s, %s, %s, %s
 FROM job_group_self_and_ancestors
 WHERE batch_id = %s AND job_group_id = %s
 ON DUPLICATE KEY UPDATE

@@ -62,7 +62,7 @@ from ..batch_configuration import (
     MACHINE_NAME_PREFIX,
     REFRESH_INTERVAL_IN_SECONDS,
 )
-from ..cloud.driver import get_cloud_driver
+from ..cloud.driver import get_cloud_driver, get_cloud_drivers
 from ..cloud.resource_utils import local_ssd_size, possible_cores_from_worker_type, unreserved_worker_data_disk_size_gib
 from ..exceptions import BatchUserError
 from ..file_store import FileStore
@@ -75,7 +75,6 @@ from ..utils import (
     query_billing_projects_with_cost,
 )
 from .canceller import Canceller
-from .driver import CloudDriver
 from .instance import Instance
 from .instance_collection import InstanceCollectionManager, JobPrivateInstanceManager, Pool
 from .job import mark_job_complete, mark_job_started
@@ -106,9 +105,10 @@ def instance_name_from_request(request):
     return instance_name
 
 
-def instance_from_request(request):
+async def instance_from_request(request: web.Request):
     instance_name = instance_name_from_request(request)
-    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    cloud = (await request.json())['cloud']
+    inst_coll_manager: InstanceCollectionManager = request.app['drivers'][cloud].inst_coll_manager
     return inst_coll_manager.get_instance(instance_name)
 
 
@@ -133,7 +133,7 @@ def batch_only(fun: AIOHTTPHandler):
 def activating_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AIOHTTPHandler:
     @wraps(fun)
     async def wrapped(request):
-        instance = instance_from_request(request)
+        instance = await instance_from_request(request)
         if not instance:
             instance_name = instance_name_from_request(request)
             log.info(f'instance {instance_name} not found')
@@ -164,7 +164,7 @@ def activating_instances_only(fun: Callable[[web.Request, Instance], Awaitable[w
 def active_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.StreamResponse]]) -> AIOHTTPHandler:
     @wraps(fun)
     async def wrapped(request):
-        instance = instance_from_request(request)
+        instance = await instance_from_request(request)
         if not instance:
             instance_name = instance_name_from_request(request)
             log.info(f'instance not found {instance_name}')
@@ -179,7 +179,9 @@ def active_instances_only(fun: Callable[[web.Request, Instance], Awaitable[web.S
             log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
-        inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+        cloud = instance.inst_coll.cloud
+
+        inst_coll_manager: InstanceCollectionManager = request.app['drivers'][cloud].inst_coll_manager
         retrieved_token: str = await inst_coll_manager.name_token_cache.lookup(instance.name)
         if token != retrieved_token:
             log.info('authorization token does not match')
@@ -294,12 +296,13 @@ async def deactivate_instance(_, instance: Instance) -> web.Response:
     return web.Response()
 
 
-@routes.post('/instances/{instance_name}/kill')
+@routes.post('/cloud/{cloud}/instances/{instance_name}/kill')
 @auth.authenticated_developers_only()
 async def kill_instance(request: web.Request, _) -> NoReturn:
     instance_name = request.match_info['instance_name']
+    cloud = request.match_info['cloud']
 
-    inst_coll_manager: InstanceCollectionManager = request.app['driver'].inst_coll_manager
+    inst_coll_manager: InstanceCollectionManager = request.app['drivers'][cloud].inst_coll_manager
     instance = inst_coll_manager.get_instance(instance_name)
 
     if instance is None:
@@ -313,7 +316,7 @@ async def kill_instance(request: web.Request, _) -> NoReturn:
         set_message(session, 'Cannot kill a non-active instance', 'error')
 
     pool_name = instance.inst_coll.name
-    pool_url_path = f'/inst_coll/pool/{pool_name}'
+    pool_url_path = f'/inst_coll/cloud/{cloud}/pool/{pool_name}'
     raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
@@ -443,43 +446,58 @@ async def billing_update(request, instance):
 async def get_index(request, userdata):
     app = request.app
     db: Database = app['db']
-    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
-    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
-    ready_cores = await db.select_and_fetchone("""
+    cloud_page_context = {}
+    for cloud, driver in app['drivers']:
+        inst_coll_manager: InstanceCollectionManager = driver.inst_coll_manager
+        jpim: JobPrivateInstanceManager = driver.job_private_inst_manager
+
+        ready_cores = await db.select_and_fetchone("""
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM user_inst_coll_resources;
-""")
-    ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+FROM user_inst_coll_resources
+WHERE cloud = %s;
+""",
+                                                   (cloud,))
+
+        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+
+        cloud_page_context[cloud] = {
+            'pools': inst_coll_manager.pools.values(),
+            'jpim': jpim,
+            'instance_id': app['instance_id'],
+            'global_total_n_instances': inst_coll_manager.global_total_n_instances,
+            'global_total_cores_mcpu': inst_coll_manager.global_total_cores_mcpu,
+            'global_live_n_instances': inst_coll_manager.global_live_n_instances,
+            'global_live_cores_mcpu': inst_coll_manager.global_live_cores_mcpu,
+            'global_n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
+            'global_cores_mcpu_by_state': inst_coll_manager.global_cores_mcpu_by_state,
+            'global_schedulable_n_instances': inst_coll_manager.global_schedulable_n_instances,
+            'global_schedulable_cores_mcpu': inst_coll_manager.global_schedulable_cores_mcpu,
+            'global_schedulable_free_cores_mcpu': inst_coll_manager.global_schedulable_free_cores_mcpu,
+            'instances': inst_coll_manager.name_instance.values(),
+            'ready_cores_mcpu': ready_cores_mcpu,
+        }
+
 
     page_context = {
-        'pools': inst_coll_manager.pools.values(),
-        'jpim': jpim,
-        'instance_id': app['instance_id'],
-        'global_total_n_instances': inst_coll_manager.global_total_n_instances,
-        'global_total_cores_mcpu': inst_coll_manager.global_total_cores_mcpu,
-        'global_live_n_instances': inst_coll_manager.global_live_n_instances,
-        'global_live_cores_mcpu': inst_coll_manager.global_live_cores_mcpu,
-        'global_n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
-        'global_cores_mcpu_by_state': inst_coll_manager.global_cores_mcpu_by_state,
-        'global_schedulable_n_instances': inst_coll_manager.global_schedulable_n_instances,
-        'global_schedulable_cores_mcpu': inst_coll_manager.global_schedulable_cores_mcpu,
-        'global_schedulable_free_cores_mcpu': inst_coll_manager.global_schedulable_free_cores_mcpu,
-        'instances': inst_coll_manager.name_instance.values(),
-        'ready_cores_mcpu': ready_cores_mcpu,
+        'cloud_context': cloud_page_context,
         'frozen': app['frozen'],
         'feature_flags': app['feature_flags'],
     }
+
+    # You are going need to change index.html to support multiple clouds!
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
-@routes.get('/quotas')
+@routes.get('/cloud/{cloud}/quotas')
 @auth.authenticated_developers_only()
 async def get_quotas(request, userdata):
-    if CLOUD != 'gcp':
+    cloud = request.match_info['cloud']
+
+    if cloud != 'gcp':
         return await render_template('batch-driver', request, userdata, 'quotas.html', {"plot_json": None})
 
-    data = request.app['driver'].get_quotas()
+    data = request.app['drivers'][cloud].get_quotas()
 
     regions = list(data.keys())
     new_data = []
@@ -585,14 +603,22 @@ UPDATE feature_flags SET compact_billing_tables = %s, oms_agent = %s;
     raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
-@routes.post('/config-update/pool/{pool}')
+@routes.post('/config-update/cloud/{cloud}/pool/{pool}')
 @auth.authenticated_developers_only()
 async def pool_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
     db: Database = app['db']
-    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
+
+    cloud_name = request.match_info['cloud']
+    driver = app['drivers'].get(cloud_name)
+
+    if driver is None:
+        set_message(session, f'Unknown cloud {cloud_name}.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    inst_coll_manager: InstanceCollectionManager = driver.inst_coll_manager
 
     pool_name = request.match_info['pool']
     pool = inst_coll_manager.get_inst_coll(pool_name)
@@ -790,15 +816,23 @@ async def pool_config_update(request: web.Request, _) -> NoReturn:
     raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
-@routes.post('/config-update/jpim')
+@routes.post('/config-update/cloud/{cloud}/jpim')
 @auth.authenticated_developers_only()
 async def job_private_config_update(request: web.Request, _) -> NoReturn:
     app = request.app
-    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
 
     session = await aiohttp_session.get_session(request)
 
-    url_path = '/inst_coll/jpim'
+    cloud_name = request.match_info['cloud']
+    driver = app['drivers'].get(cloud_name)
+
+    if driver is None:
+        set_message(session, f'Unknown cloud {cloud_name}.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    jpim: JobPrivateInstanceManager = driver.job_private_inst_manager
+
+    url_path = f'/inst_coll/cloud/{cloud_name}/jpim'
 
     post = await request.post()
 
@@ -868,13 +902,21 @@ async def job_private_config_update(request: web.Request, _) -> NoReturn:
     raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
 
 
-@routes.get('/inst_coll/pool/{pool}')
+@routes.get('/inst_coll/cloud/{cloud}/pool/{pool}')
 @auth.authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
-    inst_coll_manager: InstanceCollectionManager = app['driver'].inst_coll_manager
 
     session = await aiohttp_session.get_session(request)
+
+    cloud_name = request.match_info['cloud']
+    driver = app['drivers'].get(cloud_name)
+
+    if driver is None:
+        set_message(session, f'Unknown cloud {cloud_name}.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    inst_coll_manager: InstanceCollectionManager = driver.inst_coll_manager
 
     pool_name = request.match_info['pool']
     pool = inst_coll_manager.get_inst_coll(pool_name)
@@ -895,6 +937,7 @@ async def get_pool(request, userdata):
     pool_config_json = json.dumps(pool.config())
 
     page_context = {
+        'cloud': cloud_name,
         'pool': pool,
         'pool_config_json': pool_config_json,
         'instances': pool.name_instance.values(),
@@ -905,11 +948,21 @@ async def get_pool(request, userdata):
     return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
 
 
-@routes.get('/inst_coll/jpim')
+@routes.get('/inst_coll/cloud/{cloud}/jpim')
 @auth.authenticated_developers_only()
 async def get_job_private_inst_manager(request, userdata):
     app = request.app
-    jpim: JobPrivateInstanceManager = app['driver'].job_private_inst_manager
+
+    session = await aiohttp_session.get_session(request)
+
+    cloud_name = request.match_info['cloud']
+    driver = app['drivers'].get(cloud_name)
+
+    if driver is None:
+        set_message(session, f'Unknown cloud {cloud_name}.', 'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    jpim: JobPrivateInstanceManager = driver.job_private_inst_manager
 
     user_resources = await jpim.compute_fair_share()
     user_resources = sorted(
@@ -923,6 +976,7 @@ async def get_job_private_inst_manager(request, userdata):
     n_running_jobs = sum(record['n_running_jobs'] for record in user_resources)
 
     page_context = {
+        'cloud': cloud_name,
         'jpim': jpim,
         'instances': jpim.name_instance.values(),
         'user_resources': user_resources,
@@ -978,11 +1032,13 @@ UPDATE globals SET frozen = 0;
     raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
 
-@routes.get('/user_resources')
+@routes.get('/cloud/{cloud}/user_resources')
 @auth.authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
     db: Database = app['db']
+
+    cloud = request.match_info['cloud']
 
     records = db.execute_and_fetchall("""
 SELECT user,
@@ -991,9 +1047,11 @@ SELECT user,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
 FROM user_inst_coll_resources
+WHERE cloud = %s
 GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
-""")
+""",
+                                      (cloud,))
 
     user_resources = sorted(
         [record async for record in records],
@@ -1014,7 +1072,7 @@ SELECT
   u.*
 FROM
 (
-  SELECT user, inst_coll,
+  SELECT user, cloud, inst_coll,
     CAST(COALESCE(SUM(state = 'Ready' AND runnable), 0) AS SIGNED) AS actual_n_ready_jobs,
     CAST(COALESCE(SUM(cores_mcpu * (state = 'Ready' AND runnable)), 0) AS SIGNED) AS actual_ready_cores_mcpu,
     CAST(COALESCE(SUM(state = 'Running' AND (NOT cancelled)), 0) AS SIGNED) AS actual_n_running_jobs,
@@ -1025,7 +1083,7 @@ FROM
     CAST(COALESCE(SUM(state = 'Creating' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_creating_jobs
   FROM
   (
-    SELECT job_groups.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
+    SELECT job_groups.user, jobs.state, jobs.cores_mcpu, jobs.cloud, jobs.inst_coll,
       (jobs.always_run OR NOT (jobs.cancelled OR t.cancelled IS NOT NULL)) AS runnable,
       (NOT jobs.always_run AND (jobs.cancelled OR t.cancelled IS NOT NULL)) AS cancelled
     FROM job_groups
@@ -1041,11 +1099,11 @@ FROM
     ) AS t ON TRUE
     WHERE job_groups.`state` = 'running'
   ) as v
-  GROUP BY user, inst_coll
+  GROUP BY user, cloud, inst_coll
 ) as t
 INNER JOIN
 (
-  SELECT user, inst_coll,
+  SELECT user, cloud, inst_coll,
     CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS expected_n_ready_jobs,
     CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS expected_ready_cores_mcpu,
     CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS expected_n_running_jobs,
@@ -1055,9 +1113,9 @@ INNER JOIN
     CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS expected_n_cancelled_running_jobs,
     CAST(COALESCE(SUM(n_cancelled_creating_jobs), 0) AS SIGNED) AS expected_n_cancelled_creating_jobs
   FROM user_inst_coll_resources
-  GROUP BY user, inst_coll
+  GROUP BY user, cloud, inst_coll
 ) AS u
-ON t.user = u.user AND t.inst_coll = u.inst_coll
+ON t.user = u.user AND t.cloud = u.cloud AND t.inst_coll = u.inst_coll
 WHERE actual_n_ready_jobs != expected_n_ready_jobs
    OR actual_ready_cores_mcpu != expected_ready_cores_mcpu
    OR actual_n_running_jobs != expected_n_running_jobs
@@ -1327,19 +1385,19 @@ WHERE t_cancelled.cancelled IS NULL AND state = 'running' AND cancel_after_n_fai
         await _cancel_job_group(app, job_group['batch_id'], job_group['job_group_id'])
 
 
-USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['state', 'user', 'inst_coll'])
-USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['state', 'user', 'inst_coll'])
-ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str]] = set()
+USER_CORES = pc.Gauge('batch_user_cores', 'Batch user cores (i.e. total in-use cores)', ['cloud', 'state', 'user', 'inst_coll'])
+USER_JOBS = pc.Gauge('batch_user_jobs', 'Batch user jobs', ['cloud', 'state', 'user', 'inst_coll'])
+ACTIVE_USER_INST_COLL_PAIRS: Set[Tuple[str, str, str]] = set()
 
-FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['inst_coll'])
-FREE_SCHEDULABLE_CORES = pc.Gauge('batch_free_schedulable_cores', 'Batch total free cores', ['inst_coll'])
-TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['inst_coll'])
-COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll'])
-INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['inst_coll', 'state'])
+FREE_CORES = pc.Gauge('batch_free_cores', 'Batch total free cores', ['cloud', 'inst_coll'])
+FREE_SCHEDULABLE_CORES = pc.Gauge('batch_free_schedulable_cores', 'Batch total free cores', ['cloud', 'inst_coll'])
+TOTAL_CORES = pc.Gauge('batch_total_cores', 'Batch total cores', ['cloud', 'inst_coll'])
+COST_PER_HOUR = pc.Gauge('batch_cost_per_hour', 'Batch cost ($/hr)', ['measure', 'inst_coll', 'cloud'])
+INSTANCES = pc.Gauge('batch_instances', 'Batch instances', ['cloud', 'inst_coll', 'state'])
 INSTANCE_CORE_UTILIZATION = pc.Histogram(
     'batch_instance_core_utilization',
     'Batch per-instance percentage of revenue generating cores',
-    ['inst_coll'],
+    ['cloud', 'inst_coll'],
     # Buckets were chosen to distinguish instances with:
     # - no jobs (<= 1/8 core in use)
     # - 1 1/4 core job
@@ -1358,24 +1416,25 @@ async def monitor_user_resources(app):
     db: Database = app['db']
 
     records = db.select_and_fetchall("""
-SELECT user, inst_coll,
+SELECT user, cloud, inst_coll,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS n_creating_jobs
 FROM user_inst_coll_resources
-GROUP BY user, inst_coll;
+GROUP BY user, cloud, inst_coll;
 """)
 
-    current_user_inst_coll_pairs: Set[Tuple[str, str]] = set()
+    current_user_cloud_inst_coll_pairs: Set[Tuple[str, str, str]] = set()
 
     async for record in records:
         user = record['user']
+        cloud = record['cloud']
         inst_coll = record['inst_coll']
 
-        current_user_inst_coll_pairs.add((user, inst_coll))
-        labels = {'user': user, 'inst_coll': inst_coll}
+        current_user_cloud_inst_coll_pairs.add((user, cloud, inst_coll))
+        labels = {'user': user, 'inst_coll': inst_coll, 'cloud': cloud}
 
         USER_CORES.labels(state='ready', **labels).set(record['ready_cores_mcpu'] / 1000)
         USER_CORES.labels(state='running', **labels).set(record['running_cores_mcpu'] / 1000)
@@ -1383,18 +1442,17 @@ GROUP BY user, inst_coll;
         USER_JOBS.labels(state='running', **labels).set(record['n_running_jobs'])
         USER_JOBS.labels(state='creating', **labels).set(record['n_creating_jobs'])
 
-    for user, inst_coll in ACTIVE_USER_INST_COLL_PAIRS - current_user_inst_coll_pairs:
-        USER_CORES.remove('ready', user, inst_coll)
-        USER_CORES.remove('running', user, inst_coll)
-        USER_JOBS.remove('ready', user, inst_coll)
-        USER_JOBS.remove('running', user, inst_coll)
-        USER_JOBS.remove('creating', user, inst_coll)
+    for user, cloud, inst_coll in ACTIVE_USER_INST_COLL_PAIRS - current_user_cloud_inst_coll_pairs:
+        USER_CORES.remove('ready', user, cloud, inst_coll)
+        USER_CORES.remove('running', user, cloud, inst_coll)
+        USER_JOBS.remove('ready', user, cloud, inst_coll)
+        USER_JOBS.remove('running', user, cloud, inst_coll)
+        USER_JOBS.remove('creating', user, cloud, inst_coll)
 
-    ACTIVE_USER_INST_COLL_PAIRS = current_user_inst_coll_pairs
+    ACTIVE_USER_INST_COLL_PAIRS = current_user_cloud_inst_coll_pairs
 
 
-def monitor_instances(app) -> None:
-    driver: CloudDriver = app['driver']
+def monitor_instances(app, driver, cloud) -> None:
     inst_coll_manager = driver.inst_coll_manager
     resource_rates = driver.billing_manager.resource_rates
 
@@ -1414,22 +1472,24 @@ def monitor_instances(app) -> None:
                 total_cores += instance.cores_mcpu / 1000
                 total_cost_per_hour += instance.cost_per_hour(resource_rates)
                 total_revenue_per_hour += instance.revenue_per_hour(resource_rates)
-                INSTANCE_CORE_UTILIZATION.labels(inst_coll=inst_coll.name).observe(instance.percent_cores_used)
+                INSTANCE_CORE_UTILIZATION.labels(cloud=inst_coll.cloud, inst_coll=inst_coll.name).observe(instance.percent_cores_used)
 
             instances_by_state[instance.state] += 1
 
-        FREE_CORES.labels(inst_coll=inst_coll.name).set(total_free_cores)
-        FREE_SCHEDULABLE_CORES.labels(inst_coll=inst_coll.name).set(total_free_schedulable_cores)
-        TOTAL_CORES.labels(inst_coll=inst_coll.name).set(total_cores)
-        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='actual').set(total_cost_per_hour)
-        COST_PER_HOUR.labels(inst_coll=inst_coll.name, measure='billed').set(total_revenue_per_hour)
+        FREE_CORES.labels(cloud=cloud, inst_coll=inst_coll.name).set(total_free_cores)
+        FREE_SCHEDULABLE_CORES.labels(cloud=cloud, inst_coll=inst_coll.name).set(total_free_schedulable_cores)
+        TOTAL_CORES.labels(cloud=cloud, inst_coll=inst_coll.name).set(total_cores)
+        COST_PER_HOUR.labels(cloud=cloud, inst_coll=inst_coll.name, measure='actual').set(total_cost_per_hour)
+        COST_PER_HOUR.labels(cloud=cloud,inst_coll=inst_coll.name, measure='billed').set(total_revenue_per_hour)
         for state, count in instances_by_state.items():
-            INSTANCES.labels(inst_coll=inst_coll.name, state=state).set(count)
+            INSTANCES.labels(cloud=cloud, inst_coll=inst_coll.name, state=state).set(count)
 
 
 async def monitor_system(app):
     await monitor_user_resources(app)
-    monitor_instances(app)
+
+    for cloud, driver in app['drivers'].items():
+        monitor_instances(app, driver, cloud)
 
 
 async def delete_committed_job_groups_inst_coll_staging_records(db: Database):
@@ -1735,8 +1795,11 @@ SELECT instance_id, frozen FROM globals;
     app[CommonAiohttpAppKeys.CLIENT_SESSION] = httpx.client_session()
     exit_stack.push_async_callback(app[CommonAiohttpAppKeys.CLIENT_SESSION].close)
 
-    app['driver'] = await get_cloud_driver(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
-    exit_stack.push_async_callback(app['driver'].shutdown)
+    app['drivers'] = await get_cloud_drivers(app, db, MACHINE_NAME_PREFIX, DEFAULT_NAMESPACE, inst_coll_configs)
+    for driver in app['drivers']:
+        exit_stack.push_async_callback(driver.shutdown)
+
+    app['regions'] = defaultdict(dict)
 
     app['canceller'] = await Canceller.create(app)
     exit_stack.push_async_callback(app['canceller'].shutdown_and_wait)
