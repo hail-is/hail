@@ -26,7 +26,7 @@ class TableGenSuite extends HailSuite {
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidContextsType(): Unit = {
     val ex = intercept[IllegalArgumentException] {
-      mkTableGen(contexts = Some(Str("oh noes :'("))).typecheck()
+      TypeCheck(ctx, mkTableGen(contexts = Some(Str("oh noes :'("))))
     }
 
     ex.getMessage should include("contexts")
@@ -36,57 +36,69 @@ class TableGenSuite extends HailSuite {
 
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidGlobalsType(): Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(
-        globals = Some(Str("oh noes :'(")),
-        body = Some((_, _) => MakeStream(IndexedSeq(), TStream(TStruct()))),
-      ).typecheck()
+    val ex = intercept[HailException] {
+      TypeCheck(
+        ctx,
+        mkTableGen(
+          globals = Some(Str("oh noes :'(")),
+          body = Some((_, _) => MakeStream(IndexedSeq(), TStream(TStruct()))),
+        ),
+      )
     }
-    ex.getMessage should include("globals")
-    ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
+    ex.getCause.getMessage should include("globals")
+    ex.getCause.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
+    ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidBodyType(): Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body = Some((_, _) => Str("oh noes :'("))).typecheck()
+    val ex = intercept[HailException] {
+      TypeCheck(ctx, mkTableGen(body = Some((_, _) => Str("oh noes :'("))))
     }
-    ex.getMessage should include("body")
-    ex.getMessage should include(s"Expected: ${classOf[TStream].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
+    ex.getCause.getMessage should include("body")
+    ex.getCause.getMessage should include(s"Expected: ${classOf[TStream].getName}")
+    ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidBodyElementType(): Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(body =
-        Some((_, _) => MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString)))
-      ).typecheck()
+    val ex = intercept[HailException] {
+      TypeCheck(
+        ctx,
+        mkTableGen(body =
+          Some((_, _) => MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString)))
+        ),
+      )
     }
-    ex.getMessage should include("body.elementType")
-    ex.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
-    ex.getMessage should include(s"Actual: ${TString.getClass.getName}")
+    ex.getCause.getMessage should include("body.elementType")
+    ex.getCause.getMessage should include(s"Expected: ${classOf[TStruct].getName}")
+    ex.getCause.getMessage should include(s"Actual: ${TString.getClass.getName}")
   }
 
   @Test(groups = Array("construction", "typecheck"))
   def testWithInvalidPartitionerKeyType(): Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(partitioner =
-        Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
-      ).typecheck()
+    val ex = intercept[HailException] {
+      TypeCheck(
+        ctx,
+        mkTableGen(partitioner =
+          Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
+        ),
+      )
     }
-    ex.getMessage should include("partitioner")
+    ex.getCause.getMessage should include("partitioner")
   }
 
   @Test(groups = Array("construction", "typecheck"))
   def testWithTooLongPartitionerKeyType(): Unit = {
-    val ex = intercept[IllegalArgumentException] {
-      mkTableGen(partitioner =
-        Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
-      ).typecheck()
+    val ex = intercept[HailException] {
+      TypeCheck(
+        ctx,
+        mkTableGen(partitioner =
+          Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
+        ),
+      )
     }
-    ex.getMessage should include("partitioner")
+    ex.getCause.getMessage should include("partitioner")
   }
 
   @Test(groups = Array("requiredness"))
