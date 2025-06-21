@@ -7,6 +7,6 @@ set -ex
 
 package=$1
 uv pip compile \
-    --python-version 3.9.22 \
+    --python-version 3.10 \
     --python-platform linux \
     --upgrade $package/requirements.txt --output-file=$package/pinned-requirements.txt

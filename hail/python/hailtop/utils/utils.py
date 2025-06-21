@@ -191,7 +191,7 @@ def async_to_blocking(coro: Awaitable[T]) -> T:
 def ait_to_blocking(ait: AsyncIterator[T]) -> Iterator[T]:
     while True:
         try:
-            yield async_to_blocking(ait.__anext__())
+            yield async_to_blocking(anext(ait))
         except StopAsyncIteration:
             break
 
