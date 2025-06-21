@@ -52,6 +52,22 @@ supports.
 policy. Their functionality or even existence may change without notice. Please contact us if you
 critically depend on experimental functionality.**
 
+## Version 0.2.135
+
+- (hail#14872) move TableIR execute methods out of class
+- (hail#14869) fix overeager cast simplification
+- (hail#14829) Add ability to attach to existing batch
+- (hail#14860) Documentation changes in preparation for python upgrade
+- (hail#14855) Upgrade to Numpy 2.x series
+- (hail#14846) Add `unitialized` pytest marker to initialisation tests
+- (hail#14857) fix a bug in NormalizeNames
+- (hail#14801) Move `is.hail.check` to test code
+- (hail#14845) refactor ApplyIR
+- (hail#14839) Add StreamAggScan to python
+- (hail#14843) Re-remove hail's protobuf dependency.
+- (hail#14696) Move LoweredTableReaderCoercer into ExecuteContext
+- (hail#14838) Fix randomness handling in StreamAgg
+
 ## Version 0.2.134
 
 Released 2025-02-25
