@@ -1,5 +1,5 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
-FROM $DOCKER_PREFIX/ubuntu:jammy-20250404
+FROM $DOCKER_PREFIX/ubuntu:noble-20250529
 
 ENV LANG C.UTF-8
 ENV DEBIAN_FRONTEND noninteractive
@@ -21,9 +21,9 @@ RUN chmod 755 /bin/retry && \
     hail-apt-get-install curl apt-transport-https ca-certificates gnupg jq rsync && \
     curl 'https://keyserver.ubuntu.com/pks/lookup?search=0xF23C5A6CF475977595C89F51BA6932366A755776&hash=on&exact=on&options=mr&op=get' \
          | gpg --dearmor > /usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg && \
-    echo 'deb [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
+    echo 'deb [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu noble main' \
          >> /etc/apt/sources.list && \
-    echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu jammy main' \
+    echo 'deb-src [signed-by=/usr/share/keyrings/deadsnakes-ppa-archive-keyring.gpg] http://ppa.launchpad.net/deadsnakes/ppa/ubuntu noble main' \
          >> /etc/apt/sources.list && \
     curl 'https://packages.cloud.google.com/apt/doc/apt-key.gpg' \
         | gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg && \

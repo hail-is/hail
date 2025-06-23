@@ -52,7 +52,7 @@ resource "azurerm_shared_image" "batch_worker_22_04" {
   identifier {
     publisher = "Hail"
     offer     = "BatchWorker"
-    sku       = "Ubuntu-22.04-LTS"
+    sku       = "Ubuntu-24.04-LTS"
   }
 }
 
