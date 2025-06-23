@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+usage() {
+cat << EOF
+Update hail and hailtop changelogs with new entries,
+populated from commit messages since the last release tag.
+
+usage: $(basename "${0}")
+EOF
+}
+
+last-tag() {
+  git describe --tags $(git rev-list --tags --max-count=1)
+}
+
+inc() {
+  IFS='.' read -r major minor patch <<< "$1"
+  echo "$major.$minor.$((patch + 1))"
+}
+
+if [[ "$OSTYPE" == "darwin"* ]]; then
+  sed-inplace() { sed -i '' "$@"; }
+else
+  sed-inplace() { sed -i "$@"; }
+fi
+
+write-hailtop-entries() {
+  entries=$(mktemp)
+
+  git log ${1}.. --format='%s' |\
+    grep -P '\[[^\]]*(a(ll|uth)|batch|dataproc|fs|hail(ctl|genetics|top)|infra|services)[^\]]*\]' |\
+    sed -E 's|\[[^\]+\] (.*) \(#([[:digit:]]*)\)|- (\`#\2 <https://github.com/hail-is/hail/pull/\2>\`__) \1|' \
+    > ${entries}
+
+  sed-inplace -f - -- python/hailtop/batch/docs/change_log.rst <<< "
+    /Change Log/ {
+      N
+      N
+      a\
+      **Version ${2}**\\n
+      r ${entries}
+      a\
+
+    }
+  "
+
+  rm ${entries}
+}
+
+write-hail-entries() {
+  entries=$(mktemp)
+
+  git log ${1}.. --format='%s' |\
+    grep -P '\[[^\]]*(all|com(biner|piler)|dep(s|endencies)|hail(?!ctl|genetics|jwt|top)|ir|jvm|p(ip|ython)|q(uery|ob)|vds)[^\]]*\]' |\
+    sed -E 's/\[[^\]+\] (.*) \(#([[:digit:]]*)\)/- (hail#\2) \1/' \
+    > ${entries}
+
+  sed-inplace -f - -- python/hail/docs/change_log.md <<< "
+    /## Version "${1}"/ {
+      i\
+      ## Version ${2} \\n
+      i\
+      Released $(date --iso-8601) \\n
+      r ${entries}
+      N
+      i\
+
+      }
+  "
+
+  rm ${entries}
+}
+
+main() {
+  prev=$(last-tag)
+  next=$(inc $prev)
+  write-hailtop-entries $prev $next
+  write-hail-entries $prev $next
+}
+
+main
