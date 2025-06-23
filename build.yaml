@@ -2354,6 +2354,8 @@ steps:
       - name: jobs-add-n-max-attempts
         script: /io/sql/jobs-add-n-max-attempts.sql
         online: true
+      - name: is-job-cancelled
+        script: /io/sql/119-is-job-cancelled.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
