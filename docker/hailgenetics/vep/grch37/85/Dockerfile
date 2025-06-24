@@ -5,13 +5,11 @@ ENV VEP_VERSION=85
 ENV VEP_DIR=/vep
 
 RUN apt-get update && apt-get -y install \
-    apache2 \
     build-essential \
     cpanminus \
     curl \
     git \
     locales \
-    manpages \
     mysql-client \
     openssl \
     perl \
@@ -21,8 +19,14 @@ RUN apt-get update && apt-get -y install \
     tabix \
     unzip \
     wget \
+    libbz2-dev \
+    libcurl4-openssl-dev \
+    liblzma-dev \
     libmysqlclient-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
     libpng-dev \
+    libsqlite3-dev \
     libssl-dev \
     zlib1g-dev \
     libarchive-extract-perl \

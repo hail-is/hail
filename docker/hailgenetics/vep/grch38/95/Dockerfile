@@ -20,6 +20,7 @@ RUN apt-get update && apt-get -y install \
     unzip \
     wget \
     libbz2-dev \
+    libcurl4-openssl-dev \
     liblzma-dev \
     libmysqlclient-dev \
     libncurses5-dev \
