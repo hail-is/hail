@@ -16,14 +16,13 @@ curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
 bash add-google-cloud-ops-agent-repo.sh --also-install
 
 # Add other needed repositories: docker, nvidia
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
-add-apt-repository \
-   "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
-   $(lsb_release -cs) \
-   stable"
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+    | gpg --dearmor -o /usr/share/keyrings/docker-keyring.gpg
+echo >> /etc/apt/sources.list.d/docker.list \
+   "deb [signed-by=/usr/share/keyrings/docker-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
      | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
-curl -s -L https://nvidia.github.io/libnvidia-container/ubuntu24.04/libnvidia-container.list | \
+curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/libnvidia-container.list | \
     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
     tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
 
@@ -44,7 +43,7 @@ OS=linux
 ARCH=amd64
 
 curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/releases/download/v${VERSION}/docker-credential-gcr_${OS}_${ARCH}-${VERSION}.tar.gz" \
-  | tar xz --to-stdout ./docker-credential-gcr \
+  | tar xz --to-stdout docker-credential-gcr \
 	> /usr/bin/docker-credential-gcr && chmod +x /usr/bin/docker-credential-gcr
 
 # The nvidia toolkit must be installed in this startup script to be able to configure docker with the command nvidia-ctk runtime configure --runtime=docker. This command cannot be run from Dockerfile.worker
