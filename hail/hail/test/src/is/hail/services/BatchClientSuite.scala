@@ -59,7 +59,7 @@ class BatchClientSuite extends TestNGSuite {
           JobRequest(
             always_run = false,
             process = BashJob(
-              image = "ubuntu:22.04",
+              image = "ubuntu:24.04",
               command = Array("/bin/bash", "-c", "sleep 5m"),
             ),
             resources = Some(JobResources(preemptible = true)),
@@ -67,7 +67,7 @@ class BatchClientSuite extends TestNGSuite {
           JobRequest(
             always_run = false,
             process = BashJob(
-              image = "ubuntu:22.04",
+              image = "ubuntu:24.04",
               command = Array("/bin/bash", "-c", "exit 1"),
             ),
           ),
@@ -90,14 +90,14 @@ class BatchClientSuite extends TestNGSuite {
           JobRequest(
             always_run = false,
             process = BashJob(
-              image = "ubuntu:22.04",
+              image = "ubuntu:24.04",
               command = Array("/bin/bash", "-c", "exit 0"),
             ),
           ),
           JobRequest(
             always_run = false,
             process = BashJob(
-              image = "ubuntu:22.04",
+              image = "ubuntu:24.04",
               command = Array("/bin/bash", "-c", "exit 1"),
             ),
           ),
@@ -126,7 +126,7 @@ class BatchClientSuite extends TestNGSuite {
             JobRequest(
               always_run = false,
               process = BashJob(
-                image = "ubuntu:22.04",
+                image = "ubuntu:24.04",
                 command = Array("/bin/bash", "-c", s"echo 'job $k'"),
               ),
             )
