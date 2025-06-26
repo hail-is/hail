@@ -3742,6 +3742,8 @@ steps:
     inputs:
       - from: /repo/hail/python
         to: /io/repo/hail/python
+      - from: /repo/hail/env
+        to: /io/repo/hail/env
       - from: /repo/hail/scripts/benchmark_in_batch.py
         to: /io/repo/hail/scripts/benchmark_in_batch.py
       - from: /release-hail-flag
