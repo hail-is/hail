@@ -64,12 +64,11 @@ Released 2025-06-26
 
 ### Bug Fixes
 
-- (hail#14905) Fixes a bug that caused failures when reading PLINK records with large numbers of variants
-- (hail#14913) Fixes an assertion in the compiler from incorrect handling of dict expressions  
-- (hail#14907) Fixes a bug that caused FileNotFound exceptions when converting between tables and spark dataframes.
-- (hail#14869) Fixes a bug in the optimizer that incorrectly handles casts
-- (hail#14857) Fixes a bug in the optimizer that corrupts the query IR 
-- (hail#14838) Fixes a bug that affects randomness in stream aggregations
+- (hail#14905) Fix an error when importing PLINK files with very large numbers of variants
+- (hail#14913) Fix a bug that appears as a MatchError of class TDict
+- (hail#14907) Fix a bug that caused FileNotFound exceptions when converting between tables and spark dataframes.
+- (hail#14869) Fix a bug in the optimizer that incorrectly removed round-trip casts, eg float->int->float
+- (hail#14857) Fix a rare bug in the optimizer that produces invalid IR and most likely manifests as `assertion failed: type mismatchwhich`. This bug can only occur in certain cases at the very beginning of a hail session (right after hl.init).
 
 ## Version 0.2.134
 
