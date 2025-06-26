@@ -9,11 +9,11 @@ apt-get install -y \
     ca-certificates \
     curl \
     gnupg \
-    jq
+    jq \
+    software-properties-common
 
-# add-logging-agent-repo.sh script adds the google repositories and latest apt key
-curl --silent --show-error --remote-name --fail https://dl.google.com/cloudagents/add-logging-agent-repo.sh
-bash add-logging-agent-repo.sh
+curl -sSO https://dl.google.com/cloudagents/add-google-cloud-ops-agent-repo.sh
+bash add-google-cloud-ops-agent-repo.sh --also-install
 
 # Add other needed repositories: docker, nvidia
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
@@ -32,10 +32,7 @@ apt-get install -y \
     build-essential \
     docker-ce \
     g++-12 \
-    gcc-12 \
-    google-fluentd \
-    google-fluentd-catch-all-config-structured \
-    software-properties-common
+    gcc-12
 
 update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 50
 update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 50
