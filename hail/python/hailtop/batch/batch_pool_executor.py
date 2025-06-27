@@ -120,7 +120,7 @@ class BatchPoolExecutor:
         if not isinstance(self.backend, ServiceBackend):
             raise ValueError(f'BatchPoolExecutor is not compatible with {type(backend)}')
         self.batches: List[Batch] = []
-        self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
+        self.directory = f'{self.backend.remote_tmpdir}/batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
         self.__fs: Optional[RouterAsyncFS]
@@ -368,12 +368,12 @@ class BatchPoolExecutor:
 import base64
 import dill
 import traceback
-with open(\\"{j.ofile}\\", \\"wb\\") as out:
+with open(\"{j.ofile}\", \"wb\") as out:
     try:
-        with open(\\"{pickledfun_local}\\", \\"rb\\") as f:
+        with open(\"{pickledfun_local}\", \"rb\") as f:
             dill.dump((dill.load(f)(), None), out, recurse=True)
     except Exception as e:
-        print(\\"BatchPoolExecutor encountered an exception:\\")
+        print(\"BatchPoolExecutor encountered an exception:\")
         traceback.print_exc()
         dill.dump((e, traceback.format_exception(type(e), e, e.__traceback__)), out, recurse=True)
 "''')
