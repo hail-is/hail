@@ -283,12 +283,12 @@ def test_input_dependency(client, remote_tmpdir):
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'{remote_tmpdir}data1'), ('/io/data2', f'{remote_tmpdir}data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}/data1'), ('/io/data2', f'{remote_tmpdir}/data2')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
-        input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}/data1', '/io/data1'), (f'{remote_tmpdir}/data2', '/io/data2')],
         parents=[head],
     )
     batch.submit()
@@ -304,12 +304,12 @@ def test_input_dependency_wildcard(client, remote_tmpdir):
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-        output_files=[('/io/data1', f'{remote_tmpdir}data1'), ('/io/data2', f'{remote_tmpdir}data2')],
+        output_files=[('/io/data1', f'{remote_tmpdir}/data1'), ('/io/data2', f'{remote_tmpdir}/data2')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-        input_files=[(f'{remote_tmpdir}data1', '/io/data1'), (f'{remote_tmpdir}data2', '/io/data2')],
+        input_files=[(f'{remote_tmpdir}/data1', '/io/data1'), (f'{remote_tmpdir}/data2', '/io/data2')],
         parents=[head],
     )
     batch.submit()
@@ -325,12 +325,12 @@ def test_input_dependency_directory(client, remote_tmpdir):
     head = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-        output_files=[('/io/test', f'{remote_tmpdir}test')],
+        output_files=[('/io/test', f'{remote_tmpdir}/test')],
     )
     tail = batch.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
-        input_files=[(f'{remote_tmpdir}test', '/io/test')],
+        input_files=[(f'{remote_tmpdir}/test', '/io/test')],
         parents=[head],
     )
     batch.submit()
