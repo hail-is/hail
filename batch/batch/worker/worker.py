@@ -260,6 +260,7 @@ class NetworkNamespace:
                 resolv.write('nameserver 8.8.8.8\n')
 
     async def create_netns(self):
+        log.info(f'ipallocdebug: Creating net ns {self.network_ns_name}')
         await check_shell(f"""
 ip netns add {self.network_ns_name} && \
 ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
@@ -299,6 +300,7 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interfac
         )
 
     async def cleanup(self):
+        log.info(f'ipallocdebug: Cleanup net ns {self.network_ns_name}')
         if self.host_port:
             assert self.port
             await self.expose_port_rule(action='delete')
@@ -318,27 +320,37 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        for subnet_index in range(N_SLOTS + N_JVM_CONTAINERS):
+        public_ip_count = N_SLOTS + N_JVM_CONTAINERS
+        log.info(f'ipallocdebug: Reserving public ip addresses: {public_ip_count}')
+        for subnet_index in range(public_ip_count):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
+            log.info(f'ipallocdebug: Adding public network: {public.network_ns_name} (subnet index: {subnet_index} job ip: {public.job_ip}, host ip {public.host_ip}) to list')
             self.public_networks.put_nowait(public)
-
+        log.info(f'ipallocdebug: Reserving private ip addresses: {N_SLOTS}')
         for subnet_index in range(N_SLOTS):
             private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
 
             await private.init()
+            log.info(f'ipallocdebug: Adding private network: {private.network_ns_name} (subnet index: {subnet_index} job ip: {private.job_ip}, host ip {private.host_ip}) to list')
             self.private_networks.put_nowait(private)
 
     async def allocate_private(self) -> NetworkNamespace:
-        return await self.private_networks.get()
+        network = await self.private_networks.get()
+        log.info(f'ipallocdebug: Allocating private network {network.network_ns_name} (subnet index: {network.subnet_index} job ip: {network.job_ip}, host ip {network.host_ip})')
+        return network
 
     async def allocate_public(self) -> NetworkNamespace:
-        return await self.public_networks.get()
+        network = await self.public_networks.get()
+        log.info(f'ipallocdebug: Allocating public network: {network.network_ns_name} (subnet index: {network.subnet_index} job ip: {network.job_ip}, host ip {network.host_ip})')
+        return network
 
     def free(self, netns: NetworkNamespace):
         self.task_manager.ensure_future(self._free(netns))
 
     async def _free(self, netns: NetworkNamespace):
+        network_type = 'private' if netns.private else 'public'
+        log.info(f'ipallocdebug: Freeing {network_type} network namespace: {netns.network_ns_name} (subnet index: {netns.subnet_index} job ip: {netns.job_ip}, host ip {netns.host_ip}')
         await netns.cleanup()
         if netns.private:
             self.private_networks.put_nowait(netns)
@@ -1021,6 +1033,8 @@ class Container:
                     CLOUD_WORKER_API.create_metadata_server_app(self.user_credentials)
                 )
                 await self.metadata_app_runner.setup()
+                network_type = 'private' if self.netns.private else 'public'
+                log.info(f'ipallocdebug: Starting metadata server on {network_type} {self.netns.network_ns_name} {self.netns.host_ip}')
                 site = web.TCPSite(self.metadata_app_runner, self.netns.host_ip, 5555)
                 await site.start()
         except asyncio.TimeoutError:
