@@ -15,7 +15,7 @@ Install Hail on Mac OS X
   you must use an "arm64" Java, otherwise you must use an "x86_64" Java. You can check if you have
   an M1 or M2 either in the "Apple Menu > About This Mac" or by running ``uname -m`` Terminal.app.
 
-- Install Python 3.9 or later. We recommend `Miniconda <https://docs.conda.io/en/latest/miniconda.html#macosx-installers>`__.
+- Install Python 3.10 or later. We recommend `Miniconda <https://docs.conda.io/en/latest/miniconda.html#macosx-installers>`__.
 - Open Terminal.app and execute ``pip install hail``. If this command fails with a message about "Rust", please try this instead: ``pip install hail --only-binary=:all:``.
 - `Run your first Hail query! <try.rst>`__
 
