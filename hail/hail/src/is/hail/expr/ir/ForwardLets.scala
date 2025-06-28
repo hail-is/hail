@@ -31,7 +31,7 @@ object ForwardLets {
       }
 
       ir match {
-        case l: Block =>
+        case l: Block if l.bindings.nonEmpty =>
           val keep = new BoxedArrayBuilder[Binding]
           val refs = uses(l)
           val newEnv = l.bindings.foldLeft(env) {
