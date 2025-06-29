@@ -583,7 +583,6 @@ steps:
         to: /io/repo
     dependsOn:
       - merge_code
-      - hail_ubuntu_image
   - kind: buildImage2
     name: hailgenetics_vep_grch38_95_image
     dockerFile: /io/repo/docker/hailgenetics/vep/grch38/95/Dockerfile
@@ -594,7 +593,6 @@ steps:
         to: /io/repo
     dependsOn:
       - merge_code
-      - hail_ubuntu_image
   - kind: buildImage2
     name: monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile
@@ -2353,6 +2351,8 @@ steps:
       - name: jobs-add-n-max-attempts
         script: /io/sql/jobs-add-n-max-attempts.sql
         online: true
+      - name: is-job-cancelled
+        script: /io/sql/119-is-job-cancelled.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2649,7 +2649,7 @@ steps:
       inline: |
         ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
         FROM $BASE_IMAGE
-        RUN hail-apt-get-install netcat
+        RUN hail-apt-get-install netcat-openbsd
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2

@@ -3017,6 +3017,7 @@ class Worker:
         self._jvmpools_by_cores: Dict[int, JVMPool] = {n_cores: JVMPool(n_cores, self) for n_cores in (1, 2, 4, 8)}
         self._waiting_for_jvm_with_n_cores: asyncio.Queue[int] = asyncio.Queue()
         self._jvm_initializer_task = asyncio.create_task(self._initialize_jvms())
+        self._jvm_initializer_task.add_done_callback(self._initialize_jvms_postmortem)
 
     async def _initialize_jvms(self):
         assert instance_config
@@ -3043,6 +3044,13 @@ class Worker:
         assert self._waiting_for_jvm_with_n_cores.empty()
         assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
         log.info(f'JVMs initialized {self._jvmpools_by_cores}')
+
+    @staticmethod
+    def _initialize_jvms_postmortem(task: asyncio.Task):
+        try:
+            _ = task.result()
+        except Exception as e:
+            log.exception(f'JVMs not all initialized due to {type(e).__name__}')
 
     async def borrow_jvm(self, n_cores: int) -> JVM:
         assert instance_config
@@ -3078,6 +3086,7 @@ class Worker:
 
     async def shutdown(self):
         log.info('Worker.shutdown')
+        self._jvm_initializer_task.remove_done_callback(self._initialize_jvms_postmortem)
         self._jvm_initializer_task.cancel()
         async with AsyncExitStack() as cleanup:
             cleanup.push_async_callback(self.client_session.close)
@@ -3390,7 +3399,19 @@ class Worker:
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
     async def post_job_complete(self, job, mjs_fut: asyncio.Task, full_status):
-        await mjs_fut
+        # Workers notify the driver that jobs have been started optimistically
+        # and hitherto defer checking the outcome of that notification.
+        # At this point, the job has been completed; errors raised by awaiting
+        # `mjs_fut` should not prevent workers notifying the driver of such.
+        try:
+            await mjs_fut
+        except:
+            log.warning(
+                f'awaiting optimistic mark_started call for job {job} failed.',
+                exc_info=True,
+                stack_info=True,
+            )
+
         try:
             await self.post_job_complete_1(job, full_status)
         except asyncio.CancelledError:

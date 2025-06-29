@@ -1,5 +1,5 @@
-ARG BASE_IMAGE={{ hail_ubuntu_image.image }}
-FROM $BASE_IMAGE
+ARG DOCKER_PREFIX={{ global.docker_prefix }}
+FROM $DOCKER_PREFIX/ubuntu:22.04
 
 ENV VEP_VERSION=95
 ENV VEP_DIR=/vep
@@ -9,7 +9,18 @@ RUN apt-get update && apt-get -y install \
     cpanminus \
     curl \
     git \
+    locales \
+    mysql-client \
+    openssl \
+    perl \
+    perl-base \
+    python3 \
+    sqlite3 \
+    tabix \
+    unzip \
+    wget \
     libbz2-dev \
+    libcurl4-openssl-dev \
     liblzma-dev \
     libmysqlclient-dev \
     libncurses5-dev \
@@ -17,16 +28,7 @@ RUN apt-get update && apt-get -y install \
     libpng-dev \
     libsqlite3-dev \
     libssl-dev \
-    locales \
-    mysql-client \
-    openssl \
-    perl \
-    perl-base \
-    sqlite3 \
-    tabix \
-    unzip \
-    vim \
-    wget \
+    zlib1g-dev \
     libarchive-zip-perl \
     libdbd-mysql-perl \
     libdbd-sqlite3-perl \
@@ -71,11 +73,10 @@ RUN export KENT_SRC=$PWD/kent-335_base/src && \
     export PERL5LIB=\$PERL5LIB:$HOME/cpanm/lib/perl5 && \
     cpanm Bio::DB::BigFile
 
-RUN apt-get update && apt-get -y install zlib1g-dev && \
-    wget https://github.com/samtools/samtools/releases/download/1.18/samtools-1.18.tar.bz2 && \
-    bzip2 -d samtools-1.18.tar.bz2 && \
-    tar -xf samtools-1.18.tar && \
-    cd samtools-1.18 && \
+RUN wget https://github.com/samtools/samtools/releases/download/1.22/samtools-1.22.tar.bz2 && \
+    bzip2 -d samtools-1.22.tar.bz2 && \
+    tar -xf samtools-1.22.tar && \
+    cd samtools-1.22 && \
     ./configure && \
     make && \
     make install

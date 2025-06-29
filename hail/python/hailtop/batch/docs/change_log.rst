@@ -15,6 +15,46 @@ versions. In particular, Hail officially supports:
 Change Log
 ==========
 
+**Version 0.2.135**
+
+- (`#14927 <https://github.com/hail-is/hail/pull/14927>`__)
+  Worker image and derived docker images upgraded to ubuntu 24.04.
+- (`#14925 <https://github.com/hail-is/hail/pull/14925>`__)
+  UI filtering improvements to user table
+- (`#14916 <https://github.com/hail-is/hail/pull/14916>`__)
+  Improved logging around JVM initialization failures
+- (`#14880 <https://github.com/hail-is/hail/pull/14880>`__)
+  Truncate job names when used as a directory name under /io
+- (`#14919 <https://github.com/hail-is/hail/pull/14919>`__)
+  Fixes a bug that made workers seem unresponsive and prevented jobs from
+  being marked complete.
+- (`#14912 <https://github.com/hail-is/hail/pull/14912>`__)
+  hailctl batch init now creates buckets in the default region with a 7 day
+  lifecycle policy instead of 30 day.
+- (`#14895 <https://github.com/hail-is/hail/pull/14895>`__)
+  Add support for multiple configuration profiles
+- (`#14848 <https://github.com/hail-is/hail/pull/14848>`__)
+  Use the default region when a user doesn't specify a region
+- (`#14908 <https://github.com/hail-is/hail/pull/14908>`__)
+  Adds default_region API endpoint
+- (`#14901 <https://github.com/hail-is/hail/pull/14901>`__)
+  Fixes bug where remove_tmpdir jobs were not run in the regions the user
+  specified.
+- (`#14810 <https://github.com/hail-is/hail/pull/14810>`__)
+  Adds SESSION_MAX_AGE_SECS to configure session timeout duration
+- (`#14849 <https://github.com/hail-is/hail/pull/14849>`__)
+  Temporary buckets are initialized with soft delete disabled.
+- (`#14876 <https://github.com/hail-is/hail/pull/14876>`__)
+  Batch progress bar now displays accrued cost
+- (`#14878 <https://github.com/hail-is/hail/pull/14878>`__)'
+  Login UI requires ToS acceptance.
+- (`#14844 <https://github.com/hail-is/hail/pull/14844>`__)
+  Adds support for n1 machines with T4 GPUs in GCP
+- (`#14833 <https://github.com/hail-is/hail/pull/14833>`__)
+  Various openapi documentation additions and fixes.
+- (`#14841 <https://github.com/hail-is/hail/pull/14841>`__)
+  Fixed a regression preventing hyphens in usernames.
+
 **Version 0.2.132**
 
 - (`#14576 <https://github.com/hail-is/hail/pull/14576>`__) Fixed bug where

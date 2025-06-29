@@ -2639,6 +2639,37 @@ def pF(x, df1, df2, lower_tail=True, log_p=False) -> Float64Expression:
     return _func("pF", tfloat64, x, df1, df2, lower_tail, log_p)
 
 
+@typecheck(x=expr_int32, popsize=expr_int32, ngood=expr_int32, nsample=expr_int32, log_p=expr_bool)
+def phyper(x, popsize, ngood, nsample, log_p=False) -> Float64Expression:
+    """Compute the (log) probability function at x of a
+    `Hypergeometric distribution <https://en.wikipedia.org/wiki/Hypergeometric_distribution>`__.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.phyper(2, 10, 4, 6))
+    0.42857142857142855
+
+    Paramaters
+    ----------
+    x : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Non-negative number at which to compute the probability density,
+        representing the number of observed successes among the sample.
+    popsize : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Total size of the population to draw from.
+    ngood : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Number of "good", or "success", states in the population.
+    nsample : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Size of the sample to be drawn from the population, without replacement.
+
+    Returns
+    -------
+    :class:`.Expression` of type :py:data:`.tfloat64`
+        The (log) probability of observing x successes in the sample.
+    """
+    return _func("phyper", tfloat64, x, popsize, ngood, nsample, log_p)
+
+
 @typecheck(x=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
     r"""The cumulative probability function of a Poisson distribution.
@@ -3299,6 +3330,72 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     :class:`.Float64Expression`
     """
     return hl.bind(lambda x: x / hl.sum(x), a.map(lambda p: hl.if_else(p == 0.0, 0.0, hl.rand_gamma(p, 1, seed=seed))))
+
+
+@typecheck(popsize=expr_int32, ngood=expr_int32, nsample=expr_int32, seed=nullable(int))
+def rand_hyper(popsize, ngood, nsample, seed=None) -> Int32Expression:
+    """Samples from a `Hypergeometric distribution
+    <https://en.wikipedia.org/wiki/Hypergeometric_distribution>`__.
+
+    Examples
+    --------
+
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.rand_hyper(100, 60, 40))
+    22
+
+    >>> hl.eval(hl.rand_hyper(100, 60, 40))
+    26
+
+    Paramaters
+    ----------
+    popsize : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Total size of the population to draw from.
+    ngood : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Number of "good", or "success", states in the population.
+    nsample : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Size of the sample to be drawn from the population, without replacement.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.Int32Expression`
+        The number of observed successes in the sample.
+    """
+    return _seeded_func("rand_hyper", tint32, seed, popsize, ngood, nsample)
+
+
+@typecheck(colors=expr_array(expr_int32), nsample=expr_int32, seed=nullable(int))
+def rand_multi_hyper(colors, nsample, seed=None) -> ArrayNumericExpression:
+    """Samples from a `Multivariate hypergeometric distribution
+    <https://en.wikipedia.org/wiki/Hypergeometric_distribution#Multivariate_hypergeometric_distribution>`__.
+
+    Examples
+    --------
+
+    >>> hl.reset_global_randomness()
+    >>> hl.eval(hl.rand_multi_hyper([2, 7, 1], 4))
+    [2, 1, 1]
+
+    >>> hl.eval(hl.rand_multi_hyper([2, 7, 1], 4))
+    [2, 2, 0]
+
+    Paramaters
+    ----------
+    colors : :obj:`list` of :obj:`int` or :class:`.Expression` of type `array<int32>`
+        Number of balls of each color.
+    nsample : :obj:`int` or :class:`.Expression` of type :py:data:`.tint32`
+        Size of the sample to be drawn from the population, without replacement.
+    seed : :obj:`int`, optional
+        Random seed.
+
+    Returns
+    -------
+    :class:`.Expression` of type `array<int32>`
+        The number of observations of each color in the sample.
+    """
+    return _seeded_func("rand_multi_hyper", tarray(tint32), seed, colors, nsample)
 
 
 @typecheck(x=oneof(expr_float64, expr_ndarray(expr_float64)))

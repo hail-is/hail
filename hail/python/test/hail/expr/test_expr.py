@@ -70,6 +70,8 @@ class Tests(unittest.TestCase):
         test_random_function(lambda: hl.rand_gamma(1, 1))
         test_random_function(lambda: hl.rand_cat(hl.array([1, 1, 1, 1])))
         test_random_function(lambda: hl.rand_dirichlet(hl.array([1, 1, 1, 1])))
+        test_random_function(lambda: hl.rand_hyper(1000, 600, 800))
+        test_random_function(lambda: hl.rand_multi_hyper([500, 200, 800], 800))
 
     def test_range(self):
         def same_as_python(*args):

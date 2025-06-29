@@ -116,7 +116,8 @@ class Job:
                     new_s.append('_')
             return ''.join(new_s)
 
-        self._dirname = f'{safe_str(name)}-{self._token}' if name else self._token
+        maxnamelen = 250 - len(self._token)  # typical file system maximum name component length is 255
+        self._dirname = f'{safe_str(name)[:maxnamelen]}-{self._token}' if name else self._token
 
     def _get_resource(self, item: str) -> 'Resource':
         if item not in self._resources:
@@ -791,11 +792,11 @@ class BashJob(Job):
         Examples
         --------
 
-        Set the job's docker image to `ubuntu:22.04`:
+        Set the job's docker image to `ubuntu:24.04`:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.image('ubuntu:22.04')
+        >>> (j.image('ubuntu:24.04')
         ...   .command(f'echo "hello"'))
         >>> b.run()  # doctest: +SKIP
 

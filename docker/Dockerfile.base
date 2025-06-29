@@ -6,7 +6,6 @@ RUN hail-apt-get-install \
     htop \
     unzip bzip2 zip tar \
     rsync \
-    emacs-nox \
     xsltproc pandoc \
     openjdk-11-jdk-headless \
     liblapack3 \

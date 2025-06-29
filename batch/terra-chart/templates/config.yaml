@@ -6,7 +6,7 @@ data:
   cloud: "azure"
   default_namespace: "default"
   docker_prefix: "terradevacrpublic.azurecr.io/hail/batch"
-  docker_root_image: "ubuntu:22.04"
+  docker_root_image: "ubuntu:24.04"
   batch_logs_storage_uri: "{{ .Values.persistence.workspaceManager.storageContainerUrl }}/{{ .Values.persistence.leoAppName }}/hailbatch/logs"
   query_storage_uri: "{{ .Values.persistence.workspaceManager.storageContainerUrl }}/{{ .Values.persistence.leoAppName }}/hailbatch/query"
   internal_ip: "dummy"

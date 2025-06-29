@@ -40,12 +40,12 @@ infrastructure.
 - Go to the Google Cloud console, API & Services.
   - Configure the consent screen.
     - You can probably leave most fields on the first page empty. Give it a sensible name and management email.
-    - Add the scope: `../auth/userinfo.email`.  
+    - Add the scope: `../auth/userinfo.email`.
   - Back in Credentials, create an OAuth client ID of type `Web application`. Authorize the redirect URIs:
     - `https://auth.<domain>/oauth2callback`
     - `http://127.0.0.1/oauth2callback`
   - Download the client secret as `/tmp/auth_oauth2_client_secret.json`.
-  - Create another OAuth client ID of type `Desktop app` 
+  - Create another OAuth client ID of type `Desktop app`
     - Download it as `/tmp/hailctl_client_secret.json`.
 
 ## Set up Terraform configuration
@@ -228,9 +228,9 @@ rm -rf .terraform terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
 - Run `terraform apply -var-file=$GITHUB_ORGANIZATION/global.tfvars`.  At the
   time of writing, this takes ~15m.
 
-## Register the domain 
+## Register the domain
 
-   Register the predetermined `domain` with a DNS registry. 
+   Register the predetermined `domain` with a DNS registry.
 
    The IP address to use will be available in GCP cloud console under `Network Services -> Load balancing`.
    Click through to the external load balancer and find its IP address.
@@ -262,15 +262,15 @@ Using the Google cloud console, create a VM in Compute Engine:
   - Region / zone: use the same as the GKE cluster
   - n1-standard-8
   - OS and storage
-    - Ubuntu 22.04 LTS
+    - Ubuntu 24.04 LTS
     - 100GB PD-SSD
   - On the internal network
   - Security
-    - Allow full access to all Cloud APIs 
-    - Run as the Terraform service account 
+    - Allow full access to all Cloud APIs
+    - Run as the Terraform service account
 
-Note: 10GB will run out of space.  
-  
+Note: 10GB will run out of space.
+
 An example command to create a VM via the gcloud CLI is given below, but be careful to make sure the settings
 are correct for your deployment.
 
@@ -283,13 +283,13 @@ gcloud compute instances create bootstrap-vm \
     --provisioning-model=STANDARD \
     --service-account=<TERRAFORM-SERVICE-ACCOUNT> \
     --scopes=https://www.googleapis.com/auth/cloud-platform \
-    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2204-jammy-v20240701,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
+    --create-disk=auto-delete=yes,boot=yes,device-name=instance-20240716-184710,image=projects/ubuntu-os-cloud/global/images/ubuntu-2404-noble-amd64-v20250606,mode=rw,size=200,type=projects/hail-vdc-dgoldste/zones/us-central1-a/diskTypes/pd-balanced
 ```
 
 #### Cloud VM commands
 
-We assume the rest of the commands are run on the VM. You will need to connect to this instance with ssh. 
-You can copy a `gcloud compute ssh` command to do this directly from the VM details page in the cloud console, 
+We assume the rest of the commands are run on the VM. You will need to connect to this instance with ssh.
+You can copy a `gcloud compute ssh` command to do this directly from the VM details page in the cloud console,
 or construct it manually via the gcloud CLI. It will look something like:
 
 ```
@@ -298,20 +298,20 @@ gcloud compute ssh --zone "us-central1-a" "<VM-NAME>" --project "<PROJECT>"
 
 ##### Prerequisites
 
-- If necessary, install `gke-gcloud-auth-plugin`: 
+- If necessary, install `gke-gcloud-auth-plugin`:
 
   ```
   # Check for necessity:
   gke-gcloud-auth-plugin --version
   ```
-  
-  - Follow the instructions [here](https://cloud.google.com/sdk/docs/install#deb) to install the Google Cloud SDK 
+
+  - Follow the instructions [here](https://cloud.google.com/sdk/docs/install#deb) to install the Google Cloud SDK
     package source.
   - Follow the `apt-get` instructions [here](https://cloud.google.com/kubernetes-engine/docs/how-to/cluster-access-for-kubectl#install_plugin)
     to install the `gke-gcloud-auth-plugin`.
 
 - Install the `docker-buildx-plugin`:
-  - Follow the instructions [here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository) to set 
+  - Follow the instructions [here](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository) to set
     up the repository (ie step 1).
   - Install the `docker-buildx-plugin`:
     ```
