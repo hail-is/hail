@@ -958,10 +958,10 @@ async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     return web.Response(status=200)
 
 
-@routes.get('/api/v1alpha/check_permission')
+@routes.get('/api/v1alpha/check_system_permission')
 @api_security_headers
 @auth.authenticated_users_only()
-async def check_permission(request: web.Request, userdata: UserData) -> web.Response:
+async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:
     permission = request.query.get('permission')
     if not permission:
         raise web.HTTPBadRequest(text='Missing required query parameter: permission')
@@ -999,6 +999,42 @@ WHERE usr.user_id = %s
             break
 
     return json_response({'has_permission': has_permission})
+
+
+@routes.get('/api/v1alpha/roles_and_permissions')
+@api_security_headers
+@auth.authenticated_users_only()
+async def get_roles_and_permissions(request: web.Request, userdata: UserData) -> web.Response:
+    db = request.app[AppKeys.DB]
+    
+    # Get user's system roles from the users_system_roles table
+    user_roles = [
+        x
+        async for x in db.select_and_fetchall(
+            """
+SELECT sr.name
+FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+WHERE usr.user_id = %s
+""",
+            userdata['id'],
+        )
+    ]
+    
+    # Get all permissions for the user's roles
+    user_permissions = set()
+    role_names = []
+    
+    for role_record in user_roles:
+        role_name = role_record['name']
+        role_names.append(role_name)
+        if role_name in system_role_permissions:
+            user_permissions.update(system_role_permissions[role_name])
+    
+    return json_response({
+        'roles': role_names,
+        'permissions': list(user_permissions)
+    })
 
 
 class AppKeys:

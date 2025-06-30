@@ -298,7 +298,7 @@ paths:
         '401':
           description: Unauthorized or not a developer/service account
 
-  /api/v1alpha/check_permission:
+  /api/v1alpha/check_system_permission:
     get:
       summary: Check system permission
       description: Check if the authenticated user has a specific system permission
@@ -323,6 +323,32 @@ paths:
                     description: Whether the user has the requested permission
         '400':
           description: Invalid permission parameter
+        '401':
+          description: Unauthorized
+
+  /api/v1alpha/roles_and_permissions:
+    get:
+      summary: Get user's roles and permissions
+      description: Get all system roles and permissions for the authenticated user
+      tags: [Authentication]
+      responses:
+        '200':
+          description: User's roles and permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  roles:
+                    type: array
+                    items:
+                      type: string
+                    description: List of system role names assigned to the user
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                    description: List of all permissions the user has through their roles
         '401':
           description: Unauthorized
 
