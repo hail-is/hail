@@ -1,49 +1,51 @@
-system_roles = [
-    'developer',
-    'billing_manager',
-]
+from enum import Enum
 
-system_permissions = [
+class SystemRole(Enum):
+    DEVELOPER = 'developer'
+    BILLING_MANAGER = 'billing_manager'
+
+
+class SystemPermission(Enum):
     # User admin
-    'create_users',
-    'read_users',
-    'update_users',
-    'delete_users',
-    'assign_system_roles',
+    CREATE_USERS = 'create_users'
+    READ_USERS = 'read_users'
+    UPDATE_USERS = 'update_users'
+    DELETE_USERS = 'delete_users'
+    ASSIGN_SYSTEM_ROLES = 'assign_system_roles'
     # Developer environments
-    'create_developer_environments',
-    'read_developer_environments',
-    'update_developer_environments',
-    'delete_developer_environments',
+    CREATE_DEVELOPER_ENVIRONMENTS = 'create_developer_environments'
+    READ_DEVELOPER_ENVIRONMENTS = 'read_developer_environments'
+    UPDATE_DEVELOPER_ENVIRONMENTS = 'update_developer_environments'
+    DELETE_DEVELOPER_ENVIRONMENTS = 'delete_developer_environments'
     # Logging and monitoring
-    'view_monitoring_dashboards',
+    VIEW_MONITORING_DASHBOARDS = 'view_monitoring_dashboards'
     # Billing projects
-    'create_billing_projects',
-    'read_all_billing_projects',
-    'update_all_billing_projects',
-    'delete_all_billing_projects',
-    'assign_users_to_all_billing_projects',
-]
+    CREATE_BILLING_PROJECTS = 'create_billing_projects'
+    READ_ALL_BILLING_PROJECTS = 'read_all_billing_projects'
+    UPDATE_ALL_BILLING_PROJECTS = 'update_all_billing_projects'
+    DELETE_ALL_BILLING_PROJECTS = 'delete_all_billing_projects'
+    ASSIGN_USERS_TO_ALL_BILLING_PROJECTS = 'assign_users_to_all_billing_projects'
+
 
 system_role_permissions = {
-    'developer': [
-        'create_users',
-        'read_users',
-        'update_users',
-        'delete_users',
-        'assign_system_roles',
-        'create_developer_environments',
-        'read_developer_environments',
-        'update_developer_environments',
-        'delete_developer_environments',
-        'view_monitoring_dashboards',
+    SystemRole.DEVELOPER: [
+        SystemPermission.CREATE_USERS,
+        SystemPermission.READ_USERS,
+        SystemPermission.UPDATE_USERS,
+        SystemPermission.DELETE_USERS,
+        SystemPermission.ASSIGN_SYSTEM_ROLES,
+        SystemPermission.CREATE_DEVELOPER_ENVIRONMENTS,
+        SystemPermission.READ_DEVELOPER_ENVIRONMENTS,
+        SystemPermission.UPDATE_DEVELOPER_ENVIRONMENTS,
+        SystemPermission.DELETE_DEVELOPER_ENVIRONMENTS,
+        SystemPermission.VIEW_MONITORING_DASHBOARDS,
     ],
-    'billing_manager': [
-        'read_users',
-        'create_billing_projects',
-        'read_all_billing_projects',
-        'update_all_billing_projects',
-        'delete_all_billing_projects',
-        'assign_users_to_all_billing_projects',
+    SystemRole.BILLING_MANAGER: [
+        SystemPermission.READ_USERS,
+        SystemPermission.CREATE_BILLING_PROJECTS,
+        SystemPermission.READ_ALL_BILLING_PROJECTS,
+        SystemPermission.UPDATE_ALL_BILLING_PROJECTS,
+        SystemPermission.DELETE_ALL_BILLING_PROJECTS,
+        SystemPermission.ASSIGN_USERS_TO_ALL_BILLING_PROJECTS,
     ],
 }
