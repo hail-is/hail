@@ -3,6 +3,7 @@ package is.hail.lir
 import is.hail.asm4s.{
   arrayInfo, ByteInfo, ClassInfo, DoubleInfo, FloatInfo, IntInfo, LongInfo, TypeInfo,
 }
+import is.hail.macros.void
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -310,7 +311,7 @@ class Method private[lir] (
   // Verify all blocks are well-formed, all blocks and locals have correct
   // method set.
   def verify(): Unit =
-    findLocals(findBlocks(), verifyMethodAssignment = true)
+    void(findLocals(findBlocks(), verifyMethodAssignment = true))
 
   def approxByteCodeSize(): Int = {
     val blocks = findBlocks()

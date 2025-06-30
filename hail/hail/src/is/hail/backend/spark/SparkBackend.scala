@@ -15,6 +15,7 @@ import is.hail.expr.ir.lowering._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.io.fs._
 import is.hail.linalg.BlockMatrix
+import is.hail.macros.void
 import is.hail.rvd.RVD
 import is.hail.types._
 import is.hail.types.physical.{PStruct, PTuple}
@@ -476,7 +477,7 @@ class SparkBackend(
   }
 
   def startProgressBar(): Unit =
-    ProgressBarBuilder.build(sc)
+    void(ProgressBarBuilder.build(sc))
 
   def jvmLowerAndExecute(
     ctx: ExecuteContext,

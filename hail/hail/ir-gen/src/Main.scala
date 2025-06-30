@@ -1209,7 +1209,7 @@ object Main {
   }
 
   @main
-  def main(path: String) = {
+  def main(path: String): Unit = {
     val pack = "package is.hail.expr.ir.defs"
     val imports = Seq(
       "is.hail.annotations.Annotation",
@@ -1233,5 +1233,7 @@ object Main {
     os.write(os.Path(path) / "IR_gen.scala", gen)
   }
 
-  def main(args: Array[String]): Unit = ParserForMethods(this).runOrExit(args)
+  def main(args: Array[String]): Unit = {
+    val _ = ParserForMethods(this).runOrExit(args)
+  }
 }

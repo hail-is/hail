@@ -3,10 +3,11 @@ package is.hail.lir
 import is.hail.HailSuite
 import is.hail.asm4s._
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class CompileTimeRequirednessSuite extends HailSuite {
-  @Test def testCodeBooleanFolding(): Unit = {
+  @Test def testCodeBooleanFolding(): scalatest.Assertion = {
     val cFalse = const(false)
     val cTrue = const(true)
 

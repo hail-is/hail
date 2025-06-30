@@ -4,6 +4,7 @@ import is.hail.utils.toRichIterator
 
 import scala.collection.JavaConverters._
 
+import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
@@ -138,12 +139,12 @@ class PrettyPrintWriterSuite extends TestNGSuite {
 
   @Test(dataProvider = "data")
   def testPP(doc: Doc, width: Integer, ribbonWidth: Integer, maxLines: Integer, expected: String)
-    : Unit = {
+    : scalatest.Assertion = {
     val ruler = "=" * width
     assert(expected == s"$ruler\n${doc.render(width, ribbonWidth, maxLines)}\n$ruler")
   }
 
-  @Test def testIntersperse(): Unit = {
+  @Test def testIntersperse(): scalatest.Assertion = {
     val it = Array("A", "B", "C").iterator.intersperse("(", ",", ")")
     assert(it.mkString == "(A,B,C)")
   }

@@ -6,6 +6,7 @@ import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 import scala.reflect.runtime.universe._
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class FlipbookIteratorSuite extends HailSuite {
@@ -136,26 +137,26 @@ class FlipbookIteratorSuite extends HailSuite {
       )
   }
 
-  @Test def flipbookIteratorStartsWithRightValue(): Unit = {
+  @Test def flipbookIteratorStartsWithRightValue(): scalatest.Assertion = {
     val it: FlipbookIterator[Box[Int]] =
       makeTestIterator(1, 2, 3, 4, 5)
     assert(it.value.value == 1)
   }
 
-  @Test def makeTestIteratorWorks(): Unit = {
+  @Test def makeTestIteratorWorks(): scalatest.Assertion = {
     assert(makeTestIterator(1, 2, 3, 4, 5) shouldBe Iterator.range(1, 6))
 
     assert(makeTestIterator[Int]() shouldBe Iterator.empty)
   }
 
-  @Test def toFlipbookIteratorOnFlipbookIteratorIsIdentity(): Unit = {
+  @Test def toFlipbookIteratorOnFlipbookIteratorIsIdentity(): scalatest.Assertion = {
     val it1 = makeTestIterator(1, 2, 3)
     val it2 = Iterator(1, 2, 3)
     assert(it1.toFlipbookIterator shouldBe it2)
     assert(makeTestIterator[Int]().toFlipbookIterator shouldBe Iterator.empty)
   }
 
-  @Test def toStaircaseWorks(): Unit = {
+  @Test def toStaircaseWorks(): scalatest.Assertion = {
     val testIt = makeTestIterator(1, 1, 2, 3, 3, 3)
     val it = Iterator(
       Iterator(1, 1),
@@ -165,7 +166,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(testIt.staircased(boxOrdView) shouldBe it)
   }
 
-  @Test def orderedZipJoinWorks(): Unit = {
+  @Test def orderedZipJoinWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 3, 4, 1000, 1000)
     val zipped = left.orderedZipJoin(
@@ -180,7 +181,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(zipped shouldBe it)
   }
 
-  @Test def innerJoinDistinctWorks(): Unit = {
+  @Test def innerJoinDistinctWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.innerJoinDistinct(
@@ -196,7 +197,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def leftJoinDistinctWorks(): Unit = {
+  @Test def leftJoinDistinctWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 2, 4, 1000, 1000)
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.leftJoinDistinct(
@@ -210,7 +211,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def innerJoinWorks(): Unit = {
+  @Test def innerJoinWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.innerJoin(
@@ -227,7 +228,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def leftJoinWorks(): Unit = {
+  @Test def leftJoinWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.leftJoin(
@@ -256,7 +257,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def rightJoinWorks(): Unit = {
+  @Test def rightJoinWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.rightJoin(
@@ -285,7 +286,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def outerJoinWorks(): Unit = {
+  @Test def outerJoinWorks(): scalatest.Assertion = {
     val left = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val right = makeTestIterator(2, 2, 4, 4, 5, 6, 1000, 1000)
     val joined = left.outerJoin(
@@ -318,7 +319,7 @@ class FlipbookIteratorSuite extends HailSuite {
     assert(joined shouldBe it)
   }
 
-  @Test def multiZipJoinWorks(): Unit = {
+  @Test def multiZipJoinWorks(): scalatest.Assertion = {
     val one = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
     val two = makeTestIterator(2, 3, 4, 5, 5, 6, 1000, 1000)
     val three = makeTestIterator(2, 3, 4, 4, 5, 6, 1000, 1000)

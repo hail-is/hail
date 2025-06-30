@@ -8,6 +8,7 @@ import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.{CodeOrdering, StructOrdering}
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.io.fs.FS
+import is.hail.macros.void
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalTuple, PType}
 import is.hail.types.physical.stypes._
@@ -1409,18 +1410,19 @@ class EmitMethodBuilder[C](
     })
   }
 
-  def implementLabel(label: CodeLabel)(f: EmitCodeBuilder => Unit): Unit = {
-    EmitCodeBuilder.scopedVoid(this) { cb =>
-      cb.define(label)
-      f(cb)
-      // assert(!cb.isOpenEnded)
-      /* FIXME: The above assertion should hold, but currently does not. This is likely due to
-       * client code with patterns like the following, which incorrectly leaves the code builder
-       * open-ended:
-       *
-       * cb.ifx(b, cb.goto(L1), cb.goto(L2)) */
+  def implementLabel(label: CodeLabel)(f: EmitCodeBuilder => Unit): Unit =
+    void {
+      EmitCodeBuilder.scopedVoid(this) { cb =>
+        cb.define(label)
+        f(cb)
+        // assert(!cb.isOpenEnded)
+        /* FIXME: The above assertion should hold, but currently does not. This is likely due to
+         * client code with patterns like the following, which incorrectly leaves the code builder
+         * open-ended:
+         *
+         * cb.ifx(b, cb.goto(L1), cb.goto(L2)) */
+      }
     }
-  }
 
   def defineAndImplementLabel(f: EmitCodeBuilder => Unit): CodeLabel = {
     val label = CodeLabel()

@@ -16,7 +16,9 @@ import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
+import org.scalatest
 import org.scalatest.matchers.should.Matchers.{be, convertToAnyShouldWrapper}
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
@@ -33,19 +35,21 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sa.asInt.value
   }
 
-  @Test def testSorting(): Unit =
-    forAll((xs: IndexedSeq[Int]) => sort(xs) == xs.sorted)
+  @Test def testSorting(): scalatest.Assertion =
+    forAll((xs: IndexedSeq[Int]) => assert(sort(xs) == xs.sorted))
 
-  @Test def testHeapProperty(): Unit =
+  @Test def testHeapProperty(): scalatest.Assertion =
     forAll { (xs: IndexedSeq[Int]) =>
       val heap = heapify(xs)
-      (0 until heap.size / 2).forall { i =>
-        ((2 * i + 1) >= heap.size || heap(i) <= heap(2 * i + 1)) &&
-        ((2 * i + 2) >= heap.size || heap(i) <= heap(2 * i + 2))
+      scalatest.Inspectors.forAll(0 until heap.size / 2) { i =>
+        assert(
+          ((2 * i + 1) >= heap.size || heap(i) <= heap(2 * i + 1)) &&
+            ((2 * i + 2) >= heap.size || heap(i) <= heap(2 * i + 2))
+        )
       }
     }
 
-  @Test def testNonEmpty(): Unit =
+  @Test def testNonEmpty(): scalatest.Assertion =
     gen(ctx, "NonEmpty") { (heap: IntHeap) =>
       heap.nonEmpty should be(false)
       for (i <- 0 to 10) heap.push(i)
@@ -60,7 +64,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       loci <- Gen.containerOf[IndexedSeq, Locus](genLocus(rg))
     } yield (rg, loci)
 
-  @Test def testLocus(): Unit =
+  @Test def testLocus(): scalatest.Assertion =
     forAll(loci) { case (rg: ReferenceGenome, loci: IndexedSeq[Locus]) =>
       ctx.local(references = Map(rg.name -> rg)) { ctx =>
         implicit val coercions: StagedCoercions[Locus] =
@@ -72,7 +76,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             IndexedSeq.fill(loci.size)(heap.pop())
           }
 
-        sortedLoci == loci.sorted(rg.locusOrdering)
+        assert(sortedLoci == loci.sorted(rg.locusOrdering))
       }
     }
 
@@ -135,7 +139,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       }
     }
 
-    trait Resource extends AutoCloseable { def init(): Unit }
+    trait Resource extends AutoCloseable { def init(): scalatest.Assertion }
 
     Main.cb.addInterface(implicitly[TypeInfo[Resource]].iname)
     Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>

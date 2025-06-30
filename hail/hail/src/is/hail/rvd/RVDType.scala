@@ -142,13 +142,14 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String]) extends Seri
 
   override def toString: String = {
     val sb = new StringBuilder()
-    sb.append("RVDType{key:[[")
+
+    sb ++= "RVDType{key:[["
     if (key.nonEmpty) {
-      key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+      key.foreachBetween(k => sb ++= prettyIdentifier(k))(sb += ',')
     }
-    sb.append("]],row:")
-    sb.append(rowType.toString)
-    sb += '}'
+
+    sb ++= "]],row:" ++= rowType.toString += '}'
+
     sb.result()
   }
 }

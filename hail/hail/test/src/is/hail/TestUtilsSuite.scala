@@ -1,11 +1,12 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, DenseVector}
+import org.scalatest
 import org.testng.annotations.Test
 
 class TestUtilsSuite extends HailSuite {
 
-  @Test def matrixEqualityTest(): Unit = {
+  @Test def matrixEqualityTest(): scalatest.Assertion = {
     val M = DenseMatrix((1d, 0d), (0d, 1d))
     val M1 = DenseMatrix((1d, 0d), (0d, 1.0001d))
     val V = DenseVector(0d, 1d)
@@ -17,9 +18,10 @@ class TestUtilsSuite extends HailSuite {
 
     intercept[Exception](TestUtils.assertVectorEqualityDouble(V, V1))
     intercept[Exception](TestUtils.assertMatrixEqualityDouble(M, M1))
+    assert(true)
   }
 
-  @Test def constantVectorTest(): Unit = {
+  @Test def constantVectorTest(): scalatest.Assertion = {
     assert(TestUtils.isConstant(DenseVector()))
     assert(TestUtils.isConstant(DenseVector(0)))
     assert(TestUtils.isConstant(DenseVector(0, 0)))
@@ -28,7 +30,7 @@ class TestUtilsSuite extends HailSuite {
     assert(!TestUtils.isConstant(DenseVector(0, 0, 1)))
   }
 
-  @Test def removeConstantColsTest(): Unit = {
+  @Test def removeConstantColsTest(): scalatest.Assertion = {
     val M = DenseMatrix((0, 0, 1, 1, 0), (0, 1, 0, 1, 1))
 
     val M1 = DenseMatrix((0, 1, 0), (1, 0, 1))

@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.StringFunctions
+import is.hail.macros.void
 import is.hail.types.physical.stypes.{SSettable, SType, SValue}
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamValue}
 import is.hail.utils._
@@ -244,7 +245,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
     assert(callee.emitReturnType == CodeParamType(UnitInfo))
-    _invoke[Unit](callee, args: _*)
+    void(_invoke[Unit](callee, args: _*))
   }
 
   def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Value[T] = {
