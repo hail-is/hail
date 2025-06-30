@@ -5,6 +5,7 @@ import is.hail.utils.using
 
 import scala.collection.mutable.ArrayBuffer
 
+import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -73,7 +74,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def testRegionAllocation(): Unit = {
+  @Test def testRegionAllocation(): scalatest.Assertion = {
     RegionPool.scoped { pool =>
       case class Counts(regions: Int, freeRegions: Int) {
         def allocate(n: Int): Counts =
@@ -89,7 +90,7 @@ class RegionSuite extends TestNGSuite {
       var before: Counts = null
       var after: Counts = Counts(pool.numRegions(), pool.numFreeRegions())
 
-      def assertAfterEquals(c: => Counts): Unit = {
+      def assertAfterEquals(c: => Counts): scalatest.Assertion = {
         before = after
         after = Counts(pool.numRegions(), pool.numFreeRegions())
         assert(after == c)
@@ -153,17 +154,17 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def allocationAtStartOfBlockIsCorrect(): Unit = {
+  @Test def allocationAtStartOfBlockIsCorrect(): scalatest.Assertion = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       val region = pool.getRegion(Region.REGULAR)
       val off1 = region.allocate(1, 10)
       val off2 = region.allocate(1, 10)
-      assert(off2 - off1 == 10)
       region.invalidate()
+      assert(off2 - off1 == 10)
     }
   }
 
-  @Test def blocksAreNotReleasedUntilRegionIsReleased(): Unit = {
+  @Test def blocksAreNotReleasedUntilRegionIsReleased(): scalatest.Assertion = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       val region = pool.getRegion(Region.REGULAR)
       val nBlocks = 5
@@ -176,7 +177,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def largeChunksAreNotReturnedToBlockPool(): Unit = {
+  @Test def largeChunksAreNotReturnedToBlockPool(): scalatest.Assertion = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       val region = pool.getRegion(Region.REGULAR)
       region.allocate(4, Region.SIZES(Region.REGULAR) - 4)
@@ -188,7 +189,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def referencedRegionsAreNotFreedUntilReferencingRegionIsFreed(): Unit = {
+  @Test def referencedRegionsAreNotFreedUntilReferencingRegionIsFreed(): scalatest.Assertion = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       val r1 = pool.getRegion()
       val r2 = pool.getRegion()
@@ -202,7 +203,7 @@ class RegionSuite extends TestNGSuite {
     }
   }
 
-  @Test def blockSizesWorkAsExpected(): Unit = {
+  @Test def blockSizesWorkAsExpected(): scalatest.Assertion = {
     using(RegionPool(strictMemoryCheck = true)) { pool =>
       assert(pool.numFreeRegions() == 0)
       assert(pool.numFreeBlocks() == 0)
@@ -228,7 +229,7 @@ class RegionSuite extends TestNGSuite {
   }
 
   @Test
-  def testChunkCache(): Unit = {
+  def testChunkCache(): scalatest.Assertion = {
     RegionPool.scoped { pool =>
       val operations = ArrayBuffer[(String, Long)]()
 
@@ -263,7 +264,6 @@ class RegionSuite extends TestNGSuite {
       assert(operations(4) == (("free", 0L)))
       assert(operations(5) == (("free", 0L)))
       assert(operations.length == 6)
-
     }
   }
 }

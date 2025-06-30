@@ -20,7 +20,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
   def _asIdent = "float64"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append("PFloat64")
+    sb ++= "PFloat64"
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int =

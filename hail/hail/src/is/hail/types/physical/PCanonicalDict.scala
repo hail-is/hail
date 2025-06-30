@@ -29,14 +29,11 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
   def _asIdent = s"dict_of_${keyType.asIdent}AND${valueType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("PCDict[")
+    sb ++= "PCDict["
     keyType.pretty(sb, indent, compact)
-    if (compact)
-      sb += ','
-    else
-      sb.append(", ")
+    if (compact) sb += ',' else sb ++= ", "
     valueType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   override def deepRename(t: Type) = deepRenameDict(t.asInstanceOf[TDict])

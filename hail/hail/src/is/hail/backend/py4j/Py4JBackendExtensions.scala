@@ -12,6 +12,7 @@ import is.hail.expr.ir.defs.{EncodedLiteral, GetFieldByIdx}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.io.reference.{IndexedFastaSequenceFile, LiftOver}
 import is.hail.linalg.RowMatrix
+import is.hail.macros.void
 import is.hail.types.physical.PStruct
 import is.hail.types.virtual.{TArray, TInterval}
 import is.hail.utils.{defaultJSONFormats, log, toRichIterable, FastSeq, HailException, Interval}
@@ -60,7 +61,7 @@ trait Py4JBackendExtensions {
   }
 
   def pyRemoveJavaIR(id: Int): Unit =
-    backend.withExecuteContext(_.PersistedIrCache.remove(id))
+    backend.withExecuteContext(ctx => void(ctx.PersistedIrCache.remove(id)))
 
   def pyAddSequence(name: String, fastaFile: String, indexFile: String): Unit =
     backend.withExecuteContext { ctx =>
@@ -211,8 +212,7 @@ trait Py4JBackendExtensions {
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
 
-  private[this] def removeReference(name: String): Unit =
-    references -= name
+  private[this] def removeReference(name: String): Unit = { references -= name; () }
 
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
     backend.withExecuteContext { ctx =>

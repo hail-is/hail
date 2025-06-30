@@ -134,7 +134,8 @@ class SStreamConcrete(val st: SStreamIteratorLong, val it: Value[NoBoxLongIterat
           )
         }
 
-      override def close(cb: EmitCodeBuilder): Unit = it.invoke[Unit]("close")
+      override def close(cb: EmitCodeBuilder): Unit =
+        cb += it.invoke[Unit]("close")
     }
   }
 

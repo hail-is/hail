@@ -98,9 +98,6 @@ trait Implicits {
 
   implicit def toRichString(str: String): RichString = new RichString(str)
 
-  implicit def toRichStringBuilder(sb: mutable.StringBuilder): RichStringBuilder =
-    new RichStringBuilder(sb)
-
   implicit def toTruncatable(s: String): Truncatable = s.truncatable()
 
   implicit def toTruncatable[T](it: Iterable[T]): Truncatable = it.truncatable()

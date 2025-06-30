@@ -1,5 +1,7 @@
 package is.hail.utils
 
+import is.hail.macros.void
+
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
 import scala.collection.mutable.PriorityQueue
@@ -286,12 +288,12 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
             return
           }
         }
-        if (c == 0)
-          value.set(left.consume(), right.consume())
-        else if (c < 0)
-          value.set(left.consume(), rightDefault)
-        else // c > 0
-          value.set(leftDefault, right.consume())
+
+        void {
+          if (c == 0) value.set(left.consume(), right.consume())
+          else if (c < 0) value.set(left.consume(), rightDefault)
+          else value.set(leftDefault, right.consume())
+        }
       }
     }
 
@@ -326,18 +328,18 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
       val value = Muple(leftDefault, rightDefault)
       var isValid = true
       def setValue(): Unit = {
-        if (!left.isValid)
-          isValid = false
-        else {
+        isValid = left.isValid && {
           var c = 0
           while (right.isValid && { c = mixedOrd(left.value, right.value); c > 0 })
             right.advance()
-          if (!right.isValid || c < 0)
-            value.set(left.value, rightDefault)
-          else // c == 0
-            value.set(left.value, right.value)
+
+          if (!right.isValid || c < 0) value.set(left.value, rightDefault)
+          else value.set(left.value, right.value)
+
+          true
         }
       }
+
       def advance(): Unit = {
         left.advance()
         setValue()

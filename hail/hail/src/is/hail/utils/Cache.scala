@@ -1,6 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionMemory}
+import is.hail.macros.void
 
 import scala.collection.mutable
 import scala.jdk.CollectionConverters.asScalaIteratorConverter
@@ -47,7 +48,7 @@ class LongToRegionValueCache(capacity: Int) extends Closeable {
     if (addr == 0L)
       throw new RuntimeException("tried to cache null pointer")
     val rm = region.getMemory()
-    m.put(key, (rm, addr))
+    void(m.put(key, (rm, addr)))
   }
 
   // returns -1 if not in cache
@@ -60,7 +61,7 @@ class LongToRegionValueCache(capacity: Int) extends Closeable {
   }
 
   def free(): Unit = {
-    m.forEach((k, v) => v._1.release())
+    m.forEach((_, v) => v._1.release())
     m.clear()
   }
 

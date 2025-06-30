@@ -8,6 +8,9 @@ import is.hail.utils._
 import java.lang.reflect.Method
 import java.nio.file.Path
 
+import org.scalatest
+import org.scalatest.Inspectors.forAll
+import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.{AfterClass, BeforeClass, BeforeMethod, Test}
 
@@ -48,7 +51,7 @@ class BatchClientSuite extends TestNGSuite {
     client.close()
 
   @Test
-  def testCancelAfterNFailures(): Unit = {
+  def testCancelAfterNFailures(): scalatest.Assertion = {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -80,7 +83,7 @@ class BatchClientSuite extends TestNGSuite {
   }
 
   @Test
-  def testGetJobGroupJobsByState(): Unit = {
+  def testGetJobGroupJobsByState(): scalatest.Assertion = {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,
@@ -105,17 +108,18 @@ class BatchClientSuite extends TestNGSuite {
       )
     )
     client.waitForJobGroup(batchId, jobGroupId)
-    for (state <- Array(JobStates.Failed, JobStates.Success))
-      for (jobs <- client.getJobGroupJobs(batchId, jobGroupId, Some(state))) {
+    forAll(Array(JobStates.Failed, JobStates.Success)) { state =>
+      forAll(client.getJobGroupJobs(batchId, jobGroupId, Some(state))) { jobs =>
         assert(jobs.length == 1)
         assert(jobs(0).state == state)
       }
+    }
   }
 
   @Test
-  def testNewJobGroup(): Unit =
+  def testNewJobGroup(): scalatest.Assertion =
     // The query driver submits a job group per stage with one job per partition
-    for (i <- 1 to 2) {
+    forAll(1 to 2) { i =>
       val (jobGroupId, _) = client.newJobGroup(
         req = JobGroupRequest(
           batch_id = batchId,
@@ -139,7 +143,7 @@ class BatchClientSuite extends TestNGSuite {
     }
 
   @Test
-  def testJvmJob(): Unit = {
+  def testJvmJob(): scalatest.Assertion = {
     val (jobGroupId, _) = client.newJobGroup(
       req = JobGroupRequest(
         batch_id = batchId,

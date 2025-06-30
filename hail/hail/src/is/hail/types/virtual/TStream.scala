@@ -7,9 +7,9 @@ import org.json4s.jackson.JsonMethods
 
 final case class TStream(elementType: Type) extends TIterable {
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("stream<")
+    sb ++= "stream<"
     elementType.pyString(sb)
-    sb.append('>')
+    sb += '>'
   }
 
   def _toPretty = s"Stream[$elementType]"
@@ -25,9 +25,9 @@ final case class TStream(elementType: Type) extends TIterable {
   override def subst() = TStream(elementType.subst())
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("Stream[")
+    sb ++= "Stream["
     elementType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&

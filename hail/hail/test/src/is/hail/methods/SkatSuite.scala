@@ -5,13 +5,14 @@ import is.hail.expr.ir.DoubleArrayBuilder
 import is.hail.utils._
 
 import breeze.linalg._
+import org.scalatest
 import org.testng.annotations.Test
 
 case class SkatAggForR(xs: BoxedArrayBuilder[DenseVector[Double]], weights: DoubleArrayBuilder)
 
 class SkatSuite extends HailSuite {
 
-  @Test def smallNLargeNEqualityTest(): Unit = {
+  @Test def smallNLargeNEqualityTest(): scalatest.Assertion = {
     val rand = scala.util.Random
     rand.setSeed(0)
 

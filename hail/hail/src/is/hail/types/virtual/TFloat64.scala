@@ -8,7 +8,7 @@ case object TFloat64 extends TNumeric {
   override def _toPretty = "Float64"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("float64")
+    sb ++= "float64"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Double]
 

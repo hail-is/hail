@@ -9,6 +9,7 @@ import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import is.hail.variant.Call2
 
+import org.scalatest
 import org.testng.annotations.Test
 
 object ScalaTestObject {
@@ -52,7 +53,7 @@ class FunctionSuite extends HailSuite {
   TestRegisterFunctions.registerAll()
 
   @Test
-  def testCodeFunction(): Unit =
+  def testCodeFunction(): scalatest.Assertion =
     assertEvalsTo(
       invoke("triangle", TInt32, In(0, TInt32)),
       FastSeq(5 -> TInt32),
@@ -60,7 +61,7 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testStaticFunction(): Unit =
+  def testStaticFunction(): scalatest.Assertion =
     assertEvalsTo(
       invoke("compare", TInt32, In(0, TInt32), I32(0)) > 0,
       FastSeq(5 -> TInt32),
@@ -68,19 +69,19 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testScalaFunction(): Unit =
+  def testScalaFunction(): scalatest.Assertion =
     assertEvalsTo(invoke("foobar1", TInt32), 1)
 
   @Test
-  def testIRConversion(): Unit =
+  def testIRConversion(): scalatest.Assertion =
     assertEvalsTo(invoke("addone", TInt32, In(0, TInt32)), FastSeq(5 -> TInt32), 6)
 
   @Test
-  def testScalaFunctionCompanion(): Unit =
+  def testScalaFunctionCompanion(): scalatest.Assertion =
     assertEvalsTo(invoke("foobar2", TInt32), 2)
 
   @Test
-  def testVariableUnification(): Unit = {
+  def testVariableUnification(): scalatest.Assertion = {
     assert(IRFunctionRegistry.lookupUnseeded(
       "testCodeUnification",
       TInt32,
@@ -104,7 +105,7 @@ class FunctionSuite extends HailSuite {
   }
 
   @Test
-  def testUnphasedDiploidGtIndexCall(): Unit =
+  def testUnphasedDiploidGtIndexCall(): scalatest.Assertion =
     assertEvalsTo(
       invoke("UnphasedDiploidGtIndexCall", TCall, In(0, TInt32)),
       FastSeq(0 -> TInt32),
@@ -112,7 +113,7 @@ class FunctionSuite extends HailSuite {
     )
 
   @Test
-  def testGetOrGenMethod(): Unit = {
+  def testGetOrGenMethod(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     val i = fb.genFieldThisRef[Int]()
     val mb1 = fb.getOrGenEmitMethod("foo", "foo", FastSeq[ParamType](), UnitInfo) { mb =>

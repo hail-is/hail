@@ -1,6 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.expr.ir._
+import is.hail.macros.void
 import is.hail.rvd.RVDType
 import is.hail.types.physical.{PStruct, PType}
 import is.hail.utils._
@@ -56,37 +57,27 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
   def valueFieldIdx: Array[Int] = canonicalRVDType.valueFieldIdx
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
-    var indent = indent0
 
     val space: String = if (compact) "" else " "
+    val padding: String = if (compact) "" else " " * indent0
+    val newline: String = if (compact) "" else "\n"
 
-    def newline(): Unit =
-      if (!compact) {
-        sb += '\n'
-        sb.append(" " * indent)
-      }
+    val indent = indent0 + 4
 
-    sb.append(s"Table$space{")
-    indent += 4
-    newline()
+    sb ++= "Table" ++= space += '{' ++= newline
 
-    sb.append(s"global:$space")
+    sb ++= padding ++= "global:" ++= space
     globalType.pretty(sb, indent, compact)
-    sb += ','
-    newline()
+    sb += ',' ++= newline
 
-    sb.append(s"key:$space[")
-    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-    sb += ']'
-    sb += ','
-    newline()
+    sb ++= padding ++= "key:" ++= space += '['
+    key.foreachBetween(k => sb ++= prettyIdentifier(k))(void(sb += ',' ++= space))
+    sb ++= "]," ++ newline
 
-    sb.append(s"row:$space")
+    sb ++= padding ++= "row:" ++= space
     rowType.pretty(sb, indent, compact)
 
-    indent -= 4
-    newline()
-    sb += '}'
+    void(sb ++= newline += '}')
   }
 
   override def toJSON: JObject =

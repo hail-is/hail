@@ -15,7 +15,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def _asIdent = "string"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append("PCString")
+    sb ++= "PCString"
 
   override def byteSize: Long = 8
 

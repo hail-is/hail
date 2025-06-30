@@ -1,10 +1,11 @@
 package is.hail.utils
 
+import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class ArrayStackSuite extends TestNGSuite {
-  @Test def test(): Unit = {
+  @Test def test(): scalatest.Assertion = {
     val s = new IntArrayStack(4)
     assert(s.isEmpty)
     assert(!s.nonEmpty)

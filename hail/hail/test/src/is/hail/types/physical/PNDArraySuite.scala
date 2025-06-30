@@ -8,11 +8,12 @@ import is.hail.types.physical.stypes.interfaces.{ColonIndex => Colon, _}
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.scalatest
 import org.testng.annotations.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
+  @Test def copyTests(): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalNDArray(PInt64(true), 1),
         PCanonicalNDArray(PInt64(true), 1),
@@ -29,7 +30,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
-  @Test def testWhitenBase(): Unit = {
+  @Test def testWhitenBase(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -95,7 +96,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     }
   }
 
-  @Test def testQrPivot(): Unit = {
+  @Test def testQrPivot(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Region, Double](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val vecType = PCanonicalNDArray(PFloat64Required, 1)
@@ -217,7 +218,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     Xw
   }
 
-  @Test def testWhitenNonrecur(): Unit = {
+  @Test def testWhitenNonrecur(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -302,10 +303,11 @@ class PNDArraySuite extends PhysicalTestUtils {
       val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
+      succeed
     }
   }
 
-  @Test def testWhiten(): Unit = {
+  @Test def testWhiten(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Region, Unit](ctx, "whiten_test")
     val matType = PCanonicalNDArray(PFloat64Required, 2)
     val m = SizeValueStatic(2000)
@@ -359,10 +361,11 @@ class PNDArraySuite extends PhysicalTestUtils {
       val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
 
       f(region)
+      succeed
     }
   }
 
-  @Test def testRefCounted(): Unit = {
+  @Test def testRefCounted(): scalatest.Assertion = {
     val nd = PCanonicalNDArray(PInt32Required, 1)
 
     val region1 = Region(pool = this.pool)
@@ -431,7 +434,7 @@ class PNDArraySuite extends PhysicalTestUtils {
     assert(region2.memory.listNDArrayRefs().size == 0)
   }
 
-  @Test def testUnstagedCopy(): Unit = {
+  @Test def testUnstagedCopy(): scalatest.Assertion = {
     val region1 = Region(pool = this.pool)
     val region2 = Region(pool = this.pool)
     val x = SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))

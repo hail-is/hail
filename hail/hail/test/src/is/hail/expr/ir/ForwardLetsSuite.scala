@@ -7,6 +7,7 @@ import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils._
 
+import org.scalatest
 import org.testng.annotations.{BeforeMethod, DataProvider, Test}
 
 class ForwardLetsSuite extends HailSuite {
@@ -105,14 +106,15 @@ class ForwardLetsSuite extends HailSuite {
     ).map(ir => Array[IR](AggLet(x.name, In(0, TInt32) + In(0, TInt32), ir, false)))
   }
 
-  @Test def assertDataProvidersWork(): Unit = {
+  @Test def assertDataProvidersWork(): scalatest.Assertion = {
     nonForwardingOps()
     forwardingOps()
     nonForwardingAggOps()
     forwardingAggOps()
+    scalatest.Succeeded
   }
 
-  @Test def testBlock(): Unit = {
+  @Test def testBlock(): scalatest.Assertion = {
     val x = Ref(freshName(), TInt32)
     val y = Ref(freshName(), TInt32)
     val ir = Block(
@@ -125,7 +127,7 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "nonForwardingOps")
-  def testNonForwardingOps(ir: IR): Unit = {
+  def testNonForwardingOps(ir: IR): scalatest.Assertion = {
     val after = ForwardLets(ctx)(ir)
     val normalizedBefore = NormalizeNames(ctx, ir)
     val normalizedAfter = NormalizeNames(ctx, after)
@@ -133,26 +135,26 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "nonForwardingNonEvalOps")
-  def testNonForwardingNonEvalOps(ir: IR): Unit = {
+  def testNonForwardingNonEvalOps(ir: IR): scalatest.Assertion = {
     val after = ForwardLets(ctx)(ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "nonForwardingAggOps")
-  def testNonForwardingAggOps(ir: IR): Unit = {
+  def testNonForwardingAggOps(ir: IR): scalatest.Assertion = {
     val after = ForwardLets(ctx)(ir)
     assert(after.isInstanceOf[Block])
   }
 
   @Test(dataProvider = "forwardingOps")
-  def testForwardingOps(ir: IR): Unit = {
+  def testForwardingOps(ir: IR): scalatest.Assertion = {
     val after = ForwardLets(ctx)(ir)
     assert(!after.isInstanceOf[Block])
     assertEvalSame(ir, args = Array(5 -> TInt32))
   }
 
   @Test(dataProvider = "forwardingAggOps")
-  def testForwardingAggOps(ir: IR): Unit = {
+  def testForwardingAggOps(ir: IR): scalatest.Assertion = {
     val after = ForwardLets(ctx)(ir)
     assert(!after.isInstanceOf[Block])
   }
@@ -219,7 +221,7 @@ class ForwardLetsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "TrivialIRCases")
-  def testTrivialCases(input: IR, _expected: IR, reason: String): Unit = {
+  def testTrivialCases(input: IR, _expected: IR, reason: String): scalatest.Assertion = {
     val result = NormalizeNames(ctx, ForwardLets(ctx)(input), allowFreeVariables = true)
     val expected = NormalizeNames(ctx, _expected, allowFreeVariables = true)
     assert(
@@ -228,7 +230,7 @@ class ForwardLetsSuite extends HailSuite {
     )
   }
 
-  @Test def testAggregators(): Unit = {
+  @Test def testAggregators(): scalatest.Assertion = {
     val row = Ref(freshName(), TStruct("idx" -> TInt32))
     val aggEnv = Env[Type](row.name -> row.typ)
 
@@ -239,9 +241,10 @@ class ForwardLetsSuite extends HailSuite {
     )
 
     TypeCheck(ctx, ForwardLets(ctx)(ir0), BindingEnv(Env.empty, agg = Some(aggEnv)))
+    scalatest.Succeeded
   }
 
-  @Test def testNestedBindingOverwrites(): Unit = {
+  @Test def testNestedBindingOverwrites(): scalatest.Assertion = {
     val x = Ref(freshName(), TInt32)
     val env = Env[Type](x.name -> TInt32)
     def xCast = Cast(x, TFloat64)
@@ -249,9 +252,10 @@ class ForwardLetsSuite extends HailSuite {
 
     TypeCheck(ctx, ir, BindingEnv(env))
     TypeCheck(ctx, ForwardLets(ctx)(ir), BindingEnv(env))
+    scalatest.Succeeded
   }
 
-  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): Unit = {
+  @Test def testLetsDoNotForwardInsideArrayAggWithNoOps(): scalatest.Assertion = {
     val y = Ref(freshName(), TInt32)
     val x = bindIR(
       streamAggIR(ToStream(In(0, TArray(TInt32))))(_ => y)
@@ -259,5 +263,6 @@ class ForwardLetsSuite extends HailSuite {
 
     TypeCheck(ctx, x, BindingEnv(Env(y.name -> TInt32)))
     TypeCheck(ctx, ForwardLets(ctx)(x), BindingEnv(Env(y.name -> TInt32)))
+    scalatest.Succeeded
   }
 }

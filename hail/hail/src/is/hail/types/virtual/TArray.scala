@@ -7,9 +7,9 @@ import org.json4s.jackson.JsonMethods
 
 final case class TArray(elementType: Type) extends TContainer {
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("array<")
+    sb ++= "array<"
     elementType.pyString(sb)
-    sb.append('>')
+    sb += '>'
   }
 
   def _toPretty = s"Array[$elementType]"
@@ -27,9 +27,9 @@ final case class TArray(elementType: Type) extends TContainer {
   override def subst() = TArray(elementType.subst())
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("Array[")
+    sb ++= "Array["
     elementType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[IndexedSeq[_]] &&

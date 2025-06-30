@@ -7,7 +7,7 @@ case object TInt64 extends TIntegral {
   def _toPretty = "Int64"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("int64")
+    sb ++= "int64"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Long]
 

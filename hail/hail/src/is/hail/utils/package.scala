@@ -3,6 +3,7 @@ package is.hail
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.ir.ByteArrayBuilder
 import is.hail.io.fs.{FS, FileListEntry}
+import is.hail.macros.void
 
 import scala.collection.{mutable, GenTraversableOnce, TraversableOnce}
 import scala.collection.generic.CanBuildFrom
@@ -1044,6 +1045,7 @@ package object utils
   def runAllKeepFirstError[A](executor: ExecutorService)
     : IndexedSeq[(() => A, Int)] => (Option[Throwable], IndexedSeq[(A, Int)]) =
     runAll[Option, A](executor) { case (opt, e) => opt.orElse(Some(e)) }(None)
+
 }
 
 class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecutorService {
@@ -1056,11 +1058,13 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
     @volatile private[this] var isFailed = false
 
     override def run(): Unit =
-      try set(f())
-      catch {
-        case NonFatal(e) =>
-          isFailed = true
-          setException(e)
+      void {
+        try set(f())
+        catch {
+          case NonFatal(e) =>
+            isFailed = true
+            setException(e)
+        }
       }
 
     override def afterDone(): Unit =
@@ -1070,7 +1074,8 @@ class CancellingExecutorService(delegate: ExecutorService) extends AbstractExecu
   }
 
   final private[this] class CancelledFuture[A] extends AbstractFuture[A] with RunnableFuture[A] {
-    override def run(): Unit = setException(new CancellationException())
+    override def run(): Unit =
+      void(setException(new CancellationException()))
   }
 
   override def newTaskFor[T](runnable: Runnable, value: T): RunnableFuture[T] =

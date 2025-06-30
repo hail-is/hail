@@ -2,6 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser, LowerMatrixIR, MatrixIR, Name}
+import is.hail.macros.void
 import is.hail.types.physical.{PArray, PStruct}
 import is.hail.utils._
 
@@ -155,52 +156,38 @@ case class MatrixType(
   )
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false): Unit = {
-    var indent = indent0
 
     val space: String = if (compact) "" else " "
+    val newline: String = if (compact) "" else "\n"
+    val padding: String = if (compact) "" else "\n" + (" " * indent0)
 
-    def newline(): Unit =
-      if (!compact) {
-        sb += '\n'
-        sb.append(" " * indent)
-      }
+    val indent = indent0 + 4
 
-    sb.append(s"Matrix$space{")
-    indent += 4
-    newline()
+    sb ++= "Matrix" ++= space += '{' ++= newline
 
-    sb.append(s"global:$space")
+    sb ++= padding ++= "global:" ++= space
     globalType.pretty(sb, indent, compact)
-    sb += ','
-    newline()
+    sb += ',' ++= newline
 
-    sb.append(s"col_key:$space[")
-    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-    sb += ']'
-    sb += ','
-    newline()
+    sb ++= padding ++= "col_key:" ++= space += '['
+    colKey.foreachBetween(k => sb ++= prettyIdentifier(k))(void(sb += ',' ++= space))
+    sb ++= "]," ++= newline
 
-    sb.append(s"col:$space")
+    sb ++= padding ++= "col:" ++= space
     colType.pretty(sb, indent, compact)
-    sb += ','
-    newline()
+    sb += ',' ++= newline
 
-    sb.append(s"row_key:$space[[")
-    rowKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
-    sb ++= "]]"
-    sb += ','
-    newline()
+    sb ++= padding ++= "row_key:" ++= space ++= "[["
+    rowKey.foreachBetween(k => sb ++= prettyIdentifier(k))(void(sb += ',' ++= space))
+    sb ++= "]]," ++= newline
 
-    sb.append(s"row:$space")
+    sb ++= padding ++= "row:" ++= space
     rowType.pretty(sb, indent, compact)
-    sb += ','
-    newline()
+    sb += ',' ++= newline
 
-    sb.append(s"entry:$space")
+    sb ++= padding ++= "entry:" ++= space
     entryType.pretty(sb, indent, compact)
-
-    indent -= 4
-    newline()
+    sb ++= newline
     sb += '}'
   }
 

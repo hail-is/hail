@@ -12,11 +12,12 @@ import is.hail.types.physical.stypes.primitives.{
 import is.hail.types.virtual.{TInt32, TInt64, TStruct}
 
 import org.apache.spark.sql.Row
+import org.scalatest
 import org.testng.annotations.Test
 
 class CodeSuite extends HailSuite {
 
-  @Test def testForLoop(): Unit = {
+  @Test def testForLoop(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")
     fb.emitWithBuilder[Int] { cb =>
       val i = cb.newLocal[Int]("i")
@@ -30,7 +31,7 @@ class CodeSuite extends HailSuite {
     assert(result == 10)
   }
 
-  @Test def testSizeBasic(): Unit = {
+  @Test def testSizeBasic(): scalatest.Assertion = {
     val int64 = new SInt64Value(5L)
     val int32 = new SInt32Value(2)
     val struct = new SStackStructValue(
@@ -57,7 +58,7 @@ class CodeSuite extends HailSuite {
     assert(testSizeHelper(str) == 7L) // 4 byte header, 3 bytes for the 3 letters.
   }
 
-  @Test def testArraySizeInBytes(): Unit = {
+  @Test def testArraySizeInBytes(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
     val ptype = PCanonicalArray(PInt32())
@@ -78,7 +79,7 @@ class CodeSuite extends HailSuite {
     ) // 2 missing bytes 8 byte aligned + 8 header bytes + 5 elements * 4 bytes for ints.
   }
 
-  @Test def testIntervalSizeInBytes(): Unit = {
+  @Test def testIntervalSizeInBytes(): scalatest.Assertion = {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "test_size_in_bytes")
     val mb = fb.apply_method
 
@@ -114,7 +115,7 @@ class CodeSuite extends HailSuite {
     assert(fb.result()(theHailClassLoader)(ctx.r) == 72L) // 2 28 byte structs, plus 2 1 byte booleans that get 8 byte for an extra 8 bytes, plus missing bytes.
   }
 
-  @Test def testHash(): Unit = {
+  @Test def testHash(): scalatest.Assertion = {
     val fields = IndexedSeq(
       PField("a", PCanonicalString(), 0),
       PField("b", PInt32(), 1),

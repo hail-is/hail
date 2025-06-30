@@ -7,6 +7,7 @@ import is.hail.expr.ir.defs.{
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.scalatest
 import org.testng.annotations.Test
 
 class ArrayDeforestationSuite extends HailSuite {
@@ -51,7 +52,7 @@ class ArrayDeforestationSuite extends HailSuite {
     }
   }
 
-  @Test def testArrayFold(): Unit = {
+  @Test def testArrayFold(): scalatest.Assertion = {
     assertEvalsTo(arrayFoldWithStructWithPrimitiveValues(5, -5, -6), Row(5, 4))
     assertEvalsTo(arrayFoldWithStruct(5, -5, -6), Row(Row(4, 0), Row(5, 0)))
   }

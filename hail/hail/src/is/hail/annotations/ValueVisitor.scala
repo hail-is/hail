@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.macros.void
 import is.hail.types.physical._
 
 trait ValueVisitor {
@@ -43,75 +44,68 @@ trait ValueVisitor {
 final class PrettyVisitor extends ValueVisitor {
   val sb = new StringBuilder()
 
-  def result(): String = sb.result()
+  @inline def result(): String = sb.result()
 
-  def visitMissing(t: PType): Unit =
-    sb.append("NA")
+  @inline def visitMissing(t: PType): Unit =
+    void(sb.append("NA"))
 
-  def visitBoolean(b: Boolean): Unit =
-    sb.append(b)
+  @inline def visitBoolean(b: Boolean): Unit =
+    void(sb.append(b))
 
-  def visitInt32(i: Int): Unit =
-    sb.append(i)
+  @inline def visitInt32(i: Int): Unit =
+    void(sb.append(i))
 
-  def visitInt64(l: Long): Unit =
-    sb.append(l)
+  @inline def visitInt64(l: Long): Unit =
+    void(sb.append(l))
 
-  def visitFloat32(f: Float): Unit =
-    sb.append(f)
+  @inline def visitFloat32(f: Float): Unit =
+    void(sb.append(f))
 
-  def visitFloat64(d: Double): Unit =
-    sb.append(d)
+  @inline def visitFloat64(d: Double): Unit =
+    void(sb.append(d))
 
-  def visitBinary(a: Array[Byte]): Unit =
-    sb.append("bytes...")
+  @inline def visitBinary(a: Array[Byte]): Unit =
+    void(sb.append("bytes..."))
 
-  def visitString(s: String): Unit =
-    sb.append(s)
+  @inline def visitString(s: String): Unit =
+    void(sb.append(s))
 
-  def enterStruct(t: PStruct): Unit =
-    sb.append("{")
+  @inline def enterStruct(t: PStruct): Unit =
+    void(sb.append("{"))
 
   def enterField(f: PField): Unit = {
-    if (f.index > 0)
-      sb.append(",")
-    sb.append(" ")
-    sb.append(f.name)
-    sb.append(": ")
+    if (f.index > 0) sb += ','
+    void(sb += ' ' ++= f.name ++= ": ")
   }
 
-  def leaveField(): Unit = {}
+  @inline def leaveField(): Unit = {}
 
-  def leaveStruct(): Unit =
-    sb.append(" }")
+  @inline def leaveStruct(): Unit =
+    void(sb.append(" }"))
 
-  def enterTuple(t: PTuple): Unit =
-    sb.append('(')
+  @inline def enterTuple(t: PTuple): Unit =
+    void(sb.append('('))
 
-  def leaveTuple(): Unit =
-    sb.append(')')
+  @inline def leaveTuple(): Unit =
+    void(sb.append(')'))
 
   def enterArray(t: PContainer, length: Int): Unit = {
     t match {
-      case _: PSet =>
-        sb.append("Set")
-      case _: PDict =>
-        sb.append("Dict")
+      case _: PSet => sb.append("Set")
+      case _: PDict => sb.append("Dict")
       case _ =>
     }
-    sb.append("[")
-    sb.append(length)
-    sb.append(";")
+
+    void(sb += '[' ++= length.toString += ';')
   }
 
-  def leaveArray(): Unit =
-    sb.append("]")
+  @inline def leaveArray(): Unit =
+    void(sb.append("]"))
 
-  def enterElement(i: Int): Unit = {
-    if (i > 0)
-      sb.append(",")
-    sb.append(" ")
+  @inline def enterElement(i: Int): Unit = {
+    if (i > 0) sb += ','
+    void(sb += ' ')
   }
 
-  def leaveElement(): Unit = {}
+  @inline def leaveElement(): Unit = {}
 }

@@ -1,15 +1,16 @@
 package is.hail.utils
 
+import org.scalatest
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class UnionFindSuite extends TestNGSuite {
   @Test
-  def emptyUnionFindHasNoSets(): Unit =
+  def emptyUnionFindHasNoSets(): scalatest.Assertion =
     assert(new UnionFind().size == 0)
 
   @Test
-  def growingPastInitialCapacityOK(): Unit = {
+  def growingPastInitialCapacityOK(): scalatest.Assertion = {
     val uf = new UnionFind(4)
     uf.makeSet(0)
     uf.makeSet(1)
@@ -25,7 +26,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def simpleUnions(): Unit = {
+  def simpleUnions(): scalatest.Assertion = {
     val uf = new UnionFind()
 
     uf.makeSet(0)
@@ -39,7 +40,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def nonMonotonicMakeSet(): Unit = {
+  def nonMonotonicMakeSet(): scalatest.Assertion = {
     val uf = new UnionFind()
 
     uf.makeSet(1000)
@@ -61,7 +62,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def multipleUnions(): Unit = {
+  def multipleUnions(): scalatest.Assertion = {
     val uf = new UnionFind()
 
     uf.makeSet(1)
@@ -95,7 +96,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def unionsNoInterveningFinds(): Unit = {
+  def unionsNoInterveningFinds(): scalatest.Assertion = {
     val uf = new UnionFind()
 
     uf.makeSet(1)
@@ -121,7 +122,7 @@ class UnionFindSuite extends TestNGSuite {
   }
 
   @Test
-  def sameSetWorks(): Unit = {
+  def sameSetWorks(): scalatest.Assertion = {
     val uf = new UnionFind()
 
     uf.makeSet(1)

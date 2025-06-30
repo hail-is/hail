@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailStateManager
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.macros.void
 import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.stypes.concrete.{
   SCanonicalLocusPointer, SCanonicalLocusPointerValue, SStackStruct,
@@ -37,7 +38,7 @@ final case class PCanonicalLocus(rgName: String, required: Boolean = false) exte
   def _asIdent = s"locus_$rgName"
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit =
-    sb.append(s"PCLocus($rgName)")
+    void(sb ++= "PCLocus(" ++= rgName += ')')
 
   def setRequired(required: Boolean): PCanonicalLocus =
     if (required == this.required) this else PCanonicalLocus(this.rgName, required)
