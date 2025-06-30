@@ -260,6 +260,7 @@ class NetworkNamespace:
                 resolv.write('nameserver 8.8.8.8\n')
 
     async def create_netns(self):
+        log.info(f'ipallocdebug: Creating net ns {self.network_ns_name}')
         await check_shell(f"""
 ip netns add {self.network_ns_name} && \
 ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
@@ -299,6 +300,7 @@ iptables -w {IPTABLES_WAIT_TIMEOUT_SECS} -t mangle -A POSTROUTING --out-interfac
         )
 
     async def cleanup(self):
+        log.info(f'ipallocdebug: Cleanup net ns {self.network_ns_name}')
         if self.host_port:
             assert self.port
             await self.expose_port_rule(action='delete')
@@ -318,27 +320,37 @@ class NetworkAllocator:
         self.internet_interface = INTERNET_INTERFACE
 
     async def reserve(self):
-        for subnet_index in range(N_SLOTS + N_JVM_CONTAINERS):
+        public_ip_count = N_SLOTS + N_JVM_CONTAINERS
+        log.info(f'ipallocdebug: Reserving public ip addresses: {public_ip_count}')
+        for subnet_index in range(public_ip_count):
             public = NetworkNamespace(subnet_index, private=False, internet_interface=self.internet_interface)
             await public.init()
+            log.info(f'ipallocdebug: Adding public network: {public.network_ns_name} (subnet index: {subnet_index} job ip: {public.job_ip}, host ip {public.host_ip}) to list')
             self.public_networks.put_nowait(public)
-
+        log.info(f'ipallocdebug: Reserving private ip addresses: {N_SLOTS}')
         for subnet_index in range(N_SLOTS):
             private = NetworkNamespace(subnet_index, private=True, internet_interface=self.internet_interface)
 
             await private.init()
+            log.info(f'ipallocdebug: Adding private network: {private.network_ns_name} (subnet index: {subnet_index} job ip: {private.job_ip}, host ip {private.host_ip}) to list')
             self.private_networks.put_nowait(private)
 
     async def allocate_private(self) -> NetworkNamespace:
-        return await self.private_networks.get()
+        network = await self.private_networks.get()
+        log.info(f'ipallocdebug: Allocating private network {network.network_ns_name} (subnet index: {network.subnet_index} job ip: {network.job_ip}, host ip {network.host_ip})')
+        return network
 
     async def allocate_public(self) -> NetworkNamespace:
-        return await self.public_networks.get()
+        network = await self.public_networks.get()
+        log.info(f'ipallocdebug: Allocating public network: {network.network_ns_name} (subnet index: {network.subnet_index} job ip: {network.job_ip}, host ip {network.host_ip})')
+        return network
 
     def free(self, netns: NetworkNamespace):
         self.task_manager.ensure_future(self._free(netns))
 
     async def _free(self, netns: NetworkNamespace):
+        network_type = 'private' if netns.private else 'public'
+        log.info(f'ipallocdebug: Freeing {network_type} network namespace: {netns.network_ns_name} (subnet index: {netns.subnet_index} job ip: {netns.job_ip}, host ip {netns.host_ip}')
         await netns.cleanup()
         if netns.private:
             self.private_networks.put_nowait(netns)
@@ -1021,6 +1033,8 @@ class Container:
                     CLOUD_WORKER_API.create_metadata_server_app(self.user_credentials)
                 )
                 await self.metadata_app_runner.setup()
+                network_type = 'private' if self.netns.private else 'public'
+                log.info(f'ipallocdebug: Starting metadata server on {network_type} {self.netns.network_ns_name} {self.netns.host_ip}')
                 site = web.TCPSite(self.metadata_app_runner, self.netns.host_ip, 5555)
                 await site.start()
         except asyncio.TimeoutError:
@@ -2976,11 +2990,17 @@ class JVMPool:
         log.info(f'killed {jvm} and recreated a new jvm')
 
     async def create_jvm(self):
-        assert self.queue.qsize() < self.max_jvms
-        assert self.total_jvms_including_borrowed < self.max_jvms
-        self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
-        self.total_jvms_including_borrowed += 1
-        JVMPool.global_jvm_index += 1
+        try:
+            log.info(f'JVMPool.create_jvm: {self.n_cores=}: {self.queue.qsize()=} {self.total_jvms_including_borrowed=} {self.max_jvms=}')
+            assert self.queue.qsize() < self.max_jvms
+            assert self.total_jvms_including_borrowed < self.max_jvms
+            self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
+            log.info(f'JVMPool.create_jvm: created JVM-{JVMPool.global_jvm_index} for {self.n_cores=}')
+            self.total_jvms_including_borrowed += 1
+            JVMPool.global_jvm_index += 1
+        except Exception:
+            log.error(f'JVMPool.create_jvm: create failed: {traceback.format_exc()}')
+            raise
 
     def full(self) -> bool:
         return self.total_jvms_including_borrowed == self.max_jvms
@@ -3027,9 +3047,12 @@ class Worker:
         while True:
             try:
                 requested_n_cores = self._waiting_for_jvm_with_n_cores.get_nowait()
-                log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}')
                 if not self._jvmpools_by_cores[requested_n_cores].full():
+                    log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}, creating one')
                     await self._jvmpools_by_cores[requested_n_cores].create_jvm()
+                else:
+                    log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}, already full')
+                log.info(f'Worker._initialize_jvms after wakeup JVM creation: {self._jvmpools_by_cores[requested_n_cores]!r}')
             except asyncio.QueueEmpty:
                 next_unfull_jvmpool = None
                 for jvmpool in self._jvmpools_by_cores.values():
@@ -3039,10 +3062,16 @@ class Worker:
 
                 if next_unfull_jvmpool is None:
                     break
+                log.info(f'Worker._initialize_jvms hunted for {next_unfull_jvmpool.n_cores=}')
                 await next_unfull_jvmpool.create_jvm()
+                log.info(f'Worker._initialize_jvms after unfull JVM creation: {next_unfull_jvmpool!r}')
 
         assert self._waiting_for_jvm_with_n_cores.empty()
-        assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
+        all_full = all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
+        if not all_full:
+            non_full_jvm_pools = ','.join([str(jvmpool) for jvmpool in self._jvmpools_by_cores.values() if not jvmpool.full()])
+            log.info(f'JVM Pools were not all full: {non_full_jvm_pools}')
+        assert all_full
         log.info(f'JVMs initialized {self._jvmpools_by_cores}')
 
     @staticmethod
@@ -3073,9 +3102,11 @@ class Worker:
 
     def return_jvm(self, jvm: JVM):
         jvm.reset()
+        log.info(f'Returning {jvm} after use')
         self._jvmpools_by_cores[jvm.n_cores].return_jvm(jvm)
 
     async def return_broken_jvm(self, jvm: JVM):
+        log.info(f'Returning borked {jvm} after use')
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
     async def headers(self) -> Dict[str, str]:
