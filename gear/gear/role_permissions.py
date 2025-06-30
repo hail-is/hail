@@ -6,10 +6,9 @@ class SystemRole(Enum):
 
     @classmethod
     def from_string(cls, role_name: str) -> 'SystemRole':
-        if role_name == 'developer':
-            return cls.DEVELOPER
-        elif role_name == 'billing_manager':
-            return cls.BILLING_MANAGER
+        for role in cls:
+            if role.value == role_name:
+                return role
         raise ValueError(f'Unknown system role name: {role_name}')
 
 
@@ -33,6 +32,13 @@ class SystemPermission(Enum):
     UPDATE_ALL_BILLING_PROJECTS = 'update_all_billing_projects'
     DELETE_ALL_BILLING_PROJECTS = 'delete_all_billing_projects'
     ASSIGN_USERS_TO_ALL_BILLING_PROJECTS = 'assign_users_to_all_billing_projects'
+
+    @classmethod
+    def from_string(cls, permission_name: str) -> 'SystemPermission':
+        for permission in cls:
+            if permission.value == permission_name:
+                return permission
+        raise ValueError(f'Unknown system permission name: {permission_name}')
 
 
 system_role_permissions = {

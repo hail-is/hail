@@ -15,7 +15,7 @@ from hailtop.config import get_deploy_config
 from hailtop.utils import retry_transient_errors
 
 
-from .role_permissions import SystemPermission, system_permissions
+from .role_permissions import SystemPermission, system_role_permissions
 from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 log = logging.getLogger('gear.auth')
@@ -185,10 +185,9 @@ class TrustedSingleTenantAuthenticator(Authenticator):
 
 async def impersonate_user_and_check_system_permission(session_id: str, client_session: httpx.ClientSession, permission: SystemPermission) -> bool:
     
-    if not permission in system_permissions:
-        raise ValueError(f'Unknown system permission: {permission}')
+    permission_object = SystemPermission.from_string(permission)
     
-    permission_check_url = deploy_config.url('auth', f'/api/v1alpha/check_system_permission?permission={permission.value}')
+    permission_check_url = deploy_config.url('auth', f'/api/v1alpha/check_system_permission?permission={permission_object.value}')
 
     response = await impersonate_user(session_id, client_session, permission_check_url)
     if not response:

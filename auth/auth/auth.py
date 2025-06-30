@@ -962,14 +962,11 @@ async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
 @api_security_headers
 @auth.authenticated_users_only()
 async def check_system_permission(request: web.Request, userdata: UserData) -> web.Response:
-    permission = request.query.get('permission')
-    if not permission:
+    permission_name = request.query.get('permission')
+    if not permission_name:
         raise web.HTTPBadRequest(text='Missing required query parameter: permission')
 
-    try:
-        permission = SystemPermission(permission)
-    except ValueError:
-        raise web.HTTPBadRequest(text=f'Unknown system permission')
+    permission_object = SystemPermission.from_string(permission_name)
 
     db = request.app[AppKeys.DB]
 
@@ -992,7 +989,7 @@ WHERE usr.user_id = %s
     for role_record in user_roles:
         role_name = role_record['name']
         role = SystemRole.from_string(role_name)
-        if permission in system_role_permissions[role]:
+        if permission_object in system_role_permissions[role]:
             has_permission = True
             break
 
