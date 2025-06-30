@@ -47,6 +47,7 @@ from web_common import (
     system_role_permissions,
     web_security_headers,
     web_security_headers_swagger,
+    SystemPermission,
 )
 
 from .auth_utils import is_valid_username, validate_credentials_secret_name_input
@@ -553,7 +554,7 @@ async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
 
 @routes.get('/roles')
 @web_security_headers
-@auth.authenticated_developers_only()
+@auth.authenticated_users_with_permission(SystemPermission.READ_ROLES)
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
