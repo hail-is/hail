@@ -33,6 +33,7 @@ from gear import (
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
+from gear.role_permissions import SystemPermission, SystemRole, system_role_permissions
 from hailtop import __version__, httpx, uvloopx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
@@ -44,10 +45,8 @@ from web_common import (
     set_message,
     setup_aiohttp_jinja2,
     setup_common_static_routes,
-    system_role_permissions,
     web_security_headers,
     web_security_headers_swagger,
-    SystemPermission,
 )
 
 from .auth_utils import is_valid_username, validate_credentials_secret_name_input
@@ -967,13 +966,10 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
     if not permission:
         raise web.HTTPBadRequest(text='Missing required query parameter: permission')
 
-    # Check if the permission is valid
-    all_permissions = set()
-    for role_permissions in system_role_permissions.values():
-        all_permissions.update(role_permissions)
-
-    if permission not in all_permissions:
-        raise web.HTTPBadRequest(text=f'Invalid permission: {permission}')
+    try:
+        permission = SystemPermission(permission)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f'Unknown system permission')
 
     db = request.app[AppKeys.DB]
 
@@ -995,7 +991,8 @@ WHERE usr.user_id = %s
     has_permission = False
     for role_record in user_roles:
         role_name = role_record['name']
-        if role_name in system_role_permissions and permission in system_role_permissions[role_name]:
+        role = SystemRole.from_string(role_name)
+        if permission in system_role_permissions[role]:
             has_permission = True
             break
 

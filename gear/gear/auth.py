@@ -13,8 +13,9 @@ from aiohttp import web
 from hailtop import httpx
 from hailtop.config import get_deploy_config
 from hailtop.utils import retry_transient_errors
-from web_common import system_permissions, SystemPermission
 
+
+from .role_permissions import SystemPermission, system_permissions
 from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 log = logging.getLogger('gear.auth')

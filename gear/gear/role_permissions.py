@@ -4,6 +4,14 @@ class SystemRole(Enum):
     DEVELOPER = 'developer'
     BILLING_MANAGER = 'billing_manager'
 
+    @classmethod
+    def from_string(cls, role_name: str) -> 'SystemRole':
+        if role_name == 'developer':
+            return cls.DEVELOPER
+        elif role_name == 'billing_manager':
+            return cls.BILLING_MANAGER
+        raise ValueError(f'Unknown system role name: {role_name}')
+
 
 class SystemPermission(Enum):
     # User admin
