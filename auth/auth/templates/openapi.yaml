@@ -298,6 +298,34 @@ paths:
         '401':
           description: Unauthorized or not a developer/service account
 
+  /api/v1alpha/check_permission:
+    get:
+      summary: Check system permission
+      description: Check if the authenticated user has a specific system permission
+      tags: [Authentication]
+      parameters:
+        - name: permission
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The system permission to check
+      responses:
+        '200':
+          description: Permission check completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  has_permission:
+                    type: boolean
+                    description: Whether the user has the requested permission
+        '400':
+          description: Invalid permission parameter
+        '401':
+          description: Unauthorized
+
   /swagger:
     get:
       summary: API Documentation UI

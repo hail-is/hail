@@ -44,6 +44,7 @@ from web_common import (
     set_message,
     setup_aiohttp_jinja2,
     setup_common_static_routes,
+    system_role_permissions,
     web_security_headers,
     web_security_headers_swagger,
 )
@@ -955,6 +956,49 @@ async def verify_dev_or_sa_credentials(_, userdata: UserData) -> web.Response:
     if userdata['is_developer'] != 1 and userdata['is_service_account'] != 1:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
+
+
+@routes.get('/api/v1alpha/check_permission')
+@api_security_headers
+@auth.authenticated_users_only()
+async def check_permission(request: web.Request, userdata: UserData) -> web.Response:
+    permission = request.query.get('permission')
+    if not permission:
+        raise web.HTTPBadRequest(text='Missing required query parameter: permission')
+
+    # Check if the permission is valid
+    all_permissions = set()
+    for role_permissions in system_role_permissions.values():
+        all_permissions.update(role_permissions)
+
+    if permission not in all_permissions:
+        raise web.HTTPBadRequest(text=f'Invalid permission: {permission}')
+
+    db = request.app[AppKeys.DB]
+
+    # Get user's system roles from the users_system_roles table
+    user_roles = [
+        x
+        async for x in db.select_and_fetchall(
+            """
+SELECT sr.name
+FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+WHERE usr.user_id = %s
+""",
+            userdata['id'],
+        )
+    ]
+
+    # Check if user has the requested permission through any of their roles
+    has_permission = False
+    for role_record in user_roles:
+        role_name = role_record['name']
+        if role_name in system_role_permissions and permission in system_role_permissions[role_name]:
+            has_permission = True
+            break
+
+    return json_response({'has_permission': has_permission})
 
 
 class AppKeys:
