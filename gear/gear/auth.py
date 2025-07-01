@@ -184,11 +184,7 @@ class TrustedSingleTenantAuthenticator(Authenticator):
 
 
 async def impersonate_user_and_check_system_permission(session_id: str, client_session: httpx.ClientSession, permission: SystemPermission) -> bool:
-    
-    permission_object = SystemPermission.from_string(permission)
-    
-    permission_check_url = deploy_config.url('auth', f'/api/v1alpha/check_system_permission?permission={permission_object.value}')
-
+    permission_check_url = deploy_config.url('auth', f'/api/v1alpha/check_system_permission?permission={permission.value}')
     response = await impersonate_user(session_id, client_session, permission_check_url)
     if not response:
         return False
