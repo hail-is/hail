@@ -1,6 +1,6 @@
 from enum import Enum
 
-class SystemRole(Enum):
+class SystemRole(str,Enum):
     DEVELOPER = 'developer'
     BILLING_MANAGER = 'billing_manager'
 
@@ -12,13 +12,15 @@ class SystemRole(Enum):
         raise ValueError(f'Unknown system role name: {role_name}')
 
 
-class SystemPermission(Enum):
+class SystemPermission(str, Enum):
     # User admin
     CREATE_USERS = 'create_users'
     READ_USERS = 'read_users'
     UPDATE_USERS = 'update_users'
     DELETE_USERS = 'delete_users'
+    # Role admin
     ASSIGN_SYSTEM_ROLES = 'assign_system_roles'
+    READ_SYSTEM_ROLES = 'read_system_roles'
     # Developer environments
     CREATE_DEVELOPER_ENVIRONMENTS = 'create_developer_environments'
     READ_DEVELOPER_ENVIRONMENTS = 'read_developer_environments'
