@@ -11,6 +11,9 @@ RUN hail-apt-get-install \
     xfsprogs \
     libyajl-dev
 
+# For some reason, installing python3 can shadow this alternative
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$HAIL_PYTHON_MAJOR_VERSION 1
+
 {% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     hail-apt-get-install curl gnupg && \
