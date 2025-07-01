@@ -322,11 +322,12 @@ class ServiceBackend(
             jobGroup.job_group_id,
             Some(JobStates.Failed),
           )
-          assert(
-            failedEntries.nonEmpty,
-            s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed, but no failed jobs found.",
-          )
-          val error = readPartitionError(root, failedEntries.head.head.job_id - startJobId)
+          val error = if (failedEntries.isEmpty)
+            new HailException(
+              s"Job group ${jobGroup.job_group_id} for batch ${batchConfig.batchId} failed, but no failed jobs found. The billing project may be low on funds."
+            )
+          else
+            readPartitionError(root, failedEntries.head.head.job_id - startJobId)
 
           (Some(error), streamSuccessfulJobResults.toIndexedSeq)
         case Cancelled =>
