@@ -161,6 +161,7 @@ class AuthServiceAuthenticator(Authenticator):
             raise web.HTTPInternalServerError() from e
         
     async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+        log.info(f'Checking system permission {permission} for {request.path}')
         session_id = await get_session_id(request)
         client_session = request.app[CommonAiohttpAppKeys.CLIENT_SESSION]
         return await impersonate_user_and_check_system_permission(session_id, client_session, permission)

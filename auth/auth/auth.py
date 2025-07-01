@@ -90,10 +90,11 @@ class LocalAuthenticator(Authenticator):
         return await get_userinfo(request, session_id)
     
     async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
-        session_id = await get_internal_auth_token(request) or await get_session_id(request)
-        if not session_id:
+        userinfo = await self._fetch_userdata(request)
+        if not userinfo:
             return False
-        return await check_system_permission(request, session_id, permission)
+        
+        return await check_system_permission_from_userinfo(request.app[AppKeys.DB], userinfo, permission)
 
 
 auth = LocalAuthenticator()
@@ -973,11 +974,19 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
         raise web.HTTPBadRequest(text='Missing required query parameter: permission')
 
     try:
-        SystemPermission.from_string(permission_name)
+        permission = SystemPermission.from_string(permission_name)
     except ValueError:
         raise web.HTTPBadRequest(text=f'Unknown system permission')
 
     db = request.app[AppKeys.DB]
+
+    has_permission = await check_system_permission_from_userinfo(db, userdata, permission)
+
+    return json_response({'has_permission': has_permission})
+
+
+async def check_system_permission_from_userinfo(db: Database, userinfo: UserData, permission: SystemPermission) -> bool:
+    """Check if a user has a specific system permission based on their userinfo."""
 
     # Get user's system roles from the users_system_roles table
     user_roles = [
@@ -989,19 +998,17 @@ FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s
 """,
-            userdata['id'],
+            userinfo['id'],
         )
     ]
 
     # Check if user has the requested permission through any of their roles
-    has_permission = False
     for role_record in user_roles:
         role_name = role_record['name']
-        if permission_name in system_role_permissions[role_name]:
-            has_permission = True
-            break
-
-    return json_response({'has_permission': has_permission})
+        if permission.value in system_role_permissions[role_name]:
+            return True
+    
+    return False
 
 
 @routes.get('/api/v1alpha/roles_and_permissions')
