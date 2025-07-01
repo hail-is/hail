@@ -972,7 +972,10 @@ async def check_system_permission(request: web.Request, userdata: UserData) -> w
     if not permission_name:
         raise web.HTTPBadRequest(text='Missing required query parameter: permission')
 
-    permission_object = SystemPermission.from_string(permission_name)
+    try:
+        SystemPermission.from_string(permission_name)
+    except ValueError:
+        raise web.HTTPBadRequest(text=f'Unknown system permission')
 
     db = request.app[AppKeys.DB]
 
@@ -994,8 +997,7 @@ WHERE usr.user_id = %s
     has_permission = False
     for role_record in user_roles:
         role_name = role_record['name']
-        role = SystemRole.from_string(role_name)
-        if permission_object in system_role_permissions[role]:
+        if permission_name in system_role_permissions[role_name]:
             has_permission = True
             break
 

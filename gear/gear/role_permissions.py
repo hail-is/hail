@@ -45,11 +45,15 @@ class SystemPermission(str, Enum):
 
 system_role_permissions = {
     SystemRole.DEVELOPER: [
+        # User admin
         SystemPermission.CREATE_USERS,
         SystemPermission.READ_USERS,
         SystemPermission.UPDATE_USERS,
         SystemPermission.DELETE_USERS,
+        # Role admin
         SystemPermission.ASSIGN_SYSTEM_ROLES,
+        SystemPermission.READ_SYSTEM_ROLES,
+        # Developer environments
         SystemPermission.CREATE_DEVELOPER_ENVIRONMENTS,
         SystemPermission.READ_DEVELOPER_ENVIRONMENTS,
         SystemPermission.UPDATE_DEVELOPER_ENVIRONMENTS,
@@ -57,7 +61,9 @@ system_role_permissions = {
         SystemPermission.VIEW_MONITORING_DASHBOARDS,
     ],
     SystemRole.BILLING_MANAGER: [
+        # User admin
         SystemPermission.READ_USERS,
+        # Billing projects
         SystemPermission.CREATE_BILLING_PROJECTS,
         SystemPermission.READ_ALL_BILLING_PROJECTS,
         SystemPermission.UPDATE_ALL_BILLING_PROJECTS,
