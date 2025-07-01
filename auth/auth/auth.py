@@ -559,7 +559,7 @@ async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
 
 @routes.get('/roles')
 @web_security_headers
-@auth.authenticated_users_with_permission(SystemPermission.READ_ROLES)
+@auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
     roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
