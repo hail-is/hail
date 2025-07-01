@@ -117,7 +117,7 @@ class Authenticator(abc.ABC):
             @self.authenticated_users_only(redirect)
             @wraps(fun)
             async def wrapped(request: web.Request, userdata: UserData, *args, **kwargs):
-                if await self._check_user_permission(request, permission):
+                if await self._check_system_permission(request, permission):
                     return await fun(request, userdata, *args, **kwargs)
                 raise web.HTTPUnauthorized()
             return wrapped
@@ -129,7 +129,7 @@ class Authenticator(abc.ABC):
     
 
     @abc.abstractmethod
-    async def _check_user_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
         raise NotImplementedError
 
 
@@ -160,7 +160,7 @@ class AuthServiceAuthenticator(Authenticator):
             log.exception('unknown exception getting userinfo')
             raise web.HTTPInternalServerError() from e
         
-    async def _check_user_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
         session_id = await get_session_id(request)
         client_session = request.app[CommonAiohttpAppKeys.CLIENT_SESSION]
         return await impersonate_user_and_check_system_permission(session_id, client_session, permission)
@@ -178,7 +178,7 @@ class TrustedSingleTenantAuthenticator(Authenticator):
             },
         )
     
-    async def _check_user_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
         # Trusted single tenant - so the trusted single tenant has all permissions.
         return True
 

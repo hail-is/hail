@@ -88,6 +88,12 @@ class LocalAuthenticator(Authenticator):
         if not session_id:
             return None
         return await get_userinfo(request, session_id)
+    
+    async def _check_system_permission(self, request: web.Request, permission: SystemPermission) -> bool:
+        session_id = await get_internal_auth_token(request) or await get_session_id(request)
+        if not session_id:
+            return False
+        return await check_system_permission(request, session_id, permission)
 
 
 auth = LocalAuthenticator()
