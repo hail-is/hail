@@ -6,7 +6,7 @@ aiohappyeyeballs==2.6.1
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
-aiohttp==3.12.12
+aiohttp==3.12.13
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -40,7 +40,7 @@ cachetools==5.5.2
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
     #   -c gear/../hail/python/pinned-requirements.txt
     #   google-auth
-certifi==2025.4.26
+certifi==2025.6.15
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
@@ -60,9 +60,9 @@ frozenlist==1.7.0
     #   -c gear/../hail/python/pinned-requirements.txt
     #   aiohttp
     #   aiosignal
-google-api-core==2.25.0
+google-api-core==2.25.1
     # via google-api-python-client
-google-api-python-client==2.172.0
+google-api-python-client==2.174.0
     # via google-cloud-profiler
 google-auth==2.40.3
     # via
@@ -93,7 +93,7 @@ idna==3.10
     #   yarl
 kubernetes-asyncio==19.15.1
     # via -r gear/requirements.txt
-multidict==6.4.4
+multidict==6.6.3
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
