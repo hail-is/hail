@@ -55,11 +55,11 @@ azure-storage-blob==12.25.1
     #   -r hail/python/hailtop/requirements.txt
 bokeh==3.4.3
     # via -r hail/python/requirements.txt
-boto3==1.39.1
+boto3==1.39.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
-botocore==1.39.1
+botocore==1.39.2
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   -r hail/python/hailtop/requirements.txt
@@ -93,7 +93,7 @@ commonmark==0.9.1
     #   rich
 contourpy==1.3.2
     # via bokeh
-cryptography==45.0.4
+cryptography==45.0.5
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   azure-identity
@@ -324,7 +324,7 @@ typing-extensions==4.14.0
     #   typer
 tzdata==2025.2
     # via pandas
-urllib3==2.4.0
+urllib3==2.5.0
     # via
     #   -c hail/python/hailtop/pinned-requirements.txt
     #   botocore

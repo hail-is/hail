@@ -189,7 +189,7 @@ typing-extensions==4.14.0
     #   multidict
 uritemplate==4.2.0
     # via google-api-python-client
-urllib3==2.4.0
+urllib3==2.5.0
     # via
     #   -c gear/../hail/python/dev/pinned-requirements.txt
     #   -c gear/../hail/python/hailtop/pinned-requirements.txt
