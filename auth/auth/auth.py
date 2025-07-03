@@ -1065,7 +1065,7 @@ async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
             # Check if user already has this role
             existing_role = await tx.execute_and_fetchone(
                 """
-SELECT usr.id FROM users_system_roles usr
+SELECT 1 FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s AND sr.name = %s
 """,
