@@ -1,38 +1,40 @@
-{% from "utils.html" import submit_button %}
 {% extends "layout.html" %}
 {% block title %}Roles{% endblock %}
 {% block content %}
-<h1 class='text-2xl font-light mb-4'>Create Role</h1>
-<form action="{{ base_path }}/roles" method="POST">
-  <div class='w-64 flex-col space-y-2'>
-    <div class='flex justify-between'>
-      <span>Name</span>
-      <input class='border rounded-sm p-1 text-sm' required name="name" />
-    </div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}" />
-    <div class='flex justify-end'>
-      {{ submit_button('Create') }}
-    </div>
-  </div>
-</form>
 
-<br />
 
-<h1 class='text-2xl font-light mb-4'>Roles</h1>
-<table class='table-auto w-64'>
+{% if all_system_role_assignments.keys().__len__() > 0 %}
+<h1 class='text-2xl font-light mb-4'>System role assignments</h1>
+
+<table class='table-auto w-full border border-slate-300 border-collapse font-inter'>
   <thead>
     <tr>
-      <th class='h-12 bg-slate-200 text-center font-light rounded-tl pl-2'>ID</th>
-      <th class='h-12 bg-slate-200 text-center font-light rounded-tr pr-2'>Name</th>
+      <th class='h-12 bg-slate-200 text-center font-light border border-slate-300 px-2 w-1/4'>Role name</th>
+      <th class='h-12 bg-slate-200 text-center font-light border border-slate-300 px-2 w-1/4'>Permissions</th>
+      <th class='h-12 bg-slate-200 text-center font-light border border-slate-300 px-2 w-1/4'>Users</th>
     </tr>
   </thead>
-  <tbody class='border border-collapse border-slate-50'>
-    {% for role in roles %}
+  <tbody>
+    {% for role in all_system_role_assignments.keys() %}
     <tr>
-      <td class='text-center'>{{ role['id'] }}</td>
-      <td class='text-center'>{{ role['name'] }}</td>
+      <td class='text-left border border-slate-300 px-2 py-2'>{{ role.value }}</td>
+      <td class='text-left border border-slate-300 px-2 py-2'>
+        <ul class='list-disc list-inside'>
+          {% for permission in all_system_role_assignments[role]['permissions'] %}
+          <li>{{ permission }}</li>
+          {% endfor %}
+        </ul>
+      </td>
+      <td class='text-left border border-slate-300 px-2 py-2'>
+        <ul class='list-disc list-inside'>
+          {% for user in all_system_role_assignments[role]['users'] %}
+          <li>{{ user }}</li>
+          {% endfor %}
+        </ul>
+      </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
+{% endif %}
 {% endblock %}

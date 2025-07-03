@@ -563,8 +563,10 @@ async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
 @auth.authenticated_users_with_permission(SystemPermission.READ_SYSTEM_ROLES)
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
-    roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
-    page_context = {'roles': roles}
+
+    all_system_role_assignments = await get_roles_for_everyone(request)
+
+    page_context = {'all_system_role_assignments': all_system_role_assignments}
     return await render_template('auth', request, userdata, 'roles.html', page_context)
 
 
@@ -990,7 +992,7 @@ async def check_system_permission_from_userinfo(db: Database, userinfo: UserData
 
     # Get user's system roles from the users_system_roles table
     user_roles = [
-        x
+        x['name']
         async for x in db.select_and_fetchall(
             """
 SELECT sr.name
@@ -1003,9 +1005,8 @@ WHERE usr.user_id = %s
     ]
 
     # Check if user has the requested permission through any of their roles
-    for role_record in user_roles:
-        role_name = role_record['name']
-        if permission.value in system_role_permissions[role_name]:
+    for role in user_roles:
+        if permission.value in system_role_permissions[role]:
             return True
     
     return False
@@ -1015,11 +1016,15 @@ WHERE usr.user_id = %s
 @api_security_headers
 @auth.authenticated_users_only()
 async def get_roles_and_permissions(request: web.Request, userdata: UserData) -> web.Response:
+    user_roles_permissions = await get_roles_and_permissions_from_userinfo(request, userdata)
+    return json_response(user_roles_permissions)
+
+async def get_roles_and_permissions_from_userinfo(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
-    
-    # Get user's system roles from the users_system_roles table
+
+        # Get user's system roles from the users_system_roles table
     user_roles = [
-        x
+        x['name']
         async for x in db.select_and_fetchall(
             """
 SELECT sr.name
@@ -1030,21 +1035,39 @@ WHERE usr.user_id = %s
             userdata['id'],
         )
     ]
+
+    # filter the system_role_permissions to only include the roles that the user has
+    user_roles_permissions = { role.value: [p.value for p in permissions] for role, permissions in system_role_permissions.items() if role.value in user_roles }
     
-    # Get all permissions for the user's roles
-    user_permissions = set()
-    role_names = []
+    return user_roles_permissions
+
+async def get_roles_for_everyone(request: web.Request) -> dict:
+    db = request.app[AppKeys.DB]
+
+    # Get all system roles
+    system_role_entries = [
+        x
+        async for x in db.select_and_fetchall(
+            """
+SELECT sr.name, users.username
+FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+JOIN users ON usr.user_id = users.id
+""",
+        )
+    ]
+
+    result = {}
+    for role in system_role_permissions.keys():
+        result[role] = {}
+        result[role]['users'] = []
+        for sre in system_role_entries:
+            if sre['name'] == role:
+                result[role]['users'].append(sre['username'])
+        result[role]['permissions'] = [p.value for p in system_role_permissions[role]]
     
-    for role_record in user_roles:
-        role_name = role_record['name']
-        role_names.append(role_name)
-        if role_name in system_role_permissions:
-            user_permissions.update(system_role_permissions[role_name])
-    
-    return json_response({
-        'roles': role_names,
-        'permissions': list(user_permissions)
-    })
+    return result
+
 
 
 class AppKeys:
