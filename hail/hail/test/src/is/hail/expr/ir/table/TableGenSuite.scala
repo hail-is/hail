@@ -16,6 +16,7 @@ import is.hail.utils.{FastSeq, HailException, Interval}
 
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
+import org.scalatest
 import org.scalatest.matchers.should.Matchers._
 import org.testng.annotations.Test
 
@@ -24,7 +25,7 @@ class TableGenSuite extends HailSuite {
   implicit val execStrategy = ExecStrategy.lowering
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidContextsType(): Unit = {
+  def testWithInvalidContextsType(): scalatest.Assertion = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(contexts = Some(Str("oh noes :'("))).typecheck()
     }
@@ -35,7 +36,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidGlobalsType(): Unit = {
+  def testWithInvalidGlobalsType(): scalatest.Assertion = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(
         globals = Some(Str("oh noes :'(")),
@@ -48,7 +49,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidBodyType(): Unit = {
+  def testWithInvalidBodyType(): scalatest.Assertion = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(body = Some((_, _) => Str("oh noes :'("))).typecheck()
     }
@@ -58,7 +59,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidBodyElementType(): Unit = {
+  def testWithInvalidBodyElementType(): scalatest.Assertion = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(body =
         Some((_, _) => MakeStream(IndexedSeq(Str("oh noes :'(")), TStream(TString)))
@@ -70,7 +71,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithInvalidPartitionerKeyType(): Unit = {
+  def testWithInvalidPartitionerKeyType(): scalatest.Assertion = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(partitioner =
         Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
@@ -80,7 +81,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("construction", "typecheck"))
-  def testWithTooLongPartitionerKeyType(): Unit = {
+  def testWithTooLongPartitionerKeyType(): scalatest.Assertion = {
     val ex = intercept[IllegalArgumentException] {
       mkTableGen(partitioner =
         Some(RVDPartitioner.empty(ctx.stateManager, TStruct("does-not-exist" -> TInt32)))
@@ -90,7 +91,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("requiredness"))
-  def testRequiredness(): Unit = {
+  def testRequiredness(): scalatest.Assertion = {
     val table = mkTableGen()
     val analysis = Requiredness(table, ctx)
     analysis.lookup(table).required shouldBe true
@@ -98,14 +99,14 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("lowering"))
-  def testLowering(): Unit = {
+  def testLowering(): scalatest.Assertion = {
     val table = TestUtils.collect(mkTableGen())
     val lowered = LowerTableIR(table, DArrayLowering.All, ctx, LoweringAnalyses(table, ctx))
     assertEvalsTo(lowered, Row(FastSeq(0, 0).map(Row(_)), Row(0)))
   }
 
   @Test(groups = Array("lowering"))
-  def testNumberOfContextsMatchesPartitions(): Unit = {
+  def testNumberOfContextsMatchesPartitions(): scalatest.Assertion = {
     val errorId = 42
     val table = TestUtils.collect(mkTableGen(
       partitioner = Some(RVDPartitioner.unkeyed(ctx.stateManager, 0)),
@@ -120,7 +121,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("lowering"))
-  def testRowsAreCorrectlyKeyed(): Unit = {
+  def testRowsAreCorrectlyKeyed(): scalatest.Assertion = {
     val errorId = 56
     val table = TestUtils.collect(mkTableGen(
       partitioner = Some(new RVDPartitioner(
@@ -143,14 +144,14 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("optimization", "prune"))
-  def testPruneNoUnusedFields(): Unit = {
+  def testPruneNoUnusedFields(): scalatest.Assertion = {
     val start = mkTableGen()
     val pruned = PruneDeadFields(ctx, start)
     pruned.typ shouldBe start.typ
   }
 
   @Test(groups = Array("optimization", "prune"))
-  def testPruneGlobals(): Unit = {
+  def testPruneGlobals(): scalatest.Assertion = {
     val start = mkTableGen(
       body = Some { (c, _) =>
         val elem = MakeStruct(IndexedSeq("a" -> c))
@@ -170,7 +171,7 @@ class TableGenSuite extends HailSuite {
   }
 
   @Test(groups = Array("optimization", "prune"))
-  def testPruneContexts(): Unit = {
+  def testPruneContexts(): scalatest.Assertion = {
     val start = mkTableGen()
     val TableGetGlobals(pruned) = PruneDeadFields(ctx, TableGetGlobals(start))
     pruned.typ should not be start.typ

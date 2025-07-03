@@ -5,6 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.utils._
 
+import org.scalatest
+import org.scalatest.Inspectors.forAll
+import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
 
 class PContainerTest extends PhysicalTestUtils {
@@ -61,7 +64,7 @@ class PContainerTest extends PhysicalTestUtils {
     res
   }
 
-  @Test def checkFirstNonZeroByte(): Unit = {
+  @Test def checkFirstNonZeroByte(): scalatest.Assertion = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBits(sourceType, nullInByte(0, 0)) == false)
@@ -103,30 +106,31 @@ class PContainerTest extends PhysicalTestUtils {
     assert(testContainsNonZeroBits(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkFirstNonZeroByteStaged(): Unit = {
+  @Test def checkFirstNonZeroByteStaged(): scalatest.Assertion = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(32, 0)) == false)
     assert(testContainsNonZeroBitsStaged(sourceType, nullInByte(73, 64)) == true)
   }
 
-  @Test def checkHasMissingValues(): Unit = {
+  @Test def checkHasMissingValues(): scalatest.Assertion = {
     val sourceType = PCanonicalArray(PInt64(false))
 
     assert(testHasMissingValues(sourceType, nullInByte(1, 0)) == false)
     assert(testHasMissingValues(sourceType, nullInByte(1, 1)) == true)
     assert(testHasMissingValues(sourceType, nullInByte(2, 1)) == true)
 
-    for {
-      num <- Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129)
-      missing <- 1 to num
-    } assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
+    forAll(Seq(2, 16, 31, 32, 33, 50, 63, 64, 65, 90, 127, 128, 129)) { num =>
+      forAll(1 to num) { missing =>
+        assert(testHasMissingValues(sourceType, nullInByte(num, missing)) == true)
+      }
+    }
   }
 
-  @Test def arrayCopyTest(): Unit = {
+  @Test def arrayCopyTest(): scalatest.Assertion = {
     /* Note: can't test where data is null due to ArrayStack.top semantics (ScalaToRegionValue:
      * assert(size_ > 0)) */
-    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalArray(PInt32()),
         PCanonicalArray(PInt64()),
@@ -304,8 +308,8 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def dictCopyTests(): Unit = {
-    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
+  @Test def dictCopyTests(): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalDict(PCanonicalString(), PInt32()),
         PCanonicalDict(PCanonicalString(), PInt32()),
@@ -337,8 +341,8 @@ class PContainerTest extends PhysicalTestUtils {
     runTests(false, interpret = true)
   }
 
-  @Test def setCopyTests(): Unit = {
-    def runTests(deepCopy: Boolean, interpret: Boolean): Unit = {
+  @Test def setCopyTests(): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalSet(PCanonicalString(true)),
         PCanonicalSet(PCanonicalString()),

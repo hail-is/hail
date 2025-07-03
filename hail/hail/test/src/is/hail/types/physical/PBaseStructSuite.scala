@@ -2,11 +2,12 @@ package is.hail.types.physical
 
 import is.hail.annotations.Annotation
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class PBaseStructSuite extends PhysicalTestUtils {
-  @Test def testStructCopy(): Unit = {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
+  @Test def testStructCopy(): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalStruct(),
         PCanonicalStruct(),
@@ -178,8 +179,8 @@ class PBaseStructSuite extends PhysicalTestUtils {
     runTests(false, true)
   }
 
-  @Test def tupleCopyTests(): Unit = {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
+  @Test def tupleCopyTests(): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalTuple(false, PCanonicalString(true), PCanonicalString(true)),
         PCanonicalTuple(false, PCanonicalString(), PCanonicalString()),

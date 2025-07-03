@@ -7,11 +7,12 @@ import is.hail.types.physical.stypes.concrete.{SUnreachableInterval, SUnreachabl
 import is.hail.types.virtual.{TInt32, TInterval}
 import is.hail.utils._
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class PIntervalSuite extends PhysicalTestUtils {
-  @Test def copyTests(): Unit = {
-    def runTests(deepCopy: Boolean, interpret: Boolean = false): Unit = {
+  @Test def copyTests(): scalatest.Assertion = {
+    def runTests(deepCopy: Boolean, interpret: Boolean = false): scalatest.Assertion = {
       copyTestExecutor(
         PCanonicalInterval(PInt64()),
         PCanonicalInterval(PInt64()),
@@ -61,7 +62,7 @@ class PIntervalSuite extends PhysicalTestUtils {
   }
 
   // Just makes sure we can generate code to store an unreachable interval
-  @Test def storeUnreachable(): Unit = {
+  @Test def storeUnreachable(): scalatest.Assertion = {
     val ust = SUnreachableInterval(TInterval(TInt32))
     val usv = new SUnreachableIntervalValue(ust)
     val pt = PCanonicalInterval(PInt32Required, true)
@@ -70,5 +71,6 @@ class PIntervalSuite extends PhysicalTestUtils {
     val codeRegion = fb.getCodeParam[Region](1)
 
     fb.emitWithBuilder(cb => pt.store(cb, codeRegion, usv, true))
+    succeed
   }
 }

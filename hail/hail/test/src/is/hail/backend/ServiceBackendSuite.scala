@@ -6,6 +6,7 @@ import is.hail.backend.service.{
   ServiceBackend, ServiceBackendContext, ServiceBackendRPCPayload, Worker,
 }
 import is.hail.io.fs.{CloudStorageFSConfig, RouterFS}
+import is.hail.macros.void
 import is.hail.services._
 import is.hail.services.JobGroupStates.{Cancelled, Failure, Success}
 import is.hail.utils.{handleForPython, tokenUrlSafe, using, HailWorkerException}
@@ -248,7 +249,7 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
     )
   }
 
-  def withMockDriverContext(test: ServiceBackendRPCPayload => Any): Any =
+  def withMockDriverContext(test: ServiceBackendRPCPayload => Any): Unit =
     using(LocalTmpFolder) { tmp =>
       withObjectSpied[is.hail.utils.UtilsType] {
         // not obvious how to pull out `tokenUrlSafe` and inject this directory
@@ -271,11 +272,14 @@ class ServiceBackendSuite extends TestNGSuite with IdiomaticMockito with OptionV
             sequences = Map(),
           )
         }
+
+        {}
       }
     }
 
   def LocalTmpFolder: Directory with Closeable =
     new Directory(Directory.makeTemp("hail-testing-tmp").jfile) with Closeable {
-      override def close(): Unit = deleteRecursively()
+      override def close(): Unit =
+        void(deleteRecursively())
     }
 }

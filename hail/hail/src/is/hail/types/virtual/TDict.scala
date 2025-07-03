@@ -28,22 +28,19 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
   def _toPretty = s"Dict[$keyType, $valueType]"
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("dict<")
+    sb ++= "dict<"
     keyType.pyString(sb)
-    sb.append(", ")
+    sb ++= ", "
     valueType.pyString(sb)
-    sb.append('>')
+    sb += '>'
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("Dict[")
+    sb ++= "Dict["
     keyType.pretty(sb, indent, compact)
-    if (compact)
-      sb += ','
-    else
-      sb.append(", ")
+    if (compact) sb += ',' else sb ++= ", "
     valueType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   def _typeCheck(a: Any): Boolean = a == null || (a.isInstanceOf[Map[_, _]] &&

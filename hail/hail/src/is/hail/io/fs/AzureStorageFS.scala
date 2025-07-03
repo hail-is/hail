@@ -1,6 +1,7 @@
 package is.hail.io.fs
 
 import is.hail.io.fs.FSUtil.dropTrailingSlash
+import is.hail.macros.void
 import is.hail.services.oauth2.AzureCloudCredentials
 import is.hail.services.retryTransientErrors
 import is.hail.shadedazure.com.azure.core.credential.AzureSasCredential
@@ -204,8 +205,10 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
 
     val is: SeekableInputStream = new FSSeekableInputStream {
       val bbOS = new OutputStream {
-        override def write(b: Array[Byte]): Unit = bb.put(b)
-        override def write(b: Int): Unit = bb.put(b.toByte)
+        override def write(b: Array[Byte]): Unit =
+          void(bb.put(b))
+        override def write(b: Int): Unit =
+          void(bb.put(b.toByte))
       }
 
       override def physicalSeek(newPos: Long): Unit = ()
@@ -269,13 +272,13 @@ class AzureStorageFS(val credential: AzureCloudCredentials) extends FS {
       private[this] val blobOutputStream = client.getBlobOutputStream(true)
 
       override def flush(): Unit = {
-        bb.flip()
+        void(bb.flip())
 
         if (bb.limit() > 0) {
           blobOutputStream.write(bb.array(), 0, bb.limit())
         }
 
-        bb.clear()
+        void(bb.clear())
       }
 
       override def close(): Unit = {

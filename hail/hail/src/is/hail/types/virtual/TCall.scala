@@ -8,7 +8,7 @@ case object TCall extends Type {
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("call")
+    sb ++= "call"
 
   val representation: Type = TInt32
 

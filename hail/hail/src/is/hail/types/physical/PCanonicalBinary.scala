@@ -47,7 +47,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   override def containsPointers: Boolean = true
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append("PCBinary")
+    sb ++= "PCBinary"
 
   def contentAlignment: Long = 4
 

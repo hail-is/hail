@@ -1410,16 +1410,14 @@ class EmitMethodBuilder[C](
   }
 
   def implementLabel(label: CodeLabel)(f: EmitCodeBuilder => Unit): Unit = {
-    EmitCodeBuilder.scopedVoid(this) { cb =>
-      cb.define(label)
-      f(cb)
-      // assert(!cb.isOpenEnded)
-      /* FIXME: The above assertion should hold, but currently does not. This is likely due to
-       * client code with patterns like the following, which incorrectly leaves the code builder
-       * open-ended:
-       *
-       * cb.ifx(b, cb.goto(L1), cb.goto(L2)) */
-    }
+    val cb = EmitCodeBuilder(this)
+    cb.define(label)
+    f(cb)
+    // assert(!cb.isOpenEnded)
+    /* FIXME: The above assertion should hold, but currently does not. This is likely due to client
+     * code with patterns like the following, which incorrectly leaves the code builder open-ended:
+     *
+     * cb.ifx(b, cb.goto(L1), cb.goto(L2)) */
   }
 
   def defineAndImplementLabel(f: EmitCodeBuilder => Unit): CodeLabel = {

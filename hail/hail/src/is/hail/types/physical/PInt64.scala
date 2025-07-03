@@ -15,7 +15,10 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   lazy val virtualType: TInt64.type = TInt64
 
   def _asIdent = "int64"
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PInt64")
+
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+    sb ++= "PInt64"
+
   override type NType = PInt64
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {

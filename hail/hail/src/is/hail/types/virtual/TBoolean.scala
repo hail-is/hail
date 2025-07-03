@@ -7,7 +7,7 @@ case object TBoolean extends Type {
   def _toPretty = "Boolean"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("bool")
+    sb ++= "bool"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Boolean]
 

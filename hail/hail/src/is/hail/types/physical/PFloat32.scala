@@ -19,7 +19,7 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   def _asIdent = "float32"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append("PFloat32")
+    sb ++= "PFloat32"
 
   override def unsafeOrdering(sm: HailStateManager): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int =

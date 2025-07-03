@@ -7,6 +7,7 @@ import is.hail.expr.ir.defs.{ArraySlice, F32, F64, I32, In, MakeArray, NA, Str}
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
+import org.scalatest
 import org.testng.annotations.{DataProvider, Test}
 
 class ArrayFunctionsSuite extends HailSuite {
@@ -26,25 +27,25 @@ class ArrayFunctionsSuite extends HailSuite {
   def basicPairsData(): Array[Array[Any]] = basicData().flatten.combinations(2).toArray
 
   @Test(dataProvider = "basic")
-  def isEmpty(a: IndexedSeq[Integer]): Unit =
+  def isEmpty(a: IndexedSeq[Integer]): scalatest.Assertion =
     assertEvalsTo(invoke("isEmpty", TBoolean, toIRArray(a)), Option(a).map(_.isEmpty).orNull)
 
   @Test(dataProvider = "basic")
-  def append(a: IndexedSeq[Integer]): Unit =
+  def append(a: IndexedSeq[Integer]): scalatest.Assertion =
     assertEvalsTo(
       invoke("append", TArray(TInt32), toIRArray(a), I32(1)),
       Option(a).map(_ :+ 1).orNull,
     )
 
   @Test(dataProvider = "basic")
-  def appendNull(a: IndexedSeq[Integer]): Unit =
+  def appendNull(a: IndexedSeq[Integer]): scalatest.Assertion =
     assertEvalsTo(
       invoke("append", TArray(TInt32), toIRArray(a), NA(TInt32)),
       Option(a).map(_ :+ null).orNull,
     )
 
   @Test(dataProvider = "basic")
-  def sum(a: IndexedSeq[Integer]): Unit = {
+  def sum(a: IndexedSeq[Integer]): scalatest.Assertion = {
     assertEvalsTo(
       invoke("sum", TInt32, toIRArray(a)),
       Option(a).flatMap(_.foldLeft[Option[Int]](Some(0))((comb, x) =>
@@ -54,7 +55,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basic")
-  def product(a: IndexedSeq[Integer]): Unit = {
+  def product(a: IndexedSeq[Integer]): scalatest.Assertion = {
     assertEvalsTo(
       invoke("product", TInt32, toIRArray(a)),
       Option(a).flatMap(_.foldLeft[Option[Int]](Some(1))((comb, x) =>
@@ -63,7 +64,7 @@ class ArrayFunctionsSuite extends HailSuite {
     )
   }
 
-  @Test def mean(): Unit = {
+  @Test def mean(): scalatest.Assertion = {
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, 7)), 5.0)
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, null, 7)), null)
     assertEvalsTo(invoke("mean", TFloat64, IRArray(3, 7, 11)), 7.0)
@@ -72,7 +73,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("mean", TFloat64, naa), null)
   }
 
-  @Test def median(): Unit = {
+  @Test def median(): scalatest.Assertion = {
     assertEvalsTo(invoke("median", TInt32, IRArray(5)), 5)
     assertEvalsTo(invoke("median", TInt32, IRArray(5, null, null)), 5)
     assertEvalsTo(invoke("median", TInt32, IRArray(3, 7)), 5)
@@ -85,7 +86,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "basicPairs")
-  def extend(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit =
+  def extend(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): scalatest.Assertion =
     assertEvalsTo(
       invoke("extend", TArray(TInt32), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (x, y) => x ++ y }.orNull,
@@ -101,13 +102,14 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "sort")
-  def min(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]): Unit =
+  def min(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer])
+    : scalatest.Assertion =
     assertEvalsTo(
       invoke("min", TInt32, toIRArray(a)),
       Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
     )
 
-  @Test def testMinMaxNans(): Unit = {
+  @Test def testMinMaxNans(): scalatest.Assertion = {
     assertAllEvalTo(
       (
         invoke(
@@ -157,7 +159,8 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "sort")
-  def max(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer]): Unit =
+  def max(a: IndexedSeq[Integer], asc: IndexedSeq[Integer], desc: IndexedSeq[Integer])
+    : scalatest.Assertion =
     assertEvalsTo(
       invoke("max", TInt32, toIRArray(a)),
       Option(desc).filter(!_.contains(null)).flatMap(_.headOption).orNull,
@@ -173,11 +176,11 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "argminmax")
-  def argmin(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
+  def argmin(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): scalatest.Assertion =
     assertEvalsTo(invoke("argmin", TInt32, toIRArray(a)), argmin)
 
   @Test(dataProvider = "argminmax")
-  def argmax(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
+  def argmax(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): scalatest.Assertion =
     assertEvalsTo(invoke("argmax", TInt32, toIRArray(a)), argmax)
 
   @DataProvider(name = "uniqueMinMaxIndex")
@@ -190,11 +193,13 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "uniqueMinMaxIndex")
-  def uniqueMinIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
+  def uniqueMinIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer)
+    : scalatest.Assertion =
     assertEvalsTo(invoke("uniqueMinIndex", TInt32, toIRArray(a)), argmin)
 
   @Test(dataProvider = "uniqueMinMaxIndex")
-  def uniqueMaxIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer): Unit =
+  def uniqueMaxIndex(a: IndexedSeq[Integer], argmin: Integer, argmax: Integer)
+    : scalatest.Assertion =
     assertEvalsTo(invoke("uniqueMaxIndex", TInt32, toIRArray(a)), argmax)
 
   @DataProvider(name = "arrayOpsData")
@@ -233,11 +238,11 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "arrayOps")
   def arrayOps(a: IndexedSeq[Integer], b: IndexedSeq[Integer], s: String, f: (Int, Int) => Int)
-    : Unit =
+    : scalatest.Assertion =
     assertEvalsTo(invoke(s, TArray(TInt32), toIRArray(a), toIRArray(b)), lift(f)(a, b))
 
   @Test(dataProvider = "arrayOpsData")
-  def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
+  def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): scalatest.Assertion = {
     assertEvalsTo(
       invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
@@ -251,7 +256,7 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "arrayOpsData")
-  def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): Unit = {
+  def arrayOpsPow(a: IndexedSeq[Integer], b: IndexedSeq[Integer]): scalatest.Assertion = {
     assertEvalsTo(
       invoke("pow", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
@@ -265,12 +270,12 @@ class ArrayFunctionsSuite extends HailSuite {
   }
 
   @Test(dataProvider = "arrayOpsOperations")
-  def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int): Unit = {
+  def arrayOpsDifferentLength(s: String, f: (Int, Int) => Int): scalatest.Assertion = {
     assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2, 3), IRArray(1, 2)), "length mismatch")
     assertFatal(invoke(s, TArray(TInt32), IRArray(1, 2), IRArray(1, 2, 3)), "length mismatch")
   }
 
-  @Test def indexing(): Unit = {
+  @Test def indexing(): scalatest.Assertion = {
     val a = IRArray(0, null, 2)
     assertEvalsTo(invoke("indexArray", TInt32, a, I32(0)), 0)
     assertEvalsTo(invoke("indexArray", TInt32, a, I32(1)), null)
@@ -283,7 +288,7 @@ class ArrayFunctionsSuite extends HailSuite {
     assertEvalsTo(invoke("indexArray", TInt32, a, NA(TInt32)), null)
   }
 
-  @Test def slicing(): Unit = {
+  @Test def slicing(): scalatest.Assertion = {
     val a = IRArray(0, null, 2)
     assertEvalsTo(ArraySlice(a, I32(1), None), FastSeq(null, 2))
     assertEvalsTo(ArraySlice(a, I32(-2), None), FastSeq(null, 2))
@@ -321,13 +326,13 @@ class ArrayFunctionsSuite extends HailSuite {
   )
 
   @Test(dataProvider = "flatten")
-  def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]): Unit =
+  def flatten(in: IndexedSeq[IndexedSeq[Integer]], expected: IndexedSeq[Int]): scalatest.Assertion =
     assertEvalsTo(
       invoke("flatten", TArray(TInt32), MakeArray(in.map(toIRArray(_)), TArray(TArray(TInt32)))),
       expected,
     )
 
-  @Test def testContains(): Unit = {
+  @Test def testContains(): scalatest.Assertion = {
     val t = TArray(TString)
 
     assertEvalsTo(

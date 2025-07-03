@@ -1,4 +1,4 @@
-<suite name="SuiteAll" verbose="1">
+<suite name="SuiteAll" verbose="1" allow-return-values="true">
     <test name="TestAll">  
         <packages>
           <package name="is.hail.*">

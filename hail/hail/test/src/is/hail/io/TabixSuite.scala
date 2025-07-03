@@ -3,10 +3,15 @@ package is.hail.io
 import is.hail.HailSuite
 import is.hail.io.tabix._
 import is.hail.io.vcf.TabixVCF
+import is.hail.macros.void
 
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
+import org.scalatest
+import org.scalatest.Inspectors.forAll
+import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
+import org.scalatest.matchers.must.Matchers.contain
+import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
 import org.testng.annotations.{BeforeTest, Test}
-import org.testng.asserts.SoftAssert
 
 class TabixSuite extends HailSuite {
   // use .gz for several tests and .bgz for another to test handling of both
@@ -18,15 +23,15 @@ class TabixSuite extends HailSuite {
   lazy val reader = new TabixReader(vcfGzFile, fs)
 
   @BeforeTest def initialize(): Unit =
-    hc // reference to initialize
+    void(hc) // reference to initialize
 
-  @Test def testLargeNumberOfSequences(): Unit = {
+  @Test def testLargeNumberOfSequences(): scalatest.Assertion = {
     val tbx = new TabixReader(null, fs, Some(getTestResource("large-tabix.tbi")))
     // known length of sequences
     assert(tbx.index.seqs.length == 3366)
   }
 
-  @Test def testSequenceNames(): Unit = {
+  @Test def testSequenceNames(): scalatest.Assertion = {
     val expectedSeqNames = new Array[String](24);
     for (i <- 1 to 22)
       expectedSeqNames(i - 1) = i.toString
@@ -35,24 +40,20 @@ class TabixSuite extends HailSuite {
 
     val sequenceNames = reader.index.chr2tid.keySet
     assert(expectedSeqNames.length == sequenceNames.size)
-
-    val asserts = new SoftAssert()
-    for (s <- expectedSeqNames)
-      asserts.assertTrue(sequenceNames.contains(s), s"sequenceNames does not contain $s")
-    asserts.assertAll()
+    sequenceNames should contain theSameElementsAs expectedSeqNames
   }
 
-  @Test def testSequenceSet(): Unit = {
+  @Test def testSequenceSet(): scalatest.Assertion = {
     val chrs = reader.index.chr2tid.keySet
-    assert(!chrs.isEmpty)
+    assert(chrs.nonEmpty)
     assert(chrs.contains("1"))
     assert(!chrs.contains("MT"))
   }
 
-  @Test def testLineIterator(): Unit = {
+  @Test def testLineIterator(): scalatest.Assertion = {
     val htsjdkrdr = new HtsjdkTabixReader(vcfGzFile)
     // In range access
-    for (chr <- Seq("1", "19", "X")) {
+    forAll(Seq("1", "19", "X")) { chr =>
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 1, 400);
       val hailIter = new TabixLineIterator(fs, reader.filePath, pairs)
@@ -67,7 +68,7 @@ class TabixSuite extends HailSuite {
     // NOTE: We use the larger interval for the htsjdk iterator because the
     // hail iterator may return the one record that is contained in each of the
     // chromosomes we check
-    for (chr <- Seq("1", "19", "X")) {
+    forAll(Seq("1", "19", "X")) { chr =>
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 350, 400);
       val hailIter = new TabixLineIterator(fs, reader.filePath, pairs)
@@ -80,7 +81,7 @@ class TabixSuite extends HailSuite {
     }
 
     // beg == end
-    for (chr <- Seq("1", "19", "X")) {
+    forAll(Seq("1", "19", "X")) { chr =>
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 100, 100);
       val hailIter = new TabixLineIterator(fs, reader.filePath, pairs)
@@ -92,25 +93,24 @@ class TabixSuite extends HailSuite {
     }
   }
 
-  def _testLineIterator2(vcfFile: String): Unit = {
+  def _testLineIterator2(vcfFile: String): scalatest.Assertion = {
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
     val hailrdr = new TabixReader(vcfFile, fs)
     val tid = hailrdr.chr2tid(chr)
 
-    for (
-      (start, end) <-
-        Seq(
-          (12990058, 12990059), // Small interval, containing just one locus at end
-          (10570000, 13000000), // Open interval
-          (10019093, 16360860), // Closed interval
-          (11000000, 13029764), // Half open (beg, end]
-          (17434340, 18000000), // Half open [beg, end)
-          (13943975, 14733634), // Some random intervals
-          (11578765, 15291865),
-          (12703588, 16751726),
-        )
-    ) {
+    forAll(
+      Seq(
+        (12990058, 12990059), // Small interval, containing just one locus at end
+        (10570000, 13000000), // Open interval
+        (10019093, 16360860), // Closed interval
+        (11000000, 13029764), // Half open (beg, end]
+        (17434340, 18000000), // Half open [beg, end)
+        (13943975, 14733634), // Some random intervals
+        (11578765, 15291865),
+        (12703588, 16751726),
+      )
+    ) { case (start, end) =>
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start, end)
       val hailIter = new TabixLineIterator(fs, hailrdr.filePath, pairs)
@@ -128,13 +128,14 @@ class TabixSuite extends HailSuite {
           assert(hailStr != null)
         }
       }
+      scalatest.Assertions.succeed
     }
   }
 
-  @Test def testLineIterator2(): Unit =
+  @Test def testLineIterator2(): scalatest.Assertion =
     _testLineIterator2(getTestResource("sample.vcf.bgz"))
 
-  @Test def testWriter(): Unit = {
+  @Test def testWriter(): scalatest.Assertion = {
     val vcfFile = getTestResource("sample.vcf.bgz")
     val path = ctx.createTmpPath("test-tabix-write", "bgz")
     fs.copy(vcfFile, path)

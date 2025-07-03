@@ -2,6 +2,7 @@ package is.hail.stats
 
 import is.hail.HailSuite
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class GeneralizedChiSquaredDistributionSuite extends HailSuite {
@@ -32,7 +33,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     nearEqual(g, g2))
   }
 
-  @Test def test0(): Unit = {
+  @Test def test0(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       1.0,
       Array(1, 1, 1),
@@ -51,7 +52,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test1(): Unit = {
+  @Test def test1(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       7.0,
       Array(1, 1, 1),
@@ -69,7 +70,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test2(): Unit = {
+  @Test def test2(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       20.0,
       Array(1, 1, 1),
@@ -87,7 +88,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test3(): Unit = {
+  @Test def test3(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       2.0,
       Array(2, 2, 2),
@@ -105,7 +106,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test4(): Unit = {
+  @Test def test4(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       20.0,
       Array(2, 2, 2),
@@ -123,7 +124,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test5(): Unit = {
+  @Test def test5(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       60.0,
       Array(2, 2, 2),
@@ -138,7 +139,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test6(): Unit = {
+  @Test def test6(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       10.0,
       Array(6, 4, 2),
@@ -156,7 +157,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test7(): Unit = {
+  @Test def test7(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       50.0,
       Array(6, 4, 2),
@@ -174,7 +175,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test8(): Unit = {
+  @Test def test8(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       120.0,
       Array(6, 4, 2),
@@ -192,7 +193,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test9(): Unit = {
+  @Test def test9(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       10.0,
       Array(2, 4, 6),
@@ -210,7 +211,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test10(): Unit = {
+  @Test def test10(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       30.0,
       Array(2, 4, 6),
@@ -228,7 +229,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test11(): Unit = {
+  @Test def test11(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       80.0,
       Array(2, 4, 6),
@@ -246,7 +247,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test12(): Unit = {
+  @Test def test12(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       20.0,
       Array(6, 2),
@@ -264,7 +265,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test13(): Unit = {
+  @Test def test13(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       100.0,
       Array(6, 2),
@@ -282,7 +283,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test14(): Unit = {
+  @Test def test14(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       200.0,
       Array(6, 2),
@@ -300,7 +301,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test15(): Unit = {
+  @Test def test15(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       10.0,
       Array(1, 1),
@@ -318,7 +319,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test16(): Unit = {
+  @Test def test16(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       60.0,
       Array(1, 1),
@@ -336,7 +337,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test17(): Unit = {
+  @Test def test17(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       150.0,
       Array(1, 1),
@@ -354,7 +355,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test18(): Unit = {
+  @Test def test18(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       45.0,
       Array(6, 4, 2, 2, 4, 6),
@@ -369,7 +370,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test19(): Unit = {
+  @Test def test19(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       120.0,
       Array(6, 4, 2, 2, 4, 6),
@@ -384,7 +385,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test20(): Unit = {
+  @Test def test20(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       210.0,
       Array(6, 4, 2, 2, 4, 6),
@@ -399,7 +400,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test21(): Unit = {
+  @Test def test21(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       70.0,
       Array(6, 2, 1, 1),
@@ -417,7 +418,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test22(): Unit = {
+  @Test def test22(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       160.0,
       Array(6, 2, 1, 1),
@@ -435,7 +436,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test23(): Unit = {
+  @Test def test23(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       260.0,
       Array(6, 2, 1, 1),
@@ -453,7 +454,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test24(): Unit = {
+  @Test def test24(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       -40.0,
       Array(6, 2, 1, 1),
@@ -471,7 +472,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test25(): Unit = {
+  @Test def test25(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       40.0,
       Array(6, 2, 1, 1),
@@ -489,7 +490,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test26(): Unit = {
+  @Test def test26(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       140.0,
       Array(6, 2, 1, 1),
@@ -507,7 +508,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test27(): Unit = {
+  @Test def test27(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       120.0,
       Array(6, 4, 2, 2, 4, 6, 6, 2, 1, 1),
@@ -525,7 +526,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test28(): Unit = {
+  @Test def test28(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       240.0,
       Array(6, 4, 2, 2, 4, 6, 6, 2, 1, 1),
@@ -540,7 +541,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test29(): Unit = {
+  @Test def test29(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       400.0,
       Array(6, 4, 2, 2, 4, 6, 6, 2, 1, 1),
@@ -555,7 +556,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test30(): Unit = {
+  @Test def test30(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       5.0,
       Array(1, 10),
@@ -573,7 +574,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test31(): Unit = {
+  @Test def test31(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       25.0,
       Array(1, 10),
@@ -591,7 +592,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test32(): Unit = {
+  @Test def test32(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       100.0,
       Array(1, 10),
@@ -609,7 +610,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test33(): Unit = {
+  @Test def test33(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       10.0,
       Array(1, 20),
@@ -627,7 +628,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test34(): Unit = {
+  @Test def test34(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       40.0,
       Array(1, 20),
@@ -645,7 +646,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test35(): Unit = {
+  @Test def test35(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       100.0,
       Array(1, 20),
@@ -663,7 +664,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test36(): Unit = {
+  @Test def test36(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       20.0,
       Array(1, 30),
@@ -681,7 +682,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test37(): Unit = {
+  @Test def test37(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       50.0,
       Array(1, 30),
@@ -699,7 +700,7 @@ class GeneralizedChiSquaredDistributionSuite extends HailSuite {
     assert(actualFault == 0)
   }
 
-  @Test def test38(): Unit = {
+  @Test def test38(): scalatest.Assertion = {
     val (actualValue, actualTrace, actualFault) = pgenchisq(
       100.0,
       Array(1, 30),

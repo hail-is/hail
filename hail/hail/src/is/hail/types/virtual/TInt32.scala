@@ -7,7 +7,7 @@ case object TInt32 extends TIntegral {
   def _toPretty = "Int32"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("int32")
+    sb ++= "int32"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 

@@ -7,12 +7,15 @@ import breeze.linalg.{DenseMatrix => BDM}
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.rdd.RDD
+import org.scalatest
+import org.scalatest.Inspectors.forAll
+import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
 
 /** Testing RichIndexedRowMatrix. */
 class RichIndexedRowMatrixSuite extends HailSuite {
 
-  @Test def testToBlockMatrixDense(): Unit = {
+  @Test def testToBlockMatrixDense(): scalatest.Assertion = {
     val nRows = 9L
     val nCols = 6L
     val data = Seq(
@@ -30,9 +33,7 @@ class RichIndexedRowMatrixSuite extends HailSuite {
     val irm = new IndexedRowMatrix(indexedRows)
     val irmLocal = irm.toBlockMatrix().toLocalMatrix()
 
-    for {
-      blockSize <- Seq(1, 2, 3, 4, 6, 7, 9, 10)
-    } {
+    forAll(Seq(1, 2, 3, 4, 6, 7, 9, 10)) { blockSize =>
       val blockMat = irm.toHailBlockMatrix(blockSize)
       assert(blockMat.nRows === nRows)
       assert(blockMat.nCols === nCols)
@@ -42,15 +43,15 @@ class RichIndexedRowMatrixSuite extends HailSuite {
       assert(blockMatAsBreeze.toArray.toIndexedSeq == irmLocal.toArray.toIndexedSeq)
     }
 
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       irm.toHailBlockMatrix(-1)
     }
-    intercept[IllegalArgumentException] {
+    assertThrows[IllegalArgumentException] {
       irm.toHailBlockMatrix(0)
     }
   }
 
-  @Test def emptyBlocks(): Unit = {
+  @Test def emptyBlocks(): scalatest.Assertion = {
     val nRows = 9
     val nCols = 2
     val data = Seq(

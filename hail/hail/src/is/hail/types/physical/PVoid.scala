@@ -17,7 +17,8 @@ case object PVoid extends PType with PUnrealizable {
 
   def _asIdent = "void"
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PVoid")
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
+    sb ++= "PVoid"
 
   def setRequired(required: Boolean) = PVoid
 

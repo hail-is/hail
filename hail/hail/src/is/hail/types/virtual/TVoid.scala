@@ -2,12 +2,13 @@ package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
+import is.hail.macros.void
 
 case object TVoid extends Type {
   override def _toPretty = "Void"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("void")
+    void(sb ++= "void")
 
   override def mkOrdering(sm: HailStateManager, missingEqual: Boolean): ExtendedOrdering = null
 

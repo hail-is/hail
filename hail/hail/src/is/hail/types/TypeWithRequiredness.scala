@@ -41,19 +41,19 @@ object BaseTypeWithRequiredness {
         check(r.endType, typ.asInstanceOf[TInterval].pointType)
       case r: RStruct =>
         val struct = typ.asInstanceOf[TStruct]
-        (r.fields, struct.fields).zipped.map { (rf, f) =>
+        (r.fields, struct.fields).zipped.foreach { (rf, f) =>
           assert(rf.name == f.name)
           check(rf.typ, f.typ)
         }
       case r: RTuple =>
         val tuple = typ.asInstanceOf[TTuple]
-        (r.fields, tuple.fields).zipped.map { (rf, f) =>
+        (r.fields, tuple.fields).zipped.foreach { (rf, f) =>
           assert(rf.index == f.index)
           check(rf.typ, f.typ)
         }
       case r: RUnion =>
         val union = typ.asInstanceOf[TUnion]
-        (r.cases, union.cases).zipped.map { (rc, c) =>
+        (r.cases, union.cases).zipped.foreach { (rc, c) =>
           assert(rc._1 == c.name)
           check(rc._2, c.typ)
         }

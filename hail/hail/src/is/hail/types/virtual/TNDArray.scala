@@ -39,21 +39,21 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   }
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("ndarray<")
+    sb ++= "ndarray<"
     elementType.pyString(sb)
-    sb.append(", ")
-    sb.append(nDims)
-    sb.append('>')
+    sb ++= ", "
+    sb ++= s"$nDims"
+    sb += '>'
   }
 
   def _toPretty = s"NDArray[$elementType,$nDims]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("NDArray[")
+    sb ++= "NDArray["
     elementType.pretty(sb, indent, compact)
-    sb.append(",")
-    sb.append(nDims)
-    sb.append("]")
+    if (compact) sb += ',' else sb ++= ", "
+    sb ++= s"$nDims"
+    sb += ']'
   }
 
   override def str(a: Annotation): String = {
@@ -66,19 +66,19 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
       def dataToNestedString(data: Iterator[Annotation], shape: Seq[Long], sb: StringBuilder)
         : Unit = {
         if (shape.isEmpty) {
-          sb.append(data.next().toString)
+          sb ++= data.next().toString
         } else {
-          sb.append("[")
+          sb += '['
           val howMany = shape.head
           var repeat = 0
           while (repeat < howMany) {
             dataToNestedString(data, shape.tail, sb)
             if (repeat != howMany - 1) {
-              sb.append(", ")
+              sb ++= ", "
             }
             repeat += 1
           }
-          sb.append("]")
+          sb += ']'
         }
       }
 

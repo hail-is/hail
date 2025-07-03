@@ -11,15 +11,15 @@ case class TInterval(pointType: Type) extends Type {
   def _toPretty = s"""Interval[$pointType]"""
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("interval<")
+    sb ++= "interval<"
     pointType.pyString(sb)
-    sb.append('>')
+    sb += '>'
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("Interval[")
+    sb ++= "Interval["
     pointType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Interval] && {

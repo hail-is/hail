@@ -130,7 +130,7 @@ case class StoredSTypePType(sType: SType, required: Boolean) extends PType {
     throw new UnsupportedOperationException("not supported on StoredStypePType")
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
-    sb.append(sType.toString)
+    sb ++= sType.toString
 
   override def unsafeOrdering(sm: HailStateManager, rightType: PType): UnsafeOrdering =
     unsupportedCanonicalMethod
