@@ -1089,7 +1089,7 @@ class EmitStreamSuite extends HailSuite {
     }
 
     assert(
-      memUsed1 != memUsed2,
+      memUsed1 == memUsed2,
       s"memory usage scales with stream size!" +
         s"\n  at size=$lowSize, memory=$memUsed1" +
         s"\n  at size=$highSize, memory=$memUsed2" +
