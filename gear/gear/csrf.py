@@ -17,9 +17,23 @@ async def check_csrf_token(request: web.Request, handler: AIOHTTPHandler):
     # CSRF prevention is only relevant to requests that use browser
     # cookies for authentication.
     if request.cookies and request.method not in {'GET', 'HEAD', 'OPTIONS'}:
+
+        log.info(f'*** request.cookies: {request.cookies}')
+        log.info(f'*** request.headers: {request.headers}')
+
         token1 = request.cookies.get('_csrf')
-        post = await request.post()
-        token2 = post.get('_csrf')
+        
+        # Check for CSRF token in header first (for JSON requests)
+        token2 = request.headers.get('X-CSRF-Token')
+        
+        log.info(f'*** token1: {token1}')
+        log.info(f'*** token2: {token2}')
+
+        # If not in header, check in form body (for form-encoded requests)
+        if token2 is None:
+            post = await request.post()
+            token2 = post.get('_csrf')
+        
         if token1 is None or token2 is None or token1 != token2:
             log.info('request made with invalid csrf tokens')
             raise web.HTTPUnauthorized()
