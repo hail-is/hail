@@ -5,7 +5,7 @@ import os
 import re
 import typing
 from contextlib import AsyncExitStack
-from typing import List, NoReturn, Optional
+from typing import List, NoReturn, Optional, Union
 from urllib.parse import urlparse
 
 import aiohttp_session
