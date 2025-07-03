@@ -1045,11 +1045,18 @@ async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
     
     db = request.app[AppKeys.DB]
     
-    # Verify user exists
-    user = await db.select_and_fetchone(
-        "SELECT id, username FROM users WHERE id = %s AND state = 'active'",
-        (user_id,)
-    )
+    # Verify user exists - and get a user record - from either ID or unique username:
+    if isinstance(user_id, int):
+        user = await db.select_and_fetchone(
+            "SELECT id, username FROM users WHERE id = %s AND state = 'active'",
+            (user_id,)
+        )
+    else:
+        user = await db.select_and_fetchone(
+            "SELECT id, username FROM users WHERE username = %s AND state = 'active'",
+            (user_id,)
+        )
+    
     if not user:
         raise web.HTTPNotFound(text=f'User not found or not active')
     
@@ -1069,7 +1076,7 @@ SELECT 1 FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s AND sr.name = %s
 """,
-                (user_id, role.value)
+                (user['id'], role.value)
             )
             
             if existing_role:
@@ -1085,7 +1092,7 @@ WHERE usr.user_id = %s AND sr.name = %s
             
             await tx.execute_insertone(
                 "INSERT INTO users_system_roles (user_id, role_id) VALUES (%s, %s)",
-                (user_id, role_record['id'])
+                (user['id'], role_record['id'])
             )
             
             return {'action': 'added', 'role': role_name, 'user': user['username']}
@@ -1104,7 +1111,7 @@ SELECT 1 FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s AND sr.name = %s
 """,
-                (user_id, role.value)
+                (user['id'], role.value)
             )
             
             if not existing_role:
@@ -1117,7 +1124,7 @@ DELETE usr FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s AND sr.name = %s
 """,
-                (user_id, role.value)
+                (user['id'], role.value)
             )
             
             return {'action': 'removed', 'role': role_name, 'user': user['username']}
@@ -1126,8 +1133,20 @@ WHERE usr.user_id = %s AND sr.name = %s
     return json_response(result)
 
 
-async def get_system_roles_from_user_id(request: web.Request, user_id: int) -> dict:
+async def get_system_roles_from_user_id(request: web.Request, user_id: Union[int, str]) -> dict:
     db = request.app[AppKeys.DB]
+
+    # Verify user exists - and get a user record - from either ID or unique username:
+    if isinstance(user_id, int):
+        user = await db.select_and_fetchone(
+            "SELECT id, username FROM users WHERE id = %s AND state = 'active'",
+            (user_id,)
+        )
+    else:
+        user = await db.select_and_fetchone(
+            "SELECT id, username FROM users WHERE username = %s AND state = 'active'",
+            (user_id,)
+        )
 
         # Get user's system roles from the users_system_roles table
     user_roles = [
@@ -1139,7 +1158,7 @@ FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s
 """,
-            user_id,
+            user['id'],
         )
     ]
 

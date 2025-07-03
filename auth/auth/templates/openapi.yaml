@@ -366,8 +366,12 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-          description: User ID to retrieve system roles for
+            oneOf:
+              - type: integer
+                description: User ID
+              - type: string
+                description: Username
+          description: User ID (integer) or username (string) to retrieve system roles for
       responses:
         '200':
           description: User's system roles and permissions retrieved successfully
@@ -395,8 +399,12 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
-          description: User ID to modify system roles for
+            oneOf:
+              - type: integer
+                description: User ID
+              - type: string
+                description: Username
+          description: User ID (integer) or username (string) to modify system roles for
       requestBody:
         required: true
         content:
