@@ -564,7 +564,7 @@ async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
 
-    all_system_role_assignments = await get_roles_for_everyone(request)
+    all_system_role_assignments = await _get_all_system_role_assignments(request)
 
     page_context = {'all_system_role_assignments': all_system_role_assignments}
     return await render_template('auth', request, userdata, 'roles.html', page_context)
@@ -1012,14 +1012,121 @@ WHERE usr.user_id = %s
     return False
 
 
-@routes.get('/api/v1alpha/roles_and_permissions')
+@routes.get('/api/v1alpha/system_roles/me')
 @api_security_headers
 @auth.authenticated_users_only()
-async def get_roles_and_permissions(request: web.Request, userdata: UserData) -> web.Response:
-    user_roles_permissions = await get_roles_and_permissions_from_userinfo(request, userdata)
+async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> web.Response:
+    user_roles_permissions = await get_system_roles_from_user_id(request, userdata['id'])
     return json_response(user_roles_permissions)
 
-async def get_roles_and_permissions_from_userinfo(request: web.Request, userdata: UserData) -> web.Response:
+
+@routes.get('/api/v1alpha/system_roles/{user_id}')
+@api_security_headers
+@auth.authenticated_developers_only()
+async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
+    user_id = request.match_info['user_id']
+    user_roles_permissions = await get_system_roles_from_user_id(request, user_id)
+    return json_response(user_roles_permissions)
+
+
+@routes.patch('/api/v1alpha/system_roles/{user_id}')
+@api_security_headers
+@auth.authenticated_developers_only()
+async def patch_system_roles_for_user(request: web.Request, _) -> web.Response:
+    user_id = request.match_info['user_id']
+    body = await json_request(request)
+    
+    # Validate request body
+    if 'role_addition' not in body and 'role_removal' not in body:
+        raise web.HTTPBadRequest(text='Request body must contain either "role_addition" or "role_removal" field')
+    
+    if 'role_addition' in body and 'role_removal' in body:
+        raise web.HTTPBadRequest(text='Request body cannot contain both "role_addition" and "role_removal" fields')
+    
+    db = request.app[AppKeys.DB]
+    
+    # Verify user exists
+    user = await db.select_and_fetchone(
+        "SELECT id, username FROM users WHERE id = %s AND state = 'active'",
+        (user_id,)
+    )
+    if not user:
+        raise web.HTTPNotFound(text=f'User not found or not active')
+    
+    @transaction(db)
+    async def modify_roles(tx):
+        if 'role_addition' in body:
+            role_name = body['role_addition']
+            try:
+                role = SystemRole.from_string(role_name)
+            except ValueError:
+                raise web.HTTPBadRequest(text=f'Unknown system role: {role_name}')
+            
+            # Check if user already has this role
+            existing_role = await tx.execute_and_fetchone(
+                """
+SELECT usr.id FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+WHERE usr.user_id = %s AND sr.name = %s
+""",
+                (user_id, role.value)
+            )
+            
+            if existing_role:
+                raise web.HTTPConflict(text=f'User {user["username"]} already has role {role_name}')
+            
+            # Get role ID and add the role
+            role_record = await tx.execute_and_fetchone(
+                "SELECT id FROM system_roles WHERE name = %s",
+                (role.value,)
+            )
+            if not role_record:
+                raise web.HTTPInternalServerError(text=f'System role {role_name} not found in database')
+            
+            await tx.execute_insertone(
+                "INSERT INTO users_system_roles (user_id, role_id) VALUES (%s, %s)",
+                (user_id, role_record['id'])
+            )
+            
+            return {'action': 'added', 'role': role_name, 'user': user['username']}
+            
+        elif 'role_removal' in body:
+            role_name = body['role_removal']
+            try:
+                role = SystemRole.from_string(role_name)
+            except ValueError:
+                raise web.HTTPBadRequest(text=f'Unknown system role: {role_name}')
+            
+            # Check if user has this role
+            existing_role = await tx.execute_and_fetchone(
+                """
+SELECT usr.id FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+WHERE usr.user_id = %s AND sr.name = %s
+""",
+                (user_id, role.value)
+            )
+            
+            if not existing_role:
+                raise web.HTTPConflict(text=f'User {user["username"]} does not have role {role_name}')
+            
+            # Remove the role
+            await tx.execute_update(
+                """
+DELETE usr FROM users_system_roles usr
+JOIN system_roles sr ON usr.role_id = sr.id
+WHERE usr.user_id = %s AND sr.name = %s
+""",
+                (user_id, role.value)
+            )
+            
+            return {'action': 'removed', 'role': role_name, 'user': user['username']}
+    
+    result = await modify_roles()
+    return json_response(result)
+
+
+async def get_system_roles_from_user_id(request: web.Request, user_id: int) -> dict:
     db = request.app[AppKeys.DB]
 
         # Get user's system roles from the users_system_roles table
@@ -1032,7 +1139,7 @@ FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
 WHERE usr.user_id = %s
 """,
-            userdata['id'],
+            user_id,
         )
     ]
 
@@ -1041,7 +1148,25 @@ WHERE usr.user_id = %s
     
     return user_roles_permissions
 
-async def get_roles_for_everyone(request: web.Request) -> dict:
+
+@routes.get('/api/v1alpha/system_roles/all')
+@api_security_headers
+@auth.authenticated_developers_only()
+async def get_all_system_role_assignments(request: web.Request, _userdata: UserData) -> web.Response:
+    # Note: userdata provided by authenticating wrapper, but is otherwise unused in function.
+    system_roles_for_everyone = await _get_all_system_role_assignments(request)
+
+    # Unpack the enums:
+    system_roles_for_everyone = {
+        role.value: system_roles_for_everyone[role]
+        for role in system_roles_for_everyone.keys()
+    }
+
+    return json_response(system_roles_for_everyone)
+
+
+
+async def _get_all_system_role_assignments(request: web.Request) -> dict:
     db = request.app[AppKeys.DB]
 
     # Get all system roles
