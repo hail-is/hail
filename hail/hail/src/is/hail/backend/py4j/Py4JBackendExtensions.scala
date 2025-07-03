@@ -212,7 +212,8 @@ trait Py4JBackendExtensions {
   private[this] def addReference(rg: ReferenceGenome): Unit =
     ReferenceGenome.addFatalOnCollision(references, FastSeq(rg))
 
-  private[this] def removeReference(name: String): Unit = { references -= name; () }
+  private[this] def removeReference(name: String): Unit =
+    void(references -= name)
 
   def parse_value_ir(s: String, refMap: java.util.Map[String, String]): IR =
     backend.withExecuteContext { ctx =>

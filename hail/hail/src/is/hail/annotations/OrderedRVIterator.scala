@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.backend.HailStateManager
+import is.hail.macros.void
 import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.types.physical.PInterval
 import is.hail.utils._
@@ -80,7 +81,7 @@ case class OrderedRVIterator(
       var isValid: Boolean = true
 
       def setValue(): Unit = {
-        isValid = left.isValid && {
+        if (left.isValid) {
           while (buffer.nonEmpty && mixedOrd(left.value, buffer.head) > 0)
             buffer.dequeue()
           while (right.isValid && mixedOrd(left.value, right.value) >= 0) {
@@ -89,8 +90,9 @@ case class OrderedRVIterator(
             }
             right.advance()
           }
-          value.set(left.value, buffer)
-          true
+          void(value.set(left.value, buffer))
+        } else {
+          isValid = false
         }
       }
 

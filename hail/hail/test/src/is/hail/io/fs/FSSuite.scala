@@ -12,6 +12,7 @@ import org.apache.hadoop.fs.FileAlreadyExistsException
 import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
+import org.scalatest.prop.TableDrivenPropertyChecks.whenever
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -109,12 +110,11 @@ trait FSSuite extends TestNGSuite {
     assert(s.getPath == root)
   }
 
-  @Test def testFileListEntryRootWithSlash(): scalatest.Assertion =
-    if (root.endsWith("/")) scalatest.Assertions.cancel()
-    else {
-      val s = fs.fileListEntry(s"$root/")
-      assert(s.getPath == root)
-    }
+  @Test def testFileListEntryRootWithSlash(): scalatest.Assertion = {
+    assume(root.endsWith("/"))
+    val s = fs.fileListEntry(s"$root/")
+    assert(s.getPath == root)
+  }
 
   @Test def testDeleteRecursive(): scalatest.Assertion = {
     val d = t()
@@ -434,10 +434,10 @@ trait FSSuite extends TestNGSuite {
 
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
-    assert(
-      !fs.exists(prefix),
-      s"files not deleted:\n${fs.listDirectory(prefix).map(_.getPath).mkString("\n")}",
-    )
+
+    whenever(fs.exists(prefix)) {
+      fail(s"files not deleted:\n${fs.listDirectory(prefix).map(_.getPath).mkString("\n")}")
+    }
   }
 
   @Test def testSeekAfterEOF(): scalatest.Assertion = {

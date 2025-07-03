@@ -4,7 +4,6 @@ import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.streams.StreamUtils
-import is.hail.macros.void
 import is.hail.types.tcoerce
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -578,7 +577,7 @@ object TypeCheck {
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
       case BlockMatrixCollect(_) =>
-      case BlockMatrixWrite(_, writer) => void(writer.loweredTyp)
+      case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, _, _, _, _, dynamicID, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])
