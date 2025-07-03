@@ -13,7 +13,6 @@ from hailtop.batch.resource import JobResourceFile
 from hailtop.batch.utils import concatenate
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'ubuntu:24.04')
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9-slim'
 HAIL_GENETICS_HAIL_IMAGE = os.environ.get('HAIL_GENETICS_HAIL_IMAGE', f'hailgenetics/hail:{__pip_version__}')
 REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
 

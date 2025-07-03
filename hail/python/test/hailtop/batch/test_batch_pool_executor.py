@@ -7,8 +7,7 @@ from hailtop.batch import BatchPoolExecutor, ServiceBackend
 from hailtop.batch_client.client import BatchClient
 from hailtop.utils import sync_sleep_before_try
 
-PYTHON_DILL_IMAGE = 'hailgenetics/python-dill:3.9'
-
+from .utils import PYTHON_DILL_IMAGE
 
 submitted_batch_ids = []
 
