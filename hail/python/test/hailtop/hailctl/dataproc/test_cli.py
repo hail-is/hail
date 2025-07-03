@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 
 from hailtop.hailctl.dataproc import cli
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 def test_required_gcloud_version_met(gcloud_run, monkeypatch):

@@ -78,7 +78,7 @@ setup(
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
     ],
-    python_requires=">=3.9",
+    python_requires=">=3.10",
     install_requires=dependencies,
     entry_points={'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']},
     setup_requires=["pytest-runner", "wheel"],
