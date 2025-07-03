@@ -9,14 +9,13 @@ import org.testng.annotations.{BeforeClass, Test}
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
   @BeforeClass
-  def beforeclass(): scalatest.Assertion = {
-    if (System.getenv("HAIL_CLOUD") != "gcp") {
-      throw new SkipException("This test suite is only run in GCP.");
-    } else {
-      assert(root != null)
-      assert(fsResourcesRoot != null)
-    }
-  }
+  def beforeclass(): Unit =
+    if (
+      System.getenv("HAIL_CLOUD") != "gcp" ||
+      root == null ||
+      fsResourcesRoot == null
+    )
+      throw new SkipException("skip")
 
   override lazy val fs: FS =
     new GoogleStorageFS(GoogleCloudCredentials(None, GoogleStorageFS.RequiredOAuthScopes), None)

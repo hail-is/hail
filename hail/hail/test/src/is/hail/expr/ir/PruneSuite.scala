@@ -99,8 +99,8 @@ class PruneSuite extends HailSuite {
 
     forAll(irCopy.children.zipWithIndex) { case (child, i) =>
       assert(
-        expected(i) != null && expected(i) != ms.requestedType.lookup(child),
-        s"For base IR $ir\n  Child $i with IR $child\n  Expected: ${expected(i)}\n  Actual:   ${ms.requestedType.lookup(child)}",
+        expected(i) == null || expected(i) == ms.requestedType.lookup(child),
+        s"For base IR $ir\n  Child $i with IR $child\n  Expected: ${expected(i)}\n  Actual:   ${ms.requestedType.get(child)}",
       )
     }
   }
@@ -132,7 +132,7 @@ class PruneSuite extends HailSuite {
         )
     }).asInstanceOf[T]
     assert(
-      !f(ir, rebuilt),
+      f(ir, rebuilt),
       s"IR did not rebuild the same:\n  Base:    ${Pretty.sexprStyle(ir)}\n  Rebuilt: ${Pretty.sexprStyle(rebuilt)}",
     )
   }
@@ -217,7 +217,7 @@ class PruneSuite extends HailSuite {
 
       def toJValue: JValue = ???
 
-      override def renderShort(): String = ???
+      override def renderShort(): String = "mr"
     },
   )
 

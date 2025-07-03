@@ -23,6 +23,7 @@ import breeze.linalg.DenseMatrix
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.scalatest
+import org.scalatest.Inspectors.forEvery
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.ITestContext
 import org.testng.annotations.{AfterMethod, BeforeClass, BeforeMethod}
@@ -102,6 +103,59 @@ class HailSuite extends TestNGSuite {
       throw new RuntimeException(s"method stopped spark context!")
   }
 
+  def evaluate(
+    ctx: ExecuteContext,
+    ir: IR,
+    args: IndexedSeq[(Any, Type)],
+    env: Env[(Any, Type)] = Env.empty,
+    agg: Option[(IndexedSeq[Row], TStruct)] = None,
+  )(implicit strat: ExecStrategy
+  ): Any =
+    strat match {
+      case ExecStrategy.Interpret =>
+        assert(agg.isEmpty)
+        Interpret[Any](ctx, ir, env, args)
+      case ExecStrategy.InterpretUnoptimized =>
+        assert(agg.isEmpty)
+        Interpret[Any](ctx, ir, env, args, optimize = false)
+      case ExecStrategy.JvmCompile =>
+        assert(Forall(ir, node => Compilable(node)))
+        eval(
+          ir,
+          env,
+          args,
+          agg,
+          bytecodePrinter =
+            Option(ctx.getFlag("jvm_bytecode_dump"))
+              .map { path =>
+                val pw = new PrintWriter(new File(path))
+                pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
+                pw
+              },
+          true,
+          ctx,
+        )
+      case ExecStrategy.JvmCompileUnoptimized =>
+        assert(Forall(ir, node => Compilable(node)))
+        eval(
+          ir,
+          env,
+          args,
+          agg,
+          bytecodePrinter =
+            Option(ctx.getFlag("jvm_bytecode_dump"))
+              .map { path =>
+                val pw = new PrintWriter(new File(path))
+                pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, ir)}\n */\n\n")
+                pw
+              },
+          optimize = false,
+          ctx,
+        )
+      case ExecStrategy.LoweredJVMCompile =>
+        loweredExecute(ctx, ir, env, args, agg)
+    }
+
   def assertEvalsTo(
     x: IR,
     env: Env[(Any, Type)],
@@ -125,52 +179,11 @@ class HailSuite extends TestNGSuite {
           execStrats.intersect(ExecStrategy.backendOnly)
         }
 
-      filteredExecStrats.foreach { strat =>
+      forEvery(filteredExecStrats) { implicit strat =>
         try {
-          val res = strat match {
-            case ExecStrategy.Interpret =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args)
-            case ExecStrategy.InterpretUnoptimized =>
-              assert(agg.isEmpty)
-              Interpret[Any](ctx, x, env, args, optimize = false)
-            case ExecStrategy.JvmCompile =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(
-                x,
-                env,
-                args,
-                agg,
-                bytecodePrinter =
-                  Option(ctx.getFlag("jvm_bytecode_dump"))
-                    .map { path =>
-                      val pw = new PrintWriter(new File(path))
-                      pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                      pw
-                    },
-                true,
-                ctx,
-              )
-            case ExecStrategy.JvmCompileUnoptimized =>
-              assert(Forall(x, node => Compilable(node)))
-              eval(
-                x,
-                env,
-                args,
-                agg,
-                bytecodePrinter =
-                  Option(ctx.getFlag("jvm_bytecode_dump"))
-                    .map { path =>
-                      val pw = new PrintWriter(new File(path))
-                      pw.print(s"/* JVM bytecode dump for IR:\n${Pretty(ctx, x)}\n */\n\n")
-                      pw
-                    },
-                optimize = false,
-                ctx,
-              )
-            case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(ctx, x, env, args, agg)
-          }
+          val res =
+            evaluate(ctx, x, args, env, agg)
+
           if (t != TVoid) {
             assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")
             assert(
@@ -178,13 +191,15 @@ class HailSuite extends TestNGSuite {
               s"\n  result=$res\n  expect=$expected\n  strategy=$strat)",
             )
           }
+
         } catch {
           case e: Exception =>
             error(s"error from strategy $strat")
             if (execStrats.contains(strat)) throw e
         }
+
+        succeed
       }
-      scalatest.Succeeded
     }
   }
 

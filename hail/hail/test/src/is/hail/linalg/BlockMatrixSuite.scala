@@ -502,7 +502,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       val roundtriplm = roundtrip.toBreezeMatrix()
       val lm = m.toBreezeMatrix()
 
-      assert(roundtriplm != lm)
+      assert(roundtriplm == lm)
     }
 
   @Test

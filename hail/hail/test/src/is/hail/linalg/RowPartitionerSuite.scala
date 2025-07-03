@@ -38,9 +38,10 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
     forAll(arbitrary[Array[Long]] map { _.sorted }) { a =>
       whenever(a.nonEmpty) {
         scalatest.Inspectors.forAll(a ++ moreKeys) { key =>
-          whenever(key > a.head && key < a.last) {
-            assert(RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key))
-          }
+          assert(
+            !(key > a.head && key < a.last) ||
+              RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key)
+          )
         }
       }
     }

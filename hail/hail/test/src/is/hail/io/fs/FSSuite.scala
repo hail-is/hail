@@ -12,11 +12,11 @@ import org.apache.hadoop.fs.FileAlreadyExistsException
 import org.scalatest
 import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
-import org.scalatest.prop.TableDrivenPropertyChecks.whenever
-import org.scalatestplus.testng.TestNGSuite
+import org.scalatestplus.testng.TestNGSuiteLike
+import org.testng.SkipException
 import org.testng.annotations.Test
 
-trait FSSuite extends TestNGSuite {
+trait FSSuite extends TestNGSuiteLike {
   val root: String = System.getenv("HAIL_TEST_STORAGE_URI")
 
   def fsResourcesRoot: String = System.getenv("HAIL_FS_TEST_CLOUD_RESOURCES_URI")
@@ -111,7 +111,7 @@ trait FSSuite extends TestNGSuite {
   }
 
   @Test def testFileListEntryRootWithSlash(): scalatest.Assertion = {
-    assume(root.endsWith("/"))
+    if (root.endsWith("/")) throw new SkipException("skipped")
     val s = fs.fileListEntry(s"$root/")
     assert(s.getPath == root)
   }
@@ -225,12 +225,11 @@ trait FSSuite extends TestNGSuite {
     }
   }
 
-  @Test def testGlobRootWithSlash(): scalatest.Assertion =
-    if (root.endsWith("/")) cancel()
-    else {
-      val statuses = fs.glob(s"$root/")
-      assert(pathsRelRoot(root, statuses) == Set(""))
-    }
+  @Test def testGlobRootWithSlash(): scalatest.Assertion = {
+    if (root.endsWith("/")) throw new SkipException("skipped")
+    val statuses = fs.glob(s"$root/")
+    assert(pathsRelRoot(root, statuses) == Set(""))
+  }
 
   @Test def testWriteRead(): scalatest.Assertion = {
     val s = "this is a test string"
@@ -435,7 +434,8 @@ trait FSSuite extends TestNGSuite {
     assert(fs.exists(prefix))
     fs.delete(prefix, recursive = true)
 
-    whenever(fs.exists(prefix)) {
+    if (!fs.exists(prefix)) succeed
+    else {
       fail(s"files not deleted:\n${fs.listDirectory(prefix).map(_.getPath).mkString("\n")}")
     }
   }

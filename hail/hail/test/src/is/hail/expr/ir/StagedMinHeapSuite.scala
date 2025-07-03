@@ -139,7 +139,7 @@ class StagedMinHeapSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       }
     }
 
-    trait Resource extends AutoCloseable { def init(): scalatest.Assertion }
+    trait Resource extends AutoCloseable { def init(): Unit }
 
     Main.cb.addInterface(implicitly[TypeInfo[Resource]].iname)
     Main.defineEmitMethod("init", FastSeq(), UnitInfo) { mb =>

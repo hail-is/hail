@@ -1,22 +1,21 @@
 package is.hail.io.fs
 
-import is.hail.macros.void
 import is.hail.services.oauth2.AzureCloudCredentials
 
 import org.scalatest
+import org.scalatestplus.testng.TestNGSuite
 import org.testng.SkipException
 import org.testng.annotations.{BeforeClass, Test}
 
-class AzureStorageFSSuite extends FSSuite {
+class AzureStorageFSSuite extends TestNGSuite with FSSuite {
   @BeforeClass
-  def beforeclass(): Unit = {
-    if (System.getenv("HAIL_CLOUD") != "azure") {
-      throw new SkipException("This test suite is only run in Azure.");
-    } else void {
-      assert(root != null)
-      assert(fsResourcesRoot != null)
-    }
-  }
+  def beforeclass(): Unit =
+    if (
+      System.getenv("HAIL_CLOUD") != "azure" ||
+      root == null ||
+      fsResourcesRoot == null
+    )
+      throw new SkipException("skip")
 
   override lazy val fs: FS =
     new AzureStorageFS(AzureCloudCredentials(None, AzureStorageFS.RequiredOAuthScopes))
