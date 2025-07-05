@@ -72,8 +72,6 @@ sealed abstract class BlockMatrixIR extends BaseIR {
   override protected def copyWithNewChildren(newChildren: IndexedSeq[BaseIR]): BlockMatrixIR
 
   def blockCostIsLinear: Boolean
-
-  def typecheck(): Unit = {}
 }
 
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
@@ -292,9 +290,6 @@ case class BlockMatrixPersistReader(id: String, typ: BlockMatrixType) extends Bl
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: Name, f: IR, needsDense: Boolean)
     extends BlockMatrixIR {
-  override def typecheck(): Unit =
-    assert(!(needsDense && child.typ.isSparse))
-
   override def typ: BlockMatrixType = child.typ
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, f)
@@ -434,12 +429,6 @@ case class BlockMatrixMap2(
   f: IR,
   sparsityStrategy: SparsityStrategy,
 ) extends BlockMatrixIR {
-  override def typecheck(): Unit = {
-    assert(left.typ.nRows == right.typ.nRows)
-    assert(left.typ.nCols == right.typ.nCols)
-    assert(left.typ.blockSize == right.typ.blockSize)
-  }
-
   override lazy val typ: BlockMatrixType =
     left.typ.copy(sparsity = sparsityStrategy.mergeSparsity(left.typ.sparsity, right.typ.sparsity))
 
@@ -623,15 +612,6 @@ case class BlockMatrixBroadcast(
 
   assert(shape.length == 2)
   assert(inIndexExpr.length <= 2 && inIndexExpr.forall(x => x == 0 || x == 1))
-
-  override def typecheck(): Unit = {
-    val (nRows, nCols) = BlockMatrixIR.tensorShapeToMatrixShape(child)
-    val childMatrixShape = IndexedSeq(nRows, nCols)
-
-    assert(inIndexExpr.zipWithIndex.forall { case (out: Int, in: Int) =>
-      !child.typ.shape.contains(in) || childMatrixShape(in) == shape(out)
-    })
-  }
 
   override lazy val typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
@@ -1039,11 +1019,6 @@ case class ValueToBlockMatrix(
   shape: IndexedSeq[Long],
   blockSize: Int,
 ) extends BlockMatrixIR {
-  override def typecheck(): Unit =
-    assert(
-      child.typ.isInstanceOf[TArray] || child.typ.isInstanceOf[TNDArray] || child.typ == TFloat64
-    )
-
   assert(shape.length == 2)
 
   val blockCostIsLinear: Boolean = true
