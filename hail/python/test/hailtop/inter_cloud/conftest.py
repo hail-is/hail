@@ -45,3 +45,8 @@ async def router_filesystem() -> AsyncIterator[Tuple[asyncio.Semaphore, AsyncFS,
         assert not await fs.isdir(gs_base)
         assert not await fs.isdir(s3_base)
         assert not await fs.isdir(azure_base)
+
+
+@pytest.fixture(params=['gs', 's3', 'azure-https'], scope='module')
+async def cloud_scheme(request):
+    yield request.param
