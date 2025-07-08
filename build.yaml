@@ -405,6 +405,8 @@ steps:
         script: /io/sql/change-username-collation.sql
       - name: add-hail-identity-uid
         script: /io/sql/add-hail-identity-uid.sql
+      - name: add-users-last-active
+        script: /io/sql/add-users-last-active.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2354,9 +2356,6 @@ steps:
         online: true
       - name: is-job-cancelled
         script: /io/sql/119-is-job-cancelled.sql
-      - name: add-users-last-active
-        script: /io/sql/add-users-last-active.sql
-        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
