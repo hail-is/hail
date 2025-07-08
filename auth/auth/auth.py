@@ -753,7 +753,7 @@ async def activate_user(request: web.Request, _) -> NoReturn:
     raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
 
-@routes.delete('/api/v1alpha/users/{user}')
+@routes.put('/api/v1alpha/users/{user}/activate')
 @api_security_headers
 @auth.authenticated_developers_only()
 async def rest_activate_user(request: web.Request, _) -> web.Response:
