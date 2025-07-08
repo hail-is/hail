@@ -405,9 +405,6 @@ steps:
         script: /io/sql/change-username-collation.sql
       - name: add-hail-identity-uid
         script: /io/sql/add-hail-identity-uid.sql
-      - name: add-users-last-active
-        script: /io/sql/add-users-last-active.sql
-        online: true
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -2357,6 +2354,9 @@ steps:
         online: true
       - name: is-job-cancelled
         script: /io/sql/119-is-job-cancelled.sql
+      - name: add-users-last-active
+        script: /io/sql/add-users-last-active.sql
+        online: true
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -3037,13 +3037,13 @@ steps:
     script: |
       cd /io
       set -ex
-      
+
       tar xzf test.tar.gz
       python3 -m pip install --no-dependencies /io/debug-wheel/hail-*-py3-none-any.whl
-            
+
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       export AZURE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-      
+
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
       export HAIL_CLOUD={{ global.cloud }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
