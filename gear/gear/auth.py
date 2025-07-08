@@ -15,7 +15,7 @@ from hailtop.config import get_deploy_config
 from hailtop.utils import retry_transient_errors
 
 
-from .role_permissions import SystemPermission, system_role_permissions
+from .system_permissions import SystemPermission
 from .time_limited_max_size_cache import TimeLimitedMaxSizeCache
 
 log = logging.getLogger('gear.auth')
