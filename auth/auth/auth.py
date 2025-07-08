@@ -33,7 +33,7 @@ from gear import (
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
-from gear.role_permissions import SystemPermission, SystemRole, system_role_permissions
+from gear.role_permissions import SystemPermission
 from hailtop import __version__, httpx, uvloopx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
@@ -991,13 +991,15 @@ async def check_system_permission_from_userinfo(db: Database, userinfo: UserData
     """Check if a user has a specific system permission based on their userinfo."""
 
     # Get user's system roles from the users_system_roles table
-    user_roles = [
-        x['name']
+    user_permissions = [
+        x['permission_name']
         async for x in db.select_and_fetchall(
             """
-SELECT sr.name
+SELECT sp.name AS permission_name
 FROM users_system_roles usr
 JOIN system_roles sr ON usr.role_id = sr.id
+JOIN system_role_permissions srp ON srp.role_id = sr.id
+JOIN system_permissions sp ON sp.id = srp.permission_id
 WHERE usr.user_id = %s
 """,
             userinfo['id'],
@@ -1005,8 +1007,8 @@ WHERE usr.user_id = %s
     ]
 
     # Check if user has the requested permission through any of their roles
-    for role in user_roles:
-        if permission.value in system_role_permissions[role]:
+    for user_permission in user_permissions:
+        if user_permission == permission.value:
             return True
     
     return False
@@ -1016,7 +1018,7 @@ WHERE usr.user_id = %s
 @api_security_headers
 @auth.authenticated_users_only()
 async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> web.Response:
-    user_roles_permissions = await get_system_roles_from_user_id(request, userdata['id'])
+    user_roles_permissions = await _get_system_role_assignments(request, userdata['id'])
     return json_response(user_roles_permissions)
 
 
@@ -1025,7 +1027,7 @@ async def get_system_roles_for_me(request: web.Request, userdata: UserData) -> w
 @auth.authenticated_developers_only()
 async def get_system_roles_for_user(request: web.Request, _) -> web.Response:
     user_id = request.match_info['user_id']
-    user_roles_permissions = await get_system_roles_from_user_id(request, user_id)
+    user_roles_permissions = await _get_system_role_assignments(request, user_id)
     return json_response(user_roles_permissions)
 
 
@@ -1133,47 +1135,12 @@ WHERE usr.user_id = %s AND sr.name = %s
     return json_response(result)
 
 
-async def get_system_roles_from_user_id(request: web.Request, user_id: Union[int, str]) -> dict:
-    db = request.app[AppKeys.DB]
-
-    # Verify user exists - and get a user record - from either ID or unique username:
-    if isinstance(user_id, int):
-        user = await db.select_and_fetchone(
-            "SELECT id, username FROM users WHERE id = %s AND state = 'active'",
-            (user_id,)
-        )
-    else:
-        user = await db.select_and_fetchone(
-            "SELECT id, username FROM users WHERE username = %s AND state = 'active'",
-            (user_id,)
-        )
-
-        # Get user's system roles from the users_system_roles table
-    user_roles = [
-        x['name']
-        async for x in db.select_and_fetchall(
-            """
-SELECT sr.name
-FROM users_system_roles usr
-JOIN system_roles sr ON usr.role_id = sr.id
-WHERE usr.user_id = %s
-""",
-            user['id'],
-        )
-    ]
-
-    # filter the system_role_permissions to only include the roles that the user has
-    user_roles_permissions = { role.value: [p.value for p in permissions] for role, permissions in system_role_permissions.items() if role.value in user_roles }
-    
-    return user_roles_permissions
-
-
 @routes.get('/api/v1alpha/system_roles/all')
 @api_security_headers
 @auth.authenticated_developers_only()
 async def get_all_system_role_assignments(request: web.Request, _userdata: UserData) -> web.Response:
     # Note: userdata provided by authenticating wrapper, but is otherwise unused in function.
-    system_roles_for_everyone = await _get_all_system_role_assignments(request)
+    system_roles_for_everyone = await _get_system_role_assignments(request)
 
     # Unpack the enums:
     system_roles_for_everyone = {
@@ -1185,30 +1152,46 @@ async def get_all_system_role_assignments(request: web.Request, _userdata: UserD
 
 
 
-async def _get_all_system_role_assignments(request: web.Request) -> dict:
+async def _get_system_role_assignments(request: web.Request, user_id_filter: Optional[int] = None) -> dict:
     db = request.app[AppKeys.DB]
+
+
+    query = """
+SELECT sr.name AS role_name, users.username, sp.name AS permission_name
+FROM users
+JOIN users_system_roles usr ON usr.user_id = users.id
+JOIN system_roles sr ON usr.role_id = sr.id
+JOIN system_role_permissions srp ON srp.role_id = sr.id
+JOIN system_permissions sp ON sp.id = srp.permission_id
+"""
+
+    if user_id_filter:
+        query += " WHERE users.id = %s"
+
+    params = (user_id_filter,) if user_id_filter else ()
 
     # Get all system roles
     system_role_entries = [
         x
-        async for x in db.select_and_fetchall(
-            """
-SELECT sr.name, users.username
-FROM users_system_roles usr
-JOIN system_roles sr ON usr.role_id = sr.id
-JOIN users ON usr.user_id = users.id
-""",
-        )
+        async for x in db.select_and_fetchall(query, params)
     ]
 
     result = {}
-    for role in system_role_permissions.keys():
-        result[role] = {}
-        result[role]['users'] = []
-        for sre in system_role_entries:
-            if sre['name'] == role:
-                result[role]['users'].append(sre['username'])
-        result[role]['permissions'] = [p.value for p in system_role_permissions[role]]
+    for role in system_role_entries:
+        role_name = role['role_name']
+        permission_name = role['permission_name']
+        username = role['username']
+
+        if role_name not in result:
+            result[role_name] = {}
+            result[role_name]['users'] = []
+            result[role_name]['permissions'] = []
+
+        if username not in result[role_name]['users']:
+            result[role_name]['users'].append(username)
+
+        if permission_name not in result[role_name]['permissions']:
+            result[role_name]['permissions'].append(permission_name)
     
     return result
 
