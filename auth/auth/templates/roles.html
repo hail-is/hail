@@ -16,7 +16,7 @@
   <tbody>
     {% for role in all_system_role_assignments.keys() %}
     <tr>
-      <td class='text-left border border-slate-300 px-2 py-2'>{{ role.value }}</td>
+      <td class='text-left border border-slate-300 px-2 py-2'>{{ role }}</td>
       <td class='text-left border border-slate-300 px-2 py-2'>
         <ul class='list-disc list-inside'>
           {% for permission in all_system_role_assignments[role]['permissions'] %}
@@ -29,9 +29,9 @@
           {% for user in all_system_role_assignments[role]['users'] %}
           <li class='flex items-center mb-1'>
             <button 
-              onclick="removeRole('{{ user }}', '{{ role.value }}')"
+              onclick="removeRole('{{ user }}', '{{ role }}')"
               class='mr-2 w-6 flex-shrink-0 text-red-600 hover:text-red-800 transition-colors duration-200 flex items-center justify-center'
-              title='Remove {{ role.value }} role from {{ user }}'
+              title='Remove {{ role }} role from {{ user }}'
             >
               <svg class='w-4 h-4' fill='currentColor' viewBox='0 0 20 20'>
                 <path fill-rule='evenodd' d='M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z' clip-rule='evenodd'></path>
@@ -50,16 +50,16 @@
           </span>
           <input 
             type='text' 
-            id='add-user-{{ role.value }}'
+            id='add-user-{{ role }}'
             placeholder='Enter username'
             autocomplete='off'
             data-lpignore='true'
             class='flex-1 border border-slate-300 rounded px-2 py-1 text-sm mr-2'
           />
           <button 
-            onclick="addRole('{{ role.value }}')"
+            onclick="addRole('{{ role }}')"
             class='bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors duration-200'
-            title='Add {{ role.value }} role to user'
+            title='Add {{ role }} role to user'
           >
             Add
           </button>
