@@ -33,7 +33,7 @@ from gear import (
 from gear.auth import AIOHTTPHandler, get_session_id
 from gear.cloud_config import get_global_config
 from gear.profiling import install_profiler_if_requested
-from gear.role_permissions import SystemPermission
+from gear.system_permissions import SystemPermission
 from hailtop import __version__, httpx, uvloopx
 from hailtop.auth import AzureFlow, Flow, GoogleFlow, IdentityProvider
 from hailtop.config import get_deploy_config
