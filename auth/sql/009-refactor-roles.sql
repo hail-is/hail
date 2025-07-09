@@ -61,27 +61,77 @@ CREATE TABLE `system_role_permissions` (
 
 -- Create mapping of system roles to system permissions:
 -- User admin
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'admin', SELECT `id` FROM `system_permissions` WHERE `name` = 'create_users');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'admin', SELECT `id` FROM `system_permissions` WHERE `name` = 'read_users');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'admin', SELECT `id` FROM `system_permissions` WHERE `name` = 'update_users');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'admin', SELECT `id` FROM `system_permissions` WHERE `name` = 'delete_users');
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'admin' AND p.name = 'create_users';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'admin' AND p.name = 'read_users';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'admin' AND p.name = 'update_users';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'admin' AND p.name = 'delete_users';
+
 -- Role admin
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'admin', SELECT `id` FROM `system_permissions` WHERE `name` = 'assign_system_roles');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'admin', SELECT `id` FROM `system_permissions` WHERE `name` = 'read_system_roles');
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'admin' AND p.name = 'assign_system_roles';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'admin' AND p.name = 'read_system_roles';
+
 -- Developer environments
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'developer', SELECT `id` FROM `system_permissions` WHERE `name` = 'create_developer_environments');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'developer', SELECT `id` FROM `system_permissions` WHERE `name` = 'read_developer_environments');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'developer', SELECT `id` FROM `system_permissions` WHERE `name` = 'update_developer_environments');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'developer', SELECT `id` FROM `system_permissions` WHERE `name` = 'delete_developer_environments');
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'developer' AND p.name = 'create_developer_environments';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'developer' AND p.name = 'read_developer_environments';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'developer' AND p.name = 'update_developer_environments';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'developer' AND p.name = 'delete_developer_environments';
+
 -- Logging and monitoring
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'developer', SELECT `id` FROM `system_permissions` WHERE `name` = 'view_monitoring_dashboards');
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'developer' AND p.name = 'view_monitoring_dashboards';
+
 -- Billing projects
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager', SELECT `id` FROM `system_permissions` WHERE `name` = 'read_users');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager', SELECT `id` FROM `system_permissions` WHERE `name` = 'create_billing_projects');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager', SELECT `id` FROM `system_permissions` WHERE `name` = 'read_all_billing_projects');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager', SELECT `id` FROM `system_permissions` WHERE `name` = 'update_all_billing_projects');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager', SELECT `id` FROM `system_permissions` WHERE `name` = 'delete_all_billing_projects');
-INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) VALUES (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager', SELECT `id` FROM `system_permissions` WHERE `name` = 'assign_users_to_all_billing_projects');
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'billing_manager' AND p.name = 'read_users';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'billing_manager' AND p.name = 'create_billing_projects';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'billing_manager' AND p.name = 'read_all_billing_projects';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'billing_manager' AND p.name = 'update_all_billing_projects';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'billing_manager' AND p.name = 'delete_all_billing_projects';
+
+INSERT INTO `system_role_permissions` (`role_id`, `permission_id`) 
+SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
+WHERE r.name = 'billing_manager' AND p.name = 'assign_users_to_all_billing_projects';
 
 -- Give all users the developer role if they currently have the is_developer flag
 INSERT INTO `users_system_roles` (`user_id`, `role_id`)
