@@ -133,15 +133,18 @@ INSERT INTO `system_role_permissions` (`role_id`, `permission_id`)
 SELECT r.id, p.id FROM `system_roles` r, `system_permissions` p 
 WHERE r.name = 'billing_manager' AND p.name = 'assign_users_to_all_billing_projects';
 
--- Give all users the developer role if they currently have the is_developer flag
+-- Give all users the developer, billing_manager and admin roles if they currently have the is_developer flag
 INSERT INTO `users_system_roles` (`user_id`, `role_id`)
 SELECT `id`, (SELECT `id` FROM `system_roles` WHERE `name` = 'developer')
 FROM `users`
-WHERE `is_developer` = 1;
+WHERE `is_developer` = 1 AND `state` = 'active';
 
--- Also give all users the billing_manager role if they currently have the is_developer flag
 INSERT INTO `users_system_roles` (`user_id`, `role_id`)
 SELECT `id`, (SELECT `id` FROM `system_roles` WHERE `name` = 'billing_manager')
 FROM `users`
-WHERE `is_developer` = 1;
+WHERE `is_developer` = 1 AND `state` = 'active';
 
+INSERT INTO `users_system_roles` (`user_id`, `role_id`)
+SELECT `id`, (SELECT `id` FROM `system_roles` WHERE `name` = 'admin')
+FROM `users`
+WHERE `is_developer` = 1 AND `state` = 'active';

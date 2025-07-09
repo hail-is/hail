@@ -564,7 +564,7 @@ async def hailctl_oauth_client(request):  # pylint: disable=unused-argument
 async def get_roles(request: web.Request, userdata: UserData) -> web.Response:
     db = request.app[AppKeys.DB]
 
-    all_system_role_assignments = await _get_all_system_role_assignments(request)
+    all_system_role_assignments = await get_all_system_role_assignments(request)
 
     page_context = {'all_system_role_assignments': all_system_role_assignments}
     return await render_template('auth', request, userdata, 'roles.html', page_context)
