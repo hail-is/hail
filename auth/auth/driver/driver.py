@@ -584,7 +584,7 @@ async def async_main():
         db = Database()
         task_manager = aiotools.BackgroundTaskManager()
         task_manager.ensure_future(
-            periodically_call(60, update_inactive_users, db, USER_TIMEOUT_DAYS)
+            periodically_call(86400, update_inactive_users, db, USER_TIMEOUT_DAYS)
         )  # 86400 seconds = 1 day
         await db.async_init(maxsize=50)
         app['db'] = db
