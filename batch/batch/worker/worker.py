@@ -2990,17 +2990,11 @@ class JVMPool:
         log.info(f'killed {jvm} and recreated a new jvm')
 
     async def create_jvm(self):
-        try:
-            log.info(f'JVMPool.create_jvm: {self.n_cores=}: {self.queue.qsize()=} {self.total_jvms_including_borrowed=} {self.max_jvms=}')
-            assert self.queue.qsize() < self.max_jvms
-            assert self.total_jvms_including_borrowed < self.max_jvms
-            self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
-            log.info(f'JVMPool.create_jvm: created JVM-{JVMPool.global_jvm_index} for {self.n_cores=}')
-            self.total_jvms_including_borrowed += 1
-            JVMPool.global_jvm_index += 1
-        except Exception:
-            log.error(f'JVMPool.create_jvm: create failed: {traceback.format_exc()}')
-            raise
+        assert self.queue.qsize() < self.max_jvms
+        assert self.total_jvms_including_borrowed < self.max_jvms
+        self.queue.put_nowait(await JVM.create(JVMPool.global_jvm_index, self.n_cores, self.worker))
+        self.total_jvms_including_borrowed += 1
+        JVMPool.global_jvm_index += 1
 
     def full(self) -> bool:
         return self.total_jvms_including_borrowed == self.max_jvms
@@ -3048,11 +3042,7 @@ class Worker:
             try:
                 requested_n_cores = self._waiting_for_jvm_with_n_cores.get_nowait()
                 if not self._jvmpools_by_cores[requested_n_cores].full():
-                    log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}, creating one')
                     await self._jvmpools_by_cores[requested_n_cores].create_jvm()
-                else:
-                    log.info(f'Worker._initialize_jvms woke up for {requested_n_cores=}, already full')
-                log.info(f'Worker._initialize_jvms after wakeup JVM creation: {self._jvmpools_by_cores[requested_n_cores]!r}')
             except asyncio.QueueEmpty:
                 next_unfull_jvmpool = None
                 for jvmpool in self._jvmpools_by_cores.values():
@@ -3062,16 +3052,10 @@ class Worker:
 
                 if next_unfull_jvmpool is None:
                     break
-                log.info(f'Worker._initialize_jvms hunted for {next_unfull_jvmpool.n_cores=}')
                 await next_unfull_jvmpool.create_jvm()
-                log.info(f'Worker._initialize_jvms after unfull JVM creation: {next_unfull_jvmpool!r}')
 
         assert self._waiting_for_jvm_with_n_cores.empty()
-        all_full = all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
-        if not all_full:
-            non_full_jvm_pools = ','.join([str(jvmpool) for jvmpool in self._jvmpools_by_cores.values() if not jvmpool.full()])
-            log.info(f'JVM Pools were not all full: {non_full_jvm_pools}')
-        assert all_full
+        assert all(jvmpool.full() for jvmpool in self._jvmpools_by_cores.values())
         log.info(f'JVMs initialized {self._jvmpools_by_cores}')
 
     @staticmethod
@@ -3086,27 +3070,18 @@ class Worker:
         if instance_config.worker_type() not in ('standard', 'D', 'highmem', 'E'):
             raise ValueError(f'no JVMs available on {instance_config.worker_type()}')
 
-        log.info(f'Worker.borrow_jvm {n_cores=}')
         jvmpool = self._jvmpools_by_cores[n_cores]
         try:
-            jj = jvmpool.borrow_jvm_nowait()
-            log.info(f'Borrowed {jj} without waiting')
-            return jj
+            return jvmpool.borrow_jvm_nowait()
         except asyncio.QueueEmpty:
-            log.info(f'QueueEmpty hence waiting to borrow: putting {n_cores} on queue')
             self._waiting_for_jvm_with_n_cores.put_nowait(n_cores)
-            log.info('Done put_nowait, awating JVMPool.borrow_jvm')
-            jj = await jvmpool.borrow_jvm()
-            log.info(f'Borrowed {jj} after a wait')
-            return jj
+            return await jvmpool.borrow_jvm()
 
     def return_jvm(self, jvm: JVM):
         jvm.reset()
-        log.info(f'Returning {jvm} after use')
         self._jvmpools_by_cores[jvm.n_cores].return_jvm(jvm)
 
     async def return_broken_jvm(self, jvm: JVM):
-        log.info(f'Returning borked {jvm} after use')
         return await self._jvmpools_by_cores[jvm.n_cores].return_broken_jvm(jvm)
 
     async def headers(self) -> Dict[str, str]:
