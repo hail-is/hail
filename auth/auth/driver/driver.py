@@ -36,6 +36,22 @@ except Exception as exc:
 
 
 async def update_inactive_users(db: Database, user_timeout_days: int):
+    """
+    Deactivates users who have been inactive for longer than the specified timeout.
+
+    Function updates the 'users' table in the database, setting the state to 'inactive'
+    for users who:
+        - are currently 'active';
+        - have a non-null 'last_activated' timestamp;
+        - have been inactive for more than 'user_timeout_days' days; and
+        - are NOT service accounts.
+    Args:
+        db (Database): The database connection object.
+        user_timeout_days (int): The number of days of inactivity after which a user is considered inactive.
+
+    Returns:
+        None
+    """
     await db.execute_update(
         """
 UPDATE users
@@ -584,7 +600,7 @@ async def async_main():
         db = Database()
         task_manager = aiotools.BackgroundTaskManager()
         task_manager.ensure_future(
-            periodically_call(60, update_inactive_users, db, USER_TIMEOUT_DAYS)
+            periodically_call(86400, update_inactive_users, db, USER_TIMEOUT_DAYS)
         )  # 86400 seconds = 1 day
         await db.async_init(maxsize=50)
         app['db'] = db
