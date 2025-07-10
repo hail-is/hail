@@ -61,11 +61,23 @@ class AccessLogger(AbstractAccessLogger):
             'request_duration': time,
             'response_status': response.status,
             'x_real_ip': request.headers.get("X-Real-IP"),
+            'user_agent': request.headers.get("User-Agent"),
         }
 
         userdata_maybe = request.get('userdata', {})
         userdata_keys = ['username', 'login_id', 'is_developer', 'hail_identity']
         extra.update({k: userdata_maybe[k] for k in userdata_keys if k in userdata_maybe})
+
+        api_info_maybe = request.get('api_info', {})
+        api_info_keys_and_defaults = {
+            'authenticated_users_only': False,
+            'developers_only': False,
+        }
+        for k, default in api_info_keys_and_defaults.items():
+            if k in api_info_maybe:
+                extra[k] = api_info_maybe[k]
+            else:
+                extra[k] = default
 
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} done in {time}s: {response.status}',
