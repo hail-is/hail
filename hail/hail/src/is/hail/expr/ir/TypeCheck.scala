@@ -577,7 +577,7 @@ object TypeCheck {
       case MatrixToValueApply(_, _) =>
       case BlockMatrixToValueApply(_, _) =>
       case BlockMatrixCollect(_) =>
-      case BlockMatrixWrite(_, writer) => writer.loweredTyp
+      case BlockMatrixWrite(_, _) =>
       case BlockMatrixMultiWrite(_, _) =>
       case CollectDistributedArray(ctxs, _, _, _, _, dynamicID, _, _) =>
         assert(ctxs.typ.isInstanceOf[TStream])

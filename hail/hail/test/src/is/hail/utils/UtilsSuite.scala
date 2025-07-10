@@ -9,11 +9,13 @@ import com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService
 import org.apache.spark.storage.StorageLevel
 import org.scalacheck.Gen
 import org.scalacheck.Gen.containerOf
+import org.scalatest
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
 class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
-  @Test def testD_==(): Unit = {
+  @Test def testD_==(): scalatest.Assertion = {
     assert(D_==(1, 1))
     assert(D_==(1, 1 + 1e-7))
     assert(!D_==(1, 1 + 1e-5))
@@ -25,7 +27,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(D_==(1e-320, -1e-320))
   }
 
-  @Test def testFlushDouble(): Unit = {
+  @Test def testFlushDouble(): scalatest.Assertion = {
     assert(flushDouble(8.0e-308) == 8.0e-308)
     assert(flushDouble(-8.0e-308) == -8.0e-308)
     assert(flushDouble(8.0e-309) == 0.0)
@@ -33,7 +35,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(flushDouble(0.0) == 0.0)
   }
 
-  @Test def testAreDistinct(): Unit = {
+  @Test def testAreDistinct(): scalatest.Assertion = {
     assert(Array().areDistinct())
     assert(Array(1).areDistinct())
     assert(Array(1, 2).areDistinct())
@@ -41,7 +43,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(!Array(1, 2, 1).areDistinct())
   }
 
-  @Test def testIsIncreasing(): Unit = {
+  @Test def testIsIncreasing(): scalatest.Assertion = {
     assert(Seq[Int]().isIncreasing)
     assert(Seq(1).isIncreasing)
     assert(Seq(1, 2).isIncreasing)
@@ -51,7 +53,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(Array(1, 2).isIncreasing)
   }
 
-  @Test def testIsSorted(): Unit = {
+  @Test def testIsSorted(): scalatest.Assertion = {
     assert(Seq[Int]().isSorted)
     assert(Seq(1).isSorted)
     assert(Seq(1, 2).isSorted)
@@ -61,14 +63,14 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(Array(1, 1).isSorted)
   }
 
-  @Test def testHadoopStripCodec(): Unit = {
+  @Test def testHadoopStripCodec(): scalatest.Assertion = {
     assert(fs.stripCodecExtension("file.tsv") == "file.tsv")
     assert(fs.stripCodecExtension("file.tsv.gz") == "file.tsv")
     assert(fs.stripCodecExtension("file.tsv.bgz") == "file.tsv")
     assert(fs.stripCodecExtension("file") == "file")
   }
 
-  @Test def testPairRDDNoDup(): Unit = {
+  @Test def testPairRDDNoDup(): scalatest.Assertion = {
     val answer1 =
       Array((1, (1, Option(1))), (2, (4, Option(2))), (3, (9, Option(3))), (4, (16, Option(4))))
     val pairRDD1 = sc.parallelize(Array(1, 2, 3, 4)).map(i => (i, i * i))
@@ -79,7 +81,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(join.count() == 4)
   }
 
-  @Test def testForallExists(): Unit = {
+  @Test def testForallExists(): scalatest.Assertion = {
     val rdd1 = sc.parallelize(Array(1, 2, 3, 4, 5))
 
     assert(rdd1.forall(_ > 0))
@@ -89,7 +91,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(!rdd1.exists(_ < 0))
   }
 
-  @Test def testSortFileListEntry(): Unit = {
+  @Test def testSortFileListEntry(): scalatest.Assertion = {
     val fs = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
     val partFileNames = fs.glob(getTestResource("part-*"))
@@ -110,7 +112,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     sls.foreach(sl => StorageLevel.fromString(sl))
   }
 
-  @Test def testDictionaryOrdering(): Unit = {
+  @Test def testDictionaryOrdering(): scalatest.Assertion = {
     val stringList = Seq("Cats", "Crayon", "Dog")
 
     val longestToShortestLength = Ordering.by[String, Int](-_.length)
@@ -123,14 +125,14 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(stringList.sorted(ord2) == Seq("Crayon", "Cats", "Dog"))
   }
 
-  @Test def testCollectAsSet(): Unit =
+  @Test def testCollectAsSet(): scalatest.Assertion =
     forAll(containerOf[Array, Int](Gen.choose(-1000, 1000)), Gen.choose(1, 10)) {
       case (values, parts) =>
         val rdd = sc.parallelize(values, numSlices = parts)
-        rdd.collectAsSet() == rdd.collect().toSet
+        assert(rdd.collectAsSet() == rdd.collect().toSet)
     }
 
-  @Test def testDigitsNeeded(): Unit = {
+  @Test def testDigitsNeeded(): scalatest.Assertion = {
     assert(digitsNeeded(0) == 1)
     assert(digitsNeeded(1) == 1)
     assert(digitsNeeded(7) == 1)
@@ -139,7 +141,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(digitsNeeded(30173) == 5)
   }
 
-  @Test def testMangle(): Unit = {
+  @Test def testMangle(): scalatest.Assertion = {
     val c1 = Array("a", "b", "c", "a", "a", "c", "a")
     val (c2, diff) = mangle(c1)
     assert(c2.toSeq == Seq("a", "b", "c", "a_1", "a_2", "c_1", "a_3"))
@@ -150,22 +152,22 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(diff2.toSeq == Seq("a" -> "aD", "a" -> "aDD", "c" -> "cD", "a" -> "aDDD"))
   }
 
-  @Test def toMapUniqueEmpty(): Unit =
+  @Test def toMapUniqueEmpty(): scalatest.Assertion =
     assert(toMapIfUnique(Seq[(Int, Int)]())(x => x % 2) == Right(Map()))
 
-  @Test def toMapUniqueSingleton(): Unit =
+  @Test def toMapUniqueSingleton(): scalatest.Assertion =
     assert(toMapIfUnique(Seq(1 -> 2))(x => x % 2) == Right(Map(1 -> 2)))
 
-  @Test def toMapUniqueSmallNoDupe(): Unit =
+  @Test def toMapUniqueSmallNoDupe(): scalatest.Assertion =
     assert(toMapIfUnique(Seq(1 -> 2, 3 -> 6, 10 -> 2))(x => x % 5) ==
       Right(Map(1 -> 2, 3 -> 6, 0 -> 2)))
 
-  @Test def toMapUniqueSmallDupes(): Unit =
+  @Test def toMapUniqueSmallDupes(): scalatest.Assertion =
     assert(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5) ==
       Left(Map(1 -> Seq(1, 6))))
 
-  @Test def testItemPartition(): Unit = {
-    def test(n: Int, k: Int): Unit = {
+  @Test def testItemPartition(): scalatest.Assertion = {
+    def test(n: Int, k: Int): scalatest.Assertion = {
       val a = new Array[Int](k)
       var prevj = 0
       for (i <- 0 until n) {
@@ -190,7 +192,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     test(12, 5)
   }
 
-  @Test def testTreeAggDepth(): Unit = {
+  @Test def testTreeAggDepth(): scalatest.Assertion = {
     assert(treeAggDepth(20, 20) == 1)
     assert(treeAggDepth(20, 19) == 2)
     assert(treeAggDepth(399, 20) == 2)
@@ -199,7 +201,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(treeAggDepth(0, 20) == 1)
   }
 
-  @Test def testRunAll(): Unit = {
+  @Test def testRunAll(): scalatest.Assertion = {
     type F[_] = Null
 
     val (_, successes) =
@@ -210,7 +212,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(successes == Seq(0 -> 0, 2 -> 2))
   }
 
-  @Test def testRunAllWithCancellingExecutorService(): Unit = {
+  @Test def testRunAllWithCancellingExecutorService(): scalatest.Assertion = {
     type F[_] = Null
 
     val delegate = Executors.newSingleThreadExecutor()
@@ -225,7 +227,7 @@ class UtilsSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     } finally delegate.shutdown()
   }
 
-  @Test def testMerge(): Unit = {
+  @Test def testMerge(): scalatest.Assertion = {
     val lt: (Int, Int) => Boolean =
       _ < _
 

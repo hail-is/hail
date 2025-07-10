@@ -6,6 +6,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
+import org.scalatest
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
@@ -27,7 +28,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     } yield (depth, starts)
 
-  @Test def queryGivesSameAnswerAsArray(): Unit =
+  @Test def queryGivesSameAnswerAsArray(): scalatest.Assertion =
     forAll(genStarts) { case (depth: Int, arrayRandomStarts: Array[Long]) =>
       val index = ctx.createTmpPath("testBtree", "idx")
 
@@ -64,10 +65,10 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         println(s"depth=$depthCorrect indexCorrect=$indexCorrectSize queryCorrect=$queryCorrect")
 
       btree.close()
-      depthCorrect && indexCorrectSize && queryCorrect
+      assert(depthCorrect && indexCorrectSize && queryCorrect)
     }
 
-  @Test def oneVariant(): Unit = {
+  @Test def oneVariant(): scalatest.Assertion = {
     val index = Array(24.toLong)
     val fileSize = 30 // made-up value greater than index
     val idxFile = ctx.createTmpPath("testBtree_1variant", "idx")
@@ -88,16 +89,15 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(btree.queryIndex(fileSize - 1).isEmpty)
   }
 
-  @Test def zeroVariants(): Unit = {
-    intercept[IllegalArgumentException] {
+  @Test def zeroVariants(): scalatest.Assertion =
+    assertThrows[IllegalArgumentException] {
       val index = Array[Long]()
       val idxFile = ctx.createTmpPath("testBtree_0variant", "idx")
       fs.delete(idxFile, recursive = true)
       IndexBTree.write(index, idxFile, fs)
     }
-  }
 
-  @Test def testMultipleOfBranchingFactorDoesNotAddUnnecessaryElements(): Unit = {
+  @Test def testMultipleOfBranchingFactorDoesNotAddUnnecessaryElements(): scalatest.Assertion = {
     val in = Array[Long](10, 9, 8, 7, 6, 5, 4, 3)
     val bigEndianBytes = Array[Byte](
       0, 0, 0, 0, 0, 0, 0, 10,
@@ -112,7 +112,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
       sameElements bigEndianBytes)
   }
 
-  @Test def writeReadMultipleOfBranchingFactorDoesNotError(): Unit = {
+  @Test def writeReadMultipleOfBranchingFactorDoesNotError(): scalatest.Assertion = {
     val idxFile = ctx.createTmpPath("btree")
     IndexBTree.write(
       Array.tabulate(1024)(i => i),
@@ -123,7 +123,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(index.queryIndex(33).contains(33L))
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray(): Unit = {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectSmallArray(): scalatest.Assertion = {
     val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 40, 50, 60, 70)
     val branchingFactor = 1024
@@ -141,7 +141,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(71).isEmpty)
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray(): Unit = {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectTwoLevelsArray(): scalatest.Assertion = {
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1025)(x => sqr(x))
@@ -168,7 +168,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(5).contains((3, sqr(3))))
   }
 
-  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray(): Unit = {
+  @Test def queryArrayPositionAndFileOffsetIsCorrectThreeLevelsArray(): scalatest.Assertion = {
     def sqr(x: Long) = x * x
     val f = ctx.createTmpPath("btree")
     val v = Array.tabulate(1024 * 1024 + 1)(x => sqr(x))
@@ -215,7 +215,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(bt.queryArrayPositionAndFileOffset(sqr(1024 * 1024) + 1).isEmpty)
   }
 
-  @Test def onDiskBTreeIndexToValueSmallCorrect(): Unit = {
+  @Test def onDiskBTreeIndexToValueSmallCorrect(): scalatest.Assertion = {
     val f = ctx.createTmpPath("btree")
     val v = Array[Long](1, 2, 3, 4, 5, 6, 7)
     val branchingFactor = 3
@@ -241,7 +241,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def onDiskBTreeIndexToValueRandomized(): Unit = {
+  @Test def onDiskBTreeIndexToValueRandomized(): scalatest.Assertion = {
     val g =
       for {
         longs <- nonEmptyContainerOf[Array, Long](choose(0L, Long.MaxValue))
@@ -270,7 +270,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def onDiskBTreeIndexToValueFourLayers(): Unit = {
+  @Test def onDiskBTreeIndexToValueFourLayers(): scalatest.Assertion = {
     val longs = Array.tabulate(3 * 3 * 3 * 3)(x => x.toLong)
     val indices = Array(0, 3, 10, 20, 26, 27, 34, 55, 79, 80)
     val f = ctx.createTmpPath("btree")
@@ -293,7 +293,7 @@ class IndexBTreeSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     }
   }
 
-  @Test def calcDepthIsCorrect(): Unit = {
+  @Test def calcDepthIsCorrect(): scalatest.Assertion = {
     def sqr(x: Long) = x * x
     def cube(x: Long) = x * x * x
 

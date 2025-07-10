@@ -3,6 +3,7 @@ package is.hail.types.virtual
 import is.hail.expr.ir._
 import is.hail.expr.ir.defs.{I64, If, Literal, ToStream}
 import is.hail.linalg.BlockMatrix
+import is.hail.macros.void
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
@@ -431,49 +432,25 @@ case class BlockMatrixType(
   else
     getBlockDependencies(keepCols)
 
-  override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
-    var indent = indent0
-
+  override def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     val space: String = if (compact) "" else " "
+    val newline: String = if (compact) "" else "\n"
+    val padding: String = if (compact) "" else " " * indent
 
-    def newline(): Unit =
-      if (!compact) {
-        sb += '\n'
-        sb.append(" " * indent)
-      }
+    sb ++= "BlockMatrix" ++= space += '{' ++= newline
 
-    sb.append(s"BlockMatrix$space{")
-    indent += 4
-    newline()
+    sb ++= padding ++= "elementType:" ++= space
+    elementType.pretty(sb, indent + 4, compact)
+    sb += ',' ++= newline
 
-    sb.append(s"elementType:$space")
-    elementType.pretty(sb, indent, compact)
-    sb += ','
-    newline()
+    sb ++= padding ++= "shape:" ++= space += '['
+    shape.foreachBetween(dimSize => sb ++= s"$dimSize")(void(sb += ',' ++= space))
+    sb ++= "]," ++= newline
 
-    sb.append(s"shape:$space[")
-    shape.foreachBetween(dimSize => sb.append(dimSize))(sb.append(s",$space"))
-    sb += ']'
-    sb += ','
-    newline()
+    sb ++= padding ++= "isRowVector:" ++= space ++= s"$isRowVector" += ',' ++= newline
+    sb ++= padding ++= "blockSize:" ++= space ++= s"$blockSize" += ',' ++= newline
+    sb ++= padding ++= "sparsity:" ++= space ++= s"$sparsity" += ',' ++= newline
 
-    sb.append(s"isRowVector:$space")
-    sb.append(isRowVector)
-    sb += ','
-    newline()
-
-    sb.append(s"blockSize:$space")
-    sb.append(blockSize)
-    sb += ','
-    newline()
-
-    sb.append(s"sparsity:$space")
-    sb.append(sparsity.toString)
-    sb += ','
-    newline()
-
-    indent -= 4
-    newline()
     sb += '}'
   }
 

@@ -8,7 +8,7 @@ case object TFloat32 extends TNumeric {
   def _toPretty = "Float32"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("float32")
+    sb ++= "float32"
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Float]
 

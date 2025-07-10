@@ -118,6 +118,7 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
       "-Xno-patmat-analysis",
       "-Ypartial-unification",
       "-Yno-adapted-args", // will be removed in 2.13
+      "-Ywarn-value-discard",
       "-Xlint",
       "-Ywarn-unused:_,-explicits,-implicits",
       "-Wconf:msg=legacy-binding:s",
@@ -146,7 +147,6 @@ trait HailModule extends ScalaModule with ScalafmtModule with ScalafixModule { o
         ivy"org.scalatest::scalatest-shouldmatchers:3.2.19",
         ivy"org.scalatestplus::scalacheck-1-18:3.2.19.0",
         ivy"org.scalatestplus::testng-7-10:3.2.19.0",
-        ivy"org.testng:testng:7.10.0",
         ivy"org.mockito::mockito-scala:1.17.31",
       )
 
@@ -173,6 +173,9 @@ object hail extends HailModule { outer =>
   }
 
   override def moduleDeps: Seq[JavaModule] = Seq(memory)
+
+  override def compileModuleDeps: Seq[JavaModule] =
+    Seq(macros)
 
   override def resources: T[Seq[PathRef]] = super.resources() ++ Seq(
     PathRef(millOuterCtx.millSourcePath / "prebuilt" / "lib"),
@@ -287,6 +290,13 @@ object hail extends HailModule { outer =>
     }
   }
 
+  object macros extends HailModule {
+    override def compileIvyDeps: T[Agg[Dep]] = Agg(
+      ivy"org.scala-lang:scala-reflect:${scalaVersion()}",
+      ivy"orf.scala-lang:scala-compiler:${scalaVersion()}"
+    )
+  }
+
   object test extends HailTests {
     override def resources: T[Seq[PathRef]] = outer.resources() ++ super.resources()
 
@@ -297,6 +307,9 @@ object hail extends HailModule { outer =>
     override def ivyDeps: T[Agg[Dep]] = super.ivyDeps() ++ Seq(
       Deps.jackson
     )
+
+    override def compileModuleDeps: Seq[JavaModule] =
+      super.compileModuleDeps ++ outer.compileModuleDeps
   }
 
   object shadedazure extends JavaModule {

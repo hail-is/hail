@@ -10,6 +10,8 @@ import is.hail.types.virtual._
 import is.hail.utils._
 
 import org.apache.spark.sql.Row
+import org.scalatest
+import org.scalatest.Inspectors.forAll
 import org.testng.ITestContext
 import org.testng.annotations.{BeforeMethod, Test}
 
@@ -40,7 +42,7 @@ class IntervalSuite extends HailSuite {
   val i4 = interval(NA(tpoint1), point(2), null, false)
   val i5 = interval(NA(tpoint1), point(2), true, null)
 
-  @Test def constructor(): Unit = {
+  @Test def constructor(): scalatest.Assertion = {
     assertEvalsTo(i1, Interval(Row(1), Row(2), true, false))
     assertEvalsTo(i2, Interval(Row(1), null, true, false))
     assertEvalsTo(i3, Interval(null, Row(2), true, false))
@@ -48,33 +50,33 @@ class IntervalSuite extends HailSuite {
     assertEvalsTo(i5, null)
   }
 
-  @Test def start(): Unit = {
+  @Test def start(): scalatest.Assertion = {
     assertEvalsTo(invoke("start", tpoint1, i1), Row(1))
     assertEvalsTo(invoke("start", tpoint1, i2), Row(1))
     assertEvalsTo(invoke("start", tpoint1, i3), null)
     assertEvalsTo(invoke("start", tpoint1, na), null)
   }
 
-  @Test def defaultValueCorrectlyStored(): Unit = {
+  @Test def defaultValueCorrectlyStored(): scalatest.Assertion = {
     assertEvalsTo(If(GetTupleElement(invoke("start", tpoint1, i1), 0).ceq(1), true, false), true)
     assertEvalsTo(If(GetTupleElement(invoke("end", tpoint1, i1), 0).ceq(2), true, false), true)
   }
 
-  @Test def end(): Unit = {
+  @Test def end(): scalatest.Assertion = {
     assertEvalsTo(invoke("end", tpoint1, i1), Row(2))
     assertEvalsTo(invoke("end", tpoint1, i2), null)
     assertEvalsTo(invoke("end", tpoint1, i3), Row(2))
     assertEvalsTo(invoke("end", tpoint1, na), null)
   }
 
-  @Test def includeStart(): Unit = {
+  @Test def includeStart(): scalatest.Assertion = {
     assertEvalsTo(invoke("includesStart", TBoolean, i1), true)
     assertEvalsTo(invoke("includesStart", TBoolean, i2), true)
     assertEvalsTo(invoke("includesStart", TBoolean, i3), true)
     assertEvalsTo(invoke("includesStart", TBoolean, na), null)
   }
 
-  @Test def includeEnd(): Unit = {
+  @Test def includeEnd(): scalatest.Assertion = {
     assertEvalsTo(invoke("includesEnd", TBoolean, i1), false)
     assertEvalsTo(invoke("includesEnd", TBoolean, i2), false)
     assertEvalsTo(invoke("includesEnd", TBoolean, i3), false)
@@ -104,43 +106,34 @@ class IntervalSuite extends HailSuite {
       i.includesEnd,
     )
 
-  @Test def contains(): Unit = {
-    for {
-      setInterval <- testIntervals
-      p <- points
-    } {
+  @Test def contains(): scalatest.Assertion =
+    forAll(cartesian(testIntervals, points)) { case (setInterval, p) =>
       val interval = toIRInterval(setInterval)
       assert(eval(invoke("contains", TBoolean, interval, p)) == setInterval.contains(p))
     }
-  }
 
-  @Test def isEmpty(): Unit = {
-    for (setInterval <- testIntervals) {
+  @Test def isEmpty(): scalatest.Assertion =
+    forAll(testIntervals) { setInterval =>
       val interval = toIRInterval(setInterval)
       assert(eval(
         invoke("isEmpty", TBoolean, ErrorIDs.NO_ERROR, interval)
       ) == setInterval.definitelyEmpty())
     }
-  }
 
-  @Test def overlaps(): Unit = {
-    for {
-      setInterval1 <- testIntervals
-      setInterval2 <- testIntervals
-    } {
+  @Test def overlaps(): scalatest.Assertion =
+    forAll(cartesian(testIntervals, testIntervals)) { case (setInterval1, setInterval2) =>
       val interval1 = toIRInterval(setInterval1)
       val interval2 = toIRInterval(setInterval2)
       assert(eval(
         invoke("overlaps", TBoolean, interval1, interval2)
       ) == setInterval1.probablyOverlaps(setInterval2))
     }
-  }
 
   def intInterval(start: Int, end: Int, includesStart: Boolean = true, includesEnd: Boolean = false)
     : Interval =
     Interval(start, end, includesStart, includesEnd)
 
-  @Test def testIntervalSortAndReduce(): Unit = {
+  @Test def testIntervalSortAndReduce(): scalatest.Assertion = {
     val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
     assert(Interval.union(Array[Interval](), ord).sameElements(Array[Interval]()))
@@ -161,7 +154,7 @@ class IntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testIntervalIntersection(): Unit = {
+  @Test def testIntervalIntersection(): scalatest.Assertion = {
     val ord = TInt32.ordering(ctx.stateManager).intervalEndpointOrdering
 
     val x1 = Array[Interval](
@@ -192,7 +185,7 @@ class IntervalSuite extends HailSuite {
     ))
   }
 
-  @Test def testsortedNonOverlappingIntervalsContain(): Unit = {
+  @Test def testsortedNonOverlappingIntervalsContain(): scalatest.Assertion = {
     val intervals = Literal(
       TArray(TInterval(TInt32)),
       FastSeq(
@@ -259,8 +252,8 @@ class IntervalSuite extends HailSuite {
     ).partitionBoundsIRRepresentation
   }
 
-  @Test def testsortedNonOverlappingPartitionIntervalsEqualRange(): Unit = {
-    def assertRange(interval: Interval, startIdx: Int, endIdx: Int): Unit = {
+  @Test def testsortedNonOverlappingPartitionIntervalsEqualRange(): scalatest.Assertion = {
+    def assertRange(interval: Interval, startIdx: Int, endIdx: Int): scalatest.Assertion = {
       val resultType = TTuple(TInt32, TInt32)
       val irInterval = Literal(
         RVDPartitioner.intervalIRRepresentation(partitionerKType),
@@ -278,14 +271,14 @@ class IntervalSuite extends HailSuite {
     assertRange(Interval(Row(-1, 7), Row(0, 9), true, false), 0, 0)
   }
 
-  @Test def testPointPartitionIntervalEndpointComparison(): Unit = {
+  @Test def testPointPartitionIntervalEndpointComparison(): scalatest.Assertion = {
     def assertComp(
       point: IndexedSeq[Int],
       intervalEndpoint: IndexedSeq[Int],
       leansRight: Boolean,
       function: String,
       expected: Boolean,
-    ): Unit = {
+    ): scalatest.Assertion = {
       val pointIR = MakeTuple.ordered(point.map(I32))
       val endpointIR = MakeTuple.ordered(FastSeq(
         MakeTuple.ordered(Array.tabulate(3)(i =>
@@ -300,14 +293,14 @@ class IntervalSuite extends HailSuite {
       )
     }
     def assertLT(point: IndexedSeq[Int], intervalEndpoint: IndexedSeq[Int], leansRight: Boolean)
-      : Unit =
+      : scalatest.Assertion =
       assertComp(point, intervalEndpoint, leansRight, "pointLessThanPartitionIntervalRightEndpoint",
         true)
     def assertNotLT(
       point: IndexedSeq[Int],
       intervalEndpoint: IndexedSeq[Int],
       leansRight: Boolean,
-    ): Unit =
+    ): scalatest.Assertion =
       assertComp(point, intervalEndpoint, leansRight, "pointLessThanPartitionIntervalRightEndpoint",
         false)
     assertLT(Array(1, 3, 2), Array(1, 3, 2), true)

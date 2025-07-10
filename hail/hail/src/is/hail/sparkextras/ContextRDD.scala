@@ -2,6 +2,7 @@ package is.hail.sparkextras
 
 import is.hail.HailContext
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.macros.void
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 
@@ -65,7 +66,7 @@ class AssociativeCombiner[U](zero: => U, combine: (U, U) => U) extends Combiner[
       }
     }
 
-    t.put(i, TreeValue(value, end))
+    void(t.put(i, TreeValue(value, end)))
   }
 
   def result(): U = {

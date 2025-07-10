@@ -239,19 +239,19 @@ final case class EStructOfArrays(
   }
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
-    sb.append("EStructOfArrays[")
+    sb ++= "EStructOfArrays["
     if (structRequired) sb += '+'
     sb += '{'
     if (compact) {
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
-    } else if (fields.length == 0) {
+    } else if (fields.isEmpty) {
       sb += ' '
     } else {
       sb += '\n'
-      fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
+      fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb ++= ",\n")
       sb += '\n'
-      sb.append(" " * indent)
+      sb ++= (" " * indent)
     }
-    sb.append("}]")
+    sb ++= "}]"
   }
 }

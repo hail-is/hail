@@ -24,6 +24,7 @@ import java.io.PrintWriter
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
+import org.scalatest.{Assertion, Assertions}
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
@@ -45,12 +46,10 @@ object ExecStrategy extends Enumeration {
   val allRelational: Set[ExecStrategy] = interpretOnly.union(lowering)
 }
 
-object TestUtils {
+object TestUtils extends Assertions {
   val theHailClassLoader = new HailClassLoader(getClass().getClassLoader())
 
-  import org.scalatest.Assertions._
-
-  def interceptException[E <: Throwable: Manifest](regex: String)(f: => Any): Unit = {
+  def interceptException[E <: Throwable: Manifest](regex: String)(f: => Any): Assertion = {
     val thrown = intercept[E](f)
     val p = regex.r.findFirstIn(thrown.getMessage).isDefined
     val msg =
@@ -61,20 +60,20 @@ object TestUtils {
     assert(p, msg)
   }
 
-  def interceptFatal(regex: String)(f: => Any): Unit =
+  def interceptFatal(regex: String)(f: => Any): Assertion =
     interceptException[HailException](regex)(f)
 
-  def interceptSpark(regex: String)(f: => Any): Unit =
+  def interceptSpark(regex: String)(f: => Any): Assertion =
     interceptException[SparkException](regex)(f)
 
-  def interceptAssertion(regex: String)(f: => Any): Unit =
+  def interceptAssertion(regex: String)(f: => Any): Assertion =
     interceptException[AssertionError](regex)(f)
 
   def assertVectorEqualityDouble(
     A: Vector[Double],
     B: Vector[Double],
     tolerance: Double = utils.defaultTolerance,
-  ): Unit = {
+  ): Assertion = {
     assert(A.size == B.size)
     assert((0 until A.size).forall(i => D_==(A(i), B(i), tolerance)))
   }
@@ -83,7 +82,7 @@ object TestUtils {
     A: Matrix[Double],
     B: Matrix[Double],
     tolerance: Double = utils.defaultTolerance,
-  ): Unit = {
+  ): Assertion = {
     assert(A.rows == B.rows)
     assert(A.cols == B.cols)
     assert((0 until A.rows).forall(i =>
@@ -267,13 +266,13 @@ object TestUtils {
     }
   }
 
-  def assertEvalSame(x: IR): Unit =
+  def assertEvalSame(x: IR): Assertion =
     assertEvalSame(x, Env.empty, FastSeq())
 
-  def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]): Unit =
+  def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]): Assertion =
     assertEvalSame(x, Env.empty, args)
 
-  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Unit = {
+  def assertEvalSame(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)]): Assertion = {
     val t = x.typ
 
     val (i, i2, c) = ExecuteContext.scoped { ctx =>
@@ -291,7 +290,7 @@ object TestUtils {
     assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
   }
 
-  def assertThrows[E <: Throwable: Manifest](x: IR, regex: String): Unit =
+  def assertThrows[E <: Throwable: Manifest](x: IR, regex: String): Assertion =
     assertThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
 
   def assertThrows[E <: Throwable: Manifest](
@@ -299,21 +298,21 @@ object TestUtils {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  ): Unit =
+  ): Assertion =
     ExecuteContext.scoped { ctx =>
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args))
       interceptException[E](regex)(Interpret[Any](ctx, x, env, args, optimize = false))
       interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
     }
 
-  def assertFatal(x: IR, regex: String): Unit =
+  def assertFatal(x: IR, regex: String): Assertion =
     assertThrows[HailException](x, regex)
 
-  def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String): Unit =
+  def assertFatal(x: IR, args: IndexedSeq[(Any, Type)], regex: String): Assertion =
     assertThrows[HailException](x, Env.empty[(Any, Type)], args, regex)
 
   def assertFatal(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], regex: String)
-    : Unit =
+    : Assertion =
     assertThrows[HailException](x, env, args, regex)
 
   def assertCompiledThrows[E <: Throwable: Manifest](
@@ -321,15 +320,15 @@ object TestUtils {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     regex: String,
-  ): Unit =
+  ): Assertion =
     ExecuteContext.scoped { ctx =>
       interceptException[E](regex)(eval(x, env, args, None, None, true, ctx))
     }
 
-  def assertCompiledThrows[E <: Throwable: Manifest](x: IR, regex: String): Unit =
+  def assertCompiledThrows[E <: Throwable: Manifest](x: IR, regex: String): Assertion =
     assertCompiledThrows[E](x, Env.empty[(Any, Type)], FastSeq.empty[(Any, Type)], regex)
 
-  def assertCompiledFatal(x: IR, regex: String): Unit =
+  def assertCompiledFatal(x: IR, regex: String): Assertion =
     assertCompiledThrows[HailException](x, regex)
 
   def importVCF(
@@ -374,4 +373,10 @@ object TestUtils {
     )
     MatrixRead(reader.fullMatrixTypeWithoutUIDs, dropSamples, false, reader)
   }
+
+  def cartesian[A, B](as: Iterable[A], bs: Iterable[B]): Iterable[(A, B)] =
+    for {
+      a <- as
+      b <- bs
+    } yield (a, b)
 }

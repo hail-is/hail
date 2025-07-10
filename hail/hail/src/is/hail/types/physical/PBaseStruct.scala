@@ -55,12 +55,10 @@ abstract class PBaseStruct extends PType {
 
   def _asIdent: String = {
     val sb = new StringBuilder
-    sb.append(identBase)
-    sb.append("_of_")
-    types.foreachBetween(ty => sb.append(ty.asIdent)) {
-      sb.append("AND")
-    }
-    sb.append("END")
+    sb ++= identBase
+    sb ++= "_of_"
+    types.foreachBetween(ty => sb ++= ty.asIdent)(sb ++= "AND")
+    sb ++= "END"
     sb.result()
   }
 

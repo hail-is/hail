@@ -1712,8 +1712,8 @@ case class PartitionZippedIndexedNativeReader(
         }
 
         override def close(cb: EmitCodeBuilder): Unit = {
-          leftBuffer.invoke[Unit]("close")
-          rightBuffer.invoke[Unit]("close")
+          cb += leftBuffer.invoke[Unit]("close")
+          cb += rightBuffer.invoke[Unit]("close")
         }
       }
       SStreamValue(producer)

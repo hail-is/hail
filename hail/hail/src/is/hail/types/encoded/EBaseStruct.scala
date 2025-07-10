@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Field => _, _}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.macros.void
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.{SType, SValue}
@@ -15,12 +16,12 @@ import is.hail.utils._
 final case class EField(name: String, typ: EType, index: Int) {
   def pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
     if (compact) {
-      sb.append(prettyIdentifier(name))
-      sb.append(":")
+      sb ++= prettyIdentifier(name)
+      sb += ':'
     } else {
-      sb.append(" " * indent)
-      sb.append(prettyIdentifier(name))
-      sb.append(": ")
+      sb ++= (" " * indent)
+      sb ++= prettyIdentifier(name)
+      sb ++= ": "
     }
     typ.pretty(sb, indent, compact)
   }
@@ -211,11 +212,9 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   def _asIdent: String = {
     val sb = new StringBuilder
-    sb.append("struct_of_")
-    types.foreachBetween(ty => sb.append(ty.asIdent)) {
-      sb.append("AND")
-    }
-    sb.append("END")
+    sb ++= "struct_of_"
+    types.foreachBetween(sb ++= _.asIdent)(sb ++= "AND")
+    sb ++= "END"
     sb.result()
   }
 
@@ -225,24 +224,18 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     sb.result()
   }
 
-  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = {
+  override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit =
     if (compact) {
-      sb.append("EBaseStruct{")
+      sb ++= "EBaseStruct{"
       fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
       sb += '}'
-    } else {
-      if (fields.length == 0)
-        sb.append("EBaseStruct { }")
-      else {
-        sb.append("EBaseStruct {")
-        sb += '\n'
-        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
-        sb += '\n'
-        sb.append(" " * indent)
-        sb += '}'
-      }
+    } else if (fields.isEmpty) {
+      sb ++= "EBaseStruct { }"
+    } else void {
+      sb ++= "EBaseStruct {\n"
+      fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb ++= ",\n")
+      sb += '\n' ++= " " * indent += '}'
     }
-  }
 
   def setRequired(newRequired: Boolean): EBaseStruct = EBaseStruct(fields, newRequired)
 }
