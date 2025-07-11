@@ -435,6 +435,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val fsBc = ctx.fsBc
     val sm = ctx.stateManager
 
+    val (initIR, seqIR, resultIR) = extracted.components
+
     val (_, makeInit) = CompileWithAggregators[AsmFunction2RegionLongUnit](
       ctx,
       extracted.states,
@@ -444,7 +446,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       )),
       FastSeq(classInfo[Region], LongInfo),
       UnitInfo,
-      extracted.init,
+      initIR,
     )
 
     val (_, makeSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
@@ -462,14 +464,13 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
-      extracted.seqPerElt,
+      seqIR,
     )
 
-    val valueIR = Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR)
     val keyType = prevRVD.typ.kType
 
     val key = Ref(freshName(), keyType.virtualType)
-    val value = Ref(freshName(), valueIR.typ)
+    val value = Ref(freshName(), resultIR.typ)
     val (Some(PTypeReferenceSingleCodeType(rowType: PStruct)), makeRow) =
       CompileWithAggregators[AsmFunction3RegionLongLongLong](
         ctx,
@@ -484,10 +485,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
         Let(
-          FastSeq(value.name -> valueIR),
+          FastSeq(value.name -> resultIR),
           InsertFields(
             key,
-            tcoerce[TStruct](valueIR.typ).fieldNames.map(n => n -> GetField(value, n)),
+            tcoerce[TStruct](resultIR.typ).fieldNames.map(n => n -> GetField(value, n)),
           ),
         ),
       )
@@ -786,6 +787,8 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
     val fsBc = ctx.fsBc
     val sm = ctx.stateManager
 
+    val (initIR, seqIR, resultIR) = extracted.components
+
     val (Some(PTypeReferenceSingleCodeType(localKeyPType: PStruct)), makeKeyF) =
       Compile[AsmFunction3RegionLongLongLong](
         ctx,
@@ -820,7 +823,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       )),
       FastSeq(classInfo[Region], LongInfo),
       UnitInfo,
-      extracted.init,
+      initIR,
     )
 
     val (_, makeSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](
@@ -838,7 +841,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
-      extracted.seqPerElt,
+      seqIR,
     )
 
     val (Some(PTypeReferenceSingleCodeType(rTyp: PStruct)), makeAnnotate) =
@@ -851,7 +854,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         )),
         FastSeq(classInfo[Region], LongInfo),
         LongInfo,
-        Let(FastSeq(extracted.resultRef.name -> extracted.results), extracted.postAggIR),
+        resultIR,
       )
 
     val serialize = extracted.serialize(ctx, spec)
@@ -1055,7 +1058,9 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
 
   def mapRows(extracted: Aggs): TableValue = {
     val fsBc = ctx.fsBc
-    val newType = typ.copy(rowType = extracted.postAggIR.typ.asInstanceOf[TStruct])
+
+    val (initIR, seqIR, resultIR) = extracted.components
+    val newType = typ.copy(rowType = resultIR.typ.asInstanceOf[TStruct])
 
     if (extracted.aggs.isEmpty) {
       val (Some(PTypeReferenceSingleCodeType(rTyp)), f) =
@@ -1074,12 +1079,12 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
           FastSeq(classInfo[Region], LongInfo, LongInfo),
           LongInfo,
           Coalesce(FastSeq(
-            extracted.postAggIR,
-            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ),
+            resultIR,
+            Die("Internal error: TableMapRows: row expression missing", resultIR.typ),
           )),
         )
 
-      val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, TableIR.globalName)
+      val rowIterationNeedsGlobals = Mentions(resultIR, TableIR.globalName)
       val globalsBc =
         if (rowIterationNeedsGlobals)
           globals.broadcast(ctx.theHailClassLoader)
@@ -1099,15 +1104,15 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         it.map(ptr => newRow(ctx.r, globals, ptr))
       }
 
-      copy(
+      return copy(
         typ = newType,
         rvd = rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key))(itF),
       )
     }
 
-    val scanInitNeedsGlobals = Mentions(extracted.init, TableIR.globalName)
-    val scanSeqNeedsGlobals = Mentions(extracted.seqPerElt, TableIR.globalName)
-    val rowIterationNeedsGlobals = Mentions(extracted.postAggIR, TableIR.globalName)
+    val scanInitNeedsGlobals = Mentions(initIR, TableIR.globalName)
+    val scanSeqNeedsGlobals = Mentions(seqIR, TableIR.globalName)
+    val rowIterationNeedsGlobals = Mentions(resultIR, TableIR.globalName)
 
     val globalsBc =
       if (rowIterationNeedsGlobals || scanInitNeedsGlobals || scanSeqNeedsGlobals)
@@ -1132,7 +1137,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       )),
       FastSeq(classInfo[Region], LongInfo),
       UnitInfo,
-      Begin(FastSeq(extracted.init)),
+      initIR,
     )
 
     val serializeF = extracted.serialize(ctx, spec)
@@ -1152,7 +1157,7 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
       ),
       FastSeq(classInfo[Region], LongInfo, LongInfo),
       UnitInfo,
-      extracted.seqPerElt,
+      seqIR,
     )
 
     val read = extracted.deserialize(ctx, spec)
@@ -1175,13 +1180,10 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
         ),
         FastSeq(classInfo[Region], LongInfo, LongInfo),
         LongInfo,
-        Let(
-          FastSeq(extracted.resultRef.name -> extracted.results),
-          Coalesce(FastSeq(
-            extracted.postAggIR,
-            Die("Internal error: TableMapRows: row expression missing", extracted.postAggIR.typ),
-          )),
-        ),
+        Coalesce(FastSeq(
+          resultIR,
+          Die("Internal error: TableMapRows: row expression missing", resultIR.typ),
+        )),
       )
 
     // 1. init op on all aggs and write out to initPath
