@@ -235,16 +235,12 @@ WHERE removed = 0 AND inst_coll = %s;
     def compute_n_instances_needed(
         self,
         ready_cores_mcpu: int,
-        regions: List[str],
         remaining_max_new_instances_per_autoscaler_loop: int,
     ):
         pool_stats = self.current_worker_version_stats
         n_live_instances = pool_stats.n_instances_by_state['pending'] + pool_stats.n_instances_by_state['active']
-        live_free_cores_mcpu = sum(pool_stats.live_free_cores_mcpu_by_region[region] for region in regions)
 
-        instances_needed = (ready_cores_mcpu - live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
-            self.worker_cores * 1000
-        )
+        instances_needed = (ready_cores_mcpu + (self.worker_cores * 1000) - 1) // (self.worker_cores * 1000)
         instances_needed = min(
             instances_needed,
             self.max_live_instances - n_live_instances,
@@ -281,7 +277,6 @@ WHERE removed = 0 AND inst_coll = %s;
     ):
         instances_needed = self.compute_n_instances_needed(
             ready_cores_mcpu,
-            regions,
             remaining_max_new_instances_per_autoscaler_loop,
         )
 
@@ -425,10 +420,21 @@ GROUP BY user;
         head_job_queue_ready_cores_mcpu: Dict[str, float] = defaultdict(float)
 
         remaining_instances_per_autoscaler_loop = self.max_new_instances_per_autoscaler_loop
+        unclaimed_free_cores_mcpu_by_region = self.current_worker_version_stats.live_free_cores_mcpu_by_region.copy()
         if head_job_queue_regions_ready_cores_mcpu_ordered and free_cores < 500:
             for regions, ready_cores_mcpu in head_job_queue_regions_ready_cores_mcpu_ordered:
+                unschedulable_ready_cores_mcpu = ready_cores_mcpu
+                # Don't create new cores when there are free cores that can be used.
+                # Mark free cores as "claimed" so later records can't "use" the same cores.
+                # FIXME: this eagerly claimes cores in an arbitrary region order. Would be better
+                # to balance over regions somehow.
+                for region in regions:
+                    diff = min(unschedulable_ready_cores_mcpu, unclaimed_free_cores_mcpu_by_region[region])
+                    unschedulable_ready_cores_mcpu -= diff
+                    unclaimed_free_cores_mcpu_by_region[region] -= diff
+
                 n_instances_created = await self.create_instances_from_ready_cores(
-                    ready_cores_mcpu,
+                    unschedulable_ready_cores_mcpu,
                     regions,
                     remaining_instances_per_autoscaler_loop,
                 )
