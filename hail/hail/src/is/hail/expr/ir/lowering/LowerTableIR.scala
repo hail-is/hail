@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
+import is.hail.expr.ir.analyses.PartitionCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
@@ -1372,7 +1373,7 @@ object LowerTableIR {
             StreamLen(a)
 
         def partitionSizeArray(childContexts: Ref): IR = {
-          child.partitionCounts match {
+          PartitionCounts(child) match {
             case Some(partCounts) =>
               var idx = 0
               var sumSoFar = 0L
@@ -1508,7 +1509,7 @@ object LowerTableIR {
         val loweredChild = lower(child)
 
         def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
-          child.partitionCounts match {
+          PartitionCounts(child) match {
             case Some(partCounts) =>
               var idx = partCounts.length - 1
               var sumSoFar = 0L
