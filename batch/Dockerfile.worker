@@ -11,7 +11,8 @@ RUN hail-apt-get-install \
     xfsprogs \
     libyajl-dev
 
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+# For some reason, installing python3 can shadow this alternative
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$HAIL_PYTHON_MAJOR_VERSION 1
 
 {% if global.cloud == "gcp" %}
 RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
@@ -53,9 +54,9 @@ RUN hail-pip-install \
     -r batch-requirements.txt \
     pyspark==3.5.0
 
-ENV SPARK_HOME /usr/local/lib/python3.9/dist-packages/pyspark
-ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
-ENV PYSPARK_PYTHON python3
+ENV SPARK_HOME=/usr/local/lib/python$HAIL_PYTHON_MAJOR_VERSION/dist-packages/pyspark
+ENV PATH="$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
+ENV PYSPARK_PYTHON=python3
 
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 

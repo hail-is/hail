@@ -1,8 +1,8 @@
 ARG DOCKER_PREFIX={{ global.docker_prefix }}
 FROM $DOCKER_PREFIX/ubuntu:noble-20250529
 
-ENV LANG C.UTF-8
-ENV DEBIAN_FRONTEND noninteractive
+ENV LANG=C.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
 
 COPY retry /bin/retry
 COPY hail-apt-get-install /bin/hail-apt-get-install
@@ -11,7 +11,9 @@ COPY hail-pip-install /bin/hail-pip-install
 COPY controller.sh /
 COPY curlrc /root/.curlrc
 
-ARG PYTHON_VERSION=3.9
+ARG PYTHON_VERSION=3.11
+# save PYTHON_VERSION to the environment so that dependent images can inherit the value
+ENV HAIL_PYTHON_MAJOR_VERSION=$PYTHON_VERSION
 RUN chmod 755 /bin/retry && \
     chmod 755 /bin/hail-apt-get-install && \
     chmod 755 /bin/hail-pip-install && \
@@ -32,6 +34,6 @@ RUN chmod 755 /bin/retry && \
     hail-apt-get-install python$PYTHON_VERSION-minimal python$PYTHON_VERSION-dev python$PYTHON_VERSION-distutils gcc g++ && \
     update-alternatives --install /usr/bin/python3 python3 /usr/bin/python$PYTHON_VERSION 1 && \
     curl https://bootstrap.pypa.io/get-pip.py | python3 && \
-    python3 -m pip install 'pip>=23,<24.1' && \
+    python3 -m pip install 'pip>=23,<26' && \
     python3 -m pip check && \
     python3 -m pip --version

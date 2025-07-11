@@ -38,14 +38,14 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
         log_record['hail_log'] = 1
 
 
-def configure_logging():
+def configure_logging(level=logging.INFO):
     fmt = CustomJsonFormatter('%(severity)s %(levelname)s %(asctime)s %(filename)s %(funcNameAndLine)s %(message)s')
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
-    stream_handler.setLevel(logging.INFO)
+    stream_handler.setLevel(level)
     stream_handler.setFormatter(fmt)
 
-    logging.basicConfig(handlers=[stream_handler], level=logging.INFO)
+    logging.basicConfig(handlers=[stream_handler], level=level)
 
 
 class AccessLogger(AbstractAccessLogger):
