@@ -663,12 +663,12 @@ LIMIT 300;
                     async for record in self.db.select_and_fetchall(
                         """
 SELECT jobs.job_id, spec, cores_mcpu, regions_bits_rep, time_ready, job_group_id, n_max_attempts, count(attempts.attempt_id) AS n_prior_attempts
-FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_group_id)
+FROM jobs FORCE INDEX(jobs_batch_id_ic_state_ar_n_regions_bits_rep_job_id)
 LEFT JOIN jobs_telemetry ON jobs.batch_id = jobs_telemetry.batch_id AND jobs.job_id = jobs_telemetry.job_id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id
 WHERE jobs.batch_id = %s AND job_group_id = %s AND inst_coll = %s AND jobs.state = 'Ready' AND always_run = 0 AND cancelled = 0
-GROUP BY jobs.job_id, jobs.batch_id
-ORDER BY jobs.batch_id, jobs.job_group_id, inst_coll, state, always_run, -n_regions DESC, regions_bits_rep, jobs.job_id
+GROUP BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
+ORDER BY jobs.batch_id, inst_coll, state, always_run, n_regions, regions_bits_rep, jobs.job_id
 LIMIT 300;
 """,
                         (job_group['batch_id'], job_group['job_group_id'], self.pool.name),
