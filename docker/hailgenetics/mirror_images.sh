@@ -29,8 +29,6 @@ then
 fi
 
 images=(
-    "python-dill:3.9"
-    "python-dill:3.9-slim"
     "python-dill:3.10"
     "python-dill:3.10-slim"
     "python-dill:3.11"

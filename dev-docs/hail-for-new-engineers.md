@@ -183,12 +183,12 @@ We use a number of technologies:
 
 ### Services Technology
 
-We almost exclusively write services in Python 3.9. We use a number of Python packages:
-- [`asyncio`](https://docs.python.org/3.9/library/asyncio.html) for concurrency which is built on
+We almost exclusively write services in Python 3.11. We use a number of Python packages:
+- [`asyncio`](https://docs.python.org/3.11/library/asyncio.html) for concurrency which is built on
   [coroutines](https://en.wikipedia.org/wiki/Coroutine) not threads
 - [`aiohttp`](https://docs.aiohttp.org/en/stable/) for serving HTTPS requests (most services speak
   HTTPS)
-- [`jinja2`](https://jinja.palletsprojects.com/en/2.11.x/) for "templating" which simply means
+- [`jinja2`](https://jinja.palletsprojects.com/en/3.1.x/) for "templating" which simply means
   programmatically generating text files
 
 A service is realized as:

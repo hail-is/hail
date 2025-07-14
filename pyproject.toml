@@ -2,6 +2,7 @@
 line-length = 120
 extend-exclude = ['sql', 'datasets']
 force-exclude = true
+target-version='py310'  # this should always be the lowest version of Python that we support
 
 [tool.ruff.lint]
 select = ["F", "E", "W", "I", "PL", "RUF"]
