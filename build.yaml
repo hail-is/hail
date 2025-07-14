@@ -387,6 +387,8 @@ steps:
         script: /io/sql/change-username-collation.sql
       - name: add-hail-identity-uid
         script: /io/sql/add-hail-identity-uid.sql
+      - name: 009-refactor-roles
+        script: /io/sql/009-refactor-roles.sql
     inputs:
       - from: /repo/auth/sql
         to: /io/sql

@@ -2,7 +2,13 @@ openapi: "3.1.0"
 info:
   title: Hail Auth Service
   version: "{{ spec_version }}"
-  description: Authentication and authorization service for Hail
+  description: |
+    Authentication and authorization service for Hail
+    
+    ## CSRF Protection
+    This API uses CSRF protection.
+    The CSRF token in the request cookies must match either formadata (but often we need json bodies) or (more standard) the value of the  X-CSRF-Token header.
+    When making requests from the templated Swagger UI, the token is automatically included in the header.
   contact:
     email: hail-team@broadinstitute.org
     url: https://www.hail.is/gethelp.html
@@ -21,6 +27,8 @@ tags:
     description: "Endpoints for managing users and their permissions"
   - name: Developer Operations
     description: "Operations restricted to developers"
+  - name: System Roles
+    description: "Endpoints for managing system roles and permissions"
   - name: Documentation
     description: "Endpoints for accessing API documentation"
 
@@ -297,6 +305,199 @@ paths:
           description: User has valid developer or service account credentials
         '401':
           description: Unauthorized or not a developer/service account
+
+  /api/v1alpha/check_system_permission:
+    get:
+      summary: Check system permission
+      description: Check if the authenticated user has a specific system permission
+      tags: [Authentication]
+      parameters:
+        - name: permission
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The system permission to check
+      responses:
+        '200':
+          description: Permission check completed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  has_permission:
+                    type: boolean
+                    description: Whether the user has the requested permission
+        '400':
+          description: Invalid permission parameter
+        '401':
+          description: Unauthorized
+
+  /api/v1alpha/system_roles/me:
+    get:
+      summary: Get current user's system roles and permissions
+      description: Get all system roles and permissions for the authenticated user
+      tags: [System Roles]
+      responses:
+        '200':
+          description: User's system roles and permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+                description: Map of role names to lists of permission values
+        '401':
+          description: Unauthorized
+
+  /api/v1alpha/system_roles/{user_id}:
+    get:
+      summary: Get system roles and permissions for a specific user
+      description: Get all system roles and permissions for a specific user by their user ID
+      tags: [System Roles]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                description: User ID
+              - type: string
+                description: Username
+          description: User ID (integer) or username (string) to retrieve system roles for
+      responses:
+        '200':
+          description: User's system roles and permissions retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+                description: Map of role names to lists of permission values
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+    patch:
+      summary: Modify system roles for a specific user
+      description: Add or remove a system role for a specific user. The request body must contain exactly one of 'role_addition' or 'role_removal' fields, but not both.
+      tags: [System Roles]
+      security:
+        - developerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                description: User ID
+              - type: string
+                description: Username
+          description: User ID (integer) or username (string) to modify system roles for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [role_addition]
+                  properties:
+                    role_addition:
+                      type: string
+                      enum: [developer, billing_manager]
+                      description: System role to add to the user
+                  additionalProperties: false
+                - type: object
+                  required: [role_removal]
+                  properties:
+                    role_removal:
+                      type: string
+                      enum: [developer, billing_manager]
+                      description: System role to remove from the user
+                  additionalProperties: false
+            examples:
+              add_role:
+                summary: Add developer role
+                value:
+                  role_addition: developer
+              remove_role:
+                summary: Remove billing manager role
+                value:
+                  role_removal: billing_manager
+      responses:
+        '200':
+          description: System role successfully modified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  action:
+                    type: string
+                    enum: [added, removed]
+                    description: The action that was performed
+                  role:
+                    type: string
+                    enum: [developer, billing_manager]
+                    description: The role that was modified
+                  user:
+                    type: string
+                    description: Username of the affected user
+        '400':
+          description: Bad request - invalid role name, missing required fields, or both addition and removal fields present
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
+        '404':
+          description: User not found or not active
+        '409':
+          description: Conflict - trying to add a role the user already has, or remove a role they don't have
+
+  /api/v1alpha/system_roles/all:
+    get:
+      summary: Get all system role assignments
+      description: Get all system roles with their assigned users and permissions
+      tags: [System Roles]
+      security:
+        - developerAuth: []
+      responses:
+        '200':
+          description: All system role assignments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    users:
+                      type: array
+                      items:
+                        type: string
+                      description: List of usernames assigned to this role
+                    permissions:
+                      type: array
+                      items:
+                        type: string
+                      description: List of permission values for this role
+                description: Map of role names to objects containing users and permissions
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden - requires developer privileges
 
   /swagger:
     get:
