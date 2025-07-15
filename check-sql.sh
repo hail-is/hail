@@ -15,7 +15,7 @@ if [ ! -d sql ]; then
 fi
 
 set +e
-git diff --name-status $target_treeish sql \
+git diff --name-status --diff-filter=r $target_treeish sql \
     | grep -Ev $'^A|^M\t[^/]+/sql/estimated-current.sql|^D\t[^/]+/sql/delete-[^ ]+-tables.sql'
 grep_exit_code=$?
 
