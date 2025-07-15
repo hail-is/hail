@@ -1934,16 +1934,16 @@ case class TableNativeZippedReader(
     val rowsSpec = specLeft.rowsSpec
     val specPart = rowsSpec.partitioner(ctx.stateManager)
     val partitioner = if (filterIntervals)
-      options.map(opts =>
+      intervals.map(
         RVDPartitioner.union(
           ctx.stateManager,
           specPart.kType,
-          opts.intervals,
+          _,
           specPart.kType.size - 1,
         )
       )
     else
-      options.map(opts => new RVDPartitioner(ctx.stateManager, specPart.kType, opts.intervals))
+      intervals.map(new RVDPartitioner(ctx.stateManager, specPart.kType, _))
 
     AbstractRVDSpec.readZippedLowered(
       ctx,
