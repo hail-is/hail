@@ -922,7 +922,7 @@ object BGENFunctions extends RegistryFunctions {
           cb._fatal(s"nWritten != nAdded - ", nWritten.toS, ", ", nAdded.toS),
         )
 
-        iw.close(cb)
+        val _ = iw.finalize(cb)
         cb += cbfis.invoke[Unit]("close")
         primitive(nWritten)
     }

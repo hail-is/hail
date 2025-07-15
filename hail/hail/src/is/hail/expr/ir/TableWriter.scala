@@ -21,7 +21,7 @@ import is.hail.types.physical.stypes.concrete.{
   SJavaArrayString, SJavaArrayStringValue, SStackStruct,
 }
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt64, SInt64Value}
+import is.hail.types.physical.stypes.primitives.{SBooleanValue, SInt32Value, SInt64, SInt64Value}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -179,12 +179,22 @@ object PartitionNativeWriter {
     "distinctlyKeyed" -> TBoolean,
     "firstKey" -> keyType,
     "lastKey" -> keyType,
+    "index_height" -> TInt32,
+    "index_rootOffset" -> TInt64,
+    "index_nKeys" -> TInt64,
     "partitionByteSize" -> TInt64,
   )
 
-  def returnType(keyType: TStruct, trackTotalBytes: Boolean): TStruct = {
+  def returnType(keyType: TStruct, trackTotalBytes: Boolean, indexed: Boolean): TStruct = {
     val t = PartitionNativeWriter.fullReturnType(keyType)
-    if (trackTotalBytes) t else t.filterSet(Set("partitionByteSize"), include = false)._1
+    val toRemove = (if (trackTotalBytes) Set() else Set("partitionByteSize")) ++
+      (if (indexed) Set()
+       else Set(
+         "index_height",
+         "index_rootOffset",
+         "index_nKeys",
+       ))
+    t.filterSet(toRemove, include = false)._1
   }
 }
 
@@ -199,7 +209,7 @@ case class PartitionNativeWriter(
   val keyType = spec.encodedVirtualType.asInstanceOf[TStruct].select(keyFields)._1
 
   def ctxType = PartitionNativeWriter.ctxType
-  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes)
+  val returnType = PartitionNativeWriter.returnType(keyType, trackTotalBytes, index.isDefined)
 
   def unionTypeRequiredness(
     r: TypeWithRequiredness,
@@ -355,7 +365,7 @@ case class PartitionNativeWriter(
 
     def result(): SValue = {
       cb += ob.writeByte(0.asInstanceOf[Byte])
-      writeIndexInfo.foreach(_._3.close(cb))
+      val imd = writeIndexInfo.map(_._3.finalize(cb))
       cb += ob.flush()
       cb += ob.close()
 
@@ -379,7 +389,13 @@ case class PartitionNativeWriter(
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable,
-      ) ++ byteCount.map(EmitCode.present(mb, _))
+      ) ++ imd.map { imd =>
+        Seq[EmitCode](
+          EmitCode.present(mb, new SInt32Value(imd.height)),
+          EmitCode.present(mb, new SInt64Value(imd.rootOffset)),
+          EmitCode.present(mb, new SInt64Value(imd.nKeys)),
+        )
+      }.getOrElse(Seq()) ++ byteCount.map(EmitCode.present(mb, _))
 
       SStackStruct.constructFromArgs(cb, region, returnType.asInstanceOf[TBaseStruct], values: _*)
     }

@@ -170,7 +170,7 @@ object MatrixNativeWriter {
       entrySpec,
       s"$path/entries/rows/parts/",
       pKey.virtualType.fieldNames,
-      Some(s"$path/index/" -> pKey),
+      s"$path/index/" -> pKey,
       if (stageLocally)
         Some(FileSystems.getDefault.getPath(ctx.localTmpdir, s"hail_stage_tmp_${UUID.randomUUID}"))
       else None,
@@ -418,7 +418,7 @@ case class SplitPartitionNativeWriter(
   spec2: AbstractTypedCodecSpec,
   partPrefix2: String,
   keyFieldNames: IndexedSeq[String],
-  index: Option[(String, PStruct)],
+  index: (String, PStruct),
   stageFolder: Option[Path],
 ) extends PartitionWriter {
 
@@ -435,6 +435,9 @@ case class SplitPartitionNativeWriter(
     "distinctlyKeyed" -> TBoolean,
     "firstKey" -> keyType,
     "lastKey" -> keyType,
+    "index_height" -> TInt32,
+    "index_rootOffset" -> TInt64,
+    "index_nKeys" -> TInt64,
   )
 
   def unionTypeRequiredness(
@@ -462,13 +465,13 @@ case class SplitPartitionNativeWriter(
     val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
 
-    val writeIndexInfo = index.map { case (name, ktype) =>
+    val (iName, iType, indexWriter) = {
       val bfactor = Option(mb.ctx.getFlag("index_branching_factor")).map(_.toInt).getOrElse(4096)
       (
-        name,
-        ktype,
+        index._1,
+        index._2,
         StagedIndexWriter.withDefaults(
-          ktype,
+          index._2,
           mb.ecb,
           annotationType = iAnnotationType,
           branchingFactor = bfactor,
@@ -507,11 +510,9 @@ case class SplitPartitionNativeWriter(
           }
           .unzip3
 
-      writeIndexInfo.foreach { case (name, _, writer) =>
-        val indexFile = cb.newLocal[String]("indexFile")
-        cb.assign(indexFile, const(name).concat(ctxValue).concat(".idx"))
-        writer.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
-      }
+      val indexFile = cb.newLocal[String]("indexFile")
+      cb.assign(indexFile, const(iName).concat(ctxValue).concat(".idx"))
+      indexWriter.init(cb, indexFile, cb.memoize(mb.getObject[Map[String, Any]](Map.empty)))
 
       val pCount = mb.newLocal[Long]("partition_count")
       cb.assign(pCount, 0L)
@@ -537,38 +538,34 @@ case class SplitPartitionNativeWriter(
       stream.memoryManagedConsume(region, cb) { cb =>
         val row = stream.element.toI(cb).getOrFatal(cb, "row can't be missing").asBaseStruct
 
-        writeIndexInfo.foreach { case (_, keyType, writer) =>
-          writer.add(
-            cb, {
-              IEmitCode.present(
-                cb,
-                keyType.asInstanceOf[PCanonicalBaseStruct]
-                  .constructFromFields(
-                    cb,
-                    stream.elementRegion,
-                    keyType.fields.map { f =>
-                      EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))
-                    },
-                    deepCopy = false,
-                  ),
-              )
-            },
-            buffers(0).invoke[Long]("indexOffset"), {
-              IEmitCode.present(
-                cb,
-                iAnnotationType.constructFromFields(
+        indexWriter.add(
+          cb, {
+            IEmitCode.present(
+              cb,
+              iType.asInstanceOf[PCanonicalBaseStruct]
+                .constructFromFields(
                   cb,
                   stream.elementRegion,
-                  FastSeq(EmitCode.present(
-                    cb.emb,
-                    primitive(cb.memoize(buffers(1).invoke[Long]("indexOffset"))),
-                  )),
+                  iType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
                   deepCopy = false,
                 ),
-              )
-            },
-          )
-        }
+            )
+          },
+          buffers(0).invoke[Long]("indexOffset"), {
+            IEmitCode.present(
+              cb,
+              iAnnotationType.constructFromFields(
+                cb,
+                stream.elementRegion,
+                FastSeq(EmitCode.present(
+                  cb.emb,
+                  primitive(cb.memoize(buffers(1).invoke[Long]("indexOffset"))),
+                )),
+                deepCopy = false,
+              ),
+            )
+          },
+        )
 
         val key = SStackStruct.constructFromArgs(
           cb,
@@ -617,7 +614,7 @@ case class SplitPartitionNativeWriter(
         cb.assign(pCount, pCount + 1L)
       }
 
-      writeIndexInfo.foreach(_._3.close(cb))
+      val imd = indexWriter.finalize(cb)
 
       buffers.foreach { buff =>
         cb += buff.writeByte(0.asInstanceOf[Byte])
@@ -654,6 +651,9 @@ case class SplitPartitionNativeWriter(
         EmitCode.present(mb, new SBooleanValue(distinctlyKeyed)),
         firstSeenSettable,
         lastSeenSettable,
+        EmitCode.present(mb, new SInt32Value(imd.height)),
+        EmitCode.present(mb, new SInt64Value(imd.rootOffset)),
+        EmitCode.present(mb, new SInt64Value(imd.nKeys)),
       )
     }
   }
