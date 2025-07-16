@@ -58,6 +58,7 @@ from .exceptions import (
     InvalidUsername,
     MultipleExistingUsers,
     MultipleUserTypes,
+    NotInactiveUser,
     PreviouslyDeletedUser,
     UnknownUser,
 )
@@ -731,7 +732,7 @@ WHERE {' AND '.join(where_conditions)};
     )
 
     if n_rows == 0:
-        raise UnknownUser(username)
+        raise NotInactiveUser(username)
 
 
 @routes.post('/users/activate')
@@ -747,25 +748,10 @@ async def activate_user(request: web.Request, _) -> NoReturn:
     try:
         await _activate_user(db, username, id)
         set_message(session, f'Reactivated user {id} {username}.', 'info')
-    except UnknownUser:
-        set_message(session, f'Reactivation failed, no such user {id} {username}.', 'error')
+    except NotInactiveUser:
+        set_message(session, f'Reactivation failed, user {id} {username} is not inactive.', 'error')
 
     raise web.HTTPFound(deploy_config.external_url('auth', '/users'))
-
-
-@routes.put('/api/v1alpha/users/{user}/activate')
-@api_security_headers
-@auth.authenticated_developers_only()
-async def rest_activate_user(request: web.Request, _) -> web.Response:
-    db = request.app[AppKeys.DB]
-    username = request.match_info['user']
-
-    try:
-        await _activate_user(db, username, None)
-    except UnknownUser as e:
-        raise e.http_response()
-
-    return web.json_response()
 
 
 @routes.get('/api/v1alpha/oauth2callback')
@@ -922,7 +908,7 @@ async def get_userinfo_from_hail_session_id(request: web.Request, session_id: st
 SELECT users.*
 FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
-WHERE (users.state = 'active' OR users.state = 'inactive') AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
+WHERE users.state = 'active' AND sessions.session_id = %s AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
 """,
             session_id,
             'get_userinfo',
