@@ -101,7 +101,7 @@ object compile {
             body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
           )
-          ir = LoweringPipeline.compileLowerer(optimize)(ctx, ir).asInstanceOf[IR].noSharing(ctx)
+          ir = LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR].noSharing(ctx)
           TypeCheck(ctx, ir)
 
           val fb = EmitFunctionBuilder[F](
@@ -207,7 +207,7 @@ object CompileIterator {
 
     val outerRegion = outerRegionField
 
-    val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing(ctx)
+    val ir = LoweringPipeline.compileLowerer(ctx, body).asInstanceOf[IR].noSharing(ctx)
     TypeCheck(ctx, ir)
 
     var elementAddress: Settable[Long] = null

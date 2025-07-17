@@ -195,6 +195,8 @@ class Backend(abc.ABC):
         "use_ssa_logs": ("HAIL_USE_SSA_LOGS", "1"),
         "use_unstable_encodings": ("HAIL_DEV_USE_UNSTABLE_ENCODINGS", None),
         "write_ir_files": ("HAIL_WRITE_IR_FILES", None),
+        "optimize": ("HAIL_QUERY_OPTIMIZE", "1"),
+        "max_optimizer_iterations": ("HAIL_OPTIMIZER_ITERATIONS", None),
     }
 
     def _valid_flags(self) -> AbstractSet[str]:

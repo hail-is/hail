@@ -45,7 +45,6 @@ class SparkBackend(Py4JBackend):
         tmpdir,
         local_tmpdir,
         skip_logging_configuration,
-        optimizer_iterations,
         *,
         gcs_requester_pays_config: Optional[GCSRequesterPaysConfiguration] = None,
         copy_log_on_error: bool = False,
@@ -118,7 +117,7 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.getOrCreate(jbackend, branching_factor, optimizer_iterations)
+            jhc = hail_package.HailContext.getOrCreate(jbackend, branching_factor)
         else:
             jbackend = hail_package.backend.spark.SparkBackend.apply(
                 jsc,
@@ -131,7 +130,7 @@ class SparkBackend(Py4JBackend):
                 skip_logging_configuration,
                 min_block_size,
             )
-            jhc = hail_package.HailContext.apply(jbackend, branching_factor, optimizer_iterations)
+            jhc = hail_package.HailContext.apply(jbackend, branching_factor)
 
         self._jsc = jbackend.sc()
         if sc:
