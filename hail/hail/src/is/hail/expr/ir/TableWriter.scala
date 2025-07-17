@@ -364,8 +364,13 @@ case class PartitionNativeWriter(
     }
 
     def result(): SValue = {
+      val imd = writeIndexInfo.map { case (_, _, iw) =>
+        val imd = iw.finalize(cb)
+        iw.writeMetadata(cb, imd)
+        imd
+      }
+
       cb += ob.writeByte(0.asInstanceOf[Byte])
-      val imd = writeIndexInfo.map(_._3.finalize(cb))
       cb += ob.flush()
       cb += ob.close()
 

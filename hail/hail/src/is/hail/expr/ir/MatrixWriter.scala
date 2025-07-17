@@ -615,6 +615,7 @@ case class SplitPartitionNativeWriter(
       }
 
       val imd = indexWriter.finalize(cb)
+      indexWriter.writeMetadata(cb, imd)
 
       buffers.foreach { buff =>
         cb += buff.writeByte(0.asInstanceOf[Byte])

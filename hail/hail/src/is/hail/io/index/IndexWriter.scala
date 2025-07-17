@@ -331,7 +331,7 @@ object StagedIndexWriter {
     }
     cb.newEmitMethod("close", FastSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder { cb =>
-        val _ = siw.finalize(cb)
+        siw.writeMetadata(cb, siw.finalize(cb))
       }
 
     cb.newEmitMethod("trackedOS", FastSeq[ParamType](), typeInfo[ByteTrackingOutputStream])
@@ -494,11 +494,12 @@ class StagedIndexWriter(
     val off = cb.invokeCode[Long](flush, cb.this_)
     leafBuilder.close(cb)
     utils.close(cb)
-
     val height = cb.memoize(utils.size + 1)
-    utils.writeMetadata(cb, height, off, elementIdx)
-
     StagedVariableIndexMetadata(height, off, elementIdx)
+  }
+
+  def writeMetadata(cb: EmitCodeBuilder, imd: StagedVariableIndexMetadata): Unit = {
+    utils.writeMetadata(cb, imd.height, imd.rootOffset, imd.nKeys)
   }
 
   def init(cb: EmitCodeBuilder, path: Value[String], attributes: Value[Map[String, Any]]): Unit = {
