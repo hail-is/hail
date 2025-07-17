@@ -114,11 +114,12 @@ class LocalLDPruneSuite extends HailSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
 
-  lazy val mt = Interpret(
-    importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
-    ctx,
-    false,
-  ).toMatrixValue(Array("s"))
+  lazy val mt = unoptimized { ctx =>
+    Interpret(
+      importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
+      ctx,
+    ).toMatrixValue(Array("s"))
+  }
 
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(
     mt.rvd.count(),
