@@ -837,7 +837,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         CompileAndEvaluate[IndexedSeq[Row]](
           ctx,
           GetField(TableCollect(entriesLiteral), "rows"),
-          lower = LoweringPipeline.relationalLowerer(optimize = true),
+          lower = LoweringPipeline.relationalLowerer,
         )
       val entries = rows.map(row => (row.get(0), row.get(1), row.get(2))).toSet
       // block size affects order of rows in table, but sets will be the same
@@ -862,7 +862,7 @@ class BlockMatrixSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         ),
         "rows",
       ),
-      lower = LoweringPipeline.relationalLowerer(optimize = true),
+      lower = LoweringPipeline.relationalLowerer,
     )
     val expected = rows
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))

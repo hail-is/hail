@@ -2339,7 +2339,7 @@ case class MatrixBlockMatrixWriter(
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
-    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
+    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR).asInstanceOf[Int]
     val numBlockCols: Int = (numCols - 1) / blockSize + 1
     val lastBlockNumCols = (numCols - 1) % blockSize + 1
 

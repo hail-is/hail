@@ -14,7 +14,7 @@ object EvalRelationalLets {
         ctx.time {
           val compilable = passesBelow.apply(ctx, lower(value, letsAbove))
             .asInstanceOf[IR]
-          CompileAndEvaluate.evalToIR(ctx, compilable, true)
+          CompileAndEvaluate.evalToIR(ctx, compilable)
         }
 
       def lower(ir: BaseIR, letsAbove: Map[Name, IR]): BaseIR = {

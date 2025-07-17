@@ -1044,7 +1044,7 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    CompileAndEvaluate[Any](ctx, child, true) match {
+    CompileAndEvaluate[Any](ctx, child) match {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)

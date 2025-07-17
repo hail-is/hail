@@ -92,26 +92,19 @@ object HailContext {
     }
   }
 
-  def getOrCreate(backend: Backend, branchingFactor: Int = 50, optimizerIterations: Int = 3)
-    : HailContext = {
+  def getOrCreate(backend: Backend, branchingFactor: Int = 50): HailContext = {
     if (theContext == null)
-      return HailContext(backend, branchingFactor, optimizerIterations)
+      return HailContext(backend, branchingFactor)
 
     if (theContext.branchingFactor != branchingFactor)
       warn(
         s"Requested branchingFactor $branchingFactor, but already initialized to ${theContext.branchingFactor}.  Ignoring requested setting."
       )
 
-    if (theContext.optimizerIterations != optimizerIterations)
-      warn(
-        s"Requested optimizerIterations $optimizerIterations, but already initialized to ${theContext.optimizerIterations}.  Ignoring requested setting."
-      )
-
     theContext
   }
 
-  def apply(backend: Backend, branchingFactor: Int = 50, optimizerIterations: Int = 3)
-    : HailContext = synchronized {
+  def apply(backend: Backend, branchingFactor: Int = 50): HailContext = synchronized {
     require(theContext == null)
     checkJavaVersion()
 
@@ -129,7 +122,7 @@ object HailContext {
       )
     }
 
-    theContext = new HailContext(backend, branchingFactor, optimizerIterations)
+    theContext = new HailContext(backend, branchingFactor)
 
     info(s"Running Hail version ${theContext.version}")
 
@@ -173,7 +166,6 @@ object HailContext {
 class HailContext private (
   var backend: Backend,
   val branchingFactor: Int,
-  val optimizerIterations: Int,
 ) {
   def stop(): Unit = HailContext.stop()
 
