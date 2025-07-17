@@ -24,25 +24,22 @@ import org.apache.spark.sql.Row
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def apply(tir: TableIR, ctx: ExecuteContext): TableValue =
-    apply(tir, ctx, optimize = true)
-
-  def apply(tir: TableIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
+  def apply(tir: TableIR, ctx: ExecuteContext): TableValue = {
     val lowered =
-      LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, tir).asInstanceOf[TableIR].noSharing(
+      LoweringPipeline.legacyRelationalLowerer(ctx, tir).asInstanceOf[TableIR].noSharing(
         ctx
       )
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(mir: MatrixIR, ctx: ExecuteContext, optimize: Boolean): TableValue = {
-    val lowered = LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, mir).asInstanceOf[TableIR]
+  def apply(mir: MatrixIR, ctx: ExecuteContext): TableValue = {
+    val lowered = LoweringPipeline.legacyRelationalLowerer(ctx, mir).asInstanceOf[TableIR]
     ExecuteRelational(ctx, lowered).asTableValue(ctx)
   }
 
-  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext, optimize: Boolean): BlockMatrix = {
+  def apply(bmir: BlockMatrixIR, ctx: ExecuteContext): BlockMatrix = {
     val lowered =
-      LoweringPipeline.legacyRelationalLowerer(optimize)(ctx, bmir).asInstanceOf[BlockMatrixIR]
+      LoweringPipeline.legacyRelationalLowerer(ctx, bmir).asInstanceOf[BlockMatrixIR]
     lowered.execute(ctx)
   }
 
@@ -54,13 +51,12 @@ object Interpret {
     ir0: IR,
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
-    optimize: Boolean = true,
   ): T = {
     val bindings = env.m.view.map { case (k, (value, t)) =>
       k -> Literal.coerce(t, value)
     }.toFastSeq
     val lowered =
-      LoweringPipeline.relationalLowerer(optimize).apply(ctx, Let(bindings, ir0)).asInstanceOf[IR]
+      LoweringPipeline.relationalLowerer(ctx, Let(bindings, ir0)).asInstanceOf[IR]
     val result = run(ctx, lowered, Env.empty[Any], args, Memo.empty).asInstanceOf[T]
     result
   }
