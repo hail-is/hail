@@ -42,7 +42,6 @@ object compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
-    optimize: Boolean = true,
     print: Option[PrintWriter] = None,
   ): (Option[SingleCodeType], (HailClassLoader, FS, HailTaskContext, Region) => F) =
     Impl[F, AnyVal](
@@ -52,7 +51,6 @@ object compile {
       expectedCodeParamTypes,
       expectedCodeReturnType,
       body,
-      optimize,
       print,
     )
 
@@ -63,7 +61,6 @@ object compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
-    optimize: Boolean = true,
     print: Option[PrintWriter] = None,
   ): (
     Option[SingleCodeType],
@@ -76,7 +73,6 @@ object compile {
       expectedCodeParamTypes,
       expectedCodeReturnType,
       body,
-      optimize,
       print,
     )
 
@@ -87,7 +83,6 @@ object compile {
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]],
     expectedCodeReturnType: TypeInfo[_],
     body: IR,
-    optimize: Boolean,
     print: Option[PrintWriter],
   )(implicit
     E: Enclosing,
@@ -101,7 +96,7 @@ object compile {
             body,
             BindingEnv(Env.fromSeq(params.zipWithIndex.map { case ((n, t), i) => n -> In(i, t) })),
           )
-          ir = LoweringPipeline.compileLowerer(optimize)(ctx, ir).asInstanceOf[IR].noSharing(ctx)
+          ir = LoweringPipeline.compileLowerer(ctx, ir).asInstanceOf[IR].noSharing(ctx)
           TypeCheck(ctx, ir)
 
           val fb = EmitFunctionBuilder[F](
@@ -207,7 +202,7 @@ object CompileIterator {
 
     val outerRegion = outerRegionField
 
-    val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing(ctx)
+    val ir = LoweringPipeline.compileLowerer(ctx, body).asInstanceOf[IR].noSharing(ctx)
     TypeCheck(ctx, ir)
 
     var elementAddress: Settable[Long] = null

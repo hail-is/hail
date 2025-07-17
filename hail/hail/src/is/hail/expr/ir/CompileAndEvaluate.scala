@@ -19,22 +19,18 @@ object CompileAndEvaluate {
   def apply[T](
     ctx: ExecuteContext,
     ir: IR,
-    optimize: Boolean = true,
     lower: LoweringPipeline = LoweringPipeline(),
-  ): T = {
+  ): T =
     ctx.time {
-      _apply(ctx, ir, optimize, lower) match {
+      _apply(ctx, ir, lower) match {
         case Left(()) => ().asInstanceOf[T]
         case Right((t, off)) => SafeRow(t, off).getAs[T](0)
       }
     }
-  }
 
-  def evalToIR(ctx: ExecuteContext, ir: IR, optimize: Boolean = true): IR = {
-    if (IsConstant(ir))
-      return ir
-
-    _apply(ctx, ir, optimize) match {
+  def evalToIR(ctx: ExecuteContext, ir: IR): IR =
+    if (IsConstant(ir)) ir
+    else _apply(ctx, ir) match {
       case Left(_) => Begin(FastSeq())
       case Right((pt, addr)) =>
         ir.typ match {
@@ -44,12 +40,10 @@ object CompileAndEvaluate {
           case _ => EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
         }
     }
-  }
 
   def _apply(
     ctx: ExecuteContext,
     ir0: IR,
-    optimize: Boolean = true,
     lower: LoweringPipeline = LoweringPipeline(),
     print: Option[PrintWriter] = None,
   ): Either[Unit, (PTuple, Long)] =
@@ -65,8 +59,7 @@ object CompileAndEvaluate {
             FastSeq(classInfo[Region]),
             UnitInfo,
             ir,
-            print = print,
-            optimize = optimize,
+            print,
           )
 
           val unit: Unit = ctx.scopedExecution { (hcl, fs, htc, r) =>
@@ -84,8 +77,7 @@ object CompileAndEvaluate {
               FastSeq(classInfo[Region]),
               LongInfo,
               MakeTuple.ordered(FastSeq(ir)),
-              print = print,
-              optimize = optimize,
+              print,
             )
 
           val res = ctx.scopedExecution { (hcl, fs, htc, r) =>

@@ -347,7 +347,6 @@ object LoweredTableReader {
         FastSeq[TypeInfo[_]](classInfo[Region]),
         LongInfo,
         summary,
-        optimize = true,
       )
 
     val s = ctx.scopedExecution { (hcl, fs, htc, r) =>

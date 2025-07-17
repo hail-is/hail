@@ -292,7 +292,7 @@ class ServiceBackend(
     CompileAndEvaluate._apply(
       ctx,
       ir,
-      lower = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All),
+      lower = LoweringPipeline.darrayLowerer(DArrayLowering.All),
     )
 
   override def lowerDistributedSort(
