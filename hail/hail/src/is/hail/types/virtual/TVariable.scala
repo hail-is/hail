@@ -2,6 +2,7 @@ package is.hail.types.virtual
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.backend.HailStateManager
+import is.hail.macros.void
 import is.hail.types.Box
 
 import scala.collection.mutable
@@ -49,7 +50,7 @@ final case class TVariable(name: String, cond: String = null) extends Type {
       s"?$name"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append(_toPretty)
+    void(sb ++= _toPretty)
 
   override def isRealizable = false
 

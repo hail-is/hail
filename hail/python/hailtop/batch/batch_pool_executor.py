@@ -120,7 +120,7 @@ class BatchPoolExecutor:
         if not isinstance(self.backend, ServiceBackend):
             raise ValueError(f'BatchPoolExecutor is not compatible with {type(backend)}')
         self.batches: List[Batch] = []
-        self.directory = self.backend.remote_tmpdir + f'batch-pool-executor/{self.name}/'
+        self.directory = f'{self.backend.remote_tmpdir}/batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
         self.__fs: Optional[RouterAsyncFS]
@@ -218,11 +218,11 @@ class BatchPoolExecutor:
         def generator_from_async_generator(aiter):
             try:
                 while True:
-                    yield async_to_blocking(aiter.__anext__())
+                    yield async_to_blocking(anext(aiter))
             except StopAsyncIteration:
                 pass
 
-        return generator_from_async_generator(agen.__aiter__())
+        return generator_from_async_generator(aiter(agen))
 
     async def async_map(
         self,

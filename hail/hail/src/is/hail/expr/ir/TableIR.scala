@@ -10,7 +10,7 @@ import is.hail.expr.ir.functions.{
   BlockMatrixToTableFunction, IntervalFunctions, MatrixToTableFunction, TableToTableFunction,
 }
 import is.hail.expr.ir.lowering._
-import is.hail.expr.ir.streams.{StreamProducer, StreamUtils}
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
 import is.hail.io.avro.AvroTableReader
 import is.hail.io.fs.FS
@@ -67,8 +67,6 @@ sealed abstract class TableIR extends BaseIR {
     }
 
   def pyUnpersist(): TableIR = unpersist()
-
-  def typecheck(): Unit = {}
 }
 
 object TableLiteral {
@@ -1714,8 +1712,8 @@ case class PartitionZippedIndexedNativeReader(
         }
 
         override def close(cb: EmitCodeBuilder): Unit = {
-          leftBuffer.invoke[Unit]("close")
-          rightBuffer.invoke[Unit]("close")
+          cb += leftBuffer.invoke[Unit]("close")
+          cb += rightBuffer.invoke[Unit]("close")
         }
       }
       SStreamValue(producer)
@@ -2107,12 +2105,6 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
-  override def typecheck(): Unit = {
-    assert(rowsAndGlobal.typ.isInstanceOf[TStruct])
-    assert(rowsAndGlobal.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
-    assert(nPartitions.forall(_ > 0))
-  }
-
   lazy val rowCountUpperBound: Option[Long] = None
 
   val childrenSeq: IndexedSeq[BaseIR] = FastSeq(rowsAndGlobal)
@@ -2147,11 +2139,6 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   */
 case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false)
     extends TableIR {
-  override def typecheck(): Unit = {
-    val fields = child.typ.rowType.fieldNames.toSet
-    assert(keys.forall(fields.contains), s"${keys.filter(k => !fields.contains(k)).mkString(", ")}")
-  }
-
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   val childrenSeq: IndexedSeq[BaseIR] = Array(child)
@@ -2192,21 +2179,6 @@ case class TableGen(
   partitioner: RVDPartitioner,
   errorId: Int = ErrorIDs.NO_ERROR,
 ) extends TableIR {
-
-  override def typecheck(): Unit = {
-    TypeCheck.coerce[TStream]("contexts", contexts.typ)
-    TypeCheck.coerce[TStruct]("globals", globals.typ)
-    val bodyType = TypeCheck.coerce[TStream]("body", body.typ)
-    val rowType = TypeCheck.coerce[TStruct]("body.elementType", bodyType.elementType)
-
-    if (!partitioner.kType.isSubsetOf(rowType))
-      throw new IllegalArgumentException(
-        s"""'partitioner': key type contains fields absent from row type
-           |  Key type: ${partitioner.kType}
-           |  Row type: $rowType""".stripMargin
-      )
-  }
-
   private def globalType =
     TypeCheck.coerce[TStruct]("globals", globals.typ)
 
@@ -2359,17 +2331,6 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     joinType == "right" ||
     joinType == "outer")
 
-  override def typecheck(): Unit = {
-    assert(left.typ.key.length >= joinKey)
-    assert(right.typ.key.length >= joinKey)
-    assert(left.typ.keyType.truncate(joinKey) isJoinableWith right.typ.keyType.truncate(joinKey))
-    assert(
-      left.typ.globalType.fieldNames.toSet
-        .intersect(right.typ.globalType.fieldNames.toSet)
-        .isEmpty
-    )
-  }
-
   val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
 
   lazy val rowCountUpperBound: Option[Long] = None
@@ -2446,17 +2407,6 @@ case class TableMultiWayZipJoin(
 ) extends TableIR {
   require(childrenSeq.nonEmpty, "there must be at least one table as an argument")
 
-  override def typecheck(): Unit = {
-    val first = childrenSeq.head
-    val rest = childrenSeq.tail
-    assert(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
-    assert(rest.forall(e => e.typ.key == first.typ.key), "all keys must be the same")
-    assert(
-      rest.forall(e => e.typ.globalType == first.typ.globalType),
-      "all globals must have the same type",
-    )
-  }
-
   private def first = childrenSeq.head
 
   lazy val rowCountUpperBound: Option[Long] = None
@@ -2477,12 +2427,6 @@ case class TableMultiWayZipJoin(
 }
 
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
-  override def typecheck(): Unit =
-    assert(
-      right.typ.keyType isPrefixOf left.typ.keyType,
-      s"\n  L: ${left.typ}\n  R: ${right.typ}",
-    )
-
   lazy val rowCountUpperBound: Option[Long] = left.rowCountUpperBound
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(left, right)
@@ -2514,23 +2458,6 @@ case class TableMapPartitions(
   requestedKey: Int,
   allowedOverlap: Int,
 ) extends TableIR {
-  override def typecheck(): Unit = {
-    assert(body.typ.isInstanceOf[TStream], s"${body.typ}")
-    assert(allowedOverlap >= -1)
-    assert(allowedOverlap <= child.typ.key.size)
-    assert(requestedKey >= 0)
-    assert(requestedKey <= child.typ.key.size)
-    assert(
-      StreamUtils.isIterationLinear(body, partitionStreamName),
-      "must iterate over the partition exactly once",
-    )
-    val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
-    child.typ.key.foreach { k =>
-      if (!newRowType.hasField(k))
-        throw new RuntimeException(s"prev key: ${child.typ.key}, new row: $newRowType")
-    }
-  }
-
   lazy val typ: TableType = child.typ.copy(
     rowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
   )
@@ -2555,11 +2482,6 @@ case class TableMapPartitions(
 
 // Must leave key fields unchanged.
 case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
-  override def typecheck(): Unit = {
-    val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
-    assert(child.typ.key.forall(newFieldSet.contains))
-  }
-
   val childrenSeq: IndexedSeq[BaseIR] = Array(child, newRow)
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
@@ -2593,9 +2515,6 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableIR {
   assert(path.nonEmpty)
 
-  override def typecheck(): Unit =
-    assert(!child.typ.key.contains(path.head))
-
   lazy val rowCountUpperBound: Option[Long] = None
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child)
@@ -2617,11 +2536,6 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
 case class TableUnion(childrenSeq: IndexedSeq[TableIR]) extends TableIR {
   assert(childrenSeq.nonEmpty)
-
-  override def typecheck(): Unit = {
-    assert(childrenSeq.tail.forall(_.typ.rowType == childrenSeq(0).typ.rowType))
-    assert(childrenSeq.tail.forall(_.typ.key == childrenSeq(0).typ.key))
-  }
 
   lazy val rowCountUpperBound: Option[Long] = {
     val definedChildren = childrenSeq.flatMap(_.rowCountUpperBound)
@@ -2701,11 +2615,6 @@ case class TableKeyByAndAggregate(
 ) extends TableIR {
   assert(bufferSize > 0)
 
-  override def typecheck(): Unit = {
-    assert(expr.typ.isInstanceOf[TStruct])
-    assert(newKey.typ.isInstanceOf[TStruct])
-  }
-
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, expr, newKey)
 
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
@@ -2727,9 +2636,6 @@ case class TableKeyByAndAggregate(
 
 // follows key_by non-empty key
 case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
-  override def typecheck(): Unit =
-    assert(child.typ.key.nonEmpty)
-
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   lazy val childrenSeq: IndexedSeq[BaseIR] = Array(child, expr)
@@ -2796,11 +2702,6 @@ case class CastMatrixToTable(
 
 case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: Map[String, String])
     extends TableIR {
-  override def typecheck(): Unit = {
-    assert(rowMap.keys.forall(child.typ.rowType.hasField))
-    assert(globalMap.keys.forall(child.typ.globalType.hasField))
-  }
-
   lazy val rowCountUpperBound: Option[Long] = child.rowCountUpperBound
 
   def rowF(old: String): String = rowMap.getOrElse(old, old)

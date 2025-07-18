@@ -6,7 +6,7 @@ case object TRNGState extends Type {
   override def _toPretty = "RNGState"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("rng_state")
+    sb ++= "rng_state"
 
   def _typeCheck(a: Any): Boolean = ???
 

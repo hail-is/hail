@@ -659,6 +659,19 @@ def test_to_dense_mt():
     assert as_dict.get(('chr22:10562436', 'NA12878')) == hl.Struct(LGT=hl.Call([0, 0]), LA=None, GQ=21, DP=9)
 
 
+@test_timeout(local=5 * 60, batch=8 * 60)
+def test_read_dense_mt_and_to_dense_mt_equivalence():
+    vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    vds = hl.vds.filter_chromosomes(vds, keep='chr22')
+    to_dense_mt_mt = hl.vds.to_dense_mt(vds).select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    mt = hl.vds.read_dense_mt(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
+    mt = hl.filter_intervals(mt, [hl.parse_locus_interval('chr22', 'GRCh38')])
+    read_dense_mt_mt = mt.select_entries('LGT', 'LA', 'GQ', 'DP')
+
+    assert to_dense_mt_mt._same(read_dense_mt_mt)
+
+
 def test_to_dense_mt_haploid():
     vds = hl.vds.read_vds(os.path.join(resource('vds'), '1kg_2samples_starts.vds'))
     vds = hl.vds.filter_chromosomes(vds, keep='chr22')

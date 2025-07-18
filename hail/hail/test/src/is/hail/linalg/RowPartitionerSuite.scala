@@ -1,13 +1,15 @@
 package is.hail.linalg
 
 import org.scalacheck.Arbitrary.arbitrary
+import org.scalatest
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.scalatestplus.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyChecks {
   @Test
-  def testGetPartition(): Unit = {
+  def testGetPartition(): scalatest.Assertion = {
     val partitionStarts = Array[Long](0, 0, 0, 4, 5, 5, 8, 10, 10)
     val partitionCounts = Array(0, 0, 4, 1, 0, 3, 2, 0)
     val keyPart = partitionCounts.zipWithIndex.flatMap { case (count, pi) => Array.fill(count)(pi) }
@@ -17,7 +19,7 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
     assert((0 until 10).forall(i => keyPart(i) == rp.getPartition(i.toLong)))
   }
 
-  @Test def testFindInterval(): Unit = {
+  @Test def testFindInterval(): scalatest.Assertion = {
     def naiveFindInterval(a: Array[Long], key: Long): Int = {
       if (a.length == 0 || key < a(0))
         -1
@@ -35,9 +37,12 @@ class RowPartitionerSuite extends TestNGSuite with ScalaCheckDrivenPropertyCheck
 
     forAll(arbitrary[Array[Long]] map { _.sorted }) { a =>
       whenever(a.nonEmpty) {
-        for (key <- a ++ moreKeys)
-          if (key > a.head && key < a.last)
-            assert(RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key))
+        scalatest.Inspectors.forAll(a ++ moreKeys) { key =>
+          assert(
+            !(key > a.head && key < a.last) ||
+              RowPartitioner.findInterval(a, key) == naiveFindInterval(a, key)
+          )
+        }
       }
     }
   }

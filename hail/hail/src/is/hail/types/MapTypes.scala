@@ -1,5 +1,6 @@
 package is.hail.types
 
+import is.hail.macros.void
 import is.hail.types.virtual._
 
 object MapTypes {
@@ -19,5 +20,5 @@ object MapTypes {
   }
 
   def foreach(f: Type => Unit)(typ: Type): Unit =
-    recur { t => f(t); t }(typ)
+    void(recur { t => f(t); t }(typ))
 }

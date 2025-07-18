@@ -3,7 +3,7 @@ from typer.testing import CliRunner
 
 from hailtop.hailctl.dataproc import cli
 
-runner = CliRunner(mix_stderr=False)
+runner = CliRunner()
 
 
 def test_stop(gcloud_run):

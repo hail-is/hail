@@ -130,7 +130,7 @@ fs-jvm-test: upload-remote-test-resources
 	HAIL_DEFAULT_NAMESPACE=$(NAMESPACE) \
 	HAIL_FS_TEST_CLOUD_RESOURCES_URI=$(CLOUD_HAIL_TEST_RESOURCES_DIR)fs \
 	HAIL_TEST_STORAGE_URI=$(TEST_STORAGE_URI) \
-	$(MILL) $(MILLOPTS) hail.test testng-fs.xml
+	$(MILL) $(MILLOPTS) hail.test $(realpath testng-fs.xml)
 
 # end mill integration
 

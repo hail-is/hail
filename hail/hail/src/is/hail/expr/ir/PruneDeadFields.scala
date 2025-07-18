@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.backend.ExecuteContext
 import is.hail.expr.Nat
 import is.hail.expr.ir.defs._
+import is.hail.macros.void
 import is.hail.types._
 import is.hail.types.virtual._
 import is.hail.types.virtual.TIterable.elementType
@@ -348,7 +349,7 @@ object PruneDeadFields {
       case tir: TableParallelize =>
         val typ =
           TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType)
-        createTypeStatesAndMemoize(ctx, tir, 0, typ, memo)
+        void(createTypeStatesAndMemoize(ctx, tir, 0, typ, memo))
       case _: TableRange =>
       case TableRepartition(child, _, _) => memoizeTableIR(ctx, child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(
@@ -387,8 +388,9 @@ object PruneDeadFields {
         val contextsElemType = contextState.newType
         // Globals are exported and used in body, so keep the union of the used fields
         val globalsType = globalState.union(requestedType.globalType).newType
-        createTypeStatesAndMemoize(ctx, tir, 0, TStream(contextsElemType), memo)
-        createTypeStatesAndMemoize(ctx, tir, 1, globalsType, memo)
+
+        void(createTypeStatesAndMemoize(ctx, tir, 0, TStream(contextsElemType), memo))
+        void(createTypeStatesAndMemoize(ctx, tir, 1, globalsType, memo))
 
       case TableJoin(left, right, _, joinKey) =>
         val lk =
@@ -1326,7 +1328,7 @@ object PruneDeadFields {
     memo.requestedType.bind(ir, requestedType)
     ir match {
       case ir: IsNA =>
-        recurMin(ir, 0)
+        void(recurMin(ir, 0))
 
       case CastRename(v, _typ) =>
         def loop(reqType: Type, castType: Type, baseType: Type): Type = {
@@ -1355,23 +1357,23 @@ object PruneDeadFields {
           }
         }
 
-        recur(ir, 0, loop(requestedType, _typ, v.typ))
+        void(recur(ir, 0, loop(requestedType, _typ, v.typ)))
 
       case ir: If =>
-        recurMax(ir, 0)
-        recur(ir, 1, requestedType)
-        recur(ir, 2, requestedType)
+        void(recurMax(ir, 0))
+        void(recur(ir, 1, requestedType))
+        void(recur(ir, 2, requestedType))
 
       case Switch(_, _, cases) =>
-        recurMax(ir, 0)
-        recur(ir, 1, requestedType)
+        void(recurMax(ir, 0))
+        void(recur(ir, 1, requestedType))
         cases.indices.foreach(i => recur(ir, i + 2, requestedType))
 
       case Coalesce(values) =>
         values.indices.foreach(recur(ir, _, requestedType))
 
       case Consume(_) =>
-        recurMax(ir, 0)
+        void(recurMax(ir, 0))
 
       case Block(bindings, _) =>
         val typeStates = mutable.AnyRefMap.empty[Name, TypeState]
@@ -1381,12 +1383,12 @@ object PruneDeadFields {
 
       case Ref(name, _) =>
 //        env.eval.lookupOption(name).foreach(_.union(requestedType))
-        env.eval(name).union(requestedType)
+        void(env.eval(name).union(requestedType))
 
       case RelationalLet(name, value, _) =>
-        recur(ir, 1, requestedType)
+        void(recur(ir, 1, requestedType))
         val usages = memo.relationalRefs.get(name).map(_.result()).getOrElse(Array())
-        recur(ir, 0, unifySeq(value.typ, usages))
+        void(recur(ir, 0, unifySeq(value.typ, usages)))
 
       case RelationalRef(name, _) =>
         memo.relationalRefs.getOrElseUpdate(name, new BoxedArrayBuilder[Type]) += requestedType
@@ -1400,19 +1402,19 @@ object PruneDeadFields {
         args.indices.foreach(recur(ir, _, eltType))
 
       case ir: ArrayRef =>
-        recur(ir, 0, TArray(requestedType))
-        recurMax(ir, 1)
+        void(recur(ir, 0, TArray(requestedType)))
+        void(recurMax(ir, 1))
 
       case ir: ArrayLen =>
-        recurMin(ir, 0)
+        void(recurMin(ir, 0))
 
       case ir: StreamTake =>
-        recur(ir, 0, requestedType)
-        recurMax(ir, 1)
+        void(recur(ir, 0, requestedType))
+        void(recurMax(ir, 1))
 
       case ir: StreamDrop =>
-        recur(ir, 0, requestedType)
-        recurMax(ir, 1)
+        void(recur(ir, 0, requestedType))
+        void(recurMax(ir, 1))
 
       case StreamWhiten(a, newChunk, prevWindow, _, _, _, _, _) =>
         val matType = TNDArray(TFloat64, Nat(2))
@@ -1421,36 +1423,35 @@ object PruneDeadFields {
           requestedType.asInstanceOf[TStream].elementType,
           TStruct((newChunk, matType), (prevWindow, matType)),
         )
-        recur(ir, 0, TStream(unifiedStructType))
-
-      case ir: StreamMap =>
-        val Seq(eltState) = recur(ir, 1, TIterable.elementType(requestedType))
-        recur(ir, 0, TStream(eltState.newType))
+        void(recur(ir, 0, TStream(unifiedStructType)))
 
       case ir: StreamGrouped =>
-        recur(ir, 0, TIterable.elementType(requestedType))
-        recurMax(ir, 1)
+        void(recur(ir, 0, TIterable.elementType(requestedType)))
+        void(recurMax(ir, 1))
 
       case StreamGroupByKey(a, key, _) =>
         val reqStructT = tcoerce[TStruct](
           tcoerce[TStream](tcoerce[TStream](requestedType).elementType).elementType
         )
         val origStructT = tcoerce[TStruct](tcoerce[TStream](a.typ).elementType)
-        recur(
-          ir,
-          0,
-          TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))),
-        )
+        void {
+          recur(
+            ir,
+            0,
+            TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))),
+          )
+        }
 
       case StreamZip(as, _, _, behavior, _) =>
         val bodyBindings = recur(ir, as.length, TIterable.elementType(requestedType))
         if (behavior == ArrayZipBehavior.AssumeSameLength && bodyBindings.forall(_.isUndefined)) {
-          recurMin(ir, 0)
+          void(recurMin(ir, 0))
         } else {
-          as.indices.map { i =>
+          as.indices.foreach { i =>
             val state = bodyBindings(i)
-            if (behavior != ArrayZipBehavior.AssumeSameLength || !state.isUndefined)
-              recur(ir, i, TStream(state.newType))
+            if (behavior != ArrayZipBehavior.AssumeSameLength || !state.isUndefined) {
+              void(recur(ir, i, TStream(state.newType)))
+            }
           }
         }
 
@@ -1465,7 +1466,7 @@ object PruneDeadFields {
         val Seq(_, valsState) = recur(ir, 2, requestedEltType)
         val producerRequestedEltType = elementType(valsState.requireFieldsInElt(key).newType)
         val Seq(ctxState) = recur(ir, 1, TStream(producerRequestedEltType))
-        recur(ir, 0, TArray(ctxState.newType))
+        void(recur(ir, 0, TArray(ctxState.newType)))
 
       case StreamMultiMerge(as, key) =>
         val eltType = tcoerce[TStruct](tcoerce[TStream](as.head.typ).elementType)
@@ -1473,48 +1474,33 @@ object PruneDeadFields {
         val childRequestedEltType = unify(eltType, requestedEltType, selectKey(eltType, key))
         as.indices.foreach(recur(ir, _, TStream(childRequestedEltType)))
 
-      case StreamFilter(_, _, _) =>
+      case _: StreamFilter | _: StreamTakeWhile | _: StreamDropWhile =>
         val Seq(eltState) = recurMax(ir, 1)
         val valueType = eltState.union(TIterable.elementType(requestedType)).newType
-        recur(ir, 0, TStream(valueType))
-
-      case StreamTakeWhile(_, _, _) =>
-        val Seq(eltState) = recurMax(ir, 1)
-        val valueType = eltState.union(TIterable.elementType(requestedType)).newType
-        recur(ir, 0, TStream(valueType))
-
-      case StreamDropWhile(_, _, _) =>
-        val Seq(eltState) = recurMax(ir, 1)
-        val valueType = eltState.union(TIterable.elementType(requestedType)).newType
-        recur(ir, 0, TStream(valueType))
+        void(recur(ir, 0, TStream(valueType)))
 
       case StreamFlatMap(_, _, _) =>
         val Seq(eltState) = recur(ir, 1, requestedType)
-        recur(ir, 0, TStream(eltState.newType))
+        void(recur(ir, 0, TStream(eltState.newType)))
 
-      case StreamFold(_, _, _, _, _) =>
+      case _: StreamFold | _: StreamScan =>
         val Seq(_, valueState) = recurMax(ir, 2)
-        recurMax(ir, 1)
-        recur(ir, 0, TStream(valueState.newType))
+        void(recurMax(ir, 1))
+        void(recur(ir, 0, TStream(valueState.newType)))
 
       case StreamFold2(_, accum, valueName, seq, _) =>
-        recur(ir, 2 * accum.length + 1, requestedType)
+        void(recur(ir, 2 * accum.length + 1, requestedType))
         val seqBindings = mutable.AnyRefMap.empty[Name, TypeState]
         seq.indices.foreach(i => recurMaxWithTypeStates(ir, accum.length + 1 + i, seqBindings))
         accum.indices.foreach(i => recurMax(ir, i + 1))
-        recur(ir, 0, TStream(seqBindings(valueName).newType))
-
-      case StreamScan(_, _, _, _, _) =>
-        val Seq(_, valueState) = recurMax(ir, 2)
-        recurMax(ir, 1)
-        recur(ir, 0, TStream(valueState.newType))
+        void(recur(ir, 0, TStream(seqBindings(valueName).newType)))
 
       case StreamJoinRightDistinct(_, _, lKey, rKey, _, _, _, _) =>
         val Seq(lState, rState) = recur(ir, 2, TIterable.elementType(requestedType))
         val lRequested = lState.requireFields(lKey).newType
         val rRequested = rState.requireFields(rKey).newType
-        recur(ir, 0, TStream(lRequested))
-        recur(ir, 1, TStream(rRequested))
+        void(recur(ir, 0, TStream(lRequested)))
+        void(recur(ir, 1, TStream(rRequested)))
 
       case StreamLeftIntervalJoin(_, _, keyFieldName, intervalFieldName, _, _, _) =>
         val Seq(lState, rState) = recur(ir, 2, elementType(requestedType))
@@ -1522,8 +1508,8 @@ object PruneDeadFields {
         val rEltType = elementType(rState.origType).asInstanceOf[TStruct]
         val rRequestedType =
           rState.union(TArray(selectKey(rEltType, FastSeq(intervalFieldName)))).newType
-        recur(ir, 0, TStream(lRequestedType))
-        recur(ir, 1, TStream(elementType(rRequestedType)))
+        void(recur(ir, 0, TStream(lRequestedType)))
+        void(recur(ir, 1, TStream(elementType(rRequestedType))))
 
       case ArraySort(_, _, _, _) =>
         val Seq(lState, rState) = recurMax(ir, 1)
@@ -1531,63 +1517,61 @@ object PruneDeadFields {
           .union(rState.newType)
           .union(TIterable.elementType(requestedType))
           .newType
-        recur(ir, 0, TStream(requestedElementType))
+        void(recur(ir, 0, TStream(requestedElementType)))
 
       case ArrayMaximalIndependentSet(_, tiebreaker) =>
-        if (tiebreaker.nonEmpty) recurMax(ir, 1)
-        recurMax(ir, 0)
+        if (tiebreaker.nonEmpty) void(recurMax(ir, 1))
+        void(recurMax(ir, 0))
 
       case StreamFor(_, _, _) =>
         assert(requestedType == TVoid)
         val Seq(eltState) = recurMax(ir, 1)
-        recur(ir, 0, TStream(eltState.newType))
+        void(recur(ir, 0, TStream(eltState.newType)))
 
       case MakeNDArray(data, _, _, _) =>
         val elementType = requestedType.asInstanceOf[TNDArray].elementType
         val dataType =
-          if (data.typ.isInstanceOf[TArray]) TArray(elementType) else TStream(elementType)
-        recur(ir, 0, dataType)
-        recurMax(ir, 1)
-        recurMax(ir, 2)
+          if (data.typ.isInstanceOf[TArray]) TArray(elementType)
+          else TStream(elementType)
+        void(recur(ir, 0, dataType))
+        void(recurMax(ir, 1))
+        void(recurMax(ir, 2))
 
       case NDArrayMap(nd, _, _) =>
         val Seq(eltState) = recur(ir, 1, requestedType.asInstanceOf[TNDArray].elementType)
         val eltType =
           nd.typ.asInstanceOf[TNDArray].copy(elementType = eltState.newType)
-        recur(ir, 0, eltType)
+        void(recur(ir, 0, eltType))
 
       case NDArrayMap2(left, right, _, _, _, _) =>
         val Seq(lState, rState) = recur(ir, 2, requestedType.asInstanceOf[TNDArray].elementType)
-        recur(ir, 0, left.typ.asInstanceOf[TNDArray].copy(elementType = lState.newType))
-        recur(ir, 1, right.typ.asInstanceOf[TNDArray].copy(elementType = rState.newType))
+        void(recur(ir, 0, left.typ.asInstanceOf[TNDArray].copy(elementType = lState.newType)))
+        void(recur(ir, 1, right.typ.asInstanceOf[TNDArray].copy(elementType = rState.newType)))
 
       case AggExplode(_, _, _, _) =>
         val Seq(eltState) = recur(ir, 1, requestedType)
-        recur(ir, 0, TStream(eltState.newType))
+        void(recur(ir, 0, TStream(eltState.newType)))
 
       case AggFilter(_, _, _) =>
-        recur(ir, 1, requestedType)
-        recurMax(ir, 0)
+        void(recur(ir, 1, requestedType))
+        void(recurMax(ir, 0))
 
       case AggGroupBy(_, _, _) =>
-        recur(ir, 1, requestedType.asInstanceOf[TDict].valueType)
-        recur(ir, 0, requestedType.asInstanceOf[TDict].keyType)
+        val tdict = requestedType.asInstanceOf[TDict]
+        void(recur(ir, 1, tdict.valueType))
+        void(recur(ir, 0, tdict.keyType))
 
       case AggArrayPerElement(_, _, _, _, knownLength, _) =>
         val Seq(eltState, _) = recur(ir, 1, TIterable.elementType(requestedType))
-        recur(ir, 0, TArray(eltState.newType))
-        if (knownLength.nonEmpty) recurMax(ir, 2)
+        void(recur(ir, 0, TArray(eltState.newType)))
+        if (knownLength.nonEmpty) void(recurMax(ir, 2))
 
-      case ApplyAggOp(initOpArgs, _, sig) =>
-        val prunedSig = AggSignature.prune(sig, requestedType)
-        prunedSig.initOpArgs.zipWithIndex.foreach { case (req, i) =>
-          recur(ir, i, req)
-        }
-        prunedSig.seqOpArgs.zipWithIndex.foreach { case (req, i) =>
-          recur(ir, initOpArgs.length + i, req)
+      case a @ (_: ApplyAggOp | _: ApplyScanOp) =>
+        val (initOpArgs, sig) = a match {
+          case ApplyAggOp(initOpArgs, _, sig) => (initOpArgs, sig)
+          case ApplyScanOp(initOpArgs, _, sig) => (initOpArgs, sig)
         }
 
-      case ApplyScanOp(initOpArgs, _, sig) =>
         val prunedSig = AggSignature.prune(sig, requestedType)
         prunedSig.initOpArgs.zipWithIndex.foreach { case (req, i) =>
           recur(ir, i, req)
@@ -1597,28 +1581,27 @@ object PruneDeadFields {
         }
 
       case ir: AggFold =>
-        recurMax(ir, 0)
-        recurMax(ir, 1)
-        recurMax(ir, 2)
+        (0 until 3).foreach(i => recurMax(ir, i))
 
       case StreamAgg(_, _, _) =>
         val Seq(eltState) = recur(ir, 1, requestedType)
-        recur(ir, 0, TStream(eltState.newType))
+        void(recur(ir, 0, TStream(eltState.newType)))
 
-      case StreamAggScan(_, _, _) =>
+      case _: StreamMap | _: StreamAggScan =>
         val Seq(eltState) = recur(ir, 1, TIterable.elementType(requestedType))
-        recur(ir, 0, TStream(eltState.newType))
+        void(recur(ir, 0, TStream(eltState.newType)))
 
       case ir: RunAgg =>
-        recurMax(ir, 0)
-        recur(ir, 1, requestedType)
+        void(recurMax(ir, 0))
+        void(recur(ir, 1, requestedType))
 
       case RunAggScan(_, name, _, _, _, _) =>
         val bindings = mutable.AnyRefMap.empty[Name, TypeState]
+
         recurWithTypeStates(ir, 3, TIterable.elementType(requestedType), bindings)
         recurMaxWithTypeStates(ir, 2, bindings)
-        recurMax(ir, 1)
-        recur(ir, 0, TStream(bindings(name).newType))
+        void(recurMax(ir, 1))
+        void(recur(ir, 0, TStream(bindings(name).newType)))
 
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
@@ -1640,7 +1623,7 @@ object PruneDeadFields {
                 sType.selfField(f.name).map(f.name -> _.typ)
             }: _*
         )
-        recur(ir, 0, leftDep)
+        void(recur(ir, 0, leftDep))
         fields.view.zipWithIndex.foreach { case ((fname, _), i) =>
           rightDep.selfField(fname).foreach(f => recur(ir, i + 1, f.typ))
         }
@@ -1650,10 +1633,10 @@ object PruneDeadFields {
         val oldReqType = TStruct(old.typ.asInstanceOf[TStruct]
           .fieldNames
           .flatMap(fn => sType.selfField(fn).map(fd => (fd.name, fd.typ))): _*)
-        recur(ir, 0, oldReqType)
+        void(recur(ir, 0, oldReqType))
 
       case GetField(_, name) =>
-        recur(ir, 0, TStruct(name -> requestedType))
+        void(recur(ir, 0, TStruct(name -> requestedType)))
 
       case MakeTuple(fields) =>
         val tType = requestedType.asInstanceOf[TTuple]
@@ -1663,11 +1646,11 @@ object PruneDeadFields {
         }
       case GetTupleElement(_, idx) =>
         val tupleDep = TTuple(FastSeq(TupleField(idx, requestedType)))
-        recur(ir, 0, tupleDep)
+        void(recur(ir, 0, tupleDep))
 
       case ir: ConsoleLog =>
-        recur(ir, 0, TString)
-        recurMax(ir, 1)
+        void(recur(ir, 0, TString))
+        void(recurMax(ir, 1))
 
       case MatrixCount(child) =>
         memoizeMatrixIR(ctx, child, minimal(child.typ), memo)
@@ -1735,11 +1718,11 @@ object PruneDeadFields {
         }
 
       case CollectDistributedArray(_, _, _, _, _, _, _, _) =>
-        recur(ir, 3, TString)
+        void(recur(ir, 3, TString))
         val Seq(contextState, globalState) =
           recur(ir, 2, requestedType.asInstanceOf[TArray].elementType)
-        recur(ir, 1, globalState.newType)
-        recur(ir, 0, TStream(contextState.newType))
+        void(recur(ir, 1, globalState.newType))
+        void(recur(ir, 0, TStream(contextState.newType)))
 
       case _: IR =>
         ir.children.zipWithIndex.foreach {
@@ -1749,7 +1732,7 @@ object PruneDeadFields {
             memoizeTableIR(ctx, tir, tir.typ, memo)
           case (_: BlockMatrixIR, _) => // NOTE Currently no BlockMatrixIRs would have dead fields
           case (_: IR, i) =>
-            recurMax(ir, i)
+            void(recurMax(ir, i))
         }
     }
   }

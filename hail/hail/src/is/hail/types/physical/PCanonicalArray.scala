@@ -20,9 +20,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false)
   def _asIdent = s"array_of_${elementType.asIdent}"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false): Unit = {
-    sb.append("PCArray[")
+    sb ++= "PCArray["
     elementType.pretty(sb, indent, compact)
-    sb.append("]")
+    sb += ']'
   }
 
   def printDebug(cb: EmitCodeBuilder, addr: Value[Long]): Unit = {

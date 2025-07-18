@@ -8,6 +8,9 @@ import is.hail.utils.{FastSeq, Interval, IntervalEndpoint}
 import is.hail.variant.{Locus, ReferenceGenome}
 
 import org.apache.spark.sql.Row
+import org.scalatest
+import org.scalatest.Inspectors.forAll
+import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.testng.annotations.Test
 
 class ExtractIntervalFiltersSuite extends HailSuite { outer =>
@@ -57,7 +60,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     probes: IndexedSeq[Row],
     residualFilter: IR,
     trueIntervals: Seq[Interval],
-  ): Unit = {
+  ): scalatest.Assertion = {
     val result = ExtractIntervalFilters.extractPartitionFilters(
       ctx,
       filter,
@@ -66,7 +69,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
     if (result.isEmpty) {
       assert(trueIntervals == FastSeq(Interval(Row(), Row(), true, true)))
-      return
+      return scalatest.Succeeded
     }
     val (rw, intervals) = result.get
     assert(rw == residualFilter)
@@ -110,13 +113,13 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     trueResidual: IR = True(),
     falseResidual: IR = True(),
     naResidual: IR = True(),
-  ): Unit = {
+  ): scalatest.Assertion = {
     check(filter, rowRef, key, probes, trueResidual, trueIntervals)
     check(ApplyUnaryPrimOp(Bang, filter), rowRef, key, probes, falseResidual, falseIntervals)
     check(IsNA(filter), rowRef, key, probes, naResidual, naIntervals)
   }
 
-  @Test def testIsNA(): Unit = {
+  @Test def testIsNA(): scalatest.Assertion = {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, null, true),
@@ -132,14 +135,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testKeyComparison(): Unit = {
+  @Test def testKeyComparison(): scalatest.Assertion = {
     def check(
       op: ComparisonOp[Boolean],
       point: IR,
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, -1, true),
         Row(0, 0, true),
@@ -241,13 +244,13 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLiteralContains(): Unit = {
+  @Test def testLiteralContains(): scalatest.Assertion = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 1, true),
         Row(0, 5, true),
@@ -257,13 +260,13 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref1, k1Full, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    for {
-      lit <- Array(
+    forAll {
+      Array(
         Literal(TSet(TInt32), Set(null, 10, 1)),
         Literal(TArray(TInt32), FastSeq(10, 1, null)),
         Literal(TDict(TInt32, TString), Map(1 -> "foo", (null, "bar"), 10 -> "baz")),
       )
-    } {
+    } { lit =>
       check(
         invoke("contains", TBoolean, lit, k1),
         FastSeq(
@@ -280,13 +283,13 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    for {
-      lit <- Array(
+    forAll {
+      Array(
         Literal(TSet(TInt32), Set(10, 1)),
         Literal(TArray(TInt32), FastSeq(10, 1)),
         Literal(TDict(TInt32, TString), Map(1 -> "foo", 10 -> "baz")),
       )
-    } {
+    } { lit =>
       check(
         invoke("contains", TBoolean, lit, k1),
         FastSeq(
@@ -303,7 +306,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLiteralContainsStruct(): Unit = {
+  @Test def testLiteralContainsStruct(): scalatest.Assertion = {
     hc // force initialization
 
     def check(
@@ -311,7 +314,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 1, 2),
         Row(0, 3, 4),
@@ -332,8 +335,8 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    for {
-      lit <- Array(
+    forAll {
+      Array(
         Literal(TSet(structT1), Set(Row(1, 2), Row(3, 4), Row(3, null))),
         Literal(TArray(structT1), FastSeq(Row(3, 4), Row(1, 2), Row(3, null))),
         Literal(
@@ -341,8 +344,8 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
           Map(Row(1, 2) -> "foo", Row(3, 4) -> "bar", Row(3, null) -> "baz"),
         ),
       )
-    } {
-      for (k <- fullKeyRefs) {
+    } { lit =>
+      forAll(fullKeyRefs) { k =>
         check(
           invoke("contains", TBoolean, lit, k),
           IndexedSeq(
@@ -361,14 +364,14 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       }
     }
 
-    for {
-      lit <- Array(
+    forAll {
+      Array(
         Literal(TSet(structT2), Set(Row(1), Row(3), Row(null))),
         Literal(TArray(structT2), FastSeq(Row(3), Row(null), Row(1))),
         Literal(TDict(structT2, TString), Map(Row(1) -> "foo", Row(null) -> "baz", Row(3) -> "bar")),
       )
-    } {
-      for (k <- prefixKeyRefs) {
+    } { lit =>
+      forAll(prefixKeyRefs) { k =>
         check(
           invoke("contains", TBoolean, lit, k),
           IndexedSeq(
@@ -387,7 +390,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testIntervalContains(): Unit = {
+  @Test def testIntervalContains(): scalatest.Assertion = {
     val interval = Interval(1, 5, false, true)
     val testRows = FastSeq(
       Row(0, 0, true),
@@ -412,7 +415,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIntervalContainsStruct(): Unit = {
+  @Test def testIntervalContainsStruct(): scalatest.Assertion = {
     val fullInterval = Interval(Row(1, 1), Row(2, 2), false, true)
     val prefixInterval = Interval(Row(1), Row(2), false, true)
 
@@ -421,7 +424,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, null, 0),
         Row(0, 0, 0),
@@ -446,7 +449,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    for (k <- fullKeyRefs) {
+    forAll(fullKeyRefs) { k =>
       check(
         invoke("contains", TBoolean, Literal(TInterval(structT1), fullInterval), k),
         FastSeq(fullInterval),
@@ -458,7 +461,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    for (k <- prefixKeyRefs) {
+    forAll(prefixKeyRefs) { k =>
       check(
         invoke("contains", TBoolean, Literal(TInterval(structT2), prefixInterval), k),
         FastSeq(prefixInterval),
@@ -471,7 +474,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testLocusContigComparison(): Unit = {
+  @Test def testLocusContigComparison(): scalatest.Assertion = {
     hc // force initialization
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
@@ -504,7 +507,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     checkAll(not(ir1), ref, ref, testRows, falseIntervals, trueIntervals, naIntervals)
   }
 
-  @Test def testLocusPositionComparison(): Unit = {
+  @Test def testLocusPositionComparison(): scalatest.Assertion = {
     hc // force initialization
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
@@ -516,7 +519,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       truePosIntervals: IndexedSeq[Interval],
       falsePosIntervals: IndexedSeq[Interval],
       naPosIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val trueIntervals =
         ExtractIntervalFilters.liftPosIntervalsToLocus(truePosIntervals, grch38, ctx)
       val falseIntervals =
@@ -647,7 +650,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     ).isEmpty)
   }
 
-  @Test def testLocusContigContains(): Unit = {
+  @Test def testLocusContigContains(): scalatest.Assertion = {
     hc // force initialization
     val ref = Ref(freshName(), TStruct("x" -> TLocus(ReferenceGenome.GRCh38)))
     val k = GetField(ref, "x")
@@ -658,7 +661,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(Locus("chr1", 5)),
         Row(Locus("chr2", 1)),
@@ -668,8 +671,8 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       checkAll(node, ref, ref, testRows, trueIntervals, falseIntervals, naIntervals)
     }
 
-    for {
-      lit <- Array(
+    forAll {
+      Array(
         Literal(TSet(TString), Set("chr10", "chr1", null, "foo")),
         Literal(TArray(TString), FastSeq("foo", "chr10", null, "chr1")),
         Literal(
@@ -677,7 +680,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
           Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz", (null, "quux")),
         ),
       )
-    } {
+    } { lit =>
       check(
         invoke("contains", TBoolean, lit, contig),
         FastSeq(
@@ -719,13 +722,13 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       )
     }
 
-    for {
-      lit <- Array(
+    forAll {
+      Array(
         Literal(TSet(TString), Set("chr10", "chr1", "foo")),
         Literal(TArray(TString), FastSeq("foo", "chr10", "chr1")),
         Literal(TDict(TString, TString), Map("chr1" -> "foo", "chr10" -> "bar", "foo" -> "baz")),
       )
-    } {
+    } { lit =>
       check(
         invoke("contains", TBoolean, lit, contig),
         FastSeq(
@@ -767,7 +770,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     }
   }
 
-  @Test def testIntervalListFold(): Unit = {
+  @Test def testIntervalListFold(): scalatest.Assertion = {
     val inIntervals = FastSeq(
       Interval(0, 10, true, false),
       Interval(20, 25, true, false),
@@ -785,7 +788,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueIntervals: IndexedSeq[Interval],
       falseIntervals: IndexedSeq[Interval],
       naIntervals: IndexedSeq[Interval],
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, -15, true),
         Row(0, -10, true),
@@ -839,7 +842,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testDisjunction(): Unit = {
+  @Test def testDisjunction(): scalatest.Assertion = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -848,7 +851,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 0, false),
@@ -911,7 +914,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testConjunction(): Unit = {
+  @Test def testConjunction(): scalatest.Assertion = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -920,7 +923,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 0, false),
@@ -968,7 +971,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testCoalesce(): Unit = {
+  @Test def testCoalesce(): scalatest.Assertion = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -977,7 +980,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 5, true),
@@ -1004,7 +1007,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testIf(): Unit = {
+  @Test def testIf(): scalatest.Assertion = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1013,7 +1016,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 5, true),
@@ -1037,7 +1040,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testSwitch(): Unit = {
+  @Test def testSwitch(): scalatest.Assertion = {
     def check(
       node: IR,
       trueIntervals: IndexedSeq[Interval],
@@ -1046,7 +1049,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
       trueResidual: IR = True(),
       falseResidual: IR = True(),
       naResidual: IR = True(),
-    ): Unit = {
+    ): scalatest.Assertion = {
       val testRows = FastSeq(
         Row(0, 0, true),
         Row(0, 5, true),
@@ -1088,7 +1091,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     )
   }
 
-  @Test def testRelationalChildren(): Unit = {
+  @Test def testRelationalChildren(): scalatest.Assertion = {
     val testRows = FastSeq(
       Row(0, 0, true),
       Row(0, 10, true),
@@ -1105,7 +1108,7 @@ class ExtractIntervalFiltersSuite extends HailSuite { outer =>
     check(filter, ref1, k1Full, testRows, filter, FastSeq(Interval(Row(), Row(), true, true)))
   }
 
-  @Test def testIntegration(): Unit = {
+  @Test def testIntegration(): scalatest.Assertion = {
     hc // force initialization
     val tab1 = TableRange(10, 5)
 

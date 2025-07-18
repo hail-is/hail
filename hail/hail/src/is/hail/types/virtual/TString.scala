@@ -7,7 +7,7 @@ case object TString extends Type {
   def _toPretty = "String"
 
   override def pyString(sb: StringBuilder): Unit =
-    sb.append("str")
+    sb ++= "str"
 
   override def _showStr(a: Annotation): String = "\"" + a.asInstanceOf[String] + "\""
 

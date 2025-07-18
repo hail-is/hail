@@ -13,6 +13,8 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.scalacheck.Arbitrary._
 import org.scalacheck.Gen
+import org.scalatest
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.Test
 
@@ -20,7 +22,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
   def sm: HailStateManager = ctx.stateManager
 
-  @Test def testTypePretty(): Unit = {
+  @Test def testTypePretty(): scalatest.Assertion = {
     // for arbType
 
     val sb = new StringBuilder
@@ -43,14 +45,14 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     forAll { (t: Type) =>
       val s = t.parsableString()
       val parsed = IRParser.parseType(s)
-      t == parsed
+      assert(t == parsed)
     }
   }
 
-  @Test def testEscaping(): Unit =
-    forAll((s: String) => s == unescapeString(escapeString(s)))
+  @Test def testEscaping(): scalatest.Assertion =
+    forAll((s: String) => assert(s == unescapeString(escapeString(s))))
 
-  @Test def testEscapingSimple(): Unit = {
+  @Test def testEscapingSimple(): scalatest.Assertion = {
     // a == 0x61, _ = 0x5f
     assert(escapeStringSimple("abc", '_', _ => false) == "abc")
     assert(escapeStringSimple("abc", '_', _ == 'a') == "_61bc")
@@ -63,20 +65,20 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(unescapeStringSimple("my name is _u540d_u8c26", '_') == "my name is 名谦")
 
     forAll(Gen.asciiPrintableStr) { (s: String) =>
-      s == unescapeStringSimple(
+      assert(s == unescapeStringSimple(
         escapeStringSimple(s, '_', _.isLetterOrDigit, _.isLetterOrDigit),
         '_',
-      )
+      ))
     }
   }
 
-  @Test def testImportEmptyJSONObjectAsStruct(): Unit =
+  @Test def testImportEmptyJSONObjectAsStruct(): scalatest.Assertion =
     assert(JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()) == Row())
 
-  @Test def testExportEmptyJSONObjectAsStruct(): Unit =
+  @Test def testExportEmptyJSONObjectAsStruct(): scalatest.Assertion =
     assert(compact(render(JSONAnnotationImpex.exportAnnotation(Row(), TStruct()))) == "{}")
 
-  @Test def testRoundTripEmptyJSONObject(): Unit = {
+  @Test def testRoundTripEmptyJSONObject(): scalatest.Assertion = {
     val actual = JSONAnnotationImpex.exportAnnotation(
       JSONAnnotationImpex.importAnnotation(parse("{}"), TStruct()),
       TStruct(),
@@ -84,7 +86,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(compact(render(actual)) == "{}")
   }
 
-  @Test def testRoundTripEmptyStruct(): Unit = {
+  @Test def testRoundTripEmptyStruct(): scalatest.Assertion = {
     val actual = JSONAnnotationImpex.importAnnotation(
       JSONAnnotationImpex.exportAnnotation(Row(), TStruct()),
       TStruct(),
@@ -92,7 +94,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     assert(actual == Row())
   }
 
-  @Test def testImpexes(): Unit = {
+  @Test def testImpexes(): scalatest.Assertion = {
 
     val g = for {
       t <- arbitrary[Type]
@@ -100,16 +102,19 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     } yield (t, a)
 
     forAll(g) { case (t, a) =>
-      JSONAnnotationImpex.importAnnotation(JSONAnnotationImpex.exportAnnotation(a, t), t) == a
+      assert(JSONAnnotationImpex.importAnnotation(
+        JSONAnnotationImpex.exportAnnotation(a, t),
+        t,
+      ) == a)
     }
 
     forAll(g) { case (t, a) =>
       val string = compact(JSONAnnotationImpex.exportAnnotation(a, t))
-      JSONAnnotationImpex.importAnnotation(parse(string), t) == a
+      assert(JSONAnnotationImpex.importAnnotation(parse(string), t) == a)
     }
   }
 
-  @Test def testOrdering(): Unit = {
+  @Test def testOrdering(): scalatest.Assertion = {
     val intOrd = TInt32.ordering(ctx.stateManager)
 
     assert(intOrd.compare(-2, -2) == 0)
@@ -126,7 +131,7 @@ class ExprSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
     forAll(g) { case (t, a, b) =>
       val ord = t.ordering(ctx.stateManager)
-      ord.compare(a, b) == -ord.compare(b, a)
+      assert(ord.compare(a, b) == -ord.compare(b, a))
     }
   }
 }

@@ -20,6 +20,8 @@ import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalacheck.Arbitrary.arbitrary
 import org.scalacheck.Gen
+import org.scalatest
+import org.scalatestplus.scalacheck.CheckerAsserting.assertingNatureOfAssertion
 import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import org.testng.annotations.{DataProvider, Test}
 
@@ -64,7 +66,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
     fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, r)
   }
 
-  @Test def testMissingNonequalComparisons(): Unit = {
+  @Test def testMissingNonequalComparisons(): scalatest.Assertion = {
     def getStagedOrderingFunctionWithMissingness(
       t: PType,
       op: CodeOrdering.Op,
@@ -96,7 +98,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val eordME = t.mkOrdering(sm)
         val eordMNE = t.mkOrdering(sm, missingEqual = false)
 
-        def checkCompare(compResult: Int, expected: Int): Unit =
+        def checkCompare(compResult: Int, expected: Int): scalatest.Assertion =
           assert(
             java.lang.Integer.signum(compResult) == expected,
             s"compare expected: $expected vs $compResult\n  t=${t.parsableString()}\n  v=$a",
@@ -124,7 +126,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         checkCompare(eordMNE.compare(null, a), 1)
         checkCompare(eordMNE.compare(a, null), -1)
 
-        def check(result: Boolean, expected: Boolean): Unit =
+        def check(result: Boolean, expected: Boolean): scalatest.Assertion =
           assert(result == expected, s"t=${t.parsableString()}\n  v=$a")
 
         val fequivME = getStagedOrderingFunctionWithMissingness(pType, CodeOrdering.Equiv(), region)
@@ -229,13 +231,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         check(eordMNE.gteq(null, null), false)
         check(eordMNE.gteq(null, a), true)
         check(eordMNE.gteq(a, null), false)
-
-        true
       }
     }
   }
 
-  @Test def testRandomOpsAgainstExtended(): Unit =
+  @Test def testRandomOpsAgainstExtended(): scalatest.Assertion =
     forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
@@ -278,11 +278,9 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }
-
-      true
     }
 
-  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): Unit =
+  @Test def testReverseIsSwappedArgumentsOfExtendedOrdering(): scalatest.Assertion =
     forAll(genTypeNonMissingVal2) { case (t, a1, a2) =>
       pool.scopedRegion { region =>
         val pType = PType.canonical(t)
@@ -324,11 +322,9 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
 
         assert(fgteq(region, v1, v2) == gteq, s"gteq expected: $gteq")
       }
-
-      true
     }
 
-  @Test def testSortOnRandomArray(): Unit = {
+  @Test def testSortOnRandomArray(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     forAll(genTypeVal[TArray](ctx), arbitrary[Boolean]) {
@@ -339,11 +335,10 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           FastSeq(a -> tarray),
           expected = a.sorted((if (asc) ord else ord.reverse).toOrdering),
         )
-        true
     }
   }
 
-  @Test def testToSetOnRandomDuplicatedArray(): Unit = {
+  @Test def testToSetOnRandomDuplicatedArray(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     forAll(genTypeVal[TArray](ctx)) { case (tarray, a: IndexedSeq[Any]) =>
@@ -353,11 +348,10 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         FastSeq(array -> tarray),
         expected = array.sorted(tarray.elementType.ordering(sm).toOrdering).distinct,
       )
-      true
     }
   }
 
-  @Test def testToDictOnRandomDuplicatedArray(): Unit = {
+  @Test def testToDictOnRandomDuplicatedArray(): scalatest.Assertion = {
     implicit val execStrats: Set[ExecStrategy] =
       ExecStrategy.javaOnly
 
@@ -384,19 +378,19 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
             .sorted(telt.types(0).ordering(sm).toOrdering)
             .toFastSeq,
       )
-      true
     }
   }
 
-  @Test def testSortOnMissingArray(): Unit = {
+  @Test def testSortOnMissingArray(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
     val ts = TStream(TStruct("key" -> TInt32, "value" -> TInt32))
     val irs: Array[IR => IR] = Array(ArraySort(_, True()), ToSet(_), ToDict(_))
 
-    for (irF <- irs) assertEvalsTo(IsNA(irF(NA(ts))), true)
+    scalatest.Inspectors.forAll(irs)(irF => assertEvalsTo(IsNA(irF(NA(ts))), true))
+    scalatest.Succeeded
   }
 
-  @Test def testSetContainsOnRandomSet(): Unit = {
+  @Test def testSetContainsOnRandomSet(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
     val compareGen =
       for {
@@ -422,11 +416,10 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         FastSeq(set -> tset, test1 -> telt),
         expected = set.contains(test1),
       )
-      true
     }
   }
 
-  @Test def testDictGetOnRandomDict(): Unit = {
+  @Test def testDictGetOnRandomDict(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
 
     val compareGen =
@@ -444,7 +437,8 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         dict.getOrElse(testKey1, null),
       )
 
-      if (dict.nonEmpty) {
+      if (dict.isEmpty) scalatest.Succeeded
+      else {
         val testKey2 = dict.keys.toSeq.head
         assertEvalsTo(
           invoke("get", tdict.valueType, In(0, tdict), In(1, tdict.keyType)),
@@ -452,11 +446,10 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           expected = dict(testKey2),
         )
       }
-      true
     }
   }
 
-  @Test def testBinarySearchOnSet(): Unit = {
+  @Test def testBinarySearchOnSet(): scalatest.Assertion = {
     val compareGen =
       for {
         elt <- arbitrary[Type]
@@ -503,16 +496,18 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val f = fb.resultWithIndex()(theHailClassLoader, ctx.fs, ctx.taskContext, region)
         val closestI = f(region, soff, eoff)
 
-        set.contains(elem) ==> {
+        whenever(set.contains(elem)) {
           val maybeEqual = asArray(closestI)
-          (elem == maybeEqual) &&
-          (t.ordering(sm).compare(elem, maybeEqual) <= 0 || (closestI == set.size - 1))
+          assert(
+            (elem == maybeEqual) &&
+              (t.ordering(sm).compare(elem, maybeEqual) <= 0 || (closestI == set.size - 1))
+          )
         }
       }
     }
   }
 
-  @Test def testBinarySearchOnDict(): Unit = {
+  @Test def testBinarySearchOnDict(): scalatest.Assertion = {
     val compareGen =
       for {
         tdict <- arbitrary[TDict]
@@ -562,9 +557,11 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
         val closestI = f(region, soff, eoff)
 
         if (closestI == asArray.length) {
-          !dict.contains(key) ==> asArray.forall { keyI =>
-            val otherKey = keyI.asInstanceOf[Row].get(0)
-            pDict.keyType.virtualType.ordering(sm).compare(key, otherKey) > 0
+          whenever(!dict.contains(key)) {
+            scalatest.Inspectors.forAll(asArray) { keyI =>
+              val otherKey = keyI.asInstanceOf[Row].get(0)
+              assert(pDict.keyType.virtualType.ordering(sm).compare(key, otherKey) > 0)
+            }
           }
         } else {
           def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
@@ -582,15 +579,15 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
           /* FIXME: -0.0 and 0.0 count as the same in scala Map, but not off-heap Hail data
            * structures */
           val kord = tDict.keyType.ordering(sm)
-          (dict.contains(key) && dict.keysIterator.exists(
-            kord.compare(_, key) == 0
-          )) ==> (key == maybeEqual) && closestIIsClosest
+          whenever(dict.contains(key) && dict.keysIterator.exists(kord.compare(_, key) == 0)) {
+            assert((key == maybeEqual) && closestIIsClosest)
+          }
         }
       }
     }
   }
 
-  @Test def testContainsWithArrayFold(): Unit = {
+  @Test def testContainsWithArrayFold(): scalatest.Assertion = {
     implicit val execStrats = ExecStrategy.javaOnly
     val set1 = ToSet(MakeStream(IndexedSeq(I32(1), I32(4)), TStream(TInt32)))
     val set2 = ToSet(MakeStream(IndexedSeq(I32(9), I32(1), I32(4)), TStream(TInt32)))
@@ -629,7 +626,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def testOrderingArrayDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
-  ): Unit = {
+  ): scalatest.Assertion = {
     val t = TArray(TFloat64)
 
     val args = FastSeq(a -> t, a2 -> t)
@@ -649,7 +646,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def testOrderingSetDouble(
     a: IndexedSeq[Any],
     a2: IndexedSeq[Any],
-  ): Unit = {
+  ): scalatest.Assertion = {
     val t = TSet(TFloat64)
 
     val s = if (a != null) a.toSet else null
@@ -688,7 +685,7 @@ class OrderingSuite extends HailSuite with ScalaCheckDrivenPropertyChecks {
   def testOrderingRowDouble(
     r: Row,
     r2: Row,
-  ): Unit = {
+  ): scalatest.Assertion = {
     val t = TStruct("x" -> TFloat64, "s" -> TString)
 
     val args = FastSeq(r -> t, r2 -> t)

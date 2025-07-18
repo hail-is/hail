@@ -11,7 +11,7 @@ do
     new_pinned_no_comments=$(mktemp)
 
     uv pip compile \
-        --python-version 3.9.22 \
+        --python-version 3.10 \
         --python-platform linux \
         --quiet $reqs $pinned --output-file=$new_pinned
     # Get rid of comments that might differ despite requirements being the same

@@ -8,10 +8,11 @@ import is.hail.rvd.RVD
 import is.hail.types.virtual.{TInt32, TStruct, TableType}
 import is.hail.utils.FastSeq
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class PartitioningSuite extends HailSuite {
-  @Test def testShuffleOnEmptyRDD(): Unit = {
+  @Test def testShuffleOnEmptyRDD(): scalatest.Assertion = {
     val typ = TableType(TStruct("tidx" -> TInt32), FastSeq("tidx"), TStruct.empty)
     val t = TableLiteral(
       TableValue(
@@ -34,5 +35,6 @@ class PartitioningSuite extends HailSuite {
       optimize = false,
     )
       .rvd.count()
+    succeed
   }
 }

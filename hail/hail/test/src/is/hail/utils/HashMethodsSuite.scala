@@ -2,10 +2,11 @@ package is.hail.utils
 
 import is.hail.HailSuite
 
+import org.scalatest
 import org.testng.annotations.Test
 
 class HashMethodsSuite extends HailSuite {
-  @Test def testMultGF(): Unit = {
+  @Test def testMultGF(): scalatest.Assertion = {
     import PolyHash._
 
     // multGF should agree with the Mathematica function
