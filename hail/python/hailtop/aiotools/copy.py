@@ -170,9 +170,9 @@ async def main() -> None:
         # Add disk availability log before starting copy operations
         try:
             df_result = subprocess.run(['df', '-kh'], capture_output=True, text=True, check=True)
-            logging.info(f"=== Disk availability before copy operations ===")
+            logging.info("=== Disk availability before copy operations ===")
             logging.info(df_result.stdout)
-            logging.info(f"=== End disk availability ===")
+            logging.info("=== End disk availability ===")
         except subprocess.CalledProcessError as e:
             logging.error(f"Failed to get disk usage: {e}")
         except FileNotFoundError:
@@ -184,9 +184,9 @@ async def main() -> None:
     files = json.loads(args.files)
 
     if args.verbose:
-        logging.info(f"=== Files to copy ===")
+        logging.info("=== Files to copy ===")
         logging.info(files)
-        logging.info(f"=== End files to copy ===")
+        logging.info("=== End files to copy ===")
 
     timeout = args.timeout
     if timeout:
