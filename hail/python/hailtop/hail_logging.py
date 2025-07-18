@@ -76,7 +76,7 @@ class AccessLogger(AbstractAccessLogger):
         post_data = request._post or {}
         request_data.update(post_data)
 
-        extra.update({f'request_data_{k}': request_data[k] for k in request_data.keys()})
+        extra.update({f'request_data_{k}': request_data[k] for k in request_data.keys() if not k.startswith('_')})
 
         self.logger.info(
             f'{request.scheme} {request.method} {request.path} done in {time}s: {response.status}',
