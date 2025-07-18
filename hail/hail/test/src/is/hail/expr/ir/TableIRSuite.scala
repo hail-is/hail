@@ -952,7 +952,7 @@ class TableIRSuite extends HailSuite {
     val before = ExecuteRelational(ctx, table).asTableValue(ctx)
     val read = TableIR.read(fs, path, requestedType = Some(table.typ))
     assert(read.isDistinctlyKeyed)
-    val after = Interpret(read, ctx, false)
+    val after = unoptimized(Interpret(read, _))
     assert(before.globals.javaValue == after.globals.javaValue)
     assert(before.rdd.collect().toFastSeq == after.rdd.collect().toFastSeq)
   }

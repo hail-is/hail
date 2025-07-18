@@ -14,20 +14,19 @@ import is.hail.utils.FastSeq
 import org.apache.spark.sql.Row
 
 object CompileAndEvaluate {
-  def apply[T](ctx: ExecuteContext, ir0: IR, optimize: Boolean = true): T = {
+  def apply[T](ctx: ExecuteContext, ir0: IR): T =
     ctx.time {
-      _apply(ctx, ir0, optimize) match {
+      _apply(ctx, ir0) match {
         case Left(()) => ().asInstanceOf[T]
         case Right((t, off)) => SafeRow(t, off).getAs[T](0)
       }
     }
-  }
 
-  def evalToIR(ctx: ExecuteContext, ir0: IR, optimize: Boolean = true): IR = {
+  def evalToIR(ctx: ExecuteContext, ir0: IR): IR = {
     if (IsConstant(ir0))
       return ir0
 
-    _apply(ctx, ir0, optimize) match {
+    _apply(ctx, ir0) match {
       case Left(_) => Begin(FastSeq())
       case Right((pt, addr)) =>
         ir0.typ match {
@@ -39,13 +38,9 @@ object CompileAndEvaluate {
     }
   }
 
-  def _apply(
-    ctx: ExecuteContext,
-    ir0: IR,
-    optimize: Boolean = true,
-  ): Either[Unit, (PTuple, Long)] =
+  def _apply(ctx: ExecuteContext, ir0: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      val ir = LoweringPipeline.relationalLowerer(optimize)(ctx, ir0).asInstanceOf[IR]
+      val ir = LoweringPipeline.relationalLowerer(ctx, ir0).asInstanceOf[IR]
 
       ir.typ match {
         case TVoid =>
@@ -56,7 +51,6 @@ object CompileAndEvaluate {
             UnitInfo,
             ir,
             print = None,
-            optimize = optimize,
           )
 
           val unit: Unit = ctx.scopedExecution { (hcl, fs, htc, r) =>
@@ -75,7 +69,6 @@ object CompileAndEvaluate {
               LongInfo,
               MakeTuple.ordered(FastSeq(ir)),
               print = None,
-              optimize = optimize,
             )
 
           val res = ctx.scopedExecution { (hcl, fs, htc, r) =>

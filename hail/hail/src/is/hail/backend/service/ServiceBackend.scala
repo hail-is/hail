@@ -295,7 +295,7 @@ class ServiceBackend(
 
   private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir: IR): Either[Unit, (PTuple, Long)] =
     ctx.time {
-      val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All)(ctx, ir).asInstanceOf[IR]
+      val x = LoweringPipeline.darrayLowerer(DArrayLowering.All)(ctx, ir).asInstanceOf[IR]
 
       x.typ match {
         case TVoid =>
@@ -305,7 +305,6 @@ class ServiceBackend(
             FastSeq[TypeInfo[_]](classInfo[Region]),
             UnitInfo,
             x,
-            optimize = true,
           )
 
           Left(ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r)))
@@ -317,7 +316,6 @@ class ServiceBackend(
               FastSeq(classInfo[Region]),
               LongInfo,
               MakeTuple.ordered(FastSeq(x)),
-              optimize = true,
             )
 
           Right((pt, ctx.scopedExecution((hcl, fs, htc, r) => f(hcl, fs, htc, r)(r))))
