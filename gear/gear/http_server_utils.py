@@ -6,7 +6,11 @@ from aiohttp import web
 
 
 async def json_request(request: web.Request) -> Any:
-    return orjson.loads(await request.read())
+    result = orjson.loads(await request.read())
+    if 'request_data' not in request:
+        request['request_data'] = {}
+    request['request_data'].update(result)
+    return result
 
 
 def json_response(
