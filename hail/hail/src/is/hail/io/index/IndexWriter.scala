@@ -330,9 +330,7 @@ object StagedIndexWriter {
       )
     }
     cb.newEmitMethod("close", FastSeq[ParamType](), typeInfo[Unit])
-      .voidWithBuilder { cb =>
-        siw.writeMetadata(cb, siw.finalize(cb))
-      }
+      .voidWithBuilder(cb => siw.writeMetadata(cb, siw.finalize(cb)))
 
     cb.newEmitMethod("trackedOS", FastSeq[ParamType](), typeInfo[ByteTrackingOutputStream])
       .emitWithBuilder[ByteTrackingOutputStream] { _ =>
@@ -498,9 +496,8 @@ class StagedIndexWriter(
     StagedVariableIndexMetadata(height, off, elementIdx)
   }
 
-  def writeMetadata(cb: EmitCodeBuilder, imd: StagedVariableIndexMetadata): Unit = {
+  def writeMetadata(cb: EmitCodeBuilder, imd: StagedVariableIndexMetadata): Unit =
     utils.writeMetadata(cb, imd.height, imd.rootOffset, imd.nKeys)
-  }
 
   def init(cb: EmitCodeBuilder, path: Value[String], attributes: Value[Map[String, Any]]): Unit = {
     val metadata = Code.newInstance[StagedIndexMetadata, Int, Type, Type, Map[String, Any]](
