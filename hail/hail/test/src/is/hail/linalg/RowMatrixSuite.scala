@@ -1,7 +1,6 @@
 package is.hail.linalg
 
 import is.hail.HailSuite
-import is.hail.TestUtils.cartesian
 import is.hail.scalacheck._
 import is.hail.utils._
 

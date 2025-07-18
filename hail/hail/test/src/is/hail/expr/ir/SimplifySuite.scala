@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.{ExecStrategy, HailSuite}
-import is.hail.expr.ir.TestUtils.IRAggCount
-import is.hail.expr.ir.defs.{SelectFields, _}
+import is.hail.expr.ir.TestUtils._
+import is.hail.expr.ir.defs._
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
 import is.hail.variant.Locus
@@ -52,7 +52,6 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testTableMultiWayZipJoinGlobalsRewrite(): scalatest.Assertion = {
-    hc
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
       Array(TableRange(10, 10), TableRange(10, 10), TableRange(10, 10)),
       "rowField",
@@ -62,7 +61,6 @@ class SimplifySuite extends HailSuite {
   }
 
   @Test def testRepartitionableMapUpdatesForUpstreamOptimizations(): scalatest.Assertion = {
-    hc
     val range = TableKeyBy(TableRange(10, 3), FastSeq())
     val simplifiableIR =
       If(True(), GetField(Ref(TableIR.rowName, range.typ.rowType), "idx").ceq(0), False())

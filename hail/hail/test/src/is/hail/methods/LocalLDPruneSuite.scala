@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.{HailSuite, TestUtils}
+import is.hail.HailSuite
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
 import is.hail.utils._
@@ -115,7 +115,7 @@ class LocalLDPruneSuite extends HailSuite {
   val nCores = 4
 
   lazy val mt = Interpret(
-    TestUtils.importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
+    importVCF(ctx, getTestResource("sample.vcf.bgz"), nPartitions = Option(10)),
     ctx,
     false,
   ).toMatrixValue(Array("s"))

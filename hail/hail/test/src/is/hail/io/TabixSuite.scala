@@ -3,7 +3,6 @@ package is.hail.io
 import is.hail.HailSuite
 import is.hail.io.tabix._
 import is.hail.io.vcf.TabixVCF
-import is.hail.macros.void
 
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 import org.scalatest
@@ -11,7 +10,7 @@ import org.scalatest.Inspectors.forAll
 import org.scalatest.enablers.InspectorAsserting.assertingNatureOfAssertion
 import org.scalatest.matchers.must.Matchers.contain
 import org.scalatest.matchers.should.Matchers.convertToAnyShouldWrapper
-import org.testng.annotations.{BeforeTest, Test}
+import org.testng.annotations.Test
 
 class TabixSuite extends HailSuite {
   // use .gz for several tests and .bgz for another to test handling of both
@@ -21,9 +20,6 @@ class TabixSuite extends HailSuite {
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
   lazy val reader = new TabixReader(vcfGzFile, fs)
-
-  @BeforeTest def initialize(): Unit =
-    void(hc) // reference to initialize
 
   @Test def testLargeNumberOfSequences(): scalatest.Assertion = {
     val tbx = new TabixReader(null, fs, Some(getTestResource("large-tabix.tbi")))

@@ -3378,7 +3378,7 @@ class Emit[C](val ctx: EmitContext, val cb: EmitClassBuilder[C]) {
               Array[Array[Byte]],
             ](
               "collectDArray",
-              mb.getObject(ctx.executeContext.backendContext),
+              mb.getObject(ctx.executeContext.backend.backendContext(ctx.executeContext)),
               mb.getHailClassLoader,
               mb.getFS,
               functionID,
