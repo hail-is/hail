@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import sys
+import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from typing import AsyncContextManager, Dict, List, Optional, Tuple
 
@@ -166,10 +167,26 @@ async def main() -> None:
         logging.basicConfig()
         logging.root.setLevel(logging.INFO)
 
+        # Add disk availability log before starting copy operations
+        try:
+            df_result = subprocess.run(['df', '-kh'], capture_output=True, text=True, check=True)
+            logging.info(f"=== Disk availability before copy operations ===")
+            logging.info(df_result.stdout)
+            logging.info(f"=== End disk availability ===")
+        except subprocess.CalledProcessError as e:
+            logging.error(f"Failed to get disk usage: {e}")
+        except FileNotFoundError:
+            logging.error("df command not found")
+
     requester_pays_project = json.loads(args.requester_pays_project)
     if args.files is None or args.files == '-':
         args.files = sys.stdin.read()
     files = json.loads(args.files)
+
+    if args.verbose:
+        logging.info(f"=== Files to copy ===")
+        logging.info(files)
+        logging.info(f"=== End files to copy ===")
 
     timeout = args.timeout
     if timeout:
