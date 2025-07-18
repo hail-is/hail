@@ -77,7 +77,7 @@ class AccessLogger(AbstractAccessLogger):
         post_data = request._post or {}
         request_data.update(post_data)
 
-        extra.update({f'request_data_{k}': request_data[k] for k in request_data.keys()})
+        extra.update({f'request_data_{k}': request_data[k] for k in request_data.keys() if not k.startswith('_')})
 
         api_info_maybe = request.get('api_info', {})
         api_info_keys_and_defaults = {
