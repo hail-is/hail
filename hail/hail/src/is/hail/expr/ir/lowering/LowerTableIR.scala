@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.HailContext
 import is.hail.backend.ExecuteContext
 import is.hail.expr.ir.{agg, TableNativeWriter, _}
+import is.hail.expr.ir.analyses.RowCounts
 import is.hail.expr.ir.defs._
 import is.hail.expr.ir.defs.ArrayZipBehavior.AssertSameLength
 import is.hail.expr.ir.functions.{TableCalculateNewPartitions, WrappedMatrixToTableFunction}
@@ -824,16 +825,15 @@ object LowerTableIR {
         lower(child).collectWithGlobals("table_collect")
 
       case TableAggregate(child, query) =>
-        val aggs = agg.Extract(query, analyses.requirednessAnalysis, false)
-
-        def results: IR = ResultOp.makeTuple(aggs.aggs)
+        val aggs = agg.Extract(ctx, query, analyses.requirednessAnalysis, false)
+        val (initIR, seqIR, resultIR) = aggs.components
 
         val lc = lower(child)
 
         val initState = Let(
           FastSeq(TableIR.globalName -> lc.globals),
           RunAgg(
-            aggs.init,
+            initIR,
             MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
               AggStateValue(i, sig.state)
             }),
@@ -872,7 +872,7 @@ object LowerTableIR {
               RunAgg(
                 Begin(FastSeq(
                   initFromSerializedStates,
-                  StreamFor(part, TableIR.rowName, aggs.seqPerElt),
+                  StreamFor(part, TableIR.rowName, seqIR),
                 )),
                 WriteValue(
                   MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
@@ -972,8 +972,8 @@ object LowerTableIR {
               RunAgg(
                 combineGroup(finalParts, true),
                 Let(
-                  FastSeq(TableIR.globalName -> globals, aggs.resultRef.name -> results),
-                  aggs.postAggIR,
+                  FastSeq(TableIR.globalName -> globals),
+                  resultIR,
                 ),
                 aggs.states,
               )
@@ -986,7 +986,7 @@ object LowerTableIR {
               RunAgg(
                 Begin(FastSeq(
                   initFromSerializedStates,
-                  StreamFor(part, TableIR.rowName, aggs.seqPerElt),
+                  StreamFor(part, TableIR.rowName, seqIR),
                 )),
                 MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
                   AggStateValue(i, sig.state)
@@ -1006,7 +1006,7 @@ object LowerTableIR {
                     })
                   },
                 )),
-                Let(FastSeq(aggs.resultRef.name -> results), aggs.postAggIR),
+                resultIR,
                 aggs.states,
               ),
             )
@@ -1372,7 +1372,7 @@ object LowerTableIR {
             StreamLen(a)
 
         def partitionSizeArray(childContexts: Ref): IR = {
-          child.partitionCounts match {
+          RowCounts.partitionCounts(child) match {
             case Some(partCounts) =>
               var idx = 0
               var sumSoFar = 0L
@@ -1508,7 +1508,7 @@ object LowerTableIR {
         val loweredChild = lower(child)
 
         def partitionSizeArray(childContexts: Ref, totalNumPartitions: Ref): IR = {
-          child.partitionCounts match {
+          RowCounts.partitionCounts(child) match {
             case Some(partCounts) =>
               var idx = partCounts.length - 1
               var sumSoFar = 0L
@@ -1662,11 +1662,11 @@ object LowerTableIR {
             )
           }
         } else {
-          val aggs = agg.Extract(newRow, analyses.requirednessAnalysis, isScan = true)
+          val aggs = agg.Extract(ctx, newRow, analyses.requirednessAnalysis, isScan = true)
+          val (initIR, seqIR, resultIR) = aggs.components
 
-          val results: IR = ResultOp.makeTuple(aggs.aggs)
           val initState = RunAgg(
-            Let(FastSeq(TableIR.globalName -> lc.globals), aggs.init),
+            Let(FastSeq(TableIR.globalName -> lc.globals), initIR),
             MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
               AggStateValue(i, sig.state)
             }),
@@ -1700,7 +1700,7 @@ object LowerTableIR {
                   RunAgg(
                     Begin(FastSeq(
                       initFromSerializedStates,
-                      StreamFor(part, TableIR.rowName, aggs.seqPerElt),
+                      StreamFor(part, TableIR.rowName, seqIR),
                     )),
                     WriteValue(
                       MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
@@ -1938,7 +1938,7 @@ object LowerTableIR {
                     RunAgg(
                       Begin(FastSeq(
                         initFromSerializedStates,
-                        StreamFor(part, TableIR.rowName, aggs.seqPerElt),
+                        StreamFor(part, TableIR.rowName, seqIR),
                       )),
                       MakeTuple.ordered(aggs.aggs.zipWithIndex.map { case (sig, i) =>
                         AggStateValue(i, sig.state)
@@ -2010,8 +2010,8 @@ object LowerTableIR {
                         Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
                           InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
                         }),
-                        aggs.seqPerElt,
-                        Let(FastSeq(aggs.resultRef.name -> results), aggs.postAggIR),
+                        seqIR,
+                        resultIR,
                         aggs.states,
                       ),
                     )
